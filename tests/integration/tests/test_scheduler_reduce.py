@@ -192,10 +192,10 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert read_table('//tmp/out') == \
             [
                 {'key': "0", 'value': "1"},
-                {'key': "2", 'value': "9"},
                 {'key': "2", 'value': "6"},
                 {'key': "2", 'value': "7"},
-                {'key': "2", 'value': "8"}
+                {'key': "2", 'value': "8"},
+                {'key': "2", 'value': "9"}
             ]
 
         assert get('//tmp/out/@sorted')
@@ -269,7 +269,7 @@ echo {v = 2} >&7
         assert read_table(output_tables[0]) == [{'v': 0}]
         assert read_table(output_tables[1]) == [{'v': 1}]
         assert read_table(output_tables[2]) == [{'v': 2}]
-
+        
     def test_job_count(self):
         create('table', '//tmp/in', attributes={"compression_codec": "none"})
         create('table', '//tmp/out')
@@ -282,8 +282,7 @@ echo {v = 2} >&7
             '//tmp/in',
             [ {'key': "%.010d" % num} for num in xrange(count) ],
             sorted_by = ['key'],
-            table_writer = {"index_rate": 0.001}
-            )
+            table_writer = {"block_size": 1024})
 
         reduce(
             in_ = '//tmp/in',

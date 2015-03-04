@@ -145,7 +145,7 @@ private:
     
     TParallelAwaiterPtr Awaiter;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void SendPing(TPeerId peerId)
@@ -342,7 +342,7 @@ private:
     TParallelAwaiterPtr Awaiter;
     TStatusTable StatusTable;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void ProcessVote(TPeerId id, const TStatus& status)
@@ -552,8 +552,7 @@ NRpc::IServicePtr TElectionManager::TImpl::GetRpcService()
 
 TYsonProducer TElectionManager::TImpl::GetMonitoringProducer()
 {
-    auto this_ = MakeStrong(this);
-    return BIND([this, this_] (IYsonConsumer* consumer) {
+    return BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
         auto epochContext = EpochContext;
         BuildYsonFluently(consumer)
             .BeginMap()

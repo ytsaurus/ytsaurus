@@ -37,6 +37,20 @@ void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consum
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TTabletPerformanceCounters& counters, NYson::IYsonConsumer* consumer)
+{
+    #define XX(name, Name) \
+        .Item(#name "_count").Value(counters.Name.Count) \
+        .Item(#name "_rate").Value(counters.Name.Rate)
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+        .EndMap();
+    #undef XX
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTablet::TTablet(const TTabletId& id)
     : TNonversionedObjectBase(id)
     , Index_(-1)

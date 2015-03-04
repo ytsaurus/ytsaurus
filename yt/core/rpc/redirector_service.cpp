@@ -93,6 +93,16 @@ public:
         YUNREACHABLE();
     }
 
+    virtual bool GetRetry() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void SetRetry(bool /*value*/) override
+    {
+        YUNREACHABLE();
+    }
+
 private:
     const std::unique_ptr<TRequestHeader> Header_;
     const TSharedRefArray Message_;

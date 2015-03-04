@@ -8,6 +8,8 @@
 #include "schema.h"
 #include "schemaful_reader.h"
 #include "unversioned_row.h"
+#include "schemaless_chunk_reader.h"
+#include "schemaful_reader_adapter.h"
 
 #include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/chunk_spec.h>
@@ -100,7 +102,7 @@ private:
 
     TAsyncStreamState State;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     // ToDo (psushin): refactor it.
     TFuture<void> Open(
@@ -165,14 +167,15 @@ TFuture<void> TChunkReader::Open(
 
 void TChunkReader::DoOpen()
 {
-    std::vector<int> tags;
-    tags.push_back(TProtoExtensionTag<NProto::TTableSchemaExt>::Value);
-    tags.push_back(TProtoExtensionTag<NProto::TBlockMetaExt>::Value);
-    tags.push_back(TProtoExtensionTag<NProto::TNameTableExt>::Value);
-    tags.push_back(TProtoExtensionTag<TMiscExt>::Value);
+    std::vector<int> extensionTags = {
+        TProtoExtensionTag<NProto::TTableSchemaExt>::Value,
+        TProtoExtensionTag<NProto::TBlockMetaExt>::Value,
+        TProtoExtensionTag<NProto::TNameTableExt>::Value,
+        TProtoExtensionTag<TMiscExt>::Value
+    };
 
     LOG_INFO("Requesting chunk meta");
-    auto metaOrError = WaitFor(ChunkReader->GetMeta(Null, &tags));
+    auto metaOrError = WaitFor(ChunkReader->GetMeta(Null, extensionTags));
     if (!metaOrError.IsOK()) {
         State.Fail(metaOrError);
         return;
@@ -368,7 +371,7 @@ public:
     virtual TFuture<void> GetReadyEvent() override;
 
 private:
-    struct TTableChunkReaderAdaptorMemoryPoolTag { };
+    struct TTableChunkReaderAdapterMemoryPoolTag { };
 
     TTableChunkReaderPtr UnderlyingReader_;
     TTableSchema Schema_;
@@ -381,7 +384,7 @@ private:
 TTableChunkReaderAdapter::TTableChunkReaderAdapter(
     TTableChunkReaderPtr underlyingReader)
     : UnderlyingReader_(underlyingReader)
-    , MemoryPool_(TTableChunkReaderAdaptorMemoryPoolTag())
+    , MemoryPool_(TTableChunkReaderAdapterMemoryPoolTag())
 { }
 
 TFuture<void> TTableChunkReaderAdapter::Open(const TTableSchema& schema)
@@ -539,6 +542,23 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                 New<TChunkReaderOptions>());
 
             return New<TTableChunkReaderAdapter>(std::move(tableChunkReader));
+        }
+
+        case ETableChunkFormat::SchemalessHorizontal: {
+            auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
+                return CreateSchemalessChunkReader(
+                    std::move(config),
+                    std::move(chunkReader),
+                    std::move(nameTable),
+                    std::move(uncompressedBlockCache),
+                    TKeyColumns(),
+                    chunkMeta,
+                    lowerLimit,
+                    upperLimit,
+                    columnFilter);
+            };
+
+            return CreateSchemafulReaderAdapter(createSchemalessReader);
         }
 
         case ETableChunkFormat::Schemaful:

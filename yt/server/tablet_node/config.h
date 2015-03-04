@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/config.h>
+
 #include <core/ytree/yson_serializable.h>
 
 #include <core/compression/public.h>
@@ -117,12 +119,12 @@ public:
             .Default(10000000);
         RegisterParameter("max_memory_store_aligned_pool_size", MaxMemoryStoreAlignedPoolSize)
             .GreaterThan(0)
-            .Default((i64) 256 * 1024 * 1024);
+            .Default((i64) 1024 * 1024 * 1024);
         RegisterParameter("max_memory_store_unaligned_pool_size", MaxMemoryStoreUnalignedPoolSize)
             .GreaterThan(0)
-            .Default((i64) 256 * 1024 * 1024);
+            .Default((i64) 1024 * 1024 * 1024);
         RegisterParameter("memory_store_auto_flush_period", MemoryStoreAutoFlushPeriod)
-            .Default(TDuration::Minutes(5));
+            .Default(TDuration::Hours(1));
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
             .Default((i64) 256 * 1024 * 1024)
@@ -148,7 +150,7 @@ public:
             .Default(10)
             .GreaterThan(0);
         RegisterParameter("auto_partitioning_period", AutoPartitioningPeriod)
-            .Default(TDuration::Minutes(5));
+            .Default(TDuration::Hours(1));
 
         RegisterParameter("min_compaction_chunk_count", MinCompactionChunkCount)
             .Default(3)
@@ -274,6 +276,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TStoreFlusherConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TStoreCompactorConfig
     : public NYTree::TYsonSerializable
 {
@@ -297,6 +301,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TPartitionBalancerConfig
     : public NYTree::TYsonSerializable
@@ -347,6 +353,23 @@ DEFINE_REFCOUNTED_TYPE(TTabletChunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSecurityManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TExpiringCacheConfigPtr TablePermissionCache;
+
+    TSecurityManagerConfig()
+    {
+        RegisterParameter("table_permission_cache", TablePermissionCache)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -379,6 +402,7 @@ public:
     TStoreFlusherConfigPtr StoreFlusher;
     TStoreCompactorConfigPtr StoreCompactor;
     TPartitionBalancerConfigPtr PartitionBalancer;
+    TSecurityManagerConfigPtr SecurityManager;
 
     TTabletChunkReaderConfigPtr ChunkReader;
     NVersionedTableClient::TTableWriterConfigPtr ChunkWriter;
@@ -415,6 +439,8 @@ public:
         RegisterParameter("store_compactor", StoreCompactor)
             .DefaultNew();
         RegisterParameter("partition_balancer", PartitionBalancer)
+            .DefaultNew();
+        RegisterParameter("security_manager", SecurityManager)
             .DefaultNew();
 
         RegisterParameter("chunk_reader", ChunkReader)

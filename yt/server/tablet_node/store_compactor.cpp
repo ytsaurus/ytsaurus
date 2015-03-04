@@ -295,7 +295,7 @@ private:
         auto* tablet = eden->GetTablet();
         auto slot = tablet->GetSlot();
         auto tabletManager = slot->GetTabletManager();
-        auto tabletId = tablet->GetId();
+        auto tabletId = tablet->GetTabletId();
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
@@ -304,7 +304,7 @@ private:
 
         YCHECK(tabletPivotKey == pivotKeys[0]);
 
-        NLog::TLogger Logger(TabletNodeLogger);
+        NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v", tabletId);
 
         auto automatonInvoker = GetCurrentInvoker();
@@ -506,18 +506,26 @@ private:
             tablet->SetLastPartitioningTime(TInstant::Now());
 
             CreateMutation(slot->GetHydraManager(), hydraRequest)
-                ->Commit();
+                ->Commit()
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing tablet stores update mutation");
+                    }
+                }));
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error partitioning Eden, backing off");
-            automatonInvoker->Invoke(BIND([=] () {
-                for (auto store : stores) {
-                    YCHECK(store->GetState() == EStoreState::Compacting);
-                    tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
-                }
-            }));
+
+            SwitchTo(automatonInvoker);
+
+            for (auto store : stores) {
+                YCHECK(store->GetState() == EStoreState::Compacting);
+                tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
+            }
         }
+
+        SwitchTo(automatonInvoker);
 
         YCHECK(eden->GetState() == EPartitionState::Compacting);
         eden->SetState(EPartitionState::Normal);
@@ -534,14 +542,14 @@ private:
         auto* tablet = partition->GetTablet();
         auto slot = tablet->GetSlot();
         auto tabletManager = slot->GetTabletManager();
-        auto tabletId = tablet->GetId();
+        auto tabletId = tablet->GetTabletId();
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
 
-        NLog::TLogger Logger(TabletNodeLogger);
+        NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, PartitionRange: %v .. %v",
             tabletId,
             partition->GetPivotKey(),
@@ -560,7 +568,7 @@ private:
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 
-            LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v, CurentTimestamp: %v, MajorTimestamp: %v)",
+            LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v, MajorTimestamp: %v)",
                 dataSize,
                 stores.size(),
                 currentTimestamp,
@@ -658,18 +666,26 @@ private:
                 readRowCount);
 
             CreateMutation(slot->GetHydraManager(), hydraRequest)
-                ->Commit();
+                ->Commit()
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing tablet stores update mutation");
+                    }
+                }));
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error compacting partition, backing off");
-            automatonInvoker->Invoke(BIND([=] () {
-                for (auto store : stores) {
-                    YCHECK(store->GetState() == EStoreState::Compacting);
-                    tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
-                }
-            }));
+
+            SwitchTo(automatonInvoker);
+
+            for (auto store : stores) {
+                YCHECK(store->GetState() == EStoreState::Compacting);
+                tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
+            }
         }
+
+        SwitchTo(automatonInvoker);
 
         YCHECK(partition->GetState() == EPartitionState::Compacting);
         partition->SetState(EPartitionState::Normal);

@@ -3,6 +3,7 @@
 #include <util/generic/typetraits.h>
 
 #include <type_traits>
+#include <tuple>
 
 // See the following references for an inspiration:
 //   * http://llvm.org/viewvc/llvm-project/libcxx/trunk/include/type_traits?revision=HEAD&view=markup
@@ -360,6 +361,24 @@ struct TGenerateSequence<0, Indexes...>
 {
     typedef TSequence<Indexes...> TType;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+template <class R, unsigned... S, class... As, class F>
+R CallWithTupleImpl(TSequence<S...>, const F& f, const std::tuple<As...>& args)
+{
+    return f(std::get<S>(args)...);
+}
+
+} // namespace NDetail
+
+template <class R, class... As, class F>
+R CallWithTuple(const F& f, const std::tuple<As...>& args)
+{
+    return NDetail::CallWithTupleImpl<R>(typename TGenerateSequence<sizeof...(As)>::TType(), f, args);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

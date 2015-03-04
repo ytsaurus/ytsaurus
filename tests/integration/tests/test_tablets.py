@@ -184,6 +184,42 @@ class TestTablets(YTEnvSetup):
         actual = select("* from [//tmp/t]");
         self.assertItemsEqual(expected, actual);
 
+    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
+    def test_computed_column(self):
+        self._sync_create_cells(1, 1)
+        self._create_table_with_computed_column("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key1": 1, "value": 2}])
+        expected = [{"key1": 1, "key2": 103, "value": 2}]
+        actual = select_rows("* from [//tmp/t]");
+        self.assertItemsEqual(expected, actual);
+
+        insert_rows("//tmp/t", [{"key1": 2, "value": 2}])
+        expected = [{"key1": 1, "key2": 103, "value": 2}]
+        actual = lookup_rows("//tmp/t", [{"key1" : 1}]);
+        self.assertItemsEqual(expected, actual);
+        expected = [{"key1": 2, "key2": 203, "value": 2}]
+        actual = lookup_rows("//tmp/t", [{"key1": 2}]);
+        self.assertItemsEqual(expected, actual);
+
+        delete_rows("//tmp/t", [{"key1": 1}])
+        expected = [{"key1": 2, "key2": 203, "value": 2}]
+        actual = select_rows("* from [//tmp/t]");
+        self.assertItemsEqual(expected, actual);
+
+        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key1": 3, "key2": 3, "value": 3}])
+        with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key1": 2, "key2": 203}])
+        with pytest.raises(YtError): delete_rows("//tmp/t", [{"key1": 2, "key2": 203}])
+
+        expected = []
+        actual = lookup_rows("//tmp/t", [{"key1": 3}])
+        self.assertItemsEqual(expected, actual)
+
+        expected = [{"key1": 2, "key2": 203, "value": 2}]
+        actual = select_rows("* from [//tmp/t]");
+        self.assertItemsEqual(expected, actual);
+
     def test_no_copy(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t1")
@@ -205,3 +241,27 @@ class TestTablets(YTEnvSetup):
         self._sync_unmount_table("//tmp/t1")
 
         move("//tmp/t1", "//tmp/t2")
+
+    def test_any_value_type(self):
+        self._sync_create_cells(1, 1)
+        create("table", "//tmp/t1",
+            attributes = {
+                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "any"}],
+                "key_columns": ["key"]
+            })
+        self._sync_mount_table("//tmp/t1")
+
+        rows = [
+            {"key": 11, "value": 100},
+            {"key": 12, "value": False},
+            {"key": 13, "value": True},
+            {"key": 14, "value": 2**63 + 1 },
+            {"key": 15, "value": 'stroka'},
+            {"key": 16, "value": [1, {"attr": 3}, 4]},
+            {"key": 17, "value": {"numbers": [0,1,42]}}]
+
+        insert_rows("//tmp/t1", rows)
+        actual = select_rows("* from [//tmp/t1]")
+        self.assertItemsEqual(rows, actual)
+        actual = lookup_rows("//tmp/t1", [{"key": row["key"]} for row in rows])
+        self.assertItemsEqual(rows, actual)

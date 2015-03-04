@@ -1150,7 +1150,7 @@ void TCypressManager::SetAccessed(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (HydraManager->IsLeader() || HydraManager->IsFollower() && !HydraManager->IsMutating()) {
+    if (HydraManager_->IsLeader() || HydraManager_->IsFollower() && !HasMutationContext()) {
         AccessTracker->SetAccessed(trunkNode);
     }
 }
@@ -1371,20 +1371,13 @@ void TCypressManager::RegisterNode(TCypressNodeBase* node)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(node->IsTrunk());
 
-    const auto& nodeId = node->GetId();
-
-    auto objectManager = Bootstrap_->GetObjectManager();
-
-    auto* mutationContext = Bootstrap_
-        ->GetHydraFacade()
-        ->GetHydraManager()
-        ->GetMutationContext();
-
+    const auto* mutationContext = GetCurrentMutationContext();
     node->SetCreationTime(mutationContext->GetTimestamp());
     node->SetModificationTime(mutationContext->GetTimestamp());
     node->SetAccessTime(mutationContext->GetTimestamp());
     node->SetRevision(mutationContext->GetVersion().ToRevision());
 
+    const auto& nodeId = node->GetId();
     NodeMap.Insert(TVersionedNodeId(nodeId), node);
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Type: %v)",

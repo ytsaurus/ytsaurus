@@ -110,6 +110,23 @@ struct TFunctionExpression
 
 };
 
+struct TUnaryOpExpression
+    : public TExpression
+{
+    TUnaryOpExpression(
+        const TSourceLocation& sourceLocation,
+        EUnaryOp opcode,
+        const TExpressionPtr& operand)
+        : TExpression(sourceLocation)
+        , Opcode(opcode)
+        , Operand(operand)
+    { }
+
+    EUnaryOp Opcode;
+    TExpressionPtr Operand;
+
+};
+
 struct TBinaryOpExpression
     : public TExpression
 {

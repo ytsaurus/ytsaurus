@@ -91,7 +91,7 @@ private:
     yhash_set<TDynamicMemoryStorePtr> LockedStores_;
     std::multimap<TTimestamp, IStorePtr> MaxTimestampToStore_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     ui32 ComputeLockMask(TUnversionedRow row, ELockMode lockMode);

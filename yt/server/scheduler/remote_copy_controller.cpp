@@ -172,8 +172,8 @@ private:
             i64 result = 0;
 
             // Replication writer
-            result += Controller_->Spec_->JobIO->TableWriter->SendWindowSize +
-                Controller_->Spec_->JobIO->TableWriter->GroupSize;
+            result += Controller_->Spec_->JobIO->NewTableWriter->SendWindowSize +
+                Controller_->Spec_->JobIO->NewTableWriter->GroupSize;
 
             // Max block size
             i64 maxBlockSize = 0;
@@ -302,7 +302,7 @@ private:
         TOperationControllerBase::CustomPrepare();
 
         if (InputTables.size() == 1) {
-            OutputTables[0].Options->KeyColumns = InputTables[0].KeyColumns;
+            OutputTables[0].KeyColumns = InputTables[0].KeyColumns;
         }
 
         LOG_INFO("Processing inputs");

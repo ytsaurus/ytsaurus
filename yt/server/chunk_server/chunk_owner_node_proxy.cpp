@@ -31,12 +31,13 @@ namespace NChunkServer {
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NCypressServer;
+using namespace NNodeTrackerServer;
+using namespace NObjectClient;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
-using namespace NNodeTrackerServer;
 using namespace NVersionedTableClient;
-using namespace NObjectClient;
+
 
 using NChunkClient::NProto::TReqFetch;
 using NChunkClient::NProto::TRspFetch;
@@ -163,12 +164,11 @@ private:
         Context_->Reply(error);
     }
 
-
-    virtual bool OnChunk(
+    bool OnChunk(
         TChunk* chunk,
         i64 rowIndex,
-        const TReadLimit& startLimit,
-        const TReadLimit& endLimit) override
+        const TReadLimit& lowerLimit,
+        const TReadLimit& upperLimit)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -248,11 +248,11 @@ private:
         }
 
         // Try to keep responses small -- avoid producing redundant limits.
-        if (!IsTrivial(startLimit)) {
-            ToProto(chunkSpec->mutable_lower_limit(), startLimit);
+        if (!IsTrivial(lowerLimit)) {
+            ToProto(chunkSpec->mutable_lower_limit(), lowerLimit);
         }
-        if (!IsTrivial(endLimit)) {
-            ToProto(chunkSpec->mutable_upper_limit(), endLimit);
+        if (!IsTrivial(upperLimit)) {
+            ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
         }
 
         return true;

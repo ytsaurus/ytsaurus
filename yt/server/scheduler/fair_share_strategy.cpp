@@ -977,12 +977,21 @@ public:
             }
         }
 
+        RootElement->BeginHeartbeat();
+
+        auto jobsBeforePreemption = context->StartedJobs().size();
+
         // Second-chance scheduling.
         // NB: Schedule at most one job.
         LOG_DEBUG("Scheduling new jobs with preemption");
-        if (context->CanStartMoreJobs()) {
+        while (context->CanStartMoreJobs()) {
             RootElement->PrescheduleJob(context->GetNode(), true);
-            RootElement->ScheduleJob(context, true);
+            if (!RootElement->ScheduleJob(context, true)) {
+                break;
+            }
+            if (context->StartedJobs().size() != jobsBeforePreemption) {
+                break;
+            }
         }
 
         // Reset discounts.
@@ -1002,38 +1011,47 @@ public:
                 return lhs->GetStartTime() > rhs->GetStartTime();
             });
 
-        auto checkPoolLimits = [&] (TJobPtr job) -> bool {
+        auto poolLimitsViolated = [&] (TJobPtr job) -> bool {
             auto operation = job->GetOperation();
             auto operationElement = GetOperationElement(operation);
             auto* pool = operationElement->GetPool();
             while (pool) {
                 if (!Dominates(pool->ResourceLimits(), pool->ResourceUsage())) {
-                    return false;
+                    return true;
                 }
                 pool = pool->GetParent();
             }
-            return true;
+            return false;
         };
 
-        auto checkAllLimits = [&] () -> bool {
-            if (!Dominates(node->ResourceLimits(), node->ResourceUsage())) {
-                return false;
-            }
-
+        auto anyPoolLimitsViolated = [&] () -> bool {
             for (const auto& job : context->StartedJobs()) {
-                if (!checkPoolLimits(job)) {
-                    return false;
+                if (poolLimitsViolated(job)) {
+                    return true;
                 }
             }
-
-            return true;
+            return false;
         };
 
-        for (const auto& job : preemptableJobs) {
-            if (checkAllLimits())
-                break;
+        bool nodeLimitsViolated = true;
+        bool poolsLimitsViolated = true;
 
-            context->PreemptJob(job);
+        for (const auto& job : preemptableJobs) {
+            // Update flags only if violation is not resolved yet to avoid costly computations.
+            if (nodeLimitsViolated) {
+                nodeLimitsViolated = !Dominates(node->ResourceLimits(), node->ResourceUsage());
+            }
+            if (!nodeLimitsViolated && poolsLimitsViolated) {
+                poolsLimitsViolated = anyPoolLimitsViolated();
+            }
+
+            if (!nodeLimitsViolated && !poolsLimitsViolated) {
+                break;
+            }
+
+            if (nodeLimitsViolated || (poolsLimitsViolated && poolLimitsViolated(job))) {
+                context->PreemptJob(job);
+            }
         }
 
         RootElement->EndHeartbeat();
@@ -1244,7 +1262,7 @@ private:
         if (!element)
             return;
 
-        NLog::TLogger Logger(SchedulerLogger);
+        NLogging::TLogger Logger(SchedulerLogger);
         Logger.AddTag("OperationId: %v", operation->GetId());
 
         try {

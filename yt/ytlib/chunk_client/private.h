@@ -9,7 +9,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLog::TLogger ChunkClientLogger;
+extern const NLogging::TLogger ChunkClientLogger;
 
 //! For heavy requests (e.g. PutBlocks).
 extern NRpc::IChannelFactoryPtr HeavyNodeChannelFactory;

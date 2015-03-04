@@ -27,7 +27,7 @@ struct IChunkReader
     //! Asynchronously obtains a meta, possibly filtered by #partitionTag and #extensionTags.
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag = Null,
-        const std::vector<int>* extensionTags = nullptr) = 0;
+        const TNullable<std::vector<int>>& extensionTags = Null) = 0;
 
     virtual TChunkId GetChunkId() const = 0;
 };

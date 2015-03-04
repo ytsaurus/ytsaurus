@@ -3,7 +3,6 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-
 ##################################################################
 
 class TestLocks(YTEnvSetup):
@@ -32,7 +31,6 @@ class TestLocks(YTEnvSetup):
 
     def test_lock_mode(self):
         tx = start_transaction()
-        
         set("//tmp/map", "{list=<attr=some>[1;2;3]}", is_raw=True, tx=tx)
 
         # check that lock is set on nested nodes
@@ -130,8 +128,8 @@ class TestLocks(YTEnvSetup):
 
         commit_transaction(tx1)
 
-        assert get("//tmp/a/@locks") == []
-        
+        assert get('//tmp/a/@locks') == []
+
     def test_lock_propagation2(self):
         set("//tmp/a", 1)
 
@@ -469,6 +467,17 @@ class TestLocks(YTEnvSetup):
 
         assert get("//tmp") == {}
 
+    def test_map_locks8(self):
+        tx = start_transaction()
+        lock("//tmp", mode="shared", tx=tx, child_key="a")
+
+        with pytest.raises(YtError):
+            set("//tmp/a", 1)
+
+        other_tx = start_transaction()
+        with pytest.raises(YtError):
+            lock("//tmp", mode="shared", tx=other_tx, child_key="a")
+
     def test_attr_locks1(self):
         tx = start_transaction()
         set("//tmp/@a", 1, tx = tx)
@@ -549,7 +558,18 @@ class TestLocks(YTEnvSetup):
 
         commit_transaction(tx)
         with pytest.raises(YtError): get("//tmp/@a")
- 
+
+    def test_attr_locks7(self):
+        tx = start_transaction()
+        lock("//tmp", mode="shared", tx=tx, attribute_key="a")
+
+        with pytest.raises(YtError):
+            set("//tmp/@a", 1)
+
+        other_tx = start_transaction()
+        with pytest.raises(YtError):
+            lock("//tmp", mode="shared", tx=other_tx, attribute_key="a")
+
     def test_nested_tx1(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)

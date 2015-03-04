@@ -812,7 +812,7 @@ private:
     //! Auxiliary data.
     //! Protects file resources.
     mutable std::mutex Mutex_;
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 };
 

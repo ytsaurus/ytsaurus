@@ -83,7 +83,7 @@ private:
     const IClientPtr MasterClient_;
     const std::vector<TTransactionId> PrerequisiteTransactionIds_;
 
-    NLog::TLogger Logger = HydraLogger;
+    NLogging::TLogger Logger = HydraLogger;
 
 
     IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)

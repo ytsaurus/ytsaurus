@@ -70,8 +70,8 @@ private:
     std::vector<NChunkClient::TChunkReplica> Replicas;
 
     NChunkClient::IChunkWriterPtr ChunkWriter;
-    TFileChunkWriterPtr Writer;
-    NLog::TLogger Logger;
+    IFileChunkWriterPtr Writer;
+    NLogging::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

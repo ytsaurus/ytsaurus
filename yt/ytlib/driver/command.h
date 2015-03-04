@@ -69,11 +69,14 @@ struct TMutatingRequest
     : public virtual TRequest
 {
     NRpc::TMutationId MutationId;
+    bool Retry;
 
     TMutatingRequest()
     {
         RegisterParameter("mutation_id", MutationId)
             .Default(NRpc::NullMutationId);
+        RegisterParameter("retry", Retry)
+            .Default(false);
     }
 };
 
@@ -160,7 +163,6 @@ protected:
     void Reply(const TError& error);
     void Reply(const NYTree::TYsonString& yson);
     void Reply();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -264,7 +266,6 @@ protected:
         options->TransactionId = this->Request_->TransactionId;
         options->PingAncestors = this->Request_->PingAncestors;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,37 +282,25 @@ class TMutatingCommandBase <
     : public virtual TTypedCommandBase<TRequest>
 {
 protected:
-    void GenerateMutationId(NRpc::IClientRequestPtr request)
-    {
-        NRpc::SetMutationId(request, this->GenerateMutationId());
-    }
-
     void SetMutatingOptions(NApi::TMutatingOptions* options)
     {
-        options->MutationId = this->GenerateMutationId();
-    }
+        options->MutationId = this->CurrentMutationId_;
+        ++(this->CurrentMutationId_).Parts32[0];
 
-    NRpc::TMutationId GenerateMutationId()
-    {
-        auto result = this->CurrentMutationId;
-        if (this->CurrentMutationId != NRpc::NullMutationId) {
-            ++(this->CurrentMutationId).Parts32[0];
-        }
-        return result;
+        options->Retry = this->Request_->Retry;
     }
 
 private:
-    NRpc::TMutationId CurrentMutationId;
+    NRpc::TMutationId CurrentMutationId_;
 
     virtual void Prepare() override
     {
         TTypedCommandBase<TRequest>::Prepare();
 
-        this->CurrentMutationId = this->Request_->MutationId == NRpc::NullMutationId
+        this->CurrentMutationId_ = this->Request_->MutationId == NRpc::NullMutationId
             ? NRpc::GenerateMutationId()
             : this->Request_->MutationId;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -332,7 +321,6 @@ protected:
     {
         options->ReadFrom = this->Request_->ReadFrom;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -354,7 +342,6 @@ protected:
         options->SuppressAccessTracking = this->Request_->SuppressAccessTracking;
         options->SuppressModificationTracking = this->Request_->SuppressModificationTracking;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

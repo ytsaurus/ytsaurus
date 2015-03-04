@@ -44,6 +44,8 @@
 #include <server/object_server/type_handler.h>
 #include <server/object_server/object_manager.h>
 
+#include <server/hydra/mutation_context.h>
+
 namespace NYT {
 namespace NObjectServer {
 
@@ -214,6 +216,8 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
         userName,
         permission);
 
+    auto objectManager = Bootstrap_->GetObjectManager();
+
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetUserByNameOrThrow(userName);
 
@@ -222,21 +226,20 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     response->set_action(static_cast<int>(result.Action));
     if (result.Object) {
         ToProto(response->mutable_object_id(), result.Object->GetId());
+        response->set_object_name(objectManager->GetHandler(result.Object)->GetName(result.Object));
     }
     if (result.Subject) {
-        response->set_subject(result.Subject->GetName());
+        ToProto(response->mutable_subject_id(), result.Subject->GetId());
+        response->set_subject_name(result.Subject->GetName());
     }
 
-    context->SetResponseInfo("Action: %v, Object: %v, Subject: %v",
-        permission,
-        result.Object ? ToString(result.Object->GetId()) : "<Null>",
-        result.Subject ? ToString(result.Subject->GetId()) : "<Null>");
+    context->SetResponseInfo("Action: %v", result.Action);
     context->Reply();
 }
 
 IYPathService::TResolveResult TObjectProxyBase::Resolve(const TYPath& path, IServiceContextPtr context)
 {
-    if (IsFollower() && !IsMutating() && IsLeaderReadRequired()) {
+    if (IsFollower() && IsLeaderReadRequired() && !NHydra::HasMutationContext()) {
         throw TLeaderFallbackException();
     }
     return TYPathServiceBase::Resolve(path, context);
@@ -249,9 +252,7 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
     // Validate that mutating requests are only being invoked inside mutations or recovery.
     const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
     auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    YCHECK(!ypathExt.mutating() ||
-           hydraManager->IsMutating() ||
-           hydraManager->IsRecovery());
+    YCHECK(!ypathExt.mutating() || NHydra::HasMutationContext());
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
@@ -277,7 +278,8 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
     tagIds.push_back(objectManager->GetTypeTagId(TypeFromId(objectId.ObjectId)));
     tagIds.push_back(objectManager->GetMethodTagId(context->GetMethod()));
     auto& Profiler = objectManager->GetProfiler();
-    PROFILE_TIMING ("/request_time", tagIds) {
+    static const auto profilingPath = TYPath("/verb_execute_time");
+    PROFILE_TIMING (profilingPath, tagIds) {
         TSupportsAttributes::Invoke(std::move(context));
     }
 }
@@ -767,8 +769,7 @@ TObjectBase* TObjectProxyBase::GetThisSchema()
 
 void TObjectProxyBase::DeclareMutating()
 {
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    YCHECK(hydraManager->IsMutating());
+    YCHECK(NHydra::HasMutationContext());
 }
 
 void TObjectProxyBase::DeclareNonMutating()
@@ -807,11 +808,6 @@ bool TObjectProxyBase::IsRecovery() const
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
 }
 
-bool TObjectProxyBase::IsMutating() const
-{
-    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutating();
-}
-
 bool TObjectProxyBase::IsLeader() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader();
@@ -832,7 +828,7 @@ bool TObjectProxyBase::IsLoggingEnabled() const
     return !IsRecovery();
 }
 
-NLog::TLogger TObjectProxyBase::CreateLogger() const
+NLogging::TLogger TObjectProxyBase::CreateLogger() const
 {
     return ObjectServerLogger;
 }

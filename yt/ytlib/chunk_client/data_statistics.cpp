@@ -46,6 +46,14 @@ TDataStatistics  operator -  (const TDataStatistics& lhs, const TDataStatistics&
     return result;
 }
 
+bool operator==  (const TDataStatistics& lhs, const TDataStatistics& rhs)
+{
+    return lhs.uncompressed_data_size() == rhs.compressed_data_size() &&
+        lhs.compressed_data_size() == rhs.compressed_data_size() &&
+        lhs.row_count() == rhs.row_count() &&
+        lhs.chunk_count() == rhs.chunk_count();
+}
+
 TDataStatistics GetZeroDataStatistics()
 {
     TDataStatistics dataStatistics;

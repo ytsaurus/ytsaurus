@@ -49,7 +49,7 @@ void TFoldingProfiler::Profile(const TConstQueryPtr& query)
             Fold(column.c_str());
         }
 
-        if (auto selfFilter = ExtractPredicateForColumnsSubset(query->Predicate, joinClause->SelfTableSchema)) {
+        if (auto selfFilter = ExtractPredicateForColumnSubset(query->Predicate, joinClause->SelfTableSchema)) {
             if (Binding_) {
                 Binding_->SelfJoinPredicate = selfFilter;
             }
@@ -103,6 +103,11 @@ void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
         for (const auto& argument : functionExpr->Arguments) {
             Profile(argument);
         }
+    } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
+        Fold(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
+        Fold(static_cast<int>(unaryOp->Opcode));
+
+        Profile(unaryOp->Operand);
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
         Fold(static_cast<int>(binaryOp->Opcode));
@@ -122,12 +127,16 @@ void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
     }
 }
 
-void TFoldingProfiler::Profile(const TTableSchema& tableSchema)
+void TFoldingProfiler::Profile(const TTableSchema& tableSchema, int keySize)
 {
     Fold(static_cast<int>(EFoldingObjectType::TableSchema));
-    for (const auto& column : tableSchema.Columns()) {
+    for (int index = 0; index < tableSchema.Columns().size() && index < keySize; ++index) {
+        const auto& column = tableSchema.Columns()[index];
         Fold(static_cast<ui16>(column.Type));
         Fold(column.Name.c_str());
+        if (column.Expression) {
+            Fold(column.Expression.Get().c_str());
+        }
     }
 }
 

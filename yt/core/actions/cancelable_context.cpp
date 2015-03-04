@@ -28,8 +28,7 @@ public:
         if (Context_->Canceled_)
             return;
 
-        auto this_ = MakeStrong(this);
-        return UnderlyingInvoker_->Invoke(BIND([this, this_, callback] {
+        return UnderlyingInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] {
             if (!Context_->Canceled_) {
                 TCurrentInvokerGuard guard(this_);
                 callback.Run();

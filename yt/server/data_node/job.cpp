@@ -77,18 +77,16 @@ public:
 public:
     TChunkJobBase(
         const TJobId& jobId,
-        TJobSpec&& jobSpec,
+        const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
         : JobId_(jobId)
+        , JobSpec_(jobSpec)
         , ResourceLimits_(resourceLimits)
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , Logger(DataNodeLogger)
     {
-        JobSpec_.Swap(&jobSpec);
-
         Logger.AddTag("JobId: %v", jobId);
     }
 
@@ -179,14 +177,19 @@ public:
         YUNREACHABLE();
     }
 
-protected:
-    TJobId JobId_;
-    TJobSpec JobSpec_;
-    TNodeResources ResourceLimits_;
-    TDataNodeConfigPtr Config_;
-    TBootstrap* Bootstrap_;
+    virtual std::vector<TChunkId> DumpInputContexts() const override
+    {
+        THROW_ERROR_EXCEPTION("Input context dumping is not supported");
+    }
 
-    NLog::TLogger Logger;
+protected:
+    const TJobId JobId_;
+    const TJobSpec JobSpec_;
+    TNodeResources ResourceLimits_;
+    const TDataNodeConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
+
+    NLogging::TLogger Logger = DataNodeLogger;
 
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
@@ -243,15 +246,6 @@ protected:
         DoSetFinished(EJobState::Aborted, error);
     }
 
-    void SetFinished(const TError& error)
-    {
-        if (error.IsOK()) {
-            SetCompleted();
-        } else {
-            SetFailed(error);
-        }
-    }
-
 private:
     void DoSetFinished(EJobState finalState, const TError& error)
     {
@@ -276,7 +270,7 @@ class TLocalChunkJobBase
 public:
     TLocalChunkJobBase(
         const TJobId& jobId,
-        TJobSpec&& jobSpec,
+        const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
@@ -311,7 +305,7 @@ class TChunkRemovalJob
 public:
     TChunkRemovalJob(
         const TJobId& jobId,
-        TJobSpec&& jobSpec,
+        const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
@@ -347,7 +341,7 @@ class TChunkReplicationJob
 public:
     TChunkReplicationJob(
         const TJobId& jobId,
-        TJobSpec&& jobSpec,
+        const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
@@ -361,14 +355,14 @@ public:
     { }
 
 private:
-    TReplicateChunkJobSpecExt ReplicateChunkJobSpecExt_;
+    const TReplicateChunkJobSpecExt ReplicateChunkJobSpecExt_;
 
 
     virtual void DoRun() override
     {
         auto metaOrError = WaitFor(Chunk_->GetMeta(0));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            metaOrError, 
+            metaOrError,
             "Error getting meta of chunk %v",
             ChunkId_);
 
@@ -392,7 +386,7 @@ private:
         {
             auto error = WaitFor(writer->Open());
             THROW_ERROR_EXCEPTION_IF_FAILED(
-                error, 
+                error,
                 "Error opening writer for chunk %v during replication",
                 ChunkId_);
         }
@@ -410,7 +404,7 @@ private:
                     blockCount - blockIndex,
                     FetchPriority));
             THROW_ERROR_EXCEPTION_IF_FAILED(
-                getResult, 
+                getResult,
                 "Error reading chunk %v during replication",
                 ChunkId_);
             const auto& blocks = getResult.Value();
@@ -423,7 +417,7 @@ private:
             if (!writeResult) {
                 auto error = WaitFor(writer->GetReadyEvent());
                 THROW_ERROR_EXCEPTION_IF_FAILED(
-                    error, 
+                    error,
                     "Error writing chunk %v during replication",
                     ChunkId_);
             }
@@ -472,7 +466,7 @@ class TChunkRepairJob
 public:
     TChunkRepairJob(
         const TJobId& jobId,
-        TJobSpec&& jobSpec,
+        const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
@@ -594,7 +588,7 @@ public:
     { }
 
 private:
-    TSealChunkJobSpecExt SealJobSpecExt_;
+    const TSealChunkJobSpecExt SealJobSpecExt_;
 
 
     virtual void DoRun() override

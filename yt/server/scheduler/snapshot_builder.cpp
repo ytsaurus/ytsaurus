@@ -136,7 +136,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
     auto operation = job.Operation;
 
 
-    NLog::TLogger Logger(this->Logger);
+    NLogging::TLogger Logger(this->Logger);
     Logger.AddTag("OperationId: %v",
         job.Operation->GetId());
 

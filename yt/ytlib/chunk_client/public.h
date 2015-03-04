@@ -102,6 +102,7 @@ DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderOptions)
 DECLARE_REFCOUNTED_CLASS(TSequentialReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TReplicationWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TErasureWriterConfig)
@@ -115,6 +116,9 @@ DECLARE_REFCOUNTED_CLASS(TSequentialReader)
 DECLARE_REFCOUNTED_STRUCT(IChunkReader)
 DECLARE_REFCOUNTED_STRUCT(IChunkWriter)
 
+DECLARE_REFCOUNTED_STRUCT(IChunkReaderBase)
+DECLARE_REFCOUNTED_STRUCT(IMultiChunkReader)
+
 DECLARE_REFCOUNTED_STRUCT(IChunkWriterBase)
 DECLARE_REFCOUNTED_STRUCT(IMultiChunkWriter)
 
@@ -124,15 +128,6 @@ DECLARE_REFCOUNTED_CLASS(TFileReader)
 DECLARE_REFCOUNTED_CLASS(TFileWriter)
 
 DECLARE_REFCOUNTED_CLASS(TMemoryWriter)
-
-template <class TChunkReader>
-class TOldMultiChunkSequentialReader;
-
-template <class TChunkWriter>
-class TOldMultiChunkSequentialWriter;
-
-template <class TChunkReader>
-class TOldMultiChunkParallelReader;
 
 DECLARE_REFCOUNTED_CLASS(TRefCountedChunkSpec)
 DECLARE_REFCOUNTED_CLASS(TChunkSlice)

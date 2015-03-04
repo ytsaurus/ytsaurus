@@ -86,7 +86,7 @@ private:
     IClientPtr MasterClient_;
     std::vector<TTransactionId> PrerequisiteTransactionIds_;
 
-    NLog::TLogger Logger = HydraLogger;
+    NLogging::TLogger Logger = HydraLogger;
 
 
     class TReader
@@ -133,7 +133,7 @@ private:
         TSharedRef CurrentBlock_;
         size_t CurrentOffset_ = -1;
 
-        NLog::TLogger Logger = HydraLogger;
+        NLogging::TLogger Logger = HydraLogger;
 
 
         void DoOpen()
@@ -262,7 +262,7 @@ private:
         bool Opened_ = false;
         bool Closed_ = false;
 
-        NLog::TLogger Logger = HydraLogger;
+        NLogging::TLogger Logger = HydraLogger;
 
 
         void DoOpen()

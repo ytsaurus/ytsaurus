@@ -93,6 +93,18 @@ void GetStatistics(
     }
 }
 
+i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs)
+{
+    i64 result = 0;
+    for (const auto& chunkSpec : chunkSpecs) {
+        i64 dataSize;
+        i64 rowCount;
+        GetStatistics(chunkSpec, &dataSize, &rowCount);
+        result += rowCount;
+    }
+    return result;
+}
+
 TRefCountedChunkSpecPtr CreateCompleteChunk(TRefCountedChunkSpecPtr chunkSpec)
 {
     auto result = New<TRefCountedChunkSpec>(*chunkSpec);

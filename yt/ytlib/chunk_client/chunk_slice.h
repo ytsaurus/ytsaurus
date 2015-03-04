@@ -44,22 +44,31 @@ private:
     TRefCountedChunkSpecPtr ChunkSpec;
     int PartIndex;
 
-    TReadLimit StartLimit;
-    TReadLimit EndLimit;
+    TReadLimit LowerLimit;
+    TReadLimit UpperLimit;
     NProto::TSizeOverrideExt SizeOverrideExt;
 
     friend void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
 
     friend TChunkSlicePtr CreateChunkSlice(
         TRefCountedChunkSpecPtr chunkSpec,
-        const TNullable<NVersionedTableClient::TOwningKey>& startKey,
-        const TNullable<NVersionedTableClient::TOwningKey>& endKey);
+        const TNullable<NVersionedTableClient::TOwningKey>& lowerKey,
+        const TNullable<NVersionedTableClient::TOwningKey>& upperKey);
 
     // XXX(sandello): Do we really need codecId here?
     friend std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
         TRefCountedChunkSpecPtr chunkSpec,
         NErasure::ECodec codecId);
 
+    friend std::vector<TChunkSlicePtr> SliceOldChunkByKeys(
+        TRefCountedChunkSpecPtr chunkSpec, 
+        int keyColumnCount, 
+        i64 maxSliceSize);
+
+    friend std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
+        TRefCountedChunkSpecPtr chunkSpec, 
+        int keyColumnCount, 
+        i64 maxSliceSize);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkSlice)
@@ -77,6 +86,14 @@ TChunkSlicePtr CreateChunkSlice(
 std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
     TRefCountedChunkSpecPtr chunkSpec,
     NErasure::ECodec codecId);
+
+
+std::vector<TChunkSlicePtr> SliceChunkByKeys(
+    TRefCountedChunkSpecPtr chunkSpec, 
+    int keyColumnCount, 
+    i64 maxSliceSize);
+
+std::vector<TChunkSlicePtr> SliceChunkByRowIndexes(TRefCountedChunkSpecPtr chunkSpec, i64 maxSliceSize);
 
 void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
 

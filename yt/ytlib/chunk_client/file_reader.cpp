@@ -136,11 +136,9 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
     return data;
 }
 
-TChunkMeta TFileReader::GetMeta(const std::vector<int>* extensionTags /*= nullptr*/)
+TChunkMeta TFileReader::GetMeta(const TNullable<std::vector<int>>& extensionTags)
 {
-    return extensionTags
-        ? FilterChunkMetaByExtensionTags(Meta_, *extensionTags)
-        : Meta_;
+    return FilterChunkMetaByExtensionTags(Meta_, extensionTags);
 }
 
 i64 TFileReader::GetMetaSize() const
@@ -163,7 +161,7 @@ i64 TFileReader::GetFullSize() const
 
 TFuture<NProto::TChunkMeta> TFileReader::GetMeta(
     const TNullable<int>& partitionTag,
-    const std::vector<int>* extensionTags)
+    const TNullable<std::vector<int>>& extensionTags)
 {
     // Partition tag filtering not implemented here
     // because there is no practical need.

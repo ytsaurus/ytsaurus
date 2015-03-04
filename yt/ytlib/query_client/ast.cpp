@@ -18,6 +18,13 @@ TStringBuf TExpression::GetSource(const TStringBuf& source) const
 
 Stroka InferName(const TExpression* expr)
 {
+    auto canOmitParenthesis = [] (const TExpression* expr) {
+        return
+            expr->As<TLiteralExpression>() ||
+            expr->As<TReferenceExpression>() ||
+            expr->As<TFunctionExpression>();
+    };
+
     if (auto commaExpr = expr->As<TCommaExpression>()) {
         return InferName(commaExpr->Lhs.Get()) + ", " + InferName(commaExpr->Rhs.Get());
     } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
@@ -30,13 +37,13 @@ Stroka InferName(const TExpression* expr)
         result += InferName(functionExpr->Arguments.Get());
         result += ")";
         return result;
+    } else if (auto unaryExpr = expr->As<TUnaryOpExpression>()) {
+        auto rhsName = InferName(unaryExpr->Operand.Get());
+        if (!canOmitParenthesis(unaryExpr->Operand.Get())) {
+            rhsName = "(" + rhsName + ")";
+        }
+        return Stroka() + GetUnaryOpcodeLexeme(unaryExpr->Opcode) + " " + rhsName;
     } else if (auto binaryExpr = expr->As<TBinaryOpExpression>()) {
-        auto canOmitParenthesis = [] (const TExpression* expr) {
-            return 
-                expr->As<TLiteralExpression>() ||
-                expr->As<TReferenceExpression>() ||
-                expr->As<TFunctionExpression>();
-        };
         auto lhsName = InferName(binaryExpr->Lhs.Get());
         if (!canOmitParenthesis(binaryExpr->Lhs.Get())) {
             lhsName = "(" + lhsName + ")";

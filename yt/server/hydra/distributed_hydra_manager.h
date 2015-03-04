@@ -21,7 +21,8 @@ IHydraManagerPtr CreateDistributedHydraManager(
     NRpc::IServerPtr rpcServer,
     NElection::TCellManagerPtr cellManager,
     IChangelogStorePtr changelogStore,
-    ISnapshotStorePtr snapshotStore);
+    ISnapshotStorePtr snapshotStore,
+    NRpc::TResponseKeeperPtr responseKeeper = nullptr);
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -16,7 +16,7 @@
 #include <core/rpc/bus_server.h>
 #include <core/rpc/retrying_channel.h>
 #include <core/rpc/bus_channel.h>
-#include <core/rpc/transient_response_keeper.h>
+#include <core/rpc/response_keeper.h>
 
 #include <core/ytree/virtual.h>
 #include <core/ytree/ypath_client.h>
@@ -54,7 +54,9 @@
 #include <server/scheduler/scheduler.h>
 #include <server/scheduler/scheduler_service.h>
 #include <server/scheduler/job_tracker_service.h>
+#include <server/scheduler/job_prober_service.h>
 #include <server/scheduler/config.h>
+#include <server/scheduler/private.h>
 
 namespace NYT {
 namespace NCellScheduler {
@@ -76,7 +78,7 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NLog::TLogger Logger("Bootstrap");
+static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,7 +131,7 @@ void TBootstrap::DoRun()
     clientOptions.User = NSecurityClient::SchedulerUserName;
     MasterClient_ = connection->CreateClient(clientOptions);
 
-    BusServer_ = CreateTcpBusServer(New<TTcpBusServerConfig>(Config_->RpcPort));
+    BusServer_ = CreateTcpBusServer(TTcpBusServerConfig::CreateTcp(Config_->RpcPort));
 
     RpcServer_ = CreateBusServer(BusServer_);
 
@@ -141,8 +143,10 @@ void TBootstrap::DoRun()
 
     ChunkLocationThrottler_ = CreateLimitedThrottler(Config_->Scheduler->ChunkLocationThrottler);
 
-
-    ResponseKeeper_ = CreateTransientResponseKeeper(Config_->ResponseKeeper);
+    ResponseKeeper_ = New<TResponseKeeper>(
+        Config_->ResponseKeeper,
+        SchedulerLogger,
+        SchedulerProfiler);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -185,6 +189,7 @@ void TBootstrap::DoRun()
 
     RpcServer_->RegisterService(CreateSchedulerService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
+    RpcServer_->RegisterService(CreateJobProberService(this));
 
     LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
@@ -226,7 +231,7 @@ TClusterDirectoryPtr TBootstrap::GetClusterDirectory() const
     return ClusterDirectory_;
 }
 
-IResponseKeeperPtr TBootstrap::GetResponseKeeper() const
+TResponseKeeperPtr TBootstrap::GetResponseKeeper() const
 {
     return ResponseKeeper_;
 }

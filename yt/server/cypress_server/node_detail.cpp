@@ -118,11 +118,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     securityManager->ResetAccount(branchedNode);
 
     // Merge modification time.
-    auto* mutationContext = Bootstrap
-        ->GetHydraFacade()
-        ->GetHydraManager()
-        ->GetMutationContext();
-
+    const auto* mutationContext = NHydra::GetCurrentMutationContext();
     originatingNode->SetModificationTime(mutationContext->GetTimestamp());
     originatingNode->SetRevision(mutationContext->GetVersion().ToRevision());
 }

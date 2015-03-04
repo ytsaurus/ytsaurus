@@ -105,7 +105,7 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
     }
 
     try {
-        NLog::TLogManager::Get()->Configure(config->Logging);
+        NLogging::TLogManager::Get()->Configure(config->Logging);
         NTracing::TTraceManager::Get()->Configure(config->Tracing);
         NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
         TAddressResolver::Get()->Configure(config->AddressResolver);

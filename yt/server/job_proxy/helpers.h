@@ -4,7 +4,7 @@
 
 #include <ytlib/formats/format.h>
 
-#include <ytlib/table_client/public.h>
+#include <ytlib/new_table_client/public.h>
 
 #include <core/misc/blob_output.h>
 
@@ -18,7 +18,7 @@ class TContextPreservingInput
 {
 public:
     TContextPreservingInput(
-        NTableClient::ISyncReaderPtr reader, 
+        NVersionedTableClient::ISchemalessMultiChunkReaderPtr reader, 
         const NFormats::TFormat& format, 
         bool enableTableSwitch);
 
@@ -27,22 +27,25 @@ public:
     TBlob GetContext() const;
 
 private:
-    NTableClient::ISyncReaderPtr Reader_;
-
-    NFormats::TFormat Format_;
+    NVersionedTableClient::ISchemalessMultiChunkReaderPtr Reader_;
+    NVersionedTableClient::ISchemalessWriterPtr Writer_;
 
     bool EnableTableSwitch_;
+    int TableIndex_;
 
     TBlobOutput CurrentBuffer_;
     TBlobOutput PreviousBuffer_;
 
+    NYson::IYsonConsumer* Consumer_;
+
+
+    void WriteRows(
+        const std::vector<NVersionedTableClient::TUnversionedRow>& rows, 
+        TOutputStream* outputStream);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TContextPreservingInput);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void PipeInputToOutput(TInputStream* input, TOutputStream* output);
 
 ////////////////////////////////////////////////////////////////////////////////
 

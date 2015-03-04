@@ -77,15 +77,10 @@ public:
 
     void Invoke(IServiceContextPtr context) override
     {
-        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
-
-        // Prevent doing anything during recovery.
-        if (hydraManager->IsRecovery())
-            return;
-
-        // Prevent doing anything at followers during commit propagation.
-        if (hydraManager->IsMutating() && hydraManager->IsFollower())
-            return;
+        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        if (ypathExt.mutating()) {
+            THROW_ERROR_EXCEPTION("Orchid nodes are read-only");
+        }
 
         auto manifest = LoadManifest();
 
@@ -111,7 +106,7 @@ public:
         auto outerRequest = proxy.Execute();
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
-        LOG_DEBUG("Sending request to the remote Orchid (RemoteAddress: %v, Path: %v, Method: %v, RequestId: %v)",
+        LOG_DEBUG("Sending request to remote Orchid (RemoteAddress: %v, Path: %v, Method: %v, RequestId: %v)",
             manifest->RemoteAddress,
             path,
             method,
@@ -128,7 +123,7 @@ public:
             .Via(OrchidQueue->GetInvoker()));
     }
 
-    virtual NLog::TLogger GetLogger() const override
+    virtual NLogging::TLogger GetLogger() const override
     {
         return OrchidLogger;
     }
@@ -170,19 +165,17 @@ private:
         const TOrchidServiceProxy::TErrorOrRspExecutePtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
-            LOG_DEBUG("Orchid request succeded (RequestId: %v)",
-                context->GetRequestId());
+            LOG_DEBUG("Orchid request succeded");
             const auto& rsp = rspOrError.Value();
             auto innerResponseMessage = TSharedRefArray(rsp->Attachments());
             context->Reply(innerResponseMessage);
         } else {
-            LOG_DEBUG(rspOrError, "Orchid request failed (RequestId: %v)",
-                context->GetRequestId());
-            context->Reply(TError("Error executing an Orchid operation (Path: %v, Method: %v, RemoteAddress: %v, RemoteRoot: %v)",
-                path,
-                method,
-                manifest->RemoteAddress,
-                manifest->RemoteRoot)
+            LOG_DEBUG(rspOrError, "Orchid request failed");
+            context->Reply(TError("Error executing Orchid request")
+                << TErrorAttribute("path", path)
+                << TErrorAttribute("method", method)
+                << TErrorAttribute("remote_address", manifest->RemoteAddress)
+                << TErrorAttribute("remote_root", manifest->RemoteRoot)
                 << rspOrError);
         }
     }

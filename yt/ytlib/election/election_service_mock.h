@@ -19,7 +19,7 @@ public:
         : TServiceBase(
             defaultInvoker,
             TElectionServiceProxy::GetServiceName(),
-            NLog::TLogger())
+            NLogging::TLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));

@@ -320,7 +320,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.write_table(table, ["x=2\n", "x=2\ty=2\n"])
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(sum_y, table, table, reduce_by=["x"])
-        self.assertItemsEqual(["x=2\ty=3\n"], yt.read_table(table))
+        self.assertItemsEqual(["y=3\tx=2\n"], yt.read_table(table))
 
         yt.write_table(table, ["x=1\n", "y=2\n"])
         yt.run_map(change_field, table, table)

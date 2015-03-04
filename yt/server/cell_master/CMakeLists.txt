@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/world_initializer.cpp
   ${BASE}/master_hydra_service.cpp
   ${BASE}/serialize.cpp
+  ${BASE}/private.cpp
 )
 set( HDRS
   ${BASE}/bootstrap.h
@@ -18,6 +19,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/serialize-inl.h
   ${BASE}/serialize.h
+  ${BASE}/private.h
 )
 
 list(APPEND YT_SOURCE_FILES

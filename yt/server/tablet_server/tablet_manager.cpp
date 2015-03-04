@@ -87,6 +87,7 @@ using namespace NCellMaster;
 
 using NTabletNode::TTableMountConfigPtr;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
+using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -234,7 +235,9 @@ public:
         cell->SetSize(size);
         cell->SetOptions(ConvertTo<TTabletCellOptionsPtr>(attributes)); // may throw
         cell->Peers().resize(size);
-        
+
+        ReconfigureCell(cell);
+
         TabletCellMap_.Insert(id, cell_.release());
 
         // Make the fake reference.
@@ -293,8 +296,8 @@ public:
             if (peer.Node) {
                 peer.Node->DetachTabletCell(cell);
             }
-            if (peer.Address) {
-                RemoveFromAddressToCellMap(*peer.Address, cell);
+            if (peer.Descriptor) {
+                RemoveFromAddressToCellMap(*peer.Descriptor, cell);
             }
         }
 
@@ -455,6 +458,7 @@ public:
 
             TReqMountTablet req;           
             ToProto(req.mutable_tablet_id(), tablet->GetId());
+            ToProto(req.mutable_table_id(), table->GetId());
             ToProto(req.mutable_schema(), schema);
             ToProto(req.mutable_key_columns()->mutable_names(), table->KeyColumns());
             ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
@@ -772,8 +776,8 @@ private:
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             for (const auto& peer : cell->Peers()) {
-                if (peer.Address) {
-                    AddToAddressToCellMap(*peer.Address, cell);
+                if (peer.Descriptor) {
+                    AddToAddressToCellMap(*peer.Descriptor, cell);
                 }
             }
             auto* transaction = cell->GetPrerequisiteTransaction();
@@ -875,9 +879,9 @@ private:
                 cellId);
         };
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        auto hydraManager = hydraFacade->GetHydraManager();
-        auto* mutationContext = hydraManager->GetMutationContext();
+        const auto* mutationContext = GetCurrentMutationContext();
+        auto mutationTimestamp = mutationContext->GetTimestamp();
+
         const auto& address = node->GetAddress();
 
         // Our expectations.
@@ -951,7 +955,7 @@ private:
                     peerId);
             }
 
-            cell->UpdatePeerSeenTime(peerId, mutationContext->GetTimestamp());
+            cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
             YCHECK(actualCells.insert(cell).second);
 
             // Populate slot.
@@ -995,13 +999,29 @@ private:
             }
         }
 
-        // Copy tablet statistics.
+        // Copy tablet statistics, update performance counters.
+        auto now = TInstant::Now();
         for (auto& tabletInfo : request.tablets()) {
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
             auto* tablet = FindTablet(tabletId);
             if (!tablet || tablet->GetState() != ETabletState::Mounted)
                 continue;
+
             tablet->NodeStatistics() = tabletInfo.statistics();
+
+            auto updatePerformanceCounter = [&] (TTabletPerformanceCounter* counter, i64 curValue) {
+                i64 prevValue = counter->Count;
+                auto timeDelta = std::max(1.0, (now - tablet->PerformanceCounters().Timestamp).SecondsFloat());
+                counter->Rate = (std::max(curValue, prevValue) - prevValue) / timeDelta;
+                counter->Count = curValue;
+            };
+
+            #define XX(name, Name) updatePerformanceCounter( \
+                &tablet->PerformanceCounters().Name, \
+                tabletInfo.performance_counters().name ## _count());
+            ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+            #undef XX
+            tablet->PerformanceCounters().Timestamp = now;
         }
 
         // Request to remove orphaned Hive cells.
@@ -1054,14 +1074,14 @@ private:
     }
 
 
-    void AddToAddressToCellMap(const Stroka& address, TTabletCell* cell)
+    void AddToAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
     {
-        AddressToCell_.insert(std::make_pair(address, cell));
+        AddressToCell_.insert(std::make_pair(descriptor.GetDefaultAddress(), cell));
     }
 
-    void RemoveFromAddressToCellMap(const Stroka& address, TTabletCell* cell)
+    void RemoveFromAddressToCellMap(const TNodeDescriptor& descriptor, TTabletCell* cell)
     {
-        auto range = AddressToCell_.equal_range(address);
+        auto range = AddressToCell_.equal_range(descriptor.GetDefaultAddress());
         for (auto it = range.first; it != range.second; ++it) {
             if (it->second == cell) {
                 AddressToCell_.erase(it);
@@ -1080,34 +1100,27 @@ private:
         if (!IsObjectAlive(cell))
             return;
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        auto hydraManager = hydraFacade->GetHydraManager();
-        auto* mutationContext = hydraManager->GetMutationContext();
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        const auto* mutationContext = GetCurrentMutationContext();
+        auto mutationTimestamp = mutationContext->GetTimestamp();
 
         AbortPrerequisiteTransaction(cell);
 
-        YCHECK(request.node_ids_size() == cell->Peers().size());
-        for (TPeerId peerId = 0; peerId < request.node_ids_size(); ++peerId) {
-            auto nodeId = request.node_ids(peerId);
-            if (nodeId == InvalidNodeId)
-                continue;
-            
-            auto* node = nodeTracker->FindNode(nodeId);
-            if (!node)
+        YCHECK(request.peer_infos_size() == cell->Peers().size());
+        for (const auto& peerInfo : request.peer_infos()) {
+            auto peerId = peerInfo.peer_id();
+            auto descriptor = FromProto<TNodeDescriptor>(peerInfo.node_descriptor());
+
+            auto& peer = cell->Peers()[peerId];
+            if (peer.Descriptor)
                 continue;
 
-            if (cell->Peers()[peerId].Address)
-                continue;
-
-            const auto& address = node->GetAddress();
-            AddToAddressToCellMap(address, cell);
-            cell->AssignPeer(address, peerId);
-            cell->UpdatePeerSeenTime(peerId, mutationContext->GetTimestamp());
+            AddToAddressToCellMap(descriptor, cell);
+            cell->AssignPeer(descriptor, peerId);
+            cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
                 cellId,
-                address,
+                descriptor.GetDefaultAddress(),
                 peerId);
         }
 
@@ -1129,6 +1142,7 @@ private:
         }
 
         AbortPrerequisiteTransaction(cell);
+        ReconfigureCell(cell);
     }
 
     void HydraOnTabletMounted(const TRspMountTablet& response)
@@ -1328,9 +1342,8 @@ private:
         config->Addresses.clear();
         for (const auto& peer : cell->Peers()) {
             auto nodeTracker = Bootstrap_->GetNodeTracker();
-            if (peer.Address) {
-                auto node = nodeTracker->GetNodeByAddress(*peer.Address);
-                config->Addresses.push_back(node->GetDescriptor().GetInterconnectAddress());
+            if (peer.Descriptor) {
+                config->Addresses.push_back(peer.Descriptor->GetInterconnectAddress());
             } else {
                 config->Addresses.push_back(Null);
             }
@@ -1389,10 +1402,7 @@ private:
                 return lhs->GetId() < rhs->GetId();
             });
 
-        auto* mutationContext = Bootstrap_
-            ->GetHydraFacade()
-            ->GetHydraManager()
-            ->GetMutationContext();
+        auto* mutationContext = GetCurrentMutationContext();
 
         std::vector<TTabletCell*> cells;
         for (int index = 0; index < count; ++index) {
@@ -1411,7 +1421,7 @@ private:
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Prerequisite for cell %v", cell->GetId()));
         auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->FillAttributes(transaction, *attributes);
+        objectManager->FillCustomAttributes(transaction, *attributes);
 
         YCHECK(!cell->GetPrerequisiteTransaction());
         cell->SetPrerequisiteTransaction(transaction);
@@ -1459,17 +1469,19 @@ private:
     void DoRevokePeer(TTabletCell* cell, TPeerId peerId)
     {
         const auto& peer = cell->Peers()[peerId];
-        if (!peer.Address || peer.Node)
+        if (!peer.Descriptor)
             return;
 
-        const auto& address = *peer.Address;
-
+        const auto& descriptor = *peer.Descriptor;
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
             cell->GetId(),
-            address,
+            descriptor.GetDefaultAddress(),
             peerId);
 
-        RemoveFromAddressToCellMap(address, cell);
+        if (peer.Node) {
+            peer.Node->DetachTabletCell(cell);
+        }
+        RemoveFromAddressToCellMap(descriptor, cell);
         cell->RevokePeer(peerId);
     }
 
@@ -1479,6 +1491,8 @@ private:
         int firstTabletIndex,
         int lastTabletIndex)
     {
+        auto hiveManager = Bootstrap_->GetHiveManager();
+
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
             auto* cell = tablet->GetCell();
@@ -1492,8 +1506,7 @@ private:
 
                 tablet->SetState(ETabletState::Unmounting);
                 tablet->NodeStatistics().Clear();
-
-                auto hiveManager = Bootstrap_->GetHiveManager();
+                tablet->PerformanceCounters() = TTabletPerformanceCounters();
 
                 {
                     TReqUnmountTablet request;

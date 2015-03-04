@@ -99,19 +99,15 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/list") == ["very_first","first",200,1,777,100,"last"]
 
     def test_list_command(self):
-        def list(path, **kwargs):
-            kwargs["path"] = path
-            return yson.loads(command("list", kwargs))
-
         set("//tmp/map", {"a": 1, "b": 2, "c": 3})
-        assert list("//tmp/map") == ["a", "b", "c"]
+        assert ls("//tmp/map") == ["a", "b", "c"]
 
         set("//tmp/map", {"a": 1, "a": 2})
-        assert list("//tmp/map", max_size=1) == ["a"]
+        assert ls("//tmp/map", max_size=1) == ["a"]
 
-        list("//sys/chunks")
-        list("//sys/accounts")
-        list("//sys/transactions")
+        ls("//sys/chunks")
+        ls("//sys/accounts")
+        ls("//sys/transactions")
 
     def test_map(self):
         set("//tmp/map", {"hello": "world", "list":[0,"a",{}], "n": 1})

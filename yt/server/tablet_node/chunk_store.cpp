@@ -30,6 +30,8 @@
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <ytlib/transaction_client/helpers.h>
+
 #include <server/data_node/local_chunk_reader.h>
 #include <server/data_node/block_store.h>
 #include <server/data_node/chunk_registry.h>
@@ -53,6 +55,7 @@ using namespace NVersionedTableClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
+using namespace NTransactionClient;
 using namespace NDataNode;
 using namespace NCellNode;
 using namespace NQueryAgent;
@@ -61,8 +64,8 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDuration ChunkExpirationTimeout = TDuration::Seconds(15);
-static const TDuration ChunkReaderExpirationTimeout = TDuration::Seconds(15);
+static const auto ChunkExpirationTimeout = TDuration::Seconds(15);
+static const auto ChunkReaderExpirationTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,32 +82,26 @@ public:
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
-        auto this_ = MakeStrong(this);
         return UnderlyingReader_->ReadBlocks(blockIndexes).Apply(
-            BIND([=] (const TErrorOr<std::vector<TSharedRef>>& result) -> std::vector<TSharedRef> {
-                UNUSED(this_);
+            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TSharedRef>>& result) -> std::vector<TSharedRef> {
                 return CheckResult(result);
             }));
     }
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
     {
-        auto this_ = MakeStrong(this);
         return UnderlyingReader_->ReadBlocks(firstBlockIndex, blockCount).Apply(
-            BIND([=] (const TErrorOr<std::vector<TSharedRef>>& result) -> std::vector<TSharedRef> {
-                UNUSED(this_);
+            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TSharedRef>>& result) -> std::vector<TSharedRef> {
                 return CheckResult(result);
             }));
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
-        const TNullable<int>& partitionTag = Null,
-        const std::vector<int>* extensionTags = nullptr) override
+        const TNullable<int>& partitionTag,
+        const TNullable<std::vector<int>>& extensionTags) override
     {
-        auto this_ = MakeStrong(this);
         return UnderlyingReader_->GetMeta(partitionTag, extensionTags).Apply(
-            BIND([=] (const TErrorOr<TChunkMeta>& result) -> TChunkMeta {
-                UNUSED(this_);
+            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TChunkMeta>& result) -> TChunkMeta {
                 return CheckResult(result);
             }));
     }
@@ -115,8 +112,8 @@ public:
     }
 
 private:
-    IChunkReaderPtr UnderlyingReader_;
-    TChunkStorePtr Owner_;
+    const IChunkReaderPtr UnderlyingReader_;
+    const TChunkStorePtr Owner_;
 
 
     template <class T>
@@ -128,6 +125,69 @@ private:
         }
         return result.Value();
     }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkStore::TVersionedReaderWrapper
+    : public IVersionedReader
+{
+public:
+    TVersionedReaderWrapper(
+        IVersionedReaderPtr underlyingReader,
+        TTabletPerformanceCountersPtr performanceCounters)
+        : UnderlyingReader_(std::move(underlyingReader))
+        , PerformanceCounters_(std::move(performanceCounters))
+    { }
+
+    virtual TFuture<void> Open() override
+    {
+        return UnderlyingReader_->Open();
+    }
+
+    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    {
+        auto result = UnderlyingReader_->Read(rows);
+        if (result) {
+            PerformanceCounters_->StaticChunkRowReadCount += rows->size();
+        }
+        return result;
+    }
+
+    virtual TFuture <void> GetReadyEvent() override
+    {
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+private:
+    const IVersionedReaderPtr UnderlyingReader_;
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkStore::TVersionedLookuperWrapper
+    : public IVersionedLookuper
+{
+public:
+    TVersionedLookuperWrapper(
+        IVersionedLookuperPtr underlyingReader,
+        TTabletPerformanceCountersPtr performanceCounters)
+        : UnderlyingLookuper_(std::move(underlyingReader))
+        , PerformanceCounters_(std::move(performanceCounters))
+    { }
+
+    virtual TFutureHolder<TVersionedRow> Lookup(TKey key) override
+    {
+        ++PerformanceCounters_->StaticChunkRowLookupCount;
+        return UnderlyingLookuper_->Lookup(key);
+    }
+
+private:
+    const IVersionedLookuperPtr UnderlyingLookuper_;
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
 
 };
 
@@ -241,7 +301,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     TReadLimit upperLimit;
     upperLimit.SetKey(std::move(upperKey));
 
-    return CreateVersionedChunkReader(
+    auto versionedReader = CreateVersionedChunkReader(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
         Bootstrap_->GetUncompressedBlockCache(),
@@ -250,6 +310,8 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         upperLimit,
         columnFilter,
         timestamp);
+
+    return New<TVersionedReaderWrapper>(std::move(versionedReader), PerformanceCounters_);
 }
 
 IVersionedLookuperPtr TChunkStore::CreateLookuper(
@@ -267,13 +329,15 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
     auto chunkReader = PrepareChunkReader(chunk);
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
 
-    return CreateVersionedChunkLookuper(
+    auto versionedLookuper = CreateVersionedChunkLookuper(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
         Bootstrap_->GetUncompressedBlockCache(),
         std::move(cachedVersionedChunkMeta),
         columnFilter,
         timestamp);
+
+    return New<TVersionedLookuperWrapper>(std::move(versionedLookuper), PerformanceCounters_);
 }
 
 void TChunkStore::CheckRowLocks(
@@ -290,6 +354,8 @@ void TChunkStore::CheckRowLocks(
         "Checking for transaction conflicts against chunk stores is not supported; "
         "consider reducing transaction duration or increasing store retention time")
         << TErrorAttribute("transaction_id", transaction->GetId())
+        << TErrorAttribute("transaction_start_time", transaction->GetStartTime())
+        << TErrorAttribute("transaction_register_time", transaction->GetRegisterTime())
         << TErrorAttribute("tablet_id", TabletId_)
         << TErrorAttribute("store_id", StoreId_)
         << TErrorAttribute("key", key);
@@ -327,10 +393,6 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("compressed_data_size").Value(miscExt.compressed_data_size())
         .Item("uncompressed_data_size").Value(miscExt.uncompressed_data_size())
         .Item("key_count").Value(miscExt.row_count())
-        .Item("min_key").Value(MinKey_)
-        .Item("max_key").Value(MaxKey_)
-        .Item("min_timestamp").Value(MinTimestamp_)
-        .Item("max_timestamp").Value(MaxTimestamp_)
         .DoIf(backingStore, [&] (TFluentMap fluent) {
             fluent.Item("backing_store_id").Value(backingStore->GetId());
         });
@@ -363,10 +425,8 @@ IChunkPtr TChunkStore::PrepareChunk()
         Chunk_ = chunk;
     }
 
-    auto this_ = MakeStrong(this);
     TDelayedExecutor::Submit(
-        BIND([=] () {
-            UNUSED(this_);
+        BIND([=, this_ = MakeStrong(this)] () {
             TWriterGuard guard(ChunkLock_);
             ChunkInitialized_ = false;
             Chunk_.Reset();
@@ -425,9 +485,8 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
         ChunkReader_ = chunkReader;
     }
 
-    auto this_ = MakeStrong(this);
     TDelayedExecutor::Submit(
-        BIND([this, this_] () {
+        BIND([=, this_ = MakeStrong(this)] () {
             TWriterGuard guard(ChunkReaderLock_);
             ChunkReader_.Reset();
         }),

@@ -98,7 +98,7 @@ private:
     TPromise<TChangelogInfo> Promise;
     TChangelogInfo ChangelogInfo;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     bool AcquireLock()

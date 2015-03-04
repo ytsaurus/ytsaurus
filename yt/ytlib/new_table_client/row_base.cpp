@@ -17,6 +17,7 @@ void ValidateDataValueType(EValueType type)
         type != EValueType::Double &&
         type != EValueType::Boolean &&
         type != EValueType::String &&
+        type != EValueType::Any &&
         type != EValueType::Null)
     {
         THROW_ERROR_EXCEPTION("Invalid date value type %Qlv", type);
@@ -46,7 +47,8 @@ void ValidateSchemaValueType(EValueType type)
         type != EValueType::Uint64 &&
         type != EValueType::Double &&
         type != EValueType::Boolean &&
-        type != EValueType::String)
+        type != EValueType::String &&
+        type != EValueType::Any)
     {
         THROW_ERROR_EXCEPTION("Invalid schema value type %Qlv", type);
     }       

@@ -76,7 +76,7 @@ public:
 
     //! Returns a asynchronous flag that becomes set when all
     //! blocks are fetched.
-    TFuture<void> GetFetchingCompleteEvent();
+    TFuture<void> GetFetchingCompletedEvent();
 
 private:
     void FetchNextGroup();
@@ -120,7 +120,7 @@ private:
     TAsyncStreamState State_;
     NCompression::ICodec* Codec_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 

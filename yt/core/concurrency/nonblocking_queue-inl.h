@@ -14,12 +14,12 @@ void TNonblockingQueue<T>::Enqueue(TArg&& value)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     if (PromiseQueue_.empty()) {
-        ValueQueue_.push(std::forward<T>(value));
+        ValueQueue_.push(std::forward<TArg>(value));
     } else {
         auto promise = PromiseQueue_.front();
         PromiseQueue_.pop();
         guard.Release();
-        promise.Set(std::forward<T>(value));
+        promise.Set(std::forward<TArg>(value));
     }
 }
 

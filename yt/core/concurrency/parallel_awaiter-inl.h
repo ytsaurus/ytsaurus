@@ -108,9 +108,7 @@ inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
 
 inline void TParallelAwaiter::FireCompleted(TClosure onComplete)
 {
-    auto this_ = MakeStrong(this);
-    CancelableInvoker_->Invoke(BIND([=] () {
-        UNUSED(this_);
+    CancelableInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
         if (onComplete) {
             onComplete.Run();
         }

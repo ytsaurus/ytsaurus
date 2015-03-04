@@ -21,8 +21,8 @@ static const auto& Logger = RpcServerLogger;
 TServiceContextBase::TServiceContextBase(
     std::unique_ptr<TRequestHeader> header,
     TSharedRefArray requestMessage,
-    const NLog::TLogger& logger,
-    NLog::ELogLevel logLevel)
+    const NLogging::TLogger& logger,
+    NLogging::ELogLevel logLevel)
     : RequestHeader_(std::move(header))
     , RequestMessage_(std::move(requestMessage))
     , Logger(logger)
@@ -33,8 +33,8 @@ TServiceContextBase::TServiceContextBase(
 
 TServiceContextBase::TServiceContextBase(
     TSharedRefArray requestMessage,
-    const NLog::TLogger& logger,
-    NLog::ELogLevel logLevel)
+    const NLogging::TLogger& logger,
+    NLogging::ELogLevel logLevel)
     : RequestHeader_(new TRequestHeader())
     , RequestMessage_(std::move(requestMessage))
     , Logger(logger)
@@ -53,8 +53,6 @@ void TServiceContextBase::Initialize()
     RealmId_ = RequestHeader_->has_realm_id()
         ? FromProto<TRealmId>(RequestHeader_->realm_id())
         : NullRealmId;
-
-    Replied_ = false;
 
     YASSERT(RequestMessage_.Size() >= 2);
     RequestBody_ = RequestMessage_[1];
@@ -163,6 +161,15 @@ bool TServiceContextBase::IsReplied() const
     return Replied_;
 }
 
+void TServiceContextBase::SubscribeCanceled(const TClosure& /*callback*/)
+{ }
+
+void TServiceContextBase::UnsubscribeCanceled(const TClosure& /*callback*/)
+{ }
+
+void TServiceContextBase::Cancel()
+{ }
+
 const TError& TServiceContextBase::GetError() const
 {
     YASSERT(Replied_);
@@ -231,6 +238,11 @@ TNullable<TDuration> TServiceContextBase::GetTimeout() const
         : Null;
 }
 
+bool TServiceContextBase::IsRetry() const
+{
+    return RequestHeader_->retry();
+}
+
 i64 TServiceContextBase::GetPriority() const
 {
     return RequestHeader_->has_request_start_time()
@@ -279,7 +291,7 @@ void TServiceContextBase::SetRawResponseInfo(const Stroka& info)
     ResponseInfo_ = info;
 }
 
-NLog::TLogger& TServiceContextBase::GetLogger()
+NLogging::TLogger& TServiceContextBase::GetLogger()
 {
     return Logger;
 }
@@ -313,6 +325,11 @@ TNullable<TInstant> TServiceContextWrapper::GetRetryStartTime() const
 TNullable<TDuration> TServiceContextWrapper::GetTimeout() const
 {
     return UnderlyingContext_->GetTimeout();
+}
+
+bool TServiceContextWrapper::IsRetry() const
+{
+    return UnderlyingContext_->IsRetry();
 }
 
 i64 TServiceContextWrapper::GetPriority() const
@@ -354,6 +371,15 @@ void TServiceContextWrapper::Reply(TSharedRefArray responseMessage)
 {
     UnderlyingContext_->Reply(responseMessage);
 }
+
+void TServiceContextWrapper::SubscribeCanceled(const TClosure& /*callback*/)
+{ }
+
+void TServiceContextWrapper::UnsubscribeCanceled(const TClosure& /*callback*/)
+{ }
+
+void TServiceContextWrapper::Cancel()
+{ }
 
 TFuture<TSharedRefArray> TServiceContextWrapper::GetAsyncResponseMessage() const
 {
@@ -415,17 +441,12 @@ void TServiceContextWrapper::SetRawResponseInfo(const Stroka& info)
     UnderlyingContext_->SetRawResponseInfo(info);
 }
 
-NLog::TLogger& TServiceContextWrapper::GetLogger()
+NLogging::TLogger& TServiceContextWrapper::GetLogger()
 {
     return UnderlyingContext_->GetLogger();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TServerBase::TServerBase()
-{
-    Started_ = false;
-}
 
 void TServerBase::RegisterService(IServicePtr service)
 {

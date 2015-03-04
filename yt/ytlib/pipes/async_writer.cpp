@@ -35,10 +35,7 @@ public:
     explicit TAsyncWriterImpl(int fd)
         : FD_(fd)
     {
-        auto this_ = MakeStrong(this);
-        BIND([=] () {
-            UNUSED(this_);
-
+        BIND([=, this_ = MakeStrong(this)] () {
             FDWatcher_.set(FD_, ev::WRITE);
             FDWatcher_.set(TIODispatcher::Get()->Impl_->GetEventLoop());
             FDWatcher_.set<TAsyncWriterImpl, &TAsyncWriterImpl::OnWrite>(this);
@@ -64,16 +61,13 @@ public:
         YCHECK(length > 0);
 
         auto promise = NewPromise<void>();
-        auto this_ = MakeStrong(this);
-        BIND([=] () {
-            UNUSED(this_);
-
+        BIND([=, this_ = MakeStrong(this)] () {
             YCHECK(WriteResultPromise_.IsSet());
             WriteResultPromise_ = promise;
 
             switch (State_) {
                 case EWriterState::Aborted:
-                    WriteResultPromise_.Set(TError("Writer aborted")
+                    WriteResultPromise_.Set(TError(EErrorCode::Aborted, "Writer aborted")
                         << TErrorAttribute("fd", FD_));
                     return;
 
@@ -113,13 +107,9 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(WriteResultPromise_.IsSet());
 
-        auto this_ = MakeStrong(this);
-        return BIND([=] () {
-            UNUSED(this_);
-
-            if (State_ != EWriterState::Active) {
+        return BIND([=, this_ = MakeStrong(this)] () {
+            if (State_ != EWriterState::Active)
                 return;
-            }
 
             State_ = EWriterState::Closed;
             FDWatcher_.stop();
@@ -133,17 +123,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto this_ = MakeStrong(this);
-        return BIND([=] () {
-            UNUSED(this_);
-
-            if (State_ != EWriterState::Active) {
+        return BIND([=, this_ = MakeStrong(this)] () {
+            if (State_ != EWriterState::Active)
                 return;
-            }
 
             State_ = EWriterState::Aborted;
             FDWatcher_.stop();
-            WriteResultPromise_.TrySet(TError("Writer aborted")
+            WriteResultPromise_.TrySet(TError(EErrorCode::Aborted, "Writer aborted")
                << TErrorAttribute("fd", FD_));
 
             YCHECK(TryClose(FD_));

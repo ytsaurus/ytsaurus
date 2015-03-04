@@ -45,7 +45,7 @@ private:
 
     TEnumIndexedVector<NProfiling::TAggregateCounter, EMemoryConsumer> ConsumerCounters;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 };
 

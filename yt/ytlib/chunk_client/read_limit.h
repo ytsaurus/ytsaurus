@@ -67,6 +67,9 @@ Stroka ToString(const TReadLimit& limit);
 bool IsTrivial(const TReadLimit& limit);
 bool IsTrivial(const NProto::TReadLimit& limit);
 
+bool IsNontrivial(const TReadLimit& limit);
+bool IsNontrivial(const NProto::TReadLimit& limit);
+
 void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit);
 void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit);
 

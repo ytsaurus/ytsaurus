@@ -126,7 +126,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        LOG_INFO(error, "Killing job in unsafe environment (ProcessGroup: %Qv)", group.GetFullPath());
+        LOG_INFO(error, "Killing job in unsafe environment (ProcessGroup: %v)", group.GetFullPath());
 
         SetError(error);
 
@@ -137,10 +137,10 @@ public:
             if (result != 0) {
                 switch (errno) {
                     case ESRCH:
-                        // Process group doesn't exist already.
+                        // Process doesn't exist already.
                         return;
                     default:
-                        LOG_FATAL("Failed to kill job proxy: kill failed (errno: %v)", strerror(errno));
+                        LOG_FATAL(TError::FromSystem(), "Failed to kill job proxy: kill failed");
                         break;
                 }
             }
@@ -167,7 +167,7 @@ private:
         }
     }
 
-    TError GetError() const 
+    TError GetError() const
     {
         TGuard<TSpinLock> guard(SpinLock);
         return Error;
@@ -189,10 +189,10 @@ private:
         LOG_INFO(error, "Job proxy finished");
         Waited = true;
 
-        if (!error.IsOK()) { 
+        if (!error.IsOK()) {
             auto wrappedError = TError("Job proxy failed") << error;
             SetError(wrappedError);
-        } 
+        }
 
         OnExit.Set(GetError());
     }
@@ -203,7 +203,7 @@ private:
     const TJobId JobId;
     const TSlot& Slot;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     TProcess Process;
     bool Waited;
@@ -268,7 +268,7 @@ private:
         OnExit.Set(TError("Jobs are not supported under Windows"));
     }
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
     TPromise<void> OnExit;
     TThread ControllerThread;
 };

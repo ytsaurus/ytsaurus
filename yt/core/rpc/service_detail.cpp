@@ -55,7 +55,6 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     , RemoteWaitTimeCounter("/request_time/remote_wait", tagIds)
     , LocalWaitTimeCounter("/request_time/local_wait", tagIds)
     , TotalTimeCounter("/request_time/total", tagIds)
-    , RunningRequestSemaphore(0)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,14 +66,13 @@ public:
     TServiceContext(
         TServiceBasePtr service,
         const TRequestId& requestId,
-        const TMutationId& mutationId,
         NBus::IBusPtr replyBus,
         TRuntimeMethodInfoPtr runtimeInfo,
         const NTracing::TTraceContext& traceContext,
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
-        const NLog::TLogger& logger,
-        NLog::ELogLevel logLevel)
+        const NLogging::TLogger& logger,
+        NLogging::ELogLevel logLevel)
         : TServiceContextBase(
             std::move(header),
             std::move(requestMessage),
@@ -82,7 +80,6 @@ public:
             logLevel)
         , Service_(std::move(service))
         , RequestId_(requestId)
-        , MutationId_(mutationId)
         , ReplyBus_(std::move(replyBus))
         , RuntimeInfo_(std::move(runtimeInfo))
         , TraceContext_(traceContext)
@@ -92,12 +89,12 @@ public:
         YASSERT(ReplyBus_);
         YASSERT(Service_);
 
-        Register();
+        Initialize();
     }
 
     ~TServiceContext()
     {
-        if (!IsOneWay() && !Replied_ && !Canceled_) {
+        if (!RuntimeInfo_->Descriptor.OneWay && !Replied_ && !Canceled_.IsFired()) {
             if (Started_) {
                 Reply(TError(NYT::EErrorCode::Canceled, "Request abandoned"));
             } else {
@@ -105,7 +102,7 @@ public:
             }
         }
 
-        Unregister();
+        Finalize();
     }
 
     const TRuntimeMethodInfoPtr& GetRuntimeInfo() const
@@ -140,53 +137,72 @@ public:
         }
     }
 
-    void Cancel()
+    virtual void SubscribeCanceled(const TClosure& callback) override
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-        Canceled_ = true;
-        if (Canceler_) {
-            guard.Release();
-            Canceler_.Run();
-        }
+        Canceled_.Subscribe(callback);
+    }
+
+    virtual void UnsubscribeCanceled(const TClosure& callback) override
+    {
+        Canceled_.Unsubscribe(callback);
+    }
+
+    virtual void Cancel() override
+    {
+        Canceled_.Fire();
     }
 
 private:
-    TServiceBasePtr Service_;
-    TRequestId RequestId_;
-    TMutationId MutationId_;
-    IBusPtr ReplyBus_;
-    TRuntimeMethodInfoPtr RuntimeInfo_;
-    NTracing::TTraceContext TraceContext_;
+    const TServiceBasePtr Service_;
+    const TRequestId RequestId_;
+    const TMutationId MutationId_;
+    const IBusPtr ReplyBus_;
+    const TRuntimeMethodInfoPtr RuntimeInfo_;
+    const NTracing::TTraceContext TraceContext_;
 
-    bool Registered_ = false;
     TDelayedExecutorCookie TimeoutCookie_;
 
     TSpinLock SpinLock_;
     bool Started_ = false;
     bool RunningSync_ = false;
     bool Completed_ = false;
-    bool Canceled_ = false;
+    TSingleShotCallbackList<void()> Canceled_;
+    bool Finalized_ = false;
     TClosure Canceler_;
     NProfiling::TCpuInstant ArrivalTime_;
     NProfiling::TCpuInstant SyncStartTime_ = -1;
     NProfiling::TCpuInstant SyncStopTime_ = -1;
 
 
-    void Register()
+    void Initialize()
     {
+        if (RuntimeInfo_->Descriptor.OneWay)
+            return;
+
         if (RuntimeInfo_->Descriptor.Cancelable) {
             Service_->RegisterCancelableRequest(this);
-            YASSERT(!Registered_);
-            Registered_ = true;
         }
+
+        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, +1);
     }
 
-    void Unregister()
+    void Finalize()
     {
-        if (Registered_) {
+        if (RuntimeInfo_->Descriptor.OneWay || Finalized_)
+            return;
+
+        if (RuntimeInfo_->Descriptor.Cancelable) {
             Service_->UnregisterCancelableRequest(this);
-            Registered_ = false;
         }
+
+        // NB: This counter is also used to track queue size limit so
+        // it must be maintained even if the profiler is OFF.
+        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
+
+        TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
+        TServiceBase::ScheduleRequests(RuntimeInfo_);
+
+        Finalized_ = true;
     }
 
 
@@ -219,7 +235,7 @@ private:
 
         if (Profiler.GetEnabled()) {
             auto value = CpuDurationToValue(SyncStartTime_ - ArrivalTime_);
-            Profiler.Aggregate(RuntimeInfo_->LocalWaitTimeCounter, value);
+            Profiler.Update(RuntimeInfo_->LocalWaitTimeCounter, value);
         }
     }
 
@@ -241,13 +257,13 @@ private:
         if (descriptor.Cancelable) {
             TGuard<TSpinLock> guard(SpinLock_);
 
-            if (Canceled_) {
+            if (Canceled_.IsFired()) {
                 LOG_DEBUG("Request was canceled before being run (RequestId: %v)",
                     RequestId_);
                 return;
             }
 
-            Canceler_ = GetCurrentFiberCanceler();
+            Canceled_.Subscribe(GetCurrentFiberCanceler());
 
             if (timeout != TDuration::Max()) {
                 LOG_DEBUG("Setting up server-side request timeout (RequestId: %v, Timeout: %v)",
@@ -275,12 +291,12 @@ private:
             if (!Completed_) {
                 SyncStopTime_ = GetCpuInstant();
                 auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);
-                Profiler.Aggregate(RuntimeInfo_->SyncTimeCounter, value);
+                Profiler.Update(RuntimeInfo_->SyncTimeCounter, value);
             }
 
             if (RuntimeInfo_->Descriptor.OneWay) {
                 auto value = CpuDurationToValue(SyncStopTime_ - ArrivalTime_);
-                Profiler.Aggregate(RuntimeInfo_->TotalTimeCounter, value);
+                Profiler.Update(RuntimeInfo_->TotalTimeCounter, value);
             }
         }
     }
@@ -320,40 +336,30 @@ private:
 
             auto responseMessage = GetResponseMessage();
 
-            if (MutationId_ != NullMutationId) {
-                Service_->ResponseKeeper_->EndRequest(MutationId_, responseMessage);
-            }
-
             ReplyBus_->Send(std::move(responseMessage), EDeliveryTrackingLevel::None);
 
-            // NB: This counter is also used to track queue size limit so
-            // it must be maintained even if the profiler is OFF.
-            Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
-
-            auto now = GetCpuInstant();
-
             if (Profiler.GetEnabled()) {
+                auto now = GetCpuInstant();
+
                 if (RunningSync_) {
                     SyncStopTime_ = now;
                     auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);
-                    Profiler.Aggregate(RuntimeInfo_->SyncTimeCounter, value);
+                    Profiler.Update(RuntimeInfo_->SyncTimeCounter, value);
                 }
 
                 {
                     auto value = CpuDurationToValue(now - SyncStopTime_);
-                    Profiler.Aggregate(RuntimeInfo_->AsyncTimeCounter, value);
+                    Profiler.Update(RuntimeInfo_->AsyncTimeCounter, value);
                 }
 
                 {
                     auto value = CpuDurationToValue(now - ArrivalTime_);
-                    Profiler.Aggregate(RuntimeInfo_->TotalTimeCounter, value);
+                    Profiler.Update(RuntimeInfo_->TotalTimeCounter, value);
                 }
             }
         }
 
-        Unregister();
-        TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
-        TServiceBase::ScheduleRequests(RuntimeInfo_);
+        Finalize();
     }
 
 
@@ -362,11 +368,11 @@ private:
         TStringBuilder builder;
 
         if (RequestId_ != NullRequestId) {
-            AppendInfo(&builder, "RequestId: %v", RequestId_);
+            AppendInfo(&builder, "RequestId: %v", GetRequestId());
         }
 
         if (RealmId_ != NullRealmId) {
-            AppendInfo(&builder, "RealmId: %v", RealmId_);
+            AppendInfo(&builder, "RealmId: %v", GetRealmId());
         }
 
         auto user = FindAuthenticatedUser(*RequestHeader_);
@@ -374,11 +380,16 @@ private:
             AppendInfo(&builder, "User: %v", *user);
         }
 
-        if (MutationId_ != NullMutationId) {
-            AppendInfo(&builder, "MutationId: %v", MutationId_);
+        auto mutationId = GetMutationId(*RequestHeader_);
+        if (mutationId != NullMutationId) {
+            AppendInfo(&builder, "MutationId: %v", mutationId);
         }
 
-        AppendInfo(&builder, "%v", RequestInfo_);
+        AppendInfo(&builder, "Retry: %v", IsRetry());
+
+        if (!RequestInfo_.empty()) {
+            AppendInfo(&builder, "%v", RequestInfo_);
+        }
 
         LOG_EVENT(Logger, LogLevel_, "%v <- %v",
             GetMethod(),
@@ -411,39 +422,34 @@ private:
 TServiceBase::TServiceBase(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
-    const NLog::TLogger& logger,
-    int protocolVersion,
-    IResponseKeeperPtr responseKeeper)
+    const NLogging::TLogger& logger,
+    int protocolVersion)
 {
     Init(
         defaultInvoker,
         serviceId,
         logger,
-        protocolVersion,
-        responseKeeper);
+        protocolVersion);
 }
 
 TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
-    const NLog::TLogger& logger,
-    int protocolVersion,
-    IResponseKeeperPtr responseKeeper)
+    const NLogging::TLogger& logger,
+    int protocolVersion)
 {
     Init(
         CreateFakePrioritizedInvoker(defaultInvoker),
         serviceId,
         logger,
-        protocolVersion,
-        responseKeeper);
+        protocolVersion);
 }
 
 void TServiceBase::Init(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
-    const NLog::TLogger& logger,
-    int protocolVersion,
-    IResponseKeeperPtr responseKeeper)
+    const NLogging::TLogger& logger,
+    int protocolVersion)
 {
     YCHECK(defaultInvoker);
 
@@ -451,14 +457,13 @@ void TServiceBase::Init(
     ServiceId_ = serviceId;
     Logger = logger;
     ProtocolVersion_ = protocolVersion;
-    ResponseKeeper_ = responseKeeper;
 
     ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
     
     {
         NProfiling::TTagIdList tagIds;
         tagIds.push_back(ServiceTagId_);
-        RequestCounter_ = TRateCounter("/request_rate", tagIds);
+        RequestCounter_ = TSimpleCounter("/requests", tagIds);
     }
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
@@ -476,12 +481,9 @@ void TServiceBase::HandleRequest(
     TSharedRefArray message,
     IBusPtr replyBus)
 {
-    Profiler.Increment(RequestCounter_);
-
     const auto& method = header->method();
     bool oneWay = header->one_way();
     auto requestId = FromProto<TRequestId>(header->request_id());
-    auto mutationId = ResponseKeeper_ ? GetMutationId(*header) : NullMutationId;
     auto requestProtocolVersion = header->protocol_version();
 
     TRuntimeMethodInfoPtr runtimeInfo;
@@ -516,12 +518,6 @@ void TServiceBase::HandleRequest(
                 oneWay);
         }
 
-        if (oneWay && mutationId != NullMutationId) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::ProtocolError,
-                "One-way requests cannot be marked with mutation id");
-        }
-
         // Not actually atomic but should work fine as long as some small error is OK.
         if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
             THROW_ERROR_EXCEPTION(
@@ -540,6 +536,7 @@ void TServiceBase::HandleRequest(
         return;
     }
 
+    Profiler.Increment(RequestCounter_);
     Profiler.Increment(runtimeInfo->RequestCounter, +1);
 
     if (header->has_request_start_time() && header->has_retry_start_time()) {
@@ -552,8 +549,7 @@ void TServiceBase::HandleRequest(
         retryStart = std::min(retryStart, now);
         requestStart = std::min(requestStart, retryStart);
 
-        // TODO(babenko): make some use of retryStart
-        Profiler.Aggregate(runtimeInfo->RemoteWaitTimeCounter, (now - requestStart).MicroSeconds());
+        Profiler.Update(runtimeInfo->RemoteWaitTimeCounter, (now - requestStart).MicroSeconds());
     }
 
     auto traceContext = GetTraceContext(*header);
@@ -570,16 +566,9 @@ void TServiceBase::HandleRequest(
         method,
         NTracing::ServerReceiveAnnotation);
 
-    TFuture<TSharedRefArray>  keptResponseMessage;
-    if (mutationId != NullMutationId) {
-        keptResponseMessage = ResponseKeeper_->TryBeginRequest(mutationId);
-    }
-
     auto context = New<TServiceContext>(
         this,
         requestId,
-        // NB: Suppress keeping the response if we're replying with a kept one.
-        keptResponseMessage ? NullMutationId : mutationId,
         std::move(replyBus),
         runtimeInfo,
         traceContext,
@@ -590,13 +579,6 @@ void TServiceBase::HandleRequest(
 
     if (oneWay) {
         RunRequest(std::move(context));
-        return;
-    }
-
-    Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);
-
-    if (keptResponseMessage) {
-        context->ReplyFrom(std::move(keptResponseMessage));
         return;
     }
 
@@ -655,11 +637,17 @@ void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
 
 bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
-    if (++runtimeInfo->RunningRequestSemaphore <= runtimeInfo->Descriptor.MaxConcurrency) {
-        return true;
+    auto& semaphore = runtimeInfo->RunningRequestSemaphore;
+    auto limit = runtimeInfo->Descriptor.MaxConcurrency;
+    while (true) {
+        auto current = semaphore.load();
+        if (current >= limit) {
+            return false;
+        }
+        if (semaphore.compare_exchange_weak(current, current + 1)) {
+            return true;
+        }
     }
-    ReleaseRequestSemaphore(runtimeInfo);
-    return false;
 }
 
 void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
@@ -670,16 +658,19 @@ void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeI
 void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
     while (true) {
+        if (runtimeInfo->RequestQueue.IsEmpty())
+            break;
+
         if (!TryAcquireRequestSemaphore(runtimeInfo))
             break;
 
         TServiceContextPtr context;
-        if (!runtimeInfo->RequestQueue.Dequeue(&context)) {
-            ReleaseRequestSemaphore(runtimeInfo);
+        if (runtimeInfo->RequestQueue.Dequeue(&context)) {
+            RunRequest(std::move(context));
             break;
         }
 
-        RunRequest(std::move(context));
+        ReleaseRequestSemaphore(runtimeInfo);
     }
 }
 

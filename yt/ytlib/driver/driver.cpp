@@ -115,11 +115,10 @@ public:
 
         REGISTER(TWriteTableCommand,        "write_table",       Tabular,    Null,       true,  true );
         REGISTER(TReadTableCommand,         "read_table",        Null,       Tabular,    false, true );
-        // TODO(babenko): proper naming
-        REGISTER(TInsertCommand,            "insert",            Tabular,    Null,       true,  true );
-        REGISTER(TSelectCommand,            "select",            Null,       Tabular,    false, true );
-        REGISTER(TLookupCommand,            "lookup",            Null,       Tabular,    false, true );
-        REGISTER(TDeleteCommand,            "delete",            Null,       Null,       true,  true);
+        REGISTER(TInsertRowsCommand,        "insert_rows",       Tabular,    Null,       true,  true );
+        REGISTER(TDeleteRowsCommand,        "delete_rows",       Tabular,    Null,       true,  true);
+        REGISTER(TSelectRowsCommand,        "select_rows",       Null,       Tabular,    false, true );
+        REGISTER(TLookupRowsCommand,        "lookup_rows",       Tabular,    Tabular,    false, true );
         // COMPAT(babenko)
         REGISTER(TWriteTableCommand,        "write",             Tabular,    Null,       true,  true );
         REGISTER(TReadTableCommand,         "read",              Null,       Tabular,    false, true );
@@ -148,6 +147,9 @@ public:
 
         REGISTER(TWriteJournalCommand,      "write_journal",     Tabular,    Null,       true,  true );
         REGISTER(TReadJournalCommand,       "read_journal",      Null,       Tabular,    false, true );
+
+        REGISTER(TDumpInputContextCommand,  "dump_input_context",Null,       Null,       true,  false);
+
 #undef REGISTER
     }
 
@@ -185,7 +187,7 @@ public:
             .AsyncVia(invoker)
             .Run();
     }
-    
+
     virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) override
     {
         auto it = Commands.find(commandName);

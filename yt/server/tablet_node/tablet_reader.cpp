@@ -48,7 +48,7 @@ public:
         TTimestamp timestamp)
         : PoolInvoker_(std::move(poolInvoker))
         , TabletSnapshot_(std::move(tabletSnapshot))
-        , TabletStatistics_(TabletSnapshot_->Statistics)
+        , PerformanceCounters_(TabletSnapshot_->PerformanceCounters)
         , LowerBound_(std::move(lowerBound))
         , UpperBound_(std::move(upperBound))
         , Timestamp_(timestamp)
@@ -58,7 +58,7 @@ public:
 protected:
     const IInvokerPtr PoolInvoker_;
     const TTabletSnapshotPtr TabletSnapshot_;
-    const TTabletStatisticsPtr TabletStatistics_;
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
     const TOwningKey LowerBound_;
     const TOwningKey UpperBound_;
     const TTimestamp Timestamp_;
@@ -158,7 +158,7 @@ protected:
             }
         }
 
-        TabletStatistics_->MergedRowReadCount += rows->size();
+        PerformanceCounters_->MergedRowReadCount += rows->size();
 
         return true;
     }
@@ -232,7 +232,7 @@ protected:
         }
 
         int rowCount = rows.size();
-        TabletStatistics_->UnmergedRowReadCount += rowCount;
+        PerformanceCounters_->UnmergedRowReadCount += rowCount;
 
         #ifndef NDEBUG
         for (int index = 0; index < rowCount - 1; ++index) {
@@ -270,10 +270,8 @@ protected:
             return;
         }
 
-        auto this_ = MakeStrong(this);
         Refilling_ = true;
-        ReadyEvent_ = Combine(asyncResults).Apply(BIND([=] (const TError& error) {
-            UNUSED(this_);
+        ReadyEvent_ = Combine(asyncResults).Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             Refilling_ = false;
             error.ThrowOnError();
         }));

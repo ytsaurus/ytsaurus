@@ -21,9 +21,9 @@ TInvokerQueue::TInvokerQueue(
     : CallbackEventCount(callbackEventCount)
     , EnableLogging(enableLogging)
     , Profiler("/action_queue")
-    , EnqueueCounter("/enqueue_rate", tagIds)
-    , DequeueCounter("/dequeue_rate", tagIds)
-    , QueueSizeCounter("/size", tagIds)
+    , EnqueuedCounter("/enqueued", tagIds)
+    , DequeuedCounter("/dequeued", tagIds)
+    , SizeCounter("/size", tagIds)
     , WaitTimeCounter("/time/wait", tagIds)
     , ExecTimeCounter("/time/exec", tagIds)
     , TotalTimeCounter("/time/total", tagIds)
@@ -54,7 +54,7 @@ void TInvokerQueue::Invoke(const TClosure& callback)
 
     QueueSize.fetch_add(1, std::memory_order_relaxed);
 
-    Profiler.Increment(EnqueueCounter);
+    Profiler.Increment(EnqueuedCounter);
 
     LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p",
         callback.GetHandle());
@@ -95,11 +95,11 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 
     CallbackEventCount->CancelWait();
 
-    Profiler.Increment(DequeueCounter);
+    Profiler.Increment(DequeuedCounter);
 
     action->StartedAt = GetCpuInstant();
 
-    Profiler.Aggregate(
+    Profiler.Update(
         WaitTimeCounter,
         CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
 
@@ -123,13 +123,13 @@ void TInvokerQueue::EndExecute(TEnqueuedAction* action)
     }
 
     int queueSize = QueueSize.fetch_sub(1, std::memory_order_relaxed) - 1;
-    Profiler.Aggregate(QueueSizeCounter, queueSize);
+    Profiler.Update(SizeCounter, queueSize);
 
     auto finishedAt = GetCpuInstant();
-    Profiler.Aggregate(
+    Profiler.Update(
         ExecTimeCounter,
         CpuDurationToValue(finishedAt - action->StartedAt));
-    Profiler.Aggregate(
+    Profiler.Update(
         TotalTimeCounter,
         CpuDurationToValue(finishedAt - action->EnqueuedAt));
 

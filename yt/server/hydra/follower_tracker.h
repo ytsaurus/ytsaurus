@@ -42,7 +42,7 @@ private:
     int ActivePeerCount_ = 0;
     TPromise<void> ActiveQuorumPromise_ = NewPromise<void>();
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     void SendPing(TPeerId followerId);

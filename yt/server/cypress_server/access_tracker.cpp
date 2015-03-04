@@ -68,11 +68,7 @@ void TAccessTracker::SetModified(
     auto cypressManager = Bootstrap_->GetCypressManager();
     auto* node = cypressManager->GetNode(versionedId);
 
-    auto* mutationContext = Bootstrap_
-        ->GetHydraFacade()
-        ->GetHydraManager()
-        ->GetMutationContext();
-
+    const auto* mutationContext = GetCurrentMutationContext();
     node->SetModificationTime(mutationContext->GetTimestamp());
     node->SetRevision(mutationContext->GetVersion().ToRevision());
 }
@@ -128,14 +124,15 @@ void TAccessTracker::OnFlush()
     LOG_DEBUG("Starting access statistics commit for %v nodes",
         UpdateAccessStatisticsRequest_.updates_size());
 
-    auto this_ = MakeStrong(this);
     auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
     CreateMutation(hydraManager, UpdateAccessStatisticsRequest_)
         ->SetAllowLeaderForwarding(true)
         ->Commit()
-        .Subscribe(BIND([this, this_] (const TErrorOr<TMutationResponse>& result) {
-            if (result.IsOK()) {
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+            if (error.IsOK()) {
                 FlushExecutor_->ScheduleOutOfBand();
+            } else {
+                LOG_WARNING(error, "Error committing access statistics update");
             }
             FlushExecutor_->ScheduleNext();
         }).Via(invoker));

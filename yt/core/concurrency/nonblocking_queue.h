@@ -25,7 +25,7 @@ public:
 private:
     TSpinLock SpinLock_;
 
-    std::queue<T> ValueQueue_;
+    std::queue<TErrorOr<T>> ValueQueue_;
     std::queue<TPromise<T>> PromiseQueue_;
 
 };

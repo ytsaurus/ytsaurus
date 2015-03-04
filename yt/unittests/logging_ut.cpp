@@ -14,7 +14,7 @@
 #endif
 
 namespace NYT {
-namespace NLog {
+namespace NLogging {
 
 using namespace NYTree;
 
@@ -229,5 +229,5 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NLog
+} // namespace NLogging
 } // namespace NYT

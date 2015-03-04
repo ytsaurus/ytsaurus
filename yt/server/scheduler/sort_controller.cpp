@@ -15,11 +15,10 @@
 
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/table_client/channel_writer.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/new_table_client/samples_fetcher.h>
 #include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/schemaless_block_writer.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
@@ -52,7 +51,6 @@ using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 
 using NVersionedTableClient::TOwningKey;
-using NTableClient::TTableWriterConfigPtr;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1346,11 +1344,11 @@ protected:
         AddSortTasksPendingHints();
     }
 
-    static void CheckPartitionWriterBuffer(int partitionCount, TTableWriterConfigPtr config)
+    static void CheckPartitionWriterBuffer(int partitionCount, TChunkWriterConfigPtr config)
     {
         auto averageBufferSize = config->MaxBufferSize / partitionCount / 2;
-        if (averageBufferSize < TChannelWriter::MinUpperReserveLimit) {
-            i64 minAppropriateSize = partitionCount * 2 * TChannelWriter::MinUpperReserveLimit;
+        if (averageBufferSize < THorizontalSchemalessBlockWriter::MinReserveSize) {
+            i64 minAppropriateSize = partitionCount * 2 * THorizontalSchemalessBlockWriter::MinReserveSize;
             THROW_ERROR_EXCEPTION(
                 "Too small table writer buffer size for partitioner (MaxBufferSize: %v). Min appropriate buffer size is %v",
                 averageBufferSize,
@@ -1689,7 +1687,7 @@ private:
     {
         TSortControllerBase::CustomPrepare();
 
-        OutputTables[0].Options->KeyColumns = Spec->SortBy;
+        OutputTables[0].KeyColumns = Spec->SortBy;
 
         if (TotalEstimatedInputDataSize == 0)
             return;
@@ -1763,7 +1761,7 @@ private:
 
         InitJobIOConfigs();
 
-        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
+        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->NewTableWriter);
 
         if (SimpleSort) {
             BuildSinglePartition();
@@ -1899,7 +1897,7 @@ private:
 
         // Final sort: reader like sort and output like merge.
         FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
-        FinalSortJobIOConfig->TableWriter = CloneYsonSerializable(Spec->MergeJobIO->TableWriter);
+        FinalSortJobIOConfig->NewTableWriter = CloneYsonSerializable(Spec->MergeJobIO->NewTableWriter);
         if (!SimpleSort) {
             InitIntermediateInputConfig(FinalSortJobIOConfig);
         }
@@ -1929,7 +1927,8 @@ private:
             for (const auto& key : PartitionKeys) {
                 ToProto(partitionJobSpecExt->add_partition_keys(), key);
             }
-            ToProto(partitionJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
+            ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
         }
 
         TJobSpec sortJobSpecTemplate;
@@ -1991,14 +1990,14 @@ private:
         auto stat = AggregateStatistics(statistics).front();
 
         i64 outputBufferSize = std::min(
-            PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
+            PartitionJobIOConfig->NewTableWriter->BlockSize * static_cast<i64>(Partitions.size()),
             stat.DataSize);
 
-        outputBufferSize += TChannelWriter::MaxUpperReserveLimit * static_cast<i64>(Partitions.size());
+        outputBufferSize += THorizontalSchemalessBlockWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
 
         outputBufferSize = std::min(
             outputBufferSize,
-            PartitionJobIOConfig->TableWriter->MaxBufferSize);
+            PartitionJobIOConfig->NewTableWriter->MaxBufferSize);
 
         TNodeResources result;
         result.set_user_slots(1);
@@ -2243,6 +2242,10 @@ private:
                 ConvertToYsonString(Spec->ReduceBy, EYsonFormat::Text).Data(),
                 ConvertToYsonString(Spec->SortBy, EYsonFormat::Text).Data());
         }
+
+        LOG_DEBUG("Reduce columns: %v; sort columns: %v",
+            ConvertToYsonString(Spec->ReduceBy, EYsonFormat::Text).Data(),
+            ConvertToYsonString(Spec->SortBy, EYsonFormat::Text).Data());
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -2340,7 +2343,7 @@ private:
 
         InitJobIOConfigs();
 
-        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
+        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->NewTableWriter);
 
         BuildMultiplePartitions(partitionCount);
     }
@@ -2390,7 +2393,7 @@ private:
         {
             // Partition reduce: writer like in merge and reader like in sort.
             FinalSortJobIOConfig = CloneYsonSerializable(Spec->ReduceJobIO);
-            FinalSortJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
+            FinalSortJobIOConfig->NewTableReader = CloneYsonSerializable(Spec->SortJobIO->NewTableReader);
             InitIntermediateInputConfig(FinalSortJobIOConfig);
             InitFinalOutputConfig(FinalSortJobIOConfig);
         }
@@ -2415,7 +2418,8 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
 
             partitionJobSpecExt->set_partition_count(Partitions.size());
-            ToProto(partitionJobSpecExt->mutable_key_columns(), Spec->ReduceBy);
+            partitionJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
+            ToProto(partitionJobSpecExt->mutable_sort_key_columns(), Spec->SortBy);
 
             if (Spec->Mapper) {
                 InitUserJobSpecTemplate(
@@ -2554,10 +2558,10 @@ private:
     {
         auto stat = AggregateStatistics(statistics).front();
 
-        i64 reserveSize = TChannelWriter::MaxUpperReserveLimit * static_cast<i64>(Partitions.size());
+        i64 reserveSize = THorizontalSchemalessBlockWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
         i64 bufferSize = std::min(
-            reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
-            PartitionJobIOConfig->TableWriter->MaxBufferSize);
+            reserveSize + PartitionJobIOConfig->NewTableWriter->BlockSize * static_cast<i64>(Partitions.size()),
+            PartitionJobIOConfig->NewTableWriter->MaxBufferSize);
 
         TNodeResources result;
         result.set_user_slots(1);

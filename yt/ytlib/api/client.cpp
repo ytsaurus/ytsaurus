@@ -36,18 +36,15 @@
 #include <ytlib/tablet_client/tablet_service_proxy.h>
 #include <ytlib/tablet_client/wire_protocol.pb.h>
 
-#include <ytlib/table_client/table_ypath_proxy.h>
-
 #include <ytlib/security_client/group_ypath_proxy.h>
 
 #include <ytlib/driver/dispatcher.h>
-
-#include <ytlib/new_table_client/name_table.h>
 
 #include <ytlib/hive/config.h>
 #include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/new_table_client/schemaful_writer.h>
+#include <ytlib/new_table_client/name_table.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/plan_helpers.h>
@@ -57,20 +54,21 @@
 #include <ytlib/query_client/query_service_proxy.h>
 #include <ytlib/query_client/query_statistics.h>
 #include <ytlib/query_client/evaluator.h>
+#include <ytlib/query_client/column_evaluator.h>
 #include <ytlib/query_client/private.h> // XXX(sandello): refactor BuildLogger
 
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/scheduler/scheduler_service_proxy.h>
+#include <ytlib/scheduler/job_prober_service_proxy.h>
 
 // TODO(babenko): refactor this
 #include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/table_client/table_ypath_proxy.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/chunk_meta.pb.h>
+#include <ytlib/new_table_client/table_ypath_proxy.h>
 
 namespace NYT {
 namespace NApi {
@@ -85,8 +83,6 @@ using namespace NTransactionClient;
 using namespace NRpc;
 using namespace NVersionedTableClient;
 using namespace NVersionedTableClient::NProto;
-using namespace NTableClient;
-using namespace NTableClient::NProto;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NSecurityClient;
@@ -158,7 +154,7 @@ public:
     TFuture<TQueryStatistics> GetQueryResult() const
     {
         return QueryResult_.ToFuture();
-    }    
+    }
 
 private:
     TFuture<TQueryServiceProxy::TRspExecutePtr> AsyncResponse_;
@@ -168,7 +164,7 @@ private:
 
     TPromise<TQueryStatistics> QueryResult_ = NewPromise<TQueryStatistics>();
 
-    
+
     void OnResponse(
         const TTableSchema& schema,
         TQueryServiceProxy::TRspExecutePtr response)
@@ -260,7 +256,7 @@ private:
     TDataSplits Split(
         const TDataSplits& splits,
         TNodeDirectoryPtr nodeDirectory,
-        const NLog::TLogger& Logger)
+        const NLogging::TLogger& Logger)
     {
         TDataSplits allSplits;
         for (const auto& split : splits) {
@@ -348,11 +344,8 @@ private:
             SetKeyColumns(&chunkSpec, keyColumns);
             SetTableSchema(&chunkSpec, schema);
 
-            auto boundaryKeys = FindProtoExtension<TOldBoundaryKeysExt>(chunkSpec.chunk_meta().extensions());
-            if (boundaryKeys) {
-                auto chunkLowerBound = NYT::FromProto<TOwningKey>(boundaryKeys->start());
-                auto chunkUpperBound = NYT::FromProto<TOwningKey>(boundaryKeys->end());
-                // Boundary keys are exact, so advance right bound to its successor.
+            TOwningKey chunkLowerBound, chunkUpperBound;
+            if (TryGetBoundaryKeys(chunkSpec.chunk_meta(), &chunkLowerBound, &chunkUpperBound)) {
                 chunkUpperBound = GetKeySuccessor(chunkUpperBound.Get());
                 SetLowerBound(&chunkSpec, chunkLowerBound);
                 SetUpperBound(&chunkSpec, chunkUpperBound);
@@ -402,16 +395,16 @@ private:
             }
 
             TDataSplit subsplit;
-            SetObjectId(&subsplit, tabletInfo->TabletId);   
+            SetObjectId(&subsplit, tabletInfo->TabletId);
             SetKeyColumns(&subsplit, keyColumns);
             SetTableSchema(&subsplit, schema);
-            
+
             auto pivotKey = tabletInfo->PivotKey;
             auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
 
             SetLowerBound(&subsplit, std::max(lowerBound, pivotKey));
             SetUpperBound(&subsplit, std::min(upperBound, nextPivotKey));
-            SetTimestamp(&subsplit, timestamp); 
+            SetTimestamp(&subsplit, timestamp);
 
             for (const auto& tabletReplica : tabletInfo->Replicas) {
                 nodeDirectory->AddDescriptor(tabletReplica.Id, tabletReplica.Descriptor);
@@ -432,7 +425,10 @@ private:
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto prunedSplits = GetPrunedSplits(fragment->Query, fragment->DataSplits);
+        auto prunedSplits = GetPrunedSplits(
+            fragment->Query,
+            fragment->DataSplits,
+            Connection_->GetColumnEvaluatorCache());
         auto splits = Split(prunedSplits, nodeDirectory, Logger);
 
         LOG_DEBUG("Regrouping %v splits", splits.size());
@@ -468,14 +464,15 @@ private:
             false,
             ranges,
             [&] (const TConstQueryPtr& subquery, size_t index) {
-                auto subfragment = New<TPlanFragment>(fragment->GetSource());
+                auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = nodeDirectory;
                 subfragment->DataSplits = groupedSplits[index].first;
                 subfragment->ForeignDataSplit = fragment->ForeignDataSplit;
                 subfragment->Query = subquery;
 
                 LOG_DEBUG("Delegating subfragment (SubfragmentId: %v) to %v",
-                    subquery->GetId(), groupedSplits[index].second);
+                    subquery->Id,
+                    groupedSplits[index].second);
 
                 return Delegate(subfragment, groupedSplits[index].second);
             },
@@ -492,7 +489,10 @@ private:
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto prunedSplits = GetPrunedSplits(fragment->Query, fragment->DataSplits);
+        auto prunedSplits = GetPrunedSplits(
+            fragment->Query,
+            fragment->DataSplits,
+            Connection_->GetColumnEvaluatorCache());
         auto splits = Split(prunedSplits, nodeDirectory, Logger);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
@@ -520,9 +520,9 @@ private:
                 auto replica = replicas[RandomNumber(replicas.size())];
                 auto descriptor = nodeDirectory->GetDescriptor(replica);
 
-                LOG_DEBUG("Delegating subquery (SubqueryId: %v)", subquery->GetId());
+                LOG_DEBUG("Delegating subquery (SubqueryId: %v)", subquery->Id);
 
-                auto subfragment = New<TPlanFragment>(fragment->GetSource());
+                auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = nodeDirectory;
                 subfragment->DataSplits.push_back(splits[index]);
                 subfragment->ForeignDataSplit = fragment->ForeignDataSplit;
@@ -578,13 +578,11 @@ public:
         SchedulerChannel_ = Connection_->GetSchedulerChannel();
         NodeChannelFactory_ = Connection_->GetNodeChannelFactory();
 
-        if (options.User != NSecurityClient::RootUserName) {
-            for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-                MasterChannels_[kind] = CreateAuthenticatedChannel(MasterChannels_[kind], options.User);
-            }
-            SchedulerChannel_ = CreateAuthenticatedChannel(SchedulerChannel_, options.User);
-            NodeChannelFactory_ = CreateAuthenticatedChannelFactory(NodeChannelFactory_, options.User);
+        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
+            MasterChannels_[kind] = CreateAuthenticatedChannel(MasterChannels_[kind], options.User);
         }
+        SchedulerChannel_ = CreateAuthenticatedChannel(SchedulerChannel_, options.User);
+        NodeChannelFactory_ = CreateAuthenticatedChannelFactory(NodeChannelFactory_, options.User);
 
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
             MasterChannels_[kind] = CreateScopedChannel(MasterChannels_[kind]);
@@ -595,6 +593,7 @@ public:
             ObjectProxies_[kind].reset(new TObjectServiceProxy(MasterChannels_[kind]));
         }
         SchedulerProxy_.reset(new TSchedulerServiceProxy(SchedulerChannel_));
+        JobProberProxy_.reset(new TJobProberServiceProxy(SchedulerChannel_));
 
         TransactionManager_ = New<TTransactionManager>(
             Connection_->GetConfig()->TransactionManager,
@@ -857,6 +856,11 @@ public:
         const TOperationId& operationId),
         (operationId))
 
+    IMPLEMENT_METHOD(void, DumpInputContext, (
+        const TJobId& jobId,
+        const TYPath& path),
+        (jobId, path))
+
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -864,10 +868,7 @@ public:
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
-        if (Options_.User != NSecurityClient::RootUserName) {
-            channel = CreateAuthenticatedChannel(std::move(channel), Options_.User);
-        }
-        return channel;
+        return CreateAuthenticatedChannel(std::move(channel), Options_.User);
     }
 
 private:
@@ -885,17 +886,16 @@ private:
     TQueryHelperPtr QueryHelper_;
     TEnumIndexedVector<std::unique_ptr<TObjectServiceProxy>, EMasterChannelKind> ObjectProxies_;
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
+    std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
-    NLog::TLogger Logger = ApiLogger;
+    NLogging::TLogger Logger = ApiLogger;
 
 
     template <class T>
     TFuture<T> Execute(const Stroka& commandName, TCallback<T()> callback)
     {
-        auto this_ = MakeStrong(this);
         return
-            BIND([=] () {
-                UNUSED(this_);
+            BIND([=, this_ = MakeStrong(this)] () {
                 try {
                     LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);
@@ -933,58 +933,57 @@ private:
     }
 
 
-    static void GenerateMutationId(IClientRequestPtr request, TMutatingOptions& commandOptions)
+    static void GenerateMutationId(IClientRequestPtr request, TMutatingOptions& options)
     {
-        SetMutationId(request, GenerateMutationId(commandOptions));
-    }
-
-    static TMutationId GenerateMutationId(TMutatingOptions& commandOptions)
-    {
-        if (commandOptions.MutationId == NullMutationId) {
-            commandOptions.MutationId = NRpc::GenerateMutationId();
+        if (options.MutationId == NullMutationId) {
+            options.MutationId = NRpc::GenerateMutationId();
         }
-        auto result = commandOptions.MutationId;
-        ++commandOptions.MutationId.Parts32[0];
-        return result;
-    }
-    
+        SetMutationId(request, options.MutationId);
+        ++options.MutationId.Parts32[1];
 
-    TTransactionId GetTransactionId(const TTransactionalOptions& commandOptions, bool allowNullTransaction)
+        if (options.Retry) {
+            request->SetRetry(true);
+        }
+    }
+
+
+    TTransactionId GetTransactionId(const TTransactionalOptions& options, bool allowNullTransaction)
     {
-        auto transaction = GetTransaction(commandOptions, allowNullTransaction, true);
+        auto transaction = GetTransaction(options, allowNullTransaction, true);
         return transaction ? transaction->GetId() : NullTransactionId;
     }
 
     NTransactionClient::TTransactionPtr GetTransaction(
-        const TTransactionalOptions& commandOptions,
+        const TTransactionalOptions& options,
         bool allowNullTransaction,
         bool pingTransaction)
     {
-        if (commandOptions.TransactionId == NullTransactionId) {
+        if (options.TransactionId == NullTransactionId) {
             if (!allowNullTransaction) {
                 THROW_ERROR_EXCEPTION("A valid master transaction is required");
             }
             return nullptr;
         }
 
-        if (TypeFromId(commandOptions.TransactionId) != EObjectType::Transaction) {
+        if (TypeFromId(options.TransactionId) != EObjectType::Transaction) {
             THROW_ERROR_EXCEPTION("A valid master transaction is required");
         }
 
-        TTransactionAttachOptions attachOptions(commandOptions.TransactionId);
+        TTransactionAttachOptions attachOptions(options.TransactionId);
         attachOptions.AutoAbort = false;
         attachOptions.Ping = pingTransaction;
-        attachOptions.PingAncestors = commandOptions.PingAncestors;
+        attachOptions.PingAncestors = options.PingAncestors;
         return TransactionManager_->Attach(attachOptions);
     }
 
     void SetTransactionId(
         IClientRequestPtr request,
-        const TTransactionalOptions& commandOptions,
+        const TTransactionalOptions& options,
         bool allowNullTransaction)
     {
-        NCypressClient::SetTransactionId(request, GetTransactionId(commandOptions, allowNullTransaction));
+        NCypressClient::SetTransactionId(request, GetTransactionId(options, allowNullTransaction));
     }
+
 
     void SetPrerequisites(
         IClientRequestPtr request,
@@ -1105,7 +1104,7 @@ private:
             TTabletServiceProxy::TRspReadPtr Response;
         };
 
-        std::vector<std::unique_ptr<TBatch>> Batches_;           
+        std::vector<std::unique_ptr<TBatch>> Batches_;
 
         IChannelPtr InvokeChannel_;
         int InvokeBatchIndex_ = 0;
@@ -1175,10 +1174,13 @@ private:
         TRowBuffer buffer;
 
         if (tableInfo->NeedKeyEvaluation) {
+            auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
+            auto evaluator = evaluatorCache->Find(tableInfo->Schema, keyColumnCount);
+
             for (int keyIndex = 0; keyIndex < keys.size(); ++keyIndex) {
                 const auto& key = keys[keyIndex];
                 auto tempKey = TUnversionedRow::Allocate(buffer.GetAlignedPool(), keyColumnCount);
-                tableInfo->EvaluateKeys(tempKey, buffer, key, idMapping);
+                evaluator->EvaluateKeys(tempKey, buffer, key, idMapping);
                 sortedKeys.push_back(std::make_pair(keyIndex, tempKey));
             }
 
@@ -1229,7 +1231,7 @@ private:
 
         std::vector<TUnversionedRow> resultRows;
         resultRows.resize(keys.size());
-        
+
         std::vector<std::unique_ptr<TWireProtocolReader>> readers;
 
         for (const auto& pair : tabletToSession) {
@@ -1484,6 +1486,12 @@ private:
         GenerateMutationId(req, options);
         req->set_mode(static_cast<int>(mode));
         req->set_waitable(options.Waitable);
+        if (options.ChildKey) {
+            req->set_child_key(*options.ChildKey);
+        }
+        if (options.AttributeKey) {
+            req->set_attribute_key(*options.AttributeKey);
+        }
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())
@@ -1661,7 +1669,9 @@ private:
         TCheckPermissionResult result;
         result.Action = ESecurityAction(rsp->action());
         result.ObjectId = rsp->has_object_id() ? FromProto<TObjectId>(rsp->object_id()) : NullObjectId;
-        result.Subject = rsp->has_subject() ? MakeNullable(rsp->subject()) : Null;
+        result.ObjectName = rsp->has_object_name() ? MakeNullable(rsp->object_name()) : Null;
+        result.SubjectId = rsp->has_subject_id() ? FromProto<TSubjectId>(rsp->subject_id()) : NullObjectId;
+        result.SubjectName = rsp->has_subject_name() ? MakeNullable(rsp->subject_name()) : Null;
         return result;
     }
 
@@ -1676,7 +1686,7 @@ private:
         GenerateMutationId(req, options);
         req->set_type(static_cast<int>(type));
         req->set_spec(spec.Data());
-        
+
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
@@ -1705,6 +1715,17 @@ private:
     {
         auto req = SchedulerProxy_->ResumeOperation();
         ToProto(req->mutable_operation_id(), operationId);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
+
+    void DoDumpInputContext(const TJobId& jobId, const TYPath& path)
+    {
+        auto req = JobProberProxy_->DumpInputContext();
+        ToProto(req->mutable_job_id(), jobId);
+        ToProto(req->mutable_path(), path);
 
         WaitFor(req->Invoke())
             .ThrowOnError();
@@ -1786,7 +1807,7 @@ public:
             adjustedOptions);
     }
 
-        
+
     virtual void WriteRow(
         const TYPath& path,
         TNameTablePtr nameTable,
@@ -1972,18 +1993,19 @@ public:
 #undef DELEGATE_TIMESTAMPED_METHOD
 
 private:
-    TClientPtr Client_;
-    NTransactionClient::TTransactionPtr Transaction_;
+    const TClientPtr Client_;
+    const NTransactionClient::TTransactionPtr Transaction_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
 
     class TRequestBase
     {
     public:
-        virtual void Run()
+        void Run()
         {
-            TableInfo_ = Transaction_->Client_->SyncGetTableInfo(Path_);
+            DoPrepare();
+            DoRun();
         }
 
     protected:
@@ -1999,7 +2021,17 @@ private:
         TTransaction* const Transaction_;
         const TYPath Path_;
         const TNameTablePtr NameTable_;
+
         TTableMountInfoPtr TableInfo_;
+
+
+        void DoPrepare()
+        {
+            TableInfo_ = Transaction_->Client_->SyncGetTableInfo(Path_);
+        }
+
+        virtual void DoRun() = 0;
+
     };
 
     class TModifyRequest
@@ -2015,8 +2047,8 @@ private:
             : TRequestBase(transaction, path, std::move(nameTable))
         { }
 
-        void Run(
-            std::vector<TUnversionedRow>& rows,
+        void WriteRequests(
+            const std::vector<TUnversionedRow>& rows,
             const ::google::protobuf::MessageLite& req,
             EWireProtocolCommand command,
             int columnCount,
@@ -2036,6 +2068,8 @@ private:
             if (TableInfo_->NeedKeyEvaluation) {
                 TRowBuffer buffer;
                 auto trivialIdMapping = TNameTableToSchemaIdMapping(columnCount);
+                auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
+                auto evaluator = evaluatorCache->Find(TableInfo_->Schema, keyColumnCount);
 
                 for (int index = 0; index < columnCount; ++index) {
                     trivialIdMapping[index] = index;
@@ -2043,7 +2077,7 @@ private:
 
                 for (auto row : rows) {
                     auto tempRow = TUnversionedRow::Allocate(buffer.GetAlignedPool(), columnCount);
-                    TableInfo_->EvaluateKeys(tempRow, buffer, row, idMapping);
+                    evaluator->EvaluateKeys(tempRow, buffer, row, idMapping);
 
                     validateRow(tempRow, keyColumnCount, trivialIdMapping, TableInfo_->Schema);
                     writeRequest(tempRow, nullptr);
@@ -2074,23 +2108,21 @@ private:
             , Options_(options)
         { }
 
-        virtual void Run() override
+    private:
+        const std::vector<TUnversionedRow> Rows_;
+        const TWriteRowsOptions Options_;
+
+        virtual void DoRun() override
         {
             TReqWriteRow req;
             req.set_lock_mode(static_cast<int>(Options_.LockMode));
-
-            TRequestBase::Run();
-            TModifyRequest::Run(
+            WriteRequests(
                 Rows_,
                 req,
                 EWireProtocolCommand::WriteRow,
                 TableInfo_->Schema.Columns().size(),
                 ValidateClientDataRow);
         }
-
-    private:
-        std::vector<TUnversionedRow> Rows_;
-        const TWriteRowsOptions Options_;
     };
 
     class TDeleteRequest
@@ -2108,26 +2140,26 @@ private:
             , Options_(options)
         { }
 
-        virtual void Run() override
+    private:
+        const std::vector<TUnversionedRow> Keys_;
+        const TDeleteRowsOptions Options_;
+
+        virtual void DoRun() override
         {
-            TRequestBase::Run();
-            TModifyRequest::Run(
+            TReqDeleteRow req;
+            WriteRequests(
                 Keys_,
-                TReqDeleteRow(),
+                req,
                 EWireProtocolCommand::DeleteRow,
                 TableInfo_->KeyColumns.size(),
-                [] (TUnversionedRow row,
+                [ ](
+                    TUnversionedRow row,
                     int keyColumnCount,
                     const TNameTableToSchemaIdMapping& idMapping,
-                    const TTableSchema& schema)
-                {
+                    const TTableSchema& schema) {
                     ValidateClientKey(row, keyColumnCount, schema);
                 });
         }
-
-    private:
-        std::vector<TUnversionedRow> Keys_;
-        const TDeleteRowsOptions Options_;
     };
 
     std::vector<std::unique_ptr<TRequestBase>> Requests_;
@@ -2146,7 +2178,7 @@ private:
         {
             Logger.AddTag("TabletId: %v", TabletId_);
         }
-        
+
         TWireProtocolWriter* GetWriter()
         {
             if (Batches_.empty() || Batches_.back()->RowCount >= Config_->MaxRowsPerWriteRequest) {
@@ -2176,7 +2208,7 @@ private:
         const TTabletId TabletId_;
         const TConnectionConfigPtr Config_;
 
-        NLog::TLogger Logger;
+        NLogging::TLogger Logger;
 
         struct TBatch
         {
@@ -2301,9 +2333,8 @@ TFuture<ITransactionPtr> TClient::StartTransaction(
     ETransactionType type,
     const TTransactionStartOptions& options)
 {
-    auto this_ = MakeStrong(this);
     return TransactionManager_->Start(type, options).Apply(
-        BIND([=] (NTransactionClient::TTransactionPtr transaction) -> ITransactionPtr {
+        BIND([=, this_ = MakeStrong(this)] (NTransactionClient::TTransactionPtr transaction) -> ITransactionPtr {
             return New<TTransaction>(this_, transaction);
         }));
 }

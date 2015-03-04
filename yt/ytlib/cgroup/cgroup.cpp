@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "private.h"
 #include "cgroup.h"
-#include "event.h"
 
 #include <core/ytree/fluent.h>
 #include <core/ytree/serialize.h>
@@ -15,14 +14,12 @@
 
 #include <util/system/fs.h>
 #include <util/string/split.h>
-#include <util/string/strip.h>
 #include <util/folder/path.h>
 #include <util/system/execpath.h>
 #include <util/system/yield.h>
 
 #ifdef _linux_
     #include <unistd.h>
-    #include <sys/eventfd.h>
     #include <sys/stat.h>
 #endif
 
@@ -33,7 +30,10 @@ namespace NCGroup {
 
 static const auto& Logger = CGroupLogger;
 static const Stroka CGroupRootPath("/sys/fs/cgroup");
-
+#ifdef _linux_
+static const int ReadByAll = S_IRUSR | S_IRGRP | S_IROTH;
+static const int ReadExecuteByAll = ReadByAll | S_IXUSR | S_IXGRP | S_IXOTH;
+#endif
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -54,7 +54,10 @@ Stroka GetParentFor(const Stroka& type)
 std::vector<Stroka> ReadAllValues(const Stroka& fileName)
 {
     auto raw = TFileInput(fileName).ReadAll();
-    LOG_DEBUG("File %v contains %Qv", fileName, raw);
+    LOG_DEBUG(
+        "File %v contains %Qv",
+        fileName,
+        raw);
 
     yvector<Stroka> values;
     Split(raw.data(), " \n", values);
@@ -93,6 +96,11 @@ void RunKiller(const Stroka& processGroupPath)
         return;
     }
 
+    if (!group.Exists()) {
+        LOG_WARNING("Cgroup %v does not exists: stop killer", processGroupPath);
+        return;
+    }
+
     group.Lock();
 
     auto children = group.GetChildren();
@@ -118,11 +126,6 @@ void RunKiller(const Stroka& processGroupPath)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNonOwningCGroup::TNonOwningCGroup()
-    : FullPath_()
-{ }
-
-
 TNonOwningCGroup::TNonOwningCGroup(const Stroka& fullPath)
     : FullPath_(fullPath)
 { }
@@ -139,16 +142,15 @@ TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
     : FullPath_(std::move(other.FullPath_))
 { }
 
-// This method SHOULD work fine in forked process
-// So we cannot use out logging|profiling framework
 void TNonOwningCGroup::AddTask(int pid) const
 {
+    LOG_INFO(
+        "Adding %v to cgroup %v",
+        pid,
+        FullPath_);
     Append("tasks", ToString(pid));
 }
 
-
-// This method SHOULD work fine in forked process
-// So we cannot use out logging|profiling framework
 void TNonOwningCGroup::AddCurrentTask() const
 {
     YCHECK(!IsNull());
@@ -199,6 +201,11 @@ bool TNonOwningCGroup::IsRoot() const
 bool TNonOwningCGroup::IsNull() const
 {
     return FullPath_.Empty();
+}
+
+bool TNonOwningCGroup::Exists() const
+{
+    return NFS::Exists(FullPath_);
 }
 
 std::vector<int> TNonOwningCGroup::GetTasks() const
@@ -257,15 +264,15 @@ void TNonOwningCGroup::Lock() const
 {
     Traverse(
         BIND([] (const TNonOwningCGroup& group) { group.DoLock(); }),
-        BIND([] (const TNonOwningCGroup& group) {} )
+        BIND([] (const TNonOwningCGroup& group) {})
     );
 }
 
 void TNonOwningCGroup::Unlock() const
 {
     Traverse(
-        BIND([] (const TNonOwningCGroup& group) {} ),
-        BIND([] (const TNonOwningCGroup& group) { group.DoUnlock(); } )
+        BIND([] (const TNonOwningCGroup& group) {}),
+        BIND([] (const TNonOwningCGroup& group) { group.DoUnlock(); })
     );
 }
 
@@ -274,8 +281,8 @@ void TNonOwningCGroup::Kill() const
     YCHECK(!IsRoot());
 
     Traverse(
-        BIND([] (const TNonOwningCGroup& group) { group.DoKill(); } ),
-        BIND([] (const TNonOwningCGroup& group) {} )
+        BIND([] (const TNonOwningCGroup& group) { group.DoKill(); }),
+        BIND([] (const TNonOwningCGroup& group) {})
     );
 }
 
@@ -283,7 +290,9 @@ void TNonOwningCGroup::RemoveAllSubcgroups() const
 {
     auto this_ = this;
     Traverse(
-        BIND([] (const TNonOwningCGroup& group) {} ),
+        BIND([] (const TNonOwningCGroup& group) {
+            group.TryUnlock();
+        }),
         BIND([this_] (const TNonOwningCGroup& group) {
             if (this_ != &group) {
                 group.DoRemove();
@@ -296,30 +305,47 @@ void TNonOwningCGroup::DoLock() const
 {
     LOG_INFO("Locking cgroup %v", FullPath_);
 
-#ifdef _linux
+#ifdef _linux_
     if (!IsNull()) {
-        int code = chmod(~FullPath_, S_IRUSR | S_IXUSR);
+        int code = chmod(~FullPath_, ReadExecuteByAll);
         YCHECK(code == 0);
 
-        code = chmod(~GetPath("tasks"), S_IRUSR);
+        code = chmod(~GetPath("tasks"), ReadByAll);
         YCHECK(code == 0);
     }
 #endif
 }
 
-void TNonOwningCGroup::DoUnlock() const
+bool TNonOwningCGroup::TryUnlock() const
 {
     LOG_INFO("Unlocking cgroup %v", FullPath_);
 
+    if (!Exists()) {
+        return true;
+    }
+
+    bool result = true;
+
 #ifdef _linux_
     if (!IsNull()) {
-        int code = chmod(~GetPath("tasks"), S_IRUSR | S_IWUSR);
-        YCHECK(code == 0);
+        int code = chmod(~GetPath("tasks"), ReadByAll | S_IWUSR);
+        if (code != 0) {
+            result = false;
+        }
 
-        code = chmod(~FullPath_, S_IRUSR | S_IXUSR | S_IWUSR);
-        YCHECK(code == 0);
+        code = chmod(~FullPath_, ReadExecuteByAll | S_IWUSR);
+        if (code != 0) {
+            result = false;
+        }
     }
 #endif
+
+    return result;
+}
+
+void TNonOwningCGroup::DoUnlock() const
+{
+    YCHECK(TryUnlock());
 }
 
 void TNonOwningCGroup::DoKill() const
@@ -408,7 +434,7 @@ void TCGroup::Destroy()
     try {
         NFS::Remove(FullPath_);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to destroy cgroup %Qv", FullPath_);
+        LOG_FATAL(ex, "Failed to destroy cgroup %v", FullPath_);
     }
 #endif
     Created_ = false;
@@ -451,8 +477,8 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
         }
     } catch (const std::exception& ex) {
         LOG_FATAL(
-            ex, 
-            "Failed to retreive CPU statistics from cgroup %Qv", 
+            ex,
+            "Failed to retreive CPU statistics from cgroup %v",
             GetFullPath());
     }
 #endif
@@ -536,8 +562,8 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
         }
     } catch (const std::exception& ex) {
         LOG_FATAL(
-            ex, 
-            "Failed to retreive block io statistics from cgroup %Qv", 
+            ex,
+            "Failed to retreive block IO statistics from cgroup %v",
             GetFullPath());
     }
 #endif
@@ -568,18 +594,13 @@ TMemory::TMemory(const Stroka& name)
     : TCGroup("memory", name)
 { }
 
-TMemory::TMemory(TMemory&& other)
-    : TCGroup(std::move(other))
-{ }
-
-
 TMemory::TStatistics TMemory::GetStatistics() const
 {
     TMemory::TStatistics result;
 #ifdef _linux_
      try {
         auto values = ReadAllValues(GetPath("memory.stat"));
-        int lineNumber = 0; 
+        int lineNumber = 0;
         while (2 * lineNumber + 1 < values.size()) {
             const auto& type = values[2 * lineNumber];
             const auto value = FromString<i64>(values[2 * lineNumber + 1]);
@@ -593,98 +614,17 @@ TMemory::TStatistics TMemory::GetStatistics() const
         }
     } catch (const std::exception& ex) {
         LOG_FATAL(
-            ex, 
-            "Failed to retreive memory statistics from cgroup %Qv", 
+            ex,
+            "Failed to retreive memory statistics from cgroup %v",
             GetFullPath());
     }
 #endif
     return result;
 }
 
-i64 TMemory::GetUsageInBytes() const
-{
-    return FromString<i64>(Get("memory.usage_in_bytes"));
-}
-
-i64 TMemory::GetMaxUsageInBytes() const
-{
-    return FromString<i64>(Get("memory.max_usage_in_bytes"));
-}
-
 void TMemory::SetLimitInBytes(i64 bytes) const
 {
     Set("memory.limit_in_bytes", ToString(bytes));
-}
-
-bool TMemory::IsHierarchyEnabled() const
-{
-#ifdef _linux_
-    auto isHierarchyEnabled = FromString<int>(Get("memory.use_hierarchy"));
-    YCHECK((isHierarchyEnabled == 0) || (isHierarchyEnabled == 1));
-
-    return (isHierarchyEnabled == 1);
-#else
-    return false;
-#endif
-}
-
-void TMemory::EnableHierarchy() const
-{
-    Set("memory.use_hierarchy", "1");
-}
-
-bool TMemory::IsOomEnabled() const
-{
-#ifdef _linux_
-    const auto path = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
-    auto values = ReadAllValues(path);
-    if (values.size() != 4) {
-        THROW_ERROR_EXCEPTION("Unable to parse %v: expected 4 values, got %v",
-            path,
-            values.size());
-    }
-    for (int i = 0; i < 2; ++i) {
-        if (values[2 * i] == "oom_kill_disable") {
-            const auto& isDisabled = values[2 * i + 1];
-            if (isDisabled == "0") {
-                return true;
-            } else if (isDisabled == "1") {
-                return false;
-            } else {
-                THROW_ERROR_EXCEPTION("Unexpected value for oom_kill_disable: expected \"0\" or \"1\", got %Qv",
-                    isDisabled);
-            }
-        }
-    }
-    THROW_ERROR_EXCEPTION("Unable to find \"oom_kill_disable'\" in %v",
-        path);
-#else
-    return false;
-#endif
-}
-
-void TMemory::DisableOom() const
-{
-    // This parameter should be call `memory.disable_oom_control`.
-    // 1 means `disable`.
-    Set("memory.oom_control", "1");
-}
-
-TEvent TMemory::GetOomEvent() const
-{
-#ifdef _linux_
-    auto fileName = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
-    auto fd = ::open(~fileName, O_WRONLY | O_CLOEXEC);
-
-    auto eventFd = ::eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-    auto data = ToString(eventFd) + ' ' + ToString(fd);
-
-    Set("cgroup.event_control", data);
-
-    return TEvent(eventFd, fd);
-#else
-    return TEvent();
-#endif
 }
 
 void TMemory::ForceEmpty() const

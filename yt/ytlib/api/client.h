@@ -16,8 +16,6 @@
 
 #include <ytlib/ypath/public.h>
 
-#include <ytlib/hydra/public.h>
-
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/object_client/public.h>
@@ -33,6 +31,8 @@
 #include <ytlib/security_client/public.h>
 
 #include <ytlib/scheduler/public.h>
+
+#include <ytlib/job_tracker_client/public.h>
 
 namespace NYT {
 namespace NApi {
@@ -60,7 +60,8 @@ struct TSuppressableAccessTrackingOptions
 
 struct TMutatingOptions
 {
-    NHydra::TMutationId MutationId;
+    NRpc::TMutationId MutationId;
+    bool Retry = false;
 };
 
 struct TReadOnlyOptions
@@ -113,7 +114,9 @@ struct TCheckPermissionResult
 {
     NSecurityClient::ESecurityAction Action;
     NObjectClient::TObjectId ObjectId;
-    TNullable<Stroka> Subject;
+    TNullable<Stroka> ObjectName;
+    NSecurityClient::TSubjectId SubjectId;
+    TNullable<Stroka> SubjectName;
 };
 
 struct TTransactionStartOptions
@@ -212,6 +215,8 @@ struct TLockNodeOptions
     , public TPrerequisiteOptions
 {
     bool Waitable = false;
+    TNullable<Stroka> ChildKey;
+    TNullable<Stroka> AttributeKey;
 };
 
 struct TCopyNodeOptions
@@ -300,7 +305,7 @@ struct TStartOperationOptions
 //! both standalone and inside transaction.
 /*
  *  This interface contains methods shared by IClient and ITransaction.
- *  
+ *
  *  Thread affinity: single
  */
 struct IClientBase
@@ -424,10 +429,10 @@ DEFINE_REFCOUNTED_TYPE(IClientBase)
  *  The needed username is passed to #IConnection::CreateClient via options.
  *  Note that YT API has no built-in authentication mechanisms so it must be wrapped
  *  with appropriate logic.
- *  
+ *
  *  Most methods accept |TransactionId| as a part of their options.
  *  A similar effect can be achieved by issuing requests via ITransaction.
- *  
+ *
  */
 struct IClient
     : public IClientBase
@@ -494,6 +499,10 @@ struct IClient
 
     virtual TFuture<void> ResumeOperation(const NScheduler::TOperationId& operationId) = 0;
 
+
+    virtual TFuture<void> DumpInputContext(
+        const NJobTrackerClient::TJobId& jobId,
+        const NYPath::TYPath& path) = 0;
 
 };
 

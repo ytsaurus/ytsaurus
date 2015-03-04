@@ -106,7 +106,7 @@ private:
     i64 Size_ = 0;
 
     TWeakPtr<TReplicationWriter> Writer_;
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     void PutGroup(TReplicationWriterPtr writer);
     void SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode);
@@ -172,7 +172,7 @@ private:
     std::vector<TNodePtr> Nodes_;
 
     //! Number of nodes that are still alive.
-    int AliveNodeCount_;
+    int AliveNodeCount_ = 0;
 
     const int MinUploadReplicationFactor_;
 
@@ -186,7 +186,7 @@ private:
     //! Returned from node on Finish.
     TChunkInfo ChunkInfo_;
 
-    NLog::TLogger Logger = ChunkClientLogger;
+    NLogging::TLogger Logger = ChunkClientLogger;
 
 
     void DoOpen();
@@ -441,7 +441,7 @@ TReplicationWriter::TReplicationWriter(
     , WindowSlots_(config->SendWindowSize)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
 {
-    Logger.AddTag("ChunkId: %v", ChunkId_);
+    Logger.AddTag("ChunkId: %v, ChunkWriter: %v", ChunkId_, this);
 }
 
 TReplicationWriter::~TReplicationWriter()

@@ -5,11 +5,12 @@
 #include "helpers.h"
 #include "callbacks.h"
 #include "query_statistics.h"
+#include "evaluation_helpers.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/schemaful_merging_reader.h>
+#include <ytlib/new_table_client/unordered_schemaful_reader.h>
 #include <ytlib/new_table_client/row_buffer.h>
 
 #include <ytlib/chunk_client/chunk_spec.h>
@@ -51,18 +52,6 @@ void CaptureValue(TValue* value, TChunkedMemoryPool* pool)
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
-
-
-
-bool CountRow(i64* limit)
-{
-    if (*limit > 0) {
-        --*limit;
-        return false;
-    } else {
-        return true;
-    }
-}
 
 void WriteRow(TRow row, TExecutionContext* executionContext)
 {
@@ -152,7 +141,7 @@ void ScanOpHelper(
         if (shouldWait) {
             NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
             WaitFor(reader->GetReadyEvent())
-                .ThrowOnError();
+            	.ThrowOnError();
         }
     }
 }
@@ -195,8 +184,7 @@ void JoinOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, std::vector<TRow>* rows, TLookupRows* lookupRows, std::vector<TRow>* allRows),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag)
-    )
+    void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag))
 {
     std::vector<TRow> keys;
     
@@ -316,33 +304,6 @@ char IsPrefix(
         std::mismatch(lhsData, lhsData + lhsLength, rhsData).first == lhsData + lhsLength;
 }
 
-char Equal(
-    const char* lhsData,
-    ui32 lhsLength,
-    const char* rhsData,
-    ui32 rhsLength)
-{
-    return lhsLength == rhsLength && std::equal(lhsData, lhsData + lhsLength, rhsData);
-}
-
-char NotEqual(
-    const char* lhsData,
-    ui32 lhsLength,
-    const char* rhsData,
-    ui32 rhsLength)
-{
-    return !Equal(lhsData, lhsLength, rhsData, rhsLength);
-}
-
-char LexicographicalCompare(
-    const char* lhsData,
-    ui32 lhsLength,
-    const char* rhsData,
-    ui32 rhsLength)
-{
-    return std::lexicographical_compare(lhsData, lhsData + lhsLength, rhsData, rhsData + rhsLength);
-}
-
 char* ToLower(
     TExecutionContext* executionContext,
     const char* data,
@@ -383,7 +344,7 @@ char IsRowInArray(
     int index)
 {
     // TODO(lukyan): check null
-    auto rows = executionContext->LiteralRows->at(index);
+    const auto& rows = (*executionContext->LiteralRows)[index];
     return std::binary_search(rows.begin(), rows.end(), row, TRowComparer(comparer));
 }
 
@@ -420,12 +381,11 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);
     REGISTER_ROUTINE(IsPrefix);
-    REGISTER_ROUTINE(Equal);
-    REGISTER_ROUTINE(NotEqual);
-    REGISTER_ROUTINE(LexicographicalCompare);
     REGISTER_ROUTINE(ToLower);
     REGISTER_ROUTINE(IsRowInArray);
 #undef REGISTER_ROUTINE
+
+    registry->RegisterRoutine("memcmp", std::memcmp);
 }
 
 TRoutineRegistry* GetQueryRoutineRegistry()

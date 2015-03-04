@@ -116,12 +116,15 @@
 %type <TExpressionPtr> relational-op-expr
 %type <TExpressionPtr> multiplicative-op-expr
 %type <TExpressionPtr> additive-op-expr
+%type <TExpressionPtr> unary-expr
 %type <TExpressionPtr> atomic-expr
 %type <TExpressionPtr> comma-expr
 %type <TUnversionedValue> literal-expr
 %type <TValueList> literal-list
 %type <TValueList> literal-tuple
 %type <TValueTupleList> literal-tuple-list
+
+%type <EUnaryOp> unary-op
 
 %type <EBinaryOp> relational-op
 %type <EBinaryOp> multiplicative-op
@@ -294,14 +297,14 @@ relational-op-expr
         {
             $$ = New<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
-    | atomic-expr[expr] KwBetween atomic-expr[lbexpr] KwAnd atomic-expr[rbexpr]
+    | unary-expr[expr] KwBetween unary-expr[lbexpr] KwAnd unary-expr[rbexpr]
         {
             $$ = New<TBinaryOpExpression>(@$, EBinaryOp::And,
                 New<TBinaryOpExpression>(@$, EBinaryOp::GreaterOrEqual, $expr, $lbexpr),
                 New<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
 
         }
-    | atomic-expr[expr] KwIn LeftParenthesis literal-tuple-list[args] RightParenthesis
+    | unary-expr[expr] KwIn LeftParenthesis literal-tuple-list[args] RightParenthesis
         {
             $$ = New<TInExpression>(@$, $expr, $args);
         }
@@ -341,11 +344,11 @@ additive-op
 ;
 
 multiplicative-op-expr
-    : multiplicative-op-expr[lhs] multiplicative-op[opcode] atomic-expr[rhs]
+    : multiplicative-op-expr[lhs] multiplicative-op[opcode] unary-expr[rhs]
         {
             $$ = New<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
-    | atomic-expr
+    | unary-expr
         { $$ = $1; }
 ;
 
@@ -365,6 +368,22 @@ comma-expr
         }
     | expression
         { $$ = $1; }
+;
+
+unary-expr
+    : unary-op[opcode] atomic-expr[rhs]
+        {
+            $$ = New<TUnaryOpExpression>(@$, $opcode, $rhs);
+        }
+    | atomic-expr
+        { $$ = $1; }
+;
+
+unary-op
+    : OpPlus
+        { $$ = EUnaryOp::Plus; }
+    | OpMinus
+        { $$ = EUnaryOp::Minus; }
 ;
 
 atomic-expr

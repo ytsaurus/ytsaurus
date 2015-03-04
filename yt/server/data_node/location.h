@@ -141,26 +141,26 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NProfiling::TProfiler, Profiler);
 
 private:
-    ELocationType Type_;
-    Stroka Id_;
-    TLocationConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    const ELocationType Type_;
+    const Stroka Id_;
+    const TLocationConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
-    std::atomic<bool> Enabled_;
+    std::atomic<bool> Enabled_ = {false};
 
-    mutable i64 AvailableSpace_;
-    i64 UsedSpace_;
-    int SessionCount_;
-    int ChunkCount_;
+    mutable i64 AvailableSpace_ = 0;
+    i64 UsedSpace_ = 0;
+    int SessionCount_ = 0;
+    int ChunkCount_ = 0;
 
-    NConcurrency::TFairShareActionQueuePtr ReadQueue_;
-    IPrioritizedInvokerPtr DataReadInvoker_;
-    IPrioritizedInvokerPtr MetaReadInvoker_;
+    const NConcurrency::TFairShareActionQueuePtr ReadQueue_;
+    const IPrioritizedInvokerPtr DataReadInvoker_;
+    const IPrioritizedInvokerPtr MetaReadInvoker_;
 
-    NConcurrency::TThreadPoolPtr WriteThreadPool_;
-    IInvokerPtr WritePoolInvoker_;
+    const NConcurrency::TThreadPoolPtr WriteThreadPool_;
+    const IInvokerPtr WritePoolInvoker_;
 
-    TDiskHealthCheckerPtr HealthChecker_;
+    const TDiskHealthCheckerPtr HealthChecker_;
 
     struct TTrashChunkEntry
     {
@@ -170,9 +170,10 @@ private:
 
     TSpinLock TrashMapSpinLock_;
     std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
-    NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
+    i64 TrashDiskSpace_ = 0;
+    const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
 
-    mutable NLog::TLogger Logger;
+    mutable NLogging::TLogger Logger;
 
 
     std::vector<TChunkDescriptor> DoInitialize();

@@ -3,7 +3,7 @@ package NYT.NScheduler.NProto;
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/job_tracker_client/job.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
-import "yt/ytlib/table_client/table_chunk_meta.proto";
+import "yt/ytlib/new_table_client/chunk_meta.proto";
 import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,9 +49,8 @@ message TUserJobSpec
     // Memory size reserved at job launch, in bytes.
     required int64 memory_reserve = 9;
 
-    // Transaction for creating stderr chunks.
-    // If not set then no stderrs are captured.
-    optional NYT.NProto.TGuid stderr_transaction_id = 8;
+    // Transaction for creating stderr chunks and input contexts.
+    required NYT.NProto.TGuid async_scheduler_transaction_id = 8;
 
     optional bool use_yamr_descriptors = 10 [default = false];
 
@@ -61,7 +60,7 @@ message TUserJobSpec
 
     // Deprecated = 13.
 
-    optional bool enable_io_prio = 14 [default = true];
+    // Depracate = 14.
 
     optional bool enable_accounting = 15 [default = false];
 
@@ -74,7 +73,7 @@ message TUserJobSpec
 message TUserJobResult
 {
     // Used for reordering chunks from operations that produce sorted output.
-    repeated NTableClient.NProto.TOldBoundaryKeysExt output_boundary_keys = 2;
+    repeated NVersionedTableClient.NProto.TBoundaryKeysExt output_boundary_keys = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,6 +93,8 @@ message TTableOutputSpec
 
     // YSON-serialized writer options obtained from table attributes.
     required string table_writer_options = 6;
+
+    optional NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 7;
 }
 
 // Describes a job submitted by a scheduler.
@@ -130,7 +131,7 @@ message TSchedulerJobSpecExt
     // True if data_size and row_count are approximate (e.g. restarted sort jobs).
     optional bool is_approximate = 9 [default = false];
 
-    optional bool job_proxy_memory_control = 10 [default = true];
+    optional bool enable_job_proxy_memory_control = 10 [default = true];
 
     optional bool enable_sort_verification = 11 [default = true];
 
@@ -223,16 +224,20 @@ message TPartitionJobSpecExt
     // Number of partitions.
     required int32 partition_count = 1;
 
+    // Deprecated = 2.
+    // Deprecated = 3.
+    // Deprecated = 4.
+
     // If empty then THashPartitioner is used.
     // Otherwise TOrderedPartitioner is used.
 
-    // Deprecated = 2.
-
-    repeated string key_columns = 3;
-
-    // Deprecated = 4;
-
     repeated string partition_keys = 5;
+
+    // Sort key columns (may be wider than reduce key).
+    required NVersionedTableClient.NProto.TKeyColumnsExt sort_key_columns = 6;
+
+    // Size of key prefix used for bucket decision.
+    required int32 reduce_key_column_count = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

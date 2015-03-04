@@ -66,7 +66,7 @@ public:
                     .EndMap()
                 .EndMap()
             .EndMap();
-        NYT::NLog::TLogManager::Get()->Configure(builder->EndTree());
+        NYT::NLogging::TLogManager::Get()->Configure(builder->EndTree());
     }
 
     virtual void TearDown() override

@@ -11,10 +11,9 @@
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/private.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/private.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <core/concurrency/scheduler.h>
 
@@ -31,8 +30,6 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
 
-using NTableClient::NProto::TOldBoundaryKeysExt;
-
 ////////////////////////////////////////////////////////////////////
 
 TChunkSplitsFetcher::TChunkSplitsFetcher(
@@ -41,7 +38,7 @@ TChunkSplitsFetcher::TChunkSplitsFetcher(
     const TKeyColumns& keyColumns,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
-    NLog::TLogger& logger)
+    NLogging::TLogger& logger)
     : TFetcherBase(config, nodeDirectory, invoker, logger)
     , ChunkSliceSize_(chunkSliceSize)
     , KeyColumns_(keyColumns)
@@ -78,6 +75,7 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
     NYT::ToProto(req->mutable_key_columns(), KeyColumns_);
 
     std::vector<int> requestedChunkIndexes;
+    int keyColumnCount = KeyColumns_.size();
 
     for (auto index : chunkIndexes) {
         auto& chunk = Chunks_[index];
@@ -85,13 +83,18 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
         i64 chunkDataSize;
         GetStatistics(*chunk, &chunkDataSize);
 
-        auto boundaryKeys = GetProtoExtension<TOldBoundaryKeysExt>(chunk->chunk_meta().extensions());
+        TOwningKey minKey, maxKey;
+        YCHECK(TryGetBoundaryKeys(chunk->chunk_meta(), &minKey, &maxKey));
 
-        if (chunkDataSize < ChunkSliceSize_ || NTableClient::CompareKeys(
-            boundaryKeys.start(),
-            boundaryKeys.end(),
-            KeyColumns_.size()) == 0)
-        {
+        if (chunkDataSize < ChunkSliceSize_ || CompareRows(minKey, maxKey, keyColumnCount) == 0) {
+            if (!chunk->lower_limit().has_key()) {
+                ToProto(chunk->mutable_lower_limit()->mutable_key(), GetKeyPrefix(minKey.Get(), keyColumnCount));
+            }
+            if (!chunk->upper_limit().has_key()) {
+                ToProto(
+                    chunk->mutable_upper_limit()->mutable_key(),
+                    GetKeyPrefixSuccessor(maxKey.Get(), keyColumnCount));
+            }
             ChunkSplits_.push_back(chunk);
         } else {
             requestedChunkIndexes.push_back(index);

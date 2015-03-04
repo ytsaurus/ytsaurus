@@ -8,6 +8,8 @@
 
 #include <ytlib/scheduler/job.pb.h>
 
+#include <ytlib/job_tracker_client/public.h>
+
 #include <core/logging/log.h>
 
 #include <core/rpc/public.h>
@@ -36,7 +38,9 @@ struct IJobHost
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
 
-    virtual NLog::TLogger GetLogger() const = 0;
+    virtual NLogging::TLogger GetLogger() const = 0;
+
+    virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) = 0;
 
 };
 
@@ -52,12 +56,14 @@ struct IJob
     { }
 
     virtual NJobTrackerClient::NProto::TJobResult Run() = 0;
-    
+
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
-    
+
     virtual double GetProgress() const = 0;
 
     virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const = 0;
+
+    virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
 
 };
 

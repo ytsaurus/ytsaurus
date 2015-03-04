@@ -74,13 +74,15 @@ struct TExecutionContext
 
     TQueryStatistics* Statistics;
 
-    // TODO: Rename to ReadRowLimit and WriteRowLimit
+    // TODO(lukyan): Rename to ReadRowLimit and WriteRowLimit
     i64 InputRowLimit;
     i64 OutputRowLimit;
     i64 GroupRowLimit;
+    i64 JoinRowLimit;
 
     i64 Limit;
 
+    // "char" type is to due LLVM interop.
     char StopFlag = false;
 
     TJoinEvaluator EvaluateJoin;

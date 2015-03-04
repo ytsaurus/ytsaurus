@@ -40,9 +40,9 @@ typedef TParser::token_type TToken;
     fltexp = [Ee] [+\-]? digit+;
     fltdot = (digit* '.' digit+) | (digit+ '.' digit*);
 
-    int64_literal = digit+;
+    int64_literal = [+\-]? digit+;
     uint64_literal = digit+ 'u';
-    double_literal = fltdot fltexp?;
+    double_literal = [+\-]? fltdot fltexp?;
     single_quoted_string = "'" ( [^'\\] | /\\./ )* "'";
     double_quoted_string = '"' ( [^"\\] | /\\./ )* '"';
     string_literal = single_quoted_string | double_quoted_string;

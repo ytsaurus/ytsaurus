@@ -19,7 +19,7 @@ namespace NChunkClient {
 
 NChunkClient::NProto::TChunkMeta FilterChunkMetaByExtensionTags(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const std::vector<int>& tags);
+    const TNullable<std::vector<int>>& extensionTags);
 
 } // namespace NChunkClient
 

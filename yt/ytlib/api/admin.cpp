@@ -61,16 +61,13 @@ private:
 
     const IChannelPtr LeaderChannel_;
 
-    NLog::TLogger Logger = ApiLogger;
+    NLogging::TLogger Logger = ApiLogger;
 
 
     template <class T>
     TFuture<T> Execute(const Stroka& commandName, TCallback<T()> callback)
     {
-        auto this_ = MakeStrong(this);
-        return
-            BIND([=] () {
-                UNUSED(this_);
+        return BIND([=, this_ = MakeStrong(this)] () {
                 try {
                     LOG_DEBUG("Command started (Command: %v)", commandName);
                     TBox<T> result(callback);

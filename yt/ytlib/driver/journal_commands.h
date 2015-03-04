@@ -24,6 +24,13 @@ struct TReadJournalRequest
     {
         RegisterParameter("path", Path);
     }
+
+    virtual void OnLoaded() override
+    {
+        TTransactionalRequest::OnLoaded();
+
+        Path = Path.Normalize();
+    }
 };
 
 class TReadJournalCommand

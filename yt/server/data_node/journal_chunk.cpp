@@ -33,7 +33,7 @@ using namespace NChunkClient::NProto;
 
 static const auto& Logger = DataNodeLogger;
 
-static NProfiling::TRateCounter DiskJournalReadThroughputCounter("/disk_journal_read_throughput");
+static NProfiling::TSimpleCounter DiskJournalReadByteCounter("/disk_journal_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +77,7 @@ TChunkInfo TJournalChunk::GetInfo() const
 
 TFuture<TRefCountedChunkMetaPtr> TJournalChunk::GetMeta(
     i64 /*priority*/,
-    const std::vector<int>* tags /*= nullptr*/)
+    const TNullable<std::vector<int>>& extensionTags)
 {
     UpdateCachedParams();
 
@@ -88,7 +88,7 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::GetMeta(
     miscExt.set_sealed(CachedSealed_);
     SetProtoExtension(Meta_->mutable_extensions(), miscExt);
 
-    return MakeFuture(FilterCachedMeta(tags));
+    return MakeFuture(FilterCachedMeta(extensionTags));
 }
 
 TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
@@ -167,7 +167,7 @@ void TJournalChunk::DoReadBlocks(
         locationProfiler.Enqueue("/journal_read_size", bytesRead);
         locationProfiler.Enqueue("/journal_read_time", readTime.MicroSeconds());
         locationProfiler.Enqueue("/journal_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
-        DataNodeProfiler.Increment(DiskJournalReadThroughputCounter, bytesRead);
+        DataNodeProfiler.Increment(DiskJournalReadByteCounter, bytesRead);
 
         promise.Set(blocks);
     } catch (const std::exception& ex) {
@@ -187,11 +187,17 @@ void TJournalChunk::UpdateCachedParams() const
 void TJournalChunk::SyncRemove(bool force)
 {
     if (Changelog_) {
-        LOG_DEBUG("Started closing journal chunk files (ChunkId: %v)", Id_);
-        WaitFor(Changelog_->Close())
-            .ThrowOnError();
-        LOG_DEBUG("Finished closing journal chunk files (ChunkId: %v)", Id_);
-        Changelog_.Reset();
+        try {
+            LOG_DEBUG("Started closing journal chunk files (ChunkId: %v)", Id_);
+            WaitFor(Changelog_->Close())
+                .ThrowOnError();
+            LOG_DEBUG("Finished closing journal chunk files (ChunkId: %v)", Id_);
+            Changelog_.Reset();
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            Location_->Disable(error);
+            return;
+        }
     }
 
     if (force) {
@@ -205,17 +211,12 @@ TFuture<void> TJournalChunk::AsyncRemove()
 {
     auto location = Location_;
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    return dispatcher->RemoveChangelog(this)
-        .Apply(BIND([=] (const TError& error) {
-            if (!error.IsOK()) {
-                location->Disable(error);
-            }
-        }));
+    return dispatcher->RemoveChangelog(this);
 }
 
 void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
 {
-    YCHECK(!IsRemoveScheduled());
+    YCHECK(!Removing_);
     YCHECK(!Changelog_);
     Changelog_ = changelog;
 
@@ -224,7 +225,7 @@ void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
 
 void TJournalChunk::DetachChangelog()
 {
-    YCHECK(!IsRemoveScheduled());
+    YCHECK(!Removing_);
 
     UpdateCachedParams();
     Changelog_.Reset();
@@ -232,7 +233,7 @@ void TJournalChunk::DetachChangelog()
 
 bool TJournalChunk::HasAttachedChangelog() const
 {
-    YCHECK(!IsRemoveScheduled());
+    YCHECK(!Removing_);
 
     return Changelog_ != nullptr;
 }

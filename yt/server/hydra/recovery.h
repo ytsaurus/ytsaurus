@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <core/rpc/public.h>
+
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/logging/log.h>
@@ -25,6 +27,7 @@ protected:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
+        NRpc::TResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext);
 
     //! Must be derived by the inheritors to control the recovery behavior.
@@ -35,16 +38,17 @@ protected:
     void RecoverToVersion(TVersion targetVersion);
 
 
-    TDistributedHydraManagerConfigPtr Config_;
-    NElection::TCellManagerPtr CellManager_;
-    TDecoratedAutomatonPtr DecoratedAutomaton_;
-    IChangelogStorePtr ChangelogStore_;
-    ISnapshotStorePtr SnapshotStore_;
-    TEpochContext* EpochContext_;
+    const TDistributedHydraManagerConfigPtr Config_;
+    const NElection::TCellManagerPtr CellManager_;
+    const TDecoratedAutomatonPtr DecoratedAutomaton_;
+    const IChangelogStorePtr ChangelogStore_;
+    const ISnapshotStorePtr SnapshotStore_;
+    const NRpc::TResponseKeeperPtr ResponseKeeper_;
+    TEpochContext* const EpochContext_;
 
     TVersion SyncVersion_;
 
-    NLog::TLogger Logger;
+    NLogging::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -79,6 +83,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
+        NRpc::TResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext);
 
     //! Performs leader recovery up to a given version.
@@ -115,6 +120,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
+        NRpc::TResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
         TVersion syncVersion);
 

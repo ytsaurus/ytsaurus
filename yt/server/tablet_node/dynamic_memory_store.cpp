@@ -487,7 +487,7 @@ public:
             return false;
         }
 
-        Store_->Statistics_->DynamicMemoryRowReadCount += rows->size();
+        Store_->PerformanceCounters_->DynamicMemoryRowReadCount += rows->size();
 
         return true;
     }
@@ -536,7 +536,7 @@ public:
 
     virtual TFutureHolder<TVersionedRow> Lookup(TKey key) override
     {
-        ++Store_->Statistics_->DynamicMemoryRowLookupCount;
+        ++Store_->PerformanceCounters_->DynamicMemoryRowLookupCount;
 
         auto iterator = Store_->Rows_->FindEqualTo(TRowWrapper{key});
         if (!iterator.IsValid()) {
@@ -689,7 +689,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
 
     OnMemoryUsageUpdated();
 
-    ++Statistics_->DynamicMemoryRowWriteCount;
+    ++PerformanceCounters_->DynamicMemoryRowWriteCount;
 
     return result;
 }
@@ -731,7 +731,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
 
     OnMemoryUsageUpdated();
 
-    ++Statistics_->DynamicMemoryRowDeleteCount;
+    ++PerformanceCounters_->DynamicMemoryRowDeleteCount;
 
     return result;
 }
