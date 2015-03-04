@@ -1025,7 +1025,7 @@ protected:
             auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->extensions());
 
             if (!ValidateKey(boundaryKeysExt.start()) || !ValidateKey(boundaryKeysExt.end())) {
-                THROW_ERROR_EXCEPTION("Invalid double values in input table \"%s\"",
+                THROW_ERROR_EXCEPTION("Invalid double values in input table %s",
                     ~ToString(GetInputTablePaths()[chunk->table_index()]));
             }
 
