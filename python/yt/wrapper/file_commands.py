@@ -5,6 +5,7 @@ import yt.logger as logger
 from common import require, chunk_iter, bool_to_string, parse_bool
 from errors import YtError, YtResponseError
 from driver import ResponseStream
+from http import get_api_version
 from heavy_commands import make_heavy_request
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link, get_attribute
 from transaction_commands import _make_transactional_request
@@ -45,7 +46,7 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
         params["length"] = length
 
     response = _make_transactional_request(
-        "download",
+        "download" if get_api_version(client=client) == "v2" else "read_file",
         params,
         return_content=False,
         use_heavy_proxy=True,
@@ -68,7 +69,7 @@ def upload_file(stream, destination, file_writer=None, client=None):
         params["file_writer"] = file_writer
 
     make_heavy_request(
-        "upload",
+        "upload" if get_api_version(client=client) == "v2" else "write_file",
         stream,
         destination,
         params,
