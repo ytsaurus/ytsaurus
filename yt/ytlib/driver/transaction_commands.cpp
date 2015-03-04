@@ -28,8 +28,6 @@ void TStartTransactionCommand::DoExecute()
     options.Ping = true;
     options.AutoAbort = false;
     options.PingAncestors = Request_->PingAncestors;
-
-    std::unique_ptr<IAttributeDictionary> attributes;
     if (Request_->Attributes) {
         options.Attributes = ConvertToAttributes(Request_->Attributes);
     }
