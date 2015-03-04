@@ -122,7 +122,7 @@ YtApplicationAuth.prototype._dispatchLogin = function(req, rsp, body)
         throw new YtError("Expected body to have a `token` field");
     }
 
-    return self.authority.authenticate(logger, origin, body.token)
+    return self.authority.authenticateByToken(logger, origin, body.token)
     .then(function(result) {
         return utils.dispatchJson(rsp, {
             login: result.login,
@@ -165,7 +165,7 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
     .then(function(token) {
         return Q.all([
             token,
-            self.authority.authenticate(logger, origin, token)
+            self.authority.authenticateByToken(logger, origin, token)
         ]);
     })
     .spread(function(token, result) {
