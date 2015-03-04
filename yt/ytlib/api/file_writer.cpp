@@ -58,9 +58,7 @@ public:
     {
         if (Options_.TransactionId != NullTransactionId) {
             auto transactionManager = Client_->GetTransactionManager();
-            TTransactionAttachOptions attachOptions;
-            attachOptions.AutoAbort = false;
-            Transaction_ = transactionManager->Attach(Options_.TransactionId, attachOptions);
+            Transaction_ = transactionManager->Attach(Options_.TransactionId);
             ListenTransaction(Transaction_);
         }
 

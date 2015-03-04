@@ -966,7 +966,6 @@ private:
         }
 
         TTransactionAttachOptions attachOptions;
-        attachOptions.AutoAbort = false;
         attachOptions.Ping = pingTransaction;
         attachOptions.PingAncestors = options.PingAncestors;
         return TransactionManager_->Attach(options.TransactionId, attachOptions);
