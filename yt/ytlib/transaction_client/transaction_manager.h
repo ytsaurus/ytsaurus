@@ -32,7 +32,7 @@ struct TTransactionStartOptions
 
 struct TTransactionAttachOptions
 {
-    bool AutoAbort = true;
+    bool AutoAbort = false;
     bool Ping = true;
     bool PingAncestors = false;
 };

@@ -946,7 +946,6 @@ private:
             auto client = connection->CreateClient(GetRootClientOptions());
             auto transactionManager = client->GetTransactionManager();
             TTransactionAttachOptions options;
-            options.AutoAbort = false;
             options.Ping = ping;
             options.PingAncestors = false;
             return transactionManager->Attach(id, options);

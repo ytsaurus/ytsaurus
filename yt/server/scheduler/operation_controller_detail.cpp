@@ -1221,11 +1221,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_async_tx").Value();
         auto transactionId = FromProto<TObjectId>(rsp->object_ids(0));
         auto transactionManager = AuthenticatedMasterClient->GetTransactionManager();
-        TTransactionAttachOptions options;
-        options.AutoAbort = false;
-        options.Ping = true;
-        options.PingAncestors = false;
-        Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(transactionId, options));
+        Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(transactionId));
     }
 
     LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v, OperationId: %v)",
@@ -1276,11 +1272,7 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_sync_tx").Value();
         auto transactionId = FromProto<TObjectId>(rsp->object_ids(0));
         auto transactionManager = Host->GetMasterClient()->GetTransactionManager();
-        TTransactionAttachOptions options;
-        options.AutoAbort = false;
-        options.Ping = true;
-        options.PingAncestors = false;
-        Operation->SetSyncSchedulerTransaction(transactionManager->Attach(transactionId, options));
+        Operation->SetSyncSchedulerTransaction(transactionManager->Attach(transactionId));
     }
 
     LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %v, OperationId: %v)",
@@ -1329,10 +1321,7 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         const auto& rsp = rspOrError.Value();
         auto id = FromProto<TTransactionId>(rsp->object_ids(0));
         auto transactionManager = AuthenticatedInputMasterClient->GetTransactionManager();
-        TTransactionAttachOptions options;
-        options.AutoAbort = false;
-        options.Ping = true;
-        Operation->SetInputTransaction(transactionManager->Attach(id, options));
+        Operation->SetInputTransaction(transactionManager->Attach(id));
     }
 }
 
@@ -1378,10 +1367,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
         const auto& rsp = rspOrError.Value();
         auto id = FromProto<TTransactionId>(rsp->object_ids(0));
         auto transactionManager = AuthenticatedOutputMasterClient->GetTransactionManager();
-        TTransactionAttachOptions options;
-        options.AutoAbort = false;
-        options.Ping = true;
-        Operation->SetOutputTransaction(transactionManager->Attach(id, options));
+        Operation->SetOutputTransaction(transactionManager->Attach(id));
     }
 }
 

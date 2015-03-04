@@ -311,7 +311,6 @@ public:
         // Attach user transaction if any. Don't ping it.
         auto transactionManager = GetMasterClient()->GetTransactionManager();
         TTransactionAttachOptions userAttachOptions;
-        userAttachOptions.AutoAbort = false;
         userAttachOptions.Ping = false;
         userAttachOptions.PingAncestors = false;
         auto userTransaction = transactionId == NullTransactionId
