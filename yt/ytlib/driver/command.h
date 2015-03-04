@@ -228,7 +228,7 @@ protected:
         NTransactionClient::TTransactionAttachOptions options(transactionId);
         options.AutoAbort = false;
         options.Ping = !required;
-        options.PingAncestors = !required && this->Request_->PingAncestors;
+        options.PingAncestors = this->Request_->PingAncestors;
 
         auto transactionManager = this->Context_->GetClient()->GetTransactionManager();
         return transactionManager->Attach(options);
