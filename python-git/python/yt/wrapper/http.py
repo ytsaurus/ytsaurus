@@ -170,6 +170,9 @@ def get_api(client=None):
 
     return client_provider.VERSION, client_provider.COMMANDS
 
+def get_api_version(client=None):
+    return get_api(client=client)[0]
+
 def get_token(client=None):
     token = None
     if client is not None:
