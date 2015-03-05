@@ -286,10 +286,10 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
             << TErrorAttribute("function_name", functionName);
     }
 
-    auto genericArgTypes = registry->GetGenericArgumentTypes(functionName);
-    auto genericResultType = registry->GetGenericResultType(functionName);
+    auto expectedArgTypes = registry->GetArgumentTypes(functionName);
+    auto resultType = registry->GetResultType(functionName);
 
-    auto argCount = genericArgTypes.size();
+    auto argCount = expectedArgTypes.size();
     if (argTypes.size() != argCount) {
         THROW_ERROR_EXCEPTION(
             "Expression %Qv expects %v arguments, but %v provided",
@@ -301,30 +301,42 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
 
     std::unordered_map<TTypeArgument, EValueType> genericAssignments;
 
-    auto arg = argTypes.begin();
-    auto genericArg = genericArgTypes.begin();
-    for (; arg != argTypes.end(); arg++, genericArg++)
-    {
-        //TODO: better error messages
-        if (auto genericId = (*genericArg).TryAs<TTypeArgument>()) {
-            if (genericAssignments.count(*genericId)
-                && !(genericAssignments[*genericId] == *arg)) {
-                THROW_ERROR_EXCEPTION(
-                    "Wrong argument type",
-                    source);
+    auto unify = [&] (TGenericType type1, EValueType type2) {
+        if (auto genericId = type1.TryAs<TTypeArgument>()) {
+            if (genericAssignments.count(*genericId)) {
+                return genericAssignments[*genericId] == type2;
             } else {
-                genericAssignments[*genericId] = *arg;
+                genericAssignments[*genericId] = type2;
+                return true;
             }
         } else {
-            if (*arg != (*genericArg).As<EValueType>()) {
-                THROW_ERROR_EXCEPTION(
-                    "Wrong argument type",
-                    source);
-            }
+            return type1.As<EValueType>() == type2;
+        }
+    };
+
+    //TODO: better error messages
+    auto arg = argTypes.begin();
+    auto expectedArg = expectedArgTypes.begin();
+    for (; expectedArg != expectedArgTypes.end(); arg++, expectedArg++)
+    {
+        if (!unify(*expectedArg, *arg)) {
+            THROW_ERROR_EXCEPTION(
+                "Wrong argument type",
+                source);
         }
     }
 
-    if (auto genericResult = genericResultType.TryAs<TTypeArgument>()) {
+    auto repeatedArgType = registry->GetRepeatedArgumentType(functionName);
+    for (; arg != argTypes.end(); arg++)
+    {
+        if (!unify(repeatedArgType, *arg)) {
+            THROW_ERROR_EXCEPTION(
+                "Wrong argument type",
+                source);
+        }
+    }
+
+    if (auto genericResult = resultType.TryAs<TTypeArgument>()) {
         if (!genericAssignments.count(*genericResult)) {
             //TODO: Maybe this should be checked on registering functions
             //      and just asserted here
@@ -334,7 +346,7 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
         }
         return genericAssignments[*genericResult];
     } else {
-        return genericResultType.As<EValueType>();
+        return resultType.As<EValueType>();
     }
 
     return EValueType::Null;
