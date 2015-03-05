@@ -732,11 +732,13 @@ void InitRegistry() {
         EValueType::String,
         getCodegenBuilder("lower"));
 
-    registry->RegisterFunction(
-        "lower",
-        std::vector<TGenericType>({ EValueType::String }),
+    //TODO: need to restrict to integral, boolean or string type
+    registry->RegisterVariadicFunction(
+        "simple_hash",
+        std::vector<TGenericType>({ 0 }),
+        0,
         EValueType::String,
-        getCodegenBuilder("lower"));
+        getCodegenBuilder("simple_hash"));
 
     registry->RegisterFunction(
         "is_null",

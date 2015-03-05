@@ -29,13 +29,24 @@ public:
         TCodegenBuilder bodyBuilder,
         TRangeBuilder rangeBuilder = UniversalRange);
 
+    void RegisterVariadicFunction(
+        const Stroka& functionName,
+        std::vector<TGenericType> argumentTypes,
+        TGenericType repeatedArgumentType,
+        TGenericType resultType,
+        TCodegenBuilder bodyBuilder,
+        TRangeBuilder rangeBuilder = UniversalRange);
+
 
     bool IsRegistered(const Stroka& functionName);
 
-    TGenericType GetGenericResultType(
+    std::vector<TGenericType> GetArgumentTypes(
         const Stroka& functionName);
 
-    std::vector<TGenericType> GetGenericArgumentTypes(
+    TGenericType GetRepeatedArgumentType(
+        const Stroka& functionName);
+
+    TGenericType GetResultType(
         const Stroka& functionName);
 
     TCodegenBuilder GetCodegenBuilder(
