@@ -10,6 +10,8 @@
 #include "cg_routines.h"
 #include "cg_ir_builder.h"
 
+#include "function_registry.h"
+
 #include <core/codegen/public.h>
 #include <core/codegen/module.h>
 
@@ -692,6 +694,55 @@ TCodegenExpression MakeCodegenReferenceExpr(
                 type,
                 "reference." + Twine(name));
         };
+}
+
+void InitRegistry() {
+    //TODO: int64, uint64, double, simple_hash
+    //TODO: add range builders
+    auto getCodegenBuilder = [] (Stroka functionName) {
+      return [] (
+        std::vector<TCodegenExpression> codegenArgs,
+        EValueType type,
+        Stroka name) {
+            return MakeCodegenFunctionExpr("is_prefix", codegenArgs, type, name);
+        };
+    };
+
+    registry->RegisterFunction(
+        "if",
+        std::vector<TGenericType>({ EValueType::Boolean, 0, 0 }),
+        0,
+        getCodegenBuilder("if"));
+
+    registry->RegisterFunction(
+        "is_prefix",
+        std::vector<TGenericType>({ EValueType::String, EValueType::String }),
+        EValueType::Boolean,
+        getCodegenBuilder("is_prefix"));
+
+    registry->RegisterFunction(
+        "is_substr",
+        std::vector<TGenericType>({ EValueType::String, EValueType::String }),
+        EValueType::Boolean,
+        getCodegenBuilder("is_substr"));
+
+    registry->RegisterFunction(
+        "lower",
+        std::vector<TGenericType>({ EValueType::String }),
+        EValueType::String,
+        getCodegenBuilder("lower"));
+
+    registry->RegisterFunction(
+        "lower",
+        std::vector<TGenericType>({ EValueType::String }),
+        EValueType::String,
+        getCodegenBuilder("lower"));
+
+    registry->RegisterFunction(
+        "is_null",
+        std::vector<TGenericType>({ 0 }),
+        EValueType::Boolean,
+        getCodegenBuilder("is_null"));
 }
 
 TCodegenExpression MakeCodegenFunctionExpr(
