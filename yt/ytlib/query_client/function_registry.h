@@ -12,7 +12,8 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef int TTypeArgument;
-typedef TVariant<EValueType, TTypeArgument> TGenericType;
+typedef std::set<EValueType> TUnionType;
+typedef TVariant<EValueType, TTypeArgument, TUnionType> TType;
 
 using TCodegenBuilder = std::function<TCodegenExpression(std::vector<TCodegenExpression>, EValueType, Stroka)>;
 
@@ -24,29 +25,29 @@ class TFunctionRegistry
 public:
     void RegisterFunction(
         const Stroka& functionName,
-        std::vector<TGenericType> argumentTypes,
-        TGenericType resultType,
+        std::vector<TType> argumentTypes,
+        TType resultType,
         TCodegenBuilder bodyBuilder,
         TRangeBuilder rangeBuilder = UniversalRange);
 
     void RegisterVariadicFunction(
         const Stroka& functionName,
-        std::vector<TGenericType> argumentTypes,
-        TGenericType repeatedArgumentType,
-        TGenericType resultType,
+        std::vector<TType> argumentTypes,
+        TType repeatedArgumentType,
+        TType resultType,
         TCodegenBuilder bodyBuilder,
         TRangeBuilder rangeBuilder = UniversalRange);
 
 
     bool IsRegistered(const Stroka& functionName);
 
-    std::vector<TGenericType> GetArgumentTypes(
+    std::vector<TType> GetArgumentTypes(
         const Stroka& functionName);
 
-    TGenericType GetRepeatedArgumentType(
+    TType GetRepeatedArgumentType(
         const Stroka& functionName);
 
-    TGenericType GetResultType(
+    TType GetResultType(
         const Stroka& functionName);
 
     TCodegenBuilder GetCodegenBuilder(
