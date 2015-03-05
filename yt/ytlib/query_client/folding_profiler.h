@@ -1,6 +1,7 @@
 #pragma once
 
 #include "plan_fragment.h"
+#include "cg_types.h"
 
 #include <util/generic/hash_set.h>
 #include <util/generic/noncopyable.h>
