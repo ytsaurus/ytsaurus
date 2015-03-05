@@ -24,8 +24,6 @@
 
 #ifdef YT_USE_LLVM
 #include <ytlib/query_client/folding_profiler.h>
-#include <ytlib/query_client/cg_types.h>
-#include <ytlib/query_client/cg_fragment_compiler.h>
 #endif
 
 #include <tuple>
