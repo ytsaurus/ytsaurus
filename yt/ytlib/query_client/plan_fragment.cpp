@@ -301,7 +301,17 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
 
     std::unordered_map<TTypeArgument, EValueType> genericAssignments;
 
-    auto unify = [&] (TGenericType type1, EValueType type2) {
+    auto isSubtype = [&] (EValueType type1, TType type2) {
+        YCHECK(!type2.TryAs<TTypeArgument>());
+        if (auto unionType = type2.TryAs<TUnionType>()) {
+            return unionType->count(type1) > 0;
+        } else if (auto concreteType = type2.TryAs<EValueType>()) {
+            return type1 == *concreteType;
+        }
+        return false;
+    };
+
+    auto unify = [&] (TType type1, EValueType type2) {
         if (auto genericId = type1.TryAs<TTypeArgument>()) {
             if (genericAssignments.count(*genericId)) {
                 return genericAssignments[*genericId] == type2;
@@ -310,7 +320,7 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
                 return true;
             }
         } else {
-            return type1.As<EValueType>() == type2;
+            return isSubtype(type2, type1);
         }
     };
 

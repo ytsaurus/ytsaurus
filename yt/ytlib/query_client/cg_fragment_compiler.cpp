@@ -697,7 +697,6 @@ TCodegenExpression MakeCodegenReferenceExpr(
 }
 
 void InitRegistry() {
-    //TODO: int64, uint64, double, simple_hash
     //TODO: add range builders
     auto getCodegenBuilder = [] (Stroka functionName) {
       return [] (
@@ -710,41 +709,69 @@ void InitRegistry() {
 
     registry->RegisterFunction(
         "if",
-        std::vector<TGenericType>({ EValueType::Boolean, 0, 0 }),
+        std::vector<TType>({ EValueType::Boolean, 0, 0 }),
         0,
         getCodegenBuilder("if"));
 
     registry->RegisterFunction(
         "is_prefix",
-        std::vector<TGenericType>({ EValueType::String, EValueType::String }),
+        std::vector<TType>({ EValueType::String, EValueType::String }),
         EValueType::Boolean,
         getCodegenBuilder("is_prefix"));
 
     registry->RegisterFunction(
         "is_substr",
-        std::vector<TGenericType>({ EValueType::String, EValueType::String }),
+        std::vector<TType>({ EValueType::String, EValueType::String }),
         EValueType::Boolean,
         getCodegenBuilder("is_substr"));
 
     registry->RegisterFunction(
         "lower",
-        std::vector<TGenericType>({ EValueType::String }),
+        std::vector<TType>({ EValueType::String }),
         EValueType::String,
         getCodegenBuilder("lower"));
 
-    //TODO: need to restrict to integral, boolean or string type
+    auto hashTypes = std::set<EValueType>({
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Boolean,
+        EValueType::String });
+
     registry->RegisterVariadicFunction(
         "simple_hash",
-        std::vector<TGenericType>({ 0 }),
-        0,
+        std::vector<TType>({ hashTypes }),
+        hashTypes,
         EValueType::String,
         getCodegenBuilder("simple_hash"));
 
     registry->RegisterFunction(
         "is_null",
-        std::vector<TGenericType>({ 0 }),
+        std::vector<TType>({ 0 }),
         EValueType::Boolean,
         getCodegenBuilder("is_null"));
+
+    auto castTypes = std::set<EValueType>({
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double });
+
+    registry->RegisterFunction(
+        "int64",
+        std::vector<TType>({ castTypes }),
+        EValueType::Int64,
+        getCodegenBuilder("int64"));
+
+    registry->RegisterFunction(
+        "uint64",
+        std::vector<TType>({ castTypes }),
+        EValueType::Uint64,
+        getCodegenBuilder("uint64"));
+
+    registry->RegisterFunction(
+        "double",
+        std::vector<TType>({ castTypes }),
+        EValueType::Double,
+        getCodegenBuilder("double"));
 }
 
 TCodegenExpression MakeCodegenFunctionExpr(
