@@ -697,7 +697,7 @@ private:
         if (chunkStore->FindChunk(chunkId))
             return;
 
-        auto location = chunkStore->GetNewChunkLocation();
+        auto location = chunkStore->GetReplayedChunkLocation();
 
         auto chunk = New<TJournalChunk>(
             Owner_->Bootstrap_,
