@@ -1,74 +1,65 @@
 #pragma once
 
+#include "key_trie.h"
+#include "cg_fragment_compiler.h"
+#include "ast.h"
+
 #include <util/generic/stroka.h>
-#include <ytlib/query_client/cg_fragment_compiler.h>
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<TCodegenExpression(std::vector<EValueType>)> TGenericCodegenExpression;
-typedef TIntrusivePtr<const TFunctionExpression> TConstFunctionExpressionPtr;
-typedef std::function<TKeyTrieNode(const TConstFunctionExpressionPtr&, const TKeyColumns&, TRowBuffer*)> TRangeBuilder;
-typedef std::function<TRangeBuilder(std::vector<EValueType>)> TGenericRangeBuilder;
+typedef int TTypeArgument;
+typedef TVariant<EValueType, TTypeArgument> TGenericType;
 
-class TGenericType
-{
-    TGenericType(
-        EValueType type)
-        : IsGeneric(false)
-        , Concrete(type)
-    {}
-
-    TGenericType(
-        int typeArgument)
-        : IsGeneric(true)
-        , GenericIndex(typeArgument)
-    {}
-
-    bool IsGeneric;
-    int GenericIndex;
-    EValueType Concrete;
-};
+using TLLVMCodegenExpression = std::function<Value*(TCGContext& builder, Value* row)>;
+using TCodegenFunctionExpression = std::function<TLLVMCodegenExpression(std::vector<TCodegenExpression>, Twine nameTwine)>;
+using TGenericCodegenFunctionExpression = std::function<TCodegenFunctionExpression(std::vector<EValueType>)>;
+using TConstFunctionExpressionPtr = TIntrusivePtr<const NAst::TFunctionExpression>;
+using TRangeBuilder = std::function<TKeyTrieNode(const TConstFunctionExpressionPtr&, const TKeyColumns&, TRowBuffer*)>;
+using TGenericRangeBuilder = std::function<TRangeBuilder(std::vector<EValueType>)>;
 
 class TFunctionRegistry
 {
 public:
     void RegisterFunction(
-        const Stroka& name,
+        const Stroka& functionName,
         EValueType resultType,
         std::vector<EValueType> argumentTypes,
-        TCodegenExpression bodyBuilder,
-        TRangeBuilder rangeBuilder = universalRange);
+        TCodegenFunctionExpression bodyBuilder,
+        TRangeBuilder rangeBuilder = UniversalRange);
 
     void RegisterGenericFunction(
-        const Stroka& name,
+        const Stroka& functionName,
         TGenericType resultType,
         std::vector<TGenericType> argumentTypes,
-        TGenericCodegenExpression bodyBuilder,
-        TGenericRangeBuilder rangeBuilder = genericUniversalRange);
+        TGenericCodegenFunctionExpression bodyBuilder,
+        TGenericRangeBuilder rangeBuilder = GenericUniversalRange);
 
 
-    EValueType GetResultType(
-        const Stroka& name,
-        std::vector<EValueType> typeArguments = std::vector<EValueType>());
+    bool IsRegistered(const Stroka& functionName);
 
-    std::vector<EValueType> GetArgumentTypes(
-        const Stroka& name,
-        std::vector<EValueType> typeArguments = std::vector<EValueType>());
+    TGenericType GetGenericResultType(
+        const Stroka& functionName);
+
+    std::vector<TGenericType> GetGenericArgumentTypes(
+        const Stroka& functionName);
 
     TCodegenExpression GetCodegenExpression(
+        const Stroka& functionName,
+        std::vector<TCodegenExpression> codegenArgs, 
         const Stroka& name,
-        std::vector<EValueType> typeArguments = std::vector<EValueType>());
+        std::vector<EValueType> argumentTypes = std::vector<EValueType>());
 
     TRangeBuilder ExtractRangeConstraints(
-        const Stroka& name,
-        std::vector<EValueType> typeArguments = std::vector<EValueType>());
+        const Stroka& functionName,
+        std::vector<EValueType> argumentTypes = std::vector<EValueType>());
 
 
 private:
-    static TKeyTrieNode universalRange(
+    static TKeyTrieNode UniversalRange(
         const TConstFunctionExpressionPtr& expr,
         const TKeyColumns& keyColumns,
         TRowBuffer* rowBuffer)
@@ -76,14 +67,15 @@ private:
         return TKeyTrieNode::Universal();
     }
 
-    static TRangeBuilder genericUniversalRange(std::vector<EValueType> typeArguments)
+    static TRangeBuilder GenericUniversalRange(std::vector<EValueType> argumentTypes)
     {
-        return universalRange;
+        return UniversalRange;
     }
 
 //TODO: choose between overloads?
 };
 
+TFunctionRegistry* registry = new TFunctionRegistry();
 
 ////////////////////////////////////////////////////////////////////////////////
 
