@@ -77,6 +77,8 @@ void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    // NB: The location was surely enabled the moment the chunk was created
+    // but it may have got disabled later.
     auto location = chunk->GetLocation();
     if (!location->IsEnabled())
         return;
@@ -305,11 +307,8 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 TLocationPtr TChunkStore::GetNewChunkLocation()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YASSERT(!Locations_.empty());
 
     std::vector<TLocationPtr> candidates;
-    candidates.reserve(Locations_.size());
-
     int minCount = std::numeric_limits<int>::max();
     for (const auto& location : Locations_) {
         if (location->IsFull() || !location->IsEnabled()) {
@@ -332,6 +331,27 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
     }
 
     return candidates[RandomNumber(candidates.size())];
+}
+
+TLocationPtr TChunkStore::GetReplayedChunkLocation()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    TLocationPtr candidate;
+    for (const auto& location : Locations_) {
+        if (!location->IsEnabled()) {
+            continue;
+        }
+        if (!candidate || location->GetAvailableSpace() > candidate->GetAvailableSpace()) {
+            candidate = location;
+        }
+    }
+
+    if (!candidate) {
+        THROW_ERROR_EXCEPTION("All locations are disabled");
+    }
+
+    return candidate;
 }
 
 TChunkStore::TChunks TChunkStore::GetChunks() const

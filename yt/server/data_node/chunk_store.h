@@ -66,12 +66,21 @@ public:
      */
     TFuture<void> RemoveChunk(IChunkPtr chunk);
 
-    //! Calculates a storage location for a new chunk.
+    //! Finds a suitable storage location for a new chunk.
     /*!
-     *  Among locations that are not full returns a random one having the minimum number
+     *  Among enabled locations that are not full returns a random one with the minimum number
      *  of active sessions. Throws exception if all locations are full.
      */
     TLocationPtr GetNewChunkLocation();
+
+    //! Finds a suitable storage location for a chunk (typically a journal) that needs
+    //! to be created during replay.
+    /*!
+     *  Among enabled locations returns the one with the maximum available disk space.
+     *  Note that this location may be full but we still hope for the best.
+     *  Throws exception if all locations are disabled.
+     */
+    TLocationPtr GetReplayedChunkLocation();
 
     //! Returns the list of all registered chunks.
     TChunks GetChunks() const;
