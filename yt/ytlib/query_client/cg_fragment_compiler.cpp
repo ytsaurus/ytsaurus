@@ -1171,60 +1171,6 @@ TCodegenExpression MakeCodegenInOpExpr(
     };
 }
 
-TCodegenExpression MakeCodegenExpr(
-    const TConstExpressionPtr& expr,
-    const TCGBinding& binding,
-    const TTableSchema& schema)
-{
-    if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        auto it = binding.NodeToConstantIndex.find(literalExpr);
-        YCHECK(it != binding.NodeToConstantIndex.end());
-        return MakeCodegenLiteralExpr(it->second, literalExpr->Type);
-    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-        auto column = referenceExpr->ColumnName;
-        return MakeCodegenReferenceExpr(
-            schema.GetColumnIndexOrThrow(column),
-            referenceExpr->Type,
-            column.c_str());
-    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        std::vector<TCodegenExpression> codegenArgs;
-        for (const auto& argument : functionExpr->Arguments) {
-            codegenArgs.push_back(MakeCodegenExpr(argument, binding, schema));
-        }
-
-        return MakeCodegenFunctionExpr(
-            functionExpr->FunctionName,
-            std::move(codegenArgs),
-            functionExpr->Type,
-            "{" + functionExpr->GetName() + "}");
-    } else if (auto unaryOpExpr = expr->As<TUnaryOpExpression>()) {
-        return MakeCodegenUnaryOpExpr(
-            unaryOpExpr->Opcode,
-            MakeCodegenExpr(unaryOpExpr->Operand, binding, schema),
-            unaryOpExpr->Type,
-            "{" + unaryOpExpr->GetName() + "}");
-    } else if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
-        return MakeCodegenBinaryOpExpr(
-            binaryOpExpr->Opcode,
-            MakeCodegenExpr(binaryOpExpr->Lhs, binding, schema),
-            MakeCodegenExpr(binaryOpExpr->Rhs, binding, schema),
-            binaryOpExpr->Type,
-            "{" + binaryOpExpr->GetName() + "}");
-    } else if (auto inOpExpr = expr->As<TInOpExpression>()) {
-        std::vector<TCodegenExpression> codegenArgs;
-        for (const auto& argument : inOpExpr->Arguments) {
-            codegenArgs.push_back(MakeCodegenExpr(argument, binding, schema));
-        }
-
-        auto it = binding.NodeToRows.find(inOpExpr);
-        YCHECK(it != binding.NodeToRows.end());
-
-        return MakeCodegenInOpExpr(codegenArgs, it->second);
-    } else {
-        YUNREACHABLE();
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Operators
 //
@@ -1611,64 +1557,6 @@ TCodegenSource MakeCodegenGroupOp(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCodegenSource MakeCodegenQuery(
-    const TConstQueryPtr& query,
-    const TCGBinding& binding)
-{
-    TTableSchema sourceSchema = query->TableSchema;    
-    TCodegenSource codegenSource = &CodegenScanOp;
-    
-    if (auto joinClause = query->JoinClause.GetPtr()) {
-        if (binding.SelfJoinPredicate) {
-            codegenSource = MakeCodegenFilterOp(MakeCodegenExpr(binding.SelfJoinPredicate, binding, joinClause->SelfTableSchema), std::move(codegenSource));
-        }
-
-        codegenSource = MakeCodegenJoinOp(joinClause->JoinColumns, joinClause->SelfTableSchema, std::move(codegenSource));
-    }
-
-    if (query->Predicate) {
-        codegenSource = MakeCodegenFilterOp(MakeCodegenExpr(query->Predicate, binding, sourceSchema), std::move(codegenSource));
-    }
-
-    if (auto groupClause = query->GroupClause.GetPtr()) {
-        std::vector<TCodegenExpression> codegenGroupExprs;
-        std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates;
-
-        for (const auto& groupItem : groupClause->GroupItems) {
-            codegenGroupExprs.push_back(MakeCodegenExpr(groupItem.Expression, binding, sourceSchema));
-        }
-
-        for (const auto& aggregateItem : groupClause->AggregateItems) {
-            codegenAggregates.push_back(std::make_pair(
-                MakeCodegenExpr(aggregateItem.Expression, binding, sourceSchema),
-                MakeCodegenAggregateFunction(
-                    aggregateItem.AggregateFunction,
-                    aggregateItem.Expression->Type,
-                    aggregateItem.Name.c_str())));
-        }
-
-        codegenSource = MakeCodegenGroupOp(
-            std::move(codegenGroupExprs),
-            std::move(codegenAggregates),
-            std::move(codegenSource));
-
-        sourceSchema = groupClause->GetTableSchema();
-    }
-
-    if (auto projectClause = query->ProjectClause.GetPtr()) {
-        std::vector<TCodegenExpression> codegenProjectExprs;
-
-        for (const auto& item : projectClause->Projections) {
-            codegenProjectExprs.push_back(MakeCodegenExpr(item.Expression, binding, sourceSchema));
-        }
-
-        codegenSource = MakeCodegenProjectOp(std::move(codegenProjectExprs), std::move(codegenSource));
-        sourceSchema = projectClause->GetTableSchema();
-    }
-
-    return codegenSource;
-}
-
 TCGQueryCallback CodegenEvaluate(
     TCodegenSource codegenSource)
 {
@@ -1702,7 +1590,7 @@ TCGQueryCallback CodegenEvaluate(
     return module->GetCompiledFunction<TCGQuerySignature>(entryFunctionName);
 }
 
-TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression) // MakeCodegenExpr(expression, binding, tableSchema)
+TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
     auto& context = module->GetContext();
