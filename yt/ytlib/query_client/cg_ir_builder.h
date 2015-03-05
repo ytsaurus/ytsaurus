@@ -1,8 +1,9 @@
 #pragma once
 
-#include "cg_types.h"
-
 #include <llvm/IR/IRBuilder.h>
+
+#include <unordered_set>
+#include <unordered_map>
 
 namespace NYT {
 namespace NQueryClient {
