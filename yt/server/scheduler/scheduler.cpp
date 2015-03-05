@@ -481,6 +481,11 @@ public:
         TotalResourceLimits_ -= oldResourceLimits;
         TotalResourceLimits_ += node->ResourceLimits();
 
+        auto updateResourceUsage = [&] () {
+            TotalResourceUsage_ -= oldResourceUsage;
+            TotalResourceUsage_ += node->ResourceUsage();
+        };
+
         for (const auto& tag : node->SchedulingTags()) {
             auto& resources = SchedulingTagResources_[tag];
             resources -= oldResourceLimits;
@@ -488,11 +493,12 @@ public:
         }
 
         if (MasterConnector_->IsConnected()) {
-            std::vector<TJobPtr> runningJobs;
-            bool hasWaitingJobs = false;
-            yhash_set<TOperationPtr> operationsToLog;
-            PROFILE_TIMING ("/analysis_time") {
-                auto missingJobs = node->Jobs();
+            try {
+                std::vector<TJobPtr> runningJobs;
+                bool hasWaitingJobs = false;
+                yhash_set<TOperationPtr> operationsToLog;
+                PROFILE_TIMING ("/analysis_time") {
+                    auto missingJobs = node->Jobs();
 
                 for (auto& jobStatus : *request->mutable_jobs()) {
                     auto jobType = EJobType(jobStatus.job_type());
@@ -500,30 +506,30 @@ public:
                     if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
                         continue;
 
-                    auto job = ProcessJobHeartbeat(
-                        node,
-                        request,
-                        response,
-                        &jobStatus);
-                    if (job) {
-                        YCHECK(missingJobs.erase(job) == 1);
-                        switch (job->GetState()) {
-                        case EJobState::Completed:
-                        case EJobState::Failed:
-                        case EJobState::Aborted:
-                            operationsToLog.insert(job->GetOperation());
-                            break;
-                        case EJobState::Running:
-                            runningJobs.push_back(job);
-                            break;
-                        case EJobState::Waiting:
-                            hasWaitingJobs = true;
-                            break;
-                        default:
-                            break;
+                        auto job = ProcessJobHeartbeat(
+                            node,
+                            request,
+                            response,
+                            &jobStatus);
+                        if (job) {
+                            YCHECK(missingJobs.erase(job) == 1);
+                            switch (job->GetState()) {
+                            case EJobState::Completed:
+                            case EJobState::Failed:
+                            case EJobState::Aborted:
+                                operationsToLog.insert(job->GetOperation());
+                                break;
+                            case EJobState::Running:
+                                runningJobs.push_back(job);
+                                break;
+                            case EJobState::Waiting:
+                                hasWaitingJobs = true;
+                                break;
+                            default:
+                                break;
+                            }
                         }
                     }
-                }
 
                 // Check for missing jobs.
                 for (auto job : missingJobs) {
@@ -563,15 +569,20 @@ public:
                         .AsyncVia(specBuilderInvoker)
                         .Run());
 
-                // Release to avoid circular references.
-                job->SetSpecBuilder(TJobSpecBuilder());
-                operationsToLog.insert(job->GetOperation());
-            }
+                    // Release to avoid circular references.
+                    job->SetSpecBuilder(TJobSpecBuilder());
+                    operationsToLog.insert(job->GetOperation());
+                }
 
-            context->ReplyFrom(Combine(asyncResults));
+                context->ReplyFrom(Combine(asyncResults));
 
-            for (auto operation : operationsToLog) {
-                LogOperationProgress(operation);
+                for (auto operation : operationsToLog) {
+                    LogOperationProgress(operation);
+                }
+            } catch (const std::exception&) {
+                // Do not forget to update resource usage if heartbeat failed.
+                updateResourceUsage();
+                throw;
             }
         } else {
             context->Reply(GetMasterDisconnectedError());
@@ -579,8 +590,7 @@ public:
 
         // Update total resource usage _after_ processing the heartbeat to avoid
         // "unsaturated CPU" phenomenon.
-        TotalResourceUsage_ -= oldResourceUsage;
-        TotalResourceUsage_ += node->ResourceUsage();
+        updateResourceUsage();
     }
 
 
@@ -1465,7 +1475,9 @@ private:
         JobUpdated_.Fire(job, -job->ResourceUsage());
         job->ResourceUsage() = ZeroNodeResources();
 
-        AbortJob(job, TError("Job preempted"));
+        TError error("Job preempted");
+        error.Attributes().Set("abort_reason", EAbortReason::Preemption);
+        AbortJob(job, error);
     }
 
 

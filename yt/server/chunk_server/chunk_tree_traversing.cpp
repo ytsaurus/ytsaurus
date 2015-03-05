@@ -393,7 +393,7 @@ protected:
             stackEntry.UpperBound.GetChunkIndex() < childUpperBound.GetChunkIndex())
         {
             i64 newUpperBound = stackEntry.UpperBound.GetChunkIndex() - childLowerBound.GetChunkIndex();
-            YASSERT(newUpperBound > 0);
+            YCHECK(newUpperBound > 0);
             endLimit->SetChunkIndex(newUpperBound);
         }
 
