@@ -543,7 +543,6 @@ public:
         RegisterInitializer([&] () {
             PartitionJobIO->NewTableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
             PartitionJobIO->NewTableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
-            PartitionJobIO->NewTableWriter->SyncChunkSwitch = true;
 
             SortJobIO->NewTableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
 

@@ -957,9 +957,9 @@ struct TMapSerializer
 };
 
 template <
-    class TKeySerializer,
-    class TValueSerializer,
-    class TSortTag
+    class TKeySerializer = TDefaultSerializer,
+    class TValueSerializer = TDefaultSerializer,
+    class TSortTag = TSortedTag
 >
 struct TMultiMapSerializer
 {
@@ -1133,7 +1133,7 @@ struct TSerializerTraits<std::set<T, Q, A>, C, void>
 template <class T, class H, class P, class A, class C>
 struct TSerializerTraits<std::unordered_set<T, H, P, A>, C, void>
 {
-    typedef TSetSerializer TSerializer;
+    typedef TSetSerializer<> TSerializer;
 };
 
 template <class T, class C>
@@ -1151,19 +1151,19 @@ struct TSerializerTraits<yhash_multiset<T>, C, void>
 template <class T, class A, class C>
 struct TSerializerTraits<std::unique_ptr<std::list<T, A>>, C, void>
 {
-    typedef TNullableListSerializer TSerializer;
+    typedef TNullableListSerializer<> TSerializer;
 };
 
 template <class T, class Q, class A, class C>
 struct TSerializerTraits<std::unique_ptr<std::set<T, Q, A>>, C, void>
 {
-    typedef TNullableSetSerializer TSerializer;
+    typedef TNullableSetSerializer<> TSerializer;
 };
 
 template <class T, class H, class P, class A, class C>
 struct TSerializerTraits<std::unique_ptr<std::unordered_set<T, H, P, A>>, C, void>
 {
-    typedef TNullableSetSerializer TSerializer;
+    typedef TNullableSetSerializer<> TSerializer;
 };
 
 template <class T, class C>
@@ -1181,25 +1181,25 @@ struct TSerializerTraits<std::map<K, V, Q, A>, C, void>
 template <class K, class V, class H, class P, class A, class C>
 struct TSerializerTraits<std::unordered_map<K, V, H, P, A>, C, void>
 {
-    typedef TMapSerializer TSerializer;
+    typedef TMapSerializer<> TSerializer;
 };
 
 template <class K, class V, class Q, class A, class C>
 struct TSerializerTraits<yhash_map<K, V, Q, A>, C, void>
 {
-    typedef TMapSerializer TSerializer;
+    typedef TMapSerializer<> TSerializer;
 };
 
 template <class K, class V, class Q, class A, class C>
 struct TSerializerTraits<std::multimap<K, V, Q, A>, C, void>
 {
-    typedef TMultiMapSerializer TSerializer;
+    typedef TMultiMapSerializer<> TSerializer;
 };
 
 template <class K, class V, class C>
 struct TSerializerTraits<yhash_multimap<K, V>, C, void>
 {
-    typedef TMultiMapSerializer TSerializer;
+    typedef TMultiMapSerializer<> TSerializer;
 };
 
 template <class T, class E, class C, E Min, E Max>

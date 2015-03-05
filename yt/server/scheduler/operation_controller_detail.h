@@ -622,7 +622,7 @@ protected:
     void InitInputChunkScratcher();
     void SuspendUnavailableInputStripes();
 
-    bool ValidateKey(const NChunkClient::NProto::TKey& key);
+    bool ValidateKey(const NVersionedTableClient::TOwningKey& key);
 
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
