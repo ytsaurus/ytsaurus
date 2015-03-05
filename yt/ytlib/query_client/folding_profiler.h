@@ -1,6 +1,5 @@
 #pragma once
 
-#include "cg_types.h"
 #include "plan_fragment.h"
 
 #include <util/generic/hash_set.h>
