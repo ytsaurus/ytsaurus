@@ -248,9 +248,8 @@ void TSelectRowsCommand::DoExecute()
     auto statistics = WaitFor(asyncStatistics)
         .ValueOrThrow();
 
-    LOG_INFO(
-        "Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
-            "ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
+    LOG_INFO("Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
+        "ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
         statistics.RowsRead,
         statistics.RowsWritten,
         statistics.AsyncTime.MilliSeconds(),
