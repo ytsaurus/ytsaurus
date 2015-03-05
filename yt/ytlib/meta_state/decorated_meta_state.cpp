@@ -302,6 +302,9 @@ void TDecoratedMetaState::ApplyMutation(const TSharedRef& recordData) throw()
     TMutationRequest request(
         header.mutation_type(),
         requestData);
+    if (header.has_mutation_id()) {
+        request.Id = FromProto<TMutationId>(header.mutation_id());
+    }
     TMutationContext context(
         Version,
         request,
