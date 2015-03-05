@@ -2,6 +2,7 @@
 #include "fs.h"
 
 #include <core/misc/error.h>
+#include <core/misc/proc.h>
 
 #include <core/logging/log.h>
 
@@ -330,6 +331,28 @@ bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
     return (lhsBuffer.st_dev == rhsBuffer.st_dev) && (lhsBuffer.st_ino == rhsBuffer.st_ino);
 #else
     return false;
+#endif
+}
+
+void FlushDirectory(const Stroka& path)
+{
+#ifdef _linux_
+    int fd = ::open(~path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (fd < 0) {
+        THROW_ERROR_EXCEPTION("Failed to open directory %s", ~path)
+            << TError::FromSystem();
+    }
+
+    int result = ::fsync(fd);
+    if (result < 0) {
+        THROW_ERROR_EXCEPTION("Failed to flush directory %s", ~path)
+            << TError::FromSystem();
+    }
+
+    SafeClose(fd);
+#else
+    // No-op.
+    return true;
 #endif
 }
 

@@ -93,11 +93,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
 
     try {
         if (SyncOnClose) {
-#ifdef _linux_
-            if (fsync(DataFile->GetHandle()) != 0) {
-                THROW_ERROR_EXCEPTION("fsync failed: %s", strerror(errno));
-            }
-#endif
+            DataFile->Flush();
         }
         DataFile->Close();
         DataFile.reset();
@@ -129,12 +125,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
         chunkMetaFile.Write(metaData.Begin(), metaData.Size());
 
         if (SyncOnClose) {
-#ifdef _linux_
-            if (fsync(chunkMetaFile.GetHandle()) != 0) {
-                THROW_ERROR_EXCEPTION("Error closing chunk: fsync failed")
-                    << TError::FromSystem();
-            }
-#endif
+            chunkMetaFile.Flush();
         }
 
         chunkMetaFile.Close();
@@ -154,6 +145,10 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
         return MakeFuture(TError(
             "Error renaming temp chunk file %s",
             ~FileName.Quote()));
+    }
+
+    if (SyncOnClose) {
+        NFS::FlushDirectory(NFS::GetDirectoryName(FileName));
     }
 
     ChunkInfo.set_meta_checksum(ChecksumOutput.GetChecksum());

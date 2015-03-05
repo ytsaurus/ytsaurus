@@ -84,6 +84,8 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath);
 
 bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath);
 
+void FlushDirectory(const Stroka& path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS
