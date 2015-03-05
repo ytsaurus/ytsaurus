@@ -23,6 +23,8 @@ using TRangeBuilder = std::function<TKeyTrieNode(const TConstFunctionExpressionP
 class TFunctionRegistry
 {
 public:
+    TFunctionRegistry();
+
     void RegisterFunction(
         const Stroka& functionName,
         std::vector<TType> argumentTypes,
