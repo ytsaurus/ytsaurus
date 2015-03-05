@@ -698,21 +698,11 @@ private:
         SetMode(Config->Mode);
     }
 
-    TNodeResources ComputeResourceLimits() const
+    void ComputeResourceLimits()
     {
         auto combinedLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config->MaxShareRatio;
-        auto perTypeLimits = InfiniteNodeResources();
-        if (Config->ResourceLimits->UserSlots) {
-            perTypeLimits.set_user_slots(*Config->ResourceLimits->UserSlots);
-        }
-        if (Config->ResourceLimits->Cpu) {
-            perTypeLimits.set_cpu(*Config->ResourceLimits->Cpu);
-        }
-        if (Config->ResourceLimits->Memory) {
-            perTypeLimits.set_memory(*Config->ResourceLimits->Memory);
-        }
-
-        return Min(combinedLimits, perTypeLimits);
+        auto perTypeLimits = Config->ResourceLimits->ToNodeResources();
+        ResourceLimits_ = Min(combinedLimits, perTypeLimits);
     }
 
 };
@@ -782,6 +772,8 @@ public:
             jobLimits = Min(jobLimits, poolLimits);
             pool = pool->GetParent();
         }
+        auto operationLimits = ResourceLimits() - ResourceUsage();
+        jobLimits = Min(jobLimits, operationLimits);
 
         auto job = controller->ScheduleJob(context, jobLimits);
         if (job) {
@@ -840,6 +832,10 @@ public:
     virtual const TNodeResources& ResourceLimits() const override
     {
         ResourceLimits_ = Host->GetResourceLimits(GetSchedulingTag());
+
+        auto perTypeLimits = Spec_->ResourceLimits->ToNodeResources();
+        ResourceLimits_ = Min(ResourceLimits_, perTypeLimits);
+
         return ResourceLimits_;
     }
 

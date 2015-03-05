@@ -115,7 +115,8 @@ class TestSchedulingTags(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler" : {
             "event_log" : {
-                "flush_period" : 300
+                "flush_period" : 300,
+                "retry_backoff_time": 300
             }
         }
     }
@@ -164,7 +165,7 @@ class TestSchedulingTags(YTEnvSetup):
         def get_job_nodes(op_id):
             nodes = __builtin__.set()
             for row in read("//sys/scheduler/event_log"):
-                if row.get("event_type") == "job_started":
+                if row.get("event_type") == "job_started" and row.get("operation_id") == op_id:
                     nodes.add(row["node_address"])
             return nodes
 

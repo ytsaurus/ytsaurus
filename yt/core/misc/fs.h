@@ -101,6 +101,8 @@ bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath);
 //! Interestingly, implemented for both Windows and *nix.
 Stroka GetHomePath();
 
+void FlushDirectory(const Stroka& path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS

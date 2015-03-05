@@ -103,17 +103,11 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
     IsClosed_ = true;
 
     try {
-        if (SyncOnClose_) {
-#ifdef _linux_
-            if (fsync(DataFile_->GetHandle()) != 0) {
-                THROW_ERROR_EXCEPTION("Error closing chunk: fsync failed for data file %v",
-                    FileName_)
-                    << TError::FromSystem();
-            }
-#endif
+        if (SyncOnClose) {
+            DataFile->Flush();
         }
-        DataFile_->Close();
-        DataFile_.reset();
+        DataFile->Close();
+        DataFile.reset();
     } catch (const std::exception& ex) {
         return MakeFuture(TError(
             "Error closing chunk data file %v",
@@ -140,20 +134,18 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
         WritePod(chunkMetaFile, header);
         chunkMetaFile.Write(metaData.Begin(), metaData.Size());
 
-        if (SyncOnClose_) {
-#ifdef _linux_
-            if (fsync(chunkMetaFile.GetHandle()) != 0) {
-                THROW_ERROR_EXCEPTION("Error closing chunk: fsync failed for meta file %v",
-                    metaFileName)
-                    << TError::FromSystem();
-            }
-#endif
+        if (SyncOnClose) {
+            chunkMetaFile.Flush();
         }
 
         chunkMetaFile.Close();
 
         NFS::Rename(metaFileName + NFS::TempFileSuffix, metaFileName);
         NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
+
+	if (SyncOnClose) {
+            NFS::FlushDirectory(NFS::GetDirectoryName(FileName));
+        }
     } catch (const std::exception& ex) {
         return MakeFuture(TError(
             "Error writing chunk meta file %v",
