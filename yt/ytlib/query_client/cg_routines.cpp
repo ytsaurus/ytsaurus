@@ -375,7 +375,7 @@ ui64 SimpleHash(TRow row)
     const ui64 MurmurHashConstant = 0xc6a4a7935bd1e995ULL;
 
     // Google FarmHash fingerprint. See https://code.google.com/p/farmhash.
-    const auto FramHashFingerprint64 = [FarmHashConstant] (ui64 data) {
+    const auto FarmHashFingerprint64 = [FarmHashConstant] (ui64 data) {
         // Murmur-inspired hashing.
         ui64 result = data * FarmHashConstant;
         result ^= (result >> 44);
@@ -387,7 +387,7 @@ ui64 SimpleHash(TRow row)
 
     // Append fingerprint to hash value. Like Murmurhash.
     const auto hash64 = [&, MurmurHashConstant] (ui64 data, ui64 value) {
-        value ^= FramHashFingerprint64(data);
+        value ^= FarmHashFingerprint64(data);
         value *= MurmurHashConstant;
         return value;
     };
