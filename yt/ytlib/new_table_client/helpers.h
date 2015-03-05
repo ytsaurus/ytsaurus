@@ -36,7 +36,8 @@ private:
 void PipeReaderToWriter(
     ISchemalessReaderPtr reader,
     ISchemalessWriterPtr writer,
-    int bufferRowCount);
+    int bufferRowCount,
+    bool validateDoubles = false);
 
 void PipeInputToOutput(
     TInputStream* input,

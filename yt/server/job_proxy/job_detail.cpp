@@ -74,7 +74,7 @@ TJobResult TSimpleJobBase::Run()
 
         LOG_INFO("Reading and writing");
         {
-            PipeReaderToWriter(Reader_, Writer_, 10000);
+            PipeReaderToWriter(Reader_, Writer_, 10000, true);
         }
 
         PROFILE_TIMING_CHECKPOINT("reading_writing");

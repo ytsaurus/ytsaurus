@@ -2,6 +2,7 @@
 #include "fs.h"
 
 #include <core/misc/error.h>
+#include <core/misc/proc.h>
 
 #include <core/logging/log.h>
 
@@ -412,13 +413,13 @@ void FlushDirectory(const Stroka& path)
 #ifdef _linux_
     int fd = ::open(~path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (fd < 0) {
-        THROW_ERROR_EXCEPTION("Failed to open directory %v", path)
+        THROW_ERROR_EXCEPTION("Failed to open directory %Qv", path)
             << TError::FromSystem();
     }
 
     int result = ::fsync(fd);
     if (result < 0) {
-        THROW_ERROR_EXCEPTION("Failed to flush directory %v", path)
+        THROW_ERROR_EXCEPTION("Failed to flush directory %Qv", path)
             << TError::FromSystem();
     }
 

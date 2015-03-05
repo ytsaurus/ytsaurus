@@ -79,8 +79,6 @@ DEFINE_ENUM(EErrorCode,
     ((IOError)                  (711))
     ((MasterCommunicationFailed)(712))
     ((NoSuchChunkTree)          (713))
-
-    ((InvalidDoubleValue)       (714))
 );
 
 //! Values must be contiguous.

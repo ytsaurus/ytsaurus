@@ -17,6 +17,8 @@
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schema.h>
 
+#include <util/generic/ymath.h>
+
 #include <cmath>
 
 #include <core/logging/log.h> // FIXME(babenko): remove this
@@ -100,6 +102,15 @@ int GetDataWeight(const TUnversionedValue& value)
         default:
             YUNREACHABLE();
     }
+}
+
+bool IsValidValue(const TUnversionedValue& value)
+{
+    if (value.Type != EValueType::Double) {
+        return true;
+    }
+
+    return IsValidFloat(value.Data.Double);
 }
 
 int WriteValue(char* output, const TUnversionedValue& value)

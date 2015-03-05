@@ -103,11 +103,11 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
     IsClosed_ = true;
 
     try {
-        if (SyncOnClose) {
-            DataFile->Flush();
+        if (SyncOnClose_) {
+            DataFile_->Flush();
         }
-        DataFile->Close();
-        DataFile.reset();
+        DataFile_->Close();
+        DataFile_.reset();
     } catch (const std::exception& ex) {
         return MakeFuture(TError(
             "Error closing chunk data file %v",
@@ -134,7 +134,7 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
         WritePod(chunkMetaFile, header);
         chunkMetaFile.Write(metaData.Begin(), metaData.Size());
 
-        if (SyncOnClose) {
+        if (SyncOnClose_) {
             chunkMetaFile.Flush();
         }
 
@@ -143,8 +143,8 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
         NFS::Rename(metaFileName + NFS::TempFileSuffix, metaFileName);
         NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
 
-	if (SyncOnClose) {
-            NFS::FlushDirectory(NFS::GetDirectoryName(FileName));
+        if (SyncOnClose_) {
+            NFS::FlushDirectory(NFS::GetDirectoryName(FileName_));
         }
     } catch (const std::exception& ex) {
         return MakeFuture(TError(

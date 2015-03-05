@@ -90,7 +90,6 @@ void TReadTableCommand::DoExecute()
         .Item("approximate_row_count").Value(reader->GetTotalRowCount());
     if (reader->GetTotalRowCount() > 0) {
         BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
-            .Item("start_row_index").Value(reader->GetTableRowIndex())
             .Item("start_row_index").Value(reader->GetTableRowIndex());
     }
 

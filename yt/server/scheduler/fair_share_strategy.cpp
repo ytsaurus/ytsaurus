@@ -698,11 +698,11 @@ private:
         SetMode(Config->Mode);
     }
 
-    void ComputeResourceLimits()
+    TNodeResources ComputeResourceLimits() const
     {
         auto combinedLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config->MaxShareRatio;
         auto perTypeLimits = Config->ResourceLimits->ToNodeResources();
-        ResourceLimits_ = Min(combinedLimits, perTypeLimits);
+        return Min(combinedLimits, perTypeLimits);
     }
 
 };
