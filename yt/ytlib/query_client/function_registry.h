@@ -14,29 +14,20 @@ namespace NQueryClient {
 typedef int TTypeArgument;
 typedef TVariant<EValueType, TTypeArgument> TGenericType;
 
-using TLLVMCodegenExpression = std::function<Value*(TCGContext& builder, Value* row)>;
-using TCodegenFunctionExpression = std::function<TLLVMCodegenExpression(std::vector<TCodegenExpression>, Twine nameTwine)>;
-using TGenericCodegenFunctionExpression = std::function<TCodegenFunctionExpression(std::vector<EValueType>)>;
+using TCodegenBuilder = std::function<TCodegenExpression(std::vector<TCodegenExpression>, EValueType, Stroka)>;
+
 using TConstFunctionExpressionPtr = TIntrusivePtr<const NAst::TFunctionExpression>;
 using TRangeBuilder = std::function<TKeyTrieNode(const TConstFunctionExpressionPtr&, const TKeyColumns&, TRowBuffer*)>;
-using TGenericRangeBuilder = std::function<TRangeBuilder(std::vector<EValueType>)>;
 
 class TFunctionRegistry
 {
 public:
     void RegisterFunction(
         const Stroka& functionName,
-        EValueType resultType,
-        std::vector<EValueType> argumentTypes,
-        TCodegenFunctionExpression bodyBuilder,
-        TRangeBuilder rangeBuilder = UniversalRange);
-
-    void RegisterGenericFunction(
-        const Stroka& functionName,
-        TGenericType resultType,
         std::vector<TGenericType> argumentTypes,
-        TGenericCodegenFunctionExpression bodyBuilder,
-        TGenericRangeBuilder rangeBuilder = GenericUniversalRange);
+        TGenericType resultType,
+        TCodegenBuilder bodyBuilder,
+        TRangeBuilder rangeBuilder = UniversalRange);
 
 
     bool IsRegistered(const Stroka& functionName);
@@ -47,10 +38,8 @@ public:
     std::vector<TGenericType> GetGenericArgumentTypes(
         const Stroka& functionName);
 
-    TCodegenExpression GetCodegenExpression(
+    TCodegenBuilder GetCodegenBuilder(
         const Stroka& functionName,
-        std::vector<TCodegenExpression> codegenArgs, 
-        const Stroka& name,
         std::vector<EValueType> argumentTypes = std::vector<EValueType>());
 
     TRangeBuilder ExtractRangeConstraints(
@@ -65,11 +54,6 @@ private:
         TRowBuffer* rowBuffer)
     {
         return TKeyTrieNode::Universal();
-    }
-
-    static TRangeBuilder GenericUniversalRange(std::vector<EValueType> argumentTypes)
-    {
-        return UniversalRange;
     }
 
 //TODO: choose between overloads?
