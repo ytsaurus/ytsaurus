@@ -2706,13 +2706,25 @@ INSTANTIATE_TEST_CASE_P(
             "-i1",
             MakeInt64(-33)),
         std::tuple<const char*, const char*, TUnversionedValue>(
-            "i1=20",
+            "i1=0",
             "uint64(i1)",
-            MakeUint64(20)),
+            MakeUint64(0)),
         std::tuple<const char*, const char*, TUnversionedValue>(
-            "u1=30",
+            "u1=0",
             "int64(u1)",
-            MakeInt64(30))
+            MakeInt64(0)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=18446744073709551615u",
+            "int64(u1)",
+            MakeInt64(-1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=9223372036854775807",
+            "uint64(i1)",
+            MakeUint64(9223372036854775807ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-9223372036854775808",
+            "uint64(i1)",
+            MakeUint64(9223372036854775808ULL))
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
