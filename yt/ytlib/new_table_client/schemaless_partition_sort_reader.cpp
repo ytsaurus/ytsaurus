@@ -400,7 +400,10 @@ private:
                 flushBucket();
             }
 
-            YCHECK(isNetworkReleased);
+            if (!isNetworkReleased) {
+                YCHECK(UnderlyingReader_->IsFetchingCompleted());
+                OnNetworkReleased_.Run();
+            }
 
             TotalRowCount_ = rowIndex;
             int bucketCount = static_cast<int>(BucketStart_.size()) - 1;
