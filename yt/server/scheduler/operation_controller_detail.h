@@ -622,7 +622,9 @@ protected:
     void InitInputChunkScratcher();
     void SuspendUnavailableInputStripes();
 
-    // Initialize transactions.
+    bool ValidateKey(const NVersionedTableClient::TOwningKey& key);
+
+    // Initialize transactions
     void StartAsyncSchedulerTransaction();
     void StartSyncSchedulerTransaction();
     void StartIOTransactions();
@@ -852,7 +854,7 @@ private:
         TInputChunkMap::iterator NextChunkIterator;
         bool Started;
 
-        NLogging::TLogger& Logger;
+        NLogging::TLogger Logger;
 
     };
 

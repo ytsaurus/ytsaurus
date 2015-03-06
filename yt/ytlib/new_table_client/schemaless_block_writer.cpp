@@ -12,7 +12,8 @@ using namespace NProto;
 
 struct THorizontalSchemalessBlockWriterTag { };
 
-const i64 THorizontalSchemalessBlockWriter::MinReserveSize = (i64) 16 * 1024;
+// NB! Must exceed lf_alloc small block size limit.
+const i64 THorizontalSchemalessBlockWriter::MinReserveSize = (i64) 64 * 1024 + 1;
 const i64 THorizontalSchemalessBlockWriter::MaxReserveSize = (i64) 2 * 1024 * 1024;
 
 THorizontalSchemalessBlockWriter::THorizontalSchemalessBlockWriter(i64 reserveSize)

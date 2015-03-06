@@ -11,6 +11,8 @@
 #include <ytlib/formats/format.h>
 
 #include <ytlib/node_tracker_client/public.h>
+#include <ytlib/node_tracker_client/helpers.h>
+#include <ytlib/node_tracker_client/node.pb.h>
 
 #include <server/security_server/acl.h>
 
@@ -251,6 +253,7 @@ public:
 
         RegisterInitializer([&] () {
             JobIO->NewTableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
+
         });
     }
 
@@ -692,7 +695,7 @@ DEFINE_ENUM(ESchedulingMode,
     (FairShare)
 );
 
-class TPoolResourceLimitsConfig
+class TResourceLimitsConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -700,7 +703,7 @@ public:
     TNullable<int> Cpu;
     TNullable<i64> Memory;
 
-    TPoolResourceLimitsConfig()
+    TResourceLimitsConfig()
     {
         RegisterParameter("user_slots", UserSlots)
             .Default(Null)
@@ -711,6 +714,21 @@ public:
         RegisterParameter("memory", Memory)
             .Default(Null)
             .GreaterThanOrEqual(0);
+    }
+
+    NNodeTrackerClient::NProto::TNodeResources ToNodeResources() const
+    {
+        auto perTypeLimits = NNodeTrackerClient::InfiniteNodeResources();
+        if (UserSlots) {
+            perTypeLimits.set_user_slots(*UserSlots);
+        }
+        if (Cpu) {
+            perTypeLimits.set_cpu(*Cpu);
+        }
+        if (Memory) {
+            perTypeLimits.set_memory(*Memory);
+        }
+        return perTypeLimits;
     }
 };
 
@@ -724,7 +742,7 @@ public:
 
     ESchedulingMode Mode;
 
-    TPoolResourceLimitsConfigPtr ResourceLimits;
+    TResourceLimitsConfigPtr ResourceLimits;
 
     TNullable<Stroka> SchedulingTag;
 
@@ -768,6 +786,8 @@ public:
     TNullable<TDuration> FairSharePreemptionTimeout;
     TNullable<double> FairShareStarvationTolerance;
 
+    TResourceLimitsConfigPtr ResourceLimits;
+
     TStrategyOperationSpec()
     {
         RegisterParameter("pool", Pool)
@@ -793,6 +813,9 @@ public:
         RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
             .InRange(0.0, 1.0)
             .Default();
+
+        RegisterParameter("resource_limits", ResourceLimits)
+            .DefaultNew();
     }
 };
 

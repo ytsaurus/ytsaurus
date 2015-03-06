@@ -465,17 +465,20 @@ class NativeModeTester(YtTestBase, YTEnv):
         rsp = yt.read_table(table)._get_response()
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
-            {"start_row_index": 0})
+            {"start_row_index": 0,
+             "approximate_row_count": 3})
 
         rsp = yt.read_table(yt.TablePath(table, start_index=1))._get_response()
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
-            {"start_row_index": 1})
+            {"start_row_index": 1,
+             "approximate_row_count": 2})
 
         rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]))._get_response()
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
-            {"start_row_index": 2})
+            {"start_row_index": 2,
+             "approximate_row_count": 1})
 
         rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]))._get_response()
         assert json.loads(rsp.headers["X-YT-Response-Parameters"]) == {}

@@ -1161,6 +1161,7 @@ private:
             chunkList->SetVisitMark(visitMark);
 
             statistics = TChunkTreeStatistics();
+            statistics.Rank = 1;
             int childrenCount = chunkList->Children().size();
 
             auto& rowCountSums = chunkList->RowCountSums();
@@ -1461,8 +1462,9 @@ private:
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
-        if (!IsObjectAlive(chunk)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Cached: %v, Address: %v, NodeId: %v)",
+        // NB: Chunk could already be a zombie but we still need to remove the replica.
+        if (!chunk) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, NodeId: %d)",
                  chunkIdWithIndex,
                  cached,
                  node->GetAddress(),

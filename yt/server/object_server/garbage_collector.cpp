@@ -168,8 +168,6 @@ void TGarbageCollector::OnSweep()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    ShrinkHashTable(&Zombies_);
-
     auto hydraFacade = Bootstrap_->GetHydraFacade();
     auto hydraManager = hydraFacade->GetHydraManager();
     if (Zombies_.empty() || !hydraManager->IsActiveLeader()) {

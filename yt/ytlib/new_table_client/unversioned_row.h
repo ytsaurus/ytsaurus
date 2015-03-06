@@ -211,6 +211,7 @@ int GetByteSize(const TUnversionedValue& value);
 int GetDataWeight(const TUnversionedValue& value);
 int WriteValue(char* output, const TUnversionedValue& value);
 int ReadValue(const char* input, TUnversionedValue* value);
+bool IsValidValue(const TUnversionedValue& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
