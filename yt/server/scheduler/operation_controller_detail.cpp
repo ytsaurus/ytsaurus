@@ -1035,7 +1035,7 @@ void TOperationControllerBase::Initialize()
         OutputTables.push_back(table);
     }
 
-    TotalOutputsDataStatistics.resize(OutputTables.size(), NChunkClient::NProto::ZeroDataStatistics());
+    OutputDataStatistics.resize(OutputTables.size(), NChunkClient::NProto::ZeroDataStatistics());
 
     if (InputTables.size() > Config->MaxInputTableCount) {
         THROW_ERROR_EXCEPTION(
@@ -3377,9 +3377,9 @@ void TOperationControllerBase::RegisterOutput(
     const auto& jobResult = joblet->Job->Result();
     const auto& statistics = jobResult.statistics();
 
-    YCHECK(statistics.output_size() == TotalOutputsDataStatistics.size());
+    YCHECK(statistics.output_size() == OutputDataStatistics.size());
     for (auto i = 0; i < statistics.output_size(); ++i) {
-        TotalOutputsDataStatistics[i] += statistics.output(i);
+        OutputDataStatistics[i] += statistics.output(i);
     }
 
     const auto* userJobResult = FindUserJobResult(joblet);
@@ -3499,11 +3499,11 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
         .Item("intermediate_statistics").Value(TotalIntermediateDataStatistics)
         .Item("output_statistics").Value(
             std::accumulate(
-                TotalOutputsDataStatistics.begin(),
-                TotalOutputsDataStatistics.end(),
+                OutputDataStatistics.begin(),
+                OutputDataStatistics.end(),
                 NChunkClient::NProto::ZeroDataStatistics()))
         .Item("detailed_output_statistics").DoListFor(
-            TotalOutputsDataStatistics,
+            OutputDataStatistics,
             [] (TFluentList fluent, const NChunkClient::NProto::TDataStatistics& statistics) {
                 fluent.Item().Value(statistics);
             })
@@ -3717,7 +3717,7 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
     config->NewTableWriter->SyncOnClose = false;
 }
 
-void TOperationControllerBase::ValidateKey(const TOwningKey& key) 
+void TOperationControllerBase::ValidateKey(const TOwningKey& key)
 {
     for (int i = 0; i < key.GetCount(); ++i) {
         ValidateKeyValue(key[i]);
@@ -3788,7 +3788,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, TotalExactInputDataStatistics);
     Persist(context, TotalIntermediateDataStatistics);
-    Persist(context, TotalOutputsDataStatistics);
+    Persist(context, OutputDataStatistics);
 
     Persist(context, UnavailableInputChunkCount);
 

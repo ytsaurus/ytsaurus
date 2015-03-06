@@ -167,7 +167,7 @@ protected:
     NChunkClient::NProto::TDataStatistics TotalIntermediateDataStatistics;
 
     // These totals are exact.
-    std::vector<NChunkClient::NProto::TDataStatistics> TotalOutputsDataStatistics;
+    std::vector<NChunkClient::NProto::TDataStatistics> OutputDataStatistics;
 
     int UnavailableInputChunkCount;
 
