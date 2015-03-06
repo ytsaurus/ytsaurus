@@ -329,7 +329,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
             auto res = setrlimit(RLIMIT_CORE, &rlimit);
             if (res) {
-                fprintf(stderr, "Failed to disable core dumps\n%s", strerror(errno));
+                auto errorMessage = Format("Failed to disable core dumps\n%v", TError::FromSystem());
+                fprintf(stderr, ~errorMessage);
                 return EExitCode::ExecutorError;
             }
         }
