@@ -61,6 +61,7 @@ const int DefaultPartitionTag = -1;
 DEFINE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))
     ((SortOrderViolation)         (301))
+    ((InvalidDoubleValue)         (302))
 );
 
 DEFINE_ENUM(ETableChunkFormat,

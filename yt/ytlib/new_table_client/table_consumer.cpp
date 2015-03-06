@@ -7,6 +7,8 @@
 
 #include <core/concurrency/scheduler.h>
 
+#include <util/generic/ymath.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -244,6 +246,13 @@ void TTableConsumer::OnDoubleScalar(double value)
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else if (Depth_ == 1) {
+        if (!IsValidFloat(value)) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::InvalidDoubleValue, 
+               "Failed to parse double value: %Qv is not a valid double",
+                value);
+        }
+
         CurrentValueConsumer_->OnValue(MakeUnversionedDoubleValue(value, ColumnIndex_));
     } else {
         ValueWriter_.OnDoubleScalar(value);

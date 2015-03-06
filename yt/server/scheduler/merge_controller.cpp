@@ -1036,6 +1036,11 @@ protected:
             TKeyEndpoint rightEndpoint = leftEndpoint;
             rightEndpoint.Type = EEndpointType::Right;
             Endpoints.push_back(rightEndpoint);
+
+            if (!ValidateKey(leftEndpoint.MinBoundaryKey) || !ValidateKey(leftEndpoint.MaxBoundaryKey)) {
+                THROW_ERROR_EXCEPTION("Invalid double values in input table %v",
+                    ~ToString(GetInputTablePaths()[chunk->table_index()]));
+            }
         }
     }
 
