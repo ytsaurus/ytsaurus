@@ -1732,11 +1732,13 @@ private:
 
         std::vector<const TOwningKey*> sortedSamples;
         sortedSamples.reserve(sampleCount);
-        for (const auto& sample : samples) {
-            if (!ValidateKey(sample)) {
-                THROW_ERROR_EXCEPTION("Invalid double value in table samples.");
+        try {
+            for (const auto& sample : samples) {
+                ValidateKey(sample);
+                sortedSamples.push_back(&sample);
             }
-            sortedSamples.push_back(&sample);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error validating table samples") << ex;
         }
 
         std::sort(

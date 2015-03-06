@@ -1030,17 +1030,22 @@ protected:
             YCHECK(chunk->upper_limit().has_key());
             FromProto(&leftEndpoint.MaxBoundaryKey, chunk->upper_limit().key());
 
+            try {
+                ValidateKey(leftEndpoint.MinBoundaryKey);
+                ValidateKey(leftEndpoint.MaxBoundaryKey);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    "Error validating sample key in input table %v",
+                    GetInputTablePaths()[chunk->table_index()])
+                    << ex;
+            }
+
             leftEndpoint.IsTeleport = false;
             Endpoints.push_back(leftEndpoint);
 
             TKeyEndpoint rightEndpoint = leftEndpoint;
             rightEndpoint.Type = EEndpointType::Right;
             Endpoints.push_back(rightEndpoint);
-
-            if (!ValidateKey(leftEndpoint.MinBoundaryKey) || !ValidateKey(leftEndpoint.MaxBoundaryKey)) {
-                THROW_ERROR_EXCEPTION("Invalid double values in input table %v",
-                    ~ToString(GetInputTablePaths()[chunk->table_index()]));
-            }
         }
     }
 

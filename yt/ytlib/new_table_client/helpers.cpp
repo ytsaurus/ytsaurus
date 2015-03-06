@@ -50,7 +50,7 @@ void PipeReaderToWriter(
     ISchemalessReaderPtr reader,
     ISchemalessWriterPtr writer,
     int bufferRowCount,
-    bool validateDoubles)
+    bool validateValues)
 {
     std::vector<TUnversionedRow> rows;
     rows.reserve(bufferRowCount);
@@ -62,15 +62,10 @@ void PipeReaderToWriter(
             continue;
         }
 
-        if (validateDoubles) {
+        if (validateValues) {
             for (const auto& row : rows) {
                 for (int i = 0; i < row.GetCount(); ++i) {
-                    if (!IsValidValue(row[i])) {
-                        THROW_ERROR_EXCEPTION(
-                            EErrorCode::InvalidDoubleValue, 
-                            "Invalid double value %Qv", 
-                            row[i]);
-                    }
+                    ValidateDataValue(row[i]);
                 }
             }
         }
