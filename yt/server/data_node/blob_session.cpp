@@ -320,11 +320,10 @@ void TBlobSession::DoOpenWriter()
         try {
             auto fileName = Location_->GetChunkPath(ChunkId_);
             Writer_ = New<TFileWriter>(fileName, Options_.SyncOnClose);
-            auto result = Writer_->Open();
-
             // File writer opens synchronously.
-            YCHECK(result.IsSet());
-            YCHECK(result.Get().IsOK());
+            Writer_->Open()
+                .Get()
+                .ThrowOnError();
         }
         catch (const std::exception& ex) {
             SetFailed(TError(

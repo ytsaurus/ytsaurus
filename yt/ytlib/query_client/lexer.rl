@@ -86,7 +86,7 @@ typedef TParser::token_type TToken;
         };
         int64_literal => {
             type = TToken::Int64Literal;
-            value->build(FromString<i64>(ts, te - ts));
+            value->build(FromString<ui64>(ts, te - ts));
             fbreak;
         };        
         uint64_literal => {

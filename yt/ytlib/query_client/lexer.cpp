@@ -214,7 +214,7 @@ tr38:
 tr40:
 	{te = p;p--;{
             type = TToken::Int64Literal;
-            value->build(FromString<i64>(ts, te - ts));
+            value->build(FromString<ui64>(ts, te - ts));
             {p++; cs = 10; goto _out;}
         }}
 	goto st10;
