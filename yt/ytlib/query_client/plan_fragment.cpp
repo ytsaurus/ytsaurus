@@ -276,8 +276,6 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
 
 EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueType>& argTypes, const TStringBuf& source)
 {
-    //TODO: varargs
-    //TODO: sets of types
     functionName.to_lower();
     if (!registry->IsRegistered(functionName)) {
         THROW_ERROR_EXCEPTION(
@@ -355,6 +353,10 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
                 source);
         }
         return genericAssignments[*genericResult];
+    } else if (!resultType.TryAs<EValueType>()) {
+        THROW_ERROR_EXCEPTION(
+            "Ambiguous result type",
+            source);
     } else {
         return resultType.As<EValueType>();
     }
