@@ -88,6 +88,7 @@ function YtDriverFacadeV2(driver)
     delete descriptors.select;
 
     delete descriptors.dump_input_context;
+    delete descriptors.strace;
 
     this.driver = driver;
     this.mapping = mapping;
