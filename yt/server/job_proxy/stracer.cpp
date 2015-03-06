@@ -19,6 +19,8 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = JobProxyLogger;
+static const TDuration TraceInterval = TDuration::Seconds(5);
+static const TDuration TraceTimeout = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +77,7 @@ TStracerResult Strace(const std::vector<int>& pids)
                     LOG_ERROR(ex, "Failed to interrupt stracer %v", pid);
                 }
             }),
-            TDuration::Seconds(5));
+            TraceInterval);
 
         auto killCookie = TDelayedExecutor::Submit(BIND([&] () {
                 try {
@@ -84,7 +86,7 @@ TStracerResult Strace(const std::vector<int>& pids)
                     LOG_ERROR(ex, "Failed to kill stracer %v", pid);
                 }
             }),
-            TDuration::Seconds(10));
+            TraceTimeout);
 
         TSubprocessResult tracerResult;
         try {
@@ -100,6 +102,7 @@ TStracerResult Strace(const std::vector<int>& pids)
 
         if (!tracerResult.Status.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to strace %v", pid)
+                << TErrorAttribute("stderr", tracerResult.Error)
                 << tracerResult.Status;
         }
 
