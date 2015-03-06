@@ -567,7 +567,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         table = TEST_DIR + "/table"
 
         def select():
-            return list(yt.select("* from [{0}]".format(table), format=yt.YsonFormat(format="text", process_table_index=False), raw=False))
+            return list(yt.select_rows("* from [{0}]".format(table), format=yt.YsonFormat(format="text", process_table_index=False), raw=False))
 
         yt.create_table(table)
         yt.run_sort(table, sort_by=["x"])
@@ -581,6 +581,32 @@ class NativeModeTester(YtTestBase, YTEnv):
                        ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
 
         assert [{"x": 1, "y": 2, "z": 3}] == select()
+
+    def test_insert_lookup_delete(self):
+        if yt.config.VERSION == "v2":
+            return
+
+        table = TEST_DIR + "/table"
+        yt.create_table(table)
+        yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
+        yt.set(table + "/@key_columns", ["x"])
+
+        tablet_id = yt.create("tablet_cell", attributes={"size": 1})
+        while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
+            time.sleep(0.1)
+
+        yt.mount_table(table)
+        while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
+            time.sleep(0.1)
+
+        yt.insert_rows(table, [{"x": "a", "y": "b"}])
+        assert [{"x": "a", "y": "b"}] == list(yt.select_rows("* from [{0}]".format(table), raw=False))
+
+        yt.insert_rows(table, [{"x": "c", "y": "d"}])
+        assert [{"x": "c", "y": "d"}] == list(yt.lookup_rows(table, [{"x": "c"}]))
+
+        yt.delete_rows(table, [{"x": "a"}])
+        assert [{"x": "c", "y": "d"}] == list(yt.select_rows("* from [{0}]".format(table), raw=False))
 
     def test_lenval_python_operations(self):
         def foo(rec):
