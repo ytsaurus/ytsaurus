@@ -3720,7 +3720,7 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 void TOperationControllerBase::ValidateKey(const TOwningKey& key) 
 {
     for (int i = 0; i < key.GetCount(); ++i) {
-        ValidateDataValue(key[i]);
+        ValidateKeyValue(key[i]);
     }
 }
 

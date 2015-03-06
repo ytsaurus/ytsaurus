@@ -11,7 +11,6 @@ namespace NVersionedTableClient {
 
 void ValidateDataValueType(EValueType type)
 {
-    // TODO(babenko): handle any
     if (type != EValueType::Int64 &&
         type != EValueType::Uint64 &&
         type != EValueType::Double &&
@@ -51,7 +50,7 @@ void ValidateSchemaValueType(EValueType type)
         type != EValueType::Any)
     {
         THROW_ERROR_EXCEPTION("Invalid schema value type %Qlv", type);
-    }       
+    }
 }
 
 void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCount)
