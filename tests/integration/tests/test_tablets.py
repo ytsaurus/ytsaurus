@@ -161,7 +161,7 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
-    def test_computed_column(self):
+    def test_computed_column1(self):
         self._sync_create_cells(1, 1)
         self._create_table_with_computed_column("//tmp/t")
         self._sync_mount_table("//tmp/t")
@@ -185,7 +185,7 @@ class TestTablets(YTEnvSetup):
         self.assertItemsEqual(expected, actual);
 
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
-    def test_computed_column(self):
+    def test_computed_column2(self):
         self._sync_create_cells(1, 1)
         self._create_table_with_computed_column("//tmp/t")
         self._sync_mount_table("//tmp/t")

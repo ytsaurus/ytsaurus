@@ -202,16 +202,6 @@ def lookup_rows(path, data, **kwargs):
     kwargs["path"] = path
     return execute_command_with_output_format("lookup_rows", kwargs, input_stream=_prepare_rows_stream(data))
 
-def delete(path, key, **kwargs):
-    kwargs["path"] = path
-    kwargs["key"] = key
-    return command("delete", kwargs)
-
-def lookup(path, key, **kwargs):
-    kwargs["path"] = path
-    kwargs["key"] = key
-    return execute_command_with_output_format("lookup", kwargs)
-
 def start_transaction(**kwargs):
     out = execute_command("start_tx", kwargs)
     return out.replace('"', '').strip("\n")
