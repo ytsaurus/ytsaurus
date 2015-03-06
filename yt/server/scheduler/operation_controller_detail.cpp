@@ -46,10 +46,6 @@
 #include <core/ytree/convert.h>
 #include <core/ytree/attribute_helpers.h>
 
-#include <util/string/cast.h>
-
-#include <cmath>
-
 namespace NYT {
 namespace NScheduler {
 
