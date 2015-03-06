@@ -366,7 +366,7 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
             }
         }
 
-        return EValueType::Uint64;
+        return EValueType::Int64;
     } else if (functionName == "is_null") {
         validateArgCount(1);
         return EValueType::Boolean;
