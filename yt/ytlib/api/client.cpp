@@ -167,8 +167,14 @@ private:
 
     void OnResponse(
         const TTableSchema& schema,
-        TQueryServiceProxy::TRspExecutePtr response)
+        const TQueryServiceProxy::TErrorOrRspExecutePtr& responseOrError)
     {
+        if (!responseOrError.IsOK()) {
+            QueryResult_.Set(responseOrError);
+            THROW_ERROR responseOrError;
+        }
+        const auto& response = responseOrError.Value();
+
         QueryResult_.Set(FromProto(response->query_statistics()));
 
         YCHECK(!ProtocolReader_);

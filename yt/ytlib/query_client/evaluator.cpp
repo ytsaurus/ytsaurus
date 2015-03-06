@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "evaluator.h"
 
-
 #include "helpers.h"
 #include "private.h"
 #include "plan_fragment.h"
@@ -10,10 +9,7 @@
 
 #ifdef YT_USE_LLVM
 #include "evaluation_helpers.h"
-#include "cg_fragment_compiler.h"
-#include "cg_routines.h"
 #include "folding_profiler.h"
-
 #endif
 
 #include <ytlib/new_table_client/schemaful_writer.h>

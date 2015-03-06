@@ -395,11 +395,6 @@ TCodegenExpression MakeCodegenInOpExpr(
     std::vector<TCodegenExpression> codegenArgs,
     int arrayIndex);
 
-TCodegenExpression MakeCodegenExpr(
-    const TConstExpressionPtr& expr,
-    const TCGBinding& binding,
-    const TTableSchema& schema);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void CodegenScanOp(
@@ -425,10 +420,6 @@ TCodegenSource MakeCodegenGroupOp(
     TCodegenSource codegenSource);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TCodegenSource MakeCodegenQuery(
-    const TConstQueryPtr& query,
-    const TCGBinding& binding);
 
 TCGQueryCallback CodegenEvaluate(
     TCodegenSource codegenSource);
