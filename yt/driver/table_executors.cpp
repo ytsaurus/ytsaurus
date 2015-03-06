@@ -286,7 +286,7 @@ void TLookupRowsExecutor::BuildParameters(IYsonConsumer* consumer)
 
 Stroka TLookupRowsExecutor::GetCommandName() const
 {
-    return "lookup";
+    return "lookup_rows";
 }
 
 TInputStream* TLookupRowsExecutor::GetInputStream()
