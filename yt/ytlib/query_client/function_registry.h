@@ -1,10 +1,13 @@
 #pragma once
 
 #include "key_trie.h"
-#include "cg_fragment_compiler.h"
 #include "ast.h"
 
 #include <util/generic/stroka.h>
+
+#include <core/codegen/module.h>
+
+#include <unordered_map>
 
 namespace NYT {
 namespace NQueryClient {
@@ -15,6 +18,10 @@ typedef int TTypeArgument;
 typedef std::set<EValueType> TUnionType;
 typedef TVariant<EValueType, TTypeArgument, TUnionType> TType;
 
+using llvm::Value;
+class TCGValue;
+class TCGContext;
+typedef std::function<TCGValue(TCGContext& builder, Value* row)> TCodegenExpression;
 using TCodegenBuilder = std::function<TCodegenExpression(std::vector<TCodegenExpression>, EValueType, Stroka)>;
 
 using TConstFunctionExpressionPtr = TIntrusivePtr<const NAst::TFunctionExpression>;
@@ -24,6 +31,9 @@ class TFunctionRegistry
 {
 public:
     TFunctionRegistry();
+
+    //void RegisterFunction(IFunctionDescriptor descriptor);
+    //IFunctionDescriptor GetFunctionDescriptor(const Stroka& functionName);
 
     void RegisterFunction(
         const Stroka& functionName,
@@ -61,7 +71,6 @@ public:
         std::vector<EValueType> argumentTypes = std::vector<EValueType>());
 
 
-private:
     static TKeyTrieNode UniversalRange(
         const TConstFunctionExpressionPtr& expr,
         const TKeyColumns& keyColumns,
@@ -70,10 +79,43 @@ private:
         return TKeyTrieNode::Universal();
     }
 
+    class TFunctionMetadata
+    {
+    public:
+       TFunctionMetadata(
+            std::vector<TType> argumentTypes,
+            TType repeatedArgumentType,
+            TType resultType,
+            TCodegenBuilder bodyBuilder,
+            TRangeBuilder rangeBuilder)
+            : ArgumentTypes(argumentTypes)
+            , RepeatedArgumentType(repeatedArgumentType)
+            , ResultType(resultType)
+            , BodyBuilder(bodyBuilder)
+            , RangeBuilder(rangeBuilder)
+        {}
+
+        Stroka FunctionName;
+        std::vector<TType> ArgumentTypes;
+        TType RepeatedArgumentType;
+        TType ResultType;
+        TCodegenBuilder BodyBuilder;
+        TRangeBuilder RangeBuilder;
+    };
+
+    void RegisterFunctionImpl(const Stroka& functionName, const TFunctionMetadata& functionMetadata);
+    TFunctionMetadata& LookupMetadata(const Stroka& functionName);
+
+    std::unordered_map<Stroka, TFunctionMetadata> registeredFunctions;
+
 //TODO: choose between overloads?
 };
 
-TFunctionRegistry* registry = new TFunctionRegistry();
+static TFunctionRegistry* GetFunctionRegistry()
+{
+    static TFunctionRegistry registry;
+    return &registry;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
