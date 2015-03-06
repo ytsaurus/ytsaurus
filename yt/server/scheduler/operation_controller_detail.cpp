@@ -3717,14 +3717,11 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
     config->NewTableWriter->SyncOnClose = false;
 }
 
-bool TOperationControllerBase::ValidateKey(const TOwningKey& key) 
+void TOperationControllerBase::ValidateKey(const TOwningKey& key) 
 {
     for (int i = 0; i < key.GetCount(); ++i) {
-        if (!IsValidValue(key[i])) {
-            return false;
-        }
+        ValidateDataValue(key[i]);
     }
-    return true;
 }
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)

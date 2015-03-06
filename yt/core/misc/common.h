@@ -159,7 +159,7 @@ using ::ToString;
 
 } // namespace NYT
 
-// Forward declrations.
+// Forward declarations.
 namespace std {
 
 template <class T, class A>

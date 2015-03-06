@@ -104,15 +104,6 @@ int GetDataWeight(const TUnversionedValue& value)
     }
 }
 
-bool IsValidValue(const TUnversionedValue& value)
-{
-    if (value.Type != EValueType::Double) {
-        return true;
-    }
-
-    return IsValidFloat(value.Data.Double);
-}
-
 int WriteValue(char* output, const TUnversionedValue& value)
 {
     char* current = output;
