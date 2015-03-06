@@ -5,7 +5,7 @@ from table_commands import create_table, create_temp_table, write_table, read_ta
                            records_count, is_sorted, is_empty, \
                            run_erase, run_sort, run_merge, \
                            run_map, run_reduce, run_map_reduce, run_remote_copy, \
-                           mount_table, unmount_table, remount_table, reshard_table, select
+                           mount_table, unmount_table, remount_table, reshard_table, select_rows
 from operation_commands import get_operation_state, abort_operation, suspend_operation, resume_operation
 from file_commands import download_file, upload_file, smart_upload_file
 from transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction
@@ -151,8 +151,8 @@ class Yt(object):
     def reshard_table(self, *args, **kwargs):
         return reshard_table(*args, client=self, **kwargs)
 
-    def select(self, *args, **kwargs):
-        return select(*args, client=self, **kwargs)
+    def select_rows(self, *args, **kwargs):
+        return select_rows(*args, client=self, **kwargs)
 
     def get_operation_state(self, *args, **kwargs):
         return get_operation_state(*args, client=self, **kwargs)
