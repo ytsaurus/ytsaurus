@@ -10,8 +10,6 @@
 #include "cg_routines.h"
 #include "cg_ir_builder.h"
 
-#include "function_registry.h"
-
 #include <core/codegen/public.h>
 #include <core/codegen/module.h>
 

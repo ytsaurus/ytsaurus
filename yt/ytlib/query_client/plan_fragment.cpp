@@ -277,25 +277,15 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
 EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueType>& argTypes, const TStringBuf& source)
 {
     functionName.to_lower();
-    if (!registry->IsRegistered(functionName)) {
+    if (!GetFunctionRegistry()->IsRegistered(functionName)) {
         THROW_ERROR_EXCEPTION(
             "Unknown function in expression %Qv",
             source)
             << TErrorAttribute("function_name", functionName);
     }
 
-    auto expectedArgTypes = registry->GetArgumentTypes(functionName);
-    auto resultType = registry->GetResultType(functionName);
-
-    auto argCount = expectedArgTypes.size();
-    if (argTypes.size() != argCount) {
-        THROW_ERROR_EXCEPTION(
-            "Expression %Qv expects %v arguments, but %v provided",
-            functionName,
-            argCount,
-            argTypes.size())
-            << TErrorAttribute("expression", source);
-    }
+    auto expectedArgTypes = GetFunctionRegistry()->GetArgumentTypes(functionName);
+    auto resultType = GetFunctionRegistry()->GetResultType(functionName);
 
     std::unordered_map<TTypeArgument, EValueType> genericAssignments;
 
@@ -325,7 +315,9 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
     //TODO: better error messages
     auto arg = argTypes.begin();
     auto expectedArg = expectedArgTypes.begin();
-    for (; expectedArg != expectedArgTypes.end(); arg++, expectedArg++)
+    for (;
+        expectedArg != expectedArgTypes.end() && arg != argTypes.end();
+        arg++, expectedArg++)
     {
         if (!unify(*expectedArg, *arg)) {
             THROW_ERROR_EXCEPTION(
@@ -334,7 +326,15 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
         }
     }
 
-    auto repeatedArgType = registry->GetRepeatedArgumentType(functionName);
+    if (expectedArg != expectedArgTypes.end()) {
+        THROW_ERROR_EXCEPTION(
+            "Expression %Qv expects %v arguments",
+            functionName,
+            argTypes.size())
+            << TErrorAttribute("expression", source);
+    }
+
+    auto repeatedArgType = GetFunctionRegistry()->GetRepeatedArgumentType(functionName);
     for (; arg != argTypes.end(); arg++)
     {
         if (!unify(repeatedArgType, *arg)) {
