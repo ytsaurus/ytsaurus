@@ -109,11 +109,6 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
         attributes = function.attributes if hasattr(function, "attributes") else {}
         dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
 
-    if isinstance(input_format, format.YsonFormat) and yt.yson.TYPE == "PYTHON":
-        raise YtError("Using python implementation of YSON parser in operations "
-                      "is forbidden because of memory limit issues. "
-                      "Install yandex-yt-python-yson to fix this problem.")
-
     config_filename = tempfiles_manager.create_tempfile(dir=config.LOCAL_TMP_DIR,
                                                         prefix="config_dump")
     config_dict = {}
