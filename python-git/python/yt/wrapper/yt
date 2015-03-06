@@ -399,15 +399,40 @@ def add_reshard_table_parser(add_parser):
     tablet_args(parser)
     parser.add_argument("pivot_keys", action=ParseStructuredArguments, nargs="+")
 
-def select(**args):
-    write_silently(chunk_iter_stream(yt.select(**args), 16 * MB))
+def select_rows(**args):
+    write_silently(chunk_iter_stream(yt.select_rows(raw=True, **args), 16 * MB))
 
-def add_select_parser(add_parser):
-    parser = add_parser("select", yt.select, epilog="Supported features: https://wiki.yandex-team.ru/yt/userdoc/queries")
-    parser.add_argument("query")
-    parser.add_argument("--timestamp", type=int)
-    parser.add_argument("--format", action=ParseFormat)
-    parser.set_defaults(func=select)
+def add_select_rows_parser(add_parser):
+    for name in ("select", "select-rows"):
+        parser = add_parser(name, yt.select_rows, epilog="Supported features: https://wiki.yandex-team.ru/yt/userdoc/queries")
+        parser.add_argument("query")
+        parser.add_argument("--timestamp", type=int)
+        parser.add_argument("--format", action=ParseFormat)
+        parser.set_defaults(func=select_rows)
+
+def lookup_rows(**args):
+    write_silently(chunk_iter_stream(yt.lookup_rows(raw=True, **args), 16 * MB))
+
+def add_lookup_rows_parser(add_parser):
+    for name in ("lookup", "lookup-rows"):
+        parser = add_parser(name, yt.lookup_rows)
+        add_ypath_argument(parser, name="table")
+        add_format_help(parser, help="input format")
+        parser.set_defaults(func=lookup_rows, input_stream=sys.stdin)
+
+def add_insert_rows_parser(add_parser):
+    for name in ("insert", "insert-rows"):
+        parser = add_parser(name, yt.insert_rows)
+        add_ypath_argument(parser, name="table")
+        add_format_help(parser, help="input format")
+        parser.set_defaults(func=yt.insert_rows, input_stream=sys.stdin, raw=True)
+
+def add_delete_rows_parser(add_parser):
+    for name in ("delete", "delete-rows"):
+        parser = add_parser(name, yt.delete_rows)
+        add_ypath_argument(parser, name="table")
+        add_format_help(parser, help="input format")
+        parser.set_defaults(func=yt.delete_rows, input_stream=sys.stdin, raw=True)
 
 def operation_args(parser):
     parser.add_argument("binary", metavar="command")
@@ -696,7 +721,10 @@ def main():
     add_remount_table_parser(add_parser)
     add_reshard_table_parser(add_parser)
 
-    add_select_parser(add_parser)
+    add_select_rows_parser(add_parser)
+    add_lookup_rows_parser(add_parser)
+    add_insert_rows_parser(add_parser)
+    add_delete_rows_parser(add_parser)
 
     add_erase_parser(add_parser)
     add_merge_parser(add_parser)
