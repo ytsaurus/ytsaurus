@@ -20,7 +20,7 @@ void ValidateDataValueType(EValueType type)
         type != EValueType::Any &&
         type != EValueType::Null)
     {
-        THROW_ERROR_EXCEPTION("Invalid date value type %Qlv", type);
+        THROW_ERROR_EXCEPTION("Invalid data value type %Qlv", type);
     }       
 }
 
