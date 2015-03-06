@@ -850,7 +850,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
                 builder.getInt1(false),
                 nullptr,
                 result,
-                EValueType::Uint64);
+                EValueType::Int64);
         } else if (functionName == "int64" || functionName == "uint64" || functionName == "double") {
             YCHECK(codegenArgs.size() == 1);
             return codegenArgs[0](builder, row).Cast(builder, type);
