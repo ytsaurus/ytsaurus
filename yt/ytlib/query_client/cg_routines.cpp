@@ -443,6 +443,9 @@ ui64 SimpleHash(TRow row)
                     row[index].Length,
                     result);
                 break;
+            case EValueType::Null:
+                result = hash64(0, result);
+                break;
             default:
                 YUNREACHABLE();
         }
