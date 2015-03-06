@@ -299,7 +299,7 @@ void TYsonSerializableLite::TParameter<T>::Validate(const NYPath::TYPath& path) 
             validator(Parameter);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Validation failed at %v",
-                path.empty() ? "/" : path)
+                path.empty() ? "root" : path)
                 << ex;
         }
     }
