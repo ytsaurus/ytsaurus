@@ -545,6 +545,7 @@ class TestYamrModeV2(YamrModeTester):
     def setup_class(cls):
         YamrModeTester.setup_class()
         yt.config.VERSION = "v2"
+        yt.config.COMMANDS = None
 
     @classmethod
     def teardown_class(cls):
@@ -555,6 +556,7 @@ class TestYamrModeV3(YamrModeTester):
     def setup_class(cls):
         YamrModeTester.setup_class()
         yt.config.VERSION = "v3"
+        yt.config.COMMANDS = None
 
     @classmethod
     def teardown_class(cls):
