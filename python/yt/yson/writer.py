@@ -119,7 +119,7 @@ class Dumper(object):
             if isinstance(obj, YsonInt64) and greater_than_max_int64:
                 raise TypeError("Can not dump integer greater than 2^63-1 as YSON int64")
 
-            result = str(obj)
+            result = str(obj).rstrip("L")
             if greater_than_max_int64 or isinstance(obj, YsonUint64):
                 result += "u"
         elif isinstance(obj, float):
