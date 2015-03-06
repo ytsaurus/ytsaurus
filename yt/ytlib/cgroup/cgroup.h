@@ -110,6 +110,7 @@ public:
     };
 
     explicit TCpuAccounting(const Stroka& name);
+
     TStatistics GetStatistics() const;
 };
 

@@ -127,13 +127,13 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
 
 TTcpBusServerConfigPtr TSlot::GetRpcServerConfig() const
 {
-    Stroka unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
+    auto unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
     return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
 }
 
 TTcpBusClientConfigPtr TSlot::GetRpcClientConfig() const
 {
-    Stroka unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
+    auto unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
     return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
 }
 
@@ -141,7 +141,7 @@ void TSlot::DoCleanSandbox()
 {
     try {
         if (NFS::Exists(SandboxPath_)) {
-            if (UserId_.HasValue()) {
+            if (UserId_) {
                 auto process = TSubprocess::CreateCurrentProcessSpawner();
                 process.AddArguments({
                     "--cleaner",
