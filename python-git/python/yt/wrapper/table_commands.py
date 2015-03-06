@@ -84,6 +84,30 @@ from cStringIO import StringIO
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
 
+def _split_rows(stream, format, raw):
+    if isinstance(stream, str):
+        stream = StringIO(stream)
+
+    if hasattr(stream, "read"):
+        if not raw:
+            raise YtError("Passing raw=False and stream as input forbidden")
+        for row in format.load_rows(stream, raw=True):
+            yield row
+    else:
+        for row in stream:
+            if raw:
+                yield row
+            else:
+                yield format.dumps_row(row)
+
+def _chunked_iter(stream):
+    while True:
+        data = stream.read(1024 * 1024)
+        if not data:
+            break
+        yield data
+
+
 def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None):
     result = [to_table(table, client=client) for table in flatten(tables)]
     if not result:
@@ -166,10 +190,10 @@ def _prepare_formats(format, input_format, output_format, binary):
     return input_format, output_format
 
 def _prepare_format(format, raw):
+    if not raw and format is None:
+        format = YsonFormat(process_table_index=False)
     if format is None:
         format = config.format.TABULAR_DATA_FORMAT
-    if not raw and format is None:
-        format = YsonFormat()
     if isinstance(format, str):
         format = create_format(format)
 
@@ -456,29 +480,6 @@ def write_table(table, input_stream, format=None, table_writer=None,
     if table_writer is not None:
         params["table_writer"] = table_writer
 
-    def split_rows(stream):
-        if isinstance(stream, str):
-            stream = StringIO(stream)
-
-        if hasattr(stream, "read"):
-            if not raw:
-                raise YtError("Passing raw=False and stream as input forbidden")
-            for row in format.load_rows(stream, raw=True):
-                yield row
-        else:
-            for row in stream:
-                if raw:
-                    yield row
-                else:
-                    yield format.dumps_row(row)
-
-    def chunked_iter(stream):
-        while True:
-            data = stream.read(1024 * 1024)
-            if not data:
-                break
-            yield data
-
     def prepare_table(path):
         if exists(path, client=client):
             require(replication_factor is None and compression_codec is None,
@@ -490,9 +491,9 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     can_split_input = isinstance(input_stream, types.ListType) or format.is_raw_load_supported()
     if config.USE_RETRIES_DURING_WRITE and can_split_input:
-        input_stream = chunk_iter_lines(split_rows(input_stream), config.CHUNK_SIZE)
+        input_stream = chunk_iter_lines(_split_rows(input_stream, format, raw), config.CHUNK_SIZE)
     elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = chunked_iter(input_stream)
+        input_stream = _chunked_iter(input_stream)
 
     if config.USE_RETRIES_DURING_WRITE and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
@@ -820,7 +821,7 @@ def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=N
 
     make_request("reshard_table", params, client=client)
 
-def select(query, timestamp=None, format=None, response_type=None, raw=True, client=None):
+def select_rows(query, timestamp=None, format=None, raw=True, client=None):
     """Execute a SQL-like query. NB! This command is not currently supported! The feature is coming with 0.17+ version!
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -829,13 +830,8 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
                   [where <predicate> [group by <columns> [as <alias>], ...]]\"
     :param timestamp: (string) TODO(veronikaiv): verify
     :param format: (string or descendant of `Format`) output format
-    :param response_type: output type, line generator by default. ["iter_lines", "iter_content", \
-                          "raw", "string"]
     :param raw: (bool) don't parse response to rows
     """
-    if response_type is not None:
-        logger.info("Option response_type is deprecated and ignored")
-
     format = _prepare_format(format, raw)
     params = {
         "query": query,
@@ -855,6 +851,100 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
         return response_stream
     else:
         return format.load_rows(response_stream)
+
+def lookup_rows(table, input_stream, format=None, raw=False, client=None):
+    """Lookup rows in dynamic table. NB! This command is not currently supported! The feature is coming with 0.17+ version!
+
+    .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
+
+    :param format: (string or descendant of `Format`) output format
+    :param raw: (bool) don't parse response to rows
+    """
+
+    table = to_table(table, client=client)
+    format = _prepare_format(format, raw)
+
+    params = {}
+    params["path"] = table.get_json()
+    params["input_format"] = format.json()
+    params["output_format"] = format.json()
+
+    if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
+        input_stream = _split_rows(input_stream, format, raw)
+    elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
+        input_stream = _chunked_iter(input_stream)
+
+    response = _make_transactional_request(
+        "lookup_rows",
+        params,
+        data=input_stream,
+        return_content=False,
+        use_heavy_proxy=True,
+        client=client)
+
+    response_stream = ResponseStream.from_response(response)
+    if raw:
+        return response_stream
+    else:
+        return format.load_rows(response_stream)
+
+def insert_rows(table, input_stream, format=None, raw=False, client=None):
+    """Write rows from input_stream to table.
+
+    :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
+                `TablePath` attributes for append mode or something like this. Table can not exist.
+    :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
+    :param format: (string or subclass of `Format`) format of input data, \
+                    `yt.wrapper.config.format.TABULAR_DATA_FORMAT` by default.
+
+    """
+    table = to_table(table, client=client)
+    format = _prepare_format(format, raw)
+
+    params = {}
+    params["path"] = table.get_json()
+    params["input_format"] = format.json()
+
+    if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
+        input_stream = _split_rows(input_stream, format, raw)
+    elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
+        input_stream = _chunked_iter(input_stream)
+
+    _make_transactional_request(
+        "insert_rows",
+        params,
+        data=input_stream,
+        use_heavy_proxy=True,
+        client=client)
+
+def delete_rows(table, input_stream, format=None, raw=False, client=None):
+    """Write rows from input_stream to table.
+
+    :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
+                `TablePath` attributes for append mode or something like this. Table can not exist.
+    :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
+    :param format: (string or subclass of `Format`) format of input data, \
+                    `yt.wrapper.config.format.TABULAR_DATA_FORMAT` by default.
+
+    """
+    table = to_table(table, client=client)
+    format = _prepare_format(format, raw)
+
+    params = {}
+    params["path"] = table.get_json()
+    params["input_format"] = format.json()
+
+    if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
+        input_stream = _split_rows(input_stream, format, raw)
+    elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
+        input_stream = _chunked_iter(input_stream)
+
+    _make_transactional_request(
+        "delete_rows",
+        params,
+        data=input_stream,
+        use_heavy_proxy=True,
+        client=client)
 
 # Operations.
 
