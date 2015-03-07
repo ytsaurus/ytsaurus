@@ -587,7 +587,8 @@ class NativeModeTester(YtTestBase, YTEnv):
         if yt.config.VERSION == "v2":
             return
 
-        table = TEST_DIR + "/table"
+        # Name must differ with name of table in select test because of metadata caches
+        table = TEST_DIR + "/table2"
         yt.remove(table, force=True)
         yt.create_table(table)
         yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
