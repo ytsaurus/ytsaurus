@@ -295,7 +295,7 @@ private:
             }
         } else {
             if (raw) {
-                THROW_ERROR_EXCEPTION("Raw mode is only supported for list fragments");
+                throw CreateYsonError("Raw mode is only supported for list fragments");
             }
             NYTree::TPythonObjectBuilder consumer(alwaysCreateAttributes);
             NYson::TYsonParser parser(&consumer, ysonType);

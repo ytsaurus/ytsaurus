@@ -344,7 +344,9 @@ class TStreamReader
 public:
     explicit TStreamReader(TInputStream* stream)
         : Stream_(stream)
-    { }
+    {
+        RefreshBlock();
+    }
 
     const char* Begin() const
     {
