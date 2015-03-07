@@ -161,31 +161,7 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
-    def test_computed_column1(self):
-        self._sync_create_cells(1, 1)
-        self._create_table_with_computed_column("//tmp/t")
-        self._sync_mount_table("//tmp/t")
-
-        insert("//tmp/t", [{"key1": 1, "value": 2}])
-        expected = [{"key1": 1, "key2": 103, "value": 2}]
-        actual = select("* from [//tmp/t]");
-        self.assertItemsEqual(expected, actual);
-
-        insert("//tmp/t", [{"key1": 2, "value": 2}])
-        expected = [{"key1": 1, "key2": 103, "value": 2}]
-        actual = lookup("//tmp/t", [1]);
-        self.assertItemsEqual(expected, actual);
-        expected = [{"key1": 2, "key2": 203, "value": 2}]
-        actual = lookup("//tmp/t", [2]);
-        self.assertItemsEqual(expected, actual);
-
-        delete("//tmp/t", [1])
-        expected = [{"key1": 2, "key2": 203, "value": 2}]
-        actual = select("* from [//tmp/t]");
-        self.assertItemsEqual(expected, actual);
-
-    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
-    def test_computed_column2(self):
+    def test_computed_column(self):
         self._sync_create_cells(1, 1)
         self._create_table_with_computed_column("//tmp/t")
         self._sync_mount_table("//tmp/t")
