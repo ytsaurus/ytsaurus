@@ -569,6 +569,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         def select():
             return list(yt.select_rows("* from [{0}]".format(table), format=yt.YsonFormat(format="text", process_table_index=False), raw=False))
 
+        yt.remove(table, force=True)
         yt.create_table(table)
         yt.run_sort(table, sort_by=["x"])
 
@@ -587,6 +588,7 @@ class NativeModeTester(YtTestBase, YTEnv):
             return
 
         table = TEST_DIR + "/table"
+        yt.remove(table, force=True)
         yt.create_table(table)
         yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
         yt.set(table + "/@key_columns", ["x"])
