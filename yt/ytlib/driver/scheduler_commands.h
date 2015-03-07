@@ -52,11 +52,11 @@ struct TStraceRequest
 
 //////////////////////////////////////////////////////////////////////////////
 
-class TStrace
+class TStraceCommand
     : public TTypedCommand<TStraceRequest>
 {
 protected:
-    typedef TStrace TThis;
+    typedef TStraceCommand TThis;
 
 private:
     virtual void DoExecute() override;
