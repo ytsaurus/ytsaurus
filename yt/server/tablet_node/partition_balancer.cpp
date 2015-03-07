@@ -84,6 +84,9 @@ private:
 
     void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
     {
+        if (tablet->GetState() != ETabletState::Mounted)
+            return;
+        
         for (const auto& partition : tablet->Partitions()) {
             ScanPartition(slot, partition.get());
         }
