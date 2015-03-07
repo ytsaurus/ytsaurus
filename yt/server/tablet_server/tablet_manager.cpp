@@ -1216,7 +1216,7 @@ private:
         if (tablet->GetState() != ETabletState::Mounted &&
             tablet->GetState() != ETabletState::Unmounting)
         {
-            LOG_INFO_UNLESS(IsRecovery(), "Requested to update stoares for a tablet in %Qlv state, ignored (TabletId: %v)",
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to update stores for a tablet in %Qlv state, ignored (TabletId: %v)",
                 tablet->GetState(),
                 tabletId);
             return;
