@@ -25,7 +25,7 @@ void TDumpInputContextCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStrace::DoExecute()
+void TStraceCommand::DoExecute()
 {
     auto asyncResult = Context_->GetClient()->Strace(Request_->JobId);
     auto result = WaitFor(asyncResult)
