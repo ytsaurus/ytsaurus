@@ -577,6 +577,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                     try:
                         for elem in iter():
                             yield elem
+                        break
                     except RETRIABLE_ERRORS as err:
                         if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                             raise
