@@ -153,13 +153,15 @@ public:
 
         store->SetState(state);
 
-        if (IsLeader()) {
-            auto callback = BIND([=, this_ = MakeStrong(this)] () {
-                VERIFY_THREAD_AFFINITY(AutomatonThread);
-                store->SetState(store->GetPersistentState());
-            }).Via(Slot_->GetEpochAutomatonInvoker());
+        auto callback = BIND([=, this_ = MakeStrong(this)] () {
+            VERIFY_THREAD_AFFINITY(AutomatonThread);
+            store->SetState(store->GetPersistentState());
+        });
 
-            TDelayedExecutor::Submit(callback, Config_->ErrorBackoffTime);
+        if (IsLeader()) {
+            TDelayedExecutor::Submit(callback.Via(Slot_->GetEpochAutomatonInvoker()), Config_->ErrorBackoffTime);
+        } else {
+            callback.Run();
         }
     }
 
