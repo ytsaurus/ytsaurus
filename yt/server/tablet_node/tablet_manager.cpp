@@ -153,12 +153,14 @@ public:
 
         store->SetState(state);
 
-        auto callback = BIND([=, this_ = MakeStrong(this)] () {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-            store->SetState(store->GetPersistentState());
-        }).Via(Slot_->GetEpochAutomatonInvoker());
+        if (IsLeader()) {
+            auto callback = BIND([=, this_ = MakeStrong(this)] () {
+                VERIFY_THREAD_AFFINITY(AutomatonThread);
+                store->SetState(store->GetPersistentState());
+            }).Via(Slot_->GetEpochAutomatonInvoker());
 
-        TDelayedExecutor::Submit(callback, Config_->ErrorBackoffTime);
+            TDelayedExecutor::Submit(callback, Config_->ErrorBackoffTime);
+        }
     }
 
 
@@ -874,9 +876,7 @@ private:
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 auto store = tablet->GetStore(storeId);
                 YCHECK(store->GetState() == EStoreState::RemoveCommitting);
-                if (IsLeader()) {
-                    BackoffStore(store, EStoreState::RemoveFailed);
-                }
+                BackoffStore(store, EStoreState::RemoveFailed);
             }
         } else {
             const auto& storeManager = tablet->GetStoreManager();
