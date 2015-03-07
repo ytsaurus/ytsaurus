@@ -1507,14 +1507,14 @@ private:
                 tablet->SetState(ETabletState::Unmounting);
                 tablet->NodeStatistics().Clear();
                 tablet->PerformanceCounters() = TTabletPerformanceCounters();
+            }
 
-                {
-                    TReqUnmountTablet request;
-                    ToProto(request.mutable_tablet_id(), tablet->GetId());
-                    request.set_force(force);
-                    auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-                    hiveManager->PostMessage(mailbox, request);
-                }
+            if (cell) {
+                TReqUnmountTablet request;
+                ToProto(request.mutable_tablet_id(), tablet->GetId());
+                request.set_force(force);
+                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                hiveManager->PostMessage(mailbox, request);
             }
 
             if (force && tablet->GetState() != ETabletState::Unmounted) {
