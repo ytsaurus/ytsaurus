@@ -100,6 +100,9 @@ private:
 
     void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
     {
+        if (tablet->GetState() != ETabletState::Mounted)
+            return;
+
         ScanEden(slot, tablet->GetEden());
 
         for (auto& partition : tablet->Partitions()) {
