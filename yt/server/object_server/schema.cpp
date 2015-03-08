@@ -104,7 +104,7 @@ public:
 
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetSchema(Type);
         return id == object->GetId() ? object : nullptr;
     }
@@ -119,7 +119,7 @@ public:
     {
         auto permissions = NonePermissions;
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto handler = objectManager->GetHandler(Type);
 
         if (!IsVersionedType(Type)) {
@@ -148,7 +148,7 @@ private:
         TSchemaObject* /*object*/,
         NTransactionServer::TTransaction* /*transaction*/) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetSchemaProxy(Type);
     }
 

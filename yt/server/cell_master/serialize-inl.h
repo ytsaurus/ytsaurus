@@ -25,7 +25,7 @@ struct TNonversionedObjectRefSerializer
     static void Save(C& context, T object)
     {
         if (object) {
-            auto key = *object->GetSerializationKeyPtr();
+            auto key = object->GetDynamicData()->SerializationKey;
             YASSERT(key != NHydra::TEntitySerializationKey());
             NYT::Save(context, key);
         } else {
@@ -68,7 +68,7 @@ struct TVersionedObjectRefSerializer
     static void Save(C& context, T object)
     {
         auto key = object
-            ? *object->GetSerializationKeyPtr()
+            ? object->GetDynamicData()->SerializationKey
             : NHydra::TEntitySerializationKey();
         NYT::Save(context, key);
     }

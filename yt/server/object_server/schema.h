@@ -1,7 +1,6 @@
 #pragma once
 
-#include "public.h"
-#include "object_detail.h"
+#include "object.h"
 
 #include <server/security_server/acl.h>
 

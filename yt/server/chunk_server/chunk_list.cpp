@@ -16,9 +16,13 @@ using namespace NCellMaster;
 TChunkList::TChunkList(const TChunkListId& id)
     : TChunkTree(id)
     , Version_(0)
-    , VisitMark_(0)
 {
     ResetChunkListStatistics(this);
+}
+
+TChunkListDynamicData* TChunkList::GetDynamicData() const
+{
+    return GetTypedDynamicData<TChunkListDynamicData>();
 }
 
 void TChunkList::IncrementVersion()
@@ -55,6 +59,16 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, RowCountSums_);
     Load(context, ChunkCountSums_);
     Load(context, DataSizeSums_);
+}
+
+ui64 TChunkList::GetVisitMark() const
+{
+    return GetDynamicData()->VisitMark;
+}
+
+void TChunkList::SetVisitMark(ui64 value)
+{
+    GetDynamicData()->VisitMark = value;
 }
 
 ui64 TChunkList::GenerateVisitMark()
