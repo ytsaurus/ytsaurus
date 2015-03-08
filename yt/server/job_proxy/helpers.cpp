@@ -18,12 +18,12 @@ using namespace NFormats;
 using namespace NVersionedTableClient;
 using namespace NConcurrency;
 
-static const auto& Logger = JobProxyLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int BufferSize = 1024 * 1024;
+static const size_t BufferSize = 1024 * 1024;
 static const int BufferRowCount = 1024;
+
+////////////////////////////////////////////////////////////////////////////////
 
 TContextPreservingInput::TContextPreservingInput(
     ISchemalessMultiChunkReaderPtr reader,
