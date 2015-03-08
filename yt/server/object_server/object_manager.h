@@ -2,6 +2,8 @@
 
 #include "public.h"
 #include "type_handler.h"
+#include "schema.h"
+#include "attribute_set.h"
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
@@ -233,8 +235,8 @@ private:
 
     TGarbageCollectorPtr GarbageCollector_;
 
-    i64 CreatedObjectCount_ = 0;
-    i64 DestroyedObjectCount_ = 0;
+    int CreatedObjectCount_ = 0;
+    int DestroyedObjectCount_ = 0;
     int LockedObjectCount_ = 0;
 
     //! Stores schemas (for serialization mostly).

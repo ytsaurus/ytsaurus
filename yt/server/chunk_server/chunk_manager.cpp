@@ -21,6 +21,10 @@
 
 #include <core/erasure/codec.h>
 
+#include <core/logging/log.h>
+
+#include <core/profiling/profiler.h>
+
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
@@ -29,16 +33,13 @@
 #include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
+
 #include <ytlib/new_table_client/table_ypath.pb.h>
 
 #include <ytlib/journal_client/helpers.h>
 
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/entity_map.h>
-
-#include <core/logging/log.h>
-
-#include <core/profiling/profiler.h>
 
 #include <server/chunk_server/chunk_manager.pb.h>
 
@@ -144,7 +145,8 @@ public:
     }
 
 private:
-    NCellMaster::TBootstrap* Bootstrap_;
+    NCellMaster::TBootstrap* const Bootstrap_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,7 +172,8 @@ public:
         TRspCreateObjects* response) override;
 
 protected:
-    TImpl* Owner_;
+    TImpl* const Owner_;
+
 
     virtual IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
 
@@ -282,7 +285,8 @@ public:
         TRspCreateObjects* response) override;
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
+
 
     virtual Stroka DoGetName(TChunkList* chunkList) override
     {
@@ -876,7 +880,7 @@ private:
     friend class TErasureChunkTypeHandler;
     friend class TChunkListTypeHandler;
 
-    TChunkManagerConfigPtr Config_;
+    const TChunkManagerConfigPtr Config_;
 
     TChunkTreeBalancer ChunkTreeBalancer_;
 
@@ -1514,7 +1518,7 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
     TChunk* chunk,
     TTransaction* /*transaction*/)
 {
-    return CreateChunkProxy(Bootstrap, chunk);
+    return CreateChunkProxy(Bootstrap_, chunk);
 }
 
 TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
@@ -1589,7 +1593,7 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
     TChunkList* chunkList,
     TTransaction* /*transaction*/)
 {
-    return CreateChunkListProxy(Bootstrap, chunkList);
+    return CreateChunkListProxy(Bootstrap_, chunkList);
 }
 
 TObjectBase* TChunkManager::TChunkListTypeHandler::Create(

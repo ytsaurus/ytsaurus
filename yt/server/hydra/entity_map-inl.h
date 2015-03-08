@@ -18,14 +18,20 @@ std::unique_ptr<TValue> TDefaultEntityMapTraits<TKey, TValue>::Create(const TKey
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TEntitySerializationKey* TEntityBase::GetSerializationKeyPtr() const
+inline TEntityDynamicDataBase* TEntityBase::GetDynamicData() const
 {
-    return SerializationKeyPtr_;
+    return DynamicData_;
 }
 
-inline void TEntityBase::SetSerializationKeyPtr(TEntitySerializationKey* ptr)
+inline void TEntityBase::SetDynamicData(TEntityDynamicDataBase* data)
 {
-    SerializationKeyPtr_ = ptr;
+    DynamicData_ = data;
+}
+
+template <class T>
+inline T* TEntityBase::GetTypedDynamicData() const
+{
+    return static_cast<T*>(DynamicData_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,16 +170,13 @@ struct TSerializationKeysTag
 template <class TKey, class TValue, class TTraits, class THash>
 TEntityMap<TKey, TValue, TTraits, THash>::TEntityMap(const TTraits& traits)
     : Traits_(traits)
-    , SerializationKeysPool_(TSerializationKeysTag())
+    , DynamicDataPool_(TSerializationKeysTag())
 { }
 
 template <class TKey, class TValue, class TTraits, class THash>
 TEntityMap<TKey, TValue, TTraits, THash>::~TEntityMap()
 {
-    for (const auto& pair : this->Map_) {
-        delete pair.second;
-    }
-    this->Map_.clear();
+    Clear();
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -183,7 +186,7 @@ void TEntityMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue* v
 
     YASSERT(value);
     YCHECK(this->Map_.insert(std::make_pair(key, value)).second);
-    value->SetSerializationKeyPtr(AllocateSerializationKeyPtr());
+    value->SetDynamicData(AllocateDynamicData());
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -205,7 +208,7 @@ bool TEntityMap<TKey, TValue, TTraits, THash>::TryRemove(const TKey& key)
     }
 
     auto* value = it->second;
-    FreeSerializationKeyPtr(value->GetSerializationKeyPtr());
+    FreeDynamicData(value->GetDynamicData());
     delete value;
     this->Map_.erase(it);
     return true;
@@ -219,8 +222,8 @@ std::unique_ptr<TValue> TEntityMap<TKey, TValue, TTraits, THash>::Release(const 
     auto it = this->Map_.find(key);
     YASSERT(it != this->Map_.end());
     auto* value = it->second;
-    FreeSerializationKeyPtr(value->GetSerializationKeyPtr());
-    value->SetSerializationKeyPtr(nullptr);
+    FreeDynamicData(value->GetDynamicData());
+    value->SetDynamicData(nullptr);
     this->Map_.erase(it);
     return std::unique_ptr<TValue>(value);
 }
@@ -231,11 +234,13 @@ void TEntityMap<TKey, TValue, TTraits, THash>::Clear()
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
     for (const auto& pair : this->Map_) {
-        delete pair.second;
+        auto* entity = pair.second;
+        FreeDynamicData(entity->GetDynamicData());
+        delete entity;
     }
     this->Map_.clear();
-    SerializationKeysPool_.Clear();
-    SpareSerializationKeyPtrs_.clear();
+    DynamicDataPool_.Clear();
+    FirstSpareDynamicData_ = nullptr;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -259,7 +264,7 @@ void TEntityMap<TKey, TValue, TTraits, THash>::SaveKeys(TContext& context) const
 
     for (const auto& it : SaveIterators_) {
         Save(context, it->first);
-        *it->second->GetSerializationKeyPtr() = context.GenerateSerializationKey();
+        it->second->GetDynamicData()->SerializationKey = context.GenerateSerializationKey();
     }
 }
 
@@ -295,7 +300,7 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadKeys(TContext& context)
         auto value = Traits_.Create(key);
         LoadValues_.push_back(value.get());
         context.RegisterEntity(value.get());
-        value->SetSerializationKeyPtr(AllocateSerializationKeyPtr());
+        value->SetDynamicData(AllocateDynamicData());
         YCHECK(this->Map_.insert(std::make_pair(key, value.release())).second);
     }
 }
@@ -315,24 +320,27 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadValues(TContext& context)
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-TEntitySerializationKey* TEntityMap<TKey, TValue, TTraits, THash>::AllocateSerializationKeyPtr()
+auto TEntityMap<TKey, TValue, TTraits, THash>::AllocateDynamicData() -> TDynamicData*
 {
-    TEntitySerializationKey* ptr;
-    if (SpareSerializationKeyPtrs_.empty()) {
-        ptr = reinterpret_cast<TEntitySerializationKey*>(SerializationKeysPool_.AllocateUnaligned(
-            sizeof(TEntitySerializationKey)));
+    TDynamicData* data;
+    if (FirstSpareDynamicData_) {
+        data = reinterpret_cast<TDynamicData*>(FirstSpareDynamicData_);
+        FirstSpareDynamicData_ = FirstSpareDynamicData_->Next;
     } else {
-        ptr = SpareSerializationKeyPtrs_.back();
-        SpareSerializationKeyPtrs_.pop_back();
+        data = reinterpret_cast<TDynamicData*>(DynamicDataPool_.AllocateAligned(
+            std::max(sizeof(TDynamicData), sizeof(TSpareEntityDynamicData))));
     }
-    *ptr = TEntitySerializationKey();
-    return ptr;
+    new(data) TDynamicData();
+    return data;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-void TEntityMap<TKey, TValue, TTraits, THash>::FreeSerializationKeyPtr(TEntitySerializationKey* ptr)
+void TEntityMap<TKey, TValue, TTraits, THash>::FreeDynamicData(TDynamicData* data)
 {
-    SpareSerializationKeyPtrs_.push_back(ptr);
+    data->TDynamicData::~TDynamicData();
+    auto* spareData = reinterpret_cast<TSpareEntityDynamicData*>(data);
+    spareData->Next  = FirstSpareDynamicData_;
+    FirstSpareDynamicData_ = spareData;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
