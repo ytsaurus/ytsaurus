@@ -7,8 +7,6 @@
 
 #include <ytlib/security_client/public.h>
 
-#include <core/rpc/channel.h>
-
 namespace NYT {
 namespace NJobProxy {
 

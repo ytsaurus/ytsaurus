@@ -15,19 +15,13 @@
 #include "user_job_io.h"
 #include "job_prober_service.h"
 
-#include <core/actions/invoker_util.h>
-
 #include <core/concurrency/action_queue.h>
-#include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/periodic_executor.h>
 
 #include <core/misc/proc.h>
 #include <core/misc/ref_counted_tracker.h>
 #include <core/misc/lfalloc_helpers.h>
 
-#include <core/ytree/convert.h>
-
-#include <core/logging/log.h>
 #include <core/logging/log_manager.h>
 
 #include <core/bus/tcp_client.h>
@@ -44,24 +38,14 @@
 #include <ytlib/cgroup/cgroup.h>
 
 #include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
-#include <ytlib/node_tracker_client/helpers.h>
 
 #include <ytlib/scheduler/statistics.h>
-
-#include <ytlib/hydra/peer_channel.h>
-
-#include <ytlib/security_client/public.h>
-
-#include <server/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NJobProxy {

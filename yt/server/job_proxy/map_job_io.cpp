@@ -3,9 +3,6 @@
 #include "map_job_io.h"
 #include "user_job_io_detail.h"
 
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-
 #include <ytlib/scheduler/config.h>
 
 namespace NYT {

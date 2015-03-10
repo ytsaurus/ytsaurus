@@ -4,11 +4,7 @@
 #include "user_job_io_detail.h"
 #include "job.h"
 
-#include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/chunk_spec.pb.h>
-
 #include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_sorted_merging_reader.h>
 

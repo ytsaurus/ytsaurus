@@ -4,17 +4,11 @@
 
 #include "private.h"
 
-#include <ytlib/job_tracker_client/job.pb.h>
-
 #include <ytlib/new_table_client/helpers.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
-
-#include <core/concurrency/scheduler.h>
-
-#include <core/ytree/public.h>
 
 namespace NYT {
 namespace NJobProxy {

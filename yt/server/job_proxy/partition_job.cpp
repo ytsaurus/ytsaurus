@@ -13,11 +13,6 @@
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
 
-#include <ytlib/transaction_client/public.h>
-
-#include <core/ytree/yson_string.h>
-
-
 namespace NYT {
 namespace NJobProxy {
 
@@ -72,7 +67,7 @@ public:
             partitioner = CreateOrderedPartitioner(&PartitionKeys_);
         } else {
             partitioner = CreateHashPartitioner(
-                PartitionJobSpecExt_.partition_count(), 
+                PartitionJobSpecExt_.partition_count(),
                 PartitionJobSpecExt_.reduce_key_column_count());
         }
 

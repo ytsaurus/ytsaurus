@@ -3,8 +3,6 @@
 #include "job_detail.h"
 #include "config.h"
 
-#include <server/chunk_server/public.h>
-
 #include <ytlib/api/connection.h>
 
 #include <ytlib/chunk_client/chunk_writer.h>
@@ -25,19 +23,9 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/public.h>
-
-#include <core/misc/protobuf_helpers.h>
 
 #include <core/erasure/codec.h>
-
-#include <core/rpc/helpers.h>
-
-#include <fstream>
-#include <iostream>
 
 namespace NYT {
 namespace NJobProxy {
