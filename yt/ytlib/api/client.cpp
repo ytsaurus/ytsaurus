@@ -179,7 +179,7 @@ private:
 
         YCHECK(!ProtocolReader_);
         auto data  = NCompression::DecompressWithEnvelope(response->Attachments());
-        ProtocolReader_.reset(new TWireProtocolReader(data));
+        ProtocolReader_ = std::make_unique<TWireProtocolReader>(data);
 
         YCHECK(!RowsetReader_);
         RowsetReader_ = ProtocolReader_->CreateSchemafulRowsetReader();
