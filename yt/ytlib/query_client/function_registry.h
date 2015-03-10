@@ -27,6 +27,8 @@ using TCodegenBuilder = std::function<TCodegenExpression(std::vector<TCodegenExp
 using TConstFunctionExpressionPtr = TIntrusivePtr<const NAst::TFunctionExpression>;
 using TRangeBuilder = std::function<TKeyTrieNode(const TConstFunctionExpressionPtr&, const TKeyColumns&, TRowBuffer*)>;
 
+using TTypingFunction = std::function<EValueType(const std::vector<EValueType>&, const TStringBuf&)>;
+
 class TFunctionRegistry
 {
 public:
@@ -37,29 +39,14 @@ public:
 
     void RegisterFunction(
         const Stroka& functionName,
-        std::vector<TType> argumentTypes,
-        TType resultType,
-        TCodegenBuilder bodyBuilder,
-        TRangeBuilder rangeBuilder = UniversalRange);
-
-    void RegisterVariadicFunction(
-        const Stroka& functionName,
-        std::vector<TType> argumentTypes,
-        TType repeatedArgumentType,
-        TType resultType,
+        TTypingFunction typingFunction,
         TCodegenBuilder bodyBuilder,
         TRangeBuilder rangeBuilder = UniversalRange);
 
 
     bool IsRegistered(const Stroka& functionName);
 
-    std::vector<TType> GetArgumentTypes(
-        const Stroka& functionName);
-
-    TType GetRepeatedArgumentType(
-        const Stroka& functionName);
-
-    TType GetResultType(
+    TTypingFunction GetTypingFunction(
         const Stroka& functionName);
 
     TCodegenBuilder GetCodegenBuilder(
@@ -83,22 +70,16 @@ public:
     {
     public:
        TFunctionMetadata(
-            std::vector<TType> argumentTypes,
-            TType repeatedArgumentType,
-            TType resultType,
+            TTypingFunction typingFunction,
             TCodegenBuilder bodyBuilder,
             TRangeBuilder rangeBuilder)
-            : ArgumentTypes(argumentTypes)
-            , RepeatedArgumentType(repeatedArgumentType)
-            , ResultType(resultType)
+            : TypingFunction(typingFunction)
             , BodyBuilder(bodyBuilder)
             , RangeBuilder(rangeBuilder)
         {}
 
         Stroka FunctionName;
-        std::vector<TType> ArgumentTypes;
-        TType RepeatedArgumentType;
-        TType ResultType;
+        TTypingFunction TypingFunction;
         TCodegenBuilder BodyBuilder;
         TRangeBuilder RangeBuilder;
     };
@@ -111,7 +92,7 @@ public:
 //TODO: choose between overloads?
 };
 
-static TFunctionRegistry* GetFunctionRegistry();
+TFunctionRegistry* GetFunctionRegistry();
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include "plan_fragment.h"
 #include "function_registry.h"
+#include "plan_fragment.h"
 #include "private.h"
 #include "helpers.h"
 #include "plan_helpers.h"
@@ -274,7 +274,10 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
     }
 }
 
-EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueType>& argTypes, const TStringBuf& source)
+EValueType InferFunctionExprType(
+    Stroka functionName,
+    const std::vector<EValueType>& argTypes,
+    const TStringBuf& source)
 {
     functionName.to_lower();
     if (!GetFunctionRegistry()->IsRegistered(functionName)) {
@@ -284,84 +287,8 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
             << TErrorAttribute("function_name", functionName);
     }
 
-    auto expectedArgTypes = GetFunctionRegistry()->GetArgumentTypes(functionName);
-    auto resultType = GetFunctionRegistry()->GetResultType(functionName);
-
-    std::unordered_map<TTypeArgument, EValueType> genericAssignments;
-
-    auto isSubtype = [&] (EValueType type1, TType type2) {
-        YCHECK(!type2.TryAs<TTypeArgument>());
-        if (auto unionType = type2.TryAs<TUnionType>()) {
-            return unionType->count(type1) > 0;
-        } else if (auto concreteType = type2.TryAs<EValueType>()) {
-            return type1 == *concreteType;
-        }
-        return false;
-    };
-
-    auto unify = [&] (TType type1, EValueType type2) {
-        if (auto genericId = type1.TryAs<TTypeArgument>()) {
-            if (genericAssignments.count(*genericId)) {
-                return genericAssignments[*genericId] == type2;
-            } else {
-                genericAssignments[*genericId] = type2;
-                return true;
-            }
-        } else {
-            return isSubtype(type2, type1);
-        }
-    };
-
-    //TODO: better error messages
-    auto arg = argTypes.begin();
-    auto expectedArg = expectedArgTypes.begin();
-    for (;
-        expectedArg != expectedArgTypes.end() && arg != argTypes.end();
-        arg++, expectedArg++)
-    {
-        if (!unify(*expectedArg, *arg)) {
-            THROW_ERROR_EXCEPTION(
-                "Wrong argument type",
-                source);
-        }
-    }
-
-    if (expectedArg != expectedArgTypes.end()) {
-        THROW_ERROR_EXCEPTION(
-            "Expression %Qv expects %v arguments",
-            functionName,
-            argTypes.size())
-            << TErrorAttribute("expression", source);
-    }
-
-    auto repeatedArgType = GetFunctionRegistry()->GetRepeatedArgumentType(functionName);
-    for (; arg != argTypes.end(); arg++)
-    {
-        if (!unify(repeatedArgType, *arg)) {
-            THROW_ERROR_EXCEPTION(
-                "Wrong argument type",
-                source);
-        }
-    }
-
-    if (auto genericResult = resultType.TryAs<TTypeArgument>()) {
-        if (!genericAssignments.count(*genericResult)) {
-            //TODO: Maybe this should be checked on registering functions
-            //      and just asserted here
-            THROW_ERROR_EXCEPTION(
-                "Ambiguous result type",
-                source);
-        }
-        return genericAssignments[*genericResult];
-    } else if (!resultType.TryAs<EValueType>()) {
-        THROW_ERROR_EXCEPTION(
-            "Ambiguous result type",
-            source);
-    } else {
-        return resultType.As<EValueType>();
-    }
-
-    return EValueType::Null;
+    auto typingFunction = GetFunctionRegistry()->GetTypingFunction(functionName);
+    return typingFunction(argTypes, source);
 }
 
 void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
