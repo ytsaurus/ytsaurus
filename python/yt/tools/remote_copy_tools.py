@@ -545,6 +545,7 @@ def copy_hive_to_yt(hive_client, yt_client, source, destination_table, spec_temp
                 input_format=yt.SchemafulDsvFormat(columns=["file"]),
                 output_format=yt.JsonFormat(attributes={"encode_utf8": "false"}),
                 files=hive_client.hive_exporter_library,
-                spec=spec))
+                spec=spec,
+                strategy=strategy))
 
 
