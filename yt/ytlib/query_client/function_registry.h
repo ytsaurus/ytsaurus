@@ -29,34 +29,29 @@ using TRangeBuilder = std::function<TKeyTrieNode(const TConstFunctionExpressionP
 
 using TTypingFunction = std::function<EValueType(const std::vector<EValueType>&, const TStringBuf&)>;
 
+
+class FunctionDescriptor
+{
+public:
+    virtual Stroka GetName() = 0;
+
+    virtual EValueType InferResultType(
+        const std::vector<EValueType>& argumentTypes,
+        const TStringBuf& source) = 0;
+
+    //TODO: code generation
+    //TODO: range inference
+};
+
 class TFunctionRegistry
 {
 public:
     TFunctionRegistry();
 
-    //void RegisterFunction(IFunctionDescriptor descriptor);
-    //IFunctionDescriptor GetFunctionDescriptor(const Stroka& functionName);
-
-    void RegisterFunction(
-        const Stroka& functionName,
-        TTypingFunction typingFunction,
-        TCodegenBuilder bodyBuilder,
-        TRangeBuilder rangeBuilder = UniversalRange);
-
+    void RegisterFunction(std::unique_ptr<FunctionDescriptor> descriptor);
+    FunctionDescriptor& GetFunction(const Stroka& functionName);
 
     bool IsRegistered(const Stroka& functionName);
-
-    TTypingFunction GetTypingFunction(
-        const Stroka& functionName);
-
-    TCodegenBuilder GetCodegenBuilder(
-        const Stroka& functionName,
-        std::vector<EValueType> argumentTypes = std::vector<EValueType>());
-
-    TRangeBuilder ExtractRangeConstraints(
-        const Stroka& functionName,
-        std::vector<EValueType> argumentTypes = std::vector<EValueType>());
-
 
     static TKeyTrieNode UniversalRange(
         const TConstFunctionExpressionPtr& expr,
@@ -66,28 +61,7 @@ public:
         return TKeyTrieNode::Universal();
     }
 
-    class TFunctionMetadata
-    {
-    public:
-       TFunctionMetadata(
-            TTypingFunction typingFunction,
-            TCodegenBuilder bodyBuilder,
-            TRangeBuilder rangeBuilder)
-            : TypingFunction(typingFunction)
-            , BodyBuilder(bodyBuilder)
-            , RangeBuilder(rangeBuilder)
-        {}
-
-        Stroka FunctionName;
-        TTypingFunction TypingFunction;
-        TCodegenBuilder BodyBuilder;
-        TRangeBuilder RangeBuilder;
-    };
-
-    void RegisterFunctionImpl(const Stroka& functionName, const TFunctionMetadata& functionMetadata);
-    TFunctionMetadata& LookupMetadata(const Stroka& functionName);
-
-    std::unordered_map<Stroka, TFunctionMetadata> registeredFunctions;
+    std::unordered_map<Stroka, std::unique_ptr<FunctionDescriptor>> registeredFunctions;
 
 //TODO: choose between overloads?
 };
