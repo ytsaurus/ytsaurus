@@ -349,7 +349,7 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
         }
 
         return EValueType::String;
-    } else if (functionName == "simple_hash") {
+    } else if (functionName == "simple_hash" || functionName == "farm_hash") {
         if (argTypes.size() == 0) {
             THROW_ERROR_EXCEPTION(
                 "Expression %Qv expects some arguments but none provided",

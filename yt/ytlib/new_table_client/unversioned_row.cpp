@@ -5,6 +5,8 @@
 
 #include <core/misc/varint.h>
 #include <core/misc/string.h>
+#include <core/misc/hash.h>
+#include <core/misc/farmhash.h>
 
 #include <core/yson/consumer.h>
 
@@ -496,31 +498,48 @@ void ResetRowValues(TUnversionedRow* row)
 
 size_t GetHash(const TUnversionedValue& value)
 {
+    // NB: hash function may change in future. Use fingerprints for persistent hashing.
+    return GetFarmFingerprint(value);
+}
+
+size_t GetHash(TUnversionedRow row, int keyColumnCount)
+{
+    // NB: hash function may change in future. Use fingerprints for persistent hashing.
+    return GetFarmFingerprint(row, keyColumnCount);
+}
+
+// Forever-fixed Google FarmHash fingerprint.
+size_t GetFarmFingerprint(const TUnversionedValue& value)
+{
     switch (value.Type) {
         case EValueType::String:
-            return TStringBuf(value.Data.String, value.Length).hash();
+            return FarmFingerprint(value.Data.String, value.Length);
 
         case EValueType::Int64:
         case EValueType::Uint64:
         case EValueType::Double:
             // These types are aliased.
-            return (value.Data.Int64 & 0xffff) + 17 * (value.Data.Int64 >> 32);
+            return FarmFingerprint(value.Data.Int64);
 
         case EValueType::Boolean:
-            return value.Data.Boolean;
+            return FarmFingerprint(value.Data.Boolean);
+
+        case EValueType::Null:
+            return FarmFingerprint(0);
 
         default:
             // No idea how to hash other types.
-            return 0;
+            YUNREACHABLE();
     }
 }
 
-size_t GetHash(TUnversionedRow row, int keyColumnCount)
+// Forever-fixed Google FarmHash fingerprint.
+size_t GetFarmFingerprint(TUnversionedRow row, int keyColumnCount)
 {
     size_t result = 0xdeadc0de;
     int partCount = std::min(row.GetCount(), keyColumnCount);
     for (int i = 0; i < partCount; ++i) {
-        result = (result * 1000003) ^ GetHash(row[i]);
+        result = FarmFingerprint(result, GetFarmFingerprint(row[i]));
     }
     return result ^ partCount;
 }
