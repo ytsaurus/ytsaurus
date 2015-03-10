@@ -19,6 +19,8 @@
 
 #include <core/profiling/scoped_timer.h>
 
+#include <core/misc/farmhash.h>
+
 #include <mutex>
 
 namespace NYT {
@@ -365,29 +367,17 @@ size_t StringHash(
     const char* data,
     ui32 length)
 {
-    return TStringBuf(data, length).hash();
+    return FarmHash(data, length);
 }
 
 // FarmHash and MurmurHash hybrid to hash TRow.
 ui64 SimpleHash(TRow row)
 {
-    const ui64 FarmHashConstant = 0x9ddfea08eb382d69ULL;
     const ui64 MurmurHashConstant = 0xc6a4a7935bd1e995ULL;
-
-    // Google FarmHash fingerprint. See https://code.google.com/p/farmhash.
-    const auto FarmHashFingerprint64 = [FarmHashConstant] (ui64 data) {
-        // Murmur-inspired hashing.
-        ui64 result = data * FarmHashConstant;
-        result ^= (result >> 44);
-        result *= FarmHashConstant;
-        result ^= (result >> 41);
-        result *= FarmHashConstant;
-        return result;
-    };
 
     // Append fingerprint to hash value. Like Murmurhash.
     const auto hash64 = [&, MurmurHashConstant] (ui64 data, ui64 value) {
-        value ^= FarmHashFingerprint64(data);
+        value ^= FarmFingerprint(data);
         value *= MurmurHashConstant;
         return value;
     };
@@ -454,6 +444,12 @@ ui64 SimpleHash(TRow row)
     return result;
 }
 
+// Combined FarmHash for TRow.
+ui64 FarmHash(TRow row)
+{
+    return GetFarmFingerprint(row);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoutines
@@ -484,6 +480,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(ToLower);
     REGISTER_ROUTINE(IsRowInArray);
     REGISTER_ROUTINE(SimpleHash);
+    REGISTER_ROUTINE(FarmHash);
 #undef REGISTER_ROUTINE
 
     registry->RegisterRoutine("memcmp", std::memcmp);

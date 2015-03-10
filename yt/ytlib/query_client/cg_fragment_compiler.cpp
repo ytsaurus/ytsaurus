@@ -822,7 +822,8 @@ TCodegenExpression MakeCodegenFunctionExpr(
                     argValue.IsNull(),
                     TDataTypeBuilder::TBoolean::get(builder.getContext())),
                 type);
-        } else if (functionName == "simple_hash") {
+        } else if (functionName == "simple_hash" || functionName == "farm_hash") {
+            auto routineName = functionName == "simple_hash" ? "SimpleHash" : "FarmHash";
             Value* argRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
             Value* executionContextPtrRef = builder.GetExecutionContextPtr();
 
@@ -842,7 +843,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
             }
 
             Value* result = builder.CreateCall(
-                builder.Module->GetRoutine("SimpleHash"),
+                builder.Module->GetRoutine(routineName),
                 argRowRef);
 
             return TCGValue::CreateFromValue(
