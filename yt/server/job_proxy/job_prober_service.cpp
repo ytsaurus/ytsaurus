@@ -5,8 +5,6 @@
 
 #include <ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <ytlib/chunk_client/public.h>
-
 #include <core/rpc/service_detail.h>
 
 namespace NYT {

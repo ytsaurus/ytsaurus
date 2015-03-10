@@ -1,7 +1,25 @@
 #include "stdafx.h"
 
+#include <server/cell_master/bootstrap.h>
+#include <server/cell_master/config.h>
+#include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
+
+#include <server/cell_scheduler/config.h>
+#include <server/cell_scheduler/bootstrap.h>
+
+#include <server/job_proxy/job_proxy.h>
+#include <server/job_proxy/stracer.h>
+
+#include <ytlib/scheduler/config.h>
+
+#include <ytlib/shutdown.h>
+
+#include <ytlib/misc/tclap_helpers.h>
+
+#include <ytlib/chunk_client/dispatcher.h>
+
 #include <core/misc/crash_handler.h>
-#include <core/misc/address.h>
 #include <core/misc/proc.h>
 
 #include <core/build.h>
@@ -11,38 +29,6 @@
 #include <core/profiling/profile_manager.h>
 
 #include <core/tracing/trace_manager.h>
-
-#include <core/ytree/yson_serializable.h>
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/tree_builder.h>
-#include <core/ytree/fluent.h>
-
-#include <ytlib/scheduler/config.h>
-
-#include <ytlib/shutdown.h>
-
-#include <ytlib/misc/tclap_helpers.h>
-
-#include <ytlib/scheduler/config.h>
-
-#include <ytlib/chunk_client/dispatcher.h>
-
-#include <server/data_node/config.h>
-
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/config.h>
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
-#include <server/cell_node/bootstrap.h>
-
-#include <server/cell_scheduler/config.h>
-#include <server/cell_scheduler/bootstrap.h>
-
-#include <server/job_proxy/config.h>
-#include <server/job_proxy/job_proxy.h>
-#include <server/job_proxy/stracer.h>
-
-#include <tclap/CmdLine.h>
 
 #include <util/system/sigset.h>
 #include <util/system/execpath.h>

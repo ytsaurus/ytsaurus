@@ -7,8 +7,6 @@
 
 #include <core/ytree/fluent.h>
 
-#include <core/concurrency/delayed_executor.h>
-
 namespace NYT {
 namespace NJobProxy {
 
