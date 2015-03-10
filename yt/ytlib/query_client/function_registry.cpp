@@ -18,25 +18,25 @@ TFunctionRegistry::TFunctionRegistry() {
     };
 
 
-    GetFunctionRegistry()->RegisterFunction(
+    this->RegisterFunction(
         "if",
         std::vector<TType>({ EValueType::Boolean, 0, 0 }),
         0,
         getCodegenBuilder("if"));
 
-    GetFunctionRegistry()->RegisterFunction(
+    this->RegisterFunction(
         "is_prefix",
         std::vector<TType>({ EValueType::String, EValueType::String }),
         EValueType::Boolean,
         getCodegenBuilder("is_prefix"));
 
-    GetFunctionRegistry()->RegisterFunction(
+    this->RegisterFunction(
         "is_substr",
         std::vector<TType>({ EValueType::String, EValueType::String }),
         EValueType::Boolean,
         getCodegenBuilder("is_substr"));
 
-    GetFunctionRegistry()->RegisterFunction(
+    this->RegisterFunction(
         "lower",
         std::vector<TType>({ EValueType::String }),
         EValueType::String,
@@ -48,14 +48,14 @@ TFunctionRegistry::TFunctionRegistry() {
         EValueType::Boolean,
         EValueType::String });
 
-    GetFunctionRegistry()->RegisterVariadicFunction(
+    this->RegisterVariadicFunction(
         "simple_hash",
         std::vector<TType>({ hashTypes }),
         hashTypes,
         EValueType::String,
         getCodegenBuilder("simple_hash"));
 
-    GetFunctionRegistry()->RegisterFunction(
+    this->RegisterFunction(
         "is_null",
         std::vector<TType>({ 0 }),
         EValueType::Boolean,
@@ -66,19 +66,19 @@ TFunctionRegistry::TFunctionRegistry() {
         EValueType::Uint64,
         EValueType::Double });
 
-    GetFunctionRegistry()->RegisterFunction(
+    this->RegisterFunction(
         "int64",
         std::vector<TType>({ castTypes }),
         EValueType::Int64,
         getCodegenBuilder("int64"));
 
-    GetFunctionRegistry()->RegisterFunction(
+    this->RegisterFunction(
         "uint64",
         std::vector<TType>({ castTypes }),
         EValueType::Uint64,
         getCodegenBuilder("uint64"));
 
-    GetFunctionRegistry()->RegisterFunction(
+    this->RegisterFunction(
         "double",
         std::vector<TType>({ castTypes }),
         EValueType::Double,
@@ -169,6 +169,11 @@ TRangeBuilder TFunctionRegistry::ExtractRangeConstraints(
     return LookupMetadata(functionName).RangeBuilder;
 }
 
+static TFunctionRegistry* GetFunctionRegistry()
+{
+    static TFunctionRegistry registry;
+    return &registry;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 } // namespace NQueryClient

@@ -111,11 +111,7 @@ public:
 //TODO: choose between overloads?
 };
 
-static TFunctionRegistry* GetFunctionRegistry()
-{
-    static TFunctionRegistry registry;
-    return &registry;
-}
+static TFunctionRegistry* GetFunctionRegistry();
 
 ////////////////////////////////////////////////////////////////////////////////
 
