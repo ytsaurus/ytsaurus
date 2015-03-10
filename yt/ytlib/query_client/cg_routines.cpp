@@ -57,7 +57,7 @@ void WriteRow(TRow row, TExecutionContext* executionContext)
 {
     CHECK_STACK();
 
-    if (CountRow(&executionContext->Limit)) {
+    if (executionContext->StopFlag = CountRow(&executionContext->Limit)) {
         return;
     }
 
