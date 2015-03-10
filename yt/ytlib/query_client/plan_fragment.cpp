@@ -287,8 +287,7 @@ EValueType InferFunctionExprType(
             << TErrorAttribute("function_name", functionName);
     }
 
-    auto typingFunction = GetFunctionRegistry()->GetTypingFunction(functionName);
-    return typingFunction(argTypes, source);
+    return GetFunctionRegistry()->GetFunction(functionName).InferResultType(argTypes, source);
 }
 
 void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)

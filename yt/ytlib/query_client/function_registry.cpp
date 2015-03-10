@@ -93,181 +93,214 @@ EValueType SimpleTypingFunction(
     return EValueType::Null;
 }
 
+class IfFunction : public FunctionDescriptor
+{
+public:
+    Stroka GetName()
+    {
+        return "if";
+    }
 
-TFunctionRegistry::TFunctionRegistry() {
-    //TODO: add range builders
-    auto getCodegenBuilder = [] (Stroka functionName) {
-        return [] (
-            std::vector<TCodegenExpression> codegenArgs,
-            EValueType type,
-            Stroka name) {
-            //TODO
-            return MakeCodegenFunctionExpr("is_prefix", codegenArgs, type, name);
-          };
-    };
-
-    auto getTypingFunction = [&] (
-        const std::vector<TType>& expectedArgTypes,
-        TType repeatedType,
-        TType resultType,
-        Stroka functionName) {
-        return [=] (
-            std::vector<EValueType> argTypes,
-            const TStringBuf& source) {
-            return SimpleTypingFunction(
-                expectedArgTypes,
-                repeatedType,
-                resultType,
-                functionName,
-                argTypes,
-                source);
-        };
-    };
-
-
-    this->RegisterFunction(
-        "if",
-        getTypingFunction(
+    EValueType InferResultType(
+        const std::vector<EValueType>& argumentTypes,
+        const TStringBuf& source)
+    {
+        return SimpleTypingFunction(
             std::vector<TType>({ EValueType::Boolean, 0, 0 }),
             EValueType::Null,
             0,
-            "if"),
-        getCodegenBuilder("if"));
+            GetName(),
+            argumentTypes,
+            source);
+    }
+};
 
-    this->RegisterFunction(
-        "is_prefix",
-        getTypingFunction(
+class IsPrefixFunction : public FunctionDescriptor
+{
+    Stroka GetName()
+    {
+        return "is_prefix";
+    }
+
+    EValueType InferResultType(
+        const std::vector<EValueType>& argumentTypes,
+        const TStringBuf& source)
+    {
+        return SimpleTypingFunction(
             std::vector<TType>({ EValueType::String, EValueType::String }),
             EValueType::Null,
             EValueType::Boolean,
-            "is_prefix"),
-        getCodegenBuilder("is_prefix"));
+            GetName(),
+            argumentTypes,
+            source);
+    }
+};
 
-    this->RegisterFunction(
-        "is_substr",
-        getTypingFunction(
+class IsSubstrFunction : public FunctionDescriptor
+{
+    Stroka GetName()
+    {
+        return "is_substr";
+    }
+
+    EValueType InferResultType(
+        const std::vector<EValueType>& argumentTypes,
+        const TStringBuf& source)
+    {
+        return SimpleTypingFunction(
             std::vector<TType>({ EValueType::String, EValueType::String }),
             EValueType::Null,
             EValueType::Boolean,
-            "is_substr"),
-        getCodegenBuilder("is_substr"));
+            GetName(),
+            argumentTypes,
+            source);
+    }
+};
 
-    this->RegisterFunction(
-        "lower",
-        getTypingFunction(
+class LowerFunction : public FunctionDescriptor
+{
+    Stroka GetName()
+    {
+        return "lower";
+    }
+
+    EValueType InferResultType(
+        const std::vector<EValueType>& argumentTypes,
+        const TStringBuf& source)
+    {
+        return SimpleTypingFunction(
             std::vector<TType>({ EValueType::String }),
             EValueType::Null,
             EValueType::String,
-            "lower"),
-        getCodegenBuilder("lower"));
+            GetName(),
+            argumentTypes,
+            source);
+    }
+};
 
-    auto hashTypes = std::set<EValueType>({
+class SimpleHashFunction : public FunctionDescriptor
+{
+public:
+    Stroka GetName()
+    {
+        return "simple_hash";
+    }
+
+    EValueType InferResultType(
+        const std::vector<EValueType>& argumentTypes,
+        const TStringBuf& source)
+    {
+        return SimpleTypingFunction(
+            std::vector<TType>({ HashTypes }),
+            HashTypes,
+            EValueType::String,
+            GetName(),
+            argumentTypes,
+            source);
+    }
+
+private:
+    std::set<EValueType> HashTypes = std::set<EValueType>({
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
         EValueType::String });
 
-    this->RegisterFunction(
-        "simple_hash",
-        getTypingFunction(
-            std::vector<TType>({ hashTypes }),
-            hashTypes,
-            EValueType::String,
-            "simple_hash"),
-        getCodegenBuilder("simple_hash"));
+};
 
-    this->RegisterFunction(
-        "is_null",
-        getTypingFunction(
+class IsNullFunction : public FunctionDescriptor
+{
+    Stroka GetName()
+    {
+        return "is_null";
+    }
+
+    EValueType InferResultType(
+        const std::vector<EValueType>& argumentTypes,
+        const TStringBuf& source)
+    {
+        return SimpleTypingFunction(
             std::vector<TType>({ 0 }),
             EValueType::Null,
             EValueType::Boolean,
-            "is_null"),
-        getCodegenBuilder("is_null"));
+            GetName(),
+            argumentTypes,
+            source);
+    }
+};
 
-    auto castTypes = std::set<EValueType>({
+class CastFunction : public FunctionDescriptor
+{
+public:
+    CastFunction(
+        EValueType resultType,
+        Stroka functionName)
+        : ResultType(resultType)
+        , FunctionName(functionName)
+    {}
+
+    Stroka GetName()
+    {
+        return FunctionName;
+    }
+
+    EValueType InferResultType(
+        const std::vector<EValueType>& argumentTypes,
+        const TStringBuf& source)
+    {
+        return SimpleTypingFunction(
+            std::vector<TType>({ CastTypes }),
+            EValueType::Null,
+            ResultType,
+            GetName(),
+            argumentTypes,
+            source);
+    }
+
+private:
+    std::set<EValueType> CastTypes = std::set<EValueType>({
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Double });
 
-    this->RegisterFunction(
-        "int64",
-        getTypingFunction(
-            std::vector<TType>({ castTypes }),
-            EValueType::Null,
-            EValueType::Int64,
-            "int64"),
-        getCodegenBuilder("int64"));
+    EValueType ResultType;
+    Stroka FunctionName;
+};
 
-    this->RegisterFunction(
-        "uint64",
-        getTypingFunction(
-            std::vector<TType>({ castTypes }),
-            EValueType::Null,
-            EValueType::Uint64,
-            "uint64"),
-        getCodegenBuilder("uint64"));
 
-    this->RegisterFunction(
-        "double",
-        getTypingFunction(
-            std::vector<TType>({ castTypes }),
-            EValueType::Null,
-            EValueType::Double,
-            "double"),
-        getCodegenBuilder("double"));
+TFunctionRegistry::TFunctionRegistry() {
+    this->RegisterFunction(std::make_unique<IfFunction>());
+    this->RegisterFunction(std::make_unique<IsPrefixFunction>());
+    this->RegisterFunction(std::make_unique<IsSubstrFunction>());
+    this->RegisterFunction(std::make_unique<LowerFunction>());
+    this->RegisterFunction(std::make_unique<SimpleHashFunction>());
+    this->RegisterFunction(std::make_unique<IsNullFunction>());
+    this->RegisterFunction(std::make_unique<CastFunction>(
+        EValueType::Int64,
+        "int64"));
+    this->RegisterFunction(std::make_unique<CastFunction>(
+        EValueType::Uint64,
+        "uint64"));
+    this->RegisterFunction(std::make_unique<CastFunction>(
+        EValueType::Double,
+        "double"));
 }
 
-void TFunctionRegistry::RegisterFunctionImpl(const Stroka& functionName, const TFunctionMetadata& functionMetadata)
+void TFunctionRegistry::RegisterFunction(std::unique_ptr<FunctionDescriptor> function)
 {
+    Stroka functionName = function->GetName();
     YCHECK(registeredFunctions.count(functionName) == 0);
-    std::pair<Stroka, TFunctionMetadata> kv(functionName, functionMetadata);
-    registeredFunctions.insert(kv);
+    registeredFunctions.insert(std::pair<Stroka, std::unique_ptr<FunctionDescriptor>>(functionName, std::move(function)));
 }
 
-//TODO: graceful handling of unregistered function lookups
-TFunctionRegistry::TFunctionMetadata& TFunctionRegistry::LookupMetadata(const Stroka& functionName)
+FunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName)
 {
-    return registeredFunctions.at(functionName);
+    return *registeredFunctions.at(functionName);
 }
-
-void TFunctionRegistry::RegisterFunction(
-    const Stroka& functionName,
-    TTypingFunction typingFunction,
-    TCodegenBuilder bodyBuilder,
-    TRangeBuilder rangeBuilder)
-{
-    TFunctionMetadata functionMetadata(
-        typingFunction,
-        bodyBuilder,
-        rangeBuilder);
-    RegisterFunctionImpl(functionName, functionMetadata);
-}
-
 
 bool TFunctionRegistry::IsRegistered(const Stroka& functionName)
 {
     return registeredFunctions.count(functionName) != 0;
-}
-
-TTypingFunction TFunctionRegistry::GetTypingFunction(
-    const Stroka& functionName)
-{
-    return LookupMetadata(functionName).TypingFunction;
-}
-
-TCodegenBuilder TFunctionRegistry::GetCodegenBuilder(
-    const Stroka& functionName,
-    std::vector<EValueType> argumentTypes)
-{
-    return LookupMetadata(functionName).BodyBuilder;
-}
-
-TRangeBuilder TFunctionRegistry::ExtractRangeConstraints(
-    const Stroka& functionName,
-    std::vector<EValueType> argumentTypes)
-{
-    return LookupMetadata(functionName).RangeBuilder;
 }
 
 TFunctionRegistry* GetFunctionRegistry()
@@ -277,5 +310,6 @@ TFunctionRegistry* GetFunctionRegistry()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT
