@@ -57,7 +57,7 @@ struct ISchemalessMultiChunkReader
 
     //! Approximate row count readable with this reader.
     //! May change over time and finally converges to actually read row count.
-    virtual i64 GetSessionRowCount() const = 0;
+    virtual i64 GetTotalRowCount() const = 0;
 
 };
 

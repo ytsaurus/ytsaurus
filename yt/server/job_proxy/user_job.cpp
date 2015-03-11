@@ -173,7 +173,7 @@ public:
         i64 current = 0;
 
         for (const auto& reader : JobIO_->GetReaders()) {
-            total += reader->GetSessionRowCount();
+            total += reader->GetTotalRowCount();
             current += reader->GetSessionRowIndex();
         }
 

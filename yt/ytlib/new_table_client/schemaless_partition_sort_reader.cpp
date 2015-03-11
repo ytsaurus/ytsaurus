@@ -159,7 +159,7 @@ public:
         return ReadRowCount_;
     }
 
-    virtual i64 GetSessionRowCount() const override
+    virtual i64 GetTotalRowCount() const override
     {
         return TotalRowCount_;
     }

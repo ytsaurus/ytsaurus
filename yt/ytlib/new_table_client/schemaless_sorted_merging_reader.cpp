@@ -52,7 +52,7 @@ public:
 
     virtual TNameTablePtr GetNameTable() const override;
 
-    virtual i64 GetSessionRowCount() const override;
+    virtual i64 GetTotalRowCount() const override;
 
     virtual i64 GetSessionRowIndex() const override;
 
@@ -121,7 +121,7 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         session.Rows.reserve(rowsPerSession);
         session.CurrentRowIndex = 0;
 
-        RowCount_ += reader->GetSessionRowCount();
+        RowCount_ += reader->GetTotalRowCount();
     }
 }
 
@@ -255,7 +255,7 @@ TNameTablePtr TSchemalessSortedMergingReader::GetNameTable() const
     return SessionHolder_.front().Reader->GetNameTable();
 }
 
-i64 TSchemalessSortedMergingReader::GetSessionRowCount() const
+i64 TSchemalessSortedMergingReader::GetTotalRowCount() const
 {
     return RowCount_;
 }
