@@ -25,19 +25,19 @@ TFunctionRegistry::TFunctionRegistry() {
 
 void TFunctionRegistry::RegisterFunction(std::unique_ptr<TFunctionDescriptor> function)
 {
-    Stroka functionName = function->GetName();
+    Stroka functionName = to_lower(function->GetName());
     YCHECK(registeredFunctions.count(functionName) == 0);
     registeredFunctions.insert(std::pair<Stroka, std::unique_ptr<TFunctionDescriptor>>(functionName, std::move(function)));
 }
 
 TFunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName)
 {
-    return *registeredFunctions.at(functionName);
+    return *registeredFunctions.at(to_lower(functionName));
 }
 
 bool TFunctionRegistry::IsRegistered(const Stroka& functionName)
 {
-    return registeredFunctions.count(functionName) != 0;
+    return registeredFunctions.count(to_lower(functionName)) != 0;
 }
 
 TFunctionRegistry* GetFunctionRegistry()
