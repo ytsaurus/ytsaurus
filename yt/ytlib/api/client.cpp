@@ -475,11 +475,13 @@ private:
                 subfragment->ForeignDataSplit = fragment->ForeignDataSplit;
                 subfragment->Query = subquery;
 
+                const auto& address = groupedSplits[index].second;
+
                 LOG_DEBUG("Delegating subfragment (SubfragmentId: %v) to %v",
                     subquery->Id,
-                    groupedSplits[index].second);
+                    address);
 
-                return Delegate(subfragment, groupedSplits[index].second);
+                return Delegate(subfragment, address);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 auto evaluator = Connection_->GetQueryEvaluator();
@@ -524,8 +526,9 @@ private:
                 }
                 auto replica = replicas[RandomNumber(replicas.size())];
                 auto descriptor = nodeDirectory->GetDescriptor(replica);
+                const auto& address = descriptor.GetInterconnectAddress();
 
-                LOG_DEBUG("Delegating subquery (SubqueryId: %v)", subquery->Id);
+                LOG_DEBUG("Delegating subquery (SubqueryId: %v) to %v", subquery->Id, address);
 
                 auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = nodeDirectory;
@@ -533,7 +536,7 @@ private:
                 subfragment->ForeignDataSplit = fragment->ForeignDataSplit;
                 subfragment->Query = subquery;
 
-                return Delegate(subfragment, descriptor.GetInterconnectAddress());
+                return Delegate(subfragment, address);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 auto evaluator = Connection_->GetQueryEvaluator();

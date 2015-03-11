@@ -550,8 +550,6 @@ TQueryStatistics CoordinateAndExecute(
             }
 
             const auto& subquery = subqueries[index];
-            LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
-                subquery->Id);
 
             ISchemafulReaderPtr reader;
             TFuture <TQueryStatistics> asyncStatistics;

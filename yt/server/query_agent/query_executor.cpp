@@ -215,6 +215,8 @@ private:
                     .Run(subquery, mergingReader, pipe->GetWriter(), [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
                         auto planFragment = New<TPlanFragment>();
 
+                        LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
+
                         planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                         planFragment->Query = subquery;
                         planFragment->DataSplits.push_back(fragment->ForeignDataSplit);
