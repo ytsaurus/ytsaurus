@@ -7,15 +7,15 @@
 #include <util/stream/mem.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChannelReader
-    : public virtual TRefCounted
+class TLegacyChannelReader
+    : public TRefCounted
 {
 public:
-    explicit TChannelReader(const NChunkClient::TChannel& channel);
+    explicit TLegacyChannelReader(const NChunkClient::TChannel& channel);
     void SetBlock(const TSharedRef& block);
 
     bool NextRow();
@@ -31,13 +31,17 @@ private:
 
     std::vector<TMemoryInput> ColumnBuffers;
 
-    int CurrentColumnIndex;
+    int CurrentColumnIndex = -1;
     TStringBuf CurrentColumn;
     TStringBuf CurrentValue;
+
+    TStringBuf LoadValue(TMemoryInput* input);
 };
+
+DEFINE_REFCOUNTED_TYPE(TLegacyChannelReader);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NVersionedTableClient
 } // namespace NYT
 
