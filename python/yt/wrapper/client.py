@@ -18,6 +18,7 @@ class Yt(object):
         self.proxy = proxy
         self.token = token
         self.hosts = hosts
+        self.VERSION = "v2"
         if self.hosts is None:
             self.hosts = "hosts"
         self._transaction_stack = []
