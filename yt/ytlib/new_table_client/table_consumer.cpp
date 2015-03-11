@@ -98,19 +98,11 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
 void TBuildingValueConsumer::OnValue(const TUnversionedValue& value)
 {
     auto schemaType = Schema_.Columns()[value.Id].Type;
-    if (value.Type == schemaType) {
-        Builder_.AddValue(value);
+    if (schemaType == EValueType::Any) {
+        Builder_.AddValue(MakeAnyFromScalar(value));
+        ValueBuffer_.Clear();
     } else {
-        if (schemaType == EValueType::Any) {
-            Builder_.AddValue(MakeAnyFromScalar(value));
-            ValueBuffer_.Clear();
-        } else {
-            THROW_ERROR_EXCEPTION("Invalid value type in column %Qv: expected %Qlv, actual %Qlv",
-                Schema_.Columns()[value.Id].Name,
-                schemaType,
-                value.Type)
-                << TErrorAttribute("row_index", Rows_.size());
-        }
+        Builder_.AddValue(value);
     }
     WrittenFlags_[value.Id] = true;
 }
