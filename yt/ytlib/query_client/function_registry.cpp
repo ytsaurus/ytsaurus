@@ -6,7 +6,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTypedFunction : public TFunctionDescriptor
+class TTypedFunction : public virtual TFunctionDescriptor
 {
 public:
     TTypedFunction(
@@ -148,8 +148,23 @@ EValueType TTypedFunction::TypingFunction(
     return EValueType::Null;
 }
 
+class TCodegenFunction : public virtual TFunctionDescriptor
+{
+    virtual TCodegenExpression MakeCodegenExpr(
+        std::vector<TCodegenExpression> codegenArgs,
+        EValueType type,
+        Stroka name)
+    {
+        return MakeCodegenFunctionExpr(
+            GetName(),
+            codegenArgs,
+            type,
+            name);
+    }
+};
 
-class IfFunction : public TTypedFunction
+
+class IfFunction : public TTypedFunction, public TCodegenFunction
 {
 public:
     IfFunction() : TTypedFunction(
@@ -159,7 +174,7 @@ public:
     {}
 };
 
-class IsPrefixFunction : public TTypedFunction
+class IsPrefixFunction : public TTypedFunction, public TCodegenFunction
 {
 public:
     IsPrefixFunction() : TTypedFunction(
@@ -169,7 +184,7 @@ public:
     {}
 };
 
-class IsSubstrFunction : public TTypedFunction
+class IsSubstrFunction : public TTypedFunction, public TCodegenFunction
 {
 public:
     IsSubstrFunction() : TTypedFunction(
@@ -179,7 +194,7 @@ public:
     {}
 };
 
-class LowerFunction : public TTypedFunction
+class LowerFunction : public TTypedFunction, public TCodegenFunction
 {
 public:
     LowerFunction() : TTypedFunction(
@@ -189,7 +204,7 @@ public:
     {}
 };
 
-class SimpleHashFunction : public TTypedFunction
+class SimpleHashFunction : public TTypedFunction, public TCodegenFunction
 {
 public:
     SimpleHashFunction() : TTypedFunction(
@@ -210,7 +225,7 @@ const std::set<EValueType> SimpleHashFunction::HashTypes =
         EValueType::Boolean,
         EValueType::String });
 
-class IsNullFunction : public TTypedFunction
+class IsNullFunction : public TTypedFunction, public TCodegenFunction
 {
 public:
     IsNullFunction() : TTypedFunction(
@@ -220,7 +235,7 @@ public:
     {}
 };
 
-class CastFunction : public TTypedFunction
+class CastFunction : public TTypedFunction, public TCodegenFunction
 {
 public:
     CastFunction( EValueType resultType, Stroka functionName)
