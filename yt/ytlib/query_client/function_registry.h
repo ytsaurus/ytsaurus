@@ -18,6 +18,11 @@ typedef int TTypeArgument;
 typedef std::set<EValueType> TUnionType;
 typedef TVariant<EValueType, TTypeArgument, TUnionType> TType;
 
+using llvm::Value;
+class TCGValue;
+class TCGContext;
+typedef std::function<TCGValue(TCGContext& builder, Value* row)> TCodegenExpression;
+
 class TFunctionDescriptor
 {
 public:
@@ -27,7 +32,11 @@ public:
         const std::vector<EValueType>& argumentTypes,
         const TStringBuf& source) = 0;
 
-    //TODO: code generation
+    virtual TCodegenExpression MakeCodegenExpr(
+        std::vector<TCodegenExpression> codegenArgs,
+        EValueType type,
+        Stroka name) = 0;
+
     //TODO: range inference
 };
 
