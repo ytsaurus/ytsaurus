@@ -181,10 +181,15 @@ private:
     {
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
+
+        LOG_DEBUG("Splitting %v splits", fragment->DataSplits);
+
         auto splits = Split(fragment->DataSplits, nodeDirectory, Logger);
         int splitCount = splits.size();
         int splitOffset = 0;
         TGroupedDataSplits groupedSplits;
+
+        LOG_DEBUG("Grouping %v splits", splits.size());
 
         for (int queryIndex = 1; queryIndex <= Config_->MaxSubqueries; ++queryIndex) {
             int nextSplitOffset = queryIndex * splitCount / Config_->MaxSubqueries;
@@ -194,7 +199,15 @@ private:
             }
         }
 
+        LOG_DEBUG("Grouped into %v groups", groupedSplits.size());
         auto ranges = GetRanges(groupedSplits);
+
+        Stroka rangesString;
+        for (const auto& range : ranges) {
+            rangesString += Format("[%v .. %v]", range.first, range.second);
+        }
+
+        LOG_DEBUG("Got ranges for groups %v", rangesString);
 
         return CoordinateAndExecute(
             fragment,
@@ -236,6 +249,8 @@ private:
                 return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+                LOG_DEBUG("Evaluating topquery (TopqueryId: %v)", topQuery->Id);
+
                 auto asyncQueryStatisticsOrError = BIND(&TEvaluator::Run, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
                     .Run(topQuery, std::move(reader), std::move(writer));
