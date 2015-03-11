@@ -8,28 +8,10 @@
 #include "serialize.h"
 #include "scheduler_strategy.h"
 
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/delayed_executor.h>
-
-#include <core/misc/address.h>
-
 #include <core/rpc/serialized_channel.h>
-#include <core/rpc/helpers.h>
 
-#include <core/yson/consumer.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/fluent.h>
-#include <core/ytree/node.h>
-
-#include <core/ypath/token.h>
-
-#include <ytlib/api/config.h>
-#include <ytlib/api/connection.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/helpers.h>
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
@@ -39,18 +21,11 @@
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/security_client/public.h>
-
-#include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
-#include <ytlib/hive/cluster_directory.h>
-
 #include <server/cell_scheduler/bootstrap.h>
 #include <server/cell_scheduler/config.h>
-
-#include <server/object_server/object_manager.h>
 
 namespace NYT {
 namespace NScheduler {

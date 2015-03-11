@@ -3,14 +3,11 @@
 #include "slot.h"
 #include "private.h"
 
-#include <core/misc/fs.h>
-
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
 #include <server/data_node/chunk_cache.h>
 
 #ifdef _unix_
-    #include <sys/types.h>
     #include <sys/stat.h>
 #endif
 

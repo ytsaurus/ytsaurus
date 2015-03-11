@@ -4,18 +4,6 @@
 #include "master_connector.h"
 #include "job_resources.h"
 
-#include <core/ytree/yson_serializable.h>
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/fluent.h>
-
-#include <ytlib/scheduler/helpers.h>
-
-#include <ytlib/object_client/object_service_proxy.h>
-
-#include <ytlib/node_tracker_client/helpers.h>
-
-#include <core/logging/log.h>
-
 namespace NYT {
 namespace NScheduler {
 

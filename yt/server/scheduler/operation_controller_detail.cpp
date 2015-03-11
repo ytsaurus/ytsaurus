@@ -6,45 +6,24 @@
 #include "helpers.h"
 #include "master_connector.h"
 
-#include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/helpers.h>
 
 #include <ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
-#include <ytlib/object_client/helpers.h>
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/object_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
-
-#include <ytlib/new_table_client/table_ypath_proxy.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
-#include <ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/api/connection.h>
-
-#include <core/concurrency/scheduler.h>
-
-#include <core/rpc/helpers.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <core/erasure/codec.h>
-
-#include <core/ytree/fluent.h>
-#include <core/ytree/convert.h>
-#include <core/ytree/attribute_helpers.h>
 
 namespace NYT {
 namespace NScheduler {

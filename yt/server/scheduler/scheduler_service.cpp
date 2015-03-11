@@ -3,15 +3,9 @@
 #include "scheduler.h"
 #include "private.h"
 
-#include <core/concurrency/scheduler.h>
-
-#include <core/rpc/service_detail.h>
-#include <core/rpc/helpers.h>
 #include <core/rpc/response_keeper.h>
 
 #include <ytlib/scheduler/scheduler_service_proxy.h>
-
-#include <ytlib/security_client/public.h>
 
 #include <ytlib/cypress_client/rpc_helpers.h>
 

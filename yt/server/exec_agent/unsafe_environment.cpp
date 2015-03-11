@@ -9,20 +9,9 @@
 
 #include <core/misc/process.h>
 
-#include <core/logging/log.h>
-
 #include <server/job_proxy/public.h>
 
 #include <util/system/execpath.h>
-
-#include <fcntl.h>
-
-#ifndef _win_
-
-#include <sys/types.h>
-#include <sys/wait.h>
-
-#endif
 
 namespace NYT {
 namespace NExecAgent {

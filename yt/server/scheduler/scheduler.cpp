@@ -15,42 +15,17 @@
 #include "event_log.h"
 
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_executor.h>
 
-#include <core/misc/string.h>
-
-#include <core/actions/invoker_util.h>
-
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/scheduler.h>
-
-#include <core/rpc/dispatcher.h>
 #include <core/rpc/message.h>
 #include <core/rpc/response_keeper.h>
 
-#include <core/logging/log.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-
 #include <ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/helpers.h>
-
-#include <ytlib/scheduler/scheduler_service.pb.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-
-#include <ytlib/object_client/helpers.h>
-#include <ytlib/object_client/object_ypath_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
 
-#include <ytlib/chunk_client/data_statistics.h>
 #include <ytlib/chunk_client/private.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
-
-#include <ytlib/node_tracker_client/helpers.h>
 
 #include <ytlib/scheduler/helpers.h>
 
@@ -58,11 +33,6 @@
 #include <ytlib/new_table_client/schemaless_writer.h>
 #include <ytlib/new_table_client/schemaless_buffered_table_writer.h>
 #include <ytlib/new_table_client/table_consumer.h>
-
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/fluent.h>
-
-#include <ytlib/hive/cluster_directory.h>
 
 #include <server/cell_scheduler/config.h>
 #include <server/cell_scheduler/bootstrap.h>

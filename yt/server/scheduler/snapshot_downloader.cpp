@@ -3,11 +3,8 @@
 #include "scheduler.h"
 #include "config.h"
 
-#include <core/concurrency/scheduler.h>
-
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/api/client.h>
 #include <ytlib/api/file_reader.h>
 
 #include <server/cell_scheduler/bootstrap.h>
@@ -54,9 +51,9 @@ void TSnapshotDownloader::Run()
         auto result = WaitFor(reader->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
-        
+
     LOG_INFO("Snapshot reader opened");
-    
+
     try {
         std::vector<TSharedRef> blocks;
         while (true) {

@@ -4,8 +4,6 @@
 #include "job.h"
 #include "config.h"
 
-#include <ytlib/node_tracker_client/helpers.h>
-
 #include <ytlib/api/client.h>
 
 #include <server/job_agent/job_controller.h>
