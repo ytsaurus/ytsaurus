@@ -87,13 +87,9 @@ void TReadTableCommand::DoExecute()
         .ThrowOnError();
 
     BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
+        .Item("start_row_index").Value(reader->GetTableRowIndex())
         .Item("approximate_row_count").Value(reader->GetTotalRowCount());
-    if (reader->GetTotalRowCount() > 0) {
-        BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
-            .Item("start_row_index").Value(reader->GetTableRowIndex());
-    }
 
-    // ToDo(psushin): implement and use buffered output stream.
     auto output = CreateSyncAdapter(Context_->Request().OutputStream);
     TBufferedOutput bufferedOutput(output.get());
     auto format = Context_->GetOutputFormat();
