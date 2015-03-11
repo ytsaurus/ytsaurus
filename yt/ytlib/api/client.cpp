@@ -65,7 +65,6 @@
 
 // TODO(babenko): refactor this
 #include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/table_ypath_proxy.h>

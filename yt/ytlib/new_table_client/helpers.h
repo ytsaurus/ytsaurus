@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <ytlib/table_client/public.h>
-
 #include <ytlib/formats/format.h>
 
 #include <core/yson/public.h>

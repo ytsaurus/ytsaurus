@@ -63,7 +63,6 @@ using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
-using namespace NTableClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;

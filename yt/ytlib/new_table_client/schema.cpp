@@ -8,7 +8,6 @@
 #include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/new_table_client/chunk_meta.pb.h>
-#include <ytlib/table_client/table_chunk_meta.pb.h> // TODO(babenko): remove after migration
 
 #ifdef YT_USE_LLVM
 #include <ytlib/query_client/plan_fragment.h>

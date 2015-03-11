@@ -511,7 +511,7 @@ protected:
         void AddIntermediateOutputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
-            TNullable<NTableClient::TKeyColumns> keyColumns);
+            TNullable<NVersionedTableClient::TKeyColumns> keyColumns);
 
         static void UpdateInputSpecTotals(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,

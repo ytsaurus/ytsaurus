@@ -10,7 +10,6 @@ namespace NFormats {
 
 using namespace NConcurrency;
 using namespace NYTree;
-using namespace NTableClient;
 using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////

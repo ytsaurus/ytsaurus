@@ -22,7 +22,9 @@ namespace NVersionedTableClient {
 struct ISchemalessChunkReader
     : public virtual NChunkClient::IChunkReaderBase
     , public ISchemalessReader
-{ };
+{
+    virtual i64 GetTableRowIndex() const = 0; 
+};
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 

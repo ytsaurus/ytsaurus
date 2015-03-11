@@ -11,8 +11,6 @@
 #include "schemaful_writer.h"
 #include "unversioned_row.h"
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -26,10 +24,9 @@ namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NConcurrency;
-
-using NChunkClient::NProto::TChunkMeta;
-using NProto::TBlockMetaExt;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,6 +164,7 @@ void TChunkWriter::Open(
     // while String and Any align at 4 bytes (stores just offset to value).
     // To ensure proper alignment during reading, move all integer and
     // double columns to the front.
+    using NVersionedTableClient::TColumnSchema;
     std::sort(
         Schema.Columns().begin(),
         Schema.Columns().end(),
@@ -404,20 +402,19 @@ void TChunkWriter::DoClose(TPromise<void> result)
     Meta.set_version(static_cast<int>(ETableChunkFormat::Schemaful));
 
     SetProtoExtension(Meta.mutable_extensions(), BlockMetaExt);
-    SetProtoExtension(Meta.mutable_extensions(), NYT::ToProto<NProto::TTableSchemaExt>(Schema));
+    SetProtoExtension(Meta.mutable_extensions(), NYT::ToProto<TTableSchemaExt>(Schema));
 
-    NProto::TNameTableExt nameTableExt;
+    TNameTableExt nameTableExt;
     ToProto(&nameTableExt, OutputNameTable);
     SetProtoExtension(Meta.mutable_extensions(), nameTableExt);
 
-    NChunkClient::NProto::TMiscExt miscExt;
+    TMiscExt miscExt;
     if (KeyIds.empty()) {
         miscExt.set_sorted(false);
     } else {
         miscExt.set_sorted(true);
 
-//      SetProtoExtension(Meta.mutable_extensions(), IndexExt);
-        NTableClient::NProto::TKeyColumnsExt keyColumnsExt;
+        TKeyColumnsExt keyColumnsExt;
         for (int id : KeyIds) {
             keyColumnsExt.add_names(InputNameTable->GetName(id));
         }

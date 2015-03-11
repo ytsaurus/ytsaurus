@@ -11,8 +11,6 @@
 #include <core/ytree/node.h>
 #include <core/ytree/attribute_helpers.h>
 
-#include <ytlib/table_client/private.h>
-
 #include <ytlib/new_table_client/row_buffer.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schema.h>
@@ -27,7 +25,6 @@ namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NChunkClient;
-using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
 
@@ -983,40 +980,32 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
     TUnversionedOwningRowBuilder rowBuilder(protoKey.parts_size());
     for (int id = 0; id < protoKey.parts_size(); ++id) {
         auto& keyPart = protoKey.parts(id);
-        switch (EKeyPartType(keyPart.type())) {
-            case EKeyPartType::Null:
+        switch (ELegacyKeyPartType(keyPart.type())) {
+            case ELegacyKeyPartType::Null:
                 rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
                 break;
 
-            case EKeyPartType::MinSentinel:
+            case ELegacyKeyPartType::MinSentinel:
                 rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Min, id));
                 break;
 
-            case EKeyPartType::MaxSentinel:
+            case ELegacyKeyPartType::MaxSentinel:
                 rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Max, id));
                 break;
 
-            case EKeyPartType::Int64:
+            case ELegacyKeyPartType::Int64:
                 rowBuilder.AddValue(MakeUnversionedInt64Value(keyPart.int64_value(), id));
                 break;
 
-            case EKeyPartType::Uint64:
-                rowBuilder.AddValue(MakeUnversionedUint64Value(keyPart.uint64_value(), id));
-                break;
-
-            case EKeyPartType::Double:
+            case ELegacyKeyPartType::Double:
                 rowBuilder.AddValue(MakeUnversionedDoubleValue(keyPart.double_value(), id));
                 break;
 
-            case EKeyPartType::Boolean:
-                rowBuilder.AddValue(MakeUnversionedBooleanValue(keyPart.boolean_value(), id));
-                break;
-
-            case EKeyPartType::String:
+            case ELegacyKeyPartType::String:
                 rowBuilder.AddValue(MakeUnversionedStringValue(keyPart.str_value(), id));
                 break;
 
-            case EKeyPartType::Composite:
+            case ELegacyKeyPartType::Composite:
                 rowBuilder.AddValue(MakeUnversionedAnyValue(TStringBuf(), id));
                 break;
 

@@ -14,7 +14,6 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/remote_copy_job.cpp
   ${BASE}/simple_sort_job.cpp
-  ${BASE}/small_key.cpp
   ${BASE}/sorted_merge_job.cpp
   ${BASE}/sorted_reduce_job_io.cpp
   ${BASE}/stderr_output.cpp
@@ -40,7 +39,6 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/remote_copy_job.h
   ${BASE}/simple_sort_job.h
-  ${BASE}/small_key.h
   ${BASE}/sorted_merge_job.h
   ${BASE}/sorted_reduce_job_io.h
   ${BASE}/stderr_output.h

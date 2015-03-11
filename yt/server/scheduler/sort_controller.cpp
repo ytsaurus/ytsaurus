@@ -38,7 +38,6 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
 using namespace NChunkServer;
-using namespace NTableClient;
 using namespace NVersionedTableClient;
 using namespace NJobProxy;
 using namespace NObjectClient;

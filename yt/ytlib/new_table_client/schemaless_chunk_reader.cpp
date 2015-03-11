@@ -4,6 +4,7 @@
 
 #include "chunk_reader_base.h"
 #include "config.h"
+#include "legacy_table_chunk_reader.h"
 #include "name_table.h"
 #include "private.h"
 #include "schema.h"
@@ -76,7 +77,7 @@ public:
 
     virtual TNameTablePtr GetNameTable() const override;
 
-    i64 GetTableRowIndex() const;
+    virtual i64 GetTableRowIndex() const;
 
 private:
     const TNameTablePtr NameTable_;
@@ -400,6 +401,19 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 tableRowIndex,
                 partitionTag);
 
+        case ETableChunkFormat::Old:
+            YCHECK(!partitionTag);
+            return New<TLegacyTableChunkReader>(
+                config,
+                columnFilter,
+                nameTable,
+                keyColumns,
+                underlyingReader,
+                uncompressedBlockCache,
+                lowerLimit,
+                upperLimit,
+                tableRowIndex);
+
         default:
             YUNREACHABLE();
     }
@@ -443,7 +457,7 @@ private:
 
     IBlockCachePtr UncompressedBlockCache_;
 
-    TSchemalessChunkReaderPtr CurrentReader_ = nullptr;
+    ISchemalessChunkReaderPtr CurrentReader_ = nullptr;
     std::atomic<i64> RowIndex_;
     std::atomic<i64> RowCount_;
 

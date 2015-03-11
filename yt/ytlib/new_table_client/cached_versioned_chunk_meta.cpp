@@ -9,9 +9,6 @@
 
 #include <core/misc/string.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h> // TODO(babenko): remove after migration
-#include <ytlib/table_client/table_chunk_meta.pb.h>
-
 namespace NYT {
 namespace NVersionedTableClient {
 

@@ -24,7 +24,6 @@ namespace NYPath {
 using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
-using namespace NTableClient;
 using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////

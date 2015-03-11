@@ -6,8 +6,6 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <ytlib/table_client/public.h>
-
 #include <ytlib/chunk_client/public.h>
 
 #include <initializer_list>
@@ -42,7 +40,7 @@ using NTransactionClient::AsyncLastCommittedTimestamp;
 using NTransactionClient::AsyncAllCommittedTimestamp;
 using NTransactionClient::NotPreparedTimestamp;
 
-using NTableClient::TKeyColumns; // TODO(babenko): remove after migration
+using TKeyColumns = std::vector<Stroka>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +51,7 @@ extern const Stroka PrimaryLockName;
 const int MaxValuesPerRow = 1024;
 const int MaxRowsPerRowset = 1024 * 1024;
 const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1 MB
+const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
 
 const int DefaultPartitionTag = -1;
 
@@ -69,6 +68,29 @@ DEFINE_ENUM(ETableChunkFormat,
     ((VersionedSimple)      (2))
     ((Schemaful)            (3))
     ((SchemalessHorizontal) (4))
+);
+
+DEFINE_ENUM(EControlAttribute,
+    (TableIndex)
+);
+
+// COMPAT(psushin): Legacy enum for old chunks.
+DEFINE_ENUM(ELegacyKeyPartType,
+    // A special sentinel used by #GetKeySuccessor.
+    ((MinSentinel)(-1))
+    // Denotes a missing (null) component in a composite key.
+    ((Null)(0))
+    // Integer value.
+    ((Int64)(1))
+    // Floating-point value.
+    ((Double)(2))
+    // String value.
+    ((String)(3))
+    // Any structured value.
+    ((Composite)(4))
+
+    // A special sentinel used by #GetKeyPrefixSuccessor.
+    ((MaxSentinel)(100))
 );
 
 struct TColumnIdMapping
@@ -172,6 +194,9 @@ DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)
 
 DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
+
+DECLARE_REFCOUNTED_CLASS(TLegacyChannelReader)
+DECLARE_REFCOUNTED_CLASS(TLegacyTableChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 

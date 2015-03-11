@@ -25,9 +25,6 @@
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 
-// TKeyColumnsExt
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
 #include <ytlib/ypath/rich.h>
 
 #include <core/concurrency/scheduler.h>

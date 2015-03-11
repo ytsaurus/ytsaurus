@@ -25,7 +25,6 @@ using namespace NYTree;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NObjectServer;
-using namespace NTableClient;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NTabletServer;
