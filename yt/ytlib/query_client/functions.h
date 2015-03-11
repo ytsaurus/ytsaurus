@@ -1,10 +1,13 @@
 #pragma once
 
 #include "cg_fragment_compiler.h"
+
 #include "key_trie.h"
-#include "ast.h"
+#include "plan_fragment.h"
 
 #include <core/codegen/module.h>
+
+#include <core/misc/variant.h>
 
 #include <util/generic/stroka.h>
 
@@ -27,7 +30,10 @@ public:
         EValueType type,
         Stroka name) = 0;
 
-    //TODO: range inference
+    virtual TKeyTrieNode ExtractKeyRange(
+        const TFunctionExpression* expr,
+        const TKeyColumns& keyColumns,
+        TRowBuffer* rowBuffer) = 0;
 };
 
 typedef int TTypeArgument;
@@ -122,7 +128,21 @@ class TCodegenFunction : public virtual TFunctionDescriptor
     }
 };
 
-class IfFunction : public TTypedFunction, public TCodegenFunction
+class TUniversalRangeFunction : public virtual TFunctionDescriptor
+{
+    virtual TKeyTrieNode ExtractKeyRange(
+        const TFunctionExpression* expr,
+        const TKeyColumns& keyColumns,
+        TRowBuffer* rowBuffer)
+    {
+        return TKeyTrieNode::Universal();
+    }
+};
+
+class IfFunction
+    : public TTypedFunction
+    , public TCodegenFunction
+    , public TUniversalRangeFunction
 {
 public:
     IfFunction() : TTypedFunction(
@@ -139,7 +159,9 @@ public:
         Value* row);
 };
 
-class IsPrefixFunction : public TTypedFunction, public TCodegenFunction
+class IsPrefixFunction
+    : public TTypedFunction
+    , public TCodegenFunction
 {
 public:
     IsPrefixFunction() : TTypedFunction(
@@ -154,9 +176,17 @@ public:
         Stroka name,
         TCGContext& builder,
         Value* row);
+
+    virtual TKeyTrieNode ExtractKeyRange(
+        const TFunctionExpression* expr,
+        const TKeyColumns& keyColumns,
+        TRowBuffer* rowBuffer);
 };
 
-class IsSubstrFunction : public TTypedFunction, public TCodegenFunction
+class IsSubstrFunction
+    : public TTypedFunction
+    , public TCodegenFunction
+    , public TUniversalRangeFunction
 {
 public:
     IsSubstrFunction() : TTypedFunction(
@@ -173,7 +203,10 @@ public:
         Value* row);
 };
 
-class LowerFunction : public TTypedFunction, public TCodegenFunction
+class LowerFunction
+    : public TTypedFunction
+    , public TCodegenFunction
+    , public TUniversalRangeFunction
 {
 public:
     LowerFunction() : TTypedFunction(
@@ -190,7 +223,10 @@ public:
         Value* row);
 };
 
-class SimpleHashFunction : public TTypedFunction, public TCodegenFunction
+class SimpleHashFunction
+    : public TTypedFunction
+    , public TCodegenFunction
+    , public TUniversalRangeFunction
 {
 public:
     SimpleHashFunction() : TTypedFunction(
@@ -211,7 +247,10 @@ private:
     static const std::set<EValueType> HashTypes;
 };
 
-class IsNullFunction : public TTypedFunction, public TCodegenFunction
+class IsNullFunction
+    : public TTypedFunction
+    , public TCodegenFunction
+    , public TUniversalRangeFunction
 {
 public:
     IsNullFunction() : TTypedFunction(
@@ -228,7 +267,10 @@ public:
         Value* row);
 };
 
-class CastFunction : public TTypedFunction, public TCodegenFunction
+class CastFunction
+    : public TTypedFunction
+    , public TCodegenFunction
+    , public TUniversalRangeFunction
 {
 public:
     CastFunction(EValueType resultType, Stroka functionName)

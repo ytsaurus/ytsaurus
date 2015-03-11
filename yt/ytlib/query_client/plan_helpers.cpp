@@ -6,6 +6,7 @@
 #include "helpers.h"
 
 #include "plan_fragment.h"
+#include "function_registry.h"
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
@@ -118,47 +119,12 @@ TKeyTrieNode ExtractMultipleConstraints(
             return result;
         }
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        auto functionName = to_lower(functionExpr->FunctionName);
-        auto result = TKeyTrieNode::Universal();
+        Stroka functionName = functionExpr->FunctionName;
+        YCHECK(GetFunctionRegistry()->IsRegistered(functionName));
 
-        if (functionName == "is_prefix") {
-            auto lhsExpr = functionExpr->Arguments[0];
-            auto rhsExpr = functionExpr->Arguments[1];
+        TFunctionDescriptor& function = GetFunctionRegistry()->GetFunction(functionName);
 
-            auto referenceExpr = rhsExpr->As<TReferenceExpression>();
-            auto constantExpr = lhsExpr->As<TLiteralExpression>();
-
-            if (referenceExpr && constantExpr) {
-                int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
-                if (keyPartIndex >= 0) {
-                    auto value = TValue(constantExpr->Value);
-
-                    YCHECK(value.Type == EValueType::String);
-
-                    result.Offset = keyPartIndex;
-                    result.Bounds.emplace_back(value, true);
-
-                    ui32 length = value.Length;
-                    while (length > 0 && value.Data.String[length - 1] == std::numeric_limits<char>::max()) {
-                        --length;
-                    }
-
-                    if (length > 0) {
-                        char* newValue = rowBuffer->GetUnalignedPool()->AllocateUnaligned(length);
-                        memcpy(newValue, value.Data.String, length);
-                        ++newValue[length - 1];
-
-                        value.Length = length;
-                        value.Data.String = newValue;
-                    } else {
-                        value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
-                    }
-                    result.Bounds.emplace_back(value, false);
-                }
-            }
-        }
-
-        return result;
+        return function.ExtractKeyRange(functionExpr, keyColumns, rowBuffer);
     } else if (auto inExpr = expr->As<TInOpExpression>()) {
         int keySize = inExpr->Arguments.size();
         auto emitConstraint = [&] (int index, const TRow& literalTuple) {
@@ -191,6 +157,50 @@ TKeyTrieNode ExtractMultipleConstraints(
     }
 
     return TKeyTrieNode::Universal();
+}
+
+TKeyTrieNode IsPrefixFunction::ExtractKeyRange(
+    const TFunctionExpression* expr,
+    const TKeyColumns& keyColumns,
+    TRowBuffer* rowBuffer)
+{
+    auto result = TKeyTrieNode::Universal();
+    auto lhsExpr = expr->Arguments[0];
+    auto rhsExpr = expr->Arguments[1];
+
+    auto referenceExpr = rhsExpr->As<TReferenceExpression>();
+    auto constantExpr = lhsExpr->As<TLiteralExpression>();
+
+    if (referenceExpr && constantExpr) {
+        int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+        if (keyPartIndex >= 0) {
+            auto value = TValue(constantExpr->Value);
+
+            YCHECK(value.Type == EValueType::String);
+
+            result.Offset = keyPartIndex;
+            result.Bounds.emplace_back(value, true);
+
+            ui32 length = value.Length;
+            while (length > 0 && value.Data.String[length - 1] == std::numeric_limits<char>::max()) {
+                --length;
+            }
+
+            if (length > 0) {
+                char* newValue = rowBuffer->GetUnalignedPool()->AllocateUnaligned(length);
+                memcpy(newValue, value.Data.String, length);
+                ++newValue[length - 1];
+
+                value.Length = length;
+                value.Data.String = newValue;
+            } else {
+                value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
+            }
+            result.Bounds.emplace_back(value, false);
+        }
+    }
+
+    return result;
 }
 
 TConstExpressionPtr MakeAndExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs)
