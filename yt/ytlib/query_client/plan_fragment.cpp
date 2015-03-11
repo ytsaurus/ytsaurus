@@ -279,7 +279,6 @@ EValueType InferFunctionExprType(
     const std::vector<EValueType>& argTypes,
     const TStringBuf& source)
 {
-    functionName.to_lower();
     if (!GetFunctionRegistry()->IsRegistered(functionName)) {
         THROW_ERROR_EXCEPTION(
             "Unknown function in expression %Qv",
