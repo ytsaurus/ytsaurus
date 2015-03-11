@@ -213,7 +213,7 @@ class Application(object):
         self._add_rule("/tasks/<id>/restart/", 'restart', methods=["POST"])
         self._add_rule("/config/", 'config', methods=["GET"])
         self._add_rule("/ping/", 'ping', methods=["GET"])
-        self._add_rule("/match/", 'match', methods=["GET"])
+        self._add_rule("/match/", 'match', methods=["POST"])
 
     def terminate(self):
         self._terminating = True
