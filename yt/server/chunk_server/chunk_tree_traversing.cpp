@@ -8,7 +8,6 @@
 
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -20,10 +19,8 @@ namespace NChunkServer {
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NChunkClient;
-using namespace NTableClient::NProto;
 using namespace NVersionedTableClient;
-
-using NVersionedTableClient::NProto::TBoundaryKeysExt;
+using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

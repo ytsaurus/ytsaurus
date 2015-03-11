@@ -13,8 +13,6 @@
 #include <ytlib/chunk_client/encoding_writer.h>
 #include <ytlib/chunk_client/multi_chunk_writer_base.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h> // TODO(babenko): remove after migration
-
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -22,7 +20,6 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NRpc;
-using namespace NTableClient::NProto;
 using namespace NTransactionClient;
 using namespace NVersionedTableClient::NProto;
 

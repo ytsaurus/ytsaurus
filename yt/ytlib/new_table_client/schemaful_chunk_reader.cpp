@@ -28,27 +28,18 @@
 
 #include <core/logging/log.h>
 
-// TableChunkReaderAdapter stuff
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/config.h>
-#include <ytlib/table_client/table_chunk_reader.h>
-
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <core/rpc/channel.h>
-#include <core/yson/tokenizer.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
+
 using NChunkClient::NProto::TMiscExt;
 using NChunkClient::NProto::TChunkSpec;
-
-// TableChunkReaderAdapter stuff
-using namespace NTableClient;
-using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -358,161 +349,6 @@ void TChunkReader::OnNextBlock(const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Adapter for old chunks.
-class TTableChunkReaderAdapter
-    : public ISchemafulReader
-{
-public:
-    TTableChunkReaderAdapter(TTableChunkReaderPtr underlyingReader);
-
-    virtual TFuture<void> Open(const TTableSchema& schema) override;
-
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
-    virtual TFuture<void> GetReadyEvent() override;
-
-private:
-    struct TTableChunkReaderAdapterMemoryPoolTag { };
-
-    TTableChunkReaderPtr UnderlyingReader_;
-    TTableSchema Schema_;
-    TChunkedMemoryPool MemoryPool_;
-
-    void ThrowIncompatibleType(const TColumnSchema& schema);
-
-};
-
-TTableChunkReaderAdapter::TTableChunkReaderAdapter(
-    TTableChunkReaderPtr underlyingReader)
-    : UnderlyingReader_(underlyingReader)
-    , MemoryPool_(TTableChunkReaderAdapterMemoryPoolTag())
-{ }
-
-TFuture<void> TTableChunkReaderAdapter::Open(const TTableSchema& schema)
-{
-    Schema_ = schema;
-    return UnderlyingReader_->AsyncOpen();
-}
-
-bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow>* rows)
-{
-    YCHECK(rows->capacity() > 0);
-
-    if (!UnderlyingReader_->GetReadyEvent().IsSet()) {
-        return true;
-    }
-
-    rows->clear();
-
-    std::vector<int> schemaIndexes;
-
-    while (rows->size() < rows->capacity()) {
-        auto* facade = UnderlyingReader_->GetFacade();
-        if (!facade) {
-            return false;
-        }
-
-        schemaIndexes.resize(Schema_.Columns().size(), -1);
-        auto& chunkRow = facade->GetRow();
-        for (int i = 0; i < chunkRow.size(); ++i) {
-            auto* schemaColumn = Schema_.FindColumn(chunkRow[i].first);
-            if (schemaColumn) {
-                int schemaIndex = Schema_.GetColumnIndex(*schemaColumn);
-                schemaIndexes[schemaIndex] =  i;
-            }
-        }
-
-        rows->push_back(TUnversionedRow::Allocate(&MemoryPool_, Schema_.Columns().size()));
-        auto& outputRow = rows->back();
-
-        for (int id = 0; id < schemaIndexes.size(); ++id) {
-            if (schemaIndexes[id] < 0) {
-                outputRow[id].Type = EValueType::Null;
-            } else {
-                const auto& schemaColumn = Schema_.Columns()[id];
-                auto& value = outputRow[id];
-                value.Id = id;
-                value.Type = schemaColumn.Type;
-
-                const auto& pair = chunkRow[schemaIndexes[id]];
-
-                if (value.Type == EValueType::Any) {
-                    value.Data.String = pair.second.begin();
-                    value.Length = pair.second.size();
-                    continue;
-                }
-
-                NYson::TStatelessLexer lexer;
-                NYson::TToken token;
-                lexer.GetToken(pair.second, &token);
-                YCHECK(!token.IsEmpty());
-
-                switch (value.Type) {
-                    case EValueType::Int64:
-                        if (token.GetType() != ETokenType::Int64) {
-                            ThrowIncompatibleType(schemaColumn);
-                        }
-                        value.Data.Int64 = token.GetInt64Value();
-                        break;
-
-                    case EValueType::Uint64:
-                        if (token.GetType() != ETokenType::Uint64) {
-                            ThrowIncompatibleType(schemaColumn);
-                        }
-                        value.Data.Uint64 = token.GetUint64Value();
-                        break;
-
-                    case EValueType::Double:
-                        if (token.GetType() != ETokenType::Double) {
-                            ThrowIncompatibleType(schemaColumn);
-                        }
-                        value.Data.Double = token.GetDoubleValue();
-                        break;
-
-                    case EValueType::Boolean:
-                        if (token.GetType() != ETokenType::Boolean) {
-                            ThrowIncompatibleType(schemaColumn);
-                        }
-                        value.Data.Boolean = token.GetBooleanValue();
-                        break;
-
-                    case EValueType::String:
-                        if (token.GetType() != ETokenType::String) {
-                            ThrowIncompatibleType(schemaColumn);
-                        }
-                        value.Length = token.GetStringValue().size();
-                        value.Data.String = token.GetStringValue().begin();
-                        break;
-
-                    default:
-                        YUNREACHABLE();
-                }
-            }
-        }
-
-        if (!UnderlyingReader_->FetchNext()) {
-            return true;
-        }
-
-        schemaIndexes.clear();
-    }
-
-    return true;
-}
-
-TFuture<void> TTableChunkReaderAdapter::GetReadyEvent()
-{
-    return UnderlyingReader_->GetReadyEvent();
-}
-
-void TTableChunkReaderAdapter::ThrowIncompatibleType(const TColumnSchema& schema)
-{
-    THROW_ERROR_EXCEPTION(
-        "Chunk data in column %Qv is incompatible with schema",
-        schema.Name);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
@@ -527,23 +363,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
 
     auto formatVersion = ETableChunkFormat(chunkMeta.version());
     switch (formatVersion) {
-        case ETableChunkFormat::Old: {
-            auto tableChunkReader = New<TTableChunkReader>(
-                nullptr,
-                std::move(config),
-                TChannel::Universal(), 
-                std::move(chunkReader),
-                std::move(uncompressedBlockCache),
-                lowerLimit, 
-                upperLimit,
-                0,
-                0,
-                DefaultPartitionTag,
-                New<TChunkReaderOptions>());
-
-            return New<TTableChunkReaderAdapter>(std::move(tableChunkReader));
-        }
-
+        case ETableChunkFormat::Old:
         case ETableChunkFormat::SchemalessHorizontal: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
                 return CreateSchemalessChunkReader(

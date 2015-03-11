@@ -13,7 +13,6 @@ namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NConcurrency;
-using namespace NTableClient;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////

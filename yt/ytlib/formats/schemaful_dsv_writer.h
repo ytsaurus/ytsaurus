@@ -10,8 +10,7 @@
 
 #include <core/concurrency/async_stream.h>
 
-#include <ytlib/table_client/public.h>
-
+#include <ytlib/new_table_client/public.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
 
 namespace NYT {
@@ -73,7 +72,7 @@ private:
 
     EState State_ = EState::None;
 
-    NTableClient::EControlAttribute ControlAttribute_;
+    NVersionedTableClient::EControlAttribute ControlAttribute_;
 
     void WriteRow();
     void EscapeAndWrite(const TStringBuf& value) const;

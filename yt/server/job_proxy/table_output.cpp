@@ -42,5 +42,5 @@ void TTableOutput::DoFinish()
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NJobProxy
 } // namespace NYT

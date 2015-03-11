@@ -11,8 +11,6 @@
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
 namespace NYT {
 namespace NVersionedTableClient {
 

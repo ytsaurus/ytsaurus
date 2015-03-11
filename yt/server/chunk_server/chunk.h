@@ -14,8 +14,6 @@
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk_info.pb.h>
 
-#include <ytlib/table_client/table_chunk_meta.pb.h>
-
 #include <server/cell_master/public.h>
 
 #include <server/security_server/cluster_resources.h>

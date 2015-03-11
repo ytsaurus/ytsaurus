@@ -10,8 +10,6 @@
 
 #include <ytlib/transaction_client/config.h>
 
-#include <ytlib/table_client/config.h>
-
 #include <ytlib/new_table_client/config.h>
 
 #include <ytlib/scheduler/config.h>

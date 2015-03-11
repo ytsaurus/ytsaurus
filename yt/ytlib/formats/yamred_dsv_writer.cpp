@@ -6,7 +6,7 @@ namespace NYT {
 namespace NFormats {
 
 using namespace NYTree;
-using namespace NTableClient;
+using namespace NVersionedTableClient;
 
 // ToDo(psushin): consider extracting common base for TYamrWriter & TYamredDsvWriter
 // Take a look at OnBeginAttributes, OnEndAttributes, EscapeAndWrite etc.

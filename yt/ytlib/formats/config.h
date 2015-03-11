@@ -2,8 +2,9 @@
 
 #include "public.h"
 
+#include <ytlib/new_table_client/public.h>
+
 #include <core/ytree/yson_serializable.h>
-#include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NFormats {
@@ -116,7 +117,7 @@ public:
         RegisterParameter("boolean_as_string", BooleanAsString)
             .Default(false);
 
-        MemoryLimit = NTableClient::MaxRowWeightLimit;
+        MemoryLimit = NVersionedTableClient::MaxRowWeightLimit;
     }
 };
 

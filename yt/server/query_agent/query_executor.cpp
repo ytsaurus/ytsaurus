@@ -15,8 +15,6 @@
 
 #include <ytlib/object_client/helpers.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_chunk_reader.h>
@@ -68,8 +66,6 @@ using namespace NVersionedTableClient;
 using namespace NVersionedTableClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NTabletNode;
-using namespace NTableClient;
-using namespace NTableClient::NProto;
 using namespace NDataNode;
 using namespace NCellNode;
 

@@ -2,16 +2,10 @@
 
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
 namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NProto;
-
-using NTableClient::NProto::TOldBoundaryKeysExt;
-using NTableClient::NProto::TChannelsExt;
-using NTableClient::NProto::TBlockInfo;
 
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::EChunkType;

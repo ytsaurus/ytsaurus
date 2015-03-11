@@ -87,7 +87,6 @@ using namespace NNodeTrackerClient;
 using namespace NVersionedTableClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
-using namespace NTableClient;
 
 using NNodeTrackerClient::TNodeDescriptor;
 
