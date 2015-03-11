@@ -5,9 +5,66 @@ namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-//TODO: move this back to plan_fragment?
-typedef TVariant<EValueType, TTypeArgument, TUnionType> TType;
-EValueType SimpleTypingFunction(
+
+class TTypedFunction : public TFunctionDescriptor
+{
+public:
+    TTypedFunction(
+        Stroka functionName,
+        std::vector<TType> argumentTypes,
+        TType repeatedArgumentType,
+        TType resultType)
+        : FunctionName(functionName)
+        , ArgumentTypes(argumentTypes)
+        , RepeatedArgumentType(repeatedArgumentType)
+        , ResultType(resultType)
+    {}
+
+    TTypedFunction(
+        Stroka functionName,
+        std::vector<TType> argumentTypes,
+        TType resultType)
+        : TTypedFunction(
+            functionName,
+            argumentTypes,
+            EValueType::Null,
+            resultType)
+    {}
+
+    Stroka GetName()
+    {
+        return FunctionName;
+    }
+
+    EValueType InferResultType(
+        const std::vector<EValueType>& argumentTypes,
+        const TStringBuf& source)
+    {
+        return TypingFunction(
+                ArgumentTypes,
+                RepeatedArgumentType,
+                ResultType,
+                GetName(),
+                argumentTypes,
+                source);
+    }
+
+private:
+    EValueType TypingFunction(
+        const std::vector<TType>& expectedArgTypes,
+        TType repeatedArgType,
+        TType resultType,
+        Stroka functionName,
+        const std::vector<EValueType>& argTypes,
+        const TStringBuf& source);
+
+    Stroka FunctionName;
+    std::vector<TType> ArgumentTypes;
+    TType RepeatedArgumentType;
+    TType ResultType;
+};
+
+EValueType TTypedFunction::TypingFunction(
     const std::vector<TType>& expectedArgTypes,
     TType repeatedArgType,
     TType resultType,
@@ -75,8 +132,6 @@ EValueType SimpleTypingFunction(
 
     if (auto genericResult = resultType.TryAs<TTypeArgument>()) {
         if (!genericAssignments.count(*genericResult)) {
-            //TODO: Maybe this should be checked on registering functions
-            //      and just asserted here
             THROW_ERROR_EXCEPTION(
                 "Ambiguous result type",
                 source);
@@ -93,179 +148,96 @@ EValueType SimpleTypingFunction(
     return EValueType::Null;
 }
 
-class IfFunction : public FunctionDescriptor
+
+class IfFunction : public TTypedFunction
 {
 public:
-    Stroka GetName()
-    {
-        return "if";
-    }
-
-    EValueType InferResultType(
-        const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source)
-    {
-        return SimpleTypingFunction(
-            std::vector<TType>({ EValueType::Boolean, 0, 0 }),
-            EValueType::Null,
-            0,
-            GetName(),
-            argumentTypes,
-            source);
-    }
+    IfFunction() : TTypedFunction(
+        "if",
+        std::vector<TType>({ EValueType::Boolean, 0, 0 }),
+        0)
+    {}
 };
 
-class IsPrefixFunction : public FunctionDescriptor
-{
-    Stroka GetName()
-    {
-        return "is_prefix";
-    }
-
-    EValueType InferResultType(
-        const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source)
-    {
-        return SimpleTypingFunction(
-            std::vector<TType>({ EValueType::String, EValueType::String }),
-            EValueType::Null,
-            EValueType::Boolean,
-            GetName(),
-            argumentTypes,
-            source);
-    }
-};
-
-class IsSubstrFunction : public FunctionDescriptor
-{
-    Stroka GetName()
-    {
-        return "is_substr";
-    }
-
-    EValueType InferResultType(
-        const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source)
-    {
-        return SimpleTypingFunction(
-            std::vector<TType>({ EValueType::String, EValueType::String }),
-            EValueType::Null,
-            EValueType::Boolean,
-            GetName(),
-            argumentTypes,
-            source);
-    }
-};
-
-class LowerFunction : public FunctionDescriptor
-{
-    Stroka GetName()
-    {
-        return "lower";
-    }
-
-    EValueType InferResultType(
-        const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source)
-    {
-        return SimpleTypingFunction(
-            std::vector<TType>({ EValueType::String }),
-            EValueType::Null,
-            EValueType::String,
-            GetName(),
-            argumentTypes,
-            source);
-    }
-};
-
-class SimpleHashFunction : public FunctionDescriptor
+class IsPrefixFunction : public TTypedFunction
 {
 public:
-    Stroka GetName()
-    {
-        return "simple_hash";
-    }
+    IsPrefixFunction() : TTypedFunction(
+        "is_prefix",
+        std::vector<TType>({ EValueType::String, EValueType::String }),
+        EValueType::Boolean)
+    {}
+};
 
-    EValueType InferResultType(
-        const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source)
-    {
-        return SimpleTypingFunction(
-            std::vector<TType>({ HashTypes }),
-            HashTypes,
-            EValueType::String,
-            GetName(),
-            argumentTypes,
-            source);
-    }
+class IsSubstrFunction : public TTypedFunction
+{
+public:
+    IsSubstrFunction() : TTypedFunction(
+        "is_substr",
+        std::vector<TType>({ EValueType::String, EValueType::String }),
+        EValueType::Boolean)
+    {}
+};
+
+class LowerFunction : public TTypedFunction
+{
+public:
+    LowerFunction() : TTypedFunction(
+        "lower",
+        std::vector<TType>({ EValueType::String }),
+        EValueType::String)
+    {}
+};
+
+class SimpleHashFunction : public TTypedFunction
+{
+public:
+    SimpleHashFunction() : TTypedFunction(
+        "simple_hash",
+        std::vector<TType>({ HashTypes }),
+        HashTypes,
+        EValueType::String)
+    {}
 
 private:
-    std::set<EValueType> HashTypes = std::set<EValueType>({
+    static const std::set<EValueType> HashTypes;
+};
+
+const std::set<EValueType> SimpleHashFunction::HashTypes = 
+    std::set<EValueType>({
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
         EValueType::String });
 
-};
-
-class IsNullFunction : public FunctionDescriptor
-{
-    Stroka GetName()
-    {
-        return "is_null";
-    }
-
-    EValueType InferResultType(
-        const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source)
-    {
-        return SimpleTypingFunction(
-            std::vector<TType>({ 0 }),
-            EValueType::Null,
-            EValueType::Boolean,
-            GetName(),
-            argumentTypes,
-            source);
-    }
-};
-
-class CastFunction : public FunctionDescriptor
+class IsNullFunction : public TTypedFunction
 {
 public:
-    CastFunction(
-        EValueType resultType,
-        Stroka functionName)
-        : ResultType(resultType)
-        , FunctionName(functionName)
+    IsNullFunction() : TTypedFunction(
+        "is_null",
+        std::vector<TType>({ 0 }),
+        EValueType::Boolean)
+    {}
+};
+
+class CastFunction : public TTypedFunction
+{
+public:
+    CastFunction( EValueType resultType, Stroka functionName)
+        : TTypedFunction(
+            functionName,
+            std::vector<TType>({ CastTypes }),
+            resultType)
     {}
 
-    Stroka GetName()
-    {
-        return FunctionName;
-    }
-
-    EValueType InferResultType(
-        const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source)
-    {
-        return SimpleTypingFunction(
-            std::vector<TType>({ CastTypes }),
-            EValueType::Null,
-            ResultType,
-            GetName(),
-            argumentTypes,
-            source);
-    }
-
 private:
-    std::set<EValueType> CastTypes = std::set<EValueType>({
+    static const std::set<EValueType> CastTypes;
+};
+
+const std::set<EValueType> CastFunction::CastTypes = std::set<EValueType>({
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Double });
-
-    EValueType ResultType;
-    Stroka FunctionName;
-};
 
 
 TFunctionRegistry::TFunctionRegistry() {
@@ -286,14 +258,14 @@ TFunctionRegistry::TFunctionRegistry() {
         "double"));
 }
 
-void TFunctionRegistry::RegisterFunction(std::unique_ptr<FunctionDescriptor> function)
+void TFunctionRegistry::RegisterFunction(std::unique_ptr<TFunctionDescriptor> function)
 {
     Stroka functionName = function->GetName();
     YCHECK(registeredFunctions.count(functionName) == 0);
-    registeredFunctions.insert(std::pair<Stroka, std::unique_ptr<FunctionDescriptor>>(functionName, std::move(function)));
+    registeredFunctions.insert(std::pair<Stroka, std::unique_ptr<TFunctionDescriptor>>(functionName, std::move(function)));
 }
 
-FunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName)
+TFunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName)
 {
     return *registeredFunctions.at(functionName);
 }

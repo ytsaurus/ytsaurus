@@ -18,19 +18,7 @@ typedef int TTypeArgument;
 typedef std::set<EValueType> TUnionType;
 typedef TVariant<EValueType, TTypeArgument, TUnionType> TType;
 
-using llvm::Value;
-class TCGValue;
-class TCGContext;
-typedef std::function<TCGValue(TCGContext& builder, Value* row)> TCodegenExpression;
-using TCodegenBuilder = std::function<TCodegenExpression(std::vector<TCodegenExpression>, EValueType, Stroka)>;
-
-using TConstFunctionExpressionPtr = TIntrusivePtr<const NAst::TFunctionExpression>;
-using TRangeBuilder = std::function<TKeyTrieNode(const TConstFunctionExpressionPtr&, const TKeyColumns&, TRowBuffer*)>;
-
-using TTypingFunction = std::function<EValueType(const std::vector<EValueType>&, const TStringBuf&)>;
-
-
-class FunctionDescriptor
+class TFunctionDescriptor
 {
 public:
     virtual Stroka GetName() = 0;
@@ -48,22 +36,13 @@ class TFunctionRegistry
 public:
     TFunctionRegistry();
 
-    void RegisterFunction(std::unique_ptr<FunctionDescriptor> descriptor);
-    FunctionDescriptor& GetFunction(const Stroka& functionName);
+    void RegisterFunction(std::unique_ptr<TFunctionDescriptor> descriptor);
+    TFunctionDescriptor& GetFunction(const Stroka& functionName);
 
     bool IsRegistered(const Stroka& functionName);
 
-    static TKeyTrieNode UniversalRange(
-        const TConstFunctionExpressionPtr& expr,
-        const TKeyColumns& keyColumns,
-        TRowBuffer* rowBuffer)
-    {
-        return TKeyTrieNode::Universal();
-    }
-
-    std::unordered_map<Stroka, std::unique_ptr<FunctionDescriptor>> registeredFunctions;
-
-//TODO: choose between overloads?
+private:
+    std::unordered_map<Stroka, std::unique_ptr<TFunctionDescriptor>> registeredFunctions;
 };
 
 TFunctionRegistry* GetFunctionRegistry();
