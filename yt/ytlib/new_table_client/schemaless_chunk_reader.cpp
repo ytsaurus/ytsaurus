@@ -546,7 +546,7 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
 template <class TBase>
 void TSchemalessMultiChunkReader<TBase>::OnReaderSwitched()
 {
-    CurrentReader_ = dynamic_cast<TSchemalessChunkReader*>(CurrentSession_.ChunkReader.Get());
+    CurrentReader_ = dynamic_cast<ISchemalessChunkReader*>(CurrentSession_.ChunkReader.Get());
     YCHECK(CurrentReader_);
 }
 

@@ -667,7 +667,7 @@ void TLegacyTableChunkReader::MakeAndValidateRow()
 {
     for (const auto& channel : ChannelReaders_) {
         while (channel->NextColumn()) {
-            auto id = NameTable_->GetId(channel->GetColumn());
+            auto id = NameTable_->GetIdOrRegisterName(channel->GetColumn());
             auto& columnInfo = GetColumnInfo(id);
             if (columnInfo.RowIndex < CurrentRowIndex_) {
                 columnInfo.RowIndex = CurrentRowIndex_;
