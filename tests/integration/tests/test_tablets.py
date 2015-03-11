@@ -241,3 +241,18 @@ class TestTablets(YTEnvSetup):
         self.assertItemsEqual(rows, actual)
         actual = lookup_rows("//tmp/t1", [{"key": row["key"]} for row in rows])
         self.assertItemsEqual(rows, actual)
+
+    def test_swap(self):
+        self.test_move_unmounted()
+
+        self._create_table("//tmp/t3")
+        self._sync_mount_table("//tmp/t3")
+        self._sync_unmount_table("//tmp/t3")
+        
+        reshard_table("//tmp/t3", [[], [100], [200], [300], [400]])
+        self._sync_mount_table("//tmp/t3")
+        self._sync_unmount_table("//tmp/t3")
+
+        move("//tmp/t3", "//tmp/t1")
+
+        assert self._get_pivot_keys("//tmp/t1") == [[], [100], [200], [300], [400]]
