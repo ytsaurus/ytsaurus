@@ -98,7 +98,7 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
 void TBuildingValueConsumer::OnValue(const TUnversionedValue& value)
 {
     auto schemaType = Schema_.Columns()[value.Id].Type;
-    if (schemaType == EValueType::Any) {
+    if (schemaType == EValueType::Any && value.Type != EValueType::Any) {
         Builder_.AddValue(MakeAnyFromScalar(value));
         ValueBuffer_.Clear();
     } else {
