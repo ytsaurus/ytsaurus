@@ -482,7 +482,10 @@ class NativeModeTester(YtTestBase, YTEnv):
              "approximate_row_count": 3})
 
         rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]))._get_response()
-        assert json.loads(rsp.headers["X-YT-Response-Parameters"]) == {}
+        self.assertEqual(
+            json.loads(rsp.headers["X-YT-Response-Parameters"]),
+            {"start_row_index": 0,
+             "approximate_row_count": 0})
 
     def test_read_with_retries(self):
         old_value = yt.config.RETRY_READ
