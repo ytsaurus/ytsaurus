@@ -484,6 +484,7 @@ private:
                 return Delegate(subfragment, address);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+                LOG_DEBUG("Evaluating topquery (TopqueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
                 return evaluator->Run(topQuery, std::move(reader), std::move(writer));
             });
@@ -539,6 +540,7 @@ private:
                 return Delegate(subfragment, address);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+                LOG_DEBUG("Evaluating topquery (TopqueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
                 return evaluator->Run(topQuery, std::move(reader), std::move(writer));
             });
