@@ -481,7 +481,8 @@ class NativeModeTester(YtTestBase, YTEnv):
         self.assertEqual(
             rsp.headers["X-YT-Response-Parameters"],
             {"start_row_index": 2,
-             "approximate_row_count": 1})
+             # When reading with key limits row count is estimated rounded up to the chunk row count.
+             "approximate_row_count": 3})
 
         rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]))._get_response()
         self.assertEqual(
