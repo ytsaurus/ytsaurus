@@ -696,18 +696,216 @@ TCodegenExpression MakeCodegenReferenceExpr(
         };
 }
 
-
-TCodegenExpression MakeCodegenFunctionExpr(
-    Stroka functionName,
+TCGValue IfFunction::MakeCodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name)
+    Stroka name,
+    TCGContext& builder,
+    Value* row)
 {
-    YCHECK(GetFunctionRegistry()->IsRegistered(functionName));
+    auto nameTwine = Twine(name.c_str());
 
-    TFunctionDescriptor& function = GetFunctionRegistry()->GetFunction(functionName);
+    YCHECK(codegenArgs.size() == 3);
+    auto condition = codegenArgs[0](builder, row);
+    YCHECK(condition.GetStaticType() == EValueType::Boolean);
 
-    return function.MakeCodegenExpr(std::move(codegenArgs), type, name);
+    return CodegenIf<TCGContext, TCGValue>(
+        builder,
+        condition.IsNull(),
+        [&] (TCGContext& builder) {
+            return TCGValue::CreateNull(builder, type);
+        },
+        [&] (TCGContext& builder) {
+            return CodegenIf<TCGContext, TCGValue>(
+                builder,
+                builder.CreateICmpNE(
+                    builder.CreateZExtOrBitCast(condition.GetData(), builder.getInt64Ty()),
+                    builder.getInt64(0)),
+                [&] (TCGContext& builder) {
+                    return codegenArgs[1](builder, row);
+                },
+                [&] (TCGContext& builder) {
+                    return codegenArgs[2](builder, row);
+                });
+        },
+        nameTwine);
+}
+
+TCGValue MakeBinaryFunctionCall(
+    Stroka routineName,
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name,
+    TCGContext& builder,
+    Value* row)
+{
+    auto nameTwine = Twine(name.c_str());
+        YCHECK(codegenArgs.size() == 2);
+        auto lhsValue = codegenArgs[0](builder, row);
+        YCHECK(lhsValue.GetStaticType() == EValueType::String);
+
+        return CodegenIf<TCGContext, TCGValue>(
+            builder,
+            lhsValue.IsNull(),
+            [&] (TCGContext& builder) {
+                return TCGValue::CreateNull(builder, type);
+            },
+            [&] (TCGContext& builder) {
+                auto rhsValue = codegenArgs[1](builder, row);
+                YCHECK(rhsValue.GetStaticType() == EValueType::String);
+
+                return CodegenIf<TCGContext, TCGValue>(
+                    builder,
+                    rhsValue.IsNull(),
+                    [&] (TCGContext& builder) {
+                        return TCGValue::CreateNull(builder, type);
+                    },
+                    [&] (TCGContext& builder) {
+                        Value* lhsData = lhsValue.GetData();
+                        Value* lhsLength = lhsValue.GetLength();
+                        Value* rhsData = rhsValue.GetData();
+                        Value* rhsLength = rhsValue.GetLength();
+
+                        Value* result = builder.CreateCall4(
+                            builder.Module->GetRoutine(routineName),
+                            lhsData, lhsLength, rhsData, rhsLength);
+
+                        return TCGValue::CreateFromValue(
+                            builder,
+                            builder.getFalse(),
+                            nullptr,
+                            result,
+                            type);
+                    });
+            },
+            nameTwine);
+}
+
+TCGValue IsPrefixFunction::MakeCodegenValue(
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name,
+    TCGContext& builder,
+    Value* row)
+{
+    return MakeBinaryFunctionCall("IsPrefix", codegenArgs, type, name, builder, row);
+}
+
+TCGValue IsSubstrFunction::MakeCodegenValue(
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name,
+    TCGContext& builder,
+    Value* row)
+{
+    return MakeBinaryFunctionCall("IsSubstr", codegenArgs, type, name, builder, row);
+}
+
+TCGValue LowerFunction::MakeCodegenValue(
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name,
+    TCGContext& builder,
+    Value* row)
+{
+    auto nameTwine = Twine(name.c_str());
+
+    YCHECK(codegenArgs.size() == 1);
+    auto argValue = codegenArgs[0](builder, row);
+    YCHECK(argValue.GetStaticType() == EValueType::String);
+
+    return CodegenIf<TCGContext, TCGValue>(
+        builder,
+        argValue.IsNull(),
+        [&] (TCGContext& builder) {
+            return TCGValue::CreateNull(builder, type);
+        },
+        [&] (TCGContext& builder) {
+            Value* argData = argValue.GetData();
+            Value* argLength = argValue.GetLength();
+
+            Value* result = builder.CreateCall3(
+                builder.Module->GetRoutine("ToLower"),
+                builder.GetExecutionContextPtr(),
+                argData,
+                argLength);
+
+            return TCGValue::CreateFromValue(
+                builder,
+                builder.getFalse(),
+                argLength,
+                result,
+                type);
+        },
+        nameTwine);
+}
+
+TCGValue IsNullFunction::MakeCodegenValue(
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name,
+    TCGContext& builder,
+    Value* row)
+{
+    YCHECK(codegenArgs.size() == 1);
+    auto argValue = codegenArgs[0](builder, row);
+
+    return TCGValue::CreateFromValue(
+        builder,
+        builder.getFalse(),
+        nullptr,            
+        builder.CreateZExtOrBitCast(
+            argValue.IsNull(),
+            TDataTypeBuilder::TBoolean::get(builder.getContext())),
+        type);
+}
+
+TCGValue SimpleHashFunction::MakeCodegenValue(
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name,
+    TCGContext& builder,
+    Value* row)
+{
+    Value* argRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+    Value* executionContextPtrRef = builder.GetExecutionContextPtr();
+
+    builder.CreateCall3(
+        builder.Module->GetRoutine("AllocateRow"),
+        executionContextPtrRef,
+        builder.getInt32(codegenArgs.size()),
+        argRowPtr);
+
+    Value* argRowRef = builder.CreateLoad(argRowPtr);
+
+    std::vector<EValueType> keyTypes;
+    for (int index = 0; index < codegenArgs.size(); ++index) {
+        auto id = index;
+        auto value = codegenArgs[index](builder, row);
+        value.StoreToRow(builder, argRowRef, index, id);
+    }
+
+    Value* result = builder.CreateCall(
+        builder.Module->GetRoutine("SimpleHash"),
+        argRowRef);
+
+    return TCGValue::CreateFromValue(
+        builder,
+        builder.getInt1(false),
+        nullptr,
+        result,
+        EValueType::Uint64);
+}
+
+TCGValue CastFunction::MakeCodegenValue(
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name,
+    TCGContext& builder,
+    Value* row)
+{
+    YCHECK(codegenArgs.size() == 1);
+    return codegenArgs[0](builder, row).Cast(builder, type);
 }
 
 TCodegenExpression MakeCodegenUnaryOpExpr(
