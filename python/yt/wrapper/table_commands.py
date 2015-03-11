@@ -703,6 +703,9 @@ def move_table(source_table, destination_table, replace=True, client=None):
             return
         if replace and exists(destination_table.name, client=client):
             remove(destination_table.name, client=client)
+        dirname = os.path.dirname(destination_table.name)
+        if dirname != "//":
+            mkdir(dirname, recursive=True, client=client)
         move(source_tables[0].name, destination_table.name, client=client)
     else:
         copy_table(source_table, destination_table, client=client)
