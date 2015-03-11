@@ -7,20 +7,6 @@
 #include "job_resources.h"
 #include "helpers.h"
 
-#include <core/ytree/fluent.h>
-
-#include <ytlib/chunk_client/schema.h>
-
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-
-#include <server/job_proxy/config.h>
-
-#include <cmath>
-
 namespace NYT {
 namespace NScheduler {
 

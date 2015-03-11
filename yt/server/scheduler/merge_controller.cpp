@@ -8,22 +8,11 @@
 #include "job_resources.h"
 #include "helpers.h"
 
-#include <core/concurrency/scheduler.h>
-
-#include <core/ytree/fluent.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_splits_fetcher.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
-
-#include <cmath>
 
 namespace NYT {
 namespace NScheduler {
@@ -1133,7 +1122,7 @@ private:
             YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
 
             if (currentPartitionTag != DefaultPartitionTag) {
-                if (chunkSpec->partition_tag() == currentPartitionTag) {       
+                if (chunkSpec->partition_tag() == currentPartitionTag) {
                     if (endpoint.Type == EEndpointType::Right && CompareRows(maxKey, endpoint.MaxBoundaryKey, KeyColumns.size()) == 0) {
                         // The last slice of a full chunk.
                         currentPartitionTag = DefaultPartitionTag;
@@ -1534,8 +1523,8 @@ private:
 
                 TOwningKey maxKey, minKey;
                 YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
-                if (previousEndpoint.Type == EEndpointType::Right 
-                    && CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0) 
+                if (previousEndpoint.Type == EEndpointType::Right
+                    && CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0)
                 {
                     for (int j = startTeleportIndex; j < i; ++j) {
                         Endpoints[j].IsTeleport = true;

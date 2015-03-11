@@ -8,14 +8,7 @@
 #include <core/misc/proc.h>
 #include <core/misc/finally.h>
 
-#include <core/concurrency/async_stream.h>
-#include <core/concurrency/scheduler.h>
-
-#include <core/logging/log.h>
-
 #include <util/system/execpath.h>
-
-#include <array>
 
 namespace NYT {
 namespace NExecAgent {

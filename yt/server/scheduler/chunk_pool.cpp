@@ -2,11 +2,6 @@
 #include "chunk_pool.h"
 #include "private.h"
 
-#include <core/misc/id_generator.h>
-#include <core/misc/property.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
-
 #include <ytlib/chunk_client/chunk_slice.h>
 
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
@@ -423,9 +418,9 @@ public:
     virtual bool IsCompleted() const override
     {
         return
-            Finished && 
+            Finished &&
             GetPendingJobCount() == 0 &&
-            SuspendedStripeCount == 0 && 
+            SuspendedStripeCount == 0 &&
             JobCounter.GetRunning() == 0;
     }
 
@@ -1267,7 +1262,7 @@ public:
     virtual void Persist(TPersistenceContext& context) override
     {
         TChunkPoolInputBase::Persist(context);
-        
+
         using NYT::Persist;
         Persist(context, DataSizeThreshold);
         Persist(context, Outputs);
