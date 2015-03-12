@@ -24,8 +24,8 @@ def move_to_front(fields, name):
 
 def main():
     fields = [
+        {"name": "id_hash",  "type": "uint64", "expression": "farm_hash(id)"},
         {"name": "id",  "type": "string"},
-        {"name": "hash",  "type": "uint64", "expression": "simple_hash(id)"},
         {"name": "state", "type": "string"},
         {"name": "authenticated_user", "type": "string"},
         {"name": "operation_type", "type": "string"},
