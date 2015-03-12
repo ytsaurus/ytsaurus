@@ -409,10 +409,8 @@ public:
         ToProto(req->mutable_job_id(), jobId);
 
         auto rspOrError = WaitFor(req->Invoke());
-        if (!rspOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error stracing processes of job: %v", jobId)
-                << rspOrError;
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error stracing processes of job %v", jobId);
+
         auto& res = rspOrError.Value();
 
         return TYsonString(FromProto<Stroka>(res->trace()));
@@ -435,11 +433,7 @@ public:
         ToProto(req->mutable_job_id(), jobId);
 
         auto rspOrError = WaitFor(req->Invoke());
-
-        if (!rspOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error dumping input context for job: %v", jobId)
-                << rspOrError;
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error dumping input context for job %v", jobId)
 
         auto& res = rspOrError.Value();
         auto chunkIds = FromProto<TGuid>(res->chunk_id());

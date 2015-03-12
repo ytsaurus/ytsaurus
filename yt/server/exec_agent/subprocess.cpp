@@ -67,12 +67,12 @@ TSubprocessResult TSubprocess::Execute()
             try {
                 Process_.Kill(9);
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Cannot kill subprocess %v", Process_.GetProcessId());
+                LOG_ERROR(ex, "Failed to kill subprocess %v", Process_.GetProcessId());
             }
 
             auto error = Process_.Wait();
             if (!error.IsOK()) {
-                LOG_ERROR(error, "Cannot wait subprocess %v", Process_.GetProcessId());
+                LOG_ERROR(error, "Failed to wait subprocess %v", Process_.GetProcessId());
             }
         }
     });
@@ -125,10 +125,7 @@ TSubprocessResult TSubprocess::Execute()
     }
 
     auto outputsOrError = WaitFor(Combine(futures));
-    if (!outputsOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("IO error occured during subprocess call")
-            << outputsOrError;
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(outputsOrError, "IO error occured during subprocess call");
 
     const auto& outputs = outputsOrError.Value();
     YCHECK(outputs.size() == 2);
