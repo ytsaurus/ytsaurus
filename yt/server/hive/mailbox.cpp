@@ -27,7 +27,6 @@ void TMailbox::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
-    Save(context, CellId_);
     Save(context, FirstOutcomingMessageId_);
     Save(context, LastIncomingMessageId_);
     Save(context, OutcomingMessages_);
@@ -38,7 +37,10 @@ void TMailbox::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, CellId_);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 114) {
+        Load(context, CellId_);
+    }
     Load(context, FirstOutcomingMessageId_);
     Load(context, LastIncomingMessageId_);
     Load(context, OutcomingMessages_);
