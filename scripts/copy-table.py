@@ -8,6 +8,8 @@ import argparse
 import subprocess as sp
 import sys
 from StringIO import StringIO
+from time import sleep
+from copy import deepcopy
 
 yt.config.VERSION = "v3"
 
@@ -15,9 +17,58 @@ yt.config.VERSION = "v3"
 CONFIG_FILE_NAME = "copy-table.config"
 # Maximum number or rows passed to yt insert.
 MAX_ROWS_PER_INSERT = 20000
+# Maximum number of output rows
+OUTPUT_ROW_LIMIT = 100000000
 # Mapper job options.
 JOB_COUNT = 20
 JOB_MEMORY_LIMIT = "2GB"
+
+# Simple transformation class - just copy everything.
+class Copy:
+    # Get schema for the new table
+    @staticmethod
+    def schema(schema):
+        return schema
+
+    # Get key columns for the new table
+    @staticmethod
+    def key_columns(key_columns):
+        return key_columns
+
+    # Get pivot keys for the new table
+    @staticmethod
+    def pivot_keys(pivot_keys):
+        return pivot_keys
+
+    # Get row for the new table
+    @staticmethod
+    def row(row):
+        return row
+
+# Rehash transformation class: make 'hash' column to be a computed column.
+class Rehash:
+    @staticmethod
+    def schema(schema):
+        assert schema[0]["name"] == "hash"
+        assert schema[1]["name"] == "date"
+        schema[0]["type"] = "int64"
+        schema[0]["expression"] = "int64(farm_hash(date))"
+        return schema
+    @staticmethod
+    def key_columns(key_columns):
+        return key_columns
+    @staticmethod
+    def pivot_keys(pivot_keys):
+        shard_count = 50
+        pivot_keys = [[]] + [[int((i * 2**64) / shard_count - 2**63)] for i in xrange(1, shard_count)]
+        return pivot_keys
+    @staticmethod
+    def row(row):
+        row.pop("hash")
+        return row
+
+# Transformation object.
+Transform = Copy()
 
 # Parse human-writable size.
 def parse_size(size):
@@ -40,9 +91,9 @@ def tablets_mapper(tablet):
     yield {"pivot_key":tablet["pivot_key"]}
     tablet_id = tablet["tablet_id"]
     cell_id = tablet["cell_id"]
-    node = yson.loads(sp.check_output(["yt", "get", "#" + cell_id + "/@peers/0/address", "--format <format=text>yson"]))
+    node = yson.loads(sp.check_output(["yt", "get", "--format", "<format=text>yson", "#" + cell_id + "/@peers/0/address"]))
     partitions_path = "//sys/nodes/%s/orchid/tablet_cells/%s/tablets/%s/partitions" % (node, cell_id, tablet_id)
-    partitions = sp.check_output(["yt", "get", partitions_path, "--format <format=text>yson"])
+    partitions = sp.check_output(["yt", "get", "--format", "<format=text>yson", partitions_path])
     if partitions != None:
         for partition in yson.loads(partitions):
             yield {"pivot_key": partition["pivot_key"]}
@@ -65,11 +116,11 @@ def regions_mapper(r):
         bounds = [x for x in [left, right] if x is not None]
         where = (" where " + " and ".join(bounds)) if len(bounds) > 0 else ""
         query = "* from [%s]%s" % (config["source"], where)
-        return sp.check_output(["yt", "select", query, "--format <format=text>yson"])
+        return sp.check_output(["yt", "select_rows", "--output_row_limit", str(config["output_row_limit"]),"--format", "<format=text>yson",  query]) 
     raw_data = StringIO(query(r["left"], r["right"]))
 
     # Insert data into destination table.
-    insert_cmd = ["yt", "insert", config["destination"], "--format <format=text>yson"]
+    insert_cmd = ["yt", "insert_rows", "--format", "<format=text>yson", config["destination"]]
     new_data = []
     def dump_data():
         p = sp.Popen(insert_cmd, stdin=sp.PIPE)
@@ -80,18 +131,15 @@ def regions_mapper(r):
 
     # Process data.
     for row in yson.load(raw_data, yson_type="list_fragment"):
-        #
-        # Possible data transformation here.
-        #
-        new_data.append(row)
+        new_data.append(Transform.row(row))
         if len(new_data) > config["rows_per_insert"]: dump_data()
     dump_data()
 
-    # YT Wrapper doesn't like empty output.
-    yield r
+    # Mapper has to be a generator.
+    if False: yield None
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Copy table.")
+    parser = argparse.ArgumentParser(description="Copy table with tablets.")
     parser.add_argument("--input", required=True, help="Source table")
     parser.add_argument("--output", required=True, help="Destination table")
     parser.add_argument("--force", action="store_true", help="Overwrite destination table if it exists")
@@ -99,6 +147,7 @@ if __name__ == "__main__":
     parser.add_argument("--job_count", type=int, default=JOB_COUNT, help="Numbser of jobs in copy task")
     parser.add_argument("--memory_limit", type=parse_size, default=JOB_MEMORY_LIMIT, help="Memory limit for a copy task")
     parser.add_argument("--insert_size", type=int, default=MAX_ROWS_PER_INSERT, help="Number of rows passed to 'yt insert' call")
+    parser.add_argument("--output_row_limit", type=int, default=OUTPUT_ROW_LIMIT, help="Limit the output of 'yt select' call")
     args = parser.parse_args()
 
     src = args.input
@@ -110,12 +159,10 @@ if __name__ == "__main__":
         else:
             raise Exception("Destination table exists. Use --force")
 
-    schema = yt.get(src + "/@schema")
-    key_columns = yt.get(src + "/@key_columns")
     tablets = yt.get(src + "/@tablets")
 
     # Get pivot keys. For a large number of tablets use map-reduce version.
-    # Tablet pivots are merget with partition pivots
+    # Tablet pivots are merged with partition pivots
     print "Prepare partition keys:"
     partition_keys = []
     if len(tablets) < 10:
@@ -134,7 +181,7 @@ if __name__ == "__main__":
     else:
         tablets_table = yt.create_temp_table()
         partitions_table = yt.create_temp_table()
-        yt.write_table(tablets_table, prepare(tablets), format=yt.YsonFormat(format="text"))
+        yt.write_table(tablets_table, tablets, format=yt.JsonFormat(), raw=False)
         try:
             yt.run_map(
                 tablets_mapper,
@@ -144,7 +191,8 @@ if __name__ == "__main__":
                 format=yt.YsonFormat(format="text"))
         except YtError as e:
             print yt.errors.format_error(e)
-        partition_keys = yt.read_table(partitions_table, format=yt.YsonFormat(), raw=False)
+            raise e
+        partition_keys = yt.read_table(partitions_table, format=yt.JsonFormat(), raw=False)
         partition_keys = [p["pivot_key"] for p in partition_keys]
         yt.remove(tablets_table)   
         yt.remove(partitions_table)
@@ -160,15 +208,19 @@ if __name__ == "__main__":
     regions = [{"left":r[0], "right":r[1]} for r in regions]
     yt.write_table(
         regions_table,
-        prepare(regions),
-        format=yt.YsonFormat(format="text"))
+        regions,
+        format=yt.JsonFormat(), raw=False)
+
+    schema = yt.get(src + "/@schema")
+    key_columns = yt.get(src + "/@key_columns")
 
     # Config passed to mapper.
     config = {
-        "key_columns": key_columns,
+        "key_columns": deepcopy(key_columns),
         "source": src,
         "destination": dst,
-        "rows_per_insert": args.insert_size}
+        "rows_per_insert": args.insert_size,
+        "output_row_limit": args.output_row_limit}
     with open(CONFIG_FILE_NAME, "w") as config_file: config_file.write(yson.dumps(config))
     
     # Copy tablet pivot keys from source table.
@@ -176,10 +228,12 @@ if __name__ == "__main__":
 
     # Create destination table.
     yt.create_table(dst)
-    yt.set_attribute(dst, "schema", schema)
-    yt.set_attribute(dst, "key_columns", key_columns)
-    yt.reshard_table(dst, pivot_keys)
+    yt.set_attribute(dst, "schema", Transform.schema(schema))
+    yt.set_attribute(dst, "key_columns", Transform.key_columns(key_columns))
+    yt.reshard_table(dst, Transform.pivot_keys(pivot_keys))
     yt.mount_table(dst)
+    while not all(x["state"] == "mounted" for x in yt.get(dst + "/@tablets")):
+        sleep(1)
 
     # Copy table. Each mapper task copies a single partition.
     try:
@@ -196,6 +250,7 @@ if __name__ == "__main__":
             local_files=CONFIG_FILE_NAME)
     except YtError as e:
         print yt.errors.format_error(e)
+        raise e
 
     yt.remove(regions_table)   
     yt.remove(out_regions_table)
