@@ -23,23 +23,28 @@ public:
         }
 
         // Slow path.
-        CommittedLength_ += (Current_ - Begin_);
+        size_t committedLength = GetLength();
         size = std::max(size, static_cast<size_t>(1024));
-        size_t capacity = CommittedLength_ + size;
-        Str_.ReserveAndResize(capacity);
-        Begin_ = Current_ = &*Str_.begin() + CommittedLength_;
+        Str_.ReserveAndResize(committedLength + size);
+        Begin_ = Current_ = &*Str_.begin() + committedLength;
         End_ = Begin_ + size;
         return Current_;
     }
 
     size_t GetLength() const
     {
-        return CommittedLength_ + (Current_ - Begin_);
+        return Current_ ? Current_ - Str_.Data() : 0;
+    }
+
+    TStringBuf GetBuffer() const
+    {
+        return TStringBuf(&*Str_.begin(), GetLength());
     }
 
     void Advance(size_t size)
     {
         Current_ += size;
+        YASSERT(Current_ <= End_);
     }
 
     void AppendChar(char ch)
@@ -76,21 +81,24 @@ public:
 
     Stroka Flush()
     {
-        CommittedLength_ += (Current_ - Begin_);
+        Str_.resize(GetLength());
         Begin_ = Current_ = End_ = nullptr;
-        Str_.resize(CommittedLength_);
         return std::move(Str_);
     }
 
 private:
     Stroka Str_;
-    size_t CommittedLength_ = 0;
 
     char* Begin_ = nullptr;
     char* Current_ = nullptr;
     char* End_ = nullptr;
 
 };
+
+inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, const TStringBuf& /*format*/)
+{
+    builder->AppendString(value.GetBuffer());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
