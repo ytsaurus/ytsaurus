@@ -14,11 +14,14 @@ Oper = namedtuple("Oper", ["start_time", "finish_time", "id", "user", "state", "
 
 logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY)))
 
-def clean_operations(count, total_count, failed_timeout, max_operations_per_user, robots, log):
+def clean_operations(count, total_count, failed_timeout, max_operations_per_user, robots, log, save_to_tablets):
     """Clean all operations started no more than #days days ago,
        leaving no more than #count most recent operations."""
     if robots is None:
         robots = []
+
+    if save_to_tablets:
+        yt.config.VERSION = "v3"
 
     operations = yt.get("//sys/operations", attributes=['state', 'start_time', 'finish_time', 'spec', 'authenticated_user'])
     operations = [Oper(
@@ -78,6 +81,15 @@ def clean_operations(count, total_count, failed_timeout, max_operations_per_user
         if log is not None:
             log_output.write(yt.get("//sys/operations/%s/@" % op, format=yt.create_format("<format=text>json")))
             log_output.write("\n")
+        if save_to_tablets:
+            fields = ["state", "authenticated_user", "operation_type", "progress", "spec", "brief_progress", "brief_spec", "start_time", "finish_time", "result"]
+            attributes = yt.get("//sys/operations/{}/@".format(op))
+            row = {"id": op}
+            for key in fields:
+                row[key] = attributes[key]
+            yt.insert_rows("//sys/operations_archive/ordered_by_id", [row])
+            yt.insert_rows("//sys/operations_archive/ordered_by_start_time", [row])
+
         logger.info("Removing operation %s", op)
         yt.remove("//sys/operations/%s" % op, recursive=True)
 
@@ -86,20 +98,22 @@ def clean_operations(count, total_count, failed_timeout, max_operations_per_user
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Clean operations from cypress.')
-    parser.add_argument('--count', metavar='N', type=int, default=100,
-                       help='leave no more than N completed (without stderr) or aborted operations')
-    parser.add_argument('--total-count', metavar='N', type=int, default=2000,
-                       help='leave no more that N operations totally')
-    parser.add_argument('--failed-timeout', metavar='N', type=int, default=2,
-                       help='remove all failed operation older than N days')
-    parser.add_argument('--max-operations-per-user', metavar='N', type=int, default=200,
-                       help='remove old operations of user if limit exceeded')
-    parser.add_argument('--robot', action="append",  help='robot users that run operations very often and can be ignored')
-    parser.add_argument('--log', help='file to save operation specs')
+    parser = argparse.ArgumentParser(description="Clean operations from cypress.")
+    parser.add_argument("--count", metavar="N", type=int, default=100,
+                       help="leave no more than N completed (without stderr) or aborted operations")
+    parser.add_argument("--total-count", metavar="N", type=int, default=2000,
+                       help="leave no more that N operations totally")
+    parser.add_argument("--failed-timeout", metavar="N", type=int, default=2,
+                       help="remove all failed operation older than N days")
+    parser.add_argument("--max-operations-per-user", metavar="N", type=int, default=200,
+                       help="remove old operations of user if limit exceeded")
+    parser.add_argument("--robot", action="append",  help="robot users that run operations very often and can be ignored")
+    parser.add_argument("--log", help="file to save operation specs")
+    parser.add_argument("--save-to-tablets", action="store_true", default=False,
+                        help="whether save cleared operations to tablets")
 
     args = parser.parse_args()
-    clean_operations(args.count, args.total_count, timedelta(days=args.failed_timeout), args.max_operations_per_user, args.robot, args.log)
+    clean_operations(args.count, args.total_count, timedelta(days=args.failed_timeout), args.max_operations_per_user, args.robot, args.log, args.save_to_tablets)
 
 if __name__ == "__main__":
     main()
