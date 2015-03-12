@@ -57,11 +57,11 @@ public:
         std::vector<TType> argumentTypes,
         TType resultType);
 
-    Stroka GetName();
+    virtual Stroka GetName() override;
 
-    EValueType InferResultType(
+    virtual EValueType InferResultType(
         const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source);
+        const TStringBuf& source) override;
 
 private:
     EValueType TypingFunction(
@@ -91,7 +91,7 @@ class TCodegenFunction
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name);
+        Stroka name) override;
 };
 
 class TUniversalRangeFunction
@@ -100,126 +100,126 @@ class TUniversalRangeFunction
     virtual TKeyTrieNode ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
-        TRowBuffer* rowBuffer);
+        TRowBuffer* rowBuffer) override;
 };
 
-class IfFunction
+class TIfFunction
     : public TTypedFunction
     , public TCodegenFunction
     , public TUniversalRangeFunction
 {
 public:
-    IfFunction();
+    TIfFunction();
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row);
+        Value* row) override;
 };
 
-class IsPrefixFunction
+class TIsPrefixFunction
     : public TTypedFunction
     , public TCodegenFunction
 {
 public:
-    IsPrefixFunction();
+    TIsPrefixFunction();
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row);
+        Value* row) override;
 
     virtual TKeyTrieNode ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
-        TRowBuffer* rowBuffer);
+        TRowBuffer* rowBuffer) override;
 };
 
-class IsSubstrFunction
+class TIsSubstrFunction
     : public TTypedFunction
     , public TCodegenFunction
     , public TUniversalRangeFunction
 {
 public:
-    IsSubstrFunction();
+    TIsSubstrFunction();
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row);
+        Value* row) override;
 };
 
-class LowerFunction
+class TLowerFunction
     : public TTypedFunction
     , public TCodegenFunction
     , public TUniversalRangeFunction
 {
 public:
-    LowerFunction();
+    TLowerFunction();
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row);
+        Value* row) override;
 };
 
-class SimpleHashFunction
+class TSimpleHashFunction
     : public TTypedFunction
     , public TCodegenFunction
     , public TUniversalRangeFunction
 {
 public:
-    SimpleHashFunction();
+    TSimpleHashFunction();
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row);
+        Value* row) override;
 
 private:
     static const TUnionType HashTypes_;
 };
 
-class IsNullFunction
+class TIsNullFunction
     : public TTypedFunction
     , public TCodegenFunction
     , public TUniversalRangeFunction
 {
 public:
-    IsNullFunction();
+    TIsNullFunction();
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row);
+        Value* row) override;
 };
 
-class CastFunction
+class TCastFunction
     : public TTypedFunction
     , public TCodegenFunction
     , public TUniversalRangeFunction
 {
 public:
-    CastFunction(EValueType resultType, Stroka functionName);
+    TCastFunction(EValueType resultType, Stroka functionName);
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row);
+        Value* row) override;
 
 private:
     static const TUnionType CastTypes_;

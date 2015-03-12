@@ -157,7 +157,7 @@ TKeyTrieNode ExtractMultipleConstraints(
     return TKeyTrieNode::Universal();
 }
 
-TKeyTrieNode IsPrefixFunction::ExtractKeyRange(
+TKeyTrieNode TIsPrefixFunction::ExtractKeyRange(
     const TIntrusivePtr<const TFunctionExpression>& expr,
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer)

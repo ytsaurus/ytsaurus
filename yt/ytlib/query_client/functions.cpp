@@ -76,14 +76,14 @@ TCodegenExpression TCodegenFunction::MakeCodegenExpr(
     };
 }
 
-const TUnionType SimpleHashFunction::HashTypes_ = 
+const TUnionType TSimpleHashFunction::HashTypes_ = 
     TUnionType{
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
         EValueType::String };
 
-const TUnionType CastFunction::CastTypes_ = TUnionType{
+const TUnionType TCastFunction::CastTypes_ = TUnionType{
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Double };
@@ -174,44 +174,44 @@ EValueType TTypedFunction::TypingFunction(
     return EValueType::Null;
 }
 
-IfFunction::IfFunction() : TTypedFunction(
+TIfFunction::TIfFunction() : TTypedFunction(
     "if",
     std::vector<TType>{ EValueType::Boolean, 0, 0 },
     0)
 { }
 
-IsPrefixFunction::IsPrefixFunction() : TTypedFunction(
+TIsPrefixFunction::TIsPrefixFunction() : TTypedFunction(
     "is_prefix",
     std::vector<TType>{ EValueType::String, EValueType::String },
     EValueType::Boolean)
 { }
 
-IsSubstrFunction::IsSubstrFunction() : TTypedFunction(
+TIsSubstrFunction::TIsSubstrFunction() : TTypedFunction(
     "is_substr",
     std::vector<TType>{ EValueType::String, EValueType::String },
     EValueType::Boolean)
 { }
 
-LowerFunction::LowerFunction() : TTypedFunction(
+TLowerFunction::TLowerFunction() : TTypedFunction(
     "lower",
     std::vector<TType>{ EValueType::String },
     EValueType::String)
 { }
 
-SimpleHashFunction::SimpleHashFunction() : TTypedFunction(
+TSimpleHashFunction::TSimpleHashFunction() : TTypedFunction(
     "simple_hash",
     std::vector<TType>{ HashTypes_ },
     HashTypes_,
     EValueType::String)
 { }
 
-IsNullFunction::IsNullFunction() : TTypedFunction(
+TIsNullFunction::TIsNullFunction() : TTypedFunction(
     "is_null",
     std::vector<TType>{ 0 },
     EValueType::Boolean)
 { }
 
-CastFunction::CastFunction(EValueType resultType, Stroka functionName)
+TCastFunction::TCastFunction(EValueType resultType, Stroka functionName)
     : TTypedFunction(
         functionName,
         std::vector<TType>{ CastTypes_ },
