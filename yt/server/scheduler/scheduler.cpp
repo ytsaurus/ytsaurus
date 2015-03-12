@@ -408,12 +408,12 @@ public:
         auto req = probeProxy.Strace();
         ToProto(req->mutable_job_id(), jobId);
 
-        auto errorOrResponse = WaitFor(req->Invoke());
-        if (!errorOrResponse.IsOK()) {
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Error stracing processes of job: %v", jobId)
-                << errorOrResponse;
+                << rspOrError;
         }
-        auto& res = errorOrResponse.Value();
+        auto& res = rspOrError.Value();
 
         return TYsonString(FromProto<Stroka>(res->trace()));
     }
@@ -434,15 +434,15 @@ public:
         auto req = probeProxy.DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
 
-        auto errorOrResponse = WaitFor(req->Invoke());
+        auto rspOrError = WaitFor(req->Invoke());
 
-        if (!errorOrResponse.IsOK()) {
+        if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Error dumping input context for job: %v", jobId)
-                << errorOrResponse;
+                << rspOrError;
         }
 
-        auto response = errorOrResponse.Value();
-        auto chunkIds = FromProto<TGuid>(response->chunk_id());
+        auto& res = rspOrError.Value();
+        auto chunkIds = FromProto<TGuid>(res->chunk_id());
         MasterConnector_->SaveInputContext(path, chunkIds);
 
         LOG_INFO("Input context saved (JobId: %v, Path: %v)",
