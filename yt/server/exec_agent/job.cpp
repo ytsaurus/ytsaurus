@@ -44,6 +44,7 @@
 #include <server/scheduler/config.h>
 
 #include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -258,13 +259,19 @@ public:
         }
     }
 
-    std::vector<TChunkId> DumpInputContexts() const override
+    NJobProberClient::TJobProberServiceProxy CreateJobProber() const
     {
         auto jobProberClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
         auto jobProberChannel = CreateBusChannel(jobProberClient);
 
         NJobProberClient::TJobProberServiceProxy jobProberProxy(jobProberChannel);
+        jobProberProxy.SetDefaultTimeout(Bootstrap->GetConfig()->ExecAgent->JobProberRpcTimeout);
+        return jobProberProxy;
+    }
 
+    std::vector<TChunkId> DumpInputContexts() const override
+    {
+        auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.DumpInputContext();
 
         ToProto(req->mutable_job_id(), JobId);
@@ -276,11 +283,7 @@ public:
 
     virtual TYsonString Strace() const override
     {
-        auto jobProberClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
-        auto jobProberChannel = CreateBusChannel(jobProberClient);
-
-        NJobProberClient::TJobProberServiceProxy jobProberProxy(jobProberChannel);
-
+        auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.Strace();
 
         ToProto(req->mutable_job_id(), JobId);

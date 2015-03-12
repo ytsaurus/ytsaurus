@@ -52,14 +52,14 @@ public:
 
         RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
             .Default(TDuration::MilliSeconds(1000));
-        
+
         RegisterParameter("fair_share_log_period", FairShareLogPeriod)
             .Default(TDuration::MilliSeconds(1000));
 
         RegisterParameter("min_preemptable_ratio", MinPreemptableRatio)
             .InRange(0.0, 1.0)
             .Default(0.05);
-        
+
         RegisterParameter("scheduling_tag", SchedulingTag)
             .Default(Null);
     }
@@ -100,6 +100,8 @@ public:
     TDuration LockTransactionTimeout;
 
     TDuration OperationTransactionTimeout;
+
+    TDuration JobProberRpcTimeout;
 
     TDuration ChunkScratchPeriod;
 
@@ -236,6 +238,8 @@ public:
             .Default(TDuration::Seconds(15));
         RegisterParameter("operation_transaction_timeout", OperationTransactionTimeout)
             .Default(TDuration::Minutes(60));
+        RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
+            .Default(TDuration::Seconds(300));
 
         RegisterParameter("chunk_scratch_period", ChunkScratchPeriod)
             .Default(TDuration::Seconds(10));
