@@ -163,6 +163,17 @@ class TestTablets(YTEnvSetup):
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_computed_column(self):
         self._sync_create_cells(1, 1)
+
+        create("table", "//tmp/t1",
+            attributes = {
+                "schema": [
+                    {"name": "key1", "type": "int64", "expression": "key2"},
+                    {"name": "key2", "type": "uint64"},
+                    {"name": "value", "type": "string"}],
+                "key_columns": ["key1", "key2"]
+            })
+        with pytest.raises(YtError): self._sync_mount_table("//tmp/t1")
+
         self._create_table_with_computed_column("//tmp/t")
         self._sync_mount_table("//tmp/t")
 
