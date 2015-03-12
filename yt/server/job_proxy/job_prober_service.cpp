@@ -45,9 +45,7 @@ private:
         auto chunkIds = JobProxy_->DumpInputContext(jobId);
         context->SetResponseInfo("ChunkId: [%v]", JoinToString(chunkIds));
 
-        for (const auto& chunkId : chunkIds) {
-            ToProto(response->add_chunk_id(), chunkId);
-        }
+        ToProto(response->mutable_chunk_id(), chunkIds);
         context->Reply();
     }
 
