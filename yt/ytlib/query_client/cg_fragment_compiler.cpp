@@ -694,7 +694,7 @@ TCodegenExpression MakeCodegenReferenceExpr(
         };
 }
 
-TCGValue IfFunction::CodegenValue(
+TCGValue TIfFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -779,7 +779,7 @@ TCGValue MakeBinaryFunctionCall(
             nameTwine);
 }
 
-TCGValue IsPrefixFunction::CodegenValue(
+TCGValue TIsPrefixFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -789,7 +789,7 @@ TCGValue IsPrefixFunction::CodegenValue(
     return MakeBinaryFunctionCall("IsPrefix", codegenArgs, type, name, builder, row);
 }
 
-TCGValue IsSubstrFunction::CodegenValue(
+TCGValue TIsSubstrFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -799,7 +799,7 @@ TCGValue IsSubstrFunction::CodegenValue(
     return MakeBinaryFunctionCall("IsSubstr", codegenArgs, type, name, builder, row);
 }
 
-TCGValue LowerFunction::CodegenValue(
+TCGValue TLowerFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -838,7 +838,7 @@ TCGValue LowerFunction::CodegenValue(
         nameTwine);
 }
 
-TCGValue IsNullFunction::CodegenValue(
+TCGValue TIsNullFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -858,7 +858,7 @@ TCGValue IsNullFunction::CodegenValue(
         type);
 }
 
-TCGValue SimpleHashFunction::CodegenValue(
+TCGValue TSimpleHashFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -895,7 +895,7 @@ TCGValue SimpleHashFunction::CodegenValue(
         EValueType::Uint64);
 }
 
-TCGValue CastFunction::CodegenValue(
+TCGValue TCastFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,

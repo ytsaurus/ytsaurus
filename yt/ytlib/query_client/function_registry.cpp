@@ -10,8 +10,7 @@ namespace NQueryClient {
 void TFunctionRegistry::RegisterFunction(std::unique_ptr<TFunctionDescriptor> function)
 {
     Stroka functionName = to_lower(function->GetName());
-    YCHECK(RegisteredFunctions_.count(functionName) == 0);
-    RegisteredFunctions_.insert(std::pair<Stroka, std::unique_ptr<TFunctionDescriptor>>(functionName, std::move(function)));
+    YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(function))).second);
 }
 
 TFunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName)
@@ -26,19 +25,19 @@ bool TFunctionRegistry::IsRegistered(const Stroka& functionName)
 
 void RegisterFunctionsImpl(TFunctionRegistry* registry)
 {
-    registry->RegisterFunction(std::make_unique<IfFunction>());
-    registry->RegisterFunction(std::make_unique<IsPrefixFunction>());
-    registry->RegisterFunction(std::make_unique<IsSubstrFunction>());
-    registry->RegisterFunction(std::make_unique<LowerFunction>());
-    registry->RegisterFunction(std::make_unique<SimpleHashFunction>());
-    registry->RegisterFunction(std::make_unique<IsNullFunction>());
-    registry->RegisterFunction(std::make_unique<CastFunction>(
+    registry->RegisterFunction(std::make_unique<TIfFunction>());
+    registry->RegisterFunction(std::make_unique<TIsPrefixFunction>());
+    registry->RegisterFunction(std::make_unique<TIsSubstrFunction>());
+    registry->RegisterFunction(std::make_unique<TLowerFunction>());
+    registry->RegisterFunction(std::make_unique<TSimpleHashFunction>());
+    registry->RegisterFunction(std::make_unique<TIsNullFunction>());
+    registry->RegisterFunction(std::make_unique<TCastFunction>(
         EValueType::Int64,
         "int64"));
-    registry->RegisterFunction(std::make_unique<CastFunction>(
+    registry->RegisterFunction(std::make_unique<TCastFunction>(
         EValueType::Uint64,
         "uint64"));
-    registry->RegisterFunction(std::make_unique<CastFunction>(
+    registry->RegisterFunction(std::make_unique<TCastFunction>(
         EValueType::Double,
         "double"));
 }
