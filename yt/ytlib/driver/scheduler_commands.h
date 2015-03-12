@@ -12,8 +12,7 @@ namespace NDriver {
 //////////////////////////////////////////////////////////////////////////////
 
 struct TDumpJobInputContextRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
+    : public TRequest
 {
     NJobTrackerClient::TJobId JobId;
     NYPath::TYPath Path;
@@ -39,8 +38,7 @@ private:
 //////////////////////////////////////////////////////////////////////////////
 
 struct TStraceJobRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
+    : public TRequest
 {
     NJobTrackerClient::TJobId JobId;
 
