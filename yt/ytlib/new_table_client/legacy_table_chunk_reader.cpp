@@ -8,14 +8,9 @@
 #include "name_table.h"
 #include "private.h"
 
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-
-#include <core/concurrency/scheduler.h>
 
 #include <core/misc/finally.h>
 
@@ -646,8 +641,8 @@ void TLegacyTableChunkReader::SkipToKey(const TOwningKey& key)
         if (CompareRows(
                 CurrentKey_.data(),
                 CurrentKey_.data() + CurrentKey_.size(),
-                key.Begin(), 
-                key.End()) >= 0) 
+                key.Begin(),
+                key.End()) >= 0)
         {
             return;
         }

@@ -7,8 +7,6 @@
 
 #include <core/erasure/codec.h>
 
-#include <core/ytree/attribute_helpers.h>
-
 namespace NYT {
 namespace NChunkClient {
 

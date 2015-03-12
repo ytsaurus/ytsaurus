@@ -13,19 +13,10 @@
 #endif
 
 #include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/row_buffer.h>
-
-#include <ytlib/query_client/plan_fragment.pb.h>
-
-#include <core/concurrency/scheduler.h>
 
 #include <core/profiling/scoped_timer.h>
 
 #include <core/misc/sync_cache.h>
-
-#include <core/logging/log.h>
-
-#include <core/tracing/trace_context.h>
 
 #ifdef YT_USE_LLVM
 
@@ -35,8 +26,6 @@
 #include <llvm/Support/TargetSelect.h>
 
 #endif
-
-#include <mutex>
 
 namespace NYT {
 namespace NQueryClient {
@@ -189,7 +178,7 @@ public:
             TRACE_ANNOTATION("incomplete_output", statistics.IncompleteOutput);
 
             return statistics;
-        }        
+        }
     }
 
 private:

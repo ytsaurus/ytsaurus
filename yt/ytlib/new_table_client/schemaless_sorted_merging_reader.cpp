@@ -5,12 +5,7 @@
 #include "private.h"
 #include "schemaless_chunk_reader.h"
 
-#include <ytlib/chunk_client/data_statistics.h>
 #include <ytlib/chunk_client/dispatcher.h>
-
-#include <core/concurrency/scheduler.h>
-
-#include <core/logging/log.h>
 
 #include <core/misc/heap.h>
 

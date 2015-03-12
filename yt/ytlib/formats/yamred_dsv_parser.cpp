@@ -3,8 +3,6 @@
 #include "dsv_parser.h"
 #include "yamr_base_parser.h"
 
-#include <util/string/vector.h>
-
 namespace NYT {
 namespace NFormats {
 

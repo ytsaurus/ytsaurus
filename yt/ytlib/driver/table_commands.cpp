@@ -2,45 +2,19 @@
 #include "table_commands.h"
 #include "config.h"
 
-#include <core/concurrency/async_stream.h>
-#include <core/concurrency/scheduler.h>
-
-#include <core/yson/parser.h>
-#include <core/yson/consumer.h>
-
-#include <core/ytree/fluent.h>
-
-#include <ytlib/formats/parser.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/memory_reader.h>
-#include <ytlib/chunk_client/memory_writer.h>
-
-#include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/helpers.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/schemaful_chunk_reader.h>
-#include <ytlib/new_table_client/schemaful_chunk_writer.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/table_consumer.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
 #include <ytlib/query_client/query_statistics.h>
 
-#include <ytlib/hive/cell_directory.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-
 #include <ytlib/api/transaction.h>
 #include <ytlib/api/rowset.h>
-
-#include <util/stream/buffered.h>
 
 namespace NYT {
 namespace NDriver {
@@ -210,12 +184,12 @@ void TReshardTableCommand::DoExecute()
     if (Request_->LastTabletIndex) {
         options.LastTabletIndex = *Request_->LastTabletIndex;
     }
-    
+
     std::vector<TUnversionedRow> pivotKeys;
     for (const auto& key : Request_->PivotKeys) {
         pivotKeys.push_back(key.Get());
     }
-    
+
     auto asyncResult = Context_->GetClient()->ReshardTable(
         Request_->Path.GetPath(),
         pivotKeys,
