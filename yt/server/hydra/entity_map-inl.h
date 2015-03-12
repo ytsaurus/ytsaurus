@@ -286,22 +286,31 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadKeys(TContext& context)
 
     Clear();
 
-    size_t size = TSizeSerializer::Load(context);
+    size_t size = TSizeSerializer::LoadSuspended(context);
+
+    SERIALIZATION_DUMP_WRITE(context, "keys[%v]", size);
 
     LoadKeys_.clear();
     LoadKeys_.reserve(size);
     LoadValues_.clear();
     LoadValues_.reserve(size);
 
-    for (size_t index = 0; index < size; ++index) {
-        TKey key;
-        Load(context, key);
-        LoadKeys_.push_back(key);
-        auto value = Traits_.Create(key);
-        LoadValues_.push_back(value.get());
-        context.RegisterEntity(value.get());
-        value->SetDynamicData(AllocateDynamicData());
-        YCHECK(this->Map_.insert(std::make_pair(key, value.release())).second);
+    SERIALIZATION_DUMP_INDENT(context) {
+        for (size_t index = 0; index < size; ++index) {
+            auto key = LoadSuspended<TKey>(context);
+            LoadKeys_.push_back(key);
+
+            auto value = Traits_.Create(key);
+            LoadValues_.push_back(value.get());
+
+            auto serializationKey = context.RegisterEntity(value.get());
+
+        	value->SetDynamicData(AllocateDynamicData());
+
+            YCHECK(this->Map_.insert(std::make_pair(key, value.release())).second);
+
+            SERIALIZATION_DUMP_WRITE(context, "%v aka %v", key, serializationKey.Index);
+        }
     }
 }
 
@@ -311,8 +320,17 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadValues(TContext& context)
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
-    for (auto* value : LoadValues_) {
-        Load(context, *value);
+    YCHECK(LoadKeys_.size() == LoadValues_.size());
+
+    SERIALIZATION_DUMP_WRITE(context, "values[%v]", LoadKeys_.size());
+
+    SERIALIZATION_DUMP_INDENT(context) {
+        for (size_t index = 0; index < LoadKeys_.size(); ++index) {
+            SERIALIZATION_DUMP_WRITE(context, "%v =>", LoadKeys_[index]);
+            SERIALIZATION_DUMP_INDENT(context) {
+                Load(context, *LoadValues_[index]);
+            }
+        }
     }
 
     LoadKeys_.clear();

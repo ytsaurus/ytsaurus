@@ -273,25 +273,33 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
         part->OnBeforeSnapshotLoaded();
     }
 
-    int partCount = Load<i32>(context);
-    for (int partIndex = 0; partIndex < partCount; ++partIndex) {
-        auto name = Load<Stroka>(context);
-        int version = Load<i32>(context);
-        auto it = Loaders_.find(name);
-        if (it == Loaders_.end()) {
-            LOG_INFO("Skipping unknown automaton part (Name: %v, Version: %v)",
-                name,
-                version);
-        } else {
-            LOG_INFO("Loading automaton part (Name: %v, Version: %v)",
-                name,
-                version);
-            context.SetVersion(version);
-            const auto& info = it->second;
-            info.Loader.Run();
-        }
+    int partCount = LoadSuspended<i32>(context);
+    SERIALIZATION_DUMP_WRITE(context, "parts[%v]", partCount);
+    SERIALIZATION_DUMP_INDENT(context) {
+        for (int partIndex = 0; partIndex < partCount; ++partIndex) {
+            auto name = LoadSuspended<Stroka>(context);
+            int version = LoadSuspended<i32>(context);
 
-        checkpointableInput->SkipToCheckpoint();
+            SERIALIZATION_DUMP_WRITE(context, "%v@%v =>", name, version);
+            SERIALIZATION_DUMP_INDENT(context) {
+                auto it = Loaders_.find(name);
+                if (it == Loaders_.end()) {
+                    SERIALIZATION_DUMP_WRITE(context, "<skipped>");
+                    LOG_INFO("Skipping unknown automaton part (Name: %v, Version: %v)",
+                        name,
+                        version);
+                } else {
+                    LOG_INFO("Loading automaton part (Name: %v, Version: %v)",
+                        name,
+                        version);
+                    context.SetVersion(version);
+                    const auto& info = it->second;
+                    info.Loader.Run();
+                }
+            }
+
+            checkpointableInput->SkipToCheckpoint();
+        }
     }
 
     for (auto part : Parts_) {

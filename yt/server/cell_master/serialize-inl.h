@@ -39,10 +39,14 @@ struct TNonversionedObjectRefSerializer
         typedef typename std::remove_pointer<T>::type TObject;
         // COMPAT(babenko)
         if (context.GetVersion() >= 109) {
-            auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
-            object  = (key == NHydra::TEntitySerializationKey())
-                ? nullptr
-                : context.template GetEntity<TObject>(key);
+            auto key = LoadSuspended<NHydra::TEntitySerializationKey>(context);
+            if (key == NHydra::TEntitySerializationKey()) {
+                object = nullptr;
+                SERIALIZATION_DUMP_WRITE(context, "objref <null>");
+            } else {
+                object = context.template GetEntity<TObject>(key);
+                SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetId(), key.Index);
+            }
         } else {
             typedef typename std::remove_reference<decltype(object->GetId())>::type TId;
             auto id = NYT::Load<TId>(context);
