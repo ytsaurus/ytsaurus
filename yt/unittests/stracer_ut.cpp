@@ -16,7 +16,7 @@ TEST(TStracer, EmptyPidsList)
     auto result = Strace(std::vector<int>());
     EXPECT_TRUE(result.Traces.empty());
 }
-
+#ifdef _linux_
 TEST(TStracer, Basic)
 {
     if (setuid(0) != 0) {
@@ -49,6 +49,7 @@ TEST(TStracer, Basic)
     EXPECT_TRUE(result.Traces[pid].Trace.find("write(42, \"hello\\n\", 6) = -1 EBADF") != Stroka::npos)
         << result.Traces[pid].Trace;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////
 } // namespace

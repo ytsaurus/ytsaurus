@@ -427,7 +427,6 @@ void FlushDirectory(const Stroka& path)
     SafeClose(fd);
 #else
     // No-op.
-    return true;
 #endif
 }
 
