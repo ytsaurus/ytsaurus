@@ -351,6 +351,13 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
             if (index < keyColumns.size()) {
 #ifdef YT_USE_LLVM
                 auto expr = PrepareExpression(columnSchema.Expression.Get(), schema);
+                if (expr->Type != columnSchema.Type) {
+                    THROW_ERROR_EXCEPTION("Computed column %Qv type mismatch: declared type %v but expression type is %v",
+                        columnSchema.Name,
+                        columnSchema.Type,
+                        expr->Type);
+                }
+
                 yhash_set<Stroka> references;
                 Profile(expr, schema, nullptr, nullptr, &references);
                 for (const auto& ref : references) {
