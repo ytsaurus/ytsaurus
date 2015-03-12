@@ -466,8 +466,9 @@ struct TPodSerializer
         SERIALIZATION_DUMP_SUSPEND(context) {
             TRangeSerializer::Load(context, TRef::FromPod(value));
         }
-
+#ifdef YT_ENABLE_SERIALIZATION_DUMP
         TSerializationDumpPodWriter<T>::Do(context, value);
+#endif
     }
 };
 
