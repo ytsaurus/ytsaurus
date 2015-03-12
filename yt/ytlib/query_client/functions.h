@@ -19,6 +19,9 @@ namespace NQueryClient {
 class TFunctionDescriptor
 {
 public:
+    virtual ~TFunctionDescriptor()
+    { }
+
     virtual Stroka GetName() = 0;
 
     virtual EValueType InferResultType(
@@ -31,16 +34,17 @@ public:
         Stroka name) = 0;
 
     virtual TKeyTrieNode ExtractKeyRange(
-        const TFunctionExpression* expr,
+        const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
         TRowBuffer* rowBuffer) = 0;
 };
 
 typedef int TTypeArgument;
-typedef std::set<EValueType> TUnionType;
+typedef std::vector<EValueType> TUnionType;
 typedef TVariant<EValueType, TTypeArgument, TUnionType> TType;
 
-class TTypedFunction : public virtual TFunctionDescriptor
+class TTypedFunction
+    : public virtual TFunctionDescriptor
 {
 public:
     TTypedFunction(
@@ -48,11 +52,11 @@ public:
         std::vector<TType> argumentTypes,
         TType repeatedArgumentType,
         TType resultType)
-        : FunctionName(functionName)
-        , ArgumentTypes(argumentTypes)
-        , RepeatedArgumentType(repeatedArgumentType)
-        , ResultType(resultType)
-    {}
+        : FunctionName_(functionName)
+        , ArgumentTypes_(argumentTypes)
+        , RepeatedArgumentType_(repeatedArgumentType)
+        , ResultType_(resultType)
+    { }
 
     TTypedFunction(
         Stroka functionName,
@@ -63,25 +67,13 @@ public:
             argumentTypes,
             EValueType::Null,
             resultType)
-    {}
+    { }
 
-    Stroka GetName()
-    {
-        return FunctionName;
-    }
+    Stroka GetName();
 
     EValueType InferResultType(
         const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source)
-    {
-        return TypingFunction(
-                ArgumentTypes,
-                RepeatedArgumentType,
-                ResultType,
-                GetName(),
-                argumentTypes,
-                source);
-    }
+        const TStringBuf& source);
 
 private:
     EValueType TypingFunction(
@@ -92,15 +84,16 @@ private:
         const std::vector<EValueType>& argTypes,
         const TStringBuf& source);
 
-    Stroka FunctionName;
-    std::vector<TType> ArgumentTypes;
-    TType RepeatedArgumentType;
-    TType ResultType;
+    Stroka FunctionName_;
+    std::vector<TType> ArgumentTypes_;
+    TType RepeatedArgumentType_;
+    TType ResultType_;
 };
 
-class TCodegenFunction : public virtual TFunctionDescriptor
+class TCodegenFunction
+    : public virtual TFunctionDescriptor
 {
-    virtual TCGValue MakeCodegenValue(
+    virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
@@ -110,33 +103,16 @@ class TCodegenFunction : public virtual TFunctionDescriptor
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name)
-    {
-        return [
-            this,
-            codegenArgs,
-            type,
-            name
-        ] (TCGContext& builder, Value* row) {
-            return MakeCodegenValue(
-                codegenArgs,
-                type,
-                name,
-                builder,
-                row);
-        };
-    }
+        Stroka name);
 };
 
-class TUniversalRangeFunction : public virtual TFunctionDescriptor
+class TUniversalRangeFunction
+    : public virtual TFunctionDescriptor
 {
     virtual TKeyTrieNode ExtractKeyRange(
-        const TFunctionExpression* expr,
+        const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
-        TRowBuffer* rowBuffer)
-    {
-        return TKeyTrieNode::Universal();
-    }
+        TRowBuffer* rowBuffer);
 };
 
 class IfFunction
@@ -147,11 +123,11 @@ class IfFunction
 public:
     IfFunction() : TTypedFunction(
         "if",
-        std::vector<TType>({ EValueType::Boolean, 0, 0 }),
+        std::vector<TType>{ EValueType::Boolean, 0, 0 },
         0)
-    {}
+    { }
 
-    virtual TCGValue MakeCodegenValue(
+    virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
@@ -166,11 +142,11 @@ class IsPrefixFunction
 public:
     IsPrefixFunction() : TTypedFunction(
         "is_prefix",
-        std::vector<TType>({ EValueType::String, EValueType::String }),
+        std::vector<TType>{ EValueType::String, EValueType::String },
         EValueType::Boolean)
-    {}
+    { }
 
-    virtual TCGValue MakeCodegenValue(
+    virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
@@ -178,7 +154,7 @@ public:
         Value* row);
 
     virtual TKeyTrieNode ExtractKeyRange(
-        const TFunctionExpression* expr,
+        const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
         TRowBuffer* rowBuffer);
 };
@@ -191,11 +167,11 @@ class IsSubstrFunction
 public:
     IsSubstrFunction() : TTypedFunction(
         "is_substr",
-        std::vector<TType>({ EValueType::String, EValueType::String }),
+        std::vector<TType>{ EValueType::String, EValueType::String },
         EValueType::Boolean)
-    {}
+    { }
 
-    virtual TCGValue MakeCodegenValue(
+    virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
@@ -211,11 +187,11 @@ class LowerFunction
 public:
     LowerFunction() : TTypedFunction(
         "lower",
-        std::vector<TType>({ EValueType::String }),
+        std::vector<TType>{ EValueType::String },
         EValueType::String)
-    {}
+    { }
 
-    virtual TCGValue MakeCodegenValue(
+    virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
@@ -231,12 +207,12 @@ class SimpleHashFunction
 public:
     SimpleHashFunction() : TTypedFunction(
         "simple_hash",
-        std::vector<TType>({ HashTypes }),
-        HashTypes,
+        std::vector<TType>{ HashTypes_ },
+        HashTypes_,
         EValueType::String)
-    {}
+    { }
 
-    virtual TCGValue MakeCodegenValue(
+    virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
@@ -244,7 +220,7 @@ public:
         Value* row);
 
 private:
-    static const std::set<EValueType> HashTypes;
+    static const TUnionType HashTypes_;
 };
 
 class IsNullFunction
@@ -255,11 +231,11 @@ class IsNullFunction
 public:
     IsNullFunction() : TTypedFunction(
         "is_null",
-        std::vector<TType>({ 0 }),
+        std::vector<TType>{ 0 },
         EValueType::Boolean)
-    {}
+    { }
 
-    virtual TCGValue MakeCodegenValue(
+    virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
@@ -276,11 +252,11 @@ public:
     CastFunction(EValueType resultType, Stroka functionName)
         : TTypedFunction(
             functionName,
-            std::vector<TType>({ CastTypes }),
+            std::vector<TType>{ CastTypes_ },
             resultType)
-    {}
+    { }
 
-    virtual TCGValue MakeCodegenValue(
+    virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         Stroka name,
@@ -288,7 +264,7 @@ public:
         Value* row);
 
 private:
-    static const std::set<EValueType> CastTypes;
+    static const TUnionType CastTypes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

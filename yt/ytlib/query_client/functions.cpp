@@ -5,17 +5,64 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::set<EValueType> SimpleHashFunction::HashTypes = 
-    std::set<EValueType>({
+
+Stroka TTypedFunction::GetName()
+{
+    return FunctionName_;
+}
+
+EValueType TTypedFunction::InferResultType(
+    const std::vector<EValueType>& argumentTypes,
+    const TStringBuf& source)
+{
+    return TypingFunction(
+        ArgumentTypes_,
+        RepeatedArgumentType_,
+        ResultType_,
+        GetName(),
+        argumentTypes,
+        source);
+}
+
+TKeyTrieNode TUniversalRangeFunction::ExtractKeyRange(
+    const TIntrusivePtr<const TFunctionExpression>& expr,
+    const TKeyColumns& keyColumns,
+    TRowBuffer* rowBuffer)
+{
+    return TKeyTrieNode::Universal();
+}
+
+TCodegenExpression TCodegenFunction::MakeCodegenExpr(
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name)
+{
+    return [
+        this,
+        codegenArgs,
+        type,
+        name
+    ] (TCGContext& builder, Value* row) {
+        return CodegenValue(
+            codegenArgs,
+            type,
+            name,
+            builder,
+            row);
+    };
+}
+
+const TUnionType SimpleHashFunction::HashTypes_ = 
+    TUnionType{
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
-        EValueType::String });
+        EValueType::String };
 
-const std::set<EValueType> CastFunction::CastTypes = std::set<EValueType>({
+const TUnionType CastFunction::CastTypes_ = TUnionType{
         EValueType::Int64,
         EValueType::Uint64,
-        EValueType::Double });
+        EValueType::Double };
 
 EValueType TTypedFunction::TypingFunction(
     const std::vector<TType>& expectedArgTypes,
@@ -29,16 +76,20 @@ EValueType TTypedFunction::TypingFunction(
 
     auto isSubtype = [&] (EValueType type1, TType type2) {
         YCHECK(!type2.TryAs<TTypeArgument>());
-        if (auto unionType = type2.TryAs<TUnionType>()) {
-            return unionType->count(type1) > 0;
-        } else if (auto concreteType = type2.TryAs<EValueType>()) {
+        if (auto* unionType = type2.TryAs<TUnionType>()) {
+            auto exists = std::find(
+                unionType->begin(),
+                unionType->end(),
+                type1);
+            return exists != unionType->end();
+        } else if (auto* concreteType = type2.TryAs<EValueType>()) {
             return type1 == *concreteType;
         }
         return false;
     };
 
     auto unify = [&] (TType type1, EValueType type2) {
-        if (auto genericId = type1.TryAs<TTypeArgument>()) {
+        if (auto* genericId = type1.TryAs<TTypeArgument>()) {
             if (genericAssignments.count(*genericId)) {
                 return genericAssignments[*genericId] == type2;
             } else {
@@ -64,7 +115,6 @@ EValueType TTypedFunction::TypingFunction(
         }
     }
 
-
     if (expectedArg != expectedArgTypes.end()) {
         THROW_ERROR_EXCEPTION(
             "Expression %Qv expects %v arguments",
@@ -82,7 +132,7 @@ EValueType TTypedFunction::TypingFunction(
         }
     }
 
-    if (auto genericResult = resultType.TryAs<TTypeArgument>()) {
+    if (auto* genericResult = resultType.TryAs<TTypeArgument>()) {
         if (!genericAssignments.count(*genericResult)) {
             THROW_ERROR_EXCEPTION(
                 "Ambiguous result type",
