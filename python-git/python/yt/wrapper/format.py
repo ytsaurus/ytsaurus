@@ -276,7 +276,7 @@ class YsonFormat(Format):
     """
 
     def __init__(self, format=None, process_table_index=True, ignore_inner_attributes=False, boolean_as_string=True,
-                 table_index_column="@table_index", attributes=None, raw=None):
+                 table_index_column="@table_index", attributes=None, raw=None, always_create_attributes=False):
         """
         :param format: (one of "text" (default), "pretty", "binary") output format \
         (actual only for output).
@@ -291,6 +291,7 @@ class YsonFormat(Format):
         self.ignore_inner_attributes = ignore_inner_attributes
         self.boolean_as_string = boolean_as_string
         self.table_index_column = table_index_column
+        self.always_create_attributes = always_create_attributes
 
     def _check_bindings(self):
         require(yson.TYPE == "BINARY", YtError("Yson bindings required"))
@@ -316,7 +317,7 @@ class YsonFormat(Format):
 
     def load_rows(self, stream, raw=None):
         self._check_bindings()
-        rows = yson.load(stream, yson_type="list_fragment", always_create_attributes=False, raw=raw)
+        rows = yson.load(stream, yson_type="list_fragment", always_create_attributes=self.always_create_attributes, raw=raw)
         if raw:
             return rows
         else:
