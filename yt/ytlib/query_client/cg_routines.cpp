@@ -29,6 +29,8 @@ namespace NRoutines {
 
 using namespace NConcurrency;
 
+static const auto& Logger = QueryClientLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void CaptureValue(TValue* value, TChunkedMemoryPool* pool)
@@ -143,6 +145,7 @@ void ScanOpHelper(
         if (shouldWait) {
             NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
             auto error = WaitFor(reader->GetReadyEvent());
+            LOG_DEBUG(error, "Failed reading in generated code");
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
     }

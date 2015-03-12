@@ -242,9 +242,10 @@ private:
                             .ValueOrThrow();
                     });
 
-                asyncStatistics.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& result) {
+                asyncStatistics.Subscribe(BIND([pipe, &Logger, id = subquery->Id] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
+                        LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", id);
                     }
                 }));
 
