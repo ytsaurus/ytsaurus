@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "cg_fragment_compiler.h"
-
 #include "function_registry.h"
-
 #include "private.h"
 #include "helpers.h"
 
@@ -696,7 +694,7 @@ TCodegenExpression MakeCodegenReferenceExpr(
         };
 }
 
-TCGValue IfFunction::MakeCodegenValue(
+TCGValue IfFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -781,7 +779,7 @@ TCGValue MakeBinaryFunctionCall(
             nameTwine);
 }
 
-TCGValue IsPrefixFunction::MakeCodegenValue(
+TCGValue IsPrefixFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -791,7 +789,7 @@ TCGValue IsPrefixFunction::MakeCodegenValue(
     return MakeBinaryFunctionCall("IsPrefix", codegenArgs, type, name, builder, row);
 }
 
-TCGValue IsSubstrFunction::MakeCodegenValue(
+TCGValue IsSubstrFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -801,7 +799,7 @@ TCGValue IsSubstrFunction::MakeCodegenValue(
     return MakeBinaryFunctionCall("IsSubstr", codegenArgs, type, name, builder, row);
 }
 
-TCGValue LowerFunction::MakeCodegenValue(
+TCGValue LowerFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -840,7 +838,7 @@ TCGValue LowerFunction::MakeCodegenValue(
         nameTwine);
 }
 
-TCGValue IsNullFunction::MakeCodegenValue(
+TCGValue IsNullFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -860,7 +858,7 @@ TCGValue IsNullFunction::MakeCodegenValue(
         type);
 }
 
-TCGValue SimpleHashFunction::MakeCodegenValue(
+TCGValue SimpleHashFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -897,7 +895,7 @@ TCGValue SimpleHashFunction::MakeCodegenValue(
         EValueType::Uint64);
 }
 
-TCGValue CastFunction::MakeCodegenValue(
+TCGValue CastFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -1217,6 +1215,16 @@ TCodegenExpression MakeCodegenInOpExpr(
             result,
             EValueType::Boolean);
     };
+}
+
+TCodegenExpression MakeCodegenFunctionExpr(
+    Stroka functionName,
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name)
+{
+    auto& function = GetFunctionRegistry()->GetFunction(functionName);
+    return function.MakeCodegenExpr(std::move(codegenArgs), type, name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

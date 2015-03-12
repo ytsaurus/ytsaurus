@@ -120,9 +120,7 @@ TKeyTrieNode ExtractMultipleConstraints(
         }
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         Stroka functionName = functionExpr->FunctionName;
-        YCHECK(GetFunctionRegistry()->IsRegistered(functionName));
-
-        TFunctionDescriptor& function = GetFunctionRegistry()->GetFunction(functionName);
+        auto& function = GetFunctionRegistry()->GetFunction(functionName);
 
         return function.ExtractKeyRange(functionExpr, keyColumns, rowBuffer);
     } else if (auto inExpr = expr->As<TInOpExpression>()) {
@@ -160,7 +158,7 @@ TKeyTrieNode ExtractMultipleConstraints(
 }
 
 TKeyTrieNode IsPrefixFunction::ExtractKeyRange(
-    const TFunctionExpression* expr,
+    const TIntrusivePtr<const TFunctionExpression>& expr,
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer)
 {

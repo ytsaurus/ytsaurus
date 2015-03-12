@@ -180,9 +180,7 @@ TCodegenExpression TFoldingProfiler::Profile(const TConstExpressionPtr& expr, co
         }
 
         Stroka functionName = functionExpr->FunctionName;
-        YCHECK(GetFunctionRegistry()->IsRegistered(functionName));
-
-        TFunctionDescriptor& function = GetFunctionRegistry()->GetFunction(functionName);
+        auto& function = GetFunctionRegistry()->GetFunction(functionName);
 
         return function.MakeCodegenExpr(
             std::move(codegenArgs),
