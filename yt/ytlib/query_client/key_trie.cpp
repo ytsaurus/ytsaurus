@@ -516,11 +516,11 @@ Stroka ToString(const TKeyTrieNode& node) {
         return str;
     };
 
-    std::function<Stroka(const TKeyTrieNode&, int)> printNode =
-        [&](const TKeyTrieNode& node, int offset) {
+    std::function<Stroka(const TKeyTrieNode&, size_t)> printNode =
+        [&](const TKeyTrieNode& node, size_t offset) {
             Stroka str;
             str += printOffset(offset);
-            if (node.Offset == std::numeric_limits<int>::max()) {
+            if (node.Offset == std::numeric_limits<size_t>::max()) {
                 str += "(universe)";
             } else {
                 str += "(key";
