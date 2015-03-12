@@ -123,12 +123,9 @@ TKeyTrieNode& TKeyTrieNode::Unite(const TKeyTrieNode& rhs)
     }
 
     for (const auto& next : rhs.Next) {
-        auto found = Next.find(next.first);
-
-        if (found != Next.end()) {
-            found->second = found->second.Unite(next.second);
-        } else {
-            Next.insert(next);
+        auto emplaced = Next.emplace(next);
+        if (!emplaced.second) {
+            emplaced.first->second.Unite(next.second);
         }
     }
 
