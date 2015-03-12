@@ -37,10 +37,6 @@ void TMailbox::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    // COMPAT(babenko)
-    if (context.GetVersion() < 114) {
-        Load(context, CellId_);
-    }
     Load(context, FirstOutcomingMessageId_);
     Load(context, LastIncomingMessageId_);
     Load(context, OutcomingMessages_);
