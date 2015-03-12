@@ -85,6 +85,25 @@ def filter_out_keys(dict, keys):
             del result[key]
     return result
 
+def remove_unsigned(obj):
+    def is_uint(num):
+        return isinstance(num, long) and (num < -2 ** 63 or num >= 2 ** 63)
+
+    if isinstance(obj, list):
+        result = []
+        for value in obj:
+            if not is_uint(remove_unsigned(value)):
+                result.append(remove_unsigned(value))
+        return result
+    elif isinstance(obj, dict):
+        result = {}
+        for key, value in obj.iteritems():
+            if is_uint(remove_unsigned(value)):
+                result[key] = remove_unsigned(value)
+        return result
+    else:
+        return obj
+
 def now():
     return str(datetime.utcnow().isoformat() + "Z")
 
@@ -431,12 +450,12 @@ class Application(object):
         with self._mutex:
             old_state = self._tasks[id].state
             self._tasks[id].state = new_state
-            self._yt.set(os.path.join(self._tasks_path, id), self._tasks[id].dict())
+            self._dump_task(id)
             logger.info("Task %s change state: %s -> %s", id, old_state, new_state)
 
     def _dump_task(self, id):
         with self._mutex:
-            self._yt.set(os.path.join(self._tasks_path, id), self._tasks[id].dict())
+            self._yt.set(os.path.join(self._tasks_path, id), remove_unsigned(self._tasks[id].dict()))
 
     def _create_pool(self, yt_client, destination_cluster_name):
         pool_name = "transfer_" + destination_cluster_name
