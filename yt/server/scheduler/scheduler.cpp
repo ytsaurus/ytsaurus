@@ -460,7 +460,9 @@ public:
         const auto& address = job->GetNode()->Descriptor().GetInterconnectAddress();
         auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
 
-        return TJobProberServiceProxy(channel);
+        TJobProberServiceProxy jobProber(channel);
+        jobProber.SetDefaultTimeout(Bootstrap_->GetConfig()->Scheduler->JobProberRpcTimeout);
+        return jobProber;
     }
 
     void ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
