@@ -2,16 +2,9 @@
 #include "config.h"
 #include "private.h"
 
-#include <core/misc/address.h>
-#include <core/misc/protobuf_helpers.h>
-
-#include <core/rpc/helpers.h>
-
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NChunkClient {

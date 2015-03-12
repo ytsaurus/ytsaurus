@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "private.h"
 
-#include <core/rpc/channel.h>
 #include <core/rpc/caching_channel_factory.h>
 #include <core/rpc/bus_channel.h>
 

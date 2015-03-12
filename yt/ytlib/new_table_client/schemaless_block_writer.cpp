@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "schemaless_block_writer.h"
 
-#include <core/misc/serialize.h>
-
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -20,7 +18,7 @@ THorizontalSchemalessBlockWriter::THorizontalSchemalessBlockWriter(i64 reserveSi
     : RowCount_(0)
     , Closed_(false)
     , ReserveSize_(std::min(
-        std::max(MinReserveSize, reserveSize), 
+        std::max(MinReserveSize, reserveSize),
         MaxReserveSize))
     , Offsets_(THorizontalSchemalessBlockWriterTag(), 4 * 1024, ReserveSize_ / 2)
     , Data_(THorizontalSchemalessBlockWriterTag(), 4 * 1024, ReserveSize_ / 2)

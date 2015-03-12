@@ -3,8 +3,6 @@
 
 #include <core/ytree/fluent.h>
 
-#include <array>
-
 namespace NYT {
 namespace NScheduler {
 

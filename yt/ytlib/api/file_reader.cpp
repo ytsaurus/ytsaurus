@@ -4,12 +4,6 @@
 #include "config.h"
 #include "private.h"
 
-#include <core/concurrency/scheduler.h>
-
-#include <core/ytree/ypath_proxy.h>
-
-#include <core/logging/log.h>
-
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/cypress_client/rpc_helpers.h>
@@ -18,8 +12,6 @@
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/transaction_client/helpers.h>
 
-#include <ytlib/chunk_client/chunk_replica.h>
-#include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>

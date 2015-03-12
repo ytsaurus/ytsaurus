@@ -1,7 +1,5 @@
 #include "yamred_dsv_writer.h"
 
-#include <core/yson/format.h>
-
 namespace NYT {
 namespace NFormats {
 
@@ -306,7 +304,7 @@ void TYamredDsvConsumer::IncreaseLength(ui32* length, ui32 delta)
 
 ui32 TYamredDsvConsumer::CalculateLength(const TStringBuf& string, bool inKey)
 {
-    return Config->EnableEscaping 
+    return Config->EnableEscaping
         ?  CalculateEscapedLength(
             string,
             inKey ? Table.KeyStops : Table.ValueStops,
