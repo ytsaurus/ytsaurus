@@ -44,6 +44,7 @@ void TSubprocess::AddArguments(std::initializer_list<TStringBuf> args)
 
 TSubprocessResult TSubprocess::Execute()
 {
+#ifdef _linux_
     std::array<TPipe, 3> pipes;
 
     {
@@ -135,6 +136,9 @@ TSubprocessResult TSubprocess::Execute()
     // This can block indefinetely.
     auto exitCode = Process_.Wait();
     return TSubprocessResult{outputs[0], outputs[1], exitCode};
+#endif
+
+    return *(TSubprocessResult*) nullptr;
 }
 
 void TSubprocess::Kill(int signal)
