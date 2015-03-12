@@ -26,8 +26,8 @@ void RemoveDirAsRoot(const Stroka& path);
 bool TryClose(int fd);
 void SafeClose(int fd);
 
-bool TryDup2(int oldFd, int newFd);
-void SafeDup2(int oldFd, int newFd);
+bool TryDup2(int oldFD, int newFD);
+void SafeDup2(int oldFD, int newFD);
 
 bool TryExecve(const char* path, char* const argv[], char* const env[]);
 

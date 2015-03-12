@@ -30,7 +30,7 @@ public:
     void AddArguments(std::initializer_list<TStringBuf> args);
 
     void AddCloseFileAction(int fd);
-    void AddDup2FileAction(int oldFd, int newFd);
+    void AddDup2FileAction(int oldFD, int newFD);
 
     void Spawn();
     TError Wait();

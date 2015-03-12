@@ -593,7 +593,7 @@ private:
                 THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
                     << TErrorAttribute("fd", jobDescriptor);
             }
-            // close pipe.ReadFd?
+            // close pipe.ReadFD?
         }));
     }
 

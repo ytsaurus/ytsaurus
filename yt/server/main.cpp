@@ -83,7 +83,7 @@ public:
         , Killer("", "killer", "start killer")
         , Stracer("", "stracer", "start stracer")
         , Spec("", "spec", "command spec", false, "", "SPEC")
-        , CloseAllFds("", "close-all-fds", "close all file descriptors")
+        , CloseAllFDs("", "close-all-fds", "close all file descriptors")
         , DirToRemove("", "dir-to-remove", "directory to remove (for cleaner mode)", false, "", "DIR")
         , ProcessGroupPath("", "process-group-path", "path to process group to kill (for killer mode)", false, "", "UID")
         , CGroups("", "cgroup", "run in cgroup", false, "")
@@ -107,7 +107,7 @@ public:
         CmdLine.add(Killer);
         CmdLine.add(Stracer);
         CmdLine.add(Spec);
-        CmdLine.add(CloseAllFds);
+        CmdLine.add(CloseAllFDs);
         CmdLine.add(DirToRemove);
         CmdLine.add(ProcessGroupPath);
         CmdLine.add(CGroups);
@@ -135,7 +135,7 @@ public:
     TCLAP::SwitchArg Killer;
     TCLAP::SwitchArg Stracer;
     TCLAP::ValueArg<Stroka> Spec;
-    TCLAP::SwitchArg CloseAllFds;
+    TCLAP::SwitchArg CloseAllFDs;
     TCLAP::ValueArg<Stroka> DirToRemove;
     TCLAP::ValueArg<Stroka> ProcessGroupPath;
     TCLAP::MultiArg<Stroka> CGroups;
@@ -171,7 +171,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     bool isKiller = parser.Killer.getValue();
     bool isStracer = parser.Stracer.getValue();
     bool isExecutor = parser.Executor.getValue();
-    bool doCloseAllFds = parser.CloseAllFds.getValue();
+    bool doCloseAllFDs = parser.CloseAllFDs.getValue();
 #endif
 
     bool printConfigTemplate = parser.ConfigTemplate.getValue();
@@ -215,7 +215,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
 #ifdef _linux_
-    if (doCloseAllFds) {
+    if (doCloseAllFDs) {
         CloseAllDescriptors();
     }
 #endif
