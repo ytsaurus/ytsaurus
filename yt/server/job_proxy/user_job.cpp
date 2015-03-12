@@ -506,8 +506,9 @@ private:
         return valueConsumers;
     }
 
-    void PrepareOutputTablePipes(TPipeFactory& pipeFactory)
+    void PrepareOutputTablePipes(TPipeFactory* pipeFactory)
     {
+        YCHECK(pipeFactory);
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
 
         const auto& writers = JobIO_->GetWriters();
@@ -525,7 +526,7 @@ private:
                 ? 3 + i
                 : 3 * i + 1;
 
-            auto reader = PrepareOutputPipe(pipeFactory.Create(), jobDescriptor, TableOutputs_[i].get());
+            auto reader = PrepareOutputPipe(pipeFactory->Create(), jobDescriptor, TableOutputs_[i].get());
             TablePipeReaders_.push_back(reader);
         }
 
@@ -596,8 +597,9 @@ private:
         }));
     }
 
-    void PrepareInputTablePipes(TPipeFactory& pipeFactory)
+    void PrepareInputTablePipes(TPipeFactory* pipeFactory)
     {
+        YCHECK(pipeFactory);
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
         const auto& readers = JobIO_->GetReaders();
 
@@ -610,7 +612,7 @@ private:
                 Config_->JobIO->EnableInputTableIndex);
 
             ContextPreservingInputs_.push_back(input);
-            PrepareInputTablePipe(pipeFactory.Create(), 3 * i, input);
+            PrepareInputTablePipe(pipeFactory->Create(), 3 * i, input);
         }
     }
 
@@ -646,7 +648,7 @@ private:
         // Configure stderr pipe.
         PrepareOutputPipe(pipeFactory.Create(), STDERR_FILENO, CreateErrorOutput());
 
-        PrepareOutputTablePipes(pipeFactory);
+        PrepareOutputTablePipes(&pipeFactory);
 
         if (UserJobSpec_.use_yamr_descriptors()) {
             // This hack is to work around the fact that usual output pipe accepts a
@@ -657,7 +659,7 @@ private:
             PrepareOutputPipe(pipeFactory.Create(), JobStatisticsFD, CreateStatisticsOutput());
         }
 
-        PrepareInputTablePipes(pipeFactory);
+        PrepareInputTablePipes(&pipeFactory);
 
         // Close reserved descriptors.
         pipeFactory.Clear();
