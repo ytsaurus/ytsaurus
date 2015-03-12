@@ -46,13 +46,13 @@ def main():
 
     # ordered_by_id
     yt.set_attribute(ordered_by_id, "schema", fields)
-    yt.set_attribute(ordered_by_id, "key_columns", ["id", "hash"])
+    yt.set_attribute(ordered_by_id, "key_columns", ["id_hash", "id"])
     pivot_keys = [[]] + [[(i * 2 ** 63) / SHARD_COUNT] for i in xrange(1, SHARD_COUNT)]
     yt.reshard_table(ordered_by_id, pivot_keys)
     yt.mount_table(ordered_by_id)
 
     # ordered_by_start_time
-    yt.set_attribute(ordered_by_start_time, "schema", move_to_front(remove_by_bame(fields, "hash"), "start_time"))
+    yt.set_attribute(ordered_by_start_time, "schema", move_to_front(remove_by_bame(fields, "id_hash"), "start_time"))
     yt.set_attribute(ordered_by_start_time, "key_columns", ["start_time"])
     yt.mount_table(ordered_by_start_time)
 
