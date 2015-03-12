@@ -23,18 +23,18 @@ public:
         }
 
         // Slow path.
-        FlushedLength_ += (Current_ - Begin_);
+        CommittedLength_ += (Current_ - Begin_);
         size = std::max(size, static_cast<size_t>(1024));
-        size_t capacity = FlushedLength_ + size;
+        size_t capacity = CommittedLength_ + size;
         Str_.ReserveAndResize(capacity);
-        Begin_ = Current_ = &*Str_.begin() + FlushedLength_;
+        Begin_ = Current_ = &*Str_.begin() + CommittedLength_;
         End_ = Begin_ + size;
         return Current_;
     }
 
     size_t GetLength() const
     {
-        return FlushedLength_ + (Current_ - Begin_);
+        return CommittedLength_ + (Current_ - Begin_);
     }
 
     void Advance(size_t size)
@@ -76,15 +76,15 @@ public:
 
     Stroka Flush()
     {
-        FlushedLength_ += (Current_ - Begin_);
+        CommittedLength_ += (Current_ - Begin_);
         Begin_ = Current_ = End_ = nullptr;
-        Str_.resize(FlushedLength_);
+        Str_.resize(CommittedLength_);
         return std::move(Str_);
     }
 
 private:
     Stroka Str_;
-    size_t FlushedLength_ = 0;
+    size_t CommittedLength_ = 0;
 
     char* Begin_ = nullptr;
     char* Current_ = nullptr;
