@@ -19,8 +19,7 @@ namespace NQueryClient {
 class TFunctionDescriptor
 {
 public:
-    virtual ~TFunctionDescriptor()
-    { }
+    virtual ~TFunctionDescriptor();
 
     virtual Stroka GetName() = 0;
 
@@ -51,23 +50,12 @@ public:
         Stroka functionName,
         std::vector<TType> argumentTypes,
         TType repeatedArgumentType,
-        TType resultType)
-        : FunctionName_(functionName)
-        , ArgumentTypes_(argumentTypes)
-        , RepeatedArgumentType_(repeatedArgumentType)
-        , ResultType_(resultType)
-    { }
+        TType resultType);
 
     TTypedFunction(
         Stroka functionName,
         std::vector<TType> argumentTypes,
-        TType resultType)
-        : TTypedFunction(
-            functionName,
-            argumentTypes,
-            EValueType::Null,
-            resultType)
-    { }
+        TType resultType);
 
     Stroka GetName();
 
@@ -121,11 +109,7 @@ class IfFunction
     , public TUniversalRangeFunction
 {
 public:
-    IfFunction() : TTypedFunction(
-        "if",
-        std::vector<TType>{ EValueType::Boolean, 0, 0 },
-        0)
-    { }
+    IfFunction();
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
@@ -140,11 +124,7 @@ class IsPrefixFunction
     , public TCodegenFunction
 {
 public:
-    IsPrefixFunction() : TTypedFunction(
-        "is_prefix",
-        std::vector<TType>{ EValueType::String, EValueType::String },
-        EValueType::Boolean)
-    { }
+    IsPrefixFunction();
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
@@ -165,11 +145,7 @@ class IsSubstrFunction
     , public TUniversalRangeFunction
 {
 public:
-    IsSubstrFunction() : TTypedFunction(
-        "is_substr",
-        std::vector<TType>{ EValueType::String, EValueType::String },
-        EValueType::Boolean)
-    { }
+    IsSubstrFunction();
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
@@ -185,11 +161,7 @@ class LowerFunction
     , public TUniversalRangeFunction
 {
 public:
-    LowerFunction() : TTypedFunction(
-        "lower",
-        std::vector<TType>{ EValueType::String },
-        EValueType::String)
-    { }
+    LowerFunction();
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
@@ -205,12 +177,7 @@ class SimpleHashFunction
     , public TUniversalRangeFunction
 {
 public:
-    SimpleHashFunction() : TTypedFunction(
-        "simple_hash",
-        std::vector<TType>{ HashTypes_ },
-        HashTypes_,
-        EValueType::String)
-    { }
+    SimpleHashFunction();
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
@@ -229,11 +196,7 @@ class IsNullFunction
     , public TUniversalRangeFunction
 {
 public:
-    IsNullFunction() : TTypedFunction(
-        "is_null",
-        std::vector<TType>{ 0 },
-        EValueType::Boolean)
-    { }
+    IsNullFunction();
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
@@ -249,12 +212,7 @@ class CastFunction
     , public TUniversalRangeFunction
 {
 public:
-    CastFunction(EValueType resultType, Stroka functionName)
-        : TTypedFunction(
-            functionName,
-            std::vector<TType>{ CastTypes_ },
-            resultType)
-    { }
+    CastFunction(EValueType resultType, Stroka functionName);
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,

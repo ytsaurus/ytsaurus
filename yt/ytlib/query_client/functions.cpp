@@ -5,6 +5,30 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFunctionDescriptor::~TFunctionDescriptor()
+{ }
+
+TTypedFunction::TTypedFunction(
+    Stroka functionName,
+    std::vector<TType> argumentTypes,
+    TType repeatedArgumentType,
+    TType resultType)
+    : FunctionName_(functionName)
+    , ArgumentTypes_(argumentTypes)
+    , RepeatedArgumentType_(repeatedArgumentType)
+    , ResultType_(resultType)
+{ }
+
+TTypedFunction::TTypedFunction(
+    Stroka functionName,
+    std::vector<TType> argumentTypes,
+    TType resultType)
+    : TTypedFunction(
+        functionName,
+        argumentTypes,
+        EValueType::Null,
+        resultType)
+{ }
 
 Stroka TTypedFunction::GetName()
 {
@@ -149,6 +173,50 @@ EValueType TTypedFunction::TypingFunction(
 
     return EValueType::Null;
 }
+
+IfFunction::IfFunction() : TTypedFunction(
+    "if",
+    std::vector<TType>{ EValueType::Boolean, 0, 0 },
+    0)
+{ }
+
+IsPrefixFunction::IsPrefixFunction() : TTypedFunction(
+    "is_prefix",
+    std::vector<TType>{ EValueType::String, EValueType::String },
+    EValueType::Boolean)
+{ }
+
+IsSubstrFunction::IsSubstrFunction() : TTypedFunction(
+    "is_substr",
+    std::vector<TType>{ EValueType::String, EValueType::String },
+    EValueType::Boolean)
+{ }
+
+LowerFunction::LowerFunction() : TTypedFunction(
+    "lower",
+    std::vector<TType>{ EValueType::String },
+    EValueType::String)
+{ }
+
+SimpleHashFunction::SimpleHashFunction() : TTypedFunction(
+    "simple_hash",
+    std::vector<TType>{ HashTypes_ },
+    HashTypes_,
+    EValueType::String)
+{ }
+
+IsNullFunction::IsNullFunction() : TTypedFunction(
+    "is_null",
+    std::vector<TType>{ 0 },
+    EValueType::Boolean)
+{ }
+
+CastFunction::CastFunction(EValueType resultType, Stroka functionName)
+    : TTypedFunction(
+        functionName,
+        std::vector<TType>{ CastTypes_ },
+        resultType)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
