@@ -817,20 +817,15 @@ private:
         auto pids = GetPidsByUid(uid);
 
         i64 rss = 0;
+        // Warning: we can account here a ytserver process in executor mode memory consumption.
+        // But this is not a problem because it does not consume much.
         for (int pid : pids) {
             try {
                 i64 processRss = GetProcessRss(pid);
-                // ProcessId itself is skipped since it's always 'sh'.
-                // This also helps to prevent taking proxy's own RSS into account
-                // when it has fork-ed but not exec-uted the child process yet.
-                bool skip = (pid == Process_.GetProcessId());
-                LOG_DEBUG("PID: %v, RSS: %v %v",
+                LOG_DEBUG("PID: %v, RSS: %v",
                     pid,
-                    processRss,
-                    skip ? " (skipped)" : "");
-                if (!skip) {
-                    rss += processRss;
-                }
+                    processRss);
+                rss += processRss;
             } catch (const std::exception& ex) {
                 LOG_DEBUG(ex, "Failed to get RSS for PID %v", pid);
             }
