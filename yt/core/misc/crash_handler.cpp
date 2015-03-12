@@ -10,9 +10,6 @@
 
 #include <util/system/defaults.h>
 
-// This fixes inclusion error under GCC 4.5.
-#include <exception>
-
 #include <signal.h>
 #include <time.h>
 #ifdef HAVE_SYS_TYPES_H
