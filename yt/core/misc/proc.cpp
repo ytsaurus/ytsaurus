@@ -161,10 +161,10 @@ bool TryExecve(const char *path, char* const argv[], char* const env[])
     return false;
 }
 
-bool TryDup2(int oldFd, int newFd)
+bool TryDup2(int oldFD, int newFD)
 {
     while (true) {
-        auto res = ::dup2(oldFd, newFd);
+        auto res = ::dup2(oldFD, newFD);
 
         if (res != -1) {
             return true;
@@ -208,12 +208,12 @@ void SafeClose(int fd)
     }
 }
 
-void SafeDup2(int oldFd, int newFd)
+void SafeDup2(int oldFD, int newFD)
 {
-    if (!TryDup2(oldFd, newFd)) {
+    if (!TryDup2(oldFD, newFD)) {
         THROW_ERROR_EXCEPTION("dup2 failed")
-            << TErrorAttribute("old_fd", oldFd)
-            << TErrorAttribute("new_fd", newFd)
+            << TErrorAttribute("old_fd", oldFD)
+            << TErrorAttribute("new_fd", newFD)
             << TError::FromSystem();
     }
 }
@@ -294,12 +294,12 @@ void SafeClose(int /* fd */)
     YUNIMPLEMENTED();
 }
 
-bool TryDup2(int /* oldFd */, int /* newFd */)
+bool TryDup2(int /* oldFD */, int /* newFD */)
 {
     YUNIMPLEMENTED();
 }
 
-void SafeDup2(int /* oldFd */, int /* newFd */)
+void SafeDup2(int /* oldFD */, int /* newFD */)
 {
     YUNIMPLEMENTED();
 }
@@ -347,8 +347,8 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
     auto* dirStream = ::opendir("/proc/self/fd");
     YCHECK(dirStream != NULL);
 
-    int dirFd = ::dirfd(dirStream);
-    YCHECK(dirFd >= 0);
+    int dirFD = ::dirfd(dirStream);
+    YCHECK(dirFD >= 0);
 
     dirent* ep;
     while ((ep = ::readdir(dirStream)) != nullptr) {
@@ -357,7 +357,7 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
         int fd = static_cast<int>(strtol(begin, &end, 10));
         if (begin == end)
             continue;
-        if (fd == dirFd)
+        if (fd == dirFD)
             continue;
         if (std::find(exceptFor.begin(), exceptFor.end(), fd) != exceptFor.end())
             continue;

@@ -211,14 +211,14 @@ void TProcess::AddCloseFileAction(int fd)
     SpawnActions_.push_back(action);
 }
 
-void TProcess::AddDup2FileAction(int oldFd, int newFd)
+void TProcess::AddDup2FileAction(int oldFD, int newFD)
 {
     TSpawnAction action = {
-        std::bind(TryDup2, oldFd, newFd),
-        Format("Error duplicating %v file descriptor to %v in the child", oldFd, newFd)
+        std::bind(TryDup2, oldFD, newFD),
+        Format("Error duplicating %v file descriptor to %v in the child", oldFD, newFD)
     };
 
-    MaxSpawnActionFD_ = std::max(MaxSpawnActionFD_, newFd);
+    MaxSpawnActionFD_ = std::max(MaxSpawnActionFD_, newFD);
     SpawnActions_.push_back(action);
 }
 
@@ -281,7 +281,7 @@ void TProcess::Spawn()
     YCHECK(TrySetSignalMask(&oldSignals, nullptr));
 
     YCHECK(TryClose(Pipe_.WriteFD));
-    Pipe_.WriteFD = TPipe::InvalidFd;
+    Pipe_.WriteFD = TPipe::InvalidFD;
 
     ThrowOnChildError();
 #else
@@ -455,7 +455,7 @@ char* TProcess::Capture(TStringBuf arg)
 
 void TProcess::Child()
 {
-    YCHECK(Pipe_.WriteFD != TPipe::InvalidFd);
+    YCHECK(Pipe_.WriteFD != TPipe::InvalidFD);
 
     for (int actionIndex = 0; actionIndex < SpawnActions_.size(); ++actionIndex) {
         auto& action = SpawnActions_[actionIndex];

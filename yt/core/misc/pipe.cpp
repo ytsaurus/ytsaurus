@@ -7,7 +7,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int TPipe::InvalidFd = -1;
+const int TPipe::InvalidFD = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +41,7 @@ void TPipeFactory::Clear()
 {
     for (int& fd : ReservedFDs_) {
         SafeClose(fd);
-        fd = TPipe::InvalidFd;
+        fd = TPipe::InvalidFD;
     }
     ReservedFDs_.clear();
 }
