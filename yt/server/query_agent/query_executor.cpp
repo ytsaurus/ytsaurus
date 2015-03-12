@@ -223,12 +223,12 @@ private:
 
                 auto pipe = New<TSchemafulPipe>();
 
+                LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
+
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
                     .Run(subquery, mergingReader, pipe->GetWriter(), [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
                         auto planFragment = New<TPlanFragment>();
-
-                        LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
 
                         planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                         planFragment->Query = subquery;
