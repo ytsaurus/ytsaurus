@@ -17,17 +17,17 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDumpInputContextCommand::DoExecute()
+void TDumpJobInputContextCommand::DoExecute()
 {
-    WaitFor(Context_->GetClient()->DumpInputContext(Request_->JobId, Request_->Path))
+    WaitFor(Context_->GetClient()->DumpJobInputContext(Request_->JobId, Request_->Path))
         .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStraceCommand::DoExecute()
+void TStraceJobCommand::DoExecute()
 {
-    auto asyncResult = Context_->GetClient()->Strace(Request_->JobId);
+    auto asyncResult = Context_->GetClient()->StraceJob(Request_->JobId);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 

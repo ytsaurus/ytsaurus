@@ -500,11 +500,11 @@ struct IClient
     virtual TFuture<void> ResumeOperation(const NScheduler::TOperationId& operationId) = 0;
 
 
-    virtual TFuture<void> DumpInputContext(
+    virtual TFuture<void> DumpJobInputContext(
         const NJobTrackerClient::TJobId& jobId,
         const NYPath::TYPath& path) = 0;
 
-    virtual TFuture<NYTree::TYsonString> Strace(const NJobTrackerClient::TJobId& jobId) = 0;
+    virtual TFuture<NYTree::TYsonString> StraceJob(const NJobTrackerClient::TJobId& jobId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

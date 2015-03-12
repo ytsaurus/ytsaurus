@@ -866,11 +866,11 @@ public:
         const TOperationId& operationId),
         (operationId))
 
-    IMPLEMENT_METHOD(void, DumpInputContext, (
+    IMPLEMENT_METHOD(void, DumpJobInputContext, (
         const TJobId& jobId,
         const TYPath& path),
         (jobId, path))
-    IMPLEMENT_METHOD(TYsonString, Strace, (
+    IMPLEMENT_METHOD(TYsonString, StraceJob, (
         const TJobId& jobId),
         (jobId))
 
@@ -1717,7 +1717,7 @@ private:
     }
 
 
-    void DoDumpInputContext(const TJobId& jobId, const TYPath& path)
+    void DoDumpJobInputContext(const TJobId& jobId, const TYPath& path)
     {
         auto req = JobProberProxy_->DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
@@ -1727,7 +1727,7 @@ private:
             .ThrowOnError();
     }
 
-    TYsonString DoStrace(const TJobId& jobId)
+    TYsonString DoStraceJob(const TJobId& jobId)
     {
         auto req = JobProberProxy_->Strace();
         ToProto(req->mutable_job_id(), jobId);

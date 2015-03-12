@@ -91,61 +91,61 @@ public:
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
         RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy));
 
-        REGISTER(TStartTransactionCommand,  "start_tx",          Null,       Structured, true,  false);
-        REGISTER(TPingTransactionCommand,   "ping_tx",           Null,       Null,       true,  false);
-        REGISTER(TCommitTransactionCommand, "commit_tx",         Null,       Null,       true,  false);
-        REGISTER(TAbortTransactionCommand,  "abort_tx",          Null,       Null,       true,  false);
+        REGISTER(TStartTransactionCommand,     "start_tx",                Null,       Structured, true,  false);
+        REGISTER(TPingTransactionCommand,      "ping_tx",                 Null,       Null,       true,  false);
+        REGISTER(TCommitTransactionCommand,    "commit_tx",               Null,       Null,       true,  false);
+        REGISTER(TAbortTransactionCommand,     "abort_tx",                Null,       Null,       true,  false);
 
-        REGISTER(TCreateCommand,            "create",            Null,       Structured, true,  false);
-        REGISTER(TRemoveCommand,            "remove",            Null,       Null,       true,  false);
-        REGISTER(TSetCommand,               "set",               Structured, Null,       true,  false);
-        REGISTER(TGetCommand,               "get",               Null,       Structured, false, false);
-        REGISTER(TListCommand,              "list",              Null,       Structured, false, false);
-        REGISTER(TLockCommand,              "lock",              Null,       Structured, true,  false);
-        REGISTER(TCopyCommand,              "copy",              Null,       Structured, true,  false);
-        REGISTER(TMoveCommand,              "move",              Null,       Structured, true,  false);
-        REGISTER(TLinkCommand,              "link",              Null,       Structured, true,  false);
-        REGISTER(TExistsCommand,            "exists",            Null,       Structured, false, false);
+        REGISTER(TCreateCommand,               "create",                  Null,       Structured, true,  false);
+        REGISTER(TRemoveCommand,               "remove",                  Null,       Null,       true,  false);
+        REGISTER(TSetCommand,                  "set",                     Structured, Null,       true,  false);
+        REGISTER(TGetCommand,                  "get",                     Null,       Structured, false, false);
+        REGISTER(TListCommand,                 "list",                    Null,       Structured, false, false);
+        REGISTER(TLockCommand,                 "lock",                    Null,       Structured, true,  false);
+        REGISTER(TCopyCommand,                 "copy",                    Null,       Structured, true,  false);
+        REGISTER(TMoveCommand,                 "move",                    Null,       Structured, true,  false);
+        REGISTER(TLinkCommand,                 "link",                    Null,       Structured, true,  false);
+        REGISTER(TExistsCommand,               "exists",                  Null,       Structured, false, false);
 
-        REGISTER(TWriteFileCommand,         "write_file",        Binary,     Null,       true,  true );
-        REGISTER(TReadFileCommand,          "read_file",         Null,       Binary,     false, true );
+        REGISTER(TWriteFileCommand,            "write_file",              Binary,     Null,       true,  true );
+        REGISTER(TReadFileCommand,             "read_file",               Null,       Binary,     false, true );
 
-        REGISTER(TWriteTableCommand,        "write_table",       Tabular,    Null,       true,  true );
-        REGISTER(TReadTableCommand,         "read_table",        Null,       Tabular,    false, true );
-        REGISTER(TInsertRowsCommand,        "insert_rows",       Tabular,    Null,       true,  true );
-        REGISTER(TDeleteRowsCommand,        "delete_rows",       Tabular,    Null,       true,  true);
+        REGISTER(TWriteTableCommand,           "write_table",             Tabular,    Null,       true,  true );
+        REGISTER(TReadTableCommand,            "read_table",              Null,       Tabular,    false, true );
+        REGISTER(TInsertRowsCommand,           "insert_rows",             Tabular,    Null,       true,  true );
+        REGISTER(TDeleteRowsCommand,           "delete_rows",             Tabular,    Null,       true,  true);
         // COMPAT(sandello): Remove when releasing 0.17. See YT-1658.
-        REGISTER(TSelectRowsCommand,        "select",            Null,       Tabular,    false, true );
-        REGISTER(TSelectRowsCommand,        "select_rows",       Null,       Tabular,    false, true );
-        REGISTER(TLookupRowsCommand,        "lookup_rows",       Tabular,    Tabular,    false, true );
+        REGISTER(TSelectRowsCommand,           "select",                  Null,       Tabular,    false, true );
+        REGISTER(TSelectRowsCommand,           "select_rows",             Null,       Tabular,    false, true );
+        REGISTER(TLookupRowsCommand,           "lookup_rows",             Tabular,    Tabular,    false, true );
 
-        REGISTER(TMountTableCommand,        "mount_table",       Null,       Null,       true,  false);
-        REGISTER(TUnmountTableCommand,      "unmount_table",     Null,       Null,       true,  false);
-        REGISTER(TRemountTableCommand,      "remount_table",     Null,       Null,       true,  false);
-        REGISTER(TReshardTableCommand,      "reshard_table",     Null,       Null,       true,  false);
+        REGISTER(TMountTableCommand,           "mount_table",             Null,       Null,       true,  false);
+        REGISTER(TUnmountTableCommand,         "unmount_table",           Null,       Null,       true,  false);
+        REGISTER(TRemountTableCommand,         "remount_table",           Null,       Null,       true,  false);
+        REGISTER(TReshardTableCommand,         "reshard_table",           Null,       Null,       true,  false);
 
-        REGISTER(TMergeCommand,             "merge",             Null,       Structured, true,  false);
-        REGISTER(TEraseCommand,             "erase",             Null,       Structured, true,  false);
-        REGISTER(TMapCommand,               "map",               Null,       Structured, true,  false);
-        REGISTER(TSortCommand,              "sort",              Null,       Structured, true,  false);
-        REGISTER(TReduceCommand,            "reduce",            Null,       Structured, true,  false);
-        REGISTER(TMapReduceCommand,         "map_reduce",        Null,       Structured, true,  false);
-        REGISTER(TRemoteCopyCommand,        "remote_copy",       Null,       Structured, true,  false);
-        REGISTER(TAbortOperationCommand,    "abort_op",          Null,       Null,       true,  false);
-        REGISTER(TSuspendOperationCommand,  "suspend_op",        Null,       Null,       true,  false);
-        REGISTER(TResumeOperationCommand,   "resume_op",         Null,       Null,       true,  false);
+        REGISTER(TMergeCommand,                "merge",                   Null,       Structured, true,  false);
+        REGISTER(TEraseCommand,                "erase",                   Null,       Structured, true,  false);
+        REGISTER(TMapCommand,                  "map",                     Null,       Structured, true,  false);
+        REGISTER(TSortCommand,                 "sort",                    Null,       Structured, true,  false);
+        REGISTER(TReduceCommand,               "reduce",                  Null,       Structured, true,  false);
+        REGISTER(TMapReduceCommand,            "map_reduce",              Null,       Structured, true,  false);
+        REGISTER(TRemoteCopyCommand,           "remote_copy",             Null,       Structured, true,  false);
+        REGISTER(TAbortOperationCommand,       "abort_op",                Null,       Null,       true,  false);
+        REGISTER(TSuspendOperationCommand,     "suspend_op",              Null,       Null,       true,  false);
+        REGISTER(TResumeOperationCommand,      "resume_op",               Null,       Null,       true,  false);
 
-        REGISTER(TParseYPathCommand,        "parse_ypath",       Null,       Structured, false, false);
+        REGISTER(TParseYPathCommand,           "parse_ypath",             Null,       Structured, false, false);
 
-        REGISTER(TAddMemberCommand,         "add_member",        Null,       Null,       true,  false);
-        REGISTER(TRemoveMemberCommand,      "remove_member",     Null,       Null,       true,  false);
-        REGISTER(TCheckPermissionCommand,   "check_permission",  Null,       Structured, false, false);
+        REGISTER(TAddMemberCommand,            "add_member",              Null,       Null,       true,  false);
+        REGISTER(TRemoveMemberCommand,         "remove_member",           Null,       Null,       true,  false);
+        REGISTER(TCheckPermissionCommand,      "check_permission",        Null,       Structured, false, false);
 
-        REGISTER(TWriteJournalCommand,      "write_journal",     Tabular,    Null,       true,  true );
-        REGISTER(TReadJournalCommand,       "read_journal",      Null,       Tabular,    false, true );
+        REGISTER(TWriteJournalCommand,         "write_journal",           Tabular,    Null,       true,  true );
+        REGISTER(TReadJournalCommand,          "read_journal",            Null,       Tabular,    false, true );
 
-        REGISTER(TDumpInputContextCommand,  "dump_input_context",Null,       Null,       true,  false);
-        REGISTER(TStraceCommand,            "strace",            Null,       Structured,    true,  false);
+        REGISTER(TDumpJobInputContextCommand,  "dump_job_input_context",  Null,       Null,       true,  false);
+        REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, true,  false);
 
 #undef REGISTER
     }

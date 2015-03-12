@@ -11,25 +11,25 @@ namespace NDriver {
 
 //////////////////////////////////////////////////////////////////////////////
 
-struct TDumpInputContextRequest
+struct TDumpJobInputContextRequest
     : public TTransactionalRequest
     , public TMutatingRequest
 {
     NJobTrackerClient::TJobId JobId;
     NYPath::TYPath Path;
 
-    TDumpInputContextRequest()
+    TDumpJobInputContextRequest()
     {
         RegisterParameter("job_id", JobId);
         RegisterParameter("path", Path);
     }
 };
 
-class TDumpInputContextCommand
-    : public TTypedCommand<TDumpInputContextRequest>
+class TDumpJobInputContextCommand
+    : public TTypedCommand<TDumpJobInputContextRequest>
 {
 protected:
-    typedef TDumpInputContextCommand TThis;
+    typedef TDumpJobInputContextCommand TThis;
 
 private:
     virtual void DoExecute() override;
@@ -38,13 +38,13 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////
 
-struct TStraceRequest
+struct TStraceJobRequest
     : public TTransactionalRequest
     , public TMutatingRequest
 {
     NJobTrackerClient::TJobId JobId;
 
-    TStraceRequest()
+    TStraceJobRequest()
     {
         RegisterParameter("job_id", JobId);
     }
@@ -52,11 +52,11 @@ struct TStraceRequest
 
 //////////////////////////////////////////////////////////////////////////////
 
-class TStraceCommand
-    : public TTypedCommand<TStraceRequest>
+class TStraceJobCommand
+    : public TTypedCommand<TStraceJobRequest>
 {
 protected:
-    typedef TStraceCommand TThis;
+    typedef TStraceJobCommand TThis;
 
 private:
     virtual void DoExecute() override;

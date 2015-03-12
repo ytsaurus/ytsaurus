@@ -208,12 +208,12 @@ class TestJobProber(YTEnvSetup):
         }
     }
 
-    def test_strace(self):
+    def test_strace_job(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write("//tmp/t1", {"foo": "bar"})
 
-        tmpdir = tempfile.mkdtemp(prefix="strace")
+        tmpdir = tempfile.mkdtemp(prefix="strace_job")
 
         command = "touch {0}/started || exit 1; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
 
@@ -237,7 +237,7 @@ class TestJobProber(YTEnvSetup):
             jobs = ls(jobs_path)
             assert jobs
 
-            result = strace(jobs[0])
+            result = strace_job(jobs[0])
         finally:
             try:
                 os.unlink(pin_filename)
@@ -684,14 +684,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for job_id in ls(jobs_path):
             assert len(download(jobs_path + "/" + job_id + "/fail_contexts/0")) > 0
 
-    def test_dump_input_context(self):
+    def test_dump_job_input_context(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write("//tmp/t1", {"foo": "bar"})
 
         set("//tmp/input_contexts", {})
 
-        tmpdir = tempfile.mkdtemp(prefix="dump_input_context_semaphore")
+        tmpdir = tempfile.mkdtemp(prefix="dump_job_input_context_semaphore")
 
         command="touch {0}/started; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
 
@@ -716,7 +716,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             jobs = ls(jobs_path)
             assert jobs
             for job_id in jobs:
-                dump_input_context(job_id, "//tmp/input_contexts")
+                dump_job_input_context(job_id, "//tmp/input_contexts")
 
         finally:
             os.unlink(pin_filename)
