@@ -1201,6 +1201,15 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
     EXPECT_EQ(BuildKey("50;" _MAX_), result.second);
 }
 
+TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
+{
+    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+        std::make_pair(BuildKey(_MIN_), BuildKey(_MAX_)),
+        TKeyTrieNode::Empty());
+
+    EXPECT_EQ(result.size(), 0);
+}
+
 TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
 {
     auto expr = PrepareExpression(

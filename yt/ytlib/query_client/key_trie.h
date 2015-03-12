@@ -42,7 +42,7 @@ std::vector<TBound> IntersectBounds(
 
 struct TKeyTrieNode
 {
-    int Offset = std::numeric_limits<int>::max();
+    size_t Offset = std::numeric_limits<size_t>::max();
 
     std::map<TUnversionedValue, TKeyTrieNode> Next;
     std::vector<TBound> Bounds;
@@ -56,12 +56,12 @@ struct TKeyTrieNode
 
     static TKeyTrieNode Empty()
     {
-        return TKeyTrieNode(std::numeric_limits<int>::min());
+        return TKeyTrieNode(0);
     }
 
     static TKeyTrieNode Universal()
     {
-        return TKeyTrieNode(std::numeric_limits<int>::max());
+        return TKeyTrieNode(std::numeric_limits<size_t>::max());
     }
 
     static TKeyTrieNode FromLowerBound(const TKey& bound);
@@ -75,7 +75,7 @@ struct TKeyTrieNode
     friend TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
 
 private:
-    TKeyTrieNode(int offset)
+    TKeyTrieNode(size_t offset)
         : Offset(offset)
     { }
 
