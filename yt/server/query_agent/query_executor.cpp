@@ -182,7 +182,7 @@ private:
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        LOG_DEBUG("Splitting %v splits", fragment->DataSplits);
+        LOG_DEBUG("Splitting %v splits", fragment->DataSplits.size());
 
         auto splits = Split(fragment->DataSplits, nodeDirectory, Logger);
         int splitCount = splits.size();
