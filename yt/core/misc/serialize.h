@@ -8,6 +8,7 @@
 #include "property.h"
 #include "nullable.h"
 #include "enum.h"
+#include "serialize_dump.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
@@ -28,7 +29,7 @@ static_assert(
 
 namespace NDetail {
 
-const ui8 SerializationPadding[SerializationAlignment] = { 0 };
+const ui8 SerializationPadding[SerializationAlignment] = {};
 
 } // namespace NDetail
 
@@ -214,6 +215,10 @@ class TStreamLoadContext
 public:
     DEFINE_BYVAL_RW_PROPERTY(TInputStream*, Input);
 
+#ifdef YT_ENABLE_SERIALIZATION_DUMP
+    DEFINE_BYREF_RW_PROPERTY(TSerializationDumper, Dumper);
+#endif
+
 public:
     TStreamLoadContext();
     explicit TStreamLoadContext(TInputStream* input);
@@ -280,6 +285,57 @@ void Load(C& context, T& value);
 
 template <class T, class C>
 T Load(C& context);
+
+////////////////////////////////////////////////////////////////////////////////
+// TODO(babenko): move to inl
+
+template <class T, class C>
+void Save(C& context, const T& value)
+{
+    TSerializerTraits<T, C>::TSerializer::Save(context, value);
+}
+
+template <class T, class C>
+void Load(C& context, T& value)
+{
+    TSerializerTraits<T, C>::TSerializer::Load(context, value);
+}
+
+template <class T, class C>
+T Load(C& context)
+{
+    T value;
+    Load(context, value);
+    return value;
+}
+
+template <class T, class C>
+T LoadSuspended(C& context)
+{
+    SERIALIZATION_DUMP_SUSPEND(context) {
+        return Load<T, C>(context);
+    }
+}
+
+template <class S, class T, class C>
+void Persist(C& context, T& value)
+{
+    if (context.IsSave()) {
+        S::Save(context.SaveContext(), value);
+    } else if (context.IsLoad()) {
+        S::Load(context.LoadContext(), value);
+    } else {
+        YUNREACHABLE();
+    }
+}
+
+struct TDefaultSerializer;
+
+template <class T, class C>
+void Persist(C& context, T& value)
+{
+    Persist<TDefaultSerializer, T, C>(context, value);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -391,6 +447,8 @@ struct TRangeSerializer
     {
         auto* input = context.GetInput();
         YCHECK(input->Load(value.Begin(), value.Size()) == value.Size());
+
+        SERIALIZATION_DUMP_WRITE(context, "raw[%v] %v", value.Size(), DumpRangeToHex(value));
     }
 };
 
@@ -405,7 +463,11 @@ struct TPodSerializer
     template <class T, class C>
     static void Load(C& context, T& value)
     {
-        TRangeSerializer::Load(context, TRef::FromPod(value));
+        SERIALIZATION_DUMP_SUSPEND(context) {
+            TRangeSerializer::Load(context, TRef::FromPod(value));
+        }
+
+        TSerializationDumpPodWriter<T>::Do(context, value);
     }
 };
 
@@ -426,12 +488,22 @@ struct TSizeSerializer
         value = static_cast<size_t>(fixedValue);
     }
 
+
+    // Helpers.
     template <class C>
     static size_t Load(C& context)
     {
         size_t value;
         Load(context, value);
         return value;
+    }
+
+    template <class C>
+    static size_t LoadSuspended(C& context)
+    {
+        SERIALIZATION_DUMP_SUSPEND(context) {
+            return Load(context);
+        }
     }
 };
 
@@ -441,6 +513,7 @@ struct TSharedRefSerializer
     static void Save(C& context, const TSharedRef& value)
     {
         TSizeSerializer::Save(context, value.Size());
+
         auto* output = context.GetOutput();
         output->Write(value.Begin(), value.Size());
     }
@@ -448,10 +521,13 @@ struct TSharedRefSerializer
     template <class C>
     static void Load(C& context, TSharedRef& value)
     {
-        size_t size = TSizeSerializer::Load(context);
+        size_t size = TSizeSerializer::LoadSuspended(context);
         value = TSharedRef::Allocate(size, false);
+
         auto* input = context.GetInput();
         YCHECK(input->Load(value.Begin(), value.Size()) == value.Size());
+
+        SERIALIZATION_DUMP_WRITE(context, "TSharedRef %v", DumpRangeToHex(value));
     }
 };
 
@@ -460,8 +536,8 @@ struct TSharedRefArraySerializer
     template <class C>
     static void Save(C& context, const TSharedRefArray& value)
     {
-        using NYT::Save;
         TSizeSerializer::Save(context, value.Size());
+
         for (const auto& part : value) {
             Save(context, part);
         }
@@ -470,13 +546,18 @@ struct TSharedRefArraySerializer
     template <class C>
     static void Load(C& context, TSharedRefArray& value)
     {
-        using NYT::Load;
-        size_t size = TSizeSerializer::Load(context);
+        size_t size = TSizeSerializer::LoadSuspended(context);
         std::vector<TSharedRef> parts(size);
-        for (int index = 0; index < static_cast<int>(size); ++index) {
-            Load(context, parts[index]);
+
+        SERIALIZATION_DUMP_WRITE(context, "TSharedRefArray[%v]", size);
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (int index = 0; index < static_cast<int>(size); ++index) {
+                SERIALIZATION_DUMP_SUSPEND(context) {
+                    Load(context, parts[index]);
+                }
+                SERIALIZATION_DUMP_WRITE(context, "%v => %v", index, DumpRangeToHex(parts[index]));
+            }
         }
-        value = TSharedRefArray(std::move(parts));
     }
 };
 
@@ -491,7 +572,11 @@ struct TEnumSerializer
     template <class T, class C>
     static void Load(C& context, T& value)
     {
-        value = T(NYT::Load<i32>(context));
+        SERIALIZATION_DUMP_SUSPEND(context) {
+            value = T(NYT::Load<i32>(context));
+        }
+
+        SERIALIZATION_DUMP_WRITE(context, "%v %v", TEnumTraits<T>::GetTypeName(), value);
     }
 };
 
@@ -501,15 +586,21 @@ struct TStrokaSerializer
     static void Save(C& context, const Stroka& value)
     {
         TSizeSerializer::Save(context, value.size());
+
         TRangeSerializer::Save(context, TRef::FromString(value));
     }
 
     template <class C>
     static void Load(C& context, Stroka& value)
     {
-        size_t size = TSizeSerializer::Load(context);
+        size_t size = TSizeSerializer::LoadSuspended(context);
         value.resize(size);
-        TRangeSerializer::Load(context, TRef::FromString(value));
+
+        SERIALIZATION_DUMP_SUSPEND(context) {
+            TRangeSerializer::Load(context, TRef::FromString(value));
+        }
+
+        SERIALIZATION_DUMP_WRITE(context, "Stroka %Qv", value);
     }
 };
 
@@ -519,7 +610,9 @@ struct TNullableSerializer
     static void Save(C& context, const T& nullable)
     {
         using NYT::Save;
+
         Save(context, nullable.HasValue());
+
         if (nullable) {
             Save(context, *nullable);
         }
@@ -529,13 +622,16 @@ struct TNullableSerializer
     static void Load(C& context, T& nullable)
     {
         using NYT::Load;
-        bool hasValue = Load<bool>(context);
+
+        bool hasValue = LoadSuspended<bool>(context);
+
         if (hasValue) {
             typename T::TValueType temp;
             Load(context, temp);
             nullable.Assign(std::move(temp));
         } else {
             nullable.Reset();
+            SERIALIZATION_DUMP_WRITE(context, "null");
         }
     }
 };
@@ -549,8 +645,8 @@ struct TVectorSerializer
     template <class TVector, class C>
     static void Save(C& context, const TVector& objects)
     {
-        using NYT::Save;
         TSizeSerializer::Save(context, objects.size());
+
         for (const auto& object : objects) {
             TItemSerializer::Save(context, object);
         }
@@ -559,11 +655,17 @@ struct TVectorSerializer
     template <class TVector, class C>
     static void Load(C& context, TVector& objects)
     {
-        using NYT::Load;
-        size_t size = TSizeSerializer::Load(context);
+        size_t size = TSizeSerializer::LoadSuspended(context);
         objects.resize(size);
-        for (size_t index = 0; index != size; ++index) {
-            TItemSerializer::Load(context, objects[index]);
+
+        SERIALIZATION_DUMP_WRITE(context, "vector[%v]", size);
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (size_t index = 0; index != size; ++index) {
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
+                SERIALIZATION_DUMP_INDENT(context) {
+                    TItemSerializer::Load(context, objects[index]);
+                }
+            }
         }
     }
 };
@@ -574,8 +676,8 @@ struct TListSerializer
     template <class TList, class C>
     static void Save(C& context, const TList& objects)
     {
-        using NYT::Save;
         TSizeSerializer::Save(context, objects.size());
+
         for (const auto& object : objects) {
             TItemSerializer::Save(context, object);
         }
@@ -584,13 +686,19 @@ struct TListSerializer
     template <class TList, class C>
     static void Load(C& context, TList& objects)
     {
-        using NYT::Load;
+        size_t size = TSizeSerializer::LoadSuspended(context);
         objects.clear();
-        size_t size = TSizeSerializer::Load(context);
-        for (size_t index = 0; index != size; ++index) {
-            typename TList::value_type obj;
-            TItemSerializer::Load(context, obj);
-            objects.push_back(obj);
+
+        SERIALIZATION_DUMP_WRITE(context, "list[%v]", size);
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (size_t index = 0; index != size; ++index) {
+                typename TList::value_type obj;
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
+                SERIALIZATION_DUMP_INDENT(context) {
+                    TItemSerializer::Load(context, obj);
+                }
+                objects.push_back(obj);
+            }
         }
     }
 };
@@ -612,19 +720,26 @@ struct TNullableListSerializer
     template <class TList, class C>
     static void Load(C& context, std::unique_ptr<TList>& objects)
     {
-        using NYT::Load;
-        
-        size_t size = TSizeSerializer::Load(context);
+        size_t size = TSizeSerializer::LoadSuspended(context);
+
+        SERIALIZATION_DUMP_WRITE(context, "list[%v]", size);
+
         if (size == 0) {
             objects.reset();
             return;
         }
 
         objects.reset(new TList());
-        for (size_t index = 0; index != size; ++index) {
-            typename TList::value_type obj;
-            TItemSerializer::Load(context, obj);
-            objects->push_back(obj);
+
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (size_t index = 0; index != size; ++index) {
+                typename TList::value_type obj;
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
+                SERIALIZATION_DUMP_INDENT(context) {
+                    TItemSerializer::Load(context, obj);
+                }
+                objects->push_back(obj);
+            }
         }
     }
 };
@@ -636,8 +751,10 @@ struct TEnumIndexedVectorSerializer
     static void Save(C& context, const TEnumIndexedVector<T, E, Min, Max>& vector)
     {
         using NYT::Save;
+
         auto keys = TEnumTraits<E>::GetDomainValues();
         TSizeSerializer::Save(context, keys.size());
+
         for (auto key : keys) {
             Save(context, key);
             TItemSerializer::Save(context, vector[key]);
@@ -647,16 +764,23 @@ struct TEnumIndexedVectorSerializer
     template <class T, class E, class C, E Min, E Max>
     static void Load(C& context, TEnumIndexedVector<T, E, Min, Max>& vector)
     {
-        using NYT::Load;
         std::fill(vector.begin(), vector.end(), T());
-        size_t size = TSizeSerializer::Load(context);
-        for (size_t index = 0; index != size; ++index) {
-            auto key = Load<E>(context);
-            if (key < TEnumTraits<E>::GetMinValue() || key > TEnumTraits<E>::GetMaxValue()) {
-                T dummy;
-                TItemSerializer::Load(context, dummy);
-            } else {
-                TItemSerializer::Load(context, vector[key]);
+
+        size_t size = TSizeSerializer::LoadSuspended(context);
+
+        SERIALIZATION_DUMP_WRITE(context, "vector[%v]", size);
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (size_t index = 0; index != size; ++index) {
+                auto key = LoadSuspended<E>(context);
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", key);
+                SERIALIZATION_DUMP_INDENT(context) {
+                    if (key < TEnumTraits<E>::GetMinValue() || key > TEnumTraits<E>::GetMaxValue()) {
+                        T dummy;
+                        TItemSerializer::Load(context, dummy);
+                    } else {
+                        TItemSerializer::Load(context, vector[key]);
+                    }
+                }
             }
         }
     }
@@ -838,6 +962,7 @@ struct TSetSerializer
     static void Save(C& context, const TSet& set)
     {
         TSizeSerializer::Save(context, set.size());
+
         typename TSorterSelector<TSet, C, TSortTag>::TSorter sorter(set);
         for (const auto& item : sorter) {
             TItemSerializer::Save(context, item);
@@ -849,12 +974,22 @@ struct TSetSerializer
     {
         typedef typename TSet::key_type TKey;
 
-        size_t size = TSizeSerializer::Load(context);
+        size_t size = TSizeSerializer::LoadSuspended(context);
+
         set.clear();
-        for (size_t i = 0; i < size; ++i) {
-            TKey key;
-            TItemSerializer::Load(context, key);
-            YCHECK(set.insert(key).second);
+
+        SERIALIZATION_DUMP_WRITE(context, "set[%v]", size);
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (size_t index = 0; index < size; ++index) {
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
+
+                TKey key;
+                SERIALIZATION_DUMP_INDENT(context) {
+                    TItemSerializer::Load(context, key);
+                }
+
+                YCHECK(set.insert(key).second);
+            }
         }
     }
 };
@@ -876,12 +1011,22 @@ struct TMultiSetSerializer
     {
         typedef typename TSet::key_type TKey;
 
-        size_t size = TSizeSerializer::Load(context);
+        size_t size = TSizeSerializer::LoadSuspended(context);
+
         set.clear();
-        for (size_t i = 0; i < size; ++i) {
-            TKey key;
-            TItemSerializer::Load(context, key);
-            set.insert(key);
+
+        SERIALIZATION_DUMP_WRITE(context, "multiset[%v]", size);
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (size_t index = 0; index < size; ++index) {
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
+
+                TKey key;
+                SERIALIZATION_DUMP_INDENT(context) {
+                    TItemSerializer::Load(context, key);
+                }
+
+                set.insert(key);
+            }
         }
     }
 };
@@ -905,20 +1050,30 @@ struct TNullableSetSerializer
     template <class TSet, class C>
     static void Load(C& context, std::unique_ptr<TSet>& set)
     {
-        using NYT::Load;
         typedef typename TSet::key_type TKey;
 
-        size_t size = TSizeSerializer::Load(context);
+        size_t size = TSizeSerializer::LoadSuspended(context);
+
+        SERIALIZATION_DUMP_WRITE(context, "set[%v]", size);
+
         if (size == 0) {
             set.reset();
             return;
         }
 
         set.reset(new TSet());
-        for (size_t index = 0; index < size; ++index) {
-            TKey key;
-            TItemSerializer::Load(context, key);
-            YCHECK(set->insert(key).second);
+
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (size_t index = 0; index < size; ++index) {
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", index);
+
+                TKey key;
+                SERIALIZATION_DUMP_INDENT(context) {
+                    TItemSerializer::Load(context, key);
+                }
+
+                YCHECK(set->insert(key).second);
+            }
         }
     }
 };
@@ -934,6 +1089,7 @@ struct TMapSerializer
     static void Save(C& context, const TMap& map)
     {
         TSizeSerializer::Save(context, map.size());
+
         typename TSorterSelector<TMap, C, TSortTag>::TSorter sorter(map);
         for (const auto& pair : sorter) {
             TKeySerializer::Save(context, pair.first);
@@ -944,14 +1100,26 @@ struct TMapSerializer
     template <class TMap, class C>
     static void Load(C& context, TMap& map)
     {
-        size_t size = TSizeSerializer::Load(context);
+        size_t size = TSizeSerializer::LoadSuspended(context);
+
+        SERIALIZATION_DUMP_WRITE(context, "map[%v]", size);
+
         map.clear();
-        for (size_t index = 0; index < size; ++index) {
-            typename TMap::key_type key;
-            TKeySerializer::Load(context, key);
-            typename TMap::mapped_type value;
-            TValueSerializer::Load(context, value);
-            YCHECK(map.insert(std::make_pair(key, value)).second);
+
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (size_t index = 0; index < size; ++index) {
+                typename TMap::key_type key;
+                TKeySerializer::Load(context, key);
+
+                SERIALIZATION_DUMP_WRITE(context, "=>");
+
+                typename TMap::mapped_type value;
+                SERIALIZATION_DUMP_INDENT(context) {
+                    TValueSerializer::Load(context, value);
+                }
+
+                YCHECK(map.insert(std::make_pair(key, value)).second);
+            }
         }
     }
 };
@@ -976,13 +1144,23 @@ struct TMultiMapSerializer
     template <class TMap, class C>
     static void Load(C& context, TMap& map)
     {
+        size_t size = TSizeSerializer::LoadSuspended(context);
+
+        SERIALIZATION_DUMP_WRITE(context, "multimap[%v]", size);
+
         map.clear();
-        size_t size = TSizeSerializer::Load(context);
+
         for (size_t index = 0; index < size; ++index) {
             typename TMap::key_type key;
             TKeySerializer::Load(context, key);
+
+            SERIALIZATION_DUMP_WRITE(context, "=>");
+
             typename TMap::mapped_type value;
-            TValueSerializer::Load(context, value);
+            SERIALIZATION_DUMP_INDENT(context) {
+                TValueSerializer::Load(context, value);
+            }
+
             map.insert(std::make_pair(key, value));
         }
     }
@@ -1005,44 +1183,6 @@ struct TSerializerTraits
     typedef TValueBoundSerializer TSerializer;
     typedef TValueBoundComparer TComparer;
 };
-
-template <class T, class C>
-void Save(C& context, const T& value)
-{
-    TSerializerTraits<T, C>::TSerializer::Save(context, value);
-}
-
-template <class T, class C>
-void Load(C& context, T& value)
-{
-    TSerializerTraits<T, C>::TSerializer::Load(context, value);
-}
-
-template <class T, class C>
-T Load(C& context)
-{
-    T value;
-    Load(context, value);
-    return value;
-}
-
-template <class S, class T, class C>
-void Persist(C& context, T& value)
-{
-    if (context.IsSave()) {
-        S::Save(context.SaveContext(), value);
-    } else if (context.IsLoad()) {
-        S::Load(context.LoadContext(), value);
-    } else {
-        YUNREACHABLE();
-    }
-}
-
-template <class T, class C>
-void Persist(C& context, T& value)
-{
-    Persist<TDefaultSerializer, T, C>(context, value);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

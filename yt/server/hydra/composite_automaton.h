@@ -68,7 +68,7 @@ public:
 
     void Reset();
 
-    void RegisterEntity(TEntityBase* entity);
+    TEntitySerializationKey RegisterEntity(TEntityBase* entity);
 
     template <class T>
     T* GetEntity(TEntitySerializationKey key) const;

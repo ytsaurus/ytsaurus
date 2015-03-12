@@ -107,6 +107,7 @@ set( HDRS
   ${BASE}/ref_tracked.h
   ${BASE}/ring_queue.h
   ${BASE}/serialize.h
+  ${BASE}/serialize_dump.h
   ${BASE}/singleton.h
   ${BASE}/small_set.h
   ${BASE}/small_string.h
