@@ -16,10 +16,10 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFunctionDescriptor
+class IFunctionDescriptor
 {
 public:
-    virtual ~TFunctionDescriptor();
+    virtual ~IFunctionDescriptor();
 
     virtual Stroka GetName() const = 0;
 
@@ -43,7 +43,7 @@ typedef std::vector<EValueType> TUnionType;
 typedef TVariant<EValueType, TTypeArgument, TUnionType> TType;
 
 class TTypedFunction
-    : public virtual TFunctionDescriptor
+    : public virtual IFunctionDescriptor
 {
 public:
     TTypedFunction(
@@ -79,7 +79,7 @@ private:
 };
 
 class TCodegenFunction
-    : public virtual TFunctionDescriptor
+    : public virtual IFunctionDescriptor
 {
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
@@ -95,7 +95,7 @@ class TCodegenFunction
 };
 
 class TUniversalRangeFunction
-    : public virtual TFunctionDescriptor
+    : public virtual IFunctionDescriptor
 {
     virtual TKeyTrieNode ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
