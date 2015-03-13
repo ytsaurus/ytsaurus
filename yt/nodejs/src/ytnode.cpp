@@ -1,5 +1,6 @@
 #include "common.h"
 #include "error.h"
+#include "future.h"
 #include "node.h"
 #include "input_stream.h"
 #include "input_stub.h"
@@ -23,6 +24,8 @@ void ExportYT(Handle<Object> target)
 
     InitializeCommon(target);
     InitializeError(target);
+
+    TFutureWrap::Initialize(target);
 
     TNodeWrap::Initialize(target);
 

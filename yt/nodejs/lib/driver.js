@@ -160,7 +160,7 @@ YtDriver.prototype.execute = function(
             deferred.reject(new YtError("Output pipe has been cancelled", err));
         });
 
-    this._binding.Execute(name, user,
+    var canceler = this._binding.Execute(name, user,
         wrapped_input_stream._binding, input_compression,
         wrapped_output_stream._binding, output_compression,
         parameters, request_id,
@@ -180,6 +180,10 @@ YtDriver.prototype.execute = function(
             }
         },
         response_parameters_consumer);
+
+    input_pipe_promise.error(function() { canceler.Cancel(); });
+
+    output_pipe_promise.error(function() { canceler.Cancel(); });
 
     process.nextTick(function() { pause.unpause(); });
 
