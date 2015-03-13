@@ -67,7 +67,7 @@ public:
     void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester);
     void AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler);
 
-    void SaveInputContext(
+    void AttachJobInputContext(
         const NYPath::TYPath& directory,
         const std::vector<NChunkClient::TChunkId>& inputContexts);
 
