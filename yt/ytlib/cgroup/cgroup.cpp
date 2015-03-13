@@ -396,7 +396,6 @@ Stroka TNonOwningCGroup::GetPath(const Stroka& filename) const
 
 TCGroup::TCGroup(const Stroka& type, const Stroka& name)
     : TNonOwningCGroup(type, name)
-    , Created_(false)
 { }
 
 TCGroup::TCGroup(TCGroup&& other)

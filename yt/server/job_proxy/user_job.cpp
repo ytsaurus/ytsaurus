@@ -95,7 +95,6 @@ public:
         , UserJobSpec_(userJobSpec)
         , Config_(host->GetConfig())
         , JobErrorPromise_(NewPromise<void>())
-        , Prepared_(false)
         , MemoryUsage_(UserJobSpec_.memory_reserve())
         , PipeIOQueue_(New<TActionQueue>("PipeIO"))
         , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
@@ -206,7 +205,7 @@ private:
 
     TPromise<void> JobErrorPromise_;
 
-    std::atomic<bool> Prepared_;
+    std::atomic<bool> Prepared_ = {false};
 
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
