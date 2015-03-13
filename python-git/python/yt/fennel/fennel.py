@@ -90,6 +90,7 @@ class EventLog(object):
         self._archive_table_name = self._table_name + ".archive"
         self._number_of_first_row_attr = "{0}/@number_of_first_row".format(self._table_name)
         self._row_count_attr = "{0}/@row_count".format(self._table_name)
+        self._last_saved_ts = "{0}/@last_saved_ts".format(self._table_name)
         self._archive_row_count_attr = "{0}/@row_count".format(self._archive_table_name)
 
     def get_row_count(self):
@@ -182,7 +183,7 @@ class EventLog(object):
                     )
                     finished = True
             except errors.YtError:
-                self.log.error("Unhandled exception", exc_info=True)
+                self.log.error("Failed to combine chunks. Unhandled exception", exc_info=True)
 
                 if tries > 20:
                     self.log.error("Too many retries. Reraise")
@@ -206,7 +207,7 @@ class EventLog(object):
                     self.yt.set(self._number_of_first_row_attr, first_row)
                 finished = True
             except errors.YtError:
-                self.log.error("Unhandled exception", exc_info=True)
+                self.log.error("Failed to truncate event log. Unhandled exception", exc_info=True)
 
                 if tries > 20:
                     self.log.error("Too many retries. Reraise")
@@ -219,6 +220,11 @@ class EventLog(object):
 
         self._check_invariant()
 
+    def update_last_saved_ts(self, value):
+        try:
+            self.yt.set(self._last_saved_ts, value)
+        except errors.YtError:
+            self.log.error("Failed to update last saved ts. Unhandled exception", exc_info=True)
 
     def _check_invariant(self):
         try:
@@ -388,7 +394,8 @@ class LogBroker(object):
         self._save_chunk_futures = dict()
         self._last_acked_seqno = None
         self._stopped = False
-        self._last_message_ts = None
+        self._last_session_message_ts = None
+        self._last_chunk_ts = None
 
         self._io_loop = io_loop or ioloop.IOLoop.instance()
         self._connection_factory = connection_factory or tcpclient.TCPClient(io_loop=self._io_loop)
@@ -418,7 +425,7 @@ class LogBroker(object):
             result.set_exception(RuntimeError("Failed to save chunk: logbroker client is stopped"))
             return result
 
-        ts = self._get_timestamp_for(data)
+        self._last_chunk_ts = self._get_timestamp_for(data)
 
         serialized_data = serialize_chunk(self._chunk_id, seqno, 0, data)
         self._chunk_id += 1
@@ -428,18 +435,21 @@ class LogBroker(object):
             result.set_exception(ChunkTooBigError())
             return result
 
-        self.log.debug("Save chunk %d with seqno %d. Timestamp: %s. Its size equals to %d", self._chunk_id - 1, seqno, ts, len(serialized_data))
+        self.log.debug("Save chunk %d with seqno %d. Timestamp: %s. Its size equals to %d", self._chunk_id - 1, seqno, self._last_chunk_ts, len(serialized_data))
         self._push.write_chunk(serialized_data)
         self._save_chunk_futures[seqno] = result
         return result
+
+    def get_chunk_data_ts(self):
+        return self._last_chunk_ts
 
     @gen.coroutine
     def read_session(self):
         with ExceptionLoggingContext(self.log):
             while not self._stopped:
                 if (self._save_chunk_futures and
-                    self._last_message_ts is not None and
-                    time.time() - self._last_message_ts > 30*60):
+                    self._last_session_message_ts is not None and
+                    time.time() - self._last_session_message_ts > 30*60):
                     self._abort(RuntimeError("There are no not ping messages for more than 30 minutes"))
                     return
 
@@ -455,7 +465,7 @@ class LogBroker(object):
                     if message.type == "ping":
                         pass
                     elif message.type == "skip":
-                        self._last_message_ts = time.time()
+                        self._last_session_message_ts = time.time()
                         skip_seqno = message.attributes["seqno"]
                         f = self._save_chunk_futures.pop(skip_seqno, None)
                         if f:
@@ -465,7 +475,7 @@ class LogBroker(object):
                         else:
                             self.log.error("Get skip message for unknown seqno: %s", skip_seqno)
                     elif message.type == "ack":
-                        self._last_message_ts = time.time()
+                        self._last_session_message_ts = time.time()
                         assert self._last_acked_seqno <= message.attributes["seqno"]
 
                         self._update_last_acked_seqno(message.attributes["seqno"])
@@ -473,7 +483,7 @@ class LogBroker(object):
 
     def _get_timestamp_for(self, data):
         if data:
-            return data[0].get("timestamp")
+            return data[-1].get("timestamp")
         else:
             return None
 
@@ -514,7 +524,7 @@ class LogBroker(object):
                 if self._session:
                     self._session.stop()
             except:
-                self.log.error("Unhandled exception while stopping LogBroker", exc_info=True)
+                self.log.error("Failed to stop LogBroker. Unhandled exception", exc_info=True)
                 raise
             finally:
                 self._push = None
@@ -616,10 +626,10 @@ class SessionStream(object):
             except gen.Return:
                 raise
             except:
-                self.log.error("Unhandled exception", exc_info=True)
+                self.log.error("Failed to create session. Unhandled exception", exc_info=True)
                 self.stop()
                 raise
-        raise RuntimeError("Unable to create session; %d tries", tries)
+        raise RuntimeError("Failed to create session; %d tries", tries)
 
     def stop(self):
         if self._iostream is not None:
@@ -829,6 +839,8 @@ class Application(object):
                             data = self._event_log.get_data(self._last_acked_seqno, chunk_size)
                             data = _preprocess(data, cluster_name=self._cluster_name, log_name=self._log_name)
                             self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
+
+                            self._event_log.update_last_saved_ts(self._log_broker.get_chunk_data_ts())
                         except EventLog.NotEnoughDataError:
                             self.log.info("Not enough data in the event log", exc_info=True)
                             yield sleep_future(30.0, self._io_loop)
@@ -913,7 +925,7 @@ def print_last_seqno(logbroker_url, service_id, source_id, **kwargs):
         last_seqno = get_last_seqno(logbroker_url=logbroker_url, service_id=service_id, source_id=source_id)
         sys.stdout.write("Last seqno: {0}\n".format(last_seqno))
     except Exception:
-        log.error("Unhandled exception", exc_info=True)
+        log.error("Failed to get last seqno. Unhandled exception", exc_info=True)
         sys.stderr.write("Internal error\n")
 
 
@@ -924,7 +936,7 @@ def monitor(proxy_path, table_name, threshold, logbroker_url, service_id, source
         event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
         row_count = event_log.get_row_count()
     except Exception:
-        log.error("Unhandled exception", exc_info=True)
+        log.error("Failed to run monitoring. Unhandled exception", exc_info=True)
         sys.stdout.write("2; Internal error\n")
     else:
         lag = row_count - last_seqno
