@@ -243,6 +243,7 @@ public:
             writerReadyEvent = Data_->WriterReadyEvent;
         }
 
+        Data_->WriterOpened.TrySet(error);
         readerReadyEvent.Set(error);
         writerReadyEvent.Set(error);
     }
