@@ -2636,16 +2636,15 @@ TEST_F(TQueryEvaluateTest, TestJoin)
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::Int64},
-        {"y", EValueType::Int64},
         {"z", EValueType::Int64}
     });
 
     auto result = BuildRows({
-        "x=25;y=250;z=1",
-        "x=20;y=200;z=0",
+        "x=25;z=1",
+        "x=20;z=0",
     }, resultSplit);
 
-    Evaluate("sum(a) as x, sum(b) as y, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, result);
+    Evaluate("sum(a) as x, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, result);
 
     SUCCEED();
 }
