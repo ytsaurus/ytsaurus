@@ -29,7 +29,12 @@ void RegisterFunctionsImpl(TFunctionRegistry* registry)
     registry->RegisterFunction(std::make_unique<TIsPrefixFunction>());
     registry->RegisterFunction(std::make_unique<TIsSubstrFunction>());
     registry->RegisterFunction(std::make_unique<TLowerFunction>());
-    registry->RegisterFunction(std::make_unique<TSimpleHashFunction>());
+    registry->RegisterFunction(std::make_unique<THashFunction>(
+        "simple_hash",
+        "SimpleHash"));
+    registry->RegisterFunction(std::make_unique<THashFunction>(
+        "farm_hash",
+        "FarmHash"));
     registry->RegisterFunction(std::make_unique<TIsNullFunction>());
     registry->RegisterFunction(std::make_unique<TCastFunction>(
         EValueType::Int64,
