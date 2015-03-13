@@ -92,17 +92,27 @@ def remove_unsigned(obj):
     if isinstance(obj, list):
         result = []
         for value in obj:
-            if not is_uint(remove_unsigned(value)):
-                result.append(remove_unsigned(value))
+            new_value = remove_unsigned(value)
+            if not is_uint(new_value):
+                result.append(new_value)
         return result
     elif isinstance(obj, dict):
         result = {}
         for key, value in obj.iteritems():
-            if is_uint(remove_unsigned(value)):
-                result[key] = remove_unsigned(value)
+            new_value = remove_unsigned(value)
+            if not is_uint(new_value):
+                result[key] = new_value
         return result
     else:
         return obj
+
+def truncate_stderrs_attributes(error, limit):
+    if "stderrs" in error.attributes:
+        error.attributes["details"] = error.attributes["stderrs"][:limit]
+        del error.attributes["stderrs"]
+    if hasattr(error, "inner_errors"):
+        for inner_error in error.inner_errors:
+            truncate_stderrs_attributes(inner_error)
 
 def now():
     return str(datetime.utcnow().isoformat() + "Z")
@@ -815,9 +825,7 @@ class Application(object):
         except KeyboardInterrupt:
             pass
         except yt.YtError as error:
-            if isinstance(error, yt.YtOperationFailedError) and "stderrs" in error.attributes:
-                error.attributes["details"] = error.attributes["stderrs"][:self._config["error_details_length_limit"]]
-                del error.attributes["stderrs"]
+            truncate_stderrs_attributes(error, self._config["error_details_length_limit"])
             logger.exception("Task {} failed with error {}".format(task.id, yt.errors.format_error(error)))
             message_queue.put({
                 "type": "error",

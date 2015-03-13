@@ -139,57 +139,47 @@ set +e"""
 
     return files
 
+def check_permission(client, permission, path):
+     user_name = client.get_user_name(client.token)
+     permission = client.check_permission(user_name, permission, path)
+     return permission["action"] == "allow"
 
-class AsyncStrategy(object):
-    def __init__(self):
-        self.runned = False
-
-    def process_operation(self, type, operation, finalize, client=None):
-        self.runned = True
-        self.type = type
-        self.operation_id = operation
-        self.finalize = finalize
-        self.client = client
-
-    def wait(self):
-        if self.runned:
-            yt.WaitStrategy().process_operation(self.type, self.operation_id, self.finalize, self.client)
-
-
-def run_operation_and_notify(message_queue, yt_client, run_operation):
-    strategy = AsyncStrategy()
-    run_operation(yt_client, strategy)
-    if message_queue and strategy.runned:
+def run_operation_and_notify(message_queue, run_operation, *args, **kwargs):
+    operation = run_operation(*args, sync=False, **kwargs)
+    if message_queue is not None:
         message_queue.put({"type": "operation_started",
                            "operation": {
-                               "id": strategy.operation_id,
-                               "cluster_name": yt_client._name
+                               "id": operation.id,
+                               "cluster_name": operation.client._name
                             }})
-    strategy.wait()
+    operation.wait()
 
 def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spec_template=None, message_queue=None):
     if spec_template is None:
         spec_template = {}
 
-    merge_spec = deepcopy(spec_template)
-    merge_spec["combine_chunks"] = bool_to_string(True)
-    run_operation_and_notify(
-        message_queue,
-        source_client,
-        lambda client, strategy: client.run_merge(src, src, spec=merge_spec))
+    if check_permission(source_client, "write", src):
+        try:
+            merge_spec = deepcopy(spec_template)
+            merge_spec["combine_chunks"] = bool_to_string(True)
+            run_operation_and_notify(
+                message_queue,
+                source_client.run_merge,
+                src,
+                src,
+                spec=merge_spec)
+        except yt.YtError as error:
+            raise yt.YtError("Failed to merge source table", inner_errors=[error])
 
     run_operation_and_notify(
         message_queue,
-        destination_client,
-        lambda client, strategy:
-            client.run_remote_copy(
-                src,
-                dst,
-                cluster_name=source_client._name,
-                network_name=network_name,
-                spec=spec_template,
-                remote_cluster_token=source_client.token,
-                strategy=strategy))
+        destination_client.run_remote_copy,
+        src,
+        dst,
+        cluster_name=source_client._name,
+        network_name=network_name,
+        spec=spec_template,
+        remote_cluster_token=source_client.token)
 
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, spec_template=None, message_queue=None):
     if spec_template is None:
@@ -217,11 +207,14 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             destination_client.create("table", dst, ignore_existing=True)
             run_operation_and_notify(
                 message_queue,
-                destination_client,
-                lambda client, strategy:
-                    client.run_map("bash read_from_yt.sh", temp_table, dst, files=files, spec=spec,
-                                   input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
-                                   output_format=yt.JsonFormat(), strategy=strategy))
+                destination_client.run_map,
+                "bash read_from_yt.sh",
+                temp_table,
+                dst,
+                files=files,
+                spec=spec,
+                input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
+                output_format=yt.JsonFormat())
 
             result_row_count = destination_client.records_count(dst)
             if row_count != result_row_count:
@@ -233,8 +226,9 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 logger.info("Sorting '%s'", dst)
                 run_operation_and_notify(
                     message_queue,
-                    destination_client,
-                    lambda client, strategy: client.run_sort(dst, sort_by=sorted_by, strategy=strategy))
+                    destination_client.run_sort,
+                    dst,
+                    sort_by=sorted_by)
 
             convert_to_erasure(dst, yt_client=destination_client, erasure_codec=erasure_codec, compression_codec=compression_codec)
 
@@ -296,18 +290,15 @@ done"""
         with yt_client.PingableTransaction():
             run_operation_and_notify(
                 message_queue,
-                yt_client,
-                lambda client, strategy:
-                    client.run_map(
-                        command,
-                        temp_table,
-                        dst,
-                        input_format=yt.SchemafulDsvFormat(columns=["command"]),
-                        output_format=yt.YamrFormat(lenval=True, has_subkey=True),
-                        files=yamr_client.binary,
-                        memory_limit = 2500 * yt.common.MB,
-                        spec=spec,
-                        strategy=strategy))
+                yt_client.run_map,
+                command,
+                temp_table,
+                dst,
+                input_format=yt.SchemafulDsvFormat(columns=["command"]),
+                output_format=yt.YamrFormat(lenval=True, has_subkey=True),
+                files=yamr_client.binary,
+                memory_limit = 2500 * yt.common.MB,
+                spec=spec)
 
             result_record_count = yt_client.records_count(dst)
             if result_record_count != record_count:
@@ -319,8 +310,10 @@ done"""
                 logger.info("Sorting '%s'", dst)
                 run_operation_and_notify(
                     message_queue,
-                    yt_client,
-                    lambda client, strategy: client.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy, spec=sort_spec))
+                    yt_client.run_sort,
+                    dst,
+                    sort_by=["key", "subkey"],
+                    spec=sort_spec)
 
             convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=yt_client)
 
@@ -400,14 +393,14 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_templa
 
     run_operation_and_notify(
         message_queue,
-        yt_client,
-        lambda client, strategy:
-            client.run_map(write_command, src, yt_client.create_temp_table(),
-                           files=yamr_client.binary,
-                           format=yt.YamrFormat(has_subkey=True, lenval=True),
-                           memory_limit=2000 * yt.common.MB,
-                           spec=spec,
-                           strategy=strategy))
+        yt_client.run_map,
+        write_command,
+        src,
+        yt_client.create_temp_table(),
+        files=yamr_client.binary,
+        format=yt.YamrFormat(has_subkey=True, lenval=True),
+        memory_limit=2000 * yt.common.MB,
+        spec=spec)
 
     result_record_count = yamr_client.records_count(dst)
     if record_count != result_record_count:
@@ -490,18 +483,15 @@ while True:
     try:
         run_operation_and_notify(
             message_queue,
-            kiwi_transmittor,
-            lambda client, strategy:
-                client.run_map(
-                    "bash -ux command.sh",
-                    range_table,
-                    output_table,
-                    files=files,
-                    input_format=yt.YamrFormat(lenval=False,has_subkey=False),
-                    output_format=output_format,
-                    memory_limit=1000 * yt.common.MB,
-                    spec=spec,
-                    strategy=strategy))
+            kiwi_transmittor.run_map,
+            "bash -ux command.sh",
+            range_table,
+            output_table,
+            files=files,
+            input_format=yt.YamrFormat(lenval=False,has_subkey=False),
+            output_format=output_format,
+            memory_limit=1000 * yt.common.MB,
+            spec=spec)
     finally:
         shutil.rmtree(tmp_dir)
 
@@ -536,16 +526,13 @@ def copy_hive_to_yt(hive_client, yt_client, source, destination_table, spec_temp
     spec["mapper"] = {"memory_limit": 2 * 1024 * 1024 * 1024}
     run_operation_and_notify(
         message_queue,
-        yt_client,
-        lambda client, strategy:
-            client.run_map(
-                read_command,
-                temp_table,
-                destination_table,
-                input_format=yt.SchemafulDsvFormat(columns=["file"]),
-                output_format=yt.JsonFormat(attributes={"encode_utf8": "false"}),
-                files=hive_client.hive_exporter_library,
-                spec=spec,
-                strategy=strategy))
+        yt_client.run_map,
+        read_command,
+        temp_table,
+        destination_table,
+        input_format=yt.SchemafulDsvFormat(columns=["file"]),
+        output_format=yt.JsonFormat(attributes={"encode_utf8": "false"}),
+        files=hive_client.hive_exporter_library,
+        spec=spec)
 
 
