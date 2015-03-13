@@ -346,21 +346,25 @@ TCGValue TLowerFunction::CodegenValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleHashFunction::TSimpleHashFunction() : TTypedFunction(
-    "simple_hash",
-    std::vector<TType>{ HashTypes_ },
-    HashTypes_,
-    EValueType::String)
+THashFunction::THashFunction(
+    Stroka functionName,
+    Stroka routineName)
+    : TTypedFunction(
+        functionName,
+        std::vector<TType>{ HashTypes_ },
+        HashTypes_,
+        EValueType::String)
+    , RoutineName_(routineName)
 { }
 
-const TUnionType TSimpleHashFunction::HashTypes_ = 
+const TUnionType THashFunction::HashTypes_ = 
     TUnionType{
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
         EValueType::String };
 
-TCGValue TSimpleHashFunction::CodegenValue(
+TCGValue THashFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
@@ -386,7 +390,7 @@ TCGValue TSimpleHashFunction::CodegenValue(
     }
 
     Value* result = builder.CreateCall(
-        builder.Module->GetRoutine("SimpleHash"),
+        builder.Module->GetRoutine(RoutineName_),
         argRowRef);
 
     return TCGValue::CreateFromValue(

@@ -171,13 +171,13 @@ public:
         Value* row) const override;
 };
 
-class TSimpleHashFunction
+class THashFunction
     : public TTypedFunction
     , public TCodegenFunction
     , public TUniversalRangeFunction
 {
 public:
-    TSimpleHashFunction();
+    THashFunction(Stroka routineName, Stroka functionName);
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
@@ -188,6 +188,8 @@ public:
 
 private:
     static const TUnionType HashTypes_;
+
+    const Stroka RoutineName_;
 };
 
 class TIsNullFunction
