@@ -144,6 +144,8 @@ function YtCommand(logger, driver, coordinator, watcher, rate_check_cache, pause
     this.name = undefined;
     this.user = undefined;
 
+    this.header_format = _PREDEFINED_JSON_FORMAT;
+
     this.parameters = undefined;
     this.response_parameters = binding.CreateV8Node({});
 
@@ -188,6 +190,7 @@ YtCommand.prototype.dispatch = function(req, rsp) {
             self._checkHttpMethod();
             self._checkAvailability();
             self._redirectHeavyRequests();
+            self._getHeaderFormat();
             self._getInputFormat();
             self._getInputCompression();
             self._getOutputFormat();
@@ -216,7 +219,7 @@ YtCommand.prototype._epilogue = function(result) {
         "X-YT-Error": result.toJson(),
         "X-YT-Response-Code": utils.escapeHeader(result.getCode()),
         "X-YT-Response-Message": utils.escapeHeader(result.getMessage()),
-        "X-YT-Response-Parameters": this.response_parameters.Print(binding.ECompression_None, _PREDEFINED_JSON_FORMAT),
+        "X-YT-Response-Parameters": this.response_parameters.Print(binding.ECompression_None, this.header_format),
     };
     var sent_headers = !!this.rsp._header;
     if (!sent_headers) {
@@ -429,6 +432,19 @@ YtCommand.prototype._redirectHeavyRequests = function() {
     }
 };
 
+YtCommand.prototype._getHeaderFormat = function() {
+    "use strict";
+    this.__DBG("_getHeaderFormat");
+
+    var header = this.req.headers["x-yt-header-format"];
+    if (typeof(header) === "string") {
+        this.header_format = new binding.TNodeWrap(
+            header.trim(),
+            binding.ECompression_None,
+            _PREDEFINED_YSON_FORMAT);
+    }
+};
+
 YtCommand.prototype._getInputFormat = function() {
     "use strict";
     this.__DBG("_getInputFormat");
@@ -454,7 +470,7 @@ YtCommand.prototype._getInputFormat = function() {
             result = new binding.TNodeWrap(
                 header.trim(),
                 binding.ECompression_None,
-                _PREDEFINED_JSON_FORMAT);
+                this.header_format);
         } catch (err) {
             throw new YtError("Unable to parse X-YT-Input-Format header.", err);
         }
@@ -592,7 +608,7 @@ YtCommand.prototype._getOutputFormat = function() {
             result_format = new binding.TNodeWrap(
                 header.trim(),
                 binding.ECompression_None,
-                _PREDEFINED_JSON_FORMAT);
+                this.header_format);
         } catch (err) {
             throw new YtError("Unable to parse X-YT-Output-Format header.", err);
         }
@@ -679,7 +695,7 @@ YtCommand.prototype._captureParameters = function() {
             from_header = new binding.TNodeWrap(
                 header,
                 binding.ECompression_None,
-                _PREDEFINED_JSON_FORMAT);
+                this.header_format);
         }
     } catch (err) {
         throw new YtError("Unable to parse parameters from the request header X-YT-Parameters.", err);
@@ -804,7 +820,7 @@ YtCommand.prototype._execute = function(cb) {
                     "X-YT-Response-Parameters",
                     self.response_parameters.Print(
                         binding.ECompression_None,
-                        _PREDEFINED_JSON_FORMAT));
+                        self.header_format));
             }
         })
     .spread(
