@@ -107,7 +107,7 @@ def remove_unsigned(obj):
         return obj
 
 def truncate_stderrs_attributes(error, limit):
-    if "stderrs" in error.attributes:
+    if hasattr(error, "attributes") and "stderrs" in error.attributes:
         error.attributes["details"] = error.attributes["stderrs"][:limit]
         del error.attributes["stderrs"]
     if hasattr(error, "inner_errors"):
@@ -835,7 +835,11 @@ class Application(object):
         except KeyboardInterrupt:
             pass
         except yt.YtError as error:
-            truncate_stderrs_attributes(error, self._config["error_details_length_limit"])
+            try:
+                truncate_stderrs_attributes(error, self._config["error_details_length_limit"])
+            except Exception:
+                logger.exception("Task failed with error:")
+                raise
             logger.exception("Task {} failed with error {}".format(task.id, yt.errors.format_error(error)))
             message_queue.put({
                 "type": "error",
