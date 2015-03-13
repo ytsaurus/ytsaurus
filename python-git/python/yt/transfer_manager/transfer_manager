@@ -140,7 +140,7 @@ class Task(object):
         self.mr_user = mr_user
         self.error = error
         self.token = get_value(token, "")
-        self.copy_method = get_value(copy_method, "pull")
+        self.copy_method = copy_method
         self.progress = progress
 
         self.backend_tag = backend_tag
@@ -532,6 +532,16 @@ class Application(object):
            self._yt.check_permission(user, "administer", self._auth_path)["action"] != "allow":
             raise RequestFailed("{0} task is not permitted.".format(action_name))
 
+    def _set_defaults(self, task):
+        source_client = task.get_source_client(self._clusters)
+        destination_client = task.get_destination_client(self._clusters)
+        if task.mr_user is None and (source_client._type == "yamr" or destination_client._type == "yamr"):
+            task.mr_user = self._config.get("default_mr_user")
+        if task.kiwi_user is None and destination_client._type == "kiwi":
+            task.kiwi_user = self._config.get("default_kiwi_user")
+        if task.copy_method is None and source_client._type == "yt" and destination_client._type == "yamr":
+            task.copy_method = "pull"
+
     def _precheck(self, task, ignore_timeout=False, yamr_timeout=None, custom_logger=None):
         if custom_logger is None:
             custom_logger = logger
@@ -874,11 +884,6 @@ class Application(object):
             raise RequestFailed("All required parameters ({}) must be presented".format(", ".join(required_parameters)))
         if "destination_table" not in params:
             params["destination_table"] = None
-
-        if "mr_user" not in params:
-            params["mr_user"] = self._config.get("default_mr_user")
-        if "kiwi_user" not in params:
-            params["kiwi_user"] = self._config.get("default_kiwi_user")
         if "backend_tag" not in params:
             params["backend_tag"] = self._config.get("backend_tag")
 
@@ -893,6 +898,7 @@ class Application(object):
         if self._pending_tasks_per_user[task.user] > self._config["pending_tasks_limit_per_user"]:
             raise RequestFailed("Too many pending tasks per user (>{0})".format(self._pending_tasks_per_user[task.user]))
 
+        self._set_defaults(task)
         if make_precheck:
             try:
                 self._precheck(task, ignore_timeout=True, yamr_timeout=5.0, custom_logger=TaskIdLogger(task.id))
@@ -1114,14 +1120,6 @@ DEFAULT_CONFIG = {
                 "token": "93b4cacc08aa4538a79a76c21e99c0fb"
             }
         },
-        "apterix": {
-            "type": "kiwi",
-            "options": {
-                "url": "fb-kiwi1500.search.yandex.net",
-                "kwworm": "/home/monster/kwworm"
-            },
-            "fastbone": True
-        },
         "tasmania": {
             "type": "hive",
             "options": {
@@ -1135,7 +1133,7 @@ DEFAULT_CONFIG = {
     "availability_graph": {
         "quine": ["cedar", "redwood", "plato", "smith"],
         "smith": ["cedar", "redwood", "quine", "plato"],
-        "plato": ["cedar", "redwood", "quine", "smith", "apterix"],
+        "plato": ["cedar", "redwood", "quine", "smith"],
         "cedar": ["redwood", "smith", "plato"],
         "redwood": ["cedar", "smith", "plato"],
         "tasmania": ["plato"]
