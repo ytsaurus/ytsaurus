@@ -458,7 +458,7 @@ class LogBroker(object):
                 except GeneratorExit as e:
                     self.log.error("Got GeneratorExit")
                     assert self._stopped
-                except (RuntimeError, IOError) as e:
+                except (RuntimeError, IOError, gen.TimeoutError) as e:
                     self._abort(e)
                 else:
                     self.log.debug("Get %r message", message)
