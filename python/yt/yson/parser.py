@@ -1,4 +1,5 @@
 import convert
+import yt.yson.yson_types
 
 import struct
 from StringIO import StringIO
@@ -340,7 +341,7 @@ class YsonParserBase(object):
                     string = string[:-1]
                 else:
                     raise ValueError()
-                result = long(string)
+                result = yt.yson.yson_types.YsonUint64(int(string))
                 if result > 2 ** 64 - 1:
                     raise ValueError()
             except ValueError:

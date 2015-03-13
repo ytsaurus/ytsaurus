@@ -10,10 +10,15 @@ def to_yson_type(value, attributes = None):
         result = YsonString(value)
     elif value is False or value is True:
         return YsonBoolean(value)
-    elif isinstance(value, int):
-        result = YsonInt64(value)
-    elif isinstance(value, long):
-        result = YsonUint64(value)
+    elif isinstance(value, (int, long)):
+        if value < -2 ** 63 or value >= 2 ** 64:
+            raise TypeError("Integer {0} cannot be represented in YSON "
+                            "since it is out of range [-2^63, 2^64 - 1])".format(value))
+        greater_than_max_int64 = value >= 2 ** 63
+        if greater_than_max_int64 or isinstance(value, YsonUint64):
+            return YsonUint64(value)
+        else:
+            return YsonInt64(value)
     elif isinstance(value, float):
         result = YsonDouble(value)
     elif isinstance(value, list):
