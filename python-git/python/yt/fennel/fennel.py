@@ -414,6 +414,9 @@ class LogBroker(object):
         assert not seqno in self._save_chunk_futures
 
         result = gen.Future()
+        if self._stopped:
+            result.set_exception(RuntimeError("Failed to save chunk: logbroker client is stopped"))
+            return result
 
         ts = self._get_timestamp_for(data)
 
@@ -435,8 +438,8 @@ class LogBroker(object):
         with ExceptionLoggingContext(self.log):
             while not self._stopped:
                 if (self._save_chunk_futures and
-                   self._last_message_ts is not None and
-                   time.time() - self._last_message_ts > 30*60):
+                    self._last_message_ts is not None and
+                    time.time() - self._last_message_ts > 30*60):
                     self._abort(RuntimeError("There are no not ping messages for more than 30 minutes"))
 
                 try:
