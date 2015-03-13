@@ -29,7 +29,6 @@ public:
     void AddArgument(TStringBuf arg);
     void AddArguments(std::initializer_list<TStringBuf> args);
 
-    // Potentially can leak a process.
     TSubprocessResult Execute();
     void Kill(int signal);
 

@@ -121,13 +121,10 @@ bool TryResetSignals()
 ////////////////////////////////////////////////////////////////////////////////
 
 TProcess::TProcess(const Stroka& path, bool copyEnv)
-    : Started_(false)
-    , Finished_(false)
-    , ProcessId_(InvalidProcessId)
+    : ProcessId_(InvalidProcessId)
     // Stroka is guaranteed to be zero-terminated.
     // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
     , Path_(path)
-    , MaxSpawnActionFD_(-1)
 {
     AddArgument(NFS::GetFileName(path));
 
@@ -147,10 +144,7 @@ TProcess::~TProcess()
 }
 
 TProcess::TProcess(TProcess&& other)
-    : Started_(false)
-    , Finished_(false)
-    , ProcessId_(InvalidProcessId)
-    , MaxSpawnActionFD_(-1)
+    : ProcessId_(InvalidProcessId)
 {
     Swap(other);
 }

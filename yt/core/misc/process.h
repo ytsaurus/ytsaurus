@@ -48,13 +48,13 @@ private:
     };
 
     TSpinLock LifecycleChangeLock_;
-    bool Started_;
-    bool Finished_;
+    bool Started_ = false;
+    bool Finished_ = false;
 
     int ProcessId_;
     Stroka Path_;
 
-    int MaxSpawnActionFD_;
+    int MaxSpawnActionFD_ = - 1;
 
     TPipe Pipe_;
     std::vector<Stroka> StringHolder_;

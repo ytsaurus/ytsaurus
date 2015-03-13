@@ -93,7 +93,7 @@ public:
     bool IsCreated() const;
 
 private:
-    bool Created_;
+    bool Created_ = false;
 
 };
 
