@@ -110,7 +110,14 @@ class TestTablets(YTEnvSetup):
 
     def test_reshard_unmounted(self):
         self._sync_create_cells(1, 1)
-        self._create_table("//tmp/t")
+        create("table", "//tmp/t",
+            attributes = {
+                "schema": [
+                    {"name": "k", "type": "int64"},
+                    {"name": "l", "type": "uint64"},
+                    {"name": "value", "type": "int64"}],
+                "key_columns": ["k", "l"]
+            })
 
         reshard_table("//tmp/t", [[]])
         assert self._get_pivot_keys("//tmp/t") == [[]]
@@ -137,6 +144,9 @@ class TestTablets(YTEnvSetup):
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
         with pytest.raises(YtError): reshard_table("//tmp/t", [[100], [100]], first_tablet_index=1, last_tablet_index=1)
+        assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
+
+        with pytest.raises(YtError): reshard_table("//tmp/t", [[], [100, 200]])
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
     def test_force_unmount_on_remove(self):
