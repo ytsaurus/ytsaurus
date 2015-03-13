@@ -260,12 +260,12 @@ void TProcess::Spawn()
 
     SpawnActions_.push_back(TSpawnAction {
         TryResetSignals,
-        "Error reseting signals to default desposition: signal failed"
+        "Error resetting signals to default disposition in the child: signal failed"
     });
 
     SpawnActions_.push_back(TSpawnAction {
         std::bind(TrySetSignalMask, &oldSignals, nullptr),
-        "Error unblocking signals: pthread_sigmask failed"
+        "Error unblocking signals in the child: pthread_sigmask failed"
     });
 
     SpawnActions_.push_back(TSpawnAction {
@@ -275,7 +275,7 @@ void TProcess::Spawn()
 
     SpawnChild();
 
-    LOG_DEBUG("Children process is spawned. Pid: %v", ProcessId_);
+    LOG_DEBUG("Child process is spawned. Pid: %v", ProcessId_);
 
     // This should not fail ever.
     YCHECK(TrySetSignalMask(&oldSignals, nullptr));
