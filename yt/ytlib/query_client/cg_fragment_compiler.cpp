@@ -699,7 +699,7 @@ TCGValue TIfFunction::CodegenValue(
     EValueType type,
     Stroka name,
     TCGContext& builder,
-    Value* row)
+    Value* row) const
 {
     auto nameTwine = Twine(name.c_str());
 
@@ -784,7 +784,7 @@ TCGValue TIsPrefixFunction::CodegenValue(
     EValueType type,
     Stroka name,
     TCGContext& builder,
-    Value* row)
+    Value* row) const
 {
     return MakeBinaryFunctionCall("IsPrefix", codegenArgs, type, name, builder, row);
 }
@@ -794,7 +794,7 @@ TCGValue TIsSubstrFunction::CodegenValue(
     EValueType type,
     Stroka name,
     TCGContext& builder,
-    Value* row)
+    Value* row) const
 {
     return MakeBinaryFunctionCall("IsSubstr", codegenArgs, type, name, builder, row);
 }
@@ -804,7 +804,7 @@ TCGValue TLowerFunction::CodegenValue(
     EValueType type,
     Stroka name,
     TCGContext& builder,
-    Value* row)
+    Value* row) const
 {
     auto nameTwine = Twine(name.c_str());
 
@@ -843,7 +843,7 @@ TCGValue TIsNullFunction::CodegenValue(
     EValueType type,
     Stroka name,
     TCGContext& builder,
-    Value* row)
+    Value* row) const
 {
     YCHECK(codegenArgs.size() == 1);
     auto argValue = codegenArgs[0](builder, row);
@@ -863,7 +863,7 @@ TCGValue TSimpleHashFunction::CodegenValue(
     EValueType type,
     Stroka name,
     TCGContext& builder,
-    Value* row)
+    Value* row) const
 {
     Value* argRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
     Value* executionContextPtrRef = builder.GetExecutionContextPtr();
@@ -900,7 +900,7 @@ TCGValue TCastFunction::CodegenValue(
     EValueType type,
     Stroka name,
     TCGContext& builder,
-    Value* row)
+    Value* row) const
 {
     YCHECK(codegenArgs.size() == 1);
     return codegenArgs[0](builder, row).Cast(builder, type);

@@ -160,7 +160,7 @@ TKeyTrieNode ExtractMultipleConstraints(
 TKeyTrieNode TIsPrefixFunction::ExtractKeyRange(
     const TIntrusivePtr<const TFunctionExpression>& expr,
     const TKeyColumns& keyColumns,
-    TRowBuffer* rowBuffer)
+    TRowBuffer* rowBuffer) const
 {
     auto result = TKeyTrieNode::Universal();
     auto lhsExpr = expr->Arguments[0];

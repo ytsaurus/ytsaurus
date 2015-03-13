@@ -30,14 +30,14 @@ TTypedFunction::TTypedFunction(
         resultType)
 { }
 
-Stroka TTypedFunction::GetName()
+Stroka TTypedFunction::GetName() const
 {
     return FunctionName_;
 }
 
 EValueType TTypedFunction::InferResultType(
     const std::vector<EValueType>& argumentTypes,
-    const TStringBuf& source)
+    const TStringBuf& source) const
 {
     return TypingFunction(
         ArgumentTypes_,
@@ -51,7 +51,7 @@ EValueType TTypedFunction::InferResultType(
 TKeyTrieNode TUniversalRangeFunction::ExtractKeyRange(
     const TIntrusivePtr<const TFunctionExpression>& expr,
     const TKeyColumns& keyColumns,
-    TRowBuffer* rowBuffer)
+    TRowBuffer* rowBuffer) const
 {
     return TKeyTrieNode::Universal();
 }
@@ -59,7 +59,7 @@ TKeyTrieNode TUniversalRangeFunction::ExtractKeyRange(
 TCodegenExpression TCodegenFunction::MakeCodegenExpr(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name)
+    Stroka name) const
 {
     return [
         this,
@@ -94,7 +94,7 @@ EValueType TTypedFunction::TypingFunction(
     TType resultType,
     Stroka functionName,
     const std::vector<EValueType>& argTypes,
-    const TStringBuf& source)
+    const TStringBuf& source) const
 {
     std::unordered_map<TTypeArgument, EValueType> genericAssignments;
 

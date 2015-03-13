@@ -21,21 +21,21 @@ class TFunctionDescriptor
 public:
     virtual ~TFunctionDescriptor();
 
-    virtual Stroka GetName() = 0;
+    virtual Stroka GetName() const = 0;
 
     virtual EValueType InferResultType(
         const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source) = 0;
+        const TStringBuf& source) const = 0;
 
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name) = 0;
+        Stroka name) const = 0;
 
     virtual TKeyTrieNode ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
-        TRowBuffer* rowBuffer) = 0;
+        TRowBuffer* rowBuffer) const = 0;
 };
 
 typedef int TTypeArgument;
@@ -57,11 +57,11 @@ public:
         std::vector<TType> argumentTypes,
         TType resultType);
 
-    virtual Stroka GetName() override;
+    virtual Stroka GetName() const override;
 
     virtual EValueType InferResultType(
         const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source) override;
+        const TStringBuf& source) const override;
 
 private:
     EValueType TypingFunction(
@@ -70,7 +70,7 @@ private:
         TType resultType,
         Stroka functionName,
         const std::vector<EValueType>& argTypes,
-        const TStringBuf& source);
+        const TStringBuf& source) const;
 
     Stroka FunctionName_;
     std::vector<TType> ArgumentTypes_;
@@ -86,12 +86,12 @@ class TCodegenFunction
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row) = 0;
+        Value* row) const = 0;
 
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name) override;
+        Stroka name) const override;
 };
 
 class TUniversalRangeFunction
@@ -100,7 +100,7 @@ class TUniversalRangeFunction
     virtual TKeyTrieNode ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
-        TRowBuffer* rowBuffer) override;
+        TRowBuffer* rowBuffer) const override;
 };
 
 class TIfFunction
@@ -116,7 +116,7 @@ public:
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row) override;
+        Value* row) const override;
 };
 
 class TIsPrefixFunction
@@ -131,12 +131,12 @@ public:
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row) override;
+        Value* row) const override;
 
     virtual TKeyTrieNode ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
-        TRowBuffer* rowBuffer) override;
+        TRowBuffer* rowBuffer) const override;
 };
 
 class TIsSubstrFunction
@@ -152,7 +152,7 @@ public:
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row) override;
+        Value* row) const override;
 };
 
 class TLowerFunction
@@ -168,7 +168,7 @@ public:
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row) override;
+        Value* row) const override;
 };
 
 class TSimpleHashFunction
@@ -184,7 +184,7 @@ public:
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row) override;
+        Value* row) const override;
 
 private:
     static const TUnionType HashTypes_;
@@ -203,7 +203,7 @@ public:
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row) override;
+        Value* row) const override;
 };
 
 class TCastFunction
@@ -219,7 +219,7 @@ public:
         EValueType type,
         Stroka name,
         TCGContext& builder,
-        Value* row) override;
+        Value* row) const override;
 
 private:
     static const TUnionType CastTypes_;
