@@ -445,7 +445,7 @@ class LogBroker(object):
 
     @gen.coroutine
     def read_session(self):
-        with ExceptionLoggingContext(self.log):
+        try:
             while not self._stopped:
                 if (self._save_chunk_futures and
                     self._last_session_message_ts is not None and
@@ -480,6 +480,9 @@ class LogBroker(object):
 
                         self._update_last_acked_seqno(message.attributes["seqno"])
                         self._set_futures(self._last_acked_seqno)
+        except Exception as e:
+            self.log.error("Failed to read session. Unhandled exception: ", exc_info=True)
+            self._abort(e)
 
     def _get_timestamp_for(self, data):
         if data:
