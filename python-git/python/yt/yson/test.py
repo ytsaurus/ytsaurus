@@ -152,10 +152,32 @@ class YsonWriterTestBase(object):
         self.assertEqual(self.writer.dumps({"key": "1\\"}, yson_format="text"), '{"key"="1\\\\"}')
 
     def test_boolean(self):
-        self.assertEqual(self.writer.dumps(False, boolean_as_string=True), '"false"')
-        self.assertEqual(self.writer.dumps(True, boolean_as_string=True), '"true"')
-        self.assertEqual(self.writer.dumps(False, boolean_as_string=False), "%false")
-        self.assertEqual(self.writer.dumps(True, boolean_as_string=False), "%true")
+        dumps = self.writer.dumps
+
+        self.assertEqual(dumps(False, boolean_as_string=True), '"false"')
+        self.assertEqual(dumps(True, boolean_as_string=True), '"true"')
+        self.assertEqual(dumps(False, boolean_as_string=False), "%false")
+        self.assertEqual(dumps(True, boolean_as_string=False), "%true")
+
+    def test_long_integers(self):
+        dumps = self.writer.dumps
+
+        from yt.yson import YsonUint64, YsonInt64
+
+        long = 2 ** 63
+        self.assertEqual('%su' % str(long), dumps(long))
+
+        long = 2 ** 63 - 1
+        self.assertEqual('%s' % str(long), dumps(long))
+        self.assertEqual('%su' % str(long), dumps(YsonUint64(long)))
+
+        long = -2 ** 63
+        self.assertEqual('%s' % str(long), dumps(long))
+
+        self.assertRaises(Exception, lambda: dumps(2 ** 64))
+        self.assertRaises(Exception, lambda: dumps(-2 ** 63 - 1))
+        self.assertRaises(Exception, lambda: dumps(YsonUint64(-2 ** 63)))
+        self.assertRaises(Exception, lambda: dumps(YsonInt64(2 ** 63 + 1)))
 
 class TestWriter(unittest.TestCase, YsonWriterTestBase):
     YsonWriterTestBase.writer = writer
@@ -163,6 +185,32 @@ class TestWriter(unittest.TestCase, YsonWriterTestBase):
 class TestTypes(unittest.TestCase):
     def test_entity(self):
         self.assertEqual(yt.yson.yson_types.YsonEntity(), yt.yson.yson_types.YsonEntity())
+
+class CommonTestBase(object):
+    def test_long_integers(self):
+        loads = CommonTestBase.parser.loads
+        dumps = CommonTestBase.writer.dumps
+
+        num = 1
+        self.assertEqual("1", dumps(num))
+        loaded = loads("1")
+        self.assertEqual(1, loaded)
+        self.assertTrue(isinstance(loaded, int))
+
+        num = 2 ** 50
+        loaded = loads(dumps(num))
+        self.assertEqual(2 ** 50, loaded)
+        self.assertTrue(isinstance(loaded, int))
+
+        yson_num = "1u"
+        loaded = loads(yson_num)
+        self.assertEqual(1, loaded)
+        self.assertTrue(isinstance(loaded, yt.yson.yson_types.YsonUint64))
+        self.assertEqual("1u", dumps(loaded))
+
+class TestCommon(unittest.TestCase, CommonTestBase):
+    CommonTestBase.writer = writer
+    CommonTestBase.parser = parser
 
 if __name__ == "__main__":
     unittest.main()
