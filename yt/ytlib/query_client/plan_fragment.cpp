@@ -42,7 +42,7 @@ struct TTableSchemaProxy
 
     explicit TTableSchemaProxy(
         const TTableSchema& tableSchema,
-        std::set<Stroka>* liveColumns)
+        std::set<Stroka>* liveColumns = nullptr)
         : TableSchema(tableSchema)
         , LiveColumns(liveColumns)
     { }
@@ -65,7 +65,6 @@ struct TTableSchemaProxy
 
         return TableSchema.GetColumnIndex(*column);
     }
-
 };
 
 struct TGroupClauseProxy
@@ -634,11 +633,13 @@ static TQueryPtr PrepareQuery(
     const Stroka& querySourceString,
     i64 inputRowLimit,
     i64 outputRowLimit,
-    const TTableSchema& tableSchema,
-    std::set<Stroka>* liveColumns)
+    const TTableSchema& tableSchema)
 {
     auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
-    auto tableSchemaProxy = TTableSchemaProxy(tableSchema, liveColumns);
+    query->TableSchema = tableSchema;
+
+    std::set<Stroka> liveColumns;
+    auto tableSchemaProxy = TTableSchemaProxy(query->TableSchema, &liveColumns);
 
     if (ast.WherePredicate) {
 
@@ -697,7 +698,7 @@ static TQueryPtr PrepareQuery(
         query->GroupClause = std::move(groupClause);
 
         groupClauseProxy.Emplace(tableSchemaProxy, query->GroupClause.Get());
-        tableSchemaProxy = TTableSchemaProxy(tableSchema, nullptr);
+        tableSchemaProxy = TTableSchemaProxy(tableSchema);
     }
 
     if (ast.SelectExprs) {
@@ -728,23 +729,22 @@ static TQueryPtr PrepareQuery(
         query->ProjectClause = std::move(projectClause);
 
         groupClauseProxy.Reset();
-        tableSchemaProxy = TTableSchemaProxy(tableSchema, nullptr);
+        tableSchemaProxy = TTableSchemaProxy(tableSchema);
     }
 
     // Now we have planOperator and tableSchemaProxy
 
     // Prune references
 
-    query->TableSchema = tableSchema;
     auto& columns = query->TableSchema.Columns();
 
-    if (!tableSchemaProxy.LiveColumns /*ast.GroupExprs || ast.SelectExprs*/) {
+    if (!tableSchemaProxy.LiveColumns) {
         columns.erase(
             std::remove_if(
                 columns.begin(),
                 columns.end(),
                 [&liveColumns] (const TColumnSchema& columnSchema) {
-                    return liveColumns->find(columnSchema.Name) == liveColumns->end();
+                    return liveColumns.find(columnSchema.Name) == liveColumns.end();
                 }),
             columns.end());
     }
@@ -794,8 +794,7 @@ TPlanFragmentPtr PreparePlanFragment(
         initialDataSplit =  WaitFor(callbacks->GetInitialSplit(simpleSource->Path, timestamp)).ValueOrThrow();
         auto tableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
 
-        std::set<Stroka> liveColumns;
-        query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema, &liveColumns);
+        query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema);
     } else if (auto joinSource = ast.Source->As<NAst::TJoinSource>()) {
         LOG_DEBUG("Getting initial data split for %v and %v", joinSource->LeftPath, joinSource->RightPath);
 
@@ -828,8 +827,7 @@ TPlanFragmentPtr PreparePlanFragment(
             }
         }
 
-        std::set<Stroka> liveColumns(joinFields.begin(), joinFields.end());
-        query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema, &liveColumns);
+        query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema);
 
         auto leftConstraints = ExtractMultipleConstraints(query->Predicate, leftKeyColumns, &rowBuffer);
         auto rigthConstraints = ExtractMultipleConstraints(query->Predicate, rightKeyColumns, &rowBuffer);
@@ -919,9 +917,7 @@ TPlanFragmentPtr PrepareJobPlanFragment(
 
     auto planFragment = New<TPlanFragment>(source);
     auto unlimited = std::numeric_limits<i64>::max();
-    
-    std::set<Stroka> liveColumns;
-    auto query = PrepareQuery(ast, source, unlimited, unlimited, tableSchema, &liveColumns);
+    auto query = PrepareQuery(ast, source, unlimited, unlimited, tableSchema);
 
     planFragment->Query = query;
 
