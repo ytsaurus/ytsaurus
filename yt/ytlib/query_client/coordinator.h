@@ -34,7 +34,7 @@ TQueryStatistics CoordinateAndExecute(
     ISchemafulWriterPtr writer,
     bool isOrdered,
     const std::vector<TKeyRange>& ranges,
-    std::function<TEvaluateResult(const TConstQueryPtr&, size_t)> evaluateSubquery,
+    std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
     bool pushdownGroupOp = true);
 
