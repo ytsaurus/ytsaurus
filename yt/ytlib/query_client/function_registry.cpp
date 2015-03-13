@@ -7,13 +7,13 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFunctionRegistry::RegisterFunction(std::unique_ptr<TFunctionDescriptor> function)
+void TFunctionRegistry::RegisterFunction(std::unique_ptr<IFunctionDescriptor> function)
 {
     Stroka functionName = to_lower(function->GetName());
     YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(function))).second);
 }
 
-TFunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName)
+IFunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName)
 {
     return *RegisteredFunctions_.at(to_lower(functionName));
 }
