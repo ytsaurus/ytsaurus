@@ -441,6 +441,7 @@ class LogBroker(object):
                     self._last_message_ts is not None and
                     time.time() - self._last_message_ts > 30*60):
                     self._abort(RuntimeError("There are no not ping messages for more than 30 minutes"))
+                    return
 
                 try:
                     message = yield self._session.read_message()
