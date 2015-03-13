@@ -267,8 +267,9 @@ private:
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
                     .Run(topQuery, std::move(reader), std::move(writer));
 
-                return WaitFor(asyncQueryStatisticsOrError)
-                    .ValueOrThrow();
+                auto result = WaitFor(asyncQueryStatisticsOrError);
+                LOG_DEBUG(result, "Finished evaluating topquery (TopqueryId: %v)", topQuery->Id);
+                return result.ValueOrThrow();
             });
     }
 
