@@ -545,6 +545,24 @@ describe("YtCommand - v2 command parameters", function() {
         }, done).end();
     });
 
+    it("should take header parameters in YSON", function(done) {
+        var stub = this.stub;
+        var params = {
+            "input_format": "yson",
+            "output_format": "json",
+            "who": "me",
+            "foo": "bar"
+        };
+        ask("GET", V + "/get",
+        { "X-YT-Header-Format": "yson", "X-YT-Parameters": "{who=me;foo=bar}" },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.empty;
+            stub.should.have.been.calledOnce;
+            stub.firstCall.args[6].Get().should.eql(params);
+        }, done).end();
+    });
+
     it("should take body parameters for POST methods", function(done) {
         var stub = this.stub;
         var params = {
