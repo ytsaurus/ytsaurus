@@ -42,5 +42,5 @@ except ImportError as error:
     from writer import dump, dumps
     TYPE = "PYTHON"
 
-from yson_types import *
+from yson_types import YsonString, YsonInt64, YsonUint64, YsonDouble, YsonBoolean, YsonList, YsonMap, YsonEntity
 from convert import to_yson_type, yson_to_json, json_to_yson
