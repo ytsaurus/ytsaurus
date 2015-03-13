@@ -137,7 +137,7 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("max_partition_count", MaxPartitionCount)
-            .Default(1024)
+            .Default(10240)
             .GreaterThan(0);
 
         RegisterParameter("max_eden_data_size", MaxEdenDataSize)
