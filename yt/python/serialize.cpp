@@ -159,7 +159,7 @@ void TPythonObjectBuilder::OnInt64Scalar(i64 value)
 
 void TPythonObjectBuilder::OnUint64Scalar(ui64 value)
 {
-    Py::_XDECREF(AddObject(PyLong_FromUnsignedLongLong(value), YsonUint64));
+    Py::_XDECREF(AddObject(PyLong_FromUnsignedLongLong(value), YsonUint64, true));
 }
 
 void TPythonObjectBuilder::OnDoubleScalar(double value)
@@ -220,9 +220,9 @@ void TPythonObjectBuilder::OnEndAttributes()
     Attributes_ = Pop();
 }
 
-PyObject* TPythonObjectBuilder::AddObject(PyObject* obj, const Py::Callable& type)
+PyObject* TPythonObjectBuilder::AddObject(PyObject* obj, const Py::Callable& type, bool forceYsonTypeCreation)
 {
-    if (AlwaysCreateAttributes_ && !Attributes_) {
+    if ((AlwaysCreateAttributes_ && !Attributes_) || forceYsonTypeCreation) {
         Attributes_ = Py::Dict();
     }
 

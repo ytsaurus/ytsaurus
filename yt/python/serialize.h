@@ -77,7 +77,7 @@ private:
     std::stack<Stroka> Keys_;
     TNullable<Py::Object> Attributes_;
 
-    PyObject* AddObject(PyObject* obj, const Py::Callable& type);
+    PyObject* AddObject(PyObject* obj, const Py::Callable& type, bool forceYsonTypeCreation = false);
     PyObject* AddObject(const Py::Callable& type);
     PyObject* AddObject(PyObject* obj);
 

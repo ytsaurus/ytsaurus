@@ -41,8 +41,7 @@ Simple examples:
 '''
 
 from collections import Iterable, Mapping
-
-from yson_types import YsonEntity, YsonBoolean, YsonInt64, YsonUint64
+import yt.yson.yson_types
 
 __all__ = ["dump", "dumps"]
 
@@ -98,12 +97,12 @@ class Dumper(object):
             attributes = self._dump_attributes(obj.attributes)
 
         result = None
-        if obj is False or (isinstance(obj, YsonBoolean) and not obj):
+        if obj is False or (isinstance(obj, yt.yson.yson_types.YsonBoolean) and not obj):
             if self.boolean_as_string:
                 result = '"false"'
             else:
                 result = "%false"
-        elif obj is True or (isinstance(obj, YsonBoolean) and obj):
+        elif obj is True or (isinstance(obj, yt.yson.yson_types.YsonBoolean) and obj):
             if self.boolean_as_string:
                 result = '"true"'
             else:
@@ -114,13 +113,13 @@ class Dumper(object):
                                 "since it is out of range [-2^63, 2^64 - 1])".format(obj))
             
             greater_than_max_int64 = obj >= 2 ** 63
-            if isinstance(obj, YsonUint64) and obj < 0:
+            if isinstance(obj, yt.yson.yson_types.YsonUint64) and obj < 0:
                 raise TypeError("Can not dump negative integer as YSON uint64")
-            if isinstance(obj, YsonInt64) and greater_than_max_int64:
+            if isinstance(obj, yt.yson.yson_types.YsonInt64) and greater_than_max_int64:
                 raise TypeError("Can not dump integer greater than 2^63-1 as YSON int64")
 
             result = str(obj).rstrip("L")
-            if greater_than_max_int64 or isinstance(obj, YsonUint64):
+            if greater_than_max_int64 or isinstance(obj, yt.yson.yson_types.YsonUint64):
                 result += "u"
         elif isinstance(obj, float):
             result = str(obj)
@@ -130,7 +129,7 @@ class Dumper(object):
             result = self._dump_map(obj)
         elif isinstance(obj, Iterable):
             result = self._dump_list(obj)
-        elif isinstance(obj, YsonEntity) or obj is None:
+        elif isinstance(obj, yt.yson.yson_types.YsonEntity) or obj is None:
             result = "#"
         else:
             raise TypeError(repr(obj) + " is not Yson serializable.")
