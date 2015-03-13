@@ -220,6 +220,14 @@ protected:
 
         clonedNode->SetSorted(sourceNode->GetSorted());
         clonedNode->KeyColumns() = sourceNode->KeyColumns();
+
+        if (sourceNode->IsDynamic()) {
+            auto objectManager = Bootstrap->GetObjectManager();
+            for (auto* tablet : sourceNode->Tablets()) {
+                objectManager->RefObject(tablet);
+                clonedNode->Tablets().push_back(tablet);
+            }
+        }
     }
 
 };
