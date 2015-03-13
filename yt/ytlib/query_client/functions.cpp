@@ -281,10 +281,11 @@ TKeyTrieNode TIsPrefixFunction::ExtractKeyRange(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIsSubstrFunction::TIsSubstrFunction() : TTypedFunction(
-    "is_substr",
-    std::vector<TType>{ EValueType::String, EValueType::String },
-    EValueType::Boolean)
+TIsSubstrFunction::TIsSubstrFunction()
+    : TTypedFunction(
+        "is_substr",
+        std::vector<TType>{ EValueType::String, EValueType::String },
+        EValueType::Boolean)
 { }
 
 TCGValue TIsSubstrFunction::CodegenValue(
@@ -299,10 +300,11 @@ TCGValue TIsSubstrFunction::CodegenValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLowerFunction::TLowerFunction() : TTypedFunction(
-    "lower",
-    std::vector<TType>{ EValueType::String },
-    EValueType::String)
+TLowerFunction::TLowerFunction()
+    : TTypedFunction(
+        "lower",
+        std::vector<TType>{ EValueType::String },
+        EValueType::String)
 { }
 
 TCGValue TLowerFunction::CodegenValue(
@@ -362,7 +364,7 @@ const TUnionType THashFunction::HashTypes_ =
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
-        EValueType::String };
+        EValueType::String};
 
 TCGValue THashFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
@@ -403,10 +405,11 @@ TCGValue THashFunction::CodegenValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIsNullFunction::TIsNullFunction() : TTypedFunction(
-    "is_null",
-    std::vector<TType>{ 0 },
-    EValueType::Boolean)
+TIsNullFunction::TIsNullFunction()
+    : TTypedFunction(
+        "is_null",
+        std::vector<TType>{ 0 },
+        EValueType::Boolean)
 { }
 
 TCGValue TIsNullFunction::CodegenValue(
@@ -441,7 +444,7 @@ TCastFunction::TCastFunction(EValueType resultType, Stroka functionName)
 const TUnionType TCastFunction::CastTypes_ = TUnionType{
         EValueType::Int64,
         EValueType::Uint64,
-        EValueType::Double };
+        EValueType::Double};
 
 TCGValue TCastFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
