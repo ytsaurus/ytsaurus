@@ -297,7 +297,7 @@ public:
         
         RegisterParameter("compressed_block_cache", CompressedBlockCache)
             .DefaultNew();
-        RegisterParameter("uncompressed_block_cache_size", UncompressedBlockCache)
+        RegisterParameter("uncompressed_block_cache", UncompressedBlockCache)
             .DefaultNew();
 
         RegisterParameter("blob_reader_cache", BlobReaderCache)
