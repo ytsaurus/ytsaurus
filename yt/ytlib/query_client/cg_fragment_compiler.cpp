@@ -1217,12 +1217,12 @@ void CodegenScanOp(
 
 TCodegenSource MakeCodegenJoinOp(
     std::vector<Stroka> joinColumns,
-    TTableSchema sourceTableSchema,
+    TTableSchema sourceSchema,
     TCodegenSource codegenSource)
 {
     return [
         MOVE(joinColumns),
-        MOVE(sourceTableSchema),
+        MOVE(sourceSchema),
         codegenSource = std::move(codegenSource)
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         auto module = builder.Module->GetModule();
@@ -1276,9 +1276,9 @@ TCodegenSource MakeCodegenJoinOp(
                     auto id = index;
 
                     auto columnName = joinColumns[index];
-                    auto column = sourceTableSchema.GetColumnOrThrow(columnName);
+                    auto column = sourceSchema.GetColumnOrThrow(columnName);
 
-                    auto columnIndex = sourceTableSchema.GetColumnIndexOrThrow(columnName);
+                    auto columnIndex = sourceSchema.GetColumnIndexOrThrow(columnName);
                     TCGValue::CreateFromRow(
                         builder,
                         row,
@@ -1331,7 +1331,7 @@ TCodegenSource MakeCodegenJoinOp(
  
         std::vector<EValueType> keyTypes;
         for (int index = 0; index < joinColumns.size(); ++index) {
-            keyTypes.push_back(sourceTableSchema.FindColumn(joinColumns[index])->Type);
+            keyTypes.push_back(sourceSchema.FindColumn(joinColumns[index])->Type);
         }
 
         builder.CreateCallWithArgs(
