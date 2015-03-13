@@ -1,4 +1,5 @@
 import fennel
+import misc
 
 from tornado import testing
 from tornado import gen
@@ -110,7 +111,7 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
 
     def write_chunk(self, seqno):
         data = [{}]
-        serialized_data = fennel.serialize_chunk(0, seqno, 0, data)
+        serialized_data = misc.serialize_chunk(0, seqno, 0, data)
         return self.p.write_chunk(serialized_data)
 
     @gen.coroutine
@@ -226,7 +227,7 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
     @testing.gen_test
     def test_save_empty_chunk(self):
         data = []
-        serialized_data = fennel.serialize_chunk(0, 42, 0, data)
+        serialized_data = misc.serialize_chunk(0, 42, 0, data)
         self.p.write_chunk(serialized_data)
 
         message = yield self.get_ack_message()

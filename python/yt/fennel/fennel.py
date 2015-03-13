@@ -2,7 +2,6 @@
 
 from yt.wrapper import errors
 from yt.wrapper import client
-from yt.wrapper import format
 from yt.wrapper import table
 from yt.wrapper.config import set_proxy
 
@@ -10,6 +9,8 @@ try:
     from yt.fennel.version import VERSION
 except ImportError:
     VERSION="unknown"
+
+from yt.fennel import misc
 
 import tornado
 assert tornado.version_info > (4,)
@@ -31,14 +32,10 @@ import requests
 
 import atexit
 import socket
-import struct
 import logging
-import json
 import datetime
 import time
 import sys
-import gzip
-import StringIO
 import collections
 import random
 
@@ -47,10 +44,6 @@ DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
 DEFAULT_CHUNK_SIZE = 4000
 DEFAULT_SERVICE_ID = "yt"
 DEFAULT_LOG_NAME = "yt-scheduler-log"
-
-CHUNK_HEADER_FORMAT = "<QQQ"
-CHUNK_HEADER_SIZE = struct.calcsize(CHUNK_HEADER_FORMAT)
-
 
 log = logging.getLogger("Fennel")
 
@@ -246,133 +239,6 @@ class EventLog(object):
                 self.yt.set(self._number_of_first_row_attr, 0)
 
 
-#==========================================
-
-def gzip_compress(text):
-    out = StringIO.StringIO()
-    with gzip.GzipFile(fileobj=out, mode="w") as f:
-        f.write(text)
-    return out.getvalue()
-
-
-def gzip_decompress(text):
-    infile = StringIO.StringIO()
-    infile.write(text)
-    with gzip.GzipFile(fileobj=infile, mode="r") as f:
-        f.rewind()
-        return f.read()
-
-#==========================================
-
-EVENT_LOG_TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
-LOGBROKER_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
-
-def normalize_timestamp(ts):
-    dt = datetime.datetime.strptime(ts, EVENT_LOG_TIMESTAMP_FORMAT)
-    microseconds = dt.microsecond
-    dt -= datetime.timedelta(microseconds=microseconds)
-    return dt.isoformat(' '), microseconds
-
-def revert_timestamp(normalized_ts, microseconds):
-    dt = datetime.datetime.strptime(normalized_ts, LOGBROKER_TIMESTAMP_FORMAT)
-    dt += datetime.timedelta(microseconds=microseconds)
-    return dt.strftime(EVENT_LOG_TIMESTAMP_FORMAT)
-
-#==========================================
-
-def convert_to_tskved_json(row):
-    result = {}
-    for key, value in row.iteritems():
-        if isinstance(value, basestring):
-            pass
-        else:
-            value = json.dumps(value)
-        result[key] = value
-    return result
-
-def convert_from_tskved_json(converted_row):
-    result = dict()
-    for key, value in converted_row.iteritems():
-        new_value = value
-        try:
-            if isinstance(new_value, basestring):
-                new_value = json.loads(new_value)
-        except ValueError:
-            pass
-
-        result[key] = new_value
-    return result
-
-#==========================================
-
-LOGBROKER_TSKV_PREFIX = "tskv\t"
-
-def convert_to_logbroker_format(row):
-    stream = StringIO.StringIO()
-    stream.write(LOGBROKER_TSKV_PREFIX)
-    row = convert_to_tskved_json(row)
-    format.DsvFormat(enable_escaping=True).dump_row(row, stream)
-    return stream.getvalue()
-
-def convert_from_logbroker_format(converted_row):
-    stream = StringIO.StringIO(converted_row)
-    stream.seek(len(LOGBROKER_TSKV_PREFIX))
-    return convert_from_tskved_json(format.DsvFormat(enable_escaping=True).load_row(stream))
-
-#==========================================
-
-def serialize_chunk(chunk_id, seqno, lines, data):
-    serialized_data = struct.pack(CHUNK_HEADER_FORMAT, chunk_id, seqno, lines)
-    serialized_data += gzip_compress("".join([convert_to_logbroker_format(row) for row in data]))
-    return serialized_data
-
-
-def parse_chunk(serialized_data):
-    serialized_data = serialized_data.strip()
-
-    index = serialized_data.find("\r\n")
-    assert index != -1
-    index += len("\r\n")
-
-    chunk_id, seqno, lines = struct.unpack(CHUNK_HEADER_FORMAT, serialized_data[index:index + CHUNK_HEADER_SIZE])
-    index += CHUNK_HEADER_SIZE
-
-    decompressed_data = gzip_decompress(serialized_data[index:])
-
-    data = []
-    for line in decompressed_data.split("\n"):
-        data.append(convert_from_logbroker_format(line))
-
-    return data
-
-def _preprocess(data, **args):
-    return [_transform_record(record, **args) for record in data]
-
-def _transform_record(record, cluster_name, log_name):
-    try:
-        normalized_ts, microseconds = normalize_timestamp(record["timestamp"])
-        record.update({
-            "timestamp": normalized_ts,
-            "microseconds": microseconds,
-            "cluster_name": cluster_name,
-            "tskv_format": log_name,
-            "timezone": "+0000"
-        })
-    except:
-        log.error("Unable to transform record: %r", record)
-        raise
-    return record
-
-def _untransform_record(record):
-    record.pop("cluster_name", None)
-    record.pop("tskv_format", None)
-    record.pop("timezone", None)
-    microseconds = record.pop("microseconds", 0)
-    timestamp = record["timestamp"]
-    record["timestamp"] = revert_timestamp(timestamp, microseconds)
-    return record
-
-
 class ChunkTooBigError(Exception):
     pass
 
@@ -427,7 +293,7 @@ class LogBroker(object):
 
         self._last_chunk_ts = self._get_timestamp_for(data)
 
-        serialized_data = serialize_chunk(self._chunk_id, seqno, 0, data)
+        serialized_data = misc.serialize_chunk(self._chunk_id, seqno, 0, data)
         self._chunk_id += 1
         if len(serialized_data) > self.MAX_CHUNK_SIZE:
             self.log.debug("Unable to save chunk %d with seqno %d. Its size equals to %d > %d",
@@ -840,7 +706,7 @@ class Application(object):
                     while not saved:
                         try:
                             data = self._event_log.get_data(self._last_acked_seqno, chunk_size)
-                            data = _preprocess(data, cluster_name=self._cluster_name, log_name=self._log_name)
+                            data = misc._preprocess(data, cluster_name=self._cluster_name, log_name=self._log_name)
                             self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
 
                             self._event_log.update_last_saved_ts(self._log_broker.get_chunk_data_ts())
