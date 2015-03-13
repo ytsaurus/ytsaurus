@@ -571,26 +571,6 @@ public:
         table->Tablets().clear();
     }
 
-    void ValidatePivotKey(
-        const TOwningKey& pivotKey,
-        const TTableSchema& schema,
-        int keyColumnCount)
-    {
-        if (pivotKey.GetCount() > keyColumnCount) {
-            THROW_ERROR_EXCEPTION("Pivot key must form a prefix of key");
-        }
-
-        for (int index = 0; index < pivotKey.GetCount(); ++index) {
-            if (pivotKey[index].Type != schema.Columns()[index].Type) {
-                THROW_ERROR_EXCEPTION(
-                    "Mismatched type of column %Qv in pivot key: expected %Qlv, found %Qlv",
-                    schema.Columns()[index].Name,
-                    schema.Columns()[index].Type,
-                    pivotKey[index].Type);
-            }
-        }
-    }
-
     void ReshardTable(
         TTableNode* table,
         int firstTabletIndex,
