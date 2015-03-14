@@ -23,6 +23,9 @@ public:
     //! Send period.
     TDuration SendPeriod;
 
+    //! Time to wait until the final batch is pushed during shutdown.
+    TDuration ShutdownGraceTime;
+
     //! Port to show in endpoints.
     ui16 EndpointPort;
 
@@ -33,6 +36,8 @@ public:
         RegisterParameter("max_batch_size", MaxBatchSize)
             .Default(100);
         RegisterParameter("send_period", SendPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("shutdown_grace_time", ShutdownGraceTime)
             .Default(TDuration::Seconds(1));
         RegisterParameter("endpoint_port", EndpointPort)
             .Default(0);
