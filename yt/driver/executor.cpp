@@ -18,6 +18,7 @@
 
 #include <core/logging/log_manager.h>
 
+#include <core/tracing/trace_manager.h>
 #include <core/tracing/trace_context.h>
 
 namespace NYT {
@@ -136,7 +137,12 @@ void TExecutor::Execute(const std::vector<std::string>& args)
         ? NTracing::CreateRootTraceContext()
         : NTracing::NullTraceContext);
 
-    NLogging::TLogManager::Get()->Configure(Config->Logging);
+    if (Config->Logging) {
+        NLogging::TLogManager::Get()->Configure(Config->Logging);
+    }
+    if (Config->Tracing) {
+        NTracing::TTraceManager::Get()->Configure(Config->Tracing);
+    }
     TAddressResolver::Get()->Configure(Config->AddressResolver);
 
     TDispatcher::Get()->Configure(Config->Driver->LightPoolSize, Config->Driver->HeavyPoolSize);
