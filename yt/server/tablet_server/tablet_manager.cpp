@@ -1298,7 +1298,7 @@ private:
             auto error = TError(ex);
             LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %v)",
                 tabletId);
-            ToProto(response.mutable_error(), error);
+            ToProto(response.mutable_error(), error.Sanitize());
         }
 
         auto hiveManager = Bootstrap_->GetHiveManager();
