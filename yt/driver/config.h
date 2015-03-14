@@ -47,6 +47,7 @@ class TExecutorConfig
 public:
     NDriver::TDriverConfigPtr Driver;
     NYTree::INodePtr Logging;
+    NYTree::INodePtr Tracing;
     TAddressResolverConfigPtr AddressResolver;
     TFormatDefaultsConfigPtr FormatDefaults;
     TDuration OperationPollPeriod;
@@ -55,7 +56,10 @@ public:
     TExecutorConfig()
     {
         RegisterParameter("driver", Driver);
-        RegisterParameter("logging", Logging);
+        RegisterParameter("logging", Logging)
+            .Default();
+        RegisterParameter("tracing", Tracing)
+            .Default();
         RegisterParameter("address_resolver", AddressResolver)
             .DefaultNew();
         RegisterParameter("format_defaults", FormatDefaults)
