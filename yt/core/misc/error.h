@@ -82,6 +82,8 @@ public:
     const std::vector<TError>& InnerErrors() const;
     std::vector<TError>& InnerErrors();
 
+    TError Sanitize() const;
+
     bool IsOK() const;
 
 	void ThrowOnError() const;
