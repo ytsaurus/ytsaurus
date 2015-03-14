@@ -11,6 +11,8 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schemaless_block_writer.h>
 
+#include <cmath>
+
 namespace NYT {
 namespace NScheduler {
 
