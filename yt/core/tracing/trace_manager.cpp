@@ -26,6 +26,7 @@ static const auto& Logger = TracingLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraceManager::TImpl
+    : public TRefCounted
 {
 public:
     TImpl()
@@ -35,7 +36,6 @@ public:
             true,
             false))
         , Thread_(New<TThread>(this))
-        , Config_(New<TTraceManagerConfig>())
     {
         Thread_->Start();
         InvokerQueue_->SetThreadId(Thread_->GetId());
@@ -52,7 +52,7 @@ public:
 
             SendExecutor_ = New<TPeriodicExecutor>(
                 InvokerQueue_,
-                BIND(&TImpl::PushBatch, this),
+                BIND(&TImpl::PushBatch, MakeStrong(this)),
                 Config_->SendPeriod);
             SendExecutor_->Start();
         }
@@ -72,7 +72,11 @@ public:
 
     void Shutdown()
     {
-
+        BIND(&TImpl::PushBatch, MakeStrong(this))
+            .AsyncVia(InvokerQueue_)
+            .Run()
+            .WithTimeout(Config_->ShutdownGraceTime)
+            .Get();
         InvokerQueue_->Shutdown();
         Thread_->Shutdown();
     }
@@ -145,13 +149,15 @@ private:
     };
 
     TEventCount EventCount_;
-    TInvokerQueuePtr InvokerQueue_;
-    TIntrusivePtr<TThread> Thread_;
+    const TInvokerQueuePtr InvokerQueue_;
+    const TIntrusivePtr<TThread> Thread_;
+
+    TTraceManagerConfigPtr Config_ = New<TTraceManagerConfig>();
+
     TEnqueuedAction CurrentAction_;
 
     TMultipleProducerSingleConsumerLockFreeStack<NProto::TTraceEvent> EventQueue_;
 
-    TTraceManagerConfigPtr Config_;
     NProto::TEndpoint Endpoint_;
     NRpc::IChannelPtr Channel_;
 

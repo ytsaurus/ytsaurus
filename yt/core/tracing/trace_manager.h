@@ -43,7 +43,7 @@ private:
     DECLARE_SINGLETON_FRIEND(TTraceManager);
 
     class TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 
