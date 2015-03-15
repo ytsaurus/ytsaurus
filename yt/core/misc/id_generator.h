@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "serialize.h"
+#include "public.h"
 
 namespace NYT {
 
@@ -11,8 +10,6 @@ namespace NYT {
 class TIdGenerator
 {
 public:
-    TIdGenerator();
-
     ui64 Next();
     void Reset();
 
@@ -20,7 +17,7 @@ public:
     void Load(TStreamLoadContext& context);
 
 private:
-    TAtomic Current;
+    std::atomic<ui64> Current_ = {0};
 
 };
 
