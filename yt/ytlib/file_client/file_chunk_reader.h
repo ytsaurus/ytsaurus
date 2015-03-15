@@ -13,6 +13,8 @@
 
 #include <core/compression/public.h>
 
+#include <core/misc/ref.h>
+
 namespace NYT {
 namespace NFileClient {
 

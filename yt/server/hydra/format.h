@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/serialize.h>
+
 #include <core/compression/public.h>
 
 namespace NYT {
@@ -14,7 +16,7 @@ namespace NHydra {
 struct TChangelogHeader
 {
     //! Used for format validation.
-    static const ui64 ExpectedSignature = 0x3330303044435459ull; // YTCD0003;
+    static const ui64 ExpectedSignature = 0x3330303044435459ull; // YTCD0003
 
     //! Indicates that the changelog is not yet sealed.
     static const i32 UnsealedRecordCount = -2;

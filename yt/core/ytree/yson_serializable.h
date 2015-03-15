@@ -8,7 +8,6 @@
 #include <core/misc/property.h>
 #include <core/misc/nullable.h>
 #include <core/misc/error.h>
-#include <core/misc/serialize.h>
 
 #include <functional>
 

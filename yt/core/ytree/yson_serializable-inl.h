@@ -13,6 +13,7 @@
 #include <core/misc/nullable.h>
 #include <core/misc/enum.h>
 #include <core/misc/demangle.h>
+#include <core/misc/serialize.h>
 
 #include <core/ypath/token.h>
 

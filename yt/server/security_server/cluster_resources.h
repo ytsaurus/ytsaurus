@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <core/misc/serialize.h>
-
 #include <core/yson/public.h>
 
 #include <server/cell_master/public.h>
