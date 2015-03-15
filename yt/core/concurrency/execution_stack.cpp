@@ -2,6 +2,8 @@
 #include "execution_stack.h"
 #include "execution_context.h"
 
+#include <core/misc/serialize.h>
+
 #if defined(_unix_)
 #   include <sys/mman.h>
 #   include <limits.h>

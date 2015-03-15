@@ -269,12 +269,6 @@ private:
 
 };
 
-typedef
-    TCustomPersistenceContext<
-        TStreamSaveContext,
-        TStreamLoadContext
-    > TStreamPersistenceContext;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class C>

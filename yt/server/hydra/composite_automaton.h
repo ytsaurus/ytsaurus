@@ -3,6 +3,8 @@
 #include "public.h"
 #include "automaton.h"
 
+#include <core/misc/serialize.h>
+
 #include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
