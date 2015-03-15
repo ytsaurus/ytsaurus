@@ -15,6 +15,7 @@
 #if defined(_linux_)
     #include <sys/vfs.h>
     #include <sys/stat.h>
+    #include <fcntl.h>
 #elif defined(_freebsd_) || defined(_darwin_)
     #include <sys/param.h>
     #include <sys/mount.h>
