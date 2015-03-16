@@ -214,7 +214,8 @@ private:
                 builder->EndTree()));
         }
 
-        Flush();
+        // Await for flush. See YT-1095.
+        WaitFor(Flush());
     }
 
 };
