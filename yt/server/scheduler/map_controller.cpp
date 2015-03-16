@@ -88,7 +88,8 @@ private:
             , Controller(controller)
             , ChunkPool(CreateUnorderedChunkPool(
                 Controller->NodeDirectory,
-                jobCount))
+                jobCount,
+                Controller->Config->MaxChunkStripesPerJob))
         { }
 
         virtual Stroka GetId() const override

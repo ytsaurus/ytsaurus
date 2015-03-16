@@ -151,7 +151,8 @@ std::unique_ptr<IChunkPool> CreateAtomicChunkPool(
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    int jobCount);
+    int jobCount,
+    int maxChunkStripesPerJob);
 
 ////////////////////////////////////////////////////////////////////////////////
 

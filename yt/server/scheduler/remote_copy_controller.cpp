@@ -83,7 +83,10 @@ private:
                 int jobCount)
             : TTask(controller)
             , Controller_(controller)
-            , ChunkPool_(CreateUnorderedChunkPool(Controller_->NodeDirectory, jobCount))
+            , ChunkPool_(CreateUnorderedChunkPool(
+                Controller_->NodeDirectory,
+                jobCount,
+                Controller_->Config->MaxChunkStripesPerJob))
         { }
 
         virtual Stroka GetId() const override

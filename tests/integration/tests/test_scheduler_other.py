@@ -107,6 +107,33 @@ class TestSchedulerOther(YTEnvSetup):
 
         assert "aborted" == get("//sys/operations/" + op_id + "/@state")
 
+
+class TestSchedulerMaxChunkPerJob(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "max_chunk_stripes_per_job" : 1
+        }
+    }
+
+    def test_max_chunk_stripes_per_job(self):
+        create("table", "//tmp/in1")
+        create("table", "//tmp/in2")
+        create("table", "//tmp/out")
+        write("//tmp/in1", [{"foo": i} for i in xrange(5)], sorted_by="foo")
+        write("//tmp/in2", [{"foo": i} for i in xrange(5)], sorted_by="foo")
+
+        merge(mode="unordered", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", spec={"force_transform": True})
+        map(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
+        with pytest.raises(YtError):
+            merge(mode="sorted", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
+        with pytest.raises(YtError):
+            reduce(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", reduce_by=["foo"])
+
+
 class TestSchedulingTags(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 2
