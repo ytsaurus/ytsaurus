@@ -428,6 +428,7 @@ class SessionReader(object):
         self._connection_factory = connection_factory or tcpclient.TCPClient(io_loop=self._io_loop)
 
         self._iostream = None
+        self._connection = None
         self._error = None
 
         self._id = None
@@ -473,8 +474,7 @@ class SessionReader(object):
             self._finish)
 
     def _finish(self, future):
-        if not future.exception():
-            self.stop(future.exception())
+        self.log.info("Session reader is finished. Id: %s", self._id)
 
     def stop(self, e=None):
         self.log.error("Stopping...", exc_info=e)
@@ -584,6 +584,7 @@ class PushStream(object):
 
     def __init__(self, io_loop=None, connection_factory=None):
         self._iostream = None
+        self._connection = None
         self._session_id = None
 
         self._io_loop = io_loop or ioloop.IOLoop.instance()
@@ -603,17 +604,16 @@ class PushStream(object):
             self._connection_factory.connect(endpoint[0], endpoint[1]),
             self._io_loop
             )
-        self._iostream.write(
-            "PUT /rt/store HTTP/1.1\r\n"
-            "Host: {host}\r\n"
-            "Content-Type: text/plain\r\n"
-            "Content-Encoding: gzip\r\n"
-            "Transfer-Encoding: chunked\r\n"
-            "RTSTreamFormat: v2le\r\n"
-            "Session: {session_id}\r\n"
-            "\r\n".format(
-                host=endpoint[0],
-                session_id=self._session_id)
+        self._connection = http1connection.HTTP1Connection(self._iostream, is_client=True)
+        yield self._connection.write_headers(
+            httputil.RequestStartLine("PUT", "/rt/store", "HTTP/1.1"),
+            httputil.HTTPHeaders({
+                "Host": endpoint[0],
+                "Content-Type": "text/plain",
+                "Content-Encoding": "gzip",
+                "RTSTreamFormat": "v2le",
+                "Session": self._session_id
+                })
             )
         self.log.info("The push stream for session %s has been created", self._session_id)
 
@@ -626,11 +626,7 @@ class PushStream(object):
             self._iostream = None
 
     def write_chunk(self, serialized_data):
-        return self.write("{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data))
-
-    def write(self, data):
-        self.log.debug("Write to push stream for session %s %d bytes", self._session_id, len(data))
-        return self._iostream.write(data)
+        return self._connection.write(serialized_data)
 
     def _dump_output(self, data):
         with ExceptionLoggingContext(self.log):
