@@ -1098,9 +1098,18 @@ void TObjectManager::ReplayVerb(const NProto::TMetaReqExecute& request)
         "",
         TYPathResponseHandler());
 
+    auto wrappedContext = New<TServiceContextWrapper>(context);
+    auto mutationId = GetMutationId(context);
+        
     auto* object = GetObject(objectId);
     auto proxy = GetProxy(object, transaction);
-    proxy->Invoke(context);
+    proxy->Invoke(wrappedContext);
+
+    if (mutationId != NullMutationId) {
+        auto responseMessage = wrappedContext->GetResponseMessage();
+        auto responseData = responseMessage.Pack();
+        MetaStateManager->GetMutationContext()->SetResponseData(responseData);
+    }
 }
 
 void TObjectManager::DestroyObjects(const NProto::TMetaReqDestroyObjects& request)
