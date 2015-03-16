@@ -11,6 +11,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/concurrency/throughput_throttler.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -52,7 +54,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkWriter)
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
- *  \param reorderValues - set to true if key columns may come out of order, or be absent.
+ *  \param reorderValues - set to |true| if key columns may come out of order, or be absent.
  */
 ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterConfigPtr config,
@@ -62,7 +64,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
-    bool reorderValues = false);
+    bool reorderValues = false,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterConfigPtr config,
@@ -72,7 +75,8 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId,
-    std::unique_ptr<IPartitioner> partitioner);
+    std::unique_ptr<IPartitioner> partitioner,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,7 +87,8 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     const TKeyColumns& keyColumns,
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::TTransactionPtr transaction,
-    NTransactionClient::TTransactionManagerPtr transactionManager);
+    NTransactionClient::TTransactionManagerPtr transactionManager,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 

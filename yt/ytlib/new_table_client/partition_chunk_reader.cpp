@@ -45,9 +45,6 @@ TPartitionChunkReader::TPartitionChunkReader(
     , KeyColumns_(keyColumns)
     , ChunkMeta_(masterMeta)
     , PartitionTag_(partitionTag)
-    , CurrentBlockIndex_(0)
-    , RowCount_(0)
-    , BlockReader_(nullptr)
 {
     Logger.AddTag("PartitionChunkReader: %p", this);
 }
@@ -135,14 +132,16 @@ TPartitionMultiChunkReader::TPartitionMultiChunkReader(
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec> &chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns &keyColumns)
+    const TKeyColumns& keyColumns,
+    IThroughputThrottlerPtr throttler)
     : TParallelMultiChunkReaderBase(
           config,
           options,
           masterChannel,
           compressedBlockCache,
           nodeDirectory,
-          chunkSpecs)
+          chunkSpecs,
+          throttler)
     , UncompressedBlockCache_(uncompressedBlockCache)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)

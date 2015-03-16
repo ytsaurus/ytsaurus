@@ -293,7 +293,8 @@ public:
         IBlockCachePtr compressedBlockCache,
         IBlockCachePtr uncompressedBlockCache,
         TNodeDirectoryPtr nodeDirectory,
-        const std::vector<TChunkSpec>& chunkSpecs);
+        const std::vector<TChunkSpec>& chunkSpecs,
+        NConcurrency::IThroughputThrottlerPtr throttler);
 
     virtual bool ReadBlock(TSharedRef* block) override;
 
@@ -317,14 +318,16 @@ TFileMultiChunkReader::TFileMultiChunkReader(
     IBlockCachePtr compressedBlockCache,
     IBlockCachePtr uncompressedBlockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TChunkSpec>& chunkSpecs)
+    const std::vector<TChunkSpec>& chunkSpecs,
+    IThroughputThrottlerPtr throttler)
     : TSequentialMultiChunkReaderBase(
         config, 
         options, 
         masterChannel, 
         compressedBlockCache, 
         nodeDirectory, 
-        chunkSpecs)
+        chunkSpecs,
+        throttler)
     , Config_(config)
     , UncompressedBlockCache_(uncompressedBlockCache) 
 { }
@@ -398,7 +401,8 @@ IFileMultiChunkReaderPtr CreateFileMultiChunkReader(
     IBlockCachePtr compressedBlockCache,
     IBlockCachePtr uncompressedBlockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TChunkSpec>& chunkSpecs)
+    const std::vector<TChunkSpec>& chunkSpecs,
+    IThroughputThrottlerPtr throttler)
 {
     return New<TFileMultiChunkReader>(
         config, 
@@ -407,7 +411,8 @@ IFileMultiChunkReaderPtr CreateFileMultiChunkReader(
         compressedBlockCache, 
         uncompressedBlockCache, 
         nodeDirectory, 
-        chunkSpecs);
+        chunkSpecs,
+        throttler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

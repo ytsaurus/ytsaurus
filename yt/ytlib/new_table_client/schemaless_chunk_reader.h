@@ -14,6 +14,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/concurrency/throughput_throttler.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -74,7 +76,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns = TKeyColumns());
+    const TKeyColumns& keyColumns = TKeyColumns(),
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +90,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns = TKeyColumns());
+    const TKeyColumns& keyColumns = TKeyColumns(),
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +118,8 @@ ISchemalessTableReaderPtr CreateSchemalessTableReader(
     NChunkClient::IBlockCachePtr compressedBlockCache,
     NChunkClient::IBlockCachePtr uncompressedBlockCache,
     const NYPath::TRichYPath& richPath,
-    TNameTablePtr nameTable);
+    TNameTablePtr nameTable,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 

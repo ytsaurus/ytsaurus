@@ -407,6 +407,17 @@ public:
     TTabletChunkReaderConfigPtr ChunkReader;
     NVersionedTableClient::TTableWriterConfigPtr ChunkWriter;
 
+    //! Controls outcoming bandwidth used by store flushes.
+    NConcurrency::TThroughputThrottlerConfigPtr StoreFlushOutThrottler;
+
+
+    //! Controls incoming bandwidth used by store compactions.
+    NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionInThrottler;
+
+    //! Controls outcoming bandwidth used by store compactions.
+    NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionOutThrottler;
+
+
     TTabletNodeConfig()
     {
         RegisterParameter("slots", Slots)
@@ -446,6 +457,14 @@ public:
         RegisterParameter("chunk_reader", ChunkReader)
             .DefaultNew();
         RegisterParameter("chunk_writer", ChunkWriter)
+            .DefaultNew();
+
+        RegisterParameter("store_flush_out_throttler", StoreFlushOutThrottler)
+            .DefaultNew();
+
+        RegisterParameter("store_compaction_in_throttler", StoreCompactionInThrottler)
+            .DefaultNew();
+        RegisterParameter("store_compaction_out_throttler", StoreCompactionOutThrottler)
             .DefaultNew();
     }
 };

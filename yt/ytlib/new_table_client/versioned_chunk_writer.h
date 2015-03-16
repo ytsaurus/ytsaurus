@@ -8,6 +8,8 @@
 #include <ytlib/chunk_client/chunk_writer_base.h>
 #include <ytlib/chunk_client/multi_chunk_writer.h>
 
+#include <core/concurrency/throughput_throttler.h>
+
 #include <core/rpc/public.h>
 
 namespace NYT {
@@ -49,7 +51,8 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     const TKeyColumns& keyColumns,
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
-    const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId);
+    const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 

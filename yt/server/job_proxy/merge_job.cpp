@@ -71,7 +71,8 @@ public:
             host->GetNodeDirectory(),
             std::move(chunkSpecs),
             nameTable,
-            TKeyColumns());
+            TKeyColumns(),
+            NConcurrency::GetUnlimitedThrottler());
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
