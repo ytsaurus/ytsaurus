@@ -140,7 +140,7 @@ EValueType TTypedFunction::TypingFunction(
     {
         if (!unify(*expectedArg, *arg)) {
             THROW_ERROR_EXCEPTION(
-                "Wrong type for argument %v. Expected %v, got %v.",
+                "Wrong type for argument %v. Expected %v, got %v",
                 argIndex,
                 TypeToString(*expectedArg, genericAssignments),
                 TypeToString(*arg, genericAssignments))
@@ -155,7 +155,7 @@ EValueType TTypedFunction::TypingFunction(
     if (expectedArg != expectedArgTypes.end()
         || (arg != argTypes.end() && !hasRepeatedArgument)) {
         THROW_ERROR_EXCEPTION(
-            "Function %Qv expects %v arguments, got %v.",
+            "Function %Qv expects %v arguments, got %v",
             functionName,
             expectedArgTypes.size(),
             argTypes.size())
@@ -166,7 +166,7 @@ EValueType TTypedFunction::TypingFunction(
     {
         if (!unify(repeatedArgType, *arg)) {
             THROW_ERROR_EXCEPTION(
-                "Wrong type for repeated argument. Expected %v, got %v.",
+                "Wrong type for repeated argument. Expected %v, got %v",
                 TypeToString(repeatedArgType, genericAssignments),
                 TypeToString(*arg, genericAssignments))
                 << TErrorAttribute("expression", source);
@@ -176,13 +176,13 @@ EValueType TTypedFunction::TypingFunction(
     if (auto* genericResult = resultType.TryAs<TTypeArgument>()) {
         if (!genericAssignments.count(*genericResult)) {
             THROW_ERROR_EXCEPTION(
-                "Ambiguous result type.")
+                "Ambiguous result type")
                 << TErrorAttribute("expression", source);
         }
         return genericAssignments[*genericResult];
     } else if (!resultType.TryAs<EValueType>()) {
         THROW_ERROR_EXCEPTION(
-            "Ambiguous result type.")
+            "Ambiguous result type")
             << TErrorAttribute("expression", source);
     } else {
         return resultType.As<EValueType>();
