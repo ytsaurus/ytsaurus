@@ -51,13 +51,11 @@ class WorldSerialization(object):
 
     def get_current_stream(self):
         if self._index < len(self._description):
-            self.log.debug("Current index: %d", self._index)
             return self._description[self._index][0]
         else:
             return None
 
     def get_current_call(self):
-        self.log.debug("Current index: %d", self._index)
         return self._description[self._index][1:]
 
     def move_to_next_call(self):
@@ -166,7 +164,7 @@ Vary: Accept-Encoding\r\n\r\n"""
             call("session", "write", None, FakeIOStream.IGNORE),
             call("session", "read_until_regex", self.good_response, b"\r?\n\r?\n", max_bytes=FakeIOStream.IGNORE),
         )
-        yield self.s.start(self.endpoint)
+        yield self.s.connect(self.endpoint)
         session_id = yield self.s.get_id()
         assert session_id == "00291e7c-eedf-42cd-99cc-f18331b9db77"
 
@@ -176,7 +174,7 @@ Vary: Accept-Encoding\r\n\r\n"""
             call("session", "write", None, FakeIOStream.IGNORE),
             call("session", "read_until_regex", self.session_id_missing_response, b"\r?\n\r?\n", max_bytes=FakeIOStream.IGNORE),
         )
-        yield self.s.start(self.endpoint)
+        yield self.s.connect(self.endpoint)
         with pytest.raises(fennel.BadProtocolError):
             session_id = yield self.s.get_id()
 
@@ -188,7 +186,7 @@ Vary: Accept-Encoding\r\n\r\n"""
             call("session", "read_until", "4\r\n", b"\r\n", max_bytes=FakeIOStream.IGNORE),
             call("session", "read_bytes", "ping\r\n", 4, partial=True),
         )
-        yield self.s.start(self.endpoint)
+        yield self.s.connect(self.endpoint)
         message = yield self.s.read_message()
         assert message.type == "ping"
 
