@@ -88,8 +88,15 @@ class FakeIOStream(object):
                 assert key in actual
                 assert value == actual[key]
 
+    def closed(self):
+        return False
+
     @gen.coroutine
     def method_missing(self, name, *args, **kwargs):
+        if name in ["set_close_callback", "set_nodelay"]:
+            self.log.debug("Ignore %s call", name)
+            return
+
         self.log.info("%s called with %r and %r", name, args, kwargs)
 
         while True:
@@ -121,7 +128,7 @@ def call(stream_name, name, return_value, *args, **kwargs):
 
 
 class TestSessionStream(testing.AsyncTestCase):
-    good_response = """HTTP/1.1 200 OK
+    good_response = """HTTP/1.1 200 OK\r
 Server: nginx/1.4.4
 Date: Wed, 19 Mar 2014 11:09:54 GMT
 Content-Type: text/plain
@@ -148,43 +155,43 @@ Vary: Accept-Encoding\r\n\r\n"""
     def setUp(self):
         super(TestSessionStream, self).setUp()
         self._world_serialization = WorldSerialization()
-        self.s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id="", io_loop=self.io_loop, connection_factory=self._world_serialization)
+        self.s = fennel.SessionReader(service_id=TEST_SERVICE_ID, source_id="", io_loop=self.io_loop, connection_factory=self._world_serialization)
 
     @testing.gen_test
     def test_basic(self):
         self._world_serialization.expect(
             call("session", "write", None, FakeIOStream.IGNORE),
-            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_until_regex", self.good_response, b"\r?\n\r?\n", max_bytes=FakeIOStream.IGNORE),
         )
-        result = yield self.s.connect(self.endpoint)
-        assert result == "00291e7c-eedf-42cd-99cc-f18331b9db77"
+        yield self.s.start(self.endpoint)
+        session_id = yield self.s.get_id()
+        assert session_id == "00291e7c-eedf-42cd-99cc-f18331b9db77"
 
     @testing.gen_test
     def test_session_id_missing(self):
         self._world_serialization.expect(
             call("session", "write", None, FakeIOStream.IGNORE),
-            call("session", "read_until", self.session_id_missing_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
-            call("session", "write", None, FakeIOStream.IGNORE),
-            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_until_regex", self.session_id_missing_response, b"\r?\n\r?\n", max_bytes=FakeIOStream.IGNORE),
         )
-        result = yield self.s.connect(self.endpoint)
-        assert result == "00291e7c-eedf-42cd-99cc-f18331b9db77"
+        yield self.s.start(self.endpoint)
+        with pytest.raises(fennel.BadProtocolError):
+            session_id = yield self.s.get_id()
 
     @testing.gen_test
     def test_read_message(self):
         self._world_serialization.expect(
             call("session", "write", None, FakeIOStream.IGNORE),
-            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
-            call("session", "read_until", "4\r\n", "\r\n", max_bytes=FakeIOStream.IGNORE),
-            call("session", "read_bytes", "ping\r\n", 6),
+            call("session", "read_until_regex", self.good_response, b"\r?\n\r?\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_until", "4\r\n", b"\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_bytes", "ping\r\n", 4, partial=True),
         )
-        yield self.s.connect(self.endpoint)
+        yield self.s.start(self.endpoint)
         message = yield self.s.read_message()
         assert message.type == "ping"
 
 
 class TestLogBroker(testing.AsyncTestCase):
-    good_response = """HTTP/1.1 200 OK
+    good_response = """HTTP/1.1 200 OK\r
 Server: nginx/1.4.4
 Date: Wed, 19 Mar 2014 11:09:54 GMT
 Content-Type: text/plain
@@ -212,12 +219,12 @@ Partition: 0\r\n\r\n"""
         ack_response = "chunk=0\toffset=0\tseqno=32\tpart_offset=111"
         self._world_serialization.expect(
             call("session", "write", None, FakeIOStream.IGNORE),
-            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_until_regex", self.good_response, b"\r?\n\r?\n", max_bytes=FakeIOStream.IGNORE),
             call("push", "write", None, FakeIOStream.IGNORE),
             call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
             call("push", "write", None, FakeIOStream.IGNORE),
             call("session", "read_until", "{0}\r\n".format(hex(len(ack_response))[2:]), "\r\n", max_bytes=FakeIOStream.IGNORE),
-            call("session", "read_bytes", "{0}\r\n".format(ack_response), len(ack_response) + 2),
+            call("session", "read_bytes", "{0}\r\n".format(ack_response), len(ack_response), partial=True),
         )
         yield self.logbroker.connect(KAFKA_ENDPOINT)
         seqno = yield self.logbroker.save_chunk(32, [{}])
@@ -227,7 +234,7 @@ Partition: 0\r\n\r\n"""
     def test_save_one_big_chunk(self):
         self._world_serialization.expect(
             call("session", "write", None, FakeIOStream.IGNORE),
-            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_until_regex", self.good_response, b"\r?\n\r?\n", max_bytes=FakeIOStream.IGNORE),
             call("push", "write", None, FakeIOStream.IGNORE),
             call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
             call("push", "write", None, FakeIOStream.IGNORE),
@@ -244,7 +251,7 @@ Partition: 0\r\n\r\n"""
         ack_response = ["chunk=0\toffset=0\tseqno={0}\tpart_offset=111".format(seqno) for seqno in seqnos]
         self._world_serialization.expect(
             call("session", "write", None, FakeIOStream.IGNORE),
-            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_until_regex", self.good_response, b"\r?\n\r?\n", max_bytes=FakeIOStream.IGNORE),
             call("push", "write", None, FakeIOStream.IGNORE),
             call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
         )
@@ -252,7 +259,8 @@ Partition: 0\r\n\r\n"""
             self._world_serialization.expect(
                 call("push", "write", None, FakeIOStream.IGNORE),
                 call("session", "read_until", "{0}\r\n".format(self.get_hex_length(response)), "\r\n", max_bytes=FakeIOStream.IGNORE),
-                call("session", "read_bytes", "{0}\r\n".format(response), len(response) + 2),
+                call("session", "read_bytes", response, len(response), partial=True),
+                call("session", "read_bytes", "\r\n", 2),
             )
 
         yield self.logbroker.connect(KAFKA_ENDPOINT)
@@ -268,7 +276,7 @@ Partition: 0\r\n\r\n"""
         ]
         self._world_serialization.expect(
             call("session", "write", None, FakeIOStream.IGNORE),
-            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_until_regex", self.good_response, b"\r?\n\r?\n", max_bytes=FakeIOStream.IGNORE),
             call("push", "write", None, FakeIOStream.IGNORE),
             call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
         )
@@ -276,7 +284,8 @@ Partition: 0\r\n\r\n"""
             self._world_serialization.expect(
                 call("push", "write", None, FakeIOStream.IGNORE),
                 call("session", "read_until", "{0}\r\n".format(self.get_hex_length(response)), "\r\n", max_bytes=FakeIOStream.IGNORE),
-                call("session", "read_bytes", "{0}\r\n".format(response), len(response) + 2),
+                call("session", "read_bytes", response, len(response), partial=True),
+                call("session", "read_bytes", "\r\n", 2),
             )
 
         yield self.logbroker.connect(KAFKA_ENDPOINT)
@@ -293,7 +302,7 @@ Partition: 0\r\n\r\n"""
         ]
         self._world_serialization.expect(
             call("session", "write", None, FakeIOStream.IGNORE),
-            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_until_regex", self.good_response, b"\r?\n\r?\n", max_bytes=FakeIOStream.IGNORE),
             call("push", "write", None, FakeIOStream.IGNORE),
             call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
             call("push", "write", None, FakeIOStream.IGNORE),
@@ -302,7 +311,8 @@ Partition: 0\r\n\r\n"""
         for response in ack_response:
             self._world_serialization.expect(
                 call("session", "read_until", "{0}\r\n".format(self.get_hex_length(response)), "\r\n", max_bytes=FakeIOStream.IGNORE),
-                call("session", "read_bytes", "{0}\r\n".format(response), len(response) + 2),
+                call("session", "read_bytes", response, len(response), partial=True),
+                call("session", "read_bytes", "\r\n", 2),
             )
 
         yield self.logbroker.connect(KAFKA_ENDPOINT)
@@ -318,12 +328,11 @@ Partition: 0\r\n\r\n"""
         response = ""
         self._world_serialization.expect(
             call("session", "write", None, FakeIOStream.IGNORE),
-            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_until_regex", self.good_response, b"\r?\n\r?\n", max_bytes=FakeIOStream.IGNORE),
             call("push", "write", None, FakeIOStream.IGNORE),
             call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
             call("push", "write", None, FakeIOStream.IGNORE),
             call("session", "read_until", "{0}\r\n".format(hex(len(response))[2:]), "\r\n", max_bytes=FakeIOStream.IGNORE),
-            call("session", "read_until_close", None),
             call("session", "close", None),
         )
         yield self.logbroker.connect(KAFKA_ENDPOINT)
@@ -333,17 +342,18 @@ Partition: 0\r\n\r\n"""
     @testing.gen_test
     def test_session_closed_save_one_chunk(self):
         response = ""
+        ex = iostream.StreamClosedError()
         self._world_serialization.expect(
             call("session", "write", None, FakeIOStream.IGNORE),
-            call("session", "read_until", self.good_response, "\r\n\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "read_until_regex", self.good_response, b"\r?\n\r?\n", max_bytes=FakeIOStream.IGNORE),
             call("push", "write", None, FakeIOStream.IGNORE),
             call("push", "read_until_close", None, streaming_callback=FakeIOStream.IGNORE),
             call("push", "write", None, FakeIOStream.IGNORE),
-            call("session", "read_until", iostream.StreamClosedError(), "\r\n", max_bytes=FakeIOStream.IGNORE),
-            call("session", "close", None),
+            call("session", "read_until", ex, "\r\n", max_bytes=FakeIOStream.IGNORE),
+            call("session", "close", ex),
         )
         yield self.logbroker.connect(KAFKA_ENDPOINT)
-        with pytest.raises(iostream.StreamClosedError):
+        with pytest.raises(fennel.SessionEndError):
             seqno = yield self.logbroker.save_chunk(32, [{}])
 
     def get_hex_length(self, text):
