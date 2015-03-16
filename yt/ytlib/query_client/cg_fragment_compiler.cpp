@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "cg_fragment_compiler.h"
-
+#include "function_registry.h"
 #include "private.h"
 #include "helpers.h"
 
@@ -694,171 +694,54 @@ TCodegenExpression MakeCodegenReferenceExpr(
         };
 }
 
-TCodegenExpression MakeCodegenFunctionExpr(
-    Stroka functionName,
+TCGValue MakeBinaryFunctionCall(
+    Stroka routineName,
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name)
+    Stroka name,
+    TCGContext& builder,
+    Value* row)
 {
-    functionName.to_lower();
+    auto nameTwine = Twine(name.c_str());
+        YCHECK(codegenArgs.size() == 2);
+        auto lhsValue = codegenArgs[0](builder, row);
+        YCHECK(lhsValue.GetStaticType() == EValueType::String);
 
-    return [
-        MOVE(functionName),
-        MOVE(codegenArgs),
-        MOVE(type),
-        MOVE(name)
-    ] (TCGContext& builder, Value* row) {
-        auto nameTwine = Twine(name.c_str());
+        return CodegenIf<TCGContext, TCGValue>(
+            builder,
+            lhsValue.IsNull(),
+            [&] (TCGContext& builder) {
+                return TCGValue::CreateNull(builder, type);
+            },
+            [&] (TCGContext& builder) {
+                auto rhsValue = codegenArgs[1](builder, row);
+                YCHECK(rhsValue.GetStaticType() == EValueType::String);
 
-        auto makeBinaryFunctionCall = [&] (const Stroka& routineName) {
-            YCHECK(codegenArgs.size() == 2);
-            auto lhsValue = codegenArgs[0](builder, row);
-            YCHECK(lhsValue.GetStaticType() == EValueType::String);
-    
-            return CodegenIf<TCGContext, TCGValue>(
-                builder,
-                lhsValue.IsNull(),
-                [&] (TCGContext& builder) {
-                    return TCGValue::CreateNull(builder, type);
-                },
-                [&] (TCGContext& builder) {
-                    auto rhsValue = codegenArgs[1](builder, row);
-                    YCHECK(rhsValue.GetStaticType() == EValueType::String);
+                return CodegenIf<TCGContext, TCGValue>(
+                    builder,
+                    rhsValue.IsNull(),
+                    [&] (TCGContext& builder) {
+                        return TCGValue::CreateNull(builder, type);
+                    },
+                    [&] (TCGContext& builder) {
+                        Value* lhsData = lhsValue.GetData();
+                        Value* lhsLength = lhsValue.GetLength();
+                        Value* rhsData = rhsValue.GetData();
+                        Value* rhsLength = rhsValue.GetLength();
 
-                    return CodegenIf<TCGContext, TCGValue>(
-                        builder,
-                        rhsValue.IsNull(),
-                        [&] (TCGContext& builder) {
-                            return TCGValue::CreateNull(builder, type);
-                        },
-                        [&] (TCGContext& builder) {
-                            Value* lhsData = lhsValue.GetData();
-                            Value* lhsLength = lhsValue.GetLength();
-                            Value* rhsData = rhsValue.GetData();
-                            Value* rhsLength = rhsValue.GetLength();
+                        Value* result = builder.CreateCall4(
+                            builder.Module->GetRoutine(routineName),
+                            lhsData, lhsLength, rhsData, rhsLength);
 
-                            Value* result = builder.CreateCall4(
-                                builder.Module->GetRoutine(routineName),
-                                lhsData, lhsLength, rhsData, rhsLength);
-
-                            return TCGValue::CreateFromValue(
-                                builder,
-                                builder.getFalse(),
-                                nullptr,
-                                result,
-                                type);
-                        });
-                },
-                nameTwine);
-        };
-
-        if (functionName == "if") {
-            YCHECK(codegenArgs.size() == 3);
-            auto condition = codegenArgs[0](builder, row);
-            YCHECK(condition.GetStaticType() == EValueType::Boolean);
-
-            return CodegenIf<TCGContext, TCGValue>(
-                builder,
-                condition.IsNull(),
-                [&] (TCGContext& builder) {
-                    return TCGValue::CreateNull(builder, type);
-                },
-                [&] (TCGContext& builder) {
-                    return CodegenIf<TCGContext, TCGValue>(
-                        builder,
-                        builder.CreateICmpNE(
-                            builder.CreateZExtOrBitCast(condition.GetData(), builder.getInt64Ty()),
-                            builder.getInt64(0)),
-                        [&] (TCGContext& builder) {
-                            return codegenArgs[1](builder, row);
-                        },
-                        [&] (TCGContext& builder) {
-                            return codegenArgs[2](builder, row);
-                        });
-                },
-                nameTwine);
-        } else if (functionName == "is_prefix") {
-            return makeBinaryFunctionCall("IsPrefix");
-        } else if (functionName == "is_substr") {
-            return makeBinaryFunctionCall("IsSubstr");
-        } else if (functionName == "lower") {
-            YCHECK(codegenArgs.size() == 1);
-            auto argValue = codegenArgs[0](builder, row);
-            YCHECK(argValue.GetStaticType() == EValueType::String);
-
-            return CodegenIf<TCGContext, TCGValue>(
-                builder,
-                argValue.IsNull(),
-                [&] (TCGContext& builder) {
-                    return TCGValue::CreateNull(builder, type);
-                },
-                [&] (TCGContext& builder) {
-                    Value* argData = argValue.GetData();
-                    Value* argLength = argValue.GetLength();
-
-                    Value* result = builder.CreateCall3(
-                        builder.Module->GetRoutine("ToLower"),
-                        builder.GetExecutionContextPtr(),
-                        argData,
-                        argLength);
-
-                    return TCGValue::CreateFromValue(
-                        builder,
-                        builder.getFalse(),
-                        argLength,
-                        result,
-                        type);
-                },
-                nameTwine);
-        } else if (functionName == "is_null") {
-            YCHECK(codegenArgs.size() == 1);
-            auto argValue = codegenArgs[0](builder, row);
-
-            return TCGValue::CreateFromValue(
-                builder,
-                builder.getFalse(),
-                nullptr,            
-                builder.CreateZExtOrBitCast(
-                    argValue.IsNull(),
-                    TDataTypeBuilder::TBoolean::get(builder.getContext())),
-                type);
-        } else if (functionName == "simple_hash" || functionName == "farm_hash") {
-            auto routineName = functionName == "simple_hash" ? "SimpleHash" : "FarmHash";
-            Value* argRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-            Value* executionContextPtrRef = builder.GetExecutionContextPtr();
-
-            builder.CreateCall3(
-                builder.Module->GetRoutine("AllocateRow"),
-                executionContextPtrRef,
-                builder.getInt32(codegenArgs.size()),
-                argRowPtr);
-
-            Value* argRowRef = builder.CreateLoad(argRowPtr);
-
-            std::vector<EValueType> keyTypes;
-            for (int index = 0; index < codegenArgs.size(); ++index) {
-                auto id = index;
-                auto value = codegenArgs[index](builder, row);
-                value.StoreToRow(builder, argRowRef, index, id);
-            }
-
-            Value* result = builder.CreateCall(
-                builder.Module->GetRoutine(routineName),
-                argRowRef);
-
-            return TCGValue::CreateFromValue(
-                builder,
-                builder.getInt1(false),
-                nullptr,
-                result,
-                EValueType::Uint64);
-        } else if (functionName == "int64" || functionName == "uint64" || functionName == "double") {
-            YCHECK(codegenArgs.size() == 1);
-            return codegenArgs[0](builder, row).Cast(builder, type);
-        }
-
-        YUNIMPLEMENTED();
-    };
+                        return TCGValue::CreateFromValue(
+                            builder,
+                            builder.getFalse(),
+                            nullptr,
+                            result,
+                            type);
+                    });
+            },
+            nameTwine);
 }
 
 TCodegenExpression MakeCodegenUnaryOpExpr(
@@ -1170,6 +1053,16 @@ TCodegenExpression MakeCodegenInOpExpr(
             result,
             EValueType::Boolean);
     };
+}
+
+TCodegenExpression MakeCodegenFunctionExpr(
+    Stroka functionName,
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name)
+{
+    auto& function = GetFunctionRegistry()->GetFunction(functionName);
+    return function.MakeCodegenExpr(std::move(codegenArgs), type, name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
