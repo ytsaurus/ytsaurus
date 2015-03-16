@@ -56,6 +56,44 @@ EValueType TTypedFunction::InferResultType(
         source);
 }
 
+Stroka TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> genericAssignments)
+{
+    if (auto genericId = tp.TryAs<TTypeArgument>()) {
+        return TypeToString(genericAssignments[*genericId], genericAssignments);
+    } else if (auto unionType = tp.TryAs<TUnionType>()) {
+        Stroka unionString = "one of { ";
+        for (auto tp = (*unionType).begin(); tp != (*unionType).end(); tp++) {
+            if (tp != (*unionType).begin()) {
+                unionString += ", ";
+            }
+            unionString += TypeToString(*tp, genericAssignments);
+        }
+        return unionString + " }";
+    } else {
+        auto concreteType = tp.As<EValueType>();
+        switch (concreteType) {
+            case EValueType::TheBottom:
+                return "the bottom type";
+            case EValueType::Null:
+                return "no type";
+            case EValueType::Int64:
+                return "int";
+            case EValueType::Uint64:
+                return "unsigned int";
+            case EValueType::Double:
+                return "double";
+            case EValueType::Boolean:
+                return "bool";
+            case EValueType::String:
+                return "string";
+            case EValueType::Any:
+                return "any type";
+            default:
+                YUNREACHABLE();
+        }
+    }
+}
+
 EValueType TTypedFunction::TypingFunction(
     const std::vector<TType>& expectedArgTypes,
     TType repeatedArgType,
@@ -93,24 +131,33 @@ EValueType TTypedFunction::TypingFunction(
         }
     };
 
-    //TODO: better error messages
+    auto argIndex = 1;
     auto arg = argTypes.begin();
     auto expectedArg = expectedArgTypes.begin();
     for (;
         expectedArg != expectedArgTypes.end() && arg != argTypes.end();
-        arg++, expectedArg++)
+        arg++, expectedArg++, argIndex++)
     {
         if (!unify(*expectedArg, *arg)) {
             THROW_ERROR_EXCEPTION(
-                "Wrong argument type",
-                source);
+                "Wrong type for argument %v. Expected %v, got %v.",
+                argIndex,
+                TypeToString(*expectedArg, genericAssignments),
+                TypeToString(*arg, genericAssignments))
+                << TErrorAttribute("expression", source);
         }
     }
 
-    if (expectedArg != expectedArgTypes.end()) {
+    EValueType* concreteRepeatedType;
+    bool hasRepeatedArgument =
+        (concreteRepeatedType = repeatedArgType.TryAs<EValueType>())
+        && EValueType::Null != *concreteRepeatedType;
+    if (expectedArg != expectedArgTypes.end()
+        || (arg != argTypes.end() && !hasRepeatedArgument)) {
         THROW_ERROR_EXCEPTION(
-            "Expression %Qv expects %v arguments",
+            "Function %Qv expects %v arguments, got %v.",
             functionName,
+            expectedArgTypes.size(),
             argTypes.size())
             << TErrorAttribute("expression", source);
     }
@@ -119,22 +166,24 @@ EValueType TTypedFunction::TypingFunction(
     {
         if (!unify(repeatedArgType, *arg)) {
             THROW_ERROR_EXCEPTION(
-                "Wrong argument type",
-                source);
+                "Wrong type for repeated argument. Expected %v, got %v.",
+                TypeToString(repeatedArgType, genericAssignments),
+                TypeToString(*arg, genericAssignments))
+                << TErrorAttribute("expression", source);
         }
     }
 
     if (auto* genericResult = resultType.TryAs<TTypeArgument>()) {
         if (!genericAssignments.count(*genericResult)) {
             THROW_ERROR_EXCEPTION(
-                "Ambiguous result type",
-                source);
+                "Ambiguous result type.")
+                << TErrorAttribute("expression", source);
         }
         return genericAssignments[*genericResult];
     } else if (!resultType.TryAs<EValueType>()) {
         THROW_ERROR_EXCEPTION(
-            "Ambiguous result type",
-            source);
+            "Ambiguous result type.")
+            << TErrorAttribute("expression", source);
     } else {
         return resultType.As<EValueType>();
     }
@@ -219,10 +268,11 @@ TCGValue TIfFunction::CodegenValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIsPrefixFunction::TIsPrefixFunction() : TTypedFunction(
-    "is_prefix",
-    std::vector<TType>{ EValueType::String, EValueType::String },
-    EValueType::Boolean)
+TIsPrefixFunction::TIsPrefixFunction()
+    : TTypedFunction(
+      "is_prefix",
+      std::vector<TType>{ EValueType::String, EValueType::String },
+      EValueType::Boolean)
 { }
 
 TCGValue TIsPrefixFunction::CodegenValue(

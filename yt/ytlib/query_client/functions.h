@@ -16,9 +16,8 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IFunctionDescriptor
+struct IFunctionDescriptor
 {
-public:
     virtual ~IFunctionDescriptor();
 
     virtual Stroka GetName() const = 0;
