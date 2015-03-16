@@ -7,6 +7,7 @@
 #include <core/misc/ref_counted_tracker.h>
 #include <core/misc/ref_counted.h>
 #include <core/misc/new.h>
+#include <core/misc/blob.h>
 
 #include <core/actions/future.h>
 
