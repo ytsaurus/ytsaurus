@@ -106,6 +106,7 @@ exports.blackboxValidateCookie = function(logger, party, sessionid, sslsessionid
             method: "sessionid",
             format: "json",
             userip: party,
+            host: config.host.split(".").slice(1).join("."),
         }
         if (sessionid) {
             query.sessionid = sessionid + "";
