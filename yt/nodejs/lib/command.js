@@ -245,10 +245,9 @@ YtCommand.prototype._epilogue = function(result) {
             if (!this.rsp.statusCode ||
                 (this.rsp.statusCode >= 200 && this.rsp.statusCode < 300))
             {
-                var isServerSide = result.isUnavailable() || result.isAllTargetNodesFailed();
-                this.rsp.statusCode = isServerSide ? 503 : 400;
-                this.rsp.setHeader("Retry-After", "60");
+                this.rsp.statusCode = 400;
             }
+
             utils.dispatchAs(
                 this.rsp,
                 result.toJson(),
@@ -833,6 +832,12 @@ YtCommand.prototype._execute = function(cb) {
             self.rsp.statusCode = 500;
         } else if (result.code > 0) {
             self.rsp.statusCode = 400;
+        }
+
+        var isServerSide = result.isUnavailable() || result.isAllTargetNodesFailed();
+        if (isServerSide) {
+            self.rsp.statusCode = 503;
+            self.rsp.setHeader("Retry-After", "60");
         }
 
         return result;
