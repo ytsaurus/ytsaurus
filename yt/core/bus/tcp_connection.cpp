@@ -5,6 +5,7 @@
 #include "config.h"
 
 #include <core/misc/string.h>
+#include <core/misc/enum.h>
 
 #include <core/rpc/public.h>
 
@@ -34,23 +35,48 @@ static const size_t MaxFragmentsPerWrite = 256;
 static const size_t MaxBatchWriteSize    = 64 * 1024;
 static const size_t MaxWriteCoalesceSize = 4 * 1024;
 
-static NProfiling::TAggregateCounter ReceiveTimeCounter("/receive_time");
-static NProfiling::TAggregateCounter ReceiveSizeCounter("/receive_size");
-static NProfiling::TAggregateCounter InHandlerTimeCounter("/in_handler_time");
-static NProfiling::TSimpleCounter InByteCounter("/in_bytes");
-static NProfiling::TSimpleCounter InPacketCounter("/in_packets");
+////////////////////////////////////////////////////////////////////////////////
 
-static NProfiling::TAggregateCounter SendTimeCounter("/send_time");
-static NProfiling::TAggregateCounter SendSizeCounter("/send_size");
-static NProfiling::TAggregateCounter OutHandlerTimeCounter("/out_handler_time");
-static NProfiling::TSimpleCounter OutBytesCounter("/out_bytes");
-static NProfiling::TSimpleCounter OutPacketCounter("/out_packets");
-static NProfiling::TAggregateCounter PendingOutPacketCounter("/pending_out_packets");
-static NProfiling::TAggregateCounter PendingOutByteCounter("/pending_out_bytes");
+struct TTcpInterfaceStatistics
+{
+    TTcpInterfaceStatistics()
+        : ReceiveTimeCounter("/receive_time")
+        , ReceiveSizeCounter("/receive_size")
+        , InHandlerTimeCounter("/in_handler_time")
+        , InByteCounter("/in_bytes")
+        , InPacketCounter("/in_packets")
+        , SendTimeCounter("/send_time")
+        , SendSizeCounter("/send_size")
+        , OutHandlerTimeCounter("/out_handler_time")
+        , OutBytesCounter("/out_bytes")
+        , OutPacketCounter("/out_packets")
+        , PendingOutPacketCounter("/pending_out_packets")
+        , PendingOutByteCounter("/pending_out_bytes")
+    { }
+    
+    NProfiling::TAggregateCounter ReceiveTimeCounter;
+    NProfiling::TAggregateCounter ReceiveSizeCounter;
+    NProfiling::TAggregateCounter InHandlerTimeCounter;
+    NProfiling::TSimpleCounter InByteCounter;
+    NProfiling::TSimpleCounter InPacketCounter;
+
+    NProfiling::TAggregateCounter SendTimeCounter;
+    NProfiling::TAggregateCounter SendSizeCounter;
+    NProfiling::TAggregateCounter OutHandlerTimeCounter;
+    NProfiling::TSimpleCounter OutBytesCounter;
+    NProfiling::TSimpleCounter OutPacketCounter;
+    NProfiling::TAggregateCounter PendingOutPacketCounter;
+    NProfiling::TAggregateCounter PendingOutByteCounter;
+};
+
+static TEnumIndexedVector<TTcpInterfaceStatistics, ETcpInterfaceType> TcpInterfaceStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTcpConnectionTag { };
+struct TTcpConnectionReadBufferTag { };
+struct TTcpConnectionWriteBufferTag { };
+
+////////////////////////////////////////////////////////////////////////////////
 
 TTcpConnection::TTcpConnection(
     TTcpBusConfigPtr config,
@@ -75,37 +101,38 @@ TTcpConnection::TTcpConnection(
     , Priority_(priority)
 #endif
     , Handler_(handler)
-    , Logger(BusLogger)
-    , Profiler(BusProfiler)
+    , InterfaceStatistics_(&TcpInterfaceStatistics[InterfaceType_])
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
-    , ReadBuffer_(TTcpConnectionTag(), MinBatchReadSize)
+    , ReadBuffer_(TTcpConnectionReadBufferTag(), MinBatchReadSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(handler);
 
+    Logger = BusLogger;
     Logger.AddTag("ConnectionId: %v, Address: %v",
-        id,
+        Id_,
         Address_);
 
+    Profiler = BusProfiler;
     auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("interface", FormatEnum(InterfaceType_));
     Profiler.TagIds().push_back(tagId);
 
     switch (ConnectionType_) {
         case EConnectionType::Client:
             YCHECK(Socket_ == INVALID_SOCKET);
-            State_ = ETcpConnectionState::Resolving;
+            State_ = EState::Resolving;
             break;
 
         case EConnectionType::Server:
             YCHECK(Socket_ != INVALID_SOCKET);
-            State_ = ETcpConnectionState::Opening;
+            State_ = EState::Opening;
             break;
 
         default:
             YUNREACHABLE();
     }
 
-    WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionTag()));
+    WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionWriteBufferTag()));
     WriteBuffers_[0]->Reserve(MaxBatchWriteSize);
 
     UpdateConnectionCount(+1);
@@ -201,11 +228,11 @@ void TTcpConnection::UpdatePendingOut(int countDelta, i64 sizeDelta)
 {
     {
         int value = (Statistics().PendingOutPackets += countDelta);
-        Profiler.Update(PendingOutPacketCounter, value);
+        Profiler.Update(InterfaceStatistics_->PendingOutPacketCounter, value);
     }
     {
         size_t value = (Statistics().PendingOutBytes += sizeDelta);
-        Profiler.Update(PendingOutByteCounter, value);
+        Profiler.Update(InterfaceStatistics_->PendingOutByteCounter, value);
     }
 }
 
@@ -218,7 +245,7 @@ const TConnectionId& TTcpConnection::GetId() const
 
 void TTcpConnection::SyncOpen()
 {
-    State_ = ETcpConnectionState::Open;
+    State_ = EState::Open;
 
     LOG_DEBUG("Connection established");
 
@@ -285,7 +312,7 @@ void TTcpConnection::OnAddressResolved(const TNetworkAddress& netAddress)
 
     InitSocketWatcher();
 
-    State_ = ETcpConnectionState::Opening;
+    State_ = EState::Opening;
 }
 
 void TTcpConnection::SyncClose(const TError& error)
@@ -294,11 +321,11 @@ void TTcpConnection::SyncClose(const TError& error)
     YCHECK(!error.IsOK());
 
     // Check for second close attempt.
-    if (State_ == ETcpConnectionState::Closed) {
+    if (State_ == EState::Closed) {
         return;
     }
 
-    State_ = ETcpConnectionState::Closed;
+    State_ = EState::Closed;
 
     // Stop all watchers.
     SocketWatcher_.reset();
@@ -497,7 +524,7 @@ void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>&
 void TTcpConnection::OnSocket(ev::io&, int revents)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YASSERT(State_ != ETcpConnectionState::Closed);
+    YASSERT(State_ != EState::Closed);
 
     if (revents & ev::ERROR) {
         SyncClose(TError(NRpc::EErrorCode::TransportError, "Socket failed"));
@@ -520,7 +547,7 @@ void TTcpConnection::OnSocket(ev::io&, int revents)
 
 void TTcpConnection::OnSocketRead()
 {
-    if (State_ == ETcpConnectionState::Closed) {
+    if (State_ == EState::Closed) {
         return;
     }
 
@@ -582,7 +609,7 @@ void TTcpConnection::OnSocketRead()
 bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 {
     ssize_t result;
-    PROFILE_AGGREGATED_TIMING (ReceiveTimeCounter) {
+    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->ReceiveTimeCounter) {
         do {
             result = recv(Socket_, buffer, size, 0);
         } while (result < 0 && errno == EINTR);
@@ -595,8 +622,8 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 
     *bytesRead = result;
 
-    Profiler.Increment(InByteCounter, *bytesRead);
-    Profiler.Update(ReceiveSizeCounter, *bytesRead);
+    Profiler.Increment(InterfaceStatistics_->InByteCounter, *bytesRead);
+    Profiler.Update(InterfaceStatistics_->ReceiveSizeCounter, *bytesRead);
 
     LOG_TRACE("%v bytes read", *bytesRead);
 
@@ -651,7 +678,7 @@ bool TTcpConnection::AdvanceDecoder(size_t size)
 
 bool TTcpConnection::OnPacketReceived()
 {
-    Profiler.Increment(InPacketCounter);
+    Profiler.Increment(InterfaceStatistics_->InPacketCounter);
     switch (Decoder_.GetPacketType()) {
         case EPacketType::Ack:
             return OnAckPacketReceived();
@@ -686,7 +713,7 @@ bool TTcpConnection::OnAckPacketReceived()
 
     LOG_DEBUG("Ack received (PacketId: %v)", Decoder_.GetPacketId());
 
-    PROFILE_AGGREGATED_TIMING (OutHandlerTimeCounter) {
+    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->OutHandlerTimeCounter) {
         if (unackedMessage.Promise) {
             unackedMessage.Promise.Set(TError());
         }
@@ -708,7 +735,7 @@ bool TTcpConnection::OnMessagePacketReceived()
     }
 
     auto message = Decoder_.GetMessage();
-    PROFILE_AGGREGATED_TIMING (InHandlerTimeCounter) {
+    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->InHandlerTimeCounter) {
         Handler_->HandleMessage(std::move(message), this);
     }
 
@@ -728,13 +755,13 @@ void TTcpConnection::EnqueuePacket(
 
 void TTcpConnection::OnSocketWrite()
 {
-    if (State_ == ETcpConnectionState::Closed) {
+    if (State_ == EState::Closed) {
         return;
     }
 
     // For client sockets the first write notification means that
     // connection was established (either successfully or not).
-    if (ConnectionType_ == EConnectionType::Client && State_ == ETcpConnectionState::Opening) {
+    if (ConnectionType_ == EConnectionType::Client && State_ == EState::Opening) {
         // Check if connection was established successfully.
         int error = GetSocketError();
         if (error != 0) {
@@ -815,12 +842,12 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     ssize_t result;
 #ifdef _win_
     DWORD bytesWritten_ = 0;
-    PROFILE_AGGREGATED_TIMING (SendTimeCounter) {
+    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->SendTimeCounter) {
         result = WSASend(Socket_, SendVector_.data(), SendVector_.size(), &bytesWritten_, 0, NULL, NULL);
     }
     *bytesWritten = static_cast<size_t>(bytesWritten_);
 #else
-    PROFILE_AGGREGATED_TIMING (SendTimeCounter) {
+    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->SendTimeCounter) {
         do {
             result = writev(Socket_, SendVector_.data(), SendVector_.size());
         } while (result < 0 && errno == EINTR);
@@ -828,8 +855,8 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     *bytesWritten = result >= 0 ? result : 0;
 #endif
 
-    Profiler.Increment(OutBytesCounter, *bytesWritten);
-    Profiler.Update(SendSizeCounter, *bytesWritten);
+    Profiler.Increment(InterfaceStatistics_->OutBytesCounter, *bytesWritten);
+    Profiler.Update(InterfaceStatistics_->SendSizeCounter, *bytesWritten);
 
     LOG_TRACE("%v bytes written", *bytesWritten);
 
@@ -912,7 +939,7 @@ bool TTcpConnection::MaybeEncodeFragments()
         if (buffer->Size() + fragment.Size() > buffer->Capacity()) {
             // Make sure we never reallocate.
             flushCoalesced();
-            WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionTag()));
+            WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionWriteBufferTag()));
             buffer = WriteBuffers_.back().get();
             buffer->Reserve(std::max(MaxBatchWriteSize, fragment.Size()));
         }
@@ -1001,7 +1028,7 @@ void TTcpConnection::OnPacketSent()
 
 
     UpdatePendingOut(-1, -packet->Size);
-    Profiler.Increment(OutPacketCounter);
+    Profiler.Increment(InterfaceStatistics_->OutPacketCounter);
 
     delete packet;
     EncodedPackets_.pop();
@@ -1035,17 +1062,17 @@ void TTcpConnection::OnMessageEnqueued()
     MessageEnqueuedCallbackPending_.store(false);
 
     switch (State_.load()) {
-        case ETcpConnectionState::Resolving:
-        case ETcpConnectionState::Opening:
+        case EState::Resolving:
+        case EState::Opening:
             // Do nothing.
             break;
 
-        case ETcpConnectionState::Open:
+        case EState::Open:
             ProcessOutcomingMessages();
             UpdateSocketWatcher();
             break;
 
-        case ETcpConnectionState::Closed:
+        case EState::Closed:
             DiscardOutcomingMessages(TError(
                 NRpc::EErrorCode::TransportError,
                 "Connection closed"));
@@ -1111,7 +1138,7 @@ void TTcpConnection::DiscardUnackedMessages(const TError& error)
 
 void TTcpConnection::UpdateSocketWatcher()
 {
-    if (State_ == ETcpConnectionState::Open) {
+    if (State_ == EState::Open) {
         SocketWatcher_->set(HasUnsentData() ? ev::READ|ev::WRITE : ev::READ);
     }
 }

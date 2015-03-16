@@ -16,15 +16,15 @@ namespace NBus {
 extern const NLogging::TLogger BusLogger;
 extern NProfiling::TProfiler BusProfiler;
 
-typedef TGuid TConnectionId;
-typedef TGuid TPacketId;
+struct TTcpInterfaceStatistics;
+
+using TConnectionId = TGuid;
+using TPacketId = TGuid;
 
 DECLARE_REFCOUNTED_STRUCT(IEventLoopObject)
 
 DECLARE_REFCOUNTED_CLASS(TTcpConnection)
 DECLARE_REFCOUNTED_CLASS(TTcpDispatcherThread)
-
-////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EConnectionType,
     (Client)
