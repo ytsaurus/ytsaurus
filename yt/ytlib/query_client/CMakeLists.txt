@@ -44,6 +44,8 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/cg_fragment_compiler.cpp
     ${BASE}/folding_profiler.cpp
     ${BASE}/evaluation_helpers.cpp
+    ${BASE}/functions.cpp
+    ${BASE}/function_registry.cpp
   )
 
   set( HDRS
@@ -54,6 +56,8 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/cg_fragment_compiler.h
     ${BASE}/folding_profiler.h
     ${BASE}/evaluation_helpers.h
+    ${BASE}/functions.h
+    ${BASE}/function_registry.h
   )
 endif()
 

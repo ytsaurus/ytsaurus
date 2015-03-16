@@ -429,6 +429,24 @@ TCGExpressionCallback CodegenExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TBuilder, class TResult>
+TResult CodegenIf(
+    TBuilder& builder,
+    Value* condition,
+    const std::function<TResult(TBuilder& builder)>& thenCodegen,
+    const std::function<TResult(TBuilder& builder)>& elseCodegen,
+    Twine name = Twine());
+
+TCGValue MakeBinaryFunctionCall(
+    Stroka routineName,
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name,
+    TCGContext& builder,
+    Value* row);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT
 

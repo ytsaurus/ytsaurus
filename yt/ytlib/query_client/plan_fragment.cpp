@@ -1,5 +1,6 @@
 #include "stdafx.h"
 
+#include "function_registry.h"
 #include "plan_fragment.h"
 #include "private.h"
 #include "helpers.h"
@@ -274,116 +275,19 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
     }
 }
 
-EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueType>& argTypes, const TStringBuf& source)
+EValueType InferFunctionExprType(
+    Stroka functionName,
+    const std::vector<EValueType>& argTypes,
+    const TStringBuf& source)
 {
-    functionName.to_lower();
-
-    auto validateArgCount = [&] (int argCount) {
-        if (argTypes.size() != argCount) {
-            THROW_ERROR_EXCEPTION(
-                "Expression %Qv expects %v arguments, but %v provided",
-                functionName,
-                argCount,
-                argTypes.size())
-                << TErrorAttribute("expression", source);
-        }
-    };
-
-    auto checkTypeCast = [&] (EValueType dstType) {
-        validateArgCount(1);
-        auto argType = argTypes[0];
-
-        if (argType != EValueType::Int64 && argType != EValueType::Uint64 && argType != EValueType::Double) {
-            THROW_ERROR_EXCEPTION("Conversion %Qv is not supported for this types", source)
-                << TErrorAttribute("src_type", ToString(argType))
-                << TErrorAttribute("dst_type", ToString(dstType));
-        }
-
-        return dstType;
-    };
-
-    if (functionName == "if") {
-        validateArgCount(3);
-
-        auto conditionType = argTypes[0];
-        auto thenType = argTypes[1];
-        auto elseType = argTypes[2];
-
-        if (conditionType != EValueType::Boolean) {
-            THROW_ERROR_EXCEPTION("Expected condition %Qv to be boolean", source)
-                << TErrorAttribute("condition_type", ToString(conditionType));
-        }
-
-        if (thenType != elseType) {
-            THROW_ERROR_EXCEPTION(
-                "Type mismatch in expression %Qv",
-                source)
-                << TErrorAttribute("then_type", ToString(thenType))
-                << TErrorAttribute("else_type", ToString(elseType));
-        }
-
-        return thenType;
-    } else if (functionName == "is_prefix" || functionName == "is_substr") {
-        validateArgCount(2);
-
-        auto lhsType = argTypes[0];
-        auto rhsType = argTypes[1];
-
-        if (lhsType != EValueType::String || rhsType != EValueType::String) {
-            THROW_ERROR_EXCEPTION(
-                "Expression %Qv supports only string arguments",
-                source)
-                << TErrorAttribute("lhs_type", ToString(lhsType))
-                << TErrorAttribute("rhs_type", ToString(rhsType));
-        }
-
-        return EValueType::Boolean;
-    } else if (functionName == "lower") {
-        validateArgCount(1);
-        auto argType = argTypes[0];
-
-        if (argType != EValueType::String) {
-            THROW_ERROR_EXCEPTION(
-                "Expression %Qv supports only string argument",
-                source)
-                << TErrorAttribute("arg_type", ToString(argType));
-        }
-
-        return EValueType::String;
-    } else if (functionName == "simple_hash" || functionName == "farm_hash") {
-        if (argTypes.size() == 0) {
-            THROW_ERROR_EXCEPTION(
-                "Expression %Qv expects some arguments but none provided",
-                source);
-        }
-
-        for (const auto& argType : argTypes) {
-            // NB: hash has to be deterministic.
-            if (!(IsIntegralType(argType) || argType == EValueType::Boolean || argType == EValueType::String)) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %Qv supports only integer, boolean and string arguments",
-                    source)
-                    << TErrorAttribute("arg_type", ToString(argType));
-            }
-        }
-
-        return EValueType::Uint64;
-    } else if (functionName == "is_null") {
-        validateArgCount(1);
-        return EValueType::Boolean;
-    } else if (functionName == "int64") {
-        return checkTypeCast(EValueType::Int64);
-    } else if (functionName == "uint64") {
-        return checkTypeCast(EValueType::Uint64);
-    } else if (functionName == "double") {
-        return checkTypeCast(EValueType::Double);
+    if (!GetFunctionRegistry()->IsRegistered(functionName)) {
+        THROW_ERROR_EXCEPTION(
+            "Unknown function in expression %Qv",
+            source)
+            << TErrorAttribute("function_name", functionName);
     }
 
-    THROW_ERROR_EXCEPTION(
-        "Unknown function in expression %Qv",
-        source)
-        << TErrorAttribute("function_name", functionName);
-
+    return GetFunctionRegistry()->GetFunction(functionName).InferResultType(argTypes, source);
 }
 
 void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)

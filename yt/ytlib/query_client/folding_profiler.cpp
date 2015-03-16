@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "folding_profiler.h"
 #include "plan_helpers.h"
+#include "function_registry.h"
 
 #include "cg_fragment_compiler.h"
 
@@ -178,8 +179,10 @@ TCodegenExpression TFoldingProfiler::Profile(const TConstExpressionPtr& expr, co
             codegenArgs.push_back(Profile(argument, schema));
         }
 
-        return MakeCodegenFunctionExpr(
-            functionExpr->FunctionName,
+        Stroka functionName = functionExpr->FunctionName;
+        auto& function = GetFunctionRegistry()->GetFunction(functionName);
+
+        return function.MakeCodegenExpr(
             std::move(codegenArgs),
             functionExpr->Type,
             "{" + functionExpr->GetName() + "}");
