@@ -418,6 +418,7 @@ class SessionReader(object):
     log = logging.getLogger("SessionReader")
 
     SESSION_TIMEOUT = datetime.timedelta(minutes=5)
+    HEADERS_TIMEOUT = datetime.timedelta(minutes=1)
 
     def __init__(self, service_id, source_id, logtype=None, io_loop=None, connection_factory=None):
         self._logtype = logtype
@@ -448,9 +449,16 @@ class SessionReader(object):
             self._connection_factory.connect(endpoint[0], endpoint[1]),
             self._io_loop
             )
-        self.log.info("Connection to %s is established")
-        self._connection = http1connection.HTTP1Connection(self._iostream, is_client=True)
-        f = self._connection.write_headers(
+        self.log.info("Connection to %s is established", endpoint)
+        self._connection = http1connection.HTTP1Connection(
+            self._iostream,
+            is_client=True,
+            params=http1connection.HTTP1ConnectionParameters(
+                no_keep_alive=True,
+                header_timeout=min(timeout.total_seconds(), self.HEADERS_TIMEOUT.total_seconds()),
+                max_header_size=64*1024
+                ))
+        future = self._connection.write_headers(
             httputil.RequestStartLine(
                 "GET",
                 httputil.url_concat(
@@ -465,7 +473,10 @@ class SessionReader(object):
                 })
             )
         self._connection.finish()
-        yield f
+        yield gen.with_timeout(
+            timeout,
+            future,
+            self._io_loop)
         self.log.info("Start reading response...")
         read_response_future = self._connection.read_response(self)
 
@@ -581,6 +592,7 @@ class PushStream(object):
     log = logging.getLogger("PushStream")
 
     PUSH_TIMEOUT = datetime.timedelta(minutes=5)
+    HEADERS_TIMEOUT = datetime.timedelta(minutes=1)
 
     def __init__(self, io_loop=None, connection_factory=None):
         self._iostream = None
@@ -604,8 +616,16 @@ class PushStream(object):
             self._connection_factory.connect(endpoint[0], endpoint[1]),
             self._io_loop
             )
-        self._connection = http1connection.HTTP1Connection(self._iostream, is_client=True)
-        yield self._connection.write_headers(
+        self._connection = http1connection.HTTP1Connection(
+            self._iostream,
+            is_client=True,
+            params=http1connection.HTTP1ConnectionParameters(
+                no_keep_alive=True,
+                header_timeout=min(timeout.total_seconds(), self.HEADERS_TIMEOUT.total_seconds()),
+                max_header_size=64*1024
+                ))
+
+        future = self._connection.write_headers(
             httputil.RequestStartLine("PUT", "/rt/store", "HTTP/1.1"),
             httputil.HTTPHeaders({
                 "Host": endpoint[0],
@@ -615,6 +635,11 @@ class PushStream(object):
                 "Session": self._session_id
                 })
             )
+        yield gen.with_timeout(
+            timeout,
+            future,
+            self._io_loop)
+
         self.log.info("The push stream for session %s has been created", self._session_id)
 
         self._iostream.read_until_close(callback=self._post_close, streaming_callback=self._dump_output)
