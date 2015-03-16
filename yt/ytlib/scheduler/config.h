@@ -731,7 +731,7 @@ public:
     }
 };
 
-class TPoolConfig
+class TSchedulableConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -740,17 +740,21 @@ public:
     double MaxShareRatio;
     TNullable<int> MaxRunningOperations;
 
-    ESchedulingMode Mode;
-
     TResourceLimitsConfigPtr ResourceLimits;
 
     TNullable<Stroka> SchedulingTag;
 
-    TPoolConfig()
+    // The following settings override scheduler configuration.
+    TNullable<TDuration> MinSharePreemptionTimeout;
+    TNullable<TDuration> FairSharePreemptionTimeout;
+    TNullable<double> FairShareStarvationTolerance;
+
+    TSchedulableConfig()
     {
         RegisterParameter("weight", Weight)
             .Default(1.0)
             .GreaterThanOrEqual(0.0);
+
         RegisterParameter("min_share_ratio", MinShareRatio)
             .Default(0.0)
             .InRange(0.0, 1.0);
@@ -761,50 +765,8 @@ public:
         RegisterParameter("max_running_operations", MaxRunningOperations)
             .Default();
 
-        RegisterParameter("mode", Mode)
-            .Default(ESchedulingMode::FairShare);
-
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
-
-        RegisterParameter("scheduling_tag", SchedulingTag)
-            .Default(Null);
-    }
-};
-
-////////////////////////////////////////////////////////////////////
-
-class TStrategyOperationSpec
-    : public NYTree::TYsonSerializable
-{
-public:
-    TNullable<Stroka> Pool;
-    TNullable<Stroka> SchedulingTag;
-    double Weight;
-    double MinShareRatio;
-    double MaxShareRatio;
-
-    // The following settings override schedule configuration.
-    TNullable<TDuration> MinSharePreemptionTimeout;
-    TNullable<TDuration> FairSharePreemptionTimeout;
-    TNullable<double> FairShareStarvationTolerance;
-
-    TResourceLimitsConfigPtr ResourceLimits;
-
-    TStrategyOperationSpec()
-    {
-        RegisterParameter("pool", Pool)
-            .Default()
-            .NonEmpty();
-        RegisterParameter("weight", Weight)
-            .Default(1.0)
-            .GreaterThanOrEqual(0.0);
-        RegisterParameter("min_share_ratio", MinShareRatio)
-            .Default(0.0)
-            .InRange(0.0, 1.0);
-        RegisterParameter("max_share_ratio", MaxShareRatio)
-            .Default(1.0)
-            .InRange(0.0, 1.0);
 
         RegisterParameter("scheduling_tag", SchedulingTag)
             .Default();
@@ -816,9 +778,35 @@ public:
         RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
             .InRange(0.0, 1.0)
             .Default();
+    }
+};
 
-        RegisterParameter("resource_limits", ResourceLimits)
-            .DefaultNew();
+class TPoolConfig
+    : public TSchedulableConfig
+{
+public:
+    ESchedulingMode Mode;
+
+    TPoolConfig()
+    {
+        RegisterParameter("mode", Mode)
+            .Default(ESchedulingMode::FairShare);
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TStrategyOperationSpec
+    : public TSchedulableConfig
+{
+public:
+    TNullable<Stroka> Pool;
+
+    TStrategyOperationSpec()
+    {
+        RegisterParameter("pool", Pool)
+            .Default()
+            .NonEmpty();
     }
 };
 

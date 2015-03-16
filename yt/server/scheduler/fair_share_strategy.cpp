@@ -57,6 +57,12 @@ struct TSchedulableAttributes
     bool Active = true;
 };
 
+DEFINE_ENUM(ESchedulableStatus,
+    (Normal)
+    (BelowMinShare)
+    (BelowFairShare)
+);
+
 ////////////////////////////////////////////////////////////////////
 
 struct ISchedulerElement
@@ -69,7 +75,7 @@ struct ISchedulerElement
     virtual void BeginHeartbeat() = 0;
     virtual void UpdateDynamicAttributes() = 0;
     virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) = 0;
-    virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) = 0;
+    virtual bool ScheduleJob(ISchedulingContext* context) = 0;
     virtual void EndHeartbeat() = 0;
 
     virtual const TSchedulableAttributes& Attributes() const = 0;
@@ -85,6 +91,11 @@ struct ISchedulerElement
     virtual double GetMaxShareRatio() const = 0;
 
     virtual ISchedulerElement* GetBestLeafDescendant() = 0;
+    virtual ESchedulableStatus GetStatus() const = 0;
+
+    virtual bool GetStarving() const = 0;
+    virtual void SetStarving(bool starving) = 0;
+    virtual void CheckForStarvation(TInstant now) = 0;
 
     virtual const TNodeResources& ResourceDemand() const = 0;
     virtual const TNodeResources& ResourceUsage() const = 0;
@@ -195,6 +206,68 @@ public:
         }
     }
 
+    ESchedulableStatus GetStatus(double defaultTolerance) const
+    {
+        double usageRatio = Attributes_.UsageRatio;
+        double demandRatio = Attributes_.DemandRatio;
+
+        double tolerance =
+            demandRatio < Attributes_.FairShareRatio + RatioComparisonPrecision
+            ? 1.0
+            : defaultTolerance;
+
+        if (usageRatio > Attributes_.FairShareRatio * tolerance - RatioComparisonPrecision) {
+            return ESchedulableStatus::Normal;
+        }
+
+        return usageRatio < Attributes_.AdjustedMinShareRatio
+               ? ESchedulableStatus::BelowMinShare
+               : ESchedulableStatus::BelowFairShare;
+    }
+
+    ESchedulableStatus GetStatus() const override
+    {
+        return ESchedulableStatus::Normal;
+    }
+
+    void CheckForStarvation(
+        TDuration minSharePreemptionTimeout,
+        TDuration fairSharePreemptionTimeout,
+        TInstant now)
+    {
+        auto status = GetStatus();
+        switch (status) {
+            case ESchedulableStatus::BelowMinShare:
+                if (!GetBelowFairShareSince()) {
+                    SetBelowFairShareSince(now);
+                } else if (GetBelowFairShareSince().Get() < now - minSharePreemptionTimeout) {
+                    SetStarving(true);
+                }
+                break;
+
+            case ESchedulableStatus::BelowFairShare:
+                if (!GetBelowFairShareSince()) {
+                    SetBelowFairShareSince(now);
+                } else if (GetBelowFairShareSince().Get() < now - fairSharePreemptionTimeout) {
+                    SetStarving(true);
+                }
+                break;
+
+            case ESchedulableStatus::Normal:
+                SetBelowFairShareSince(Null);
+                SetStarving(false);
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    virtual void CheckForStarvation(TInstant now) override
+    {
+        YUNREACHABLE();
+    }
+
     void IncreaseUsageRatio(const TNodeResources& delta)
     {
         if (Attributes_.DominantLimit != 0) {
@@ -209,12 +282,15 @@ public:
     { }
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Starving);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowFairShareSince);
 
 protected:
     ISchedulerStrategyHost* Host;
 
     explicit TSchedulerElementBase(ISchedulerStrategyHost* host)
-        : Host(host)
+        : Starving_(false)
+        , Host(host)
     { }
 
     double ComputeLocalSatisfactionRatio() const
@@ -337,19 +413,24 @@ public:
         }
 
         for (const auto& child : GetActiveChildren()) {
-            child->PrescheduleJob(node, starvingOnly);
+            // If pool is starving, any child will do.
+            if (Starving_) {
+                child->PrescheduleJob(node, false);
+            } else {
+                child->PrescheduleJob(node, starvingOnly);
+            }
         }
         UpdateDynamicAttributes();
     }
 
-    virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) override
+    virtual bool ScheduleJob(ISchedulingContext* context) override
     {
         if (!BestLeafDescendant_) {
             return false;
         }
 
         // NB: Ignore the child's result.
-        BestLeafDescendant_->ScheduleJob(context, starvingOnly);
+        BestLeafDescendant_->ScheduleJob(context);
 
         return true;
     }
@@ -611,9 +692,11 @@ class TPool
 public:
     TPool(
         ISchedulerStrategyHost* host,
-        const Stroka& id)
+        const Stroka& id,
+        TFairShareStrategyConfigPtr strategyConfig)
         : TCompositeSchedulerElement(host)
         , Id(id)
+        , StrategyConfig_(strategyConfig)
     {
         SetDefaultConfig();
     }
@@ -626,7 +709,7 @@ public:
 
     TPoolConfigPtr GetConfig()
     {
-        return Config;
+        return Config_;
     }
 
     void SetConfig(TPoolConfigPtr config)
@@ -654,22 +737,50 @@ public:
 
     virtual double GetWeight() const override
     {
-        return Config->Weight;
+        return Config_->Weight;
     }
 
     virtual double GetMinShareRatio() const override
     {
-        return Config->MinShareRatio;
+        return Config_->MinShareRatio;
     }
 
     virtual double GetMaxShareRatio() const override
     {
-        return Config->MaxShareRatio;
+        return Config_->MaxShareRatio;
+    }
+
+    virtual ESchedulableStatus GetStatus() const override
+    {
+        return TSchedulerElementBase::GetStatus(
+            Config_->FairShareStarvationTolerance.Get(StrategyConfig_->FairShareStarvationTolerance));
+    }
+
+    virtual void SetStarving(bool starving) override
+    {
+        if (starving && !GetStarving()) {
+            TSchedulerElementBase::SetStarving(true);
+            LOG_INFO("Pool is now starving (PoolId: %v, Status: %v)",
+                GetId(),
+                GetStatus());
+        } else if (!starving && GetStarving()) {
+            TSchedulerElementBase::SetStarving(false);
+            LOG_INFO("Pool is no longer starving (PoolId: %v)",
+                GetId());
+        }
+    }
+
+    virtual void CheckForStarvation(TInstant now) override
+    {
+        TSchedulerElementBase::CheckForStarvation(
+            Config_->MinSharePreemptionTimeout.Get(StrategyConfig_->MinSharePreemptionTimeout),
+            Config_->FairSharePreemptionTimeout.Get(StrategyConfig_->FairSharePreemptionTimeout),
+            now);
     }
 
     virtual TNullable<Stroka> GetSchedulingTag() const override
     {
-        return Config->SchedulingTag;
+        return Config_->SchedulingTag;
     }
 
     virtual void UpdateBottomUp() override
@@ -692,32 +803,27 @@ public:
 private:
     Stroka Id;
 
-    TPoolConfigPtr Config;
+    TPoolConfigPtr Config_;
     bool DefaultConfigured;
 
+    TFairShareStrategyConfigPtr StrategyConfig_;
 
     void DoSetConfig(TPoolConfigPtr newConfig)
     {
-        Config = newConfig;
-        SetMode(Config->Mode);
+        Config_ = newConfig;
+        SetMode(Config_->Mode);
     }
 
     TNodeResources ComputeResourceLimits() const
     {
-        auto combinedLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config->MaxShareRatio;
-        auto perTypeLimits = Config->ResourceLimits->ToNodeResources();
+        auto combinedLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config_->MaxShareRatio;
+        auto perTypeLimits = Config_->ResourceLimits->ToNodeResources();
         return Min(combinedLimits, perTypeLimits);
     }
 
 };
 
 ////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EOperationStatus,
-    (Normal)
-    (BelowMinShare)
-    (BelowFairShare)
-);
 
 class TOperationElement
     : public TSchedulerElementBase
@@ -734,7 +840,6 @@ public:
         , Spec_(spec)
         , RuntimeParams_(runtimeParams)
         , Pool_(nullptr)
-        , Starving_(false)
         , ResourceUsage_(ZeroNodeResources())
         , ResourceUsageDiscount_(ZeroNodeResources())
         , NonpreemptableResourceUsage_(ZeroNodeResources())
@@ -759,12 +864,8 @@ public:
         }
     }
 
-    virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) override
+    virtual bool ScheduleJob(ISchedulingContext* context) override
     {
-        if (starvingOnly && !Starving_) {
-            return false;
-        }
-
         auto node = context->GetNode();
         auto controller = Operation_->GetController();
 
@@ -848,32 +949,41 @@ public:
         return ResourceLimits_;
     }
 
-    EOperationStatus GetStatus() const
+    ESchedulableStatus GetStatus() const
     {
         if (Operation_->GetState() != EOperationState::Running) {
-            return EOperationStatus::Normal;
+            return ESchedulableStatus::Normal;
         }
 
         auto controller = Operation_->GetController();
         if (controller->GetPendingJobCount() == 0) {
-            return EOperationStatus::Normal;
+            return ESchedulableStatus::Normal;
         }
 
-        double usageRatio = Attributes().UsageRatio;
-        double demandRatio = Attributes().DemandRatio;
+        return TSchedulerElementBase::GetStatus(
+            Spec_->FairShareStarvationTolerance.Get(Config->FairShareStarvationTolerance));
+    }
 
-        double tolerance =
-            demandRatio < Attributes_.FairShareRatio + RatioComparisonPrecision
-            ? 1.0
-            : Spec_->FairShareStarvationTolerance.Get(Config->FairShareStarvationTolerance);
-
-        if (usageRatio > Attributes_.FairShareRatio * tolerance - RatioComparisonPrecision) {
-            return EOperationStatus::Normal;
+    virtual void SetStarving(bool starving) override
+    {
+        if (starving && !GetStarving()) {
+            TSchedulerElementBase::SetStarving(true);
+            LOG_INFO("Operation is now starving (OperationId: %v, Status: %v)",
+                GetId(),
+                GetStatus());
+        } else if (!starving && GetStarving()) {
+            TSchedulerElementBase::SetStarving(false);
+            LOG_INFO("Operation is no longer starving (OperationId: %v)",
+                GetId());
         }
+    }
 
-        return usageRatio < Attributes_.AdjustedMinShareRatio
-               ? EOperationStatus::BelowMinShare
-               : EOperationStatus::BelowFairShare;
+    virtual void CheckForStarvation(TInstant now) override
+    {
+        TSchedulerElementBase::CheckForStarvation(
+            Spec_->MinSharePreemptionTimeout.Get(Config->MinSharePreemptionTimeout),
+            Spec_->FairSharePreemptionTimeout.Get(Config->FairSharePreemptionTimeout),
+            now);
     }
 
     virtual void IncreaseUsage(const TNodeResources& delta) override
@@ -884,13 +994,22 @@ public:
         GetPool()->IncreaseUsage(delta);
     }
 
+    bool HasStarvingParent() const
+    {
+        TCompositeSchedulerElement* pool = GetPool();
+        while (pool) {
+            if (pool->GetStarving()) {
+                return true;
+            }
+            pool = pool->GetParent();
+        }
+        return false;
+    }
+
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
     DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowMinShareSince);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowFairShareSince);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Starving);
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
 
@@ -1015,7 +1134,14 @@ public:
 
         // Update starvation flags for all operations.
         for (const auto& pair : OperationToElement) {
-            CheckForStarvation(pair.second);
+            pair.second->CheckForStarvation(now);
+        }
+
+        // Update starvation flags for all pools.
+        if (Config->EnablePoolStarvation) {
+            for (const auto& pair : Pools) {
+                pair.second->CheckForStarvation(now);
+            }
         }
 
         RootElement->BeginHeartbeat();
@@ -1024,7 +1150,7 @@ public:
         LOG_DEBUG("Scheduling new jobs");
         RootElement->PrescheduleJob(context->GetNode(), false);
         while (context->CanStartMoreJobs()) {
-            if (!RootElement->ScheduleJob(context, false)) {
+            if (!RootElement->ScheduleJob(context)) {
                 break;
             }
         }
@@ -1036,7 +1162,7 @@ public:
         for (const auto& job : context->RunningJobs()) {
             auto operation = job->GetOperation();
             auto operationElement = GetOperationElement(operation);
-            if (IsJobPreemptable(job)) {
+            if (IsJobPreemptable(job) && !operationElement->HasStarvingParent()) {
                 TCompositeSchedulerElement* pool = operationElement->GetPool();
                 while (pool) {
                     discountedPools.insert(pool);
@@ -1059,7 +1185,7 @@ public:
         LOG_DEBUG("Scheduling new jobs with preemption");
         RootElement->PrescheduleJob(context->GetNode(), true);
         while (context->CanStartMoreJobs()) {
-            if (!RootElement->ScheduleJob(context, true)) {
+            if (!RootElement->ScheduleJob(context)) {
                 break;
             }
             if (context->StartedJobs().size() != jobsBeforePreemption) {
@@ -1142,8 +1268,6 @@ public:
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(pool->GetId())
             .Item("start_time").Value(element->GetStartTime())
-            .Item("scheduling_status").Value(element->GetStatus())
-            .Item("starving").Value(element->GetStarving())
             .Item("preemptable_job_count").Value(element->PreemptableJobs().size())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
@@ -1305,7 +1429,7 @@ private:
         auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
         auto pool = FindPool(poolName);
         if (!pool) {
-            pool = New<TPool>(Host, poolName);
+            pool = New<TPool>(Host, poolName, Config);
             RegisterPool(pool);
         }
 
@@ -1572,7 +1696,7 @@ private:
                             YCHECK(orphanPoolIds.erase(childId) == 1);
                         } else {
                             // Create new pool.
-                            pool = New<TPool>(Host, childId);
+                            pool = New<TPool>(Host, childId, Config);
                             pool->SetConfig(config);
                             RegisterPool(pool, parent);
                         }
@@ -1604,62 +1728,6 @@ private:
             LOG_ERROR(ex, "Error updating pools");
         }
     }
-
-    void CheckForStarvation(TOperationElementPtr element)
-    {
-        auto status = element->GetStatus();
-        auto now = TInstant::Now();
-        auto spec = element->GetSpec();
-        auto minSharePreemptionTimeout = spec->MinSharePreemptionTimeout.Get(Config->MinSharePreemptionTimeout);
-        auto fairSharePreemptionTimeout = spec->FairSharePreemptionTimeout.Get(Config->FairSharePreemptionTimeout);
-        switch (status) {
-            case EOperationStatus::BelowMinShare:
-                if (!element->GetBelowMinShareSince()) {
-                    element->SetBelowMinShareSince(now);
-                } else if (element->GetBelowMinShareSince().Get() < now - minSharePreemptionTimeout) {
-                    SetStarving(element, status);
-                }
-                break;
-
-            case EOperationStatus::BelowFairShare:
-                if (!element->GetBelowFairShareSince()) {
-                    element->SetBelowFairShareSince(now);
-                } else if (element->GetBelowFairShareSince().Get() < now - fairSharePreemptionTimeout) {
-                    SetStarving(element, status);
-                }
-                element->SetBelowMinShareSince(Null);
-                break;
-
-            case EOperationStatus::Normal:
-                element->SetBelowMinShareSince(Null);
-                element->SetBelowFairShareSince(Null);
-                ResetStarving(element);
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    void SetStarving(TOperationElementPtr element, EOperationStatus status)
-    {
-        if (!element->GetStarving()) {
-            element->SetStarving(true);
-            LOG_INFO("Operation starvation timeout (OperationId: %v, Status: %v)",
-                element->GetOperation()->GetId(),
-                status);
-        }
-    }
-
-    void ResetStarving(TOperationElementPtr element)
-    {
-        if (element->GetStarving()) {
-            element->SetStarving(false);
-            LOG_INFO("Operation is no longer starving (OperationId: %v)",
-                element->GetOperation()->GetId());
-        }
-    }
-
 
     void OnJobResourceUsageUpdated(
         TJobPtr job,
@@ -1730,6 +1798,8 @@ private:
     {
         const auto& attributes = element->Attributes();
         BuildYsonMapFluently(consumer)
+            .Item("scheduling_status").Value(element->GetStatus())
+            .Item("starving").Value(element->GetStarving())
             .Item("resource_demand").Value(element->ResourceDemand())
             .Item("resource_usage").Value(element->ResourceUsage())
             .Item("resource_limits").Value(element->ResourceLimits())
