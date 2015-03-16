@@ -163,7 +163,7 @@ def get_api(client=None):
             version = "v3"
         else:
             version = "v2"
-        require(version in versions, YtError("Old versions of API are not supported"))
+        require(version in versions, YtError("API {0} are not supported".format(version)))
 
         client_provider.VERSION = version
         client_provider.COMMANDS = parse_commands(_request_api(proxy, version=version))
