@@ -42,6 +42,9 @@ public:
     int MaxRunningOperations;
     int MaxRunningOperationsPerPool;
 
+    //! If enabled, pools will be able to starve and provoke preemption.
+    bool EnablePoolStarvation;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -69,6 +72,9 @@ public:
         RegisterParameter("max_running_operations_per_pool", MaxRunningOperationsPerPool)
             .Default(50)
             .GreaterThan(0);
+
+        RegisterParameter("enable_pool_starvation", EnablePoolStarvation)
+            .Default(true);
     }
 };
 
