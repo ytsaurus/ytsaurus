@@ -158,7 +158,7 @@ public:
     {
         // Choose dominant resource types, compute max share ratios, compute demand ratios.
         auto demand = ResourceDemand();
-        auto usage = ResourceUsage() - ResourceUsageDiscount();
+        auto usage = ResourceUsage();
         auto totalLimits = Host->GetTotalResourceLimits();
         auto allocationLimits = GetAdjustedResourceLimits(
             demand,
@@ -1013,14 +1013,11 @@ public:
 
         // Compute discount to node usage.
         LOG_DEBUG("Looking for preemptable jobs");
-        yhash_set<TOperationElementPtr> discountedOperations;
         yhash_set<TPoolPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         for (const auto& job : context->RunningJobs()) {
             auto operation = job->GetOperation();
             auto operationElement = GetOperationElement(operation);
-            operationElement->ResourceUsageDiscount() += job->ResourceUsage();
-            discountedOperations.insert(operationElement);
             if (IsJobPreemptable(job)) {
                 auto* pool = operationElement->GetPool();
                 while (pool) {
@@ -1054,9 +1051,6 @@ public:
 
         // Reset discounts.
         node->ResourceUsageDiscount() = ZeroNodeResources();
-        for (const auto& operationElement : discountedOperations) {
-            operationElement->ResourceUsageDiscount() = ZeroNodeResources();
-        }
         for (const auto& pool : discountedPools) {
             pool->ResourceUsageDiscount() = ZeroNodeResources();
         }
