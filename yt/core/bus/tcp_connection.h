@@ -69,6 +69,8 @@ public:
     DECLARE_SIGNAL(void(const TError&), Terminated);
 
 private:
+    using EState = ETcpConnectionState;
+
     struct TQueuedMessage
     {
         TQueuedMessage()
@@ -139,12 +141,14 @@ private:
     int FD_ = INVALID_SOCKET;
 
     NLogging::TLogger Logger;
+
+    TTcpInterfaceStatistics* const InterfaceStatistics_;
     NProfiling::TProfiler Profiler;
 
     // Only used by client sockets.
     int Port_ = 0;
 
-    std::atomic<ETcpConnectionState> State_;
+    std::atomic<EState> State_;
 
     const TClosure MessageEnqueuedCallback_;
     std::atomic<bool> MessageEnqueuedCallbackPending_ = {false};
