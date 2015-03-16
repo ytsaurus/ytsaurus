@@ -274,7 +274,7 @@ class LogBroker(object):
 
         self._session = SessionReader(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
         self.log.info("Connect session stream")
-        yield self._session.start((hostname, 80))
+        yield self._session.connect((hostname, 80))
         session_id = yield self._session.get_id()
         seqno = yield self._session.get_seqno()
         self._update_last_acked_seqno(seqno)
@@ -439,7 +439,7 @@ class SessionReader(object):
         self._messages = []
 
     @gen.coroutine
-    def start(self, endpoint, timeout=None):
+    def connect(self, endpoint, timeout=None):
         if timeout is None:
             timeout = self.SESSION_TIMEOUT
 
