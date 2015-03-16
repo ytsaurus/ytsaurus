@@ -452,7 +452,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     NErasure::ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
     NRpc::IChannelPtr masterChannel,
-    EWriteSessionType sessionType)
+    EWriteSessionType sessionType,
+    IThroughputThrottlerPtr throttler)
 {
     // Patch writer configs to ignore upload replication factor for erasure chunk parts.
     auto config_ = NYTree::CloneYsonSerializable(config);
@@ -490,7 +491,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             TChunkReplicaList(1, replicas[index]),
             nodeDirectory,
             nullptr,
-            sessionType));
+            sessionType,
+            throttler));
     }
 
     return writers;

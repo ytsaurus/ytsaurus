@@ -13,6 +13,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/concurrency/throughput_throttler.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -50,11 +52,11 @@ private:
 
     std::vector<int> IdMapping_;
 
-    int CurrentBlockIndex_;
-    i64 RowCount_;
+    int CurrentBlockIndex_ = 0;
+    i64 RowCount_ = 0;
     std::vector<std::unique_ptr<THorizontalSchemalessBlockReader>> BlockReaders_;
 
-    THorizontalSchemalessBlockReader* BlockReader_;
+    THorizontalSchemalessBlockReader* BlockReader_ = nullptr;
 
 
     virtual std::vector<NChunkClient::TSequentialReader::TBlockInfo> GetBlockSequence() override;
@@ -127,7 +129,8 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
         TNameTablePtr nameTable,
-        const TKeyColumns& keyColumns);
+        const TKeyColumns& keyColumns,
+        NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
     template <class TValueInsertIterator, class TRowPointerInsertIterator>
     bool Read(
@@ -138,10 +141,10 @@ public:
     TNameTablePtr GetNameTable() const;
 
 private:
-    NChunkClient::IBlockCachePtr UncompressedBlockCache_;
+    const NChunkClient::IBlockCachePtr UncompressedBlockCache_;
 
-    TNameTablePtr NameTable_;
-    TKeyColumns KeyColumns_;
+    const TNameTablePtr NameTable_;
+    const TKeyColumns KeyColumns_;
 
     TPartitionChunkReaderPtr CurrentReader_;
 
