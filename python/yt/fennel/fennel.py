@@ -21,6 +21,7 @@ from tornado import gen
 from tornado import tcpclient
 from tornado import options
 from tornado import httputil
+from tornado import http1connection
 
 
 try:
@@ -271,10 +272,12 @@ class LogBroker(object):
         assert self._session is None
         assert self._push is None
 
-        self._session = SessionStream(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
+        self._session = SessionReader(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
         self.log.info("Connect session stream")
-        session_id = yield self._session.connect((hostname, 80))
-        self._update_last_acked_seqno(int(self._session.get_attribute("seqno")))
+        yield self._session.start((hostname, 80))
+        session_id = yield self._session.get_id()
+        seqno = yield self._session.get_seqno()
+        self._update_last_acked_seqno(seqno)
 
         self._push = PushStream(io_loop=self._io_loop, connection_factory=self._connection_factory)
         self.log.info("Connect push stream")
@@ -411,162 +414,135 @@ class BadProtocolError(RuntimeError):
 SessionMessage = collections.namedtuple("SessionMessage", ["type", "attributes"])
 
 
-class SessionStream(object):
-    log = logging.getLogger("SessionStream")
+class SessionReader(object):
+    log = logging.getLogger("SessionReader")
 
     SESSION_TIMEOUT = datetime.timedelta(minutes=5)
 
     def __init__(self, service_id, source_id, logtype=None, io_loop=None, connection_factory=None):
-        self._id = None
-        self._attributes = None
-        self._session_response = None
-        self._iostream = None
-
         self._logtype = logtype
         self._service_id = service_id
         self._source_id = source_id
 
-        self._pending_messages = []
-
         self._io_loop = io_loop or ioloop.IOLoop.instance()
         self._connection_factory = connection_factory or tcpclient.TCPClient(io_loop=self._io_loop)
 
+        self._iostream = None
+        self._error = None
+
+        self._id = None
+        self._seqno = None
+
+        self._ready = None
+        self._messages = []
+
     @gen.coroutine
-    def connect(self, endpoint, timeout=None):
+    def start(self, endpoint, timeout=None):
         if timeout is None:
             timeout = self.SESSION_TIMEOUT
 
-        tries = 0
-        backoff_time = 1.0
-        while tries < 10:
-            try:
-                self.log.info("Create a session. Endpoint: %s. Service id: %s. Source id: %s", endpoint, self._service_id, self._source_id)
-
-                self._iostream = yield gen.with_timeout(
-                    timeout,
-                    self._connection_factory.connect(endpoint[0], endpoint[1]),
-                    self._io_loop
-                    )
-
-                self._iostream.write(
-                    "GET /rt/session?"
-                    "ident={ident}&"
-                    "sourceid={source_id}&"
-                    "logtype={logtype} "
-                    "HTTP/1.1\r\n"
-                    "Host: {host}\r\n"
-                    "Accept: */*\r\n\r\n".format(
+        self.log.info("Start connection to %s...", endpoint)
+        self._iostream = yield gen.with_timeout(
+            timeout,
+            self._connection_factory.connect(endpoint[0], endpoint[1]),
+            self._io_loop
+            )
+        self.log.info("Connection to %s is established")
+        self._connection = http1connection.HTTP1Connection(self._iostream, is_client=True)
+        f = self._connection.write_headers(
+            httputil.RequestStartLine(
+                "GET",
+                httputil.url_concat(
+                    "/rt/session", dict(
                         ident=self._service_id,
                         source_id=self._source_id,
-                        logtype=self._logtype,
-                        host=endpoint[0])
-                    )
+                        logtype=self._logtype)),
+                "HTTP/1.1"),
+            httputil.HTTPHeaders({
+                "Host" : endpoint[0],
+                "Accept" : "*/*"
+                })
+            )
+        self._connection.finish()
+        yield f
+        self.log.info("Start reading response...")
+        read_response_future = self._connection.read_response(self)
 
-                self.log.info("The session stream has been created")
-                metadata_raw = yield gen.with_timeout(
-                    timeout,
-                    self._iostream.read_until("\r\n\r\n", max_bytes=1024*1024),
-                    self._io_loop
-                    )
+        self._io_loop.add_future(
+            read_response_future,
+            self._finish)
 
-                self.log.debug("Parse response %s", metadata_raw)
-                self._parse_response(metadata_raw[:-4])
+    def _finish(self, future):
+        if not future.exception():
+            self.stop(future.exception())
 
-                if self._session_response.code != 200:
-                    raise RuntimeError("Bad response. Reponse: %r", self._session_response)
+    def stop(self, e=None):
+        self.log.error("Stopping...", exc_info=e)
+        self._error = e
+        self._set_ready()
+        self._iostream.close(e)
 
-                if not "seqno" in self._attributes:
-                    self.log.error("There is no seqno header in session response")
-                    raise BadProtocolError("There is no seqno header in session response")
-                if not "session" in self._attributes:
-                    self.log.error("There is no session header in session response")
-                    raise BadProtocolError("There is no session header in session response")
+    def read_message(self):
+        return self._return_when_ready(
+            lambda: self._messages,
+            lambda: self._messages.pop())
 
-                self._id = self._attributes["session"]
+    def get_seqno(self):
+        return self._return_when_ready(
+            lambda: self._seqno is not None,
+            lambda: self._seqno)
 
-                raise gen.Return(self._id)
-            except (RuntimeError, BadProtocolError, gen.TimeoutError):
-                self.log.error("Error occured. Try reconnect...", exc_info=True)
-                self.stop()
-
-                yield sleep_future(backoff_time + random.random() * 2, self._io_loop)
-                tries += 1
-                backoff_time = max(backoff_time * 2, 300)
-            except gen.Return:
-                raise
-            except:
-                self.log.error("Failed to create session. Unhandled exception", exc_info=True)
-                self.stop()
-                raise
-        raise RuntimeError("Failed to create session; %d tries", tries)
-
-    def stop(self):
-        if self._iostream is not None:
-            self._iostream.close()
-            self._iostream = None
-
-    def _parse_response(self, data):
-        attributes = {}
-        session_response = None
-        for index, line in enumerate(data.split("\n")):
-            if index > 0:
-                key, value = line.split(":", 1)
-                attributes[key.strip().lower()] = value.strip()
-            else:
-                session_response = httputil.parse_response_start_line(line)
-        self._session_response = session_response
-        self._attributes = attributes
-
-    def get_attribute(self, name):
-        return self._attributes[name]
+    def get_id(self):
+        return self._return_when_ready(
+            lambda: self._id is not None,
+            lambda: self._id)
 
     @gen.coroutine
-    def read_message(self, timeout=None):
-        if self._pending_messages:
-            current_message = self._pending_messages.pop()
-            raise gen.Return(self._parse(current_message))
+    def _return_when_ready(self, is_ready, getter):
+        while True:
+            if self._error:
+                raise self._error
 
-        if timeout is None:
-            timeout = self.SESSION_TIMEOUT
+            if is_ready():
+                raise gen.Return(getter())
 
+            if self._ready is None:
+                self._ready = gen.Future()
+            yield self._ready
+
+    def headers_received(self, start_line, headers):
         try:
-            headers_raw = yield gen.with_timeout(
-                timeout,
-                self._iostream.read_until("\r\n", max_bytes=4*1024),
-                self._io_loop
-                )
-            try:
-                body_size = int(headers_raw, 16)
-            except ValueError:
-                self.log.error("[%s] Bad HTTP chunk header format", self._id)
-                raise BadProtocolError()
-            if body_size == 0:
-                self.log.error("[%s] HTTP response is finished", self._id)
-                data = yield gen.with_timeout(
-                    timeout,
-                    self._iostream.read_until_close(),
-                    self._io_loop
-                    )
-                self.log.debug("[%s] Session trailers: %s", self._id, data)
-                raise SessionEndError()
-            else:
-                data = yield gen.with_timeout(
-                    timeout,
-                    self._iostream.read_bytes(body_size + 2),
-                    self._io_loop
-                    )
-                self.log.debug("[%s] Process status: '%s'", self._id, data.strip().encode("string_escape"))
-                messages = data.strip().split("\n")
-                current_message = messages[0]
-                if len(messages) > 0:
-                    self._pending_messages.extend(messages[1:])
+            self.log.debug("Headers received. Start line: %s. Headers: %r", start_line, headers)
+            if start_line.code != 200:
+                raise RuntimeError("Bad response. Reason: %s", start_line.reason)
 
-                raise gen.Return(self._parse(current_message))
-        except gen.Return:
-            raise
-        except:
-            self.stop()
-            raise
+            self._seqno = int(self._extract_header(headers, "seqno"))
+            self._id = self._extract_header(headers, "session")
+            self._set_ready()
+        except Exception as e:
+            self.stop(e)
+
+    def _extract_header(self, headers, name):
+        value = headers.get_list(name)
+        if len(value) == 0:
+            raise BadProtocolError("There is no %s header in session response", name)
+        if len(value) > 1:
+            raise BadProtocolError("There is more than one %s header in session response", name)
+        return value[0]
+
+    def data_received(self, chunk):
+        try:
+            self.log.debug("Data received %r", chunk)
+            for line in chunk.strip().split("\n"):
+                self._messages.append(self._parse(line))
+                self._set_ready()
+        except Exception as e:
+            self.stop(e)
+
+    def _set_ready(self):
+        if self._ready:
+            self._ready.set_result(True)
+            self._ready = None
 
     def _parse(self, line):
         if line.startswith("ping"):
@@ -593,6 +569,12 @@ class SessionStream(object):
             else:
                 attributes[key] = value
         return SessionMessage(type_, attributes)
+
+    def finish(self):
+        self.stop(SessionEndError())
+
+    def on_connection_close(self):
+        self.stop(SessionEndError())
 
 
 class PushStream(object):
@@ -753,10 +735,10 @@ class LastSeqnoGetter(object):
         try:
             with ExceptionLoggingContext(self.log):
                 hostname = _get_logbroker_hostname(self._logbroker_url)
-                session = SessionStream(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
+                session = SessionReader(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
                 self.log.info("Connect session stream")
                 yield session.connect((hostname, 80))
-                self._last_seqno = int(session.get_attribute("seqno"))
+                self._last_seqno = yield session.get_seqno()
         except Exception as e:
             self._last_seqno_ex = e
         finally:
