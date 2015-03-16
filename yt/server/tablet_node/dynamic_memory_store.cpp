@@ -6,7 +6,6 @@
 #include "automaton.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
-#include "private.h"
 
 #include <core/misc/small_vector.h>
 #include <core/misc/skip_list.h>
@@ -37,7 +36,6 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
 static auto NullRowFuture = MakeFuture(TVersionedRow());
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -570,18 +568,13 @@ TDynamicMemoryStore::TDynamicMemoryStore(
 {
     State_ = EStoreState::ActiveDynamic;
 
-    LOG_DEBUG("Dynamic memory store created (TabletId: %v, StoreId: %v)",
-        TabletId_,
-        StoreId_);
+    LOG_DEBUG("Dynamic memory store created (TabletId: %v)",
+        TabletId_);
 }
 
 TDynamicMemoryStore::~TDynamicMemoryStore()
 {
-    LOG_DEBUG("Dynamic memory store destroyed (StoreId: %v)",
-        StoreId_);
-
-    MemoryUsageUpdated_.Fire(-MemoryUsage_);
-    MemoryUsage_ = 0;
+    LOG_DEBUG("Dynamic memory store destroyed");
 }
 
 int TDynamicMemoryStore::GetLockCount() const
@@ -592,8 +585,7 @@ int TDynamicMemoryStore::GetLockCount() const
 int TDynamicMemoryStore::Lock()
 {
     int result = ++StoreLockCount_;
-    LOG_TRACE("Store locked (StoreId: %v, Count: %v)",
-        StoreId_,
+    LOG_TRACE("Store locked (Count: %v)",
         result);
     return result;
 }
@@ -602,8 +594,7 @@ int TDynamicMemoryStore::Unlock()
 {
     YASSERT(StoreLockCount_ > 0);
     int result = --StoreLockCount_;
-    LOG_TRACE("Store unlocked (StoreId: %v, Count: %v)",
-        StoreId_,
+    LOG_TRACE("Store unlocked (Count: %v)",
         result);
     return result;
 }
@@ -1354,11 +1345,6 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("aligned_pool_capacity").Value(GetAlignedPoolCapacity())
         .Item("unaligned_pool_size").Value(GetUnalignedPoolSize())
         .Item("unaligned_pool_capacity").Value(GetUnalignedPoolCapacity());
-}
-
-i64 TDynamicMemoryStore::GetMemoryUsage() const
-{
-    return MemoryUsage_;
 }
 
 void TDynamicMemoryStore::OnMemoryUsageUpdated()

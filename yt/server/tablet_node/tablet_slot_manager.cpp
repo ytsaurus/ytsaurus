@@ -71,7 +71,7 @@ public:
     {
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return
-            tracker->GetUsed(NCellNode::EMemoryConsumer::Tablet) >
+            tracker->GetUsed(NCellNode::EMemoryConsumer::TabletStatic) >
             Config_->MemoryLimit;
     }
 
@@ -79,7 +79,7 @@ public:
     {
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return
-            tracker->GetUsed(NCellNode::EMemoryConsumer::Tablet) - passiveUsage >
+            tracker->GetUsed(NCellNode::EMemoryConsumer::TabletStatic) - passiveUsage >
             Config_->MemoryLimit * Config_->ForcedRotationsMemoryRatio;
     }
 
