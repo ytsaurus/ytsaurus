@@ -11,6 +11,12 @@ fi
 if ! [[ -v USER_SESSIONS_SPY_LOG_PERIOD ]]; then
     USER_SESSIONS_SPY_LOG_PERIOD="$USER_SESSIONS_PERIOD"
 fi
+if ! [[ -v USER_INTENTS_PERIOD ]]; then
+    USER_INTENTS_PERIOD="0"
+fi
+if ! [[ -v REQREGSCDATA_PERIOD ]]; then
+    REQREGSCDATA_PERIOD="0"
+fi
 if ! [[ -v FAST ]]; then
     FAST=0
 fi
@@ -27,6 +33,8 @@ LOCK_PATH="//sys/cron/redwood_lock"
     --import-queue $IMPORT_QUEUE \
     --remove-queue $REMOVE_QUEUE \
     --link-queue $LINK_QUEUE \
+    --reqregscdata-period $REQREGSCDATA_PERIOD \
+    --user-intents-period $USER_INTENTS_PERIOD \
     --user-sessions-period $USER_SESSIONS_PERIOD \
     --user-sessions-frauds-period $USER_SESSIONS_FRAUDS_PERIOD \
     --user-sessions-spy-log-period $USER_SESSIONS_SPY_LOG_PERIOD

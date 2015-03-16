@@ -52,7 +52,7 @@ def process_logs(import_list, remove_list, link_queue, destination_dir, source_p
                 link_queue.append({"src": dst, "dst": dst_link})
 
 def main():
-    parser = argparse.ArgumentParser(description='Find tables to import from redwood')
+    parser = argparse.ArgumentParser(description='Prepare tables to merge')
     parser.add_argument('--path', required=True)
     parser.add_argument('--import-queue', required=True)
     parser.add_argument('--remove-queue', required=True)
@@ -61,6 +61,7 @@ def main():
     parser.add_argument('--user-sessions-frauds-period', type=int, default=50)
     parser.add_argument('--user-sessions-spy-log-period', type=int, default=50)
     parser.add_argument('--reqregscdata-period', type=int, default=180)
+    parser.add_argument('--user-intents-period', type=int, default=None)
     args = parser.parse_args()
 
     tables_to_import = yt.get(args.import_queue)
@@ -73,7 +74,7 @@ def main():
     process("user_sessions/{}",          None,                        args.user_sessions_period,         True)
     process("user_sessions/{}/frauds",   "user_sessions_frauds/{}",   args.user_sessions_frauds_period,  True)
     process("user_sessions/{}/spy_log",  "user_sessions_spy_log/{}",  args.user_sessions_spy_log_period, True)
-    process("user_intents/{}",           None,                        None,                              False)
+    process("user_intents/{}",           None,                        args.user_intents_period,          False)
     process("reqregscdata/{}/www",       None,                        args.reqregscdata_period,          False)
     process("reqregscdata/{}/xml",       None,                        args.reqregscdata_period,          False)
     process("reqregscdata/{}/www/fraud", "reqregscdata/{}/www_fraud", args.reqregscdata_period,          False)
