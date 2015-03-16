@@ -69,7 +69,7 @@ class TestSessionReaderIntegraion(testing.AsyncTestCase):
     def test_connect(self):
         source_id = uuid.uuid4().hex
         s = fennel.SessionReader(service_id=TEST_SERVICE_ID, source_id=source_id, io_loop=self.io_loop)
-        yield s.start((KAFKA_ENDPOINT, 80))
+        yield s.connect((KAFKA_ENDPOINT, 80))
         session_id = yield s.get_id()
         assert session_id is not None
         seqno = yield s.get_seqno()
@@ -79,7 +79,7 @@ class TestSessionReaderIntegraion(testing.AsyncTestCase):
     def test_get_ping(self):
         source_id = uuid.uuid4().hex
         s = fennel.SessionReader(service_id=TEST_SERVICE_ID, source_id=source_id, io_loop=self.io_loop)
-        yield s.start((KAFKA_ENDPOINT, 80))
+        yield s.connect((KAFKA_ENDPOINT, 80))
         session_id = yield s.get_id()
         assert session_id is not None
         message = yield s.read_message()
@@ -103,7 +103,7 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
             self.source_id = uuid.uuid4().hex
 
             self.s = fennel.SessionReader(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
-            yield self.s.start((KAFKA_ENDPOINT, 80))
+            yield self.s.connect((KAFKA_ENDPOINT, 80))
             self._session_id = yield self.s.get_id()
             assert self._session_id is not None
 
@@ -205,7 +205,7 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
         self.s.stop()
 
         self.s = fennel.SessionReader(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
-        yield self.s.start((KAFKA_ENDPOINT, 80))
+        yield self.s.connect((KAFKA_ENDPOINT, 80))
         session_id = yield self.s.get_id()
         assert session_id is not None
 
@@ -219,7 +219,7 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
         assert message.attributes["seqno"] == 20
 
         s = fennel.SessionReader(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
-        yield s.start((KAFKA_ENDPOINT, 80))
+        yield s.connect((KAFKA_ENDPOINT, 80))
         session_id = yield s.get_id()
         assert session_id is not None
         assert session_id != self._session_id
