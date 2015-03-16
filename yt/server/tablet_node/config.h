@@ -106,6 +106,8 @@ public:
 
     int MaxReadFanIn;
 
+    bool InMemory;
+
     TTableMountConfig()
     {
         RegisterParameter("enable_codegen", EnableCodegen)
@@ -175,6 +177,9 @@ public:
         RegisterParameter("max_read_fan_in", MaxReadFanIn)
             .GreaterThan(0)
             .Default(20);
+
+        RegisterParameter("in_memory", InMemory)
+            .Default(false);
 
         RegisterValidator([&] () {
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {

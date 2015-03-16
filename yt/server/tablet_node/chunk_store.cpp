@@ -193,6 +193,46 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkStore::TBlockCache
+    : public IBlockCache
+{
+public:
+    explicit TBlockCache(const TChunkId& chunkId)
+        : ChunkId_(chunkId)
+    { }
+
+    virtual void Put(
+        const TBlockId& id,
+        const TSharedRef& data,
+        const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+    {
+        YASSERT(id.ChunkId == ChunkId_);
+
+        TWriterGuard guard(SpinLock_);
+        if (id.BlockIndex >= Blocks_.size()) {
+            Blocks_.resize(id.BlockIndex + 1);
+        }
+        Blocks_[id.BlockIndex] = data;
+    }
+
+    virtual TSharedRef Find(const TBlockId& id) override
+    {
+        YASSERT(id.ChunkId == ChunkId_);
+
+        TReaderGuard guard(SpinLock_);
+        return id.BlockIndex < Blocks_.size() ? Blocks_[id.BlockIndex] : TSharedRef();
+    }
+
+private:
+    const TChunkId ChunkId_;
+
+    TReaderWriterSpinLock SpinLock_;
+    std::vector<TSharedRef> Blocks_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkStore::TChunkStore(
     const TStoreId& id,
     TTablet* tablet,
@@ -203,6 +243,10 @@ TChunkStore::TChunkStore(
         tablet)
     , Bootstrap_(boostrap)
 {
+    YCHECK(
+        TypeFromId(StoreId_) == EObjectType::Chunk ||
+        TypeFromId(StoreId_) == EObjectType::ErasureChunk);
+
     State_ = EStoreState::Persistent;
 
     if (chunkMeta) {
@@ -210,13 +254,16 @@ TChunkStore::TChunkStore(
         PrecacheProperties();
     }
 
-    YCHECK(
-        TypeFromId(StoreId_) == EObjectType::Chunk ||
-        TypeFromId(StoreId_) == EObjectType::ErasureChunk);
+    SetInMemory(Tablet_->GetConfig()->InMemory);
+
+    LOG_DEBUG("Static chunk store created (TabletId: %v)",
+        TabletId_);
 }
 
 TChunkStore::~TChunkStore()
-{ }
+{
+    LOG_DEBUG("Static chunk store destroyed");
+}
 
 const TChunkMeta& TChunkStore::GetChunkMeta() const
 {
@@ -233,6 +280,20 @@ bool TChunkStore::HasBackingStore() const
 {
     TReaderGuard guard(BackingStoreLock_);
     return BackingStore_ != nullptr;
+}
+
+void TChunkStore::SetInMemory(bool value)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(UncompressedBlockCacheLock_);
+    if (value) {
+        if (!UncompressedBlockCache_) {
+            UncompressedBlockCache_ = New<TBlockCache>(StoreId_);
+        }
+    } else {
+        UncompressedBlockCache_.Reset();
+    }
 }
 
 EStoreType TChunkStore::GetType() const
@@ -278,6 +339,10 @@ IVersionedReaderPtr TChunkStore::CreateReader(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    if (upperKey <= MinKey_ || lowerKey > MaxKey_) {
+        return nullptr;
+    }
+
     auto backingStore = GetBackingStore();
     if (backingStore) {
         return backingStore->CreateReader(
@@ -287,10 +352,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
             columnFilter);
     }
 
-    if (upperKey <= MinKey_ || lowerKey > MaxKey_) {
-        return nullptr;
-    }
-
+    auto uncompressedBlockCache = GetUncompressedBlockCache();
     auto chunk = PrepareChunk();
     auto chunkReader = PrepareChunkReader(chunk);
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
@@ -304,7 +366,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     auto versionedReader = CreateVersionedChunkReader(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
-        Bootstrap_->GetUncompressedBlockCache(),
+        std::move(uncompressedBlockCache),
         std::move(cachedVersionedChunkMeta),
         lowerLimit,
         upperLimit,
@@ -325,6 +387,7 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
         return backingStore->CreateLookuper(timestamp, columnFilter);
     }
 
+    auto uncompressedBlockCache = GetUncompressedBlockCache();
     auto chunk = PrepareChunk();
     auto chunkReader = PrepareChunkReader(chunk);
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
@@ -332,7 +395,7 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
     auto versionedLookuper = CreateVersionedChunkLookuper(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
-        Bootstrap_->GetUncompressedBlockCache(),
+        std::move(uncompressedBlockCache),
         std::move(cachedVersionedChunkMeta),
         columnFilter,
         timestamp);
@@ -525,8 +588,18 @@ IStorePtr TChunkStore::GetBackingStore()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(BackingStoreLock_);
+    TReaderGuard guard(UncompressedBlockCacheLock_);
     return BackingStore_;
+}
+
+NChunkClient::IBlockCachePtr TChunkStore::GetUncompressedBlockCache()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(UncompressedBlockCacheLock_);
+    return UncompressedBlockCache_
+        ? UncompressedBlockCache_
+        : Bootstrap_->GetUncompressedBlockCache();
 }
 
 void TChunkStore::PrecacheProperties()

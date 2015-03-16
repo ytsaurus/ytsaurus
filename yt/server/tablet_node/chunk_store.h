@@ -46,6 +46,8 @@ public:
     void SetBackingStore(IStorePtr store);
     bool HasBackingStore() const;
 
+    void SetInMemory(bool value);
+
     // IStore implementation.
     virtual EStoreType GetType() const override;
 
@@ -82,6 +84,7 @@ private:
     class TLocalChunkReaderWrapper;
     class TVersionedReaderWrapper;
     class TVersionedLookuperWrapper;
+    class TBlockCache;
 
     NCellNode::TBootstrap* const Bootstrap_;
 
@@ -108,6 +111,9 @@ private:
     NConcurrency::TReaderWriterSpinLock BackingStoreLock_;
     IStorePtr BackingStore_;
 
+    NConcurrency::TReaderWriterSpinLock UncompressedBlockCacheLock_;
+    NChunkClient::IBlockCachePtr UncompressedBlockCache_;
+
 
     NDataNode::IChunkPtr PrepareChunk();
     NDataNode::IChunkPtr DoFindChunk();
@@ -116,6 +122,7 @@ private:
     NVersionedTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
         NChunkClient::IChunkReaderPtr chunkReader);
     IStorePtr GetBackingStore();
+    NChunkClient::IBlockCachePtr GetUncompressedBlockCache();
 
     void PrecacheProperties();
 
