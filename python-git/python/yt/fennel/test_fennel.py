@@ -22,19 +22,21 @@ class WorldSerialization(object):
 
     log = logging.getLogger("WorldSerialization")
 
-    def __init__(self):
+    def __init__(self, io_loop=None):
         self._description = []
         self._index = 0
         self._index_change_futures = []
+        self._io_loop = io_loop
 
     def expect(self, *calls):
         self._description.extend(calls)
 
+    # Represents a methods of connection factory
     def connect(self, hostname, port):
         if port == 80:
-            return gen.maybe_future(FakeIOStream(self, name="session"))
+            return gen.maybe_future(FakeIOStream(self, name="session", io_loop=self._io_loop))
         elif port == 9000:
-            return gen.maybe_future(FakeIOStream(self, name="push"))
+            return gen.maybe_future(FakeIOStream(self, name="push", io_loop=self._io_loop))
         else:
             self.log.error("Unsupported port")
             assert False
@@ -71,9 +73,10 @@ class FakeIOStream(object):
 
     IGNORE = object()
 
-    def __init__(self, serialization, name):
+    def __init__(self, serialization, name, io_loop=None):
         self._serializaton = serialization
         self._name = name
+        self.io_loop = io_loop
 
     def _compare_lists(self, expected, actual):
         assert len(expected) == len(actual)
@@ -154,7 +157,7 @@ Vary: Accept-Encoding\r\n\r\n"""
 
     def setUp(self):
         super(TestSessionStream, self).setUp()
-        self._world_serialization = WorldSerialization()
+        self._world_serialization = WorldSerialization(self.io_loop)
         self.s = fennel.SessionReader(service_id=TEST_SERVICE_ID, source_id="", io_loop=self.io_loop, connection_factory=self._world_serialization)
 
     @testing.gen_test
@@ -207,7 +210,7 @@ Partition: 0\r\n\r\n"""
 
     def setUp(self):
         super(TestLogBroker, self).setUp()
-        self._world_serialization = WorldSerialization()
+        self._world_serialization = WorldSerialization(self.io_loop)
 
         self._service_id = "fenneltest"
         self._source_id = uuid.uuid4().hex

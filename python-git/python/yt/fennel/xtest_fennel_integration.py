@@ -24,7 +24,7 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
         self.init()
         self.wait()
         if self._init_exception_info:
-            raise self._init_exception_info
+            raise self._init_exception_info[0], self._init_exception_info[1], self._init_exception_info[2]
 
     def tearDown(self):
         self.l.stop()
