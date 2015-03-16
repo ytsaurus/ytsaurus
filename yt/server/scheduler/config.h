@@ -135,6 +135,9 @@ public:
     //! Maximum number of chunks per single fetch.
     int MaxChunkCountPerFetch;
 
+    //! Maximum number of chunk stripes per job.
+    int MaxChunkStripesPerJob;
+
     //! Maximum number of chunk trees to attach per request.
     int MaxChildrenPerAttachRequest;
 
@@ -274,6 +277,10 @@ public:
 
         RegisterParameter("max_chunk_count_per_fetch", MaxChunkCountPerFetch)
             .Default(100000)
+            .GreaterThan(0);
+        
+        RegisterParameter("max_chunk_stripes_per_job", MaxChunkStripesPerJob)
+            .Default(50000)
             .GreaterThan(0);
 
         RegisterParameter("max_children_per_attach_request", MaxChildrenPerAttachRequest)

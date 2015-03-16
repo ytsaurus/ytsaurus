@@ -281,7 +281,8 @@ protected:
             , Controller(controller)
             , ChunkPool(CreateUnorderedChunkPool(
                 Controller->NodeDirectory,
-                Controller->PartitionJobCounter.GetTotal()))
+                Controller->PartitionJobCounter.GetTotal(),
+                Controller->Config->MaxChunkStripesPerJob))
         { }
 
         virtual Stroka GetId() const override
@@ -1240,7 +1241,8 @@ protected:
     {
         SimpleSortPool = CreateUnorderedChunkPool(
             NodeDirectory,
-            sortJobCount);
+            sortJobCount,
+            Config->MaxChunkStripesPerJob);
     }
 
     virtual bool IsCompleted() const override

@@ -54,6 +54,7 @@ public:
         , TotalChunkCount(0)
         , TotalDataSize(0)
         , CurrentTaskDataSize(0)
+        , CurrentChunkCount(0)
         , CurrentPartitionIndex(0)
         , MaxDataSizePerJob(0)
         , ChunkSliceSize(0)
@@ -95,6 +96,10 @@ protected:
     //! The total data size accumulated in #CurrentTaskStripes.
     //! Not serialized.
     i64 CurrentTaskDataSize;
+
+    //! The total number of chunks in #CurrentTaskStripes.
+    //! Not serialized.
+    int CurrentChunkCount;
 
     //! The number of output partitions generated so far.
     //! Not serialized.
@@ -297,17 +302,25 @@ protected:
     {
         YCHECK(HasActiveTask());
 
+        if (CurrentChunkCount > Config->MaxChunkStripesPerJob) {
+            OnOperationFailed(TError("Maximum number of chunk per job exceeded: %v > %v",
+                CurrentChunkCount,
+                Config->MaxChunkStripesPerJob));
+        }
+
         task->AddInput(CurrentTaskStripes);
         task->FinishInput();
         RegisterTask(task);
 
         ++CurrentPartitionIndex;
 
-        LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v)",
+        LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v, TaskChunkCount: %v)",
             task->GetId(),
-            CurrentTaskDataSize);
+            CurrentTaskDataSize,
+            CurrentChunkCount);
 
         CurrentTaskDataSize = 0;
+        CurrentChunkCount = 0;
         ClearCurrentTaskStripes();
     }
 
@@ -340,11 +353,12 @@ protected:
         return CurrentTaskDataSize > 0;
     }
 
-    //! Returns True if the total data size of currently queued stripes exceeds the pre-configured limit.
+    //! Returns True if the total data size of currently queued stripes exceeds the pre-configured limit
+    //! or number of stripes greater than pre-configured limit.
     bool HasLargeActiveTask()
     {
         YCHECK(MaxDataSizePerJob > 0);
-        return CurrentTaskDataSize >= MaxDataSizePerJob;
+        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentChunkCount >= Config->MaxChunkStripesPerJob;
     }
 
     //! Add chunk to the current task's pool.
@@ -361,6 +375,7 @@ protected:
         ++TotalChunkCount;
 
         CurrentTaskDataSize += chunkDataSize;
+        ++CurrentChunkCount;
         stripe->ChunkSlices.push_back(chunkSlice);
     }
 
