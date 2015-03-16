@@ -166,10 +166,6 @@ public:
             Host->GetExecNodeCount());
         auto limits = Min(totalLimits, ResourceLimits());
 
-        Attributes_.MaxShareRatio = std::min(
-            GetMinResourceRatio(limits, totalLimits),
-            GetMaxShareRatio());
-
         Attributes_.DominantResource = GetDominantResource(usage, totalLimits);
 
         i64 dominantDemand = GetResource(demand, Attributes_.DominantResource);
@@ -187,6 +183,10 @@ public:
             dominantLimit == 0 ? 1.0 : (double) dominantAllocationLimit / dominantLimit;
 
         Attributes_.DominantLimit = dominantLimit;
+
+        Attributes_.MaxShareRatio = std::min(
+            GetMinResourceRatio(limits, usage) * Attributes_.UsageRatio,
+            GetMaxShareRatio());
     }
 
     void IncreaseUsageRatio(const TNodeResources& delta)

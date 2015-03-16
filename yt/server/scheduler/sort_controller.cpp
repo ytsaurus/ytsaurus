@@ -1170,7 +1170,8 @@ protected:
             maxResourceLimits = Max(maxResourceLimits, node->ResourceLimits());
         }
         for (auto node : nodes) {
-            double weight = GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits);
+            double weight = std::min(
+                    1.0, GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits));
             if (weight > 0) {
                 auto assignedNode = New<TAssignedNode>(node, weight);
                 nodeHeap.push_back(assignedNode);
