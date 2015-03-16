@@ -24,7 +24,7 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
         self.init()
         self.wait()
         if self._init_exception_info:
-            raise sys._init_exception_info
+            raise self._init_exception_info
 
     def tearDown(self):
         self.l.stop()
@@ -64,23 +64,27 @@ class TestLogBrokerIntegration(testing.AsyncTestCase):
         assert seqno == 20
 
 
-class TestSessionStreamIntegraion(testing.AsyncTestCase):
+class TestSessionReaderIntegraion(testing.AsyncTestCase):
     @testing.gen_test
     def test_connect(self):
         source_id = uuid.uuid4().hex
-        s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=source_id, io_loop=self.io_loop)
-        session_id = yield s.connect((KAFKA_ENDPOINT, 80))
+        s = fennel.SessionReader(service_id=TEST_SERVICE_ID, source_id=source_id, io_loop=self.io_loop)
+        yield s.start((KAFKA_ENDPOINT, 80))
+        session_id = yield s.get_id()
         assert session_id is not None
-        s.get_attribute("seqno")
+        seqno = yield s.get_seqno()
+        assert seqno == 0
 
     @testing.gen_test
     def test_get_ping(self):
         source_id = uuid.uuid4().hex
-        s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=source_id, io_loop=self.io_loop)
-        session_id = yield s.connect((KAFKA_ENDPOINT, 80))
+        s = fennel.SessionReader(service_id=TEST_SERVICE_ID, source_id=source_id, io_loop=self.io_loop)
+        yield s.start((KAFKA_ENDPOINT, 80))
+        session_id = yield s.get_id()
         assert session_id is not None
         message = yield s.read_message()
         assert message.type == "ping"
+
 
 
 class TestSessionPushStreamIntegration(testing.AsyncTestCase):
@@ -98,8 +102,9 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
         try:
             self.source_id = uuid.uuid4().hex
 
-            self.s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
-            self._session_id = yield self.s.connect((KAFKA_ENDPOINT, 80))
+            self.s = fennel.SessionReader(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
+            yield self.s.start((KAFKA_ENDPOINT, 80))
+            self._session_id = yield self.s.get_id()
             assert self._session_id is not None
 
             self.p = fennel.PushStream(io_loop=self.io_loop)
@@ -199,14 +204,13 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
         self.p.stop()
         self.s.stop()
 
-        self.s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
-        session_id = yield self.s.connect((KAFKA_ENDPOINT, 80))
+        self.s = fennel.SessionReader(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
+        yield self.s.start((KAFKA_ENDPOINT, 80))
+        session_id = yield self.s.get_id()
         assert session_id is not None
 
-        self.p = fennel.PushStream(io_loop=self.io_loop)
-        yield self.p.connect((KAFKA_ENDPOINT, 9000), session_id=session_id)
-
-        assert int(self.s.get_attribute("seqno")) == 20
+        seqno = yield self.s.get_seqno()
+        assert seqno == 20
 
     @testing.gen_test
     def test_two_parallel_sessions(self):
@@ -214,11 +218,13 @@ class TestSessionPushStreamIntegration(testing.AsyncTestCase):
         message = yield self.get_ack_message()
         assert message.attributes["seqno"] == 20
 
-        s = fennel.SessionStream(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
-        session_id = yield s.connect((KAFKA_ENDPOINT, 80))
+        s = fennel.SessionReader(service_id=TEST_SERVICE_ID, source_id=self.source_id, io_loop=self.io_loop)
+        yield s.start((KAFKA_ENDPOINT, 80))
+        session_id = yield s.get_id()
         assert session_id is not None
         assert session_id != self._session_id
-        assert int(s.get_attribute("seqno")) == 20
+        seqno = yield s.get_seqno()
+        assert seqno == 20
 
         yield self.write_chunk(40)
         message = yield self.get_ack_message()
