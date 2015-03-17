@@ -307,7 +307,7 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker)
 
 TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
 {
-    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1);
+    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1, "");
     BIND([&] () {
         for (int i = 0; i < 10; ++i) {
             WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10)))
@@ -318,7 +318,7 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
 
 TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker2)
 {
-    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 2);
+    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 2, "");
 
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
@@ -338,7 +338,7 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker2)
 
 TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker3)
 {
-    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1);
+    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1, "");
 
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();

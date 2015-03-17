@@ -37,6 +37,14 @@ TTagIdList GetBucketTagIds(const Stroka& threadName, const Stroka& bucketName)
     return tagIds;
 }
 
+TTagIdList GetInvokerTagIds(const Stroka& invokerName)
+{
+    TTagIdList tagIds;
+    auto* profilingManager = TProfileManager::Get();
+    tagIds.push_back(profilingManager->RegisterTag("invoker", invokerName));
+    return tagIds;
+}
+
 } // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -514,10 +522,13 @@ class TBoundedConcurrencyInvoker
 public:
     TBoundedConcurrencyInvoker(
         IInvokerPtr underlyingInvoker,
-        int maxConcurrentInvocations)
+        int maxConcurrentInvocations,
+        const NProfiling::TTagIdList& tagIds)
         : TInvokerWrapper(std::move(underlyingInvoker))
         , MaxConcurrentInvocations_(maxConcurrentInvocations)
         , Semaphore_(0)
+        , Profiler("/bounded_concurrency_invoker")
+        , SemaphoreCounter_("/semaphore", tagIds)
     { }
 
     virtual void Invoke(const TClosure& callback) override
@@ -534,6 +545,8 @@ private:
 
     static PER_THREAD TBoundedConcurrencyInvoker* CurrentSchedulingInvoker_;
 
+    NProfiling::TProfiler Profiler;
+    NProfiling::TSimpleCounter SemaphoreCounter_;
 
     class TInvocationGuard
     {
@@ -603,28 +616,32 @@ private:
     bool TryAcquireSemaphore()
     {
         if (++Semaphore_ <= MaxConcurrentInvocations_) {
+            Profiler.Increment(SemaphoreCounter_, 1);
             return true;
+        } else {
+            --Semaphore_;
+            return false;
         }
-        ReleaseSemaphore();
-        return false;
     }
 
     void ReleaseSemaphore()
     {
         YCHECK(--Semaphore_ >= 0);
+        Profiler.Increment(SemaphoreCounter_, -1);
     }
-
 };
 
 PER_THREAD TBoundedConcurrencyInvoker* TBoundedConcurrencyInvoker::CurrentSchedulingInvoker_ = nullptr;
 
 IInvokerPtr CreateBoundedConcurrencyInvoker(
     IInvokerPtr underlyingInvoker,
-    int maxConcurrentInvocations)
+    int maxConcurrentInvocations,
+    const Stroka& invokerName)
 {
     return New<TBoundedConcurrencyInvoker>(
         underlyingInvoker,
-        maxConcurrentInvocations);
+        maxConcurrentInvocations,
+        GetInvokerTagIds(invokerName));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
