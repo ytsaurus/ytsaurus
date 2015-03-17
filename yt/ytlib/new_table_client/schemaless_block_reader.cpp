@@ -90,11 +90,6 @@ TUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPool* mem
     row.GetHeader()->Count = valueCount;
     return row;
 }
-    
-const char* THorizontalSchemalessBlockReader::GetRowPointer() const
-{
-    return RowPointer_;
-}
 
 i64 THorizontalSchemalessBlockReader::GetRowIndex() const
 {
@@ -113,7 +108,7 @@ bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
     RowIndex_ = rowIndex;
 
     ui32 offset = *reinterpret_cast<ui32*>(Offsets_.Begin() + rowIndex * sizeof(ui32));
-    CurrentPointer_ = RowPointer_ = Data_.Begin() + offset;
+    CurrentPointer_ = Data_.Begin() + offset;
 
     CurrentPointer_ += ReadVarUint32(CurrentPointer_, &ValueCount_);
     YCHECK(ValueCount_ >= KeyColumnCount_);
@@ -124,20 +119,6 @@ bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
     }
 
     return true;
-}
-
-TUnversionedRow THorizontalSchemalessBlockReader::GetRow(
-    const char *rowPointer,
-    TChunkedMemoryPool *memoryPool)
-{
-    ui32 valueCount;
-    rowPointer += ReadVarUint32(rowPointer, &valueCount);
-
-    TUnversionedRow row = TUnversionedRow::Allocate(memoryPool, valueCount);
-    for (int i = 0; i < valueCount; ++i) {
-        rowPointer += ReadValue(rowPointer, row.Begin() + i);
-    }
-    return row;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

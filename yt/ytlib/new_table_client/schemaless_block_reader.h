@@ -24,14 +24,13 @@ public:
 
     bool SkipToRowIndex(i64 rowIndex);
     bool SkipToKey(const TOwningKey& key);
-    
+
+    bool JumpToRowIndex(i64 rowIndex);
+
     const TOwningKey& GetKey() const;
     TUnversionedRow GetRow(TChunkedMemoryPool* memoryPool);
-    const char* GetRowPointer() const;
 
     i64 GetRowIndex() const;
-
-    static TUnversionedRow GetRow(const char* rowPointer, TChunkedMemoryPool* memoryPool);
 
 private:
     TSharedRef Block_;
@@ -47,14 +46,10 @@ private:
     TRef Offsets_;
 
     i64 RowIndex_;
-    const char* RowPointer_;
     const char* CurrentPointer_;
     ui32 ValueCount_;
 
     TOwningKey Key_;
-
-
-    bool JumpToRowIndex(i64 rowIndex);
 
 };
 

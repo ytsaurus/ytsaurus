@@ -1402,7 +1402,7 @@ protected:
 
     i64 GetSortBuffersMemorySize(const TChunkStripeStatistics& stat) const
     {
-        return (i64) 16 * Spec->SortBy.size() * stat.RowCount + (i64) 12 * stat.RowCount;
+        return (i64) 16 * Spec->SortBy.size() * stat.RowCount + (i64) 20 * stat.RowCount;
     }
 
     i64 GetRowCountEstimate(TPartitionPtr partition, i64 dataSize) const
@@ -2004,6 +2004,7 @@ private:
         const TChunkStripeStatistics& stat,
         i64 valueCount) const override
     {
+        // ToDo(psushin): rewrite simple sort estimates.
         TNodeResources result;
         result.set_user_slots(1);
         result.set_cpu(1);
@@ -2594,9 +2595,6 @@ private:
                 GetSortInputIOMemorySize(stat) +
                 GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
                 GetSortBuffersMemorySize(stat) +
-                // Sorting reader extra memory compared to partition_sort job, because it uses
-                // separate buffer of i32 to write out sorted indexes.
-                4 * stat.RowCount +
                 GetMemoryReserve(memoryReserveEnabled, Spec->Reducer) +
                 GetFootprintMemorySize());
         } else if (Spec->ReduceCombiner) {
@@ -2605,9 +2603,6 @@ private:
                 GetSortInputIOMemorySize(stat) +
                 GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
                 GetSortBuffersMemorySize(stat) +
-                // Sorting reader extra memory compared to partition_sort job, because it uses
-                // separate buffer of i32 to write out sorted indexes.
-                4 * stat.RowCount +
                 GetMemoryReserve(memoryReserveEnabled, Spec->ReduceCombiner) +
                 GetFootprintMemorySize());
         } else {
