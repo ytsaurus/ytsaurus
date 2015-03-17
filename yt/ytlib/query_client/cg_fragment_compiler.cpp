@@ -104,7 +104,7 @@ TResult CodegenIf(
     Value* condition,
     const std::function<TResult(TBuilder& builder)>& thenCodegen,
     const std::function<TResult(TBuilder& builder)>& elseCodegen,
-    Twine name = Twine())
+    Twine name)
 {
     auto* thenBB = builder.CreateBBHere("then");
     auto* elseBB = builder.CreateBBHere("else");
