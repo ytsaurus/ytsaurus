@@ -179,10 +179,12 @@ void TBootstrap::DoRun()
         "Query");
     BoundedConcurrencyQueryPoolInvoker = CreateBoundedConcurrencyInvoker(
         QueryThreadPool->GetInvoker(),
-        Config->QueryAgent->MaxConcurrentQueries);
+        Config->QueryAgent->MaxConcurrentQueries,
+        "Queries");
     BoundedConcurrencyQueryPoolInvoker = CreateBoundedConcurrencyInvoker(
         QueryThreadPool->GetInvoker(),
-        Config->QueryAgent->MaxConcurrentReads);
+        Config->QueryAgent->MaxConcurrentReads,
+        "Reads");
 
     BusServer = CreateTcpBusServer(TTcpBusServerConfig::CreateTcp(Config->RpcPort));
 
