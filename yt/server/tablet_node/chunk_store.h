@@ -30,6 +30,15 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EStorePreloadState,
+    (Disabled)
+    (None)
+    (Scheduled)
+    (Running)
+    (Complete)
+    (Failed)
+)
+
 class TChunkStore
     : public TStoreBase
 {
@@ -47,6 +56,11 @@ public:
     bool HasBackingStore() const;
 
     void SetInMemory(bool value);
+    NChunkClient::IBlockCachePtr GetUncompressedPreloadedBlockCache();
+    NChunkClient::IChunkReaderPtr GetChunkReader();
+
+    EStorePreloadState GetPreloadState() const;
+    void SetPreloadState(EStorePreloadState value);
 
     // IStore implementation.
     virtual EStoreType GetType() const override;
@@ -111,8 +125,10 @@ private:
     NConcurrency::TReaderWriterSpinLock BackingStoreLock_;
     IStorePtr BackingStore_;
 
-    NConcurrency::TReaderWriterSpinLock UncompressedBlockCacheLock_;
-    NChunkClient::IBlockCachePtr UncompressedBlockCache_;
+    NConcurrency::TReaderWriterSpinLock UncompressedPreloadedBlockCacheLock_;
+    NChunkClient::IBlockCachePtr UncompressedPreloadedBlockCache_;
+
+    EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
 
 
     NDataNode::IChunkPtr PrepareChunk();

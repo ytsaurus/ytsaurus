@@ -144,7 +144,7 @@ private:
         }
 
         for (auto store : stores) {
-            store->SetState(EStoreState::Compacting);
+            store->SetStoreState(EStoreState::Compacting);
         }
 
         eden->SetState(EPartitionState::Compacting);
@@ -186,7 +186,7 @@ private:
         auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
 
         for (auto store : stores) {
-            store->SetState(EStoreState::Compacting);
+            store->SetStoreState(EStoreState::Compacting);
         }
 
         partition->SetState(EPartitionState::Compacting);
@@ -205,7 +205,7 @@ private:
     {
         std::vector<IStorePtr> stores;
         for (auto store : eden->Stores()) {
-            if (store->GetState() != EStoreState::Persistent)
+            if (store->GetStoreState() != EStoreState::Persistent)
                 continue;
             auto chunkStore = store->AsChunk();
 
@@ -224,7 +224,7 @@ private:
     {
         std::vector<TChunkStorePtr> candidates;
         for (auto store : partition->Stores()) {
-            if (store->GetState() != EStoreState::Persistent)
+            if (store->GetStoreState() != EStoreState::Persistent)
                 continue;
             auto chunkStore = store->AsChunk();
 
@@ -522,7 +522,7 @@ private:
             SwitchTo(automatonInvoker);
 
             for (auto store : stores) {
-                YCHECK(store->GetState() == EStoreState::Compacting);
+                YCHECK(store->GetStoreState() == EStoreState::Compacting);
                 tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
             }
         }
@@ -682,7 +682,7 @@ private:
             SwitchTo(automatonInvoker);
 
             for (auto store : stores) {
-                YCHECK(store->GetState() == EStoreState::Compacting);
+                YCHECK(store->GetStoreState() == EStoreState::Compacting);
                 tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
             }
         }

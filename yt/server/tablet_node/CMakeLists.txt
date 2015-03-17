@@ -26,6 +26,7 @@ set( SRCS
   ${BASE}/row_merger.cpp
   ${BASE}/lookup.cpp
   ${BASE}/security_manager.cpp
+  ${BASE}/store_preloader.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -56,6 +57,7 @@ set( HDRS
   ${BASE}/lookup.h
   ${BASE}/row_comparer_generator.h
   ${BASE}/security_manager.h
+  ${BASE}/store_preloader.h
 )
 
 if (YT_BUILD_ENABLE_LLVM)

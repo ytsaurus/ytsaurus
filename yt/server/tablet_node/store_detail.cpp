@@ -1,13 +1,15 @@
-#include <CoreMedia/CoreMedia.h>
 #include "stdafx.h"
 #include "store_detail.h"
 #include "tablet.h"
 #include "private.h"
 
+#include <core/ytree/fluent.h>
+
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,14 +48,14 @@ TTablet* TStoreBase::GetTablet() const
     return Tablet_;
 }
 
-EStoreState TStoreBase::GetState() const
+EStoreState TStoreBase::GetStoreState() const
 {
-    return State_;
+    return StoreState_;
 }
 
-void TStoreBase::SetState(EStoreState state)
+void TStoreBase::SetStoreState(EStoreState state)
 {
-    State_ = state;
+    StoreState_ = state;
 }
 
 TPartition* TStoreBase::GetPartition() const
@@ -89,8 +91,11 @@ void TStoreBase::Save(TSaveContext& /*context*/) const
 void TStoreBase::Load(TLoadContext& /*context*/)
 { }
 
-void TStoreBase::BuildOrchidYson(IYsonConsumer* /*consumer*/)
-{ }
+void TStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("store_state").Value(StoreState_);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

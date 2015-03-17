@@ -23,8 +23,8 @@ public:
     virtual TStoreId GetId() const override;
     virtual TTablet* GetTablet() const override;
 
-    virtual EStoreState GetState() const override;
-    virtual void SetState(EStoreState state) override;
+    virtual EStoreState GetStoreState() const override;
+    virtual void SetStoreState(EStoreState state) override;
 
     virtual TPartition* GetPartition() const override;
     virtual void SetPartition(TPartition* partition) override;
@@ -52,7 +52,7 @@ protected:
     const std::vector<Stroka> LockIndexToName_;
     const std::vector<int> ColumnIndexToLockIndex_;
 
-    EStoreState State_;
+    EStoreState StoreState_;
     TPartition* Partition_ = nullptr;
 
     i64 MemoryUsage_ = 0;

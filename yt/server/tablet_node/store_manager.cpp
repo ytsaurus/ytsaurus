@@ -65,7 +65,7 @@ TStoreManager::TStoreManager(
 
     for (const auto& pair : Tablet_->Stores()) {
         const auto& store = pair.second;
-        if (store->GetState() != EStoreState::ActiveDynamic) {
+        if (store->GetStoreState() != EStoreState::ActiveDynamic) {
             MaxTimestampToStore_.insert(std::make_pair(store->GetMaxTimestamp(), store));
         }
     }
@@ -93,7 +93,7 @@ bool TStoreManager::HasUnflushedStores() const
 {
     for (const auto& pair : Tablet_->Stores()) {
         const auto& store = pair.second;
-        auto state = store->GetState();
+        auto state = store->GetStoreState();
         if (state != EStoreState::Persistent) {
             return true;
         }
@@ -341,7 +341,7 @@ void TStoreManager::Rotate(bool createNewStore)
     const auto& store = Tablet_->GetActiveStore();
     YCHECK(store);
 
-    store->SetState(EStoreState::PassiveDynamic);
+    store->SetStoreState(EStoreState::PassiveDynamic);
 
     if (store->GetLockCount() > 0) {
         LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
@@ -375,9 +375,9 @@ void TStoreManager::AddStore(IStorePtr store)
 
 void TStoreManager::RemoveStore(IStorePtr store)
 {
-    YASSERT(store->GetState() != EStoreState::ActiveDynamic);
+    YASSERT(store->GetStoreState() != EStoreState::ActiveDynamic);
 
-    store->SetState(EStoreState::Removed);
+    store->SetStoreState(EStoreState::Removed);
     Tablet_->RemoveStore(store);
 
     // The range is likely to contain at most one element.

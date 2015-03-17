@@ -50,7 +50,6 @@
 #include <server/data_node/block_store.h>
 
 #include <server/cell_node/bootstrap.h>
-#include <CoreMedia/CoreMedia.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -151,11 +150,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        store->SetState(state);
+        store->SetStoreState(state);
 
         auto callback = BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
-            store->SetState(store->GetPersistentState());
+            store->SetStoreState(store->GetPersistentStoreState());
         });
 
         if (IsLeader()) {
@@ -608,6 +607,8 @@ private:
 
         SchedulePartitionsSampling(tablet);
 
+        tablet->SetInMemory(mountConfig->InMemory);
+
         {
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
@@ -703,13 +704,7 @@ private:
             SchedulePartitionsSampling(tablet);
         }
 
-        for (const auto& pair : tablet->Stores()) {
-            const auto& store = pair.second;
-            if (store->GetType() == EStoreType::Chunk) {
-                auto chunkStore = store->AsChunk();
-                chunkStore->SetInMemory(mountConfig->InMemory);
-            }
-        }
+        tablet->SetInMemory(mountConfig->InMemory);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
             tabletId);
@@ -848,8 +843,8 @@ private:
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToRemove.push_back(storeId);
             auto store = tablet->GetStore(storeId);
-            YCHECK(store->GetState() != EStoreState::ActiveDynamic);
-            store->SetState(EStoreState::RemoveCommitting);
+            YCHECK(store->GetStoreState() != EStoreState::ActiveDynamic);
+            store->SetStoreState(EStoreState::RemoveCommitting);
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Committing tablet stores update (TabletId: %v, StoreIdsToAdd: [%v], StoreIdsToRemove: [%v])",
@@ -895,7 +890,7 @@ private:
             for (const auto& descriptor : response.stores_to_remove()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 auto store = tablet->GetStore(storeId);
-                YCHECK(store->GetState() == EStoreState::RemoveCommitting);
+                YCHECK(store->GetStoreState() == EStoreState::RemoveCommitting);
                 BackoffStore(store, EStoreState::RemoveFailed);
             }
         } else {
@@ -1125,9 +1120,9 @@ private:
 
     void SetStoreOrphaned(TTablet* tablet, IStorePtr store)
     {
-        if (store->GetState() == EStoreState::Orphaned)
+        if (store->GetStoreState() == EStoreState::Orphaned)
             return;
-        store->SetState(EStoreState::Orphaned);
+        store->SetStoreState(EStoreState::Orphaned);
 
         if (store->GetType() != EStoreType::DynamicMemory)
             return;
@@ -1146,13 +1141,13 @@ private:
     bool ValidateRowRef(const TDynamicRowRef& rowRef)
     {
         auto* store = rowRef.Store;
-        return store->GetState() != EStoreState::Orphaned;
+        return store->GetStoreState() != EStoreState::Orphaned;
     }
 
     bool ValidateAndDiscardRowRef(const TDynamicRowRef& rowRef)
     {
         auto* store = rowRef.Store;
-        if (store->GetState() != EStoreState::Orphaned) {
+        if (store->GetStoreState() != EStoreState::Orphaned) {
             return true;
         }
 
@@ -1347,7 +1342,7 @@ private:
 
         for (const auto& pair : tablet->Stores()) {
             const auto& store = pair.second;
-            store->SetState(store->GetPersistentState());
+            store->SetStoreState(store->GetPersistentStoreState());
         }
 
         const auto& storeManager = tablet->GetStoreManager();
@@ -1426,7 +1421,6 @@ private:
                 .Item("opaque").Value(true)
             .EndAttributes()
             .BeginMap()
-                .Item("state").Value(store->GetState())
                 .Do(BIND(&IStore::BuildOrchidYson, store))
             .EndMap();
     }

@@ -86,9 +86,6 @@ public:
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
         , Semaphore_(Config_->StoreFlusher->MaxConcurrentFlushes)
-    { }
-
-    void Start()
     {
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
         tabletSlotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::BeginSlotScan, MakeStrong(this)));
@@ -200,7 +197,7 @@ private:
         for (const auto& pair : tablet->Stores()) {
             const auto& store = pair.second;
             ScanStore(tablet, store);
-            if (store->GetState() == EStoreState::PassiveDynamic) {
+            if (store->GetStoreState() == EStoreState::PassiveDynamic) {
                 TGuard<TSpinLock> guard(SpinLock_);
                 auto dynamicStore = store->AsDynamicMemory();
                 PassiveMemoryUsage_ += dynamicStore->GetMemoryUsage();
@@ -227,14 +224,14 @@ private:
 
     void ScanStore(TTablet* tablet, const IStorePtr& store)
     {
-        if (store->GetState() != EStoreState::PassiveDynamic)
+        if (store->GetStoreState() != EStoreState::PassiveDynamic)
             return;
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
         if (!guard)
             return;
 
-        store->SetState(EStoreState::Flushing);
+        store->SetStoreState(EStoreState::Flushing);
 
         tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TStoreFlusher::FlushStore,
@@ -261,7 +258,7 @@ private:
         auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
         writerOptions->ChunksEden = true;
 
-        YCHECK(store->GetState() == EStoreState::Flushing);
+        YCHECK(store->GetStoreState() == EStoreState::Flushing);
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v",
@@ -377,7 +374,7 @@ private:
         
             SwitchTo(automatonInvoker);
 
-            YCHECK(store->GetState() == EStoreState::Flushing);
+            YCHECK(store->GetStoreState() == EStoreState::Flushing);
             tabletManager->BackoffStore(store, EStoreState::FlushFailed);
         }
     }
@@ -390,7 +387,7 @@ void StartStoreFlusher(
     TTabletNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
 {
-    New<TStoreFlusher>(config, bootstrap)->Start();
+    New<TStoreFlusher>(config, bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
