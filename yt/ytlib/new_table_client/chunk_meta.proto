@@ -3,6 +3,7 @@ package NYT.NVersionedTableClient.NProto;
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/chunk_client/schema.proto";
+import "yt/core/misc/bloom_filter.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,6 +88,11 @@ message TBlockIndexExt
 {
     // Number of entries equals to block count.
     repeated bytes entries = 1;
+}
+
+message TKeyFilterExt
+{
+    optional NYT.NProto.TBloomFilter bloom_filter = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

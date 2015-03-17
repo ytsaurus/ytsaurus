@@ -7,6 +7,8 @@
 
 #include <core/concurrency/scheduler.h>
 
+#include <core/misc/bloom_filter.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -55,6 +57,11 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
         BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
 
         BlockIndexKeys_.reserve(BlockMeta_.blocks_size());
+
+        auto keyFilterExt = FindProtoExtension<TKeyFilterExt>(ChunkMeta_.extensions());
+        if (keyFilterExt) {
+            FromProto(&KeyFilter_, keyFilterExt.Get());
+        }
 
         // COMPAT(psushin): newer chunks store index inside TBlockMeta.
         auto blockIndexExt = FindProtoExtension<TBlockIndexExt>(ChunkMeta_.extensions());

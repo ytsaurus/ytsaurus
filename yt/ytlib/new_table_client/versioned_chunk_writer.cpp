@@ -6,6 +6,7 @@
 #include "versioned_block_writer.h"
 #include "versioned_writer.h"
 #include "unversioned_row.h"
+#include "key_filter.h"
 
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -78,6 +79,8 @@ private:
     TTimestamp MinTimestamp_;
     TTimestamp MaxTimestamp_;
 
+    TKeyFilter KeyFilter_;
+
     void WriteRow(
         TVersionedRow row,
         const TUnversionedValue* beginPreviousKey,
@@ -111,6 +114,7 @@ TVersionedChunkWriter::TVersionedChunkWriter(
     , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_))
     , MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
+    , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
 { }
 
 TFuture<void> TVersionedChunkWriter::Open()
@@ -134,10 +138,12 @@ bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
         EmitSample(rows.front());
     }
 
+    KeyFilter_.Insert(rows.front().BeginKeys(), rows.front().EndKeys());
     WriteRow(rows.front(), LastKey_.Begin(), LastKey_.End());
     FinishBlockIfLarge(rows.front());
 
     for (int i = 1; i < rows.size(); ++i) {
+        KeyFilter_.Insert(rows[i].BeginKeys(), rows[i].EndKeys());
         WriteRow(rows[i], rows[i - 1].BeginKeys(), rows[i - 1].EndKeys());
         FinishBlockIfLarge(rows[i]);
     }
@@ -166,7 +172,7 @@ TFuture<void> TVersionedChunkWriter::GetReadyEvent()
 i64 TVersionedChunkWriter::GetMetaSize() const
 {
     // Other meta parts are negligible.
-    return BlockMetaExtSize_ + SamplesExtSize_;
+    return BlockMetaExtSize_ + SamplesExtSize_ + KeyFilter_.EstimateSize();
 }
 
 i64 TVersionedChunkWriter::GetDataSize() const
@@ -267,6 +273,11 @@ void TVersionedChunkWriter::DoClose()
 
     SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
     SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
+
+    if (KeyFilter_.IsValid()) {
+        KeyFilter_.Shrink();
+        SetProtoExtension(meta.mutable_extensions(), ToProto<TKeyFilterExt>(KeyFilter_));
+    }
 
     auto& miscExt = EncodingChunkWriter_->MiscExt();
     miscExt.set_sorted(true);

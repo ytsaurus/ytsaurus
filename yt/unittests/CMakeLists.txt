@@ -19,6 +19,7 @@ set( SRCS
   ${BASE}/enum_ut.cpp
   ${BASE}/erasure_ut.cpp
   ${BASE}/guid_ut.cpp
+  ${BASE}/hash_filter_ut.cpp
   ${BASE}/heap_ut.cpp
   ${BASE}/intrusive_ptr_ut.cpp
   ${BASE}/json_parser_ut.cpp

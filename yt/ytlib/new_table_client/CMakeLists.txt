@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/chunk_reader_base.cpp
   ${BASE}/chunk_writer_base.cpp
   ${BASE}/helpers.cpp
+  ${BASE}/key_filter.cpp
   ${BASE}/legacy_channel_reader.cpp
   ${BASE}/legacy_table_chunk_reader.cpp
   ${BASE}/name_table.cpp
@@ -54,6 +55,7 @@ set( HDRS
   ${BASE}/chunk_writer_base.h
   ${BASE}/config.h
   ${BASE}/helpers.h
+  ${BASE}/key_filter.h
   ${BASE}/legacy_channel_reader.h
   ${BASE}/legacy_table_chunk_reader.h
   ${BASE}/name_table.h
