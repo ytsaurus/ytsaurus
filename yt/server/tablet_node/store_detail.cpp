@@ -13,6 +13,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const i64 MemoryUsageGranularity = (i64) 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStoreBase::TStoreBase(
     const TStoreId& id,
     TTablet* tablet)
@@ -83,6 +87,16 @@ void TStoreBase::UnsubscribeMemoryUsageUpdated(const TCallback<void(i64 delta)>&
 {
     MemoryUsageUpdated_.Unsubscribe(callback);
     callback.Run(-GetMemoryUsage());
+}
+
+void TStoreBase::SetMemoryUsage(i64 value)
+{
+    YASSERT(value >= MemoryUsage_);
+    if (value > MemoryUsage_ + MemoryUsageGranularity) {
+        i64 delta = value - MemoryUsage_;
+        MemoryUsage_ = value;
+        MemoryUsageUpdated_.Fire(delta);
+    }
 }
 
 void TStoreBase::Save(TSaveContext& /*context*/) const
