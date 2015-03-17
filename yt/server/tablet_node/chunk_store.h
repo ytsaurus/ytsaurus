@@ -55,7 +55,7 @@ public:
     void SetBackingStore(IStorePtr store);
     bool HasBackingStore() const;
 
-    void SetInMemory(bool value);
+    void SetInMemoryMode(bool value);
     NChunkClient::IBlockCachePtr GetUncompressedPreloadedBlockCache();
     NChunkClient::IChunkReaderPtr GetChunkReader();
 

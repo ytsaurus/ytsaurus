@@ -156,7 +156,6 @@ public:
     IStorePtr FindStore(const TStoreId& id);
     IStorePtr GetStore(const TStoreId& id);
 
-    void SetInMemory(bool value);
     void ScheduleStorePreload(TChunkStorePtr store);
     TChunkStorePtr PeekStoreForPreload();
     void PopStoreForPreload(TChunkStorePtr store);
@@ -207,6 +206,7 @@ private:
 
 
     void Initialize();
+    void UpdateInMemoryMode();
 
     TPartition* GetContainingPartition(IStorePtr store);
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);

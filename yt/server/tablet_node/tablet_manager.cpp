@@ -271,6 +271,7 @@ public:
             tablet,
             chunkMeta,
             Bootstrap_);
+        store->SetInMemoryMode(tablet->GetConfig()->InMemory);
         StartMemoryUsageTracking(store);
         return store;
     }
@@ -607,8 +608,6 @@ private:
 
         SchedulePartitionsSampling(tablet);
 
-        tablet->SetInMemory(mountConfig->InMemory);
-
         {
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
@@ -703,8 +702,6 @@ private:
         if (oldSamplesPerPartition != newSamplesPerPartition) {
             SchedulePartitionsSampling(tablet);
         }
-
-        tablet->SetInMemory(mountConfig->InMemory);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
             tabletId);
