@@ -13,6 +13,7 @@
 #include <server/data_node/block_store.h>
 
 #include <server/cell_node/bootstrap.h>
+#include <AddressBook/AddressBook.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -95,8 +96,11 @@ public:
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
     {
-        // TODO(babenko): implement when first needed
-        YUNIMPLEMENTED();
+        std::vector<int> blockIndexes;
+        for (int index = firstBlockIndex; index < firstBlockIndex + blockCount; ++index) {
+            blockIndexes.push_back(index);
+        }
+        return ReadBlocks(blockIndexes);
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
