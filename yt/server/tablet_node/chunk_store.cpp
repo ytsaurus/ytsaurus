@@ -335,7 +335,6 @@ IBlockCachePtr TChunkStore::GetUncompressedPreloadedBlockCache()
     return UncompressedPreloadedBlockCache_;
 }
 
-
 NChunkClient::IChunkReaderPtr TChunkStore::GetChunkReader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
