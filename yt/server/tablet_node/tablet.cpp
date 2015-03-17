@@ -129,6 +129,7 @@ const TTableMountConfigPtr& TTablet::GetConfig() const
 void TTablet::SetConfig(TTableMountConfigPtr config)
 {
     Config_ = config;
+    UpdateInMemoryMode();
 }
 
 const TTabletWriterOptionsPtr& TTablet::GetWriterOptions() const
@@ -516,22 +517,6 @@ IStorePtr TTablet::GetStore(const TStoreId& id)
     return store;
 }
 
-void TTablet::SetInMemory(bool value)
-{
-    PreloadQueue_.clear();
-
-    for (const auto& pair : Stores_) {
-        const auto& store = pair.second;
-        if (store->GetType() == EStoreType::Chunk) {
-            auto chunkStore = store->AsChunk();
-            chunkStore->SetInMemory(value);
-            if (value) {
-                ScheduleStorePreload(chunkStore);
-            }
-        }
-    }
-}
-
 const TDynamicMemoryStorePtr& TTablet::GetActiveStore() const
 {
     return ActiveStore_;
@@ -644,6 +629,8 @@ void TTablet::Initialize()
     }
 
     ColumnLockCount_ = groupToIndex.size() + 1;
+
+    UpdateInMemoryMode();
 }
 
 TPartition* TTablet::GetContainingPartition(IStorePtr store)
@@ -670,6 +657,22 @@ TObjectId TTablet::GenerateId(EObjectType type)
         return Slot_->GenerateId(type);
     } else {
         return TObjectId::Create();
+    }
+}
+
+void TTablet::UpdateInMemoryMode()
+{
+    PreloadQueue_.clear();
+
+    for (const auto& pair : Stores_) {
+        const auto& store = pair.second;
+        if (store->GetType() == EStoreType::Chunk) {
+            auto chunkStore = store->AsChunk();
+            chunkStore->SetInMemoryMode(Config_->InMemory);
+            if (Config_->InMemory) {
+                ScheduleStorePreload(chunkStore);
+            }
+        }
     }
 }
 

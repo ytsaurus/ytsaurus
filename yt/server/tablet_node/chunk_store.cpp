@@ -272,8 +272,6 @@ TChunkStore::TChunkStore(
         PrecacheProperties();
     }
 
-    SetInMemory(Tablet_->GetConfig()->InMemory);
-
     LOG_DEBUG("Static chunk store created (TabletId: %v)",
         TabletId_);
 }
@@ -300,7 +298,7 @@ bool TChunkStore::HasBackingStore() const
     return BackingStore_ != nullptr;
 }
 
-void TChunkStore::SetInMemory(bool value)
+void TChunkStore::SetInMemoryMode(bool value)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
