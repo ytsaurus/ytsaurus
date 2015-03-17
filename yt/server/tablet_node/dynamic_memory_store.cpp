@@ -45,7 +45,6 @@ static const int EditListCapacityMultiplier = 2;
 static const int MaxEditListCapacity = 256;
 static const int TypicalEditListCount = 16;
 static const int TabletReaderPoolSize = 1024;
-static const i64 MemoryUsageGranularity = (i64) 1024 * 1024;
 
 struct TDynamicMemoryStoreFetcherPoolTag { };
 
@@ -1349,13 +1348,7 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
 
 void TDynamicMemoryStore::OnMemoryUsageUpdated()
 {
-    i64 memoryUsage = GetAlignedPoolCapacity() + GetUnalignedPoolCapacity();
-    YASSERT(memoryUsage >= MemoryUsage_);
-    if (memoryUsage > MemoryUsage_ + MemoryUsageGranularity) {
-        i64 delta = memoryUsage - MemoryUsage_;
-        MemoryUsage_ = memoryUsage;
-        MemoryUsageUpdated_.Fire(delta);
-    }
+    SetMemoryUsage(GetAlignedPoolCapacity() + GetUnalignedPoolCapacity());
 }
 
 TOwningKey TDynamicMemoryStore::RowToKey(TDynamicRow row)

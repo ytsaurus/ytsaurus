@@ -55,10 +55,14 @@ protected:
     EStoreState StoreState_;
     TPartition* Partition_ = nullptr;
 
+    NLogging::TLogger Logger;
+
+
+    void SetMemoryUsage(i64 value);
+
+private:
     i64 MemoryUsage_ = 0;
     TCallbackList<void(i64 delta)> MemoryUsageUpdated_;
-
-    NLogging::TLogger Logger;
 
 };
 

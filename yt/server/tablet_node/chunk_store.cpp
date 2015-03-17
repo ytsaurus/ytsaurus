@@ -197,8 +197,9 @@ class TChunkStore::TBlockCache
     : public IBlockCache
 {
 public:
-    explicit TBlockCache(const TChunkId& chunkId)
-        : ChunkId_(chunkId)
+    TBlockCache(TChunkStorePtr owner, const TChunkId& chunkId)
+        : Owner_(owner)
+        , ChunkId_(chunkId)
     { }
 
     virtual void Put(
@@ -208,11 +209,26 @@ public:
     {
         YASSERT(id.ChunkId == ChunkId_);
 
-        TWriterGuard guard(SpinLock_);
-        if (id.BlockIndex >= Blocks_.size()) {
-            Blocks_.resize(id.BlockIndex + 1);
+        auto owner = Owner_.Lock();
+        if (!owner)
+            return;
+
+        {
+            TWriterGuard guard(SpinLock_);
+
+            if (id.BlockIndex >= Blocks_.size()) {
+                Blocks_.resize(id.BlockIndex + 1);
+            }
+
+            auto& existingBlock = Blocks_[id.BlockIndex];
+            if (existingBlock) {
+                YASSERT(TRef::AreBitwiseEqual(existingBlock, data));
+            } else {
+                existingBlock = data;
+                DataSize_ += data.Size();
+                owner->SetMemoryUsage(DataSize_);
+            }
         }
-        Blocks_[id.BlockIndex] = data;
     }
 
     virtual TSharedRef Find(const TBlockId& id) override
@@ -224,10 +240,12 @@ public:
     }
 
 private:
+    const TWeakPtr<TChunkStore> Owner_;
     const TChunkId ChunkId_;
 
     TReaderWriterSpinLock SpinLock_;
     std::vector<TSharedRef> Blocks_;
+    i64 DataSize_ = 0;
 
 };
 
@@ -289,7 +307,7 @@ void TChunkStore::SetInMemory(bool value)
     TWriterGuard guard(UncompressedPreloadedBlockCacheLock_);
     if (value) {
         if (!UncompressedPreloadedBlockCache_) {
-            UncompressedPreloadedBlockCache_ = New<TBlockCache>(StoreId_);
+            UncompressedPreloadedBlockCache_ = New<TBlockCache>(this, StoreId_);
         }
         switch (PreloadState_) {
             case EStorePreloadState::Disabled:
