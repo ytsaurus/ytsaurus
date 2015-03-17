@@ -114,12 +114,19 @@ private:
         try {
             LOG_INFO("Store preload started");
 
-            const auto& meta = store->GetChunkMeta();
-            auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
-            auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
-
             auto reader = store->GetChunkReader();
             auto blockCache = store->GetUncompressedPreloadedBlockCache();
+
+            std::vector<int> extensionTags = {
+                TProtoExtensionTag<TMiscExt>::Value,
+                TProtoExtensionTag<TBlocksExt>::Value
+            };
+
+            auto meta = WaitFor(reader->GetMeta(Null, extensionTags))
+                .ValueOrThrow();
+
+            auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
+            auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
 
             auto codecId = NCompression::ECodec(miscExt.compression_codec());
             auto* codec = NCompression::GetCodec(codecId);
