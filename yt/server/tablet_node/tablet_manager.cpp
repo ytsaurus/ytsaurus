@@ -1438,10 +1438,9 @@ private:
         }
     }
 
-    static void OnStoreMemoryUsageUpdated(NCellNode::TBootstrap* bootstrap, const IStore* store, i64 delta)
+    static void OnStoreMemoryUsageUpdated(NCellNode::TBootstrap* bootstrap, EMemoryConsumer consumer, i64 delta)
     {
         auto* tracker = bootstrap->GetMemoryUsageTracker();
-        auto consumer = GetMemoryConsumerFromStore(store);
         if (delta >= 0) {
             tracker->Acquire(consumer, delta);
         } else {
@@ -1454,7 +1453,7 @@ private:
         store->SubscribeMemoryUsageUpdated(BIND(
             &TImpl::OnStoreMemoryUsageUpdated,
             Bootstrap_,
-            Unretained(store.Get())));
+            GetMemoryConsumerFromStore(store))));
     }
 
     void ValidateMemoryLimit()
