@@ -71,7 +71,7 @@ public:
     {
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return
-            tracker->GetUsed(NCellNode::EMemoryConsumer::TabletStatic) >
+            tracker->GetUsed(NCellNode::EMemoryConsumer::TabletDynamic) >
             Config_->MemoryLimit;
     }
 
