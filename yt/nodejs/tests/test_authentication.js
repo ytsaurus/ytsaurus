@@ -224,7 +224,7 @@ describe("YtAuthentication", function() {
 
     it("should accept valid authentication 1-cookie", function(done) {
         var mock = nock("http://localhost:9000")
-            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&sessionid=mysessionid")
+            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=mysessionid")
             .reply(200, {
                 status: { value: "VALID", id: 0 },
                 login: "anakin",
@@ -240,7 +240,7 @@ describe("YtAuthentication", function() {
 
     it("should accept valid authentication 2-cookie", function(done) {
         var mock = nock("http://localhost:9000")
-            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&sessionid=mysessionid&sslsessionid=mysslsessionid")
+            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=mysessionid&sslsessionid=mysslsessionid")
             .reply(200, {
                 status: { value: "VALID", id: 0 },
                 login: "anakin",
@@ -256,7 +256,7 @@ describe("YtAuthentication", function() {
 
     it("should accept a cookie which requires resigning", function(done) {
         var mock = nock("http://localhost:9000")
-            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&sessionid=resigning")
+            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=resigning")
             .reply(200, {
                 status: { value: "NEED_RESET", id: 1 },
                 login: "anakin",
