@@ -309,6 +309,28 @@ DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStorePreloaderConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int MaxConcurrentPreloads;
+    i64 WindowSize;
+
+    TStorePreloaderConfig()
+    {
+        RegisterParameter("max_concurrent_preloads", MaxConcurrentPreloads)
+            .GreaterThan(0)
+            .Default(1);
+        RegisterParameter("window_size", WindowSize)
+            .GreaterThan(0)
+            .Default((i64) 16 * 1024 * 1024);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TStorePreloaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPartitionBalancerConfig
     : public NYTree::TYsonSerializable
 {
@@ -406,6 +428,7 @@ public:
     TTabletManagerConfigPtr TabletManager;
     TStoreFlusherConfigPtr StoreFlusher;
     TStoreCompactorConfigPtr StoreCompactor;
+    TStorePreloaderConfigPtr StorePreloader;
     TPartitionBalancerConfigPtr PartitionBalancer;
     TSecurityManagerConfigPtr SecurityManager;
 
@@ -453,6 +476,8 @@ public:
         RegisterParameter("store_flusher", StoreFlusher)
             .DefaultNew();
         RegisterParameter("store_compactor", StoreCompactor)
+            .DefaultNew();
+        RegisterParameter("store_preloader", StorePreloader)
             .DefaultNew();
         RegisterParameter("partition_balancer", PartitionBalancer)
             .DefaultNew();

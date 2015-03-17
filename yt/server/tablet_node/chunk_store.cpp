@@ -247,7 +247,7 @@ TChunkStore::TChunkStore(
         TypeFromId(StoreId_) == EObjectType::Chunk ||
         TypeFromId(StoreId_) == EObjectType::ErasureChunk);
 
-    State_ = EStoreState::Persistent;
+    StoreState_ = EStoreState::Persistent;
 
     if (chunkMeta) {
         ChunkMeta_ = *chunkMeta;
@@ -286,14 +286,54 @@ void TChunkStore::SetInMemory(bool value)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(UncompressedBlockCacheLock_);
+    TWriterGuard guard(UncompressedPreloadedBlockCacheLock_);
     if (value) {
-        if (!UncompressedBlockCache_) {
-            UncompressedBlockCache_ = New<TBlockCache>(StoreId_);
+        if (!UncompressedPreloadedBlockCache_) {
+            UncompressedPreloadedBlockCache_ = New<TBlockCache>(StoreId_);
+        }
+        switch (PreloadState_) {
+            case EStorePreloadState::Disabled:
+            case EStorePreloadState::Failed:
+                PreloadState_ = EStorePreloadState::None;
+                break;
+            case EStorePreloadState::Scheduled:
+            case EStorePreloadState::Running:
+            case EStorePreloadState::Complete:
+                break;
+            default:
+                YUNREACHABLE();
         }
     } else {
-        UncompressedBlockCache_.Reset();
+        UncompressedPreloadedBlockCache_.Reset();
+        PreloadState_ = EStorePreloadState::Disabled;
     }
+}
+
+IBlockCachePtr TChunkStore::GetUncompressedPreloadedBlockCache()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(UncompressedPreloadedBlockCacheLock_);
+    return UncompressedPreloadedBlockCache_;
+}
+
+
+NChunkClient::IChunkReaderPtr TChunkStore::GetChunkReader()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto chunk = PrepareChunk();
+    return PrepareChunkReader(chunk);
+}
+
+EStorePreloadState TChunkStore::GetPreloadState() const
+{
+    return PreloadState_;
+}
+
+void TChunkStore::SetPreloadState(EStorePreloadState value)
+{
+    PreloadState_ = value;
 }
 
 EStoreType TChunkStore::GetType() const
@@ -430,7 +470,7 @@ void TChunkStore::Save(TSaveContext& context) const
 
     using NYT::Save;
 
-    Save(context, GetPersistentState());
+    Save(context, GetPersistentStoreState());
     Save(context, ChunkMeta_);
 }
 
@@ -440,7 +480,7 @@ void TChunkStore::Load(TLoadContext& context)
 
     using NYT::Load;
 
-    Load(context, State_);
+    Load(context, StoreState_);
     Load(context, ChunkMeta_);
 
     PrecacheProperties();
@@ -453,6 +493,7 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
     auto backingStore = GetBackingStore();
     auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     BuildYsonMapFluently(consumer)
+        .Item("preload_state").Value(PreloadState_)
         .Item("compressed_data_size").Value(miscExt.compressed_data_size())
         .Item("uncompressed_data_size").Value(miscExt.uncompressed_data_size())
         .Item("key_count").Value(miscExt.row_count())
@@ -588,17 +629,17 @@ IStorePtr TChunkStore::GetBackingStore()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(UncompressedBlockCacheLock_);
+    TReaderGuard guard(UncompressedPreloadedBlockCacheLock_);
     return BackingStore_;
 }
 
-NChunkClient::IBlockCachePtr TChunkStore::GetUncompressedBlockCache()
+IBlockCachePtr TChunkStore::GetUncompressedBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(UncompressedBlockCacheLock_);
-    return UncompressedBlockCache_
-        ? UncompressedBlockCache_
+    TReaderGuard guard(UncompressedPreloadedBlockCacheLock_);
+    return UncompressedPreloadedBlockCache_
+        ? UncompressedPreloadedBlockCache_
         : Bootstrap_->GetUncompressedBlockCache();
 }
 

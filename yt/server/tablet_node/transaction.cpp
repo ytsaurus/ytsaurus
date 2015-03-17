@@ -46,7 +46,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, LockedRows_.size());
     for (const auto& rowRef : LockedRows_) {
         auto* store = rowRef.Store;
-        if (store->GetState() == EStoreState::Orphaned) {
+        if (store->GetStoreState() == EStoreState::Orphaned) {
             Save(context, NullTabletId);
             continue;
         }

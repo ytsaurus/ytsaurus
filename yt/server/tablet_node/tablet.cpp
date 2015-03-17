@@ -13,6 +13,8 @@
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/collection_helpers.h>
 
+#include <core/concurrency/delayed_executor.h>
+
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
@@ -454,6 +456,54 @@ void TTablet::RemoveStore(IStorePtr store)
     YCHECK(partition->Stores().erase(store) == 1);
 }
 
+void TTablet::ScheduleStorePreload(TChunkStorePtr store)
+{
+    auto state = store->GetPreloadState();
+    YCHECK(state != EStorePreloadState::Disabled);
+
+    if (state != EStorePreloadState::None && state != EStorePreloadState::Failed)
+        return;
+
+    PreloadQueue_.push_back(store->GetId());
+    store->SetPreloadState(EStorePreloadState::Scheduled);
+}
+
+
+TChunkStorePtr TTablet::PeekStoreForPreload()
+{
+    while (!PreloadQueue_.empty()) {
+        auto id = PreloadQueue_.front();
+        auto store = FindStore(id);
+        if (store) {
+            auto chunkStore = store->AsChunk();
+            if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
+                return chunkStore;
+            }
+        }
+        PreloadQueue_.pop_front();
+    }
+    return nullptr;
+}
+
+void TTablet::PopStoreForPreload(TChunkStorePtr store)
+{
+    YCHECK(store->GetId() == PreloadQueue_.front());
+    PreloadQueue_.pop_front();
+    store->SetPreloadState(EStorePreloadState::Running);
+}
+
+void TTablet::BackoffStorePreload(TChunkStorePtr store, TDuration delay)
+{
+    store->SetPreloadState(EStorePreloadState::Failed);
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND([=] () {
+            if (store->GetPreloadState() == EStorePreloadState::Failed) {
+                ScheduleStorePreload(store);
+            }
+        }).Via(GetEpochAutomatonInvoker()),
+        delay);
+}
+
 IStorePtr TTablet::FindStore(const TStoreId& id)
 {
     auto it = Stores_.find(id);
@@ -465,6 +515,22 @@ IStorePtr TTablet::GetStore(const TStoreId& id)
     auto store = FindStore(id);
     YCHECK(store);
     return store;
+}
+
+void TTablet::SetInMemory(bool value)
+{
+    PreloadQueue_.clear();
+
+    for (const auto& pair : Stores_) {
+        const auto& store = pair.second;
+        if (store->GetType() == EStoreType::Chunk) {
+            auto chunkStore = store->AsChunk();
+            chunkStore->SetInMemory(value);
+            if (value) {
+                ScheduleStorePreload(chunkStore);
+            }
+        }
+    }
 }
 
 const TDynamicMemoryStorePtr& TTablet::GetActiveStore() const
@@ -584,8 +650,8 @@ void TTablet::Initialize()
 TPartition* TTablet::GetContainingPartition(IStorePtr store)
 {
     // Dynamic stores must reside in Eden.
-    if (store->GetState() == EStoreState::ActiveDynamic ||
-        store->GetState() == EStoreState::PassiveDynamic)
+    if (store->GetStoreState() == EStoreState::ActiveDynamic ||
+        store->GetStoreState() == EStoreState::PassiveDynamic)
     {
         return Eden_.get();
     }

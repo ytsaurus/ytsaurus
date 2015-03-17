@@ -78,6 +78,7 @@
 #include <server/tablet_node/store_compactor.h>
 #include <server/tablet_node/partition_balancer.h>
 #include <server/tablet_node/security_manager.h>
+#include <server/tablet_node/store_preloader.h>
 
 #include <server/query_agent/query_executor.h>
 #include <server/query_agent/query_service.h>
@@ -398,6 +399,7 @@ void TBootstrap::DoRun()
     SchedulerConnector->Start();
     StartStoreFlusher(Config->TabletNode, this);
     StartStoreCompactor(Config->TabletNode, this);
+    StartStorePreloader(Config->TabletNode, this);
     StartPartitionBalancer(Config->TabletNode->PartitionBalancer, this);
 
     RpcServer->Start();

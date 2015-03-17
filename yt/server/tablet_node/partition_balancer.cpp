@@ -56,9 +56,6 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Semaphore_(Config_->MaxConcurrentSamplings)
-    { }
-
-    void Start()
     {
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
         tabletSlotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
@@ -143,7 +140,7 @@ private:
             return;
 
         for (auto store : partition->Stores()) {
-            if (store->GetState() != EStoreState::Persistent)
+            if (store->GetStoreState() != EStoreState::Persistent)
                 return;
         }
 
@@ -424,7 +421,7 @@ void StartPartitionBalancer(
     TPartitionBalancerConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
 {
-    New<TPartitionBalancer>(config, bootstrap)->Start();
+    New<TPartitionBalancer>(config, bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

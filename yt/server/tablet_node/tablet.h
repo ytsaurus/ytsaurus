@@ -156,6 +156,12 @@ public:
     IStorePtr FindStore(const TStoreId& id);
     IStorePtr GetStore(const TStoreId& id);
 
+    void SetInMemory(bool value);
+    void ScheduleStorePreload(TChunkStorePtr store);
+    TChunkStorePtr PeekStoreForPreload();
+    void PopStoreForPreload(TChunkStorePtr store);
+    void BackoffStorePreload(TChunkStorePtr store, TDuration delay);
+
     const TDynamicMemoryStorePtr& GetActiveStore() const;
     void SetActiveStore(TDynamicMemoryStorePtr store);
 
@@ -195,6 +201,9 @@ private:
     TDynamicRowKeyComparer Comparer_;
 
     int ColumnLockCount_ = -1;
+
+    // NB: Avoid keeping IStorePtr to simplify store removal.
+    std::deque<TStoreId> PreloadQueue_;
 
 
     void Initialize();

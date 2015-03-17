@@ -566,7 +566,7 @@ TDynamicMemoryStore::TDynamicMemoryStore(
         RowBuffer_.GetAlignedPool(),
         tablet->GetRowKeyComparer()))
 {
-    State_ = EStoreState::ActiveDynamic;
+    StoreState_ = EStoreState::ActiveDynamic;
 
     LOG_DEBUG("Dynamic memory store created (TabletId: %v)",
         TabletId_);
@@ -645,7 +645,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     };
 
     auto newKeyProvider = [&] () -> TDynamicRow {
-        YASSERT(State_ == EStoreState::ActiveDynamic);
+        YASSERT(StoreState_ == EStoreState::ActiveDynamic);
 
         auto dynamicRow = AllocateRow();
 
@@ -693,7 +693,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     TDynamicRow result;
 
     auto newKeyProvider = [&] () -> TDynamicRow {
-        YASSERT(State_ == EStoreState::ActiveDynamic);
+        YASSERT(StoreState_ == EStoreState::ActiveDynamic);
 
         auto dynamicRow = AllocateRow();
 
@@ -877,7 +877,7 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
     // NB: Don't update min/max timestamps for passive stores since
     // others are relying on its properties to remain constant.
     // See, e.g., TStoreManager::MaxTimestampToStore_.
-    if (State_ == EStoreState::ActiveDynamic) {
+    if (StoreState_ == EStoreState::ActiveDynamic) {
         MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
         MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
     }
@@ -1226,7 +1226,7 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
 
     using NYT::Save;
 
-    Save(context, GetPersistentState());
+    Save(context, GetPersistentStoreState());
 
     SmallVector<TValueList, TypicalEditListCount> valueLists;
     SmallVector<TTimestampList, TypicalEditListCount> timestampLists;
@@ -1291,7 +1291,7 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
 
     using NYT::Load;
 
-    Load(context, State_);
+    Load(context, StoreState_);
 
     auto* slot = context.GetSlot();
     auto transactionManager = slot->GetTransactionManager();
