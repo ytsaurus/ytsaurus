@@ -72,6 +72,9 @@ private:
 
     void ScanTablet(TTablet* tablet)
     {
+        if (tablet->GetState() != ETabletState::Mounted)
+            return;
+
         while (true) {
             auto store = tablet->PeekStoreForPreload();
             if (!store)
