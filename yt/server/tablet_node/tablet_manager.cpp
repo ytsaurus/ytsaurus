@@ -1426,7 +1426,7 @@ private:
     }
 
 
-    static EMemoryConsumer GetMemoryConsumerFromStore(const IStore* store)
+    static EMemoryConsumer GetMemoryConsumerFromStore(IStorePtr store)
     {
         switch (store->GetType()) {
             case EStoreType::DynamicMemory:
@@ -1453,7 +1453,7 @@ private:
         store->SubscribeMemoryUsageUpdated(BIND(
             &TImpl::OnStoreMemoryUsageUpdated,
             Bootstrap_,
-            GetMemoryConsumerFromStore(store))));
+            GetMemoryConsumerFromStore(store)));
     }
 
     void ValidateMemoryLimit()
