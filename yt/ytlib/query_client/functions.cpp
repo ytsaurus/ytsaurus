@@ -405,7 +405,7 @@ THashFunction::THashFunction(
         functionName,
         std::vector<TType>{ HashTypes_ },
         HashTypes_,
-        EValueType::String)
+        EValueType::Uint64)
     , RoutineName_(routineName)
 { }
 
