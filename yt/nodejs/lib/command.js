@@ -120,7 +120,7 @@ var _PREDEFINED_YSON_FORMAT = binding.CreateV8Node("yson");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtCommand(logger, driver, coordinator, watcher, rate_check_cache, pause) {
+function YtCommand(logger, driver, coordinator, watcher, sticky_cache, pause) {
     "use strict";
     this.__DBG = __DBG.Tagged();
 
@@ -128,7 +128,7 @@ function YtCommand(logger, driver, coordinator, watcher, rate_check_cache, pause
     this.driver = driver;
     this.coordinator = coordinator;
     this.watcher = watcher;
-    this.rate_check_cache = rate_check_cache;
+    this.sticky_cache = sticky_cache;
     this.pause = pause;
 
     // This is a total list of class fields; keep this up to date to improve V8
@@ -238,7 +238,10 @@ YtCommand.prototype._epilogue = function(result) {
         }
     } else {
         if (result.isUserBanned() || result.isRequestRateLimitExceeded()) {
-            this.rate_check_cache.set(this.user, result.toJson());
+            this.sticky_cache.set(this.user, {
+                code: this.rsp.statusCode,
+                body: result.toJson()
+            });
         }
 
         if (!sent_headers) {
@@ -340,10 +343,11 @@ YtCommand.prototype._getUser = function() {
         throw new YtError("Failed to identify user credentials.");
     }
 
-    var rate_check_result = this.rate_check_cache.get(this.user);
-    if (typeof(rate_check_result) !== "undefined") {
-        this.rsp.statusCode = 429;
-        utils.dispatchAs(this.rsp, rate_check_result, "application/json");
+    var sticky_result = this.sticky_cache.get(this.user);
+    if (typeof(sticky_result) !== "undefined") {
+        this.rsp.statusCode = sticky_result.code;
+        utils.dispatchAs(this.rsp, sticky_result.body, "application/json");
+        throw new YtError();
     }
 };
 
@@ -834,10 +838,17 @@ YtCommand.prototype._execute = function(cb) {
             self.rsp.statusCode = 400;
         }
 
-        var isServerSide = result.isUnavailable() || result.isAllTargetNodesFailed();
-        if (isServerSide) {
+        if (result.isUnavailable() || result.isAllTargetNodesFailed()) {
             self.rsp.statusCode = 503;
             self.rsp.setHeader("Retry-After", "60");
+        }
+
+        if (result.isUserBanned()) {
+            self.rsp.statusCode = 403;
+        }
+
+        if (result.isRequestRateLimitExceeded()) {
+            self.rsp.statusCode = 429;
         }
 
         return result;
