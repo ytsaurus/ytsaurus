@@ -2,8 +2,6 @@
 
 #include "functions.h"
 
-#include <util/generic/stroka.h>
-
 #include <unordered_map>
 
 namespace NYT {
