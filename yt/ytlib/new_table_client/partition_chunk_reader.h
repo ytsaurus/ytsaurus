@@ -20,6 +20,14 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRowDescriptor 
+{
+    THorizontalSchemalessBlockReader* BlockReader;
+    i32 RowIndex;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPartitionChunkReader
     : public TChunkReaderBase
 {
@@ -33,10 +41,10 @@ public:
         const NChunkClient::NProto::TChunkMeta& masterMeta,
         int partitionTag);
 
-    template <class TValueInsertIterator, class TRowPointerInsertIterator>
+    template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
     bool Read(
-        TValueInsertIterator& valueInserter,
-        TRowPointerInsertIterator& rowPointerInserter,
+        TValueInsertIterator& keyValueInserter,
+        TRowDescriptorInsertIterator& rowDescriptorInserter,
         i64* rowCount);
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
@@ -73,10 +81,10 @@ DEFINE_REFCOUNTED_TYPE(TPartitionChunkReader)
 
 //ToDo(psushin): move to inl.
 
-template <class TValueInsertIterator, class TRowPointerInsertIterator>
+template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
 bool TPartitionChunkReader::Read(
     TValueInsertIterator& valueInserter,
-    TRowPointerInsertIterator& rowPointerInserter,
+    TRowDescriptorInsertIterator& rowDescriptorInserter,
     i64* rowCount)
 {
     *rowCount = 0;
@@ -103,7 +111,9 @@ bool TPartitionChunkReader::Read(
         const auto& key = BlockReader_->GetKey();
 
         std::copy(key.Begin(), key.End(), valueInserter);
-        rowPointerInserter = BlockReader_->GetRowPointer();
+        rowDescriptorInserter = TRowDescriptor({
+            BlockReader_,
+            static_cast<i32>(BlockReader_->GetRowIndex())});
 
         if (!BlockReader_->NextRow()) {
             BlockEnded_ = true;
@@ -132,10 +142,10 @@ public:
         const TKeyColumns& keyColumns,
         NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
-    template <class TValueInsertIterator, class TRowPointerInsertIterator>
+    template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
     bool Read(
         TValueInsertIterator& valueInserter,
-        TRowPointerInsertIterator& rowPointerInserter,
+        TRowDescriptorInsertIterator& rowDescriptorInserter,
         i64* rowCount);
 
     TNameTablePtr GetNameTable() const;
@@ -161,10 +171,10 @@ DEFINE_REFCOUNTED_TYPE(TPartitionMultiChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TValueInsertIterator, class TRowPointerInsertIterator>
+template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
 bool TPartitionMultiChunkReader::Read(
     TValueInsertIterator& valueInserter,
-    TRowPointerInsertIterator& rowPointerInserter,
+    TRowDescriptorInsertIterator& rowDescriptorInserter,
     i64* rowCount)
 {
     YCHECK(ReadyEvent_.IsSet());
@@ -176,7 +186,7 @@ bool TPartitionMultiChunkReader::Read(
     if (!CurrentReader_)
         return false;
 
-    bool readerFinished = !CurrentReader_->Read(valueInserter, rowPointerInserter, rowCount);
+    bool readerFinished = !CurrentReader_->Read(valueInserter, rowDescriptorInserter, rowCount);
     if (*rowCount == 0) {
         return TParallelMultiChunkReaderBase::OnEmptyRead(readerFinished);
     } else {

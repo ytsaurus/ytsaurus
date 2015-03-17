@@ -64,7 +64,7 @@ std::vector<TSequentialReader::TBlockInfo> TPartitionChunkReader::GetBlockSequen
 
     ChunkMeta_ = errorOrMeta.Value();
 
-    auto chunkNameTable = New<TNameTable>();
+    TNameTablePtr chunkNameTable;
     auto nameTableExt = GetProtoExtension<TNameTableExt>(ChunkMeta_.extensions());
     FromProto(&chunkNameTable, nameTableExt);
 
