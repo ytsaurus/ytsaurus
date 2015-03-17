@@ -468,7 +468,6 @@ void TTablet::ScheduleStorePreload(TChunkStorePtr store)
     store->SetPreloadState(EStorePreloadState::Scheduled);
 }
 
-
 TChunkStorePtr TTablet::PeekStoreForPreload()
 {
     while (!PreloadQueue_.empty()) {
