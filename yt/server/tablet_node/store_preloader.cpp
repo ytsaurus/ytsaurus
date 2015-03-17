@@ -171,6 +171,8 @@ private:
                 firstBlockIndex = lastBlockIndex;
             }
 
+            store->SetPreloadState(EStorePreloadState::Complete);
+
             LOG_INFO("Store preload completed");
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error preloading tablet store, backing off");
