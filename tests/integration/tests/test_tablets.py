@@ -364,3 +364,32 @@ class TestTablets(YTEnvSetup):
     def test_delete_denied(self):
         self._prepare_denied("write")
         with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], user="u")
+
+    def test_read_from_chunks(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+
+        pivots = [[]] + [[x] for x in range(100, 1000, 100)]
+        reshard_table("//tmp/t", pivots)
+        assert self._get_pivot_keys("//tmp/t") == pivots
+
+        self._sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000, 2)]
+        insert_rows("//tmp/t", rows)
+
+        self._sync_unmount_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+
+        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(0, 1000)])
+        self.assertItemsEqual(rows, actual)
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(1, 1000, 2)]
+        insert_rows("//tmp/t", rows)
+
+        self._sync_unmount_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000)]
+        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(0, 1000)])
+        self.assertItemsEqual(rows, actual)

@@ -71,6 +71,11 @@ public:
             return NullRow_;
         }
 
+        if (!ChunkMeta_->KeyFilter().Contains(key)) {
+            // TODO(savrus) report rates to performance counters.
+            return NullRow_;
+        }
+
         int blockIndex = GetBlockIndex(key);
         TBlockId blockId(ChunkReader_->GetChunkId(), blockIndex);
 

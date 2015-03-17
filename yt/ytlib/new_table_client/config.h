@@ -20,7 +20,11 @@ public:
 
     i64 MaxRowWeight;
 
+    i64 MaxKeyFilterSize;
+
     double SampleRate;
+
+    double KeyFilterFalsePositiveRate;
 
     TChunkWriterConfig()
     {
@@ -38,10 +42,20 @@ public:
             .LessThanOrEqual((i64) 128 * 1024 * 1024)
             .Default((i64) 16 * 1024 * 1024);
 
+        RegisterParameter("max_key_filter_size", MaxKeyFilterSize)
+            .GreaterThan((i64) 0)
+            .LessThanOrEqual((i64) 1024 * 1024)
+            .Default((i64) 64 * 1024);
+
         RegisterParameter("sample_rate", SampleRate)
             .GreaterThan(0)
             .LessThanOrEqual(0.001)
             .Default(0.0001);
+
+        RegisterParameter("key_filter_false_positive_rate", KeyFilterFalsePositiveRate)
+            .GreaterThan(0)
+            .LessThanOrEqual(1.0)
+            .Default(0.03);
     }
 };
 

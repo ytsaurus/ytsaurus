@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/blob.cpp
   ${BASE}/blob_output.cpp
   ${BASE}/blob_range.cpp
+  ${BASE}/bloom_filter.cpp
   ${BASE}/checkpointable_stream.cpp
   ${BASE}/checksum.cpp
   ${BASE}/chunked_memory_pool.cpp
@@ -53,6 +54,7 @@ set( HDRS
   ${BASE}/blob.h
   ${BASE}/blob_output.h
   ${BASE}/blob_range.h
+  ${BASE}/bloom_filter.h
   ${BASE}/async_cache-inl.h
   ${BASE}/async_cache.h
   ${BASE}/sync_cache-inl.h
@@ -148,5 +150,6 @@ list(APPEND YT_SOURCE_FILES
 protoc( ${BASE}/guid.proto YT_SOURCE_FILES )
 protoc( ${BASE}/protobuf_helpers.proto YT_SOURCE_FILES )
 protoc( ${BASE}/error.proto YT_SOURCE_FILES )
+protoc( ${BASE}/bloom_filter.proto YT_SOURCE_FILES )
 
 PUMP( ${BASE}/preprocessor-gen.h.pump YT_SOURCE_FILES )

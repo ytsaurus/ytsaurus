@@ -4,11 +4,15 @@
 #include "chunk_meta_extensions.h"
 #include "schema.h"
 #include "unversioned_row.h"
+#include "key_filter.h"
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <core/misc/property.h>
 #include <core/misc/error.h>
+#include <core/misc/public.h>
+
+#include <memory>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -28,6 +32,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TKeyColumns, KeyColumns);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
+    DEFINE_BYREF_RO_PROPERTY(TKeyFilter, KeyFilter);
 
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
         NChunkClient::IChunkReaderPtr asyncReader,

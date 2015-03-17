@@ -271,16 +271,19 @@ bool operator >  (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow&
 void ResetRowValues(TUnversionedRow* row);
 
 //! Computes hash for a given TUnversionedValue.
-size_t GetHash(const TUnversionedValue& value);
+ui64 GetHash(const TUnversionedValue& value);
 
 //! Computes hash for a given TUnversionedRow.
-size_t GetHash(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
+ui64 GetHash(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
 
 //! Computes FarmHash forever-fixed fingerprint for a given TUnversionedValue.
-size_t GetFarmFingerprint(const TUnversionedValue& value);
+ui64 GetFarmFingerprint(const TUnversionedValue& value);
+
+//! Computes FarmHash forever-fixed fingerprint for a given set of values.
+ui64 GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end);
 
 //! Computes FarmHash forever-fixed fingerprint for a given TUnversionedRow.
-size_t GetFarmFingerprint(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
+ui64 GetFarmFingerprint(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
 
 //! Returns the number of bytes needed to store the fixed part of the row (header + values).
 size_t GetUnversionedRowDataSize(int valueCount);
