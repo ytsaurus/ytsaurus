@@ -448,6 +448,9 @@ void TTablet::AddStore(IStorePtr store)
     store->SetPartition(partition);
     YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
     YCHECK(partition->Stores().insert(store).second);
+    if (Config_->InMemory && store->GetType() == EStoreType::Chunk) {
+        ScheduleStorePreload(store->AsChunk());
+    }
 }
 
 void TTablet::RemoveStore(IStorePtr store)
