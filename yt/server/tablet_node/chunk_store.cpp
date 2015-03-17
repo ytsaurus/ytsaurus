@@ -314,6 +314,7 @@ void TChunkStore::SetInMemory(bool value)
             case EStorePreloadState::Failed:
                 PreloadState_ = EStorePreloadState::None;
                 break;
+            case EStorePreloadState::None:
             case EStorePreloadState::Scheduled:
             case EStorePreloadState::Running:
             case EStorePreloadState::Complete:
