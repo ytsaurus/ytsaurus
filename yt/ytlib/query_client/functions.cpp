@@ -162,8 +162,7 @@ EValueType TTypedFunction::TypingFunction(
             << TErrorAttribute("expression", source);
     }
 
-    for (; arg != argTypes.end(); arg++)
-    {
+    for (; arg != argTypes.end(); arg++) {
         if (!unify(repeatedArgType, *arg)) {
             THROW_ERROR_EXCEPTION(
                 "Wrong type for repeated argument. Expected %v, got %v",
