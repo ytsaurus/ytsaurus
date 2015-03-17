@@ -13,7 +13,6 @@
 #include <server/data_node/block_store.h>
 
 #include <server/cell_node/bootstrap.h>
-#include <AddressBook/AddressBook.h>
 
 namespace NYT {
 namespace NDataNode {
