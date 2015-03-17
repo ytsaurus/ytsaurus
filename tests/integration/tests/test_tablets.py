@@ -189,21 +189,21 @@ class TestTablets(YTEnvSetup):
 
         insert_rows("//tmp/t", [{"key1": 1, "value": "2"}])
         expected = [{"key1": 1, "key2": 103, "value": "2"}]
-        actual = select_rows("* from [//tmp/t]");
-        self.assertItemsEqual(expected, actual);
+        actual = select_rows("* from [//tmp/t]")
+        self.assertItemsEqual(expected, actual)
 
         insert_rows("//tmp/t", [{"key1": 2, "value": "2"}])
         expected = [{"key1": 1, "key2": 103, "value": "2"}]
-        actual = lookup_rows("//tmp/t", [{"key1" : 1}]);
-        self.assertItemsEqual(expected, actual);
+        actual = lookup_rows("//tmp/t", [{"key1" : 1}])
+        self.assertItemsEqual(expected, actual)
         expected = [{"key1": 2, "key2": 203, "value": "2"}]
-        actual = lookup_rows("//tmp/t", [{"key1": 2}]);
-        self.assertItemsEqual(expected, actual);
+        actual = lookup_rows("//tmp/t", [{"key1": 2}])
+        self.assertItemsEqual(expected, actual)
 
         delete_rows("//tmp/t", [{"key1": 1}])
         expected = [{"key1": 2, "key2": 203, "value": "2"}]
-        actual = select_rows("* from [//tmp/t]");
-        self.assertItemsEqual(expected, actual);
+        actual = select_rows("* from [//tmp/t]")
+        self.assertItemsEqual(expected, actual)
 
         with pytest.raises(YtError): insert_rows("//tmp/t", [{"key1": 3, "key2": 3, "value": "3"}])
         with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key1": 2, "key2": 203}])
@@ -214,8 +214,8 @@ class TestTablets(YTEnvSetup):
         self.assertItemsEqual(expected, actual)
 
         expected = [{"key1": 2, "key2": 203, "value": "2"}]
-        actual = select_rows("* from [//tmp/t]");
-        self.assertItemsEqual(expected, actual);
+        actual = select_rows("* from [//tmp/t]")
+        self.assertItemsEqual(expected, actual)
 
     def test_no_copy(self):
         self._sync_create_cells(1, 1)
