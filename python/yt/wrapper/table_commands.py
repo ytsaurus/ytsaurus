@@ -510,7 +510,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     if config.TREAT_UNEXISTING_AS_EMPTY and is_empty(table, client=client):
         _remove_tables([table], client=client)
 
-def read_table(table, format=None, table_reader=None, response_type=None, raw=True, client=None):
+def read_table(table, format=None, table_reader=None, response_type=None, raw=True, response_parameters=None, client=None):
     """Read rows from table and parse (optionally).
 
     :param table: string or :py:class:`yt.wrapper.table.TablePath`
@@ -547,6 +547,11 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
         else:
             return format.load_rows(response_stream)
 
+    def set_response_parameters(parameters):
+        if response_parameters is not None:
+            for key in parameters:
+                response_parameters[key] = parameters[key]
+
     if not config.RETRY_READ:
         response = _make_transactional_request(
             command_name,
@@ -554,6 +559,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             return_content=False,
             use_heavy_proxy=True,
             client=client)
+        set_response_parameters(json.loads(response.headers["X-YT-Response-Parameters"]))
         return read_content(ResponseStream.from_response(response))
     else:
         title = "Python wrapper: read {0}".format(to_name(table, client=client))
@@ -592,7 +598,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             else:
                 tx.__exit__(None, None, None)
 
-        def get_start_row_index():
+        def get_response_parameters():
             response = _make_transactional_request(
                 command_name,
                 params,
@@ -601,8 +607,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 client=client)
             if "X-YT-Response-Parameters" not in response.headers:
                 raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
-            rsp_params = json.loads(response.headers["X-YT-Response-Parameters"])
-            return rsp_params.get("start_row_index", None)
+            return json.loads(response.headers["X-YT-Response-Parameters"])
 
         class Iterator(object):
             def __init__(self, index):
@@ -637,7 +642,9 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
 
         try:
             lock(table, mode="snapshot", client=client)
-            index = execute_with_retries(get_start_row_index)
+            parameters = execute_with_retries(get_response_parameters)
+            set_response_parameters(parameters)
+            index = parameters.get("start_row_index", None)
             if index is None:
                 tx.__exit__(None, None, None)
                 return (_ for _ in [])
