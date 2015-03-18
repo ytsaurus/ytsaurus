@@ -34,6 +34,7 @@ private:
     int CurrentColumnIndex = -1;
     TStringBuf CurrentColumn;
     TStringBuf CurrentValue;
+    bool BlockFinished = true;
 
     TStringBuf LoadValue(TMemoryInput* input);
 };

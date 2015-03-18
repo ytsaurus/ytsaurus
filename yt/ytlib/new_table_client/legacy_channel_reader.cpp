@@ -18,6 +18,7 @@ void TLegacyChannelReader::SetBlock(const TSharedRef& block)
     YASSERT(CurrentColumnIndex == -1);
 
     CurrentBlock = block;
+    BlockFinished = false;
 
     TMemoryInput input(CurrentBlock.Begin(), CurrentBlock.Size());
     std::vector<size_t> columnSizes;
@@ -42,7 +43,7 @@ void TLegacyChannelReader::SetBlock(const TSharedRef& block)
 
 bool TLegacyChannelReader::NextRow()
 {
-    if (!CurrentBlock) {
+    if (BlockFinished) {
         return false;
     }
 
@@ -54,7 +55,7 @@ bool TLegacyChannelReader::NextRow()
     CurrentColumnIndex = -1;
 
     if (ColumnBuffers.front().Avail() == 0) {
-        CurrentBlock.Reset();
+        BlockFinished = true;
         return false;
     }
 
