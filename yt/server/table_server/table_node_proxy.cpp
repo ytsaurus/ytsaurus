@@ -142,10 +142,12 @@ private:
                     auto* cell = tablet->GetCell();
                     fluent
                         .Item().BeginMap()
-                            .Item("tablet_id").Value(tablet->GetId())
-                            .Item("statistics").Value(tabletManager->GetTabletStatistics(tablet))
-                            .Item("state").Value(tablet->GetState())
+                            .Item("index").Value(tablet->GetIndex())
+                            .Item("performance_counters").Value(tablet->PerformanceCounters())
                             .Item("pivot_key").Value(tablet->GetPivotKey())
+                            .Item("state").Value(tablet->GetState())
+                            .Item("statistics").Value(tabletManager->GetTabletStatistics(tablet))
+                            .Item("tablet_id").Value(tablet->GetId())
                             .DoIf(cell, [&] (TFluentMap fluent) {
                                 fluent.Item("cell_id").Value(cell->GetId());
                             })
