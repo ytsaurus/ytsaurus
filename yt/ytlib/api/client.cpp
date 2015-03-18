@@ -264,6 +264,7 @@ private:
         const NLogging::TLogger& Logger)
     {
         TDataSplits allSplits;
+        size_t logCount = 0;
         for (const auto& split : splits) {
             auto objectId = GetObjectIdFromDataSplit(split);
             auto type = TypeFromId(objectId);
@@ -275,7 +276,9 @@ private:
 
             auto newSplits = SplitFurther(split, nodeDirectory);
 
-            LOG_DEBUG("Got %v splits for input %v", newSplits.size(), objectId);
+            if (logCount++ < LogThreshold) {
+                LOG_DEBUG("Got %v splits for input %v", newSplits.size(), objectId);
+            }
 
             allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
         }
