@@ -474,6 +474,7 @@ TDataSplits GetPrunedSplits(
 
     LOG_DEBUG("Splitting %v splits according to ranges", splits.size());
 
+    size_t logCount = 0;
     TDataSplits prunedSplits;
     for (const auto& split : splits) {
         auto originalRange = GetBothBoundsFromDataSplit(split);
@@ -483,10 +484,13 @@ TDataSplits GetPrunedSplits(
         for (const auto& range : ranges) {
             auto splitCopy = split;
 
-            LOG_DEBUG("Narrowing split %v key range from %v to %v",
-                    GetObjectIdFromDataSplit(splitCopy),
-                    keyRangeFormatter(originalRange),
-                    keyRangeFormatter(range));
+            if (logCount++ < LogThreshold) {
+                LOG_DEBUG("Narrowing split %v key range from %v to %v",
+                GetObjectIdFromDataSplit(splitCopy),
+                keyRangeFormatter(originalRange),
+                keyRangeFormatter(range));
+            }
+
             SetBothBounds(&splitCopy, range);
 
             prunedSplits.push_back(std::move(splitCopy));

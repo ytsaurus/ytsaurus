@@ -15,6 +15,8 @@ NLogging::TLogger BuildLogger(const TConstQueryPtr& query)
     return result;
 }
 
+size_t LogThreshold = 100;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

@@ -19,6 +19,8 @@ extern const NLogging::TLogger QueryClientLogger;
 
 NLogging::TLogger BuildLogger(const TConstQueryPtr& query);
 
+extern size_t LogThreshold;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
