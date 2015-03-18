@@ -17,7 +17,6 @@ THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
     , Meta_(meta)
     , IdMapping_(idMapping)
     , KeyColumnCount_(keyColumnCount)
-    , Closed_(false)
 {
     YCHECK(Meta_.row_count() > 0);
 
@@ -37,21 +36,17 @@ THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
 
 bool THorizontalSchemalessBlockReader::NextRow()
 {
-    YCHECK(!Closed_);
     return JumpToRowIndex(RowIndex_ + 1);
 }
 
 bool THorizontalSchemalessBlockReader::SkipToRowIndex(i64 rowIndex)
 {
-    YCHECK(!Closed_);
     YCHECK(rowIndex >= RowIndex_);
     return JumpToRowIndex(rowIndex);
 }
     
 bool THorizontalSchemalessBlockReader::SkipToKey(const TOwningKey& key)
 {
-    YCHECK(!Closed_);
-
     if (GetKey() >= key) {
         // We are already further than pivot key.
         return true;
@@ -98,10 +93,7 @@ i64 THorizontalSchemalessBlockReader::GetRowIndex() const
 
 bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
 {
-    YCHECK(!Closed_);
-
     if (rowIndex >= Meta_.row_count()) {
-        Closed_ = true;
         return false;
     }
 

@@ -40,8 +40,6 @@ private:
     std::vector<int> IdMapping_;
     int KeyColumnCount_;
 
-    bool Closed_;
-
     TRef Data_;
     TRef Offsets_;
 
