@@ -2739,14 +2739,15 @@ INSTANTIATE_TEST_CASE_P(
 
 class TComputedColumnTest
     : public ::testing::Test
+    , public ::testing::WithParamInterface<std::vector<const char*>>
 {
 protected:
     virtual void SetUp() override
     {
         SetUpSchema();
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
-            .WillOnce(Invoke(this, &TComputedColumnTest::MakeSimpleSplit));
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(_, _))
+            .WillRepeatedly(Invoke(this, &TComputedColumnTest::MakeSimpleSplit));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
@@ -2760,20 +2761,32 @@ protected:
             planFragment->DataSplits,
             ColumnEvaluatorCache_);
 
-        std::vector<TKeyRange> ranges;
+        return GetRangesFromSplits(prunedSplits);
+    }
 
-        for (const auto& split : prunedSplits) {
-            ranges.push_back(GetBothBoundsFromDataSplit(split));
-        }
+    std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
+    {
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source);
 
-        std::sort(ranges.begin(), ranges.end());
-        return ranges;
+        TDataSplits foreignSplits{planFragment->ForeignDataSplit};
+        auto prunedSplits = GetPrunedSplits(
+            planFragment->Query,
+            foreignSplits,
+            ColumnEvaluatorCache_);
+
+        return GetRangesFromSplits(prunedSplits);
     }
 
     void SetSchema(const TTableSchema& schema, const TKeyColumns& keyColumns)
     {
         Schema_ = schema;
         KeyColumns_ = keyColumns;
+    }
+
+    void SetSecondarySchema(const TTableSchema& schema, const TKeyColumns& keyColumns)
+    {
+        SecondarySchema_ = schema;
+        SecondaryKeyColumns_ = keyColumns;
     }
 
 private:
@@ -2798,16 +2811,35 @@ private:
             dataSplit.mutable_chunk_id(),
             MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
 
-        SetKeyColumns(&dataSplit, KeyColumns_);
-        SetTableSchema(&dataSplit, Schema_);
+        if (path == "//t") {
+            SetKeyColumns(&dataSplit, KeyColumns_);
+            SetTableSchema(&dataSplit, Schema_);
+        } else {
+            SetKeyColumns(&dataSplit, SecondaryKeyColumns_);
+            SetTableSchema(&dataSplit, SecondarySchema_);
+        }
 
         return WrapInFuture(dataSplit);
+    }
+
+    std::vector<TKeyRange> GetRangesFromSplits(const TDataSplits& prunedSplits)
+    {
+        std::vector<TKeyRange> ranges;
+
+        for (const auto& split : prunedSplits) {
+            ranges.push_back(GetBothBoundsFromDataSplit(split));
+        }
+
+        std::sort(ranges.begin(), ranges.end());
+        return ranges;
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     TTableSchema Schema_;
     TKeyColumns KeyColumns_;
+    TTableSchema SecondarySchema_;
+    TKeyColumns SecondaryKeyColumns_;
 };
 
 TEST_F(TComputedColumnTest, Simple)
@@ -2981,6 +3013,97 @@ TEST_F(TComputedColumnTest, NoComputedColumns)
     EXPECT_EQ(BuildKey(_MIN_), result[0].first);
     EXPECT_EQ(BuildKey(_MAX_), result[0].second);
 }
+
+TEST_P(TComputedColumnTest, Join)
+{
+    const auto& args = GetParam();
+    const auto& schemaString1 = args[0];
+    const auto& schemaString2 = args[2];
+    const auto& keyString1 = args[1];
+    const auto& keyString2 = args[3];
+
+    TTableSchema tableSchema1;
+    TTableSchema tableSchema2;
+    Deserialize(tableSchema1, ConvertToNode(TYsonString(schemaString1)));
+    Deserialize(tableSchema2, ConvertToNode(TYsonString(schemaString2)));
+
+    TKeyColumns keyColumns1;
+    TKeyColumns keyColumns2;
+    Deserialize(keyColumns1, ConvertToNode(TYsonString(keyString1)));
+    Deserialize(keyColumns2, ConvertToNode(TYsonString(keyString2)));
+
+    SetSchema(tableSchema1, keyColumns1);
+    SetSecondarySchema(tableSchema2, keyColumns2);
+
+    auto query = Stroka("l from [//t] join [//t1] using l where l in (0, 1)");
+    auto result = CoordinateForeign(query);
+
+    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(BuildKey(args[4]), result[0].first);
+    EXPECT_EQ(BuildKey(args[5]), result[0].second);
+    EXPECT_EQ(BuildKey(args[6]), result[1].first);
+    EXPECT_EQ(BuildKey(args[7]), result[1].second);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    TComputedColumnTest,
+    TComputedColumnTest,
+    ::testing::Values(
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "[{name=n;type=int64;expression=l}; {name=l;type=int64}; {name=b;type=int64}]",
+            "[n;l]",
+            "0;0;",
+            "0;0;" _MAX_,
+            "1;1;",
+            "1;1;" _MAX_},
+        std::vector<const char*>{
+            "[{name=l;type=int64}; {name=a;type=int64}]",
+            "[l]",
+            "[{name=l;type=int64}; {name=b;type=int64}]",
+            "[l]",
+            "0;",
+            "0;" _MAX_,
+            "1;",
+            "1;" _MAX_},
+        std::vector<const char*>{
+            "[{name=l;type=int64;expression=k}; {name=k;type=int64}; {name=a;type=int64}]",
+            "[l;k]",
+            "[{name=l;type=int64}; {name=b;type=int64}]",
+            "[l]",
+            "0;",
+            "0;" _MAX_,
+            "1;",
+            "1;" _MAX_},
+        std::vector<const char*>{
+            "[{name=l;type=int64}; {name=a;type=int64}]",
+            "[l]",
+            "[{name=n;type=int64;expression=l}; {name=l;type=int64}; {name=b;type=int64}]",
+            "[n;l]",
+            "0;0;",
+            "0;0;" _MAX_,
+            "1;1;",
+            "1;1;" _MAX_},
+        std::vector<const char*>{
+            "[{name=l;type=int64}; {name=a;type=int64}]",
+            "[l]",
+            "[{name=l;type=int64;expression=n}; {name=n;type=int64}; {name=b;type=int64}]",
+            "[l;n]",
+            "0;",
+            "0;" _MAX_,
+            "1;",
+            "1;" _MAX_},
+        std::vector<const char*>{
+            "[{name=l;type=int64}; {name=a;type=int64}]",
+            "[l]",
+            "[{name=l;type=int64}; {name=n;type=int64;expression=l}; {name=b;type=int64}]",
+            "[l;n]",
+            "0;0;",
+            "0;0;" _MAX_,
+            "1;1;",
+            "1;1;" _MAX_}
+));
 
 #endif
 
