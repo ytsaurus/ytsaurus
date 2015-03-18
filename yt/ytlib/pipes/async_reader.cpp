@@ -152,6 +152,7 @@ private:
 
     void DoRead()
     {
+#ifdef _linux_
         YCHECK(Position_ < Length_);
 
         int size;
@@ -184,6 +185,9 @@ private:
         } else if (Position_ == Length_) {
             ReadResultPromise_.Set(Length_);
         }
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
     }
 
 };

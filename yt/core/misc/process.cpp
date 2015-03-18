@@ -449,6 +449,7 @@ char* TProcess::Capture(TStringBuf arg)
 
 void TProcess::Child()
 {
+#ifdef _linux_
     YCHECK(Pipe_.WriteFD != TPipe::InvalidFD);
 
     for (int actionIndex = 0; actionIndex < SpawnActions_.size(); ++actionIndex) {
@@ -465,7 +466,9 @@ void TProcess::Child()
             _exit(1);
         }
     }
-
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
     YUNREACHABLE();
 }
 
