@@ -184,9 +184,13 @@ public:
 
         Attributes_.DominantLimit = dominantLimit;
 
-        Attributes_.MaxShareRatio = std::min(
-            GetMinResourceRatio(limits, usage) * Attributes_.UsageRatio,
-            GetMaxShareRatio());
+        Attributes_.MaxShareRatio = GetMaxShareRatio();
+        if (Attributes_.UsageRatio > RatioComputationPrecision)
+        {
+            Attributes_.MaxShareRatio = std::min(
+                    GetMinResourceRatio(limits, usage) * Attributes_.UsageRatio,
+                    Attributes_.MaxShareRatio);
+        }
     }
 
     void IncreaseUsageRatio(const TNodeResources& delta)
