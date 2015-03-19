@@ -442,7 +442,7 @@ protected:
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source);
 
-        auto prunedSplits = GetPrunedSplits(planFragment->Query, dataSplits, ColumnEvaluatorCache_);
+        auto prunedSplits = GetPrunedSplits(planFragment->Query, dataSplits, ColumnEvaluatorCache_, true);
 
         EXPECT_EQ(prunedSplits.size(), subqueriesCount);
     }
@@ -2759,7 +2759,8 @@ protected:
         auto prunedSplits = GetPrunedSplits(
             planFragment->Query,
             planFragment->DataSplits,
-            ColumnEvaluatorCache_);
+            ColumnEvaluatorCache_,
+            true);
 
         return GetRangesFromSplits(prunedSplits);
     }
@@ -2772,7 +2773,8 @@ protected:
         auto prunedSplits = GetPrunedSplits(
             planFragment->Query,
             foreignSplits,
-            ColumnEvaluatorCache_);
+            ColumnEvaluatorCache_,
+            true);
 
         return GetRangesFromSplits(prunedSplits);
     }
