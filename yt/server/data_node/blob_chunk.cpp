@@ -72,7 +72,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::GetMeta(
         TGuard<TSpinLock> guard(SpinLock_);
         if (Meta_) {
             guard.Release();
-            LOG_DEBUG("Meta cache hit (ChunkId: %v)", Id_);
+            LOG_TRACE("Meta cache hit (ChunkId: %v)", Id_);
             return MakeFuture(FilterCachedMeta(extensionTags));
         }
     }

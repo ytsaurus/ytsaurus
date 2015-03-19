@@ -191,7 +191,9 @@ private:
         auto Logger = BuildLogger(query);
 
         auto cgQuery = Find(id);
-        if (!cgQuery) {
+        if (cgQuery) {
+            LOG_TRACE("Codegen cache hit");
+        } else {
             LOG_DEBUG("Codegen cache miss");
             try {
                 TRACE_CHILD("QueryClient", "Compile") {
@@ -201,11 +203,9 @@ private:
                     TryInsert(cgQuery, &cgQuery);
                 }
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to compile a fragment")
+                THROW_ERROR_EXCEPTION("Failed to compile a query fragment")
                     << ex;
             }
-        } else {
-            LOG_DEBUG("Codegen cache hit");
         }
 
         return cgQuery->GetQueryCallback();
