@@ -537,9 +537,13 @@ TQueryStatistics CoordinateAndExecute(
     auto query = fragment->Query;
     auto Logger = BuildLogger(query);
 
+    LOG_DEBUG("Begin coordinating query");
+
     TConstQueryPtr topQuery;
     std::vector<TConstQueryPtr> subqueries;
     std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, pushdownGroupOp);
+
+    LOG_DEBUG("Finished coordinating query");
 
     std::vector<ISchemafulReaderPtr> splitReaders;
 
