@@ -59,6 +59,9 @@ DECLARE_REFCOUNTED_CLASS(TExpiringCacheConfig)
 
 using TChecksum = ui64;
 
+template <class T, unsigned size>
+class SmallVector;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,

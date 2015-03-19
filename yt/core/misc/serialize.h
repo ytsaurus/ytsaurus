@@ -632,9 +632,190 @@ struct TNullableSerializer
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+// Sorters
+
+template <class T, class C>
+class TNoopSorter
+{
+public:
+    typedef typename T::const_iterator TIterator;
+
+    explicit TNoopSorter(const T& any)
+        : Any_(any)
+    { }
+
+    TIterator begin()
+    {
+        return Any_.begin();
+    }
+
+    TIterator end()
+    {
+        return Any_.end();
+    }
+
+private:
+    const T& Any_;
+
+};
+
+template <class C>
+struct TSetSorterComparer
+{
+    template <class TIterator>
+    static bool Compare(TIterator lhs, TIterator rhs)
+    {
+        typedef typename std::remove_const<typename std::remove_reference<decltype(*lhs)>::type>::type T;
+        typedef typename TSerializerTraits<T, C>::TComparer TComparer;
+        return TComparer::Compare(*lhs, *rhs);
+    }
+};
+
+template <class C>
+struct TMapSorterComparer
+{
+    template <class TIterator>
+    static bool Compare(TIterator lhs, TIterator rhs)
+    {
+        typedef typename std::remove_const<typename std::remove_reference<decltype(lhs->first)>::type>::type T;
+        typedef typename TSerializerTraits<T, C>::TComparer TComparer;
+        return TComparer::Compare(lhs->first, rhs->first);
+    }
+};
+
+template <class T, class Q>
+class TCollectionSorter
+{
+public:
+    typedef typename T::const_iterator TIterator;
+
+    class TIteratorWrapper
+    {
+    public:
+        TIteratorWrapper(const std::vector<TIterator>* iterators, size_t index)
+            : Iterators_(iterators)
+              , Index_(index)
+        { }
+
+        const typename T::value_type& operator * ()
+        {
+            return *((*Iterators_)[Index_]);
+        }
+
+        TIteratorWrapper& operator ++ ()
+        {
+            ++Index_;
+            return *this;
+        }
+
+        bool operator == (const TIteratorWrapper& other) const
+        {
+            return Index_ == other.Index_;
+        }
+
+        bool operator != (const TIteratorWrapper& other) const
+        {
+            return Index_ != other.Index_;
+        }
+
+    private:
+        const std::vector<TIterator>* Iterators_;
+        size_t Index_;
+
+    };
+
+    explicit TCollectionSorter(const T& set)
+    {
+        Iterators_.reserve(set.size());
+        for (auto it = set.begin(); it != set.end(); ++it) {
+            Iterators_.push_back(it);
+        }
+
+        std::sort(
+            Iterators_.begin(),
+            Iterators_.end(),
+            [] (TIterator lhs, TIterator rhs) {
+                return Q::Compare(lhs, rhs);
+            });
+    }
+
+    TIteratorWrapper begin() const
+    {
+        return TIteratorWrapper(&Iterators_, 0);
+    }
+
+    TIteratorWrapper end() const
+    {
+        return TIteratorWrapper(&Iterators_, Iterators_.size());
+    }
+
+private:
+    std::vector<TIterator> Iterators_;
+
+};
+
+struct TSortedTag { };
+struct TUnsortedTag { };
+
+template <class T, class C, class TTag>
+struct TSorterSelector
+{ };
+
+template <class T, class C>
+struct TSorterSelector<T, C, TUnsortedTag>
+{
+    typedef TNoopSorter<T, C> TSorter;
+};
+
+template <class T, class C>
+struct TSorterSelector<std::vector<T>, C, TSortedTag>
+{
+    typedef TCollectionSorter<std::vector<T>, TSetSorterComparer<C>> TSorter;
+};
+
+template <class T, class C, unsigned size>
+struct TSorterSelector<SmallVector<T, size>, C, TSortedTag>
+{
+    typedef TCollectionSorter<SmallVector<T, size>, TSetSorterComparer<C>> TSorter;
+};
+
+template <class K, class C>
+struct TSorterSelector<std::set<K>, C, TSortedTag>
+{
+    typedef TNoopSorter<std::set<K>, C> TSorter;
+};
+
+template <class K, class V, class C>
+struct TSorterSelector<std::map<K, V>, C, TSortedTag>
+{
+    typedef TNoopSorter<std::map<K, V>, C> TSorter;
+};
+
+template <class K, class C>
+struct TSorterSelector<yhash_set<K>, C, TSortedTag>
+{
+    typedef TCollectionSorter<yhash_set<K>, TSetSorterComparer<C>> TSorter;
+};
+
+template <class K, class V, class C>
+struct TSorterSelector<yhash_map<K, V>, C, TSortedTag>
+{
+    typedef TCollectionSorter<yhash_map<K, V>, TMapSorterComparer<C>> TSorter;
+};
+
+template <class K, class C>
+struct TSorterSelector<yhash_multiset<K>, C, TSortedTag>
+{
+    typedef TCollectionSorter<yhash_multiset<K>, TSetSorterComparer<C>> TSorter;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 // Ordered collections
 
-template <class TItemSerializer = TDefaultSerializer>
+template <
+    class TItemSerializer = TDefaultSerializer,
+    class TSortTag = TUnsortedTag
+>
 struct TVectorSerializer
 {
     template <class TVector, class C>
@@ -642,7 +823,8 @@ struct TVectorSerializer
     {
         TSizeSerializer::Save(context, objects.size());
 
-        for (const auto& object : objects) {
+        typename TSorterSelector<TVector, C, TSortTag>::TSorter sorter(objects);
+        for (const auto& object : sorter) {
             TItemSerializer::Save(context, object);
         }
     }
@@ -783,169 +965,6 @@ struct TEnumIndexedVectorSerializer
 
 ////////////////////////////////////////////////////////////////////////////////
 // Possibly unordered collections
-
-template <class T, class C>
-class TNoopSorter
-{
-public:
-    typedef typename T::const_iterator TIterator;
-
-    explicit TNoopSorter(const T& any)
-        : Any_(any)
-    { }
-
-    TIterator begin()
-    {
-        return Any_.begin();
-    }
-
-    TIterator end()
-    {
-        return Any_.end();
-    }
-
-private:
-    const T& Any_;
-
-};
-
-template <class C>
-struct TSetSorterComparer
-{
-    template <class TIterator>
-    static bool Compare(TIterator lhs, TIterator rhs)
-    {
-        typedef typename std::remove_const<typename std::remove_reference<decltype(*lhs)>::type>::type T;
-        typedef typename TSerializerTraits<T, C>::TComparer TComparer;
-        return TComparer::Compare(*lhs, *rhs);
-    }
-};
-
-template <class C>
-struct TMapSorterComparer
-{
-    template <class TIterator>
-    static bool Compare(TIterator lhs, TIterator rhs)
-    {
-        typedef typename std::remove_const<typename std::remove_reference<decltype(lhs->first)>::type>::type T;
-        typedef typename TSerializerTraits<T, C>::TComparer TComparer;
-        return TComparer::Compare(lhs->first, rhs->first);
-    }
-};
-
-template <class T, class Q>
-class TCollectionSorter
-{
-public:
-    typedef typename T::const_iterator TIterator;
-
-    class TIteratorWrapper
-    {
-    public:
-        TIteratorWrapper(const std::vector<TIterator>* iterators, size_t index)
-            : Iterators_(iterators)
-            , Index_(index)
-        { }
-
-        const typename T::value_type& operator * ()
-        {
-            return *((*Iterators_)[Index_]);
-        }
-
-        TIteratorWrapper& operator ++ ()
-        {
-            ++Index_;
-            return *this;
-        }
-
-        bool operator == (const TIteratorWrapper& other) const
-        {
-            return Index_ == other.Index_;
-        }
-
-        bool operator != (const TIteratorWrapper& other) const
-        {
-            return Index_ != other.Index_;
-        }
-
-    private:
-        const std::vector<TIterator>* Iterators_;
-        size_t Index_;
-
-    };
-
-    explicit TCollectionSorter(const T& set)
-    {
-        Iterators_.reserve(set.size());
-        for (auto it = set.begin(); it != set.end(); ++it) {
-            Iterators_.push_back(it);
-        }
-
-        std::sort(
-            Iterators_.begin(),
-            Iterators_.end(),
-            [] (TIterator lhs, TIterator rhs) {
-                return Q::Compare(lhs, rhs);
-            });
-    }
-
-    TIteratorWrapper begin() const
-    {
-        return TIteratorWrapper(&Iterators_, 0);
-    }
-
-    TIteratorWrapper end() const
-    {
-        return TIteratorWrapper(&Iterators_, Iterators_.size());
-    }
-
-private:
-    std::vector<TIterator> Iterators_;
-
-};
-
-struct TSortedTag { };
-struct TUnsortedTag { };
-
-template <class T, class C, class TTag>
-struct TSorterSelector
-{ };
-
-template <class T, class C>
-struct TSorterSelector<T, C, TUnsortedTag>
-{
-    typedef TNoopSorter<T, C> TSorter;
-};
-
-template <class K, class C>
-struct TSorterSelector<std::set<K>, C, TSortedTag>
-{
-    typedef TNoopSorter<std::set<K>, C> TSorter;
-};
-
-template <class K, class V, class C>
-struct TSorterSelector<std::map<K, V>, C, TSortedTag>
-{
-    typedef TNoopSorter<std::map<K, V>, C> TSorter;
-};
-
-template <class K, class C>
-struct TSorterSelector<yhash_set<K>, C, TSortedTag>
-{
-    typedef TCollectionSorter<yhash_set<K>, TSetSorterComparer<C>> TSorter;
-};
-
-template <class K, class V, class C>
-struct TSorterSelector<yhash_map<K, V>, C, TSortedTag>
-{
-    typedef TCollectionSorter<yhash_map<K, V>, TMapSorterComparer<C>> TSorter;
-};
-
-template <class K, class C>
-struct TSorterSelector<yhash_multiset<K>, C, TSortedTag>
-{
-    typedef TCollectionSorter<yhash_multiset<K>, TSetSorterComparer<C>> TSorter;
-};
 
 template <
     class TItemSerializer = TDefaultSerializer,
@@ -1238,9 +1257,6 @@ struct TSerializerTraits<std::vector<T, A>, C, void>
 {
     typedef TVectorSerializer<> TSerializer;
 };
-
-template <class T, unsigned size>
-class SmallVector;
 
 template <class T, unsigned size, class C>
 struct TSerializerTraits<SmallVector<T, size>, C, void>
