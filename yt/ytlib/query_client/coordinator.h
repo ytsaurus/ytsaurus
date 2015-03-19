@@ -21,7 +21,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 TDataSplits GetPrunedSplits(
     const TConstQueryPtr& query,
     const TDataSplits& splits,
-    const TColumnEvaluatorCachePtr& evaluatorCache);
+    const TColumnEvaluatorCachePtr& evaluatorCache,
+    bool verboseLogging);
 
 TKeyRange GetRange(const TDataSplits& splits);
 

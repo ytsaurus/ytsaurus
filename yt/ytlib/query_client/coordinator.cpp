@@ -62,10 +62,11 @@ public:
     TRangeInferrer(
        const TConstExpressionPtr& predicate,
        const TDataSplits& splits,
-       const TColumnEvaluatorCachePtr& evaluatorCache)
+       const TColumnEvaluatorCachePtr& evaluatorCache,
+       bool verboseLogging)
     {
         if (splits.size() == 0 || !predicate) {
-            Impl_ = std::make_unique<TRangeInferrerLight>(predicate, TKeyColumns());
+            Impl_ = std::make_unique<TRangeInferrerLight>(predicate, TKeyColumns(), verboseLogging);
             return;
         }
 
@@ -74,7 +75,7 @@ public:
 
 #ifdef YT_USE_LLVM
         if (!schema.HasComputedColumns()) {
-            Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns);
+            Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, verboseLogging);
             return;
         }
 
@@ -83,14 +84,14 @@ public:
 
         for (const auto& reference : references) {
             if (schema.GetColumnOrThrow(reference).Expression) {
-                Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns);
+                Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, verboseLogging);
                 return;
             }
         }
 
-        Impl_ = std::make_unique<TRangeInferrerHeavy>(predicate, schema, keyColumns, evaluatorCache);
+        Impl_ = std::make_unique<TRangeInferrerHeavy>(predicate, schema, keyColumns, evaluatorCache, verboseLogging);
 #else
-        Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns);
+        Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, verboseLogging);
 #endif
     }
 
@@ -117,11 +118,14 @@ private:
     public:
         TRangeInferrerLight(
            const TConstExpressionPtr& predicate,
-           const TKeyColumns& keyColumns)
+           const TKeyColumns& keyColumns,
+           bool verboseLogging)
         {
             KeyTrie_ = ExtractMultipleConstraints(predicate, keyColumns, &KeyTrieBuffer_);
 
-            LOG_DEBUG("Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
+            if (verboseLogging) {
+                LOG_DEBUG("Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
+            }
         }
 
         virtual std::vector<TKeyRange> GetRangesWithinRange(const TKeyRange& keyRange) override
@@ -143,9 +147,11 @@ private:
             const TConstExpressionPtr& predicate,
             const TTableSchema& schema,
             const TKeyColumns& keyColumns,
-            const TColumnEvaluatorCachePtr& evaluatorCache)
+            const TColumnEvaluatorCachePtr& evaluatorCache,
+            bool verboseLogging)
             : Schema_(schema)
             , KeySize_(keyColumns.size())
+            , VerboseLogging_(verboseLogging)
         {
             SchemaToDepletedMapping_.resize(KeySize_, -1);
             Evaluator_ = evaluatorCache->Find(Schema_, KeySize_);
@@ -163,7 +169,9 @@ private:
 
             KeyTrie_ = ExtractMultipleConstraints(predicate, depletedKeyColumns, &KeyTrieBuffer_);
 
-            LOG_DEBUG("Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
+            if (verboseLogging) {
+                LOG_DEBUG("Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
+            }
         }
 
         virtual std::vector<TKeyRange> GetRangesWithinRange(const TKeyRange& keyRange) override
@@ -183,7 +191,9 @@ private:
                     trie.Unite(TKeyTrieNode::FromRange(range));
                 }
 
-                LOG_DEBUG("Inferred key constraints %Qv", trie);
+                if (VerboseLogging_) {
+                    LOG_DEBUG("Inferred key constraints %Qv", trie);
+                }
 
                 ranges = GetRangesFromTrieWithinRange(keyRange, trie);
             }
@@ -354,6 +364,7 @@ private:
         std::vector<int> SchemaToDepletedMapping_;
         TTableSchema Schema_;
         int KeySize_;
+        bool VerboseLogging_;
     };
 };
 
@@ -460,11 +471,12 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 TDataSplits GetPrunedSplits(
     const TConstQueryPtr& query,
     const TDataSplits& splits,
-    const TColumnEvaluatorCachePtr& evaluatorCache)
+    const TColumnEvaluatorCachePtr& evaluatorCache,
+    bool verboseLogging)
 {
     auto Logger = BuildLogger(query);
 
-    TRangeInferrer rangeInferrer(query->Predicate, splits, evaluatorCache);
+    TRangeInferrer rangeInferrer(query->Predicate, splits, evaluatorCache, verboseLogging);
 
     auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
         return Format("[%v .. %v]",
@@ -474,7 +486,6 @@ TDataSplits GetPrunedSplits(
 
     LOG_DEBUG("Splitting %v splits according to ranges", splits.size());
 
-    size_t logCount = 0;
     TDataSplits prunedSplits;
     for (const auto& split : splits) {
         auto originalRange = GetBothBoundsFromDataSplit(split);
@@ -484,13 +495,12 @@ TDataSplits GetPrunedSplits(
         for (const auto& range : ranges) {
             auto splitCopy = split;
 
-            if (logCount++ < LogThreshold) {
+            if (verboseLogging) {
                 LOG_DEBUG("Narrowing split %v key range from %v to %v",
-                GetObjectIdFromDataSplit(splitCopy),
-                keyRangeFormatter(originalRange),
-                keyRangeFormatter(range));
+                        GetObjectIdFromDataSplit(splitCopy),
+                        keyRangeFormatter(originalRange),
+                        keyRangeFormatter(range));
             }
-
             SetBothBounds(&splitCopy, range);
 
             prunedSplits.push_back(std::move(splitCopy));

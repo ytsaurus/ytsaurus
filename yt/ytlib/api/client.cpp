@@ -261,10 +261,10 @@ private:
     TDataSplits Split(
         const TDataSplits& splits,
         TNodeDirectoryPtr nodeDirectory,
-        const NLogging::TLogger& Logger)
+        const NLogging::TLogger& Logger,
+        bool verboseLogging)
     {
         TDataSplits allSplits;
-        size_t logCount = 0;
         for (const auto& split : splits) {
             auto objectId = GetObjectIdFromDataSplit(split);
             auto type = TypeFromId(objectId);
@@ -276,7 +276,7 @@ private:
 
             auto newSplits = SplitFurther(split, nodeDirectory);
 
-            if (logCount++ < LogThreshold) {
+            if (verboseLogging) {
                 LOG_DEBUG("Got %v splits for input %v", newSplits.size(), objectId);
             }
 
@@ -436,8 +436,9 @@ private:
         auto prunedSplits = GetPrunedSplits(
             fragment->Query,
             fragment->DataSplits,
-            Connection_->GetColumnEvaluatorCache());
-        auto splits = Split(prunedSplits, nodeDirectory, Logger);
+            Connection_->GetColumnEvaluatorCache(),
+            fragment->VerboseLogging);
+        auto splits = Split(prunedSplits, nodeDirectory, Logger, fragment->VerboseLogging);
 
         LOG_DEBUG("Regrouping %v splits", splits.size());
 
@@ -504,7 +505,8 @@ private:
         auto prunedSplits = GetPrunedSplits(
             fragment->Query,
             fragment->DataSplits,
-            Connection_->GetColumnEvaluatorCache());
+            Connection_->GetColumnEvaluatorCache(),
+            fragment->VerboseLogging);
         auto splits = Split(prunedSplits, nodeDirectory, Logger);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
