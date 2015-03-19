@@ -163,7 +163,6 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
             default:
                 YUNREACHABLE();
         }
-        return;
     }
 
     if (doRegister) {
