@@ -1,5 +1,5 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/pipes )
+set( BASE ${CMAKE_SOURCE_DIR}/yt/core/pipes )
 set( SRCS
   ${BASE}/io_dispatcher.cpp
   ${BASE}/io_dispatcher_impl.cpp

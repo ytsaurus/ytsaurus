@@ -6,9 +6,9 @@
 
 #include <core/misc/proc.h>
 
-#include <ytlib/pipes/io_dispatcher.h>
-#include <ytlib/pipes/async_reader.h>
-#include <ytlib/pipes/async_writer.h>
+#include <core/pipes/io_dispatcher.h>
+#include <core/pipes/async_reader.h>
+#include <core/pipes/async_writer.h>
 
 #include <random>
 

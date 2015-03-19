@@ -1,6 +1,5 @@
 set( DIRS
   misc
-  pipes
   ypath
   election
   orchid

@@ -28,8 +28,8 @@
 
 #include <ytlib/cgroup/cgroup.h>
 
-#include <ytlib/pipes/async_reader.h>
-#include <ytlib/pipes/async_writer.h>
+#include <core/pipes/async_reader.h>
+#include <core/pipes/async_writer.h>
 
 #include <core/misc/fs.h>
 #include <core/misc/proc.h>
