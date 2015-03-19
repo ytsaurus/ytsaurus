@@ -118,6 +118,12 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (Write)
 );
 
+DEFINE_ENUM(EInMemoryMode,
+    (Disabled)
+    (Compressed)
+    (Uncompressed)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManageConfig)

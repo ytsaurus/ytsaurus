@@ -55,7 +55,8 @@ public:
     void SetBackingStore(IStorePtr store);
     bool HasBackingStore() const;
 
-    void SetInMemoryMode(bool value);
+    void SetInMemoryMode(EInMemoryMode mode);
+    NChunkClient::IBlockCachePtr GetCompressedPreloadedBlockCache();
     NChunkClient::IBlockCachePtr GetUncompressedPreloadedBlockCache();
     NChunkClient::IChunkReaderPtr GetChunkReader();
 
@@ -95,7 +96,7 @@ public:
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 private:
-    class TLocalChunkReaderWrapper;
+    class TLocalChunkReader;
     class TVersionedReaderWrapper;
     class TVersionedLookuperWrapper;
     class TBlockCache;
@@ -125,10 +126,12 @@ private:
     NConcurrency::TReaderWriterSpinLock BackingStoreLock_;
     IStorePtr BackingStore_;
 
-    NConcurrency::TReaderWriterSpinLock UncompressedPreloadedBlockCacheLock_;
+    NConcurrency::TReaderWriterSpinLock PreloadedBlockCacheLock_;
+    NChunkClient::IBlockCachePtr CompressedPreloadedBlockCache_;
     NChunkClient::IBlockCachePtr UncompressedPreloadedBlockCache_;
 
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
+    EInMemoryMode InMemoryMode_ = EInMemoryMode::Disabled;
 
 
     NDataNode::IChunkPtr PrepareChunk();
@@ -138,6 +141,7 @@ private:
     NVersionedTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
         NChunkClient::IChunkReaderPtr chunkReader);
     IStorePtr GetBackingStore();
+    NChunkClient::IBlockCachePtr GetCompressedBlockCache();
     NChunkClient::IBlockCachePtr GetUncompressedBlockCache();
 
     void PrecacheProperties();
