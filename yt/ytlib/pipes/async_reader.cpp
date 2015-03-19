@@ -152,7 +152,7 @@ private:
 
     void DoRead()
     {
-#ifdef _linux_
+#ifndef _win_
         YCHECK(Position_ < Length_);
 
         int size;
