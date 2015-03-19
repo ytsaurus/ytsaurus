@@ -69,7 +69,7 @@ public:
     {
         auto block = TSyncSlruCacheBase::Find(id);
         if (block) {
-            LOG_DEBUG("Block cache hit (BlockId: %v)", id);
+            LOG_TRACE("Block cache hit (BlockId: %v)", id);
             return block->GetData();
         } else {
             LOG_DEBUG("Block cache miss (BlockId: %v)", id);

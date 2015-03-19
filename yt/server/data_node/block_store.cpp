@@ -229,7 +229,7 @@ private:
 
     void LogCacheHit(TCachedBlockPtr block)
     {
-        LOG_DEBUG("Block cache hit (BlockId: %v)",
+        LOG_TRACE("Block cache hit (BlockId: %v)",
             block->GetKey());
     }
 
