@@ -108,6 +108,24 @@ class TestTablets(YTEnvSetup):
         print "Waiting for table to become unmounted..."
         self._wait(lambda: get("//tmp/t/@tablets/0/state") == "unmounted")
 
+    def test_mount_unmount(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+        actual = lookup_rows("//tmp/t", keys);
+        self.assertItemsEqual(rows, actual);
+
+        self._sync_unmount_table("//tmp/t")
+        with pytest.raises(YtError): lookup_rows("//tmp/t", keys)
+
+        self._sync_mount_table("//tmp/t")
+        actual = lookup_rows("//tmp/t", keys);
+        self.assertItemsEqual(rows, actual);
+
     def test_reshard_unmounted(self):
         self._sync_create_cells(1, 1)
         create("table", "//tmp/t",

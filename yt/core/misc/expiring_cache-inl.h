@@ -64,6 +64,13 @@ TFuture<TValue> TExpiringCache<TKey, TValue>::Get(const TKey& key)
 }
 
 template <class TKey, class TValue>
+bool TExpiringCache<TKey, TValue>::Erase(const TKey& key)
+{
+    NConcurrency::TReaderGuard guard(SpinLock_);
+    return Map_.erase(key);
+}
+
+template <class TKey, class TValue>
 void TExpiringCache<TKey, TValue>::Clear()
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
