@@ -546,6 +546,7 @@ private:
 
                 auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = nodeDirectory;
+                subfragment->Timestamp = fragment->Timestamp;
                 subfragment->DataSources.push_back(splits[index].first);
                 subfragment->ForeignDataSource = fragment->ForeignDataSource;
                 subfragment->Query = subquery;

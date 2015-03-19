@@ -13,6 +13,111 @@ namespace NYT {
 namespace NQueryClient {
 
 using namespace NConcurrency;
+using NVersionedTableClient::GetUnversionedRowDataSize;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const size_t TTopN::PoolChunkSize;
+const size_t TTopN::BufferLimit;
+
+TTopN::TTopN(size_t limit, TComparerFunc comparer)
+    : Comparer({comparer})
+{
+    Rows.reserve(limit);
+}
+
+std::pair<TRow, size_t> TTopN::Capture(TRow row)
+{
+    if (EmptyBufferIds.empty()) {
+        if (GarbageMemorySize > TotalMemorySize / 2) {
+            // Collect garbage.
+
+            std::vector<std::vector<size_t>> buffersToRows(Buffers.size());
+            for (size_t rowId = 0; rowId < Rows.size(); ++rowId) {
+                buffersToRows[Rows[rowId].second].push_back(rowId);
+            }
+
+            std::unique_ptr<TRowBuffer> temp = std::make_unique<TRowBuffer>(PoolChunkSize, PoolChunkSize);
+
+            TotalMemorySize = 0;
+            AllocatedMemorySize = 0;
+            GarbageMemorySize = 0;
+
+            for (size_t bufferId = 0; bufferId < buffersToRows.size(); ++bufferId) {
+                auto& buffer = *temp;
+
+                for (auto rowId : buffersToRows[bufferId]) {
+                    auto& row = Rows[rowId].first;
+                    
+                    auto savedSize = buffer.GetSize();
+                    row = buffer.Capture(row);
+                    AllocatedMemorySize += buffer.GetSize() - savedSize;
+                }
+
+                TotalMemorySize += buffer.GetCapacity();
+
+                temp.swap(Buffers[bufferId]);
+                temp->Clear();
+                EmptyBufferIds.push_back(bufferId);
+            }
+        } else {
+            // Allocate buffer and add to emptyBufferIds.
+            EmptyBufferIds.push_back(Buffers.size());
+            Buffers.push_back(std::make_unique<TRowBuffer>(PoolChunkSize, PoolChunkSize));
+        }
+    }
+
+    YCHECK(!EmptyBufferIds.empty());
+
+    auto bufferId = EmptyBufferIds.back();
+    auto& buffer = *Buffers[bufferId];
+
+    auto savedSize = buffer.GetSize();
+    auto savedCapacity = buffer.GetCapacity();
+
+    auto captured = buffer.Capture(row);
+
+    AllocatedMemorySize += buffer.GetSize() - savedSize;
+    TotalMemorySize += buffer.GetCapacity() - savedCapacity;
+
+    if (buffer.GetSize() > BufferLimit) {
+        EmptyBufferIds.pop_back();
+    }
+
+    return std::make_pair(captured, bufferId);
+}
+
+void TTopN::AccountGarbage(TRow row)
+{
+    GarbageMemorySize += GetUnversionedRowDataSize(row.GetCount());
+    for (int index = 0; index < row.GetCount(); ++index) {
+        auto value = row[index];
+
+        if (IsStringLikeType(EValueType(value.Type))) {
+            GarbageMemorySize += value.Length;
+        }
+    }
+}
+
+void TTopN::AddRowImpl(TRow row)
+{
+    if (Rows.size() < Rows.capacity()) {
+        auto capturedRow = Capture(row);
+        Rows.emplace_back(capturedRow);
+        std::push_heap(Rows.begin(), Rows.end(), Comparer);
+    } else if (!Comparer(Rows.front().first, row)) {
+        auto capturedRow = Capture(row);
+        std::pop_heap(Rows.begin(), Rows.end(), Comparer);
+        AccountGarbage(Rows.back().first);
+        Rows.back() = capturedRow;
+        std::push_heap(Rows.begin(), Rows.end(), Comparer);
+    }
+}
+
+void TTopN::AddRow(TTopN* topN, TRow row)
+{
+    topN->AddRowImpl(row);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
