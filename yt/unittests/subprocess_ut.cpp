@@ -1,9 +1,10 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <server/exec_agent/subprocess.h>
+#include <core/misc/subprocess.h>
 
 #include <core/concurrency/action_queue.h>
+
 #include <core/actions/future.h>
 
 namespace NYT {

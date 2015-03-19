@@ -1,12 +1,13 @@
 #include "stdafx.h"
 
 #include "subprocess.h"
-#include "private.h"
+
+#include "proc.h"
+#include "finally.h"
 
 #include <core/pipes/async_reader.h>
 
-#include <core/misc/proc.h>
-#include <core/misc/finally.h>
+#include <core/logging/log.h>
 
 #include <util/system/execpath.h>
 
@@ -21,7 +22,7 @@ using namespace NPipes;
 ////////////////////////////////////////////////////////////////////////////////
 
 const static size_t PipeBlockSize = 64 * 1024;
-const static auto& Logger = ExecAgentLogger;
+static NLogging::TLogger Logger("Subprocess");
 
 ////////////////////////////////////////////////////////////////////////////////
 

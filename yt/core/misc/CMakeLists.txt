@@ -38,6 +38,7 @@ set( SRCS
   ${BASE}/source_location.cpp
   ${BASE}/stack_trace.cpp
   ${BASE}/string.cpp
+  ${BASE}/subprocess.cpp
   ${BASE}/url.cpp
   ${BASE}/varint.cpp
   ${BASE}/lifecycle.cpp
@@ -115,6 +116,7 @@ set( HDRS
   ${BASE}/source_location.h
   ${BASE}/stack_trace.h
   ${BASE}/string.h
+  ${BASE}/subprocess.h
   ${BASE}/sync.h
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
