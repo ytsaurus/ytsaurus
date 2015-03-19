@@ -424,7 +424,9 @@ IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return TypeToEntry_[type].Handler;
+    return type >= MinObjectType && type <= MaxObjectType
+        ? TypeToEntry_[type].Handler
+        : nullptr;
 }
 
 IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
