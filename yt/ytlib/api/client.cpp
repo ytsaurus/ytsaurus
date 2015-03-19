@@ -477,6 +477,7 @@ private:
                 subfragment->DataSplits = groupedSplits[index].first;
                 subfragment->ForeignDataSplit = fragment->ForeignDataSplit;
                 subfragment->Query = subquery;
+                subfragment->VerboseLogging = fragment->VerboseLogging;
 
                 const auto& address = groupedSplits[index].second;
 
@@ -539,6 +540,7 @@ private:
                 subfragment->DataSplits.push_back(splits[index]);
                 subfragment->ForeignDataSplit = fragment->ForeignDataSplit;
                 subfragment->Query = subquery;
+                subfragment->VerboseLogging = fragment->VerboseLogging;
 
                 return Delegate(subfragment, address);
             },
@@ -1268,6 +1270,7 @@ private:
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
+        fragment->VerboseLogging = options.VerboseLogging;
         auto statistics = WaitFor(QueryHelper_->Execute(fragment, writer))
             .ValueOrThrow();
         if (options.FailOnIncompleteResult) {

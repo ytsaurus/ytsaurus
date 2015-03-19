@@ -236,6 +236,7 @@ private:
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
                     .Run(subquery, mergingReader, pipe->GetWriter(), [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
                         auto planFragment = New<TPlanFragment>();
+                        planFragment->VerboseLogging = fragment->VerboseLogging;
 
                         LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 

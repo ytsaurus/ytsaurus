@@ -228,11 +228,13 @@ TSelectRowsExecutor::TSelectRowsExecutor()
     , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::SyncLastCommittedTimestamp, "TIMESTAMP")
     , InputRowLimitArg("", "input_row_limit", "input rows limit", false, std::numeric_limits<int>::max(), "INTEGER")
     , OutputRowLimitArg("", "output_row_limit", "output rows limit", false, std::numeric_limits<int>::max(), "INTEGER")
+    , VerboseLoggingArg("", "verbose_logging", "verbose logging", false)
 {
     CmdLine.add(QueryArg);
     CmdLine.add(TimestampArg);
     CmdLine.add(InputRowLimitArg);
     CmdLine.add(OutputRowLimitArg);
+    CmdLine.add(VerboseLoggingArg);
 }
 
 void TSelectRowsExecutor::BuildParameters(IYsonConsumer* consumer)
@@ -247,7 +249,8 @@ void TSelectRowsExecutor::BuildParameters(IYsonConsumer* consumer)
         })
         .DoIf(OutputRowLimitArg.isSet(), [&] (TFluentMap fluent) {
             fluent.Item("output_row_limit").Value(OutputRowLimitArg.getValue());
-        });
+        })
+        .Item("verbose_logging").Value(VerboseLoggingArg.getValue());
 }
 
 Stroka TSelectRowsExecutor::GetCommandName() const
