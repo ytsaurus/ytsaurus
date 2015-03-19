@@ -123,9 +123,7 @@ private:
         {
             KeyTrie_ = ExtractMultipleConstraints(predicate, keyColumns, &KeyTrieBuffer_);
 
-            if (verboseLogging) {
-                LOG_DEBUG("Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
-            }
+            LOG_DEBUG_IF(verboseLogging, "Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
         }
 
         virtual std::vector<TKeyRange> GetRangesWithinRange(const TKeyRange& keyRange) override
@@ -169,9 +167,7 @@ private:
 
             KeyTrie_ = ExtractMultipleConstraints(predicate, depletedKeyColumns, &KeyTrieBuffer_);
 
-            if (verboseLogging) {
-                LOG_DEBUG("Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
-            }
+            LOG_DEBUG_IF(verboseLogging, "Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
         }
 
         virtual std::vector<TKeyRange> GetRangesWithinRange(const TKeyRange& keyRange) override
@@ -191,9 +187,7 @@ private:
                     trie.Unite(TKeyTrieNode::FromRange(range));
                 }
 
-                if (VerboseLogging_) {
-                    LOG_DEBUG("Inferred key constraints %Qv", trie);
-                }
+                LOG_DEBUG_IF(VerboseLogging_, "Inferred key constraints %Qv", trie);
 
                 ranges = GetRangesFromTrieWithinRange(keyRange, trie);
             }
@@ -495,12 +489,10 @@ TDataSplits GetPrunedSplits(
         for (const auto& range : ranges) {
             auto splitCopy = split;
 
-            if (verboseLogging) {
-                LOG_DEBUG("Narrowing split %v key range from %v to %v",
-                        GetObjectIdFromDataSplit(splitCopy),
-                        keyRangeFormatter(originalRange),
-                        keyRangeFormatter(range));
-            }
+            LOG_DEBUG_IF(verboseLogging, "Narrowing split %v key range from %v to %v",
+                GetObjectIdFromDataSplit(splitCopy),
+                keyRangeFormatter(originalRange),
+                keyRangeFormatter(range));
             SetBothBounds(&splitCopy, range);
 
             prunedSplits.push_back(std::move(splitCopy));

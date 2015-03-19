@@ -276,9 +276,7 @@ private:
 
             auto newSplits = SplitFurther(split, nodeDirectory);
 
-            if (verboseLogging) {
-                LOG_DEBUG("Got %v splits for input %v", newSplits.size(), objectId);
-            }
+            LOG_DEBUG_IF(verboseLogging, "Got %v splits for input %v", newSplits.size(), objectId);
 
             allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
         }
