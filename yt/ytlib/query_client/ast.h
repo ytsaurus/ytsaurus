@@ -173,6 +173,8 @@ typedef std::vector<TNamedExpression> TNamedExpressionList;
 typedef TNullable<TNamedExpressionList> TNullableNamedExprs;
 typedef std::vector<Stroka> TIdentifierList;
 
+typedef TNullable<TIdentifierList> TNullableIdentifiers;
+
 struct TSource
     : public TIntrinsicRefCounted
 {
@@ -228,6 +230,7 @@ struct TQuery
     TNullableNamedExprs SelectExprs;
     TExpressionPtr WherePredicate;
     TNullableNamedExprs GroupExprs;
+    TNullableIdentifiers OrderFields;
     i64 Limit = 0;
 };
 
