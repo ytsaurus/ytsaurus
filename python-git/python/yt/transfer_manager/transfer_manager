@@ -610,23 +610,29 @@ class Application(object):
             if task.pool is None:
                 raise SchedulingError("Task has no pool")
             pool_path = "//sys/scheduler/orchid/scheduler/pools/" + task.pool
-            if not client.exists(pool_path):
-                raise SchedulingError("Pool %s does not exist" % task.pool)
 
-            pool_info = client.get("//sys/scheduler/orchid/scheduler/pools/" + task.pool)
-            usage_ratio = 0.0
-            for resource, usage in pool_info["resource_usage"].iteritems():
-                limit = pool_info["resource_limits"][resource]
-                if limit == 0:
-                    usage_ratio = 1.0
+            try:
+                if not client.exists(pool_path):
+                    raise SchedulingError("Pool %s does not exist" % task.pool)
+
+                pool_info = client.get("//sys/scheduler/orchid/scheduler/pools/" + task.pool)
+                usage_ratio = 0.0
+                for resource, usage in pool_info["resource_usage"].iteritems():
+                    limit = pool_info["resource_limits"][resource]
+                    if limit == 0:
+                        usage_ratio = 1.0
+                    else:
+                        usage_ratio = max(usage_ratio, float(usage) / limit)
+                if usage_ratio > 0.95:
+                    result = False
                 else:
-                    usage_ratio = max(usage_ratio, float(usage) / limit)
-            if usage_ratio > 0.95:
-                result = False
-            else:
-                result = True
+                    result = True
 
-            return result
+                return result
+            except yt.YtError as error:
+                new_error = SchedulingError("Cannot check pool")
+                new_error.inner_errors = [error]
+                raise new_error
 
         return True
 
