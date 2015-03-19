@@ -8,6 +8,7 @@
 #include <core/codegen/module.h>
 
 #include <core/misc/variant.h>
+#include <core/misc/ref_counted.h>
 
 #include <util/generic/stroka.h>
 
@@ -17,6 +18,7 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IFunctionDescriptor
+    : public TRefCounted
 {
     virtual ~IFunctionDescriptor();
 
@@ -36,6 +38,8 @@ struct IFunctionDescriptor
         const TKeyColumns& keyColumns,
         TRowBuffer* rowBuffer) const = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IFunctionDescriptor)
 
 typedef int TTypeArgument;
 typedef std::vector<EValueType> TUnionType;

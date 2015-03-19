@@ -12,13 +12,13 @@ namespace NQueryClient {
 class TFunctionRegistry
 {
 public:
-    void RegisterFunction(std::unique_ptr<IFunctionDescriptor> descriptor);
+    void RegisterFunction(TIntrusivePtr<IFunctionDescriptor> descriptor);
     IFunctionDescriptor& GetFunction(const Stroka& functionName);
 
     bool IsRegistered(const Stroka& functionName);
 
 private:
-    std::unordered_map<Stroka, std::unique_ptr<IFunctionDescriptor>> RegisteredFunctions_;
+    std::unordered_map<Stroka, TIntrusivePtr<IFunctionDescriptor>> RegisteredFunctions_;
 };
 
 TFunctionRegistry* GetFunctionRegistry();
