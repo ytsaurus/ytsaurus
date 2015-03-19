@@ -465,6 +465,8 @@ private:
             ranges.push_back(GetRange(group.second));
         }
 
+        LOG_DEBUG("Regrouped into %v groups", groups.size());
+
         return CoordinateAndExecute(
             fragment,
             writer,
