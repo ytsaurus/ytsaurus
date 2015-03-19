@@ -490,18 +490,17 @@ std::vector<TKeyRange> GetRangesFromTrieWithinRange(
     if (!result.empty()) {
         std::sort(result.begin(), result.end());
         std::vector<TKeyRange> mergedResult;
-    
         mergedResult.push_back(result.front());
 
         for (size_t i = 1; i < result.size(); ++i) {
             if (mergedResult.back().second == result[i].first) {
-                mergedResult.back().second = result[i].second;
+                mergedResult.back().second = std::move(result[i].second);
             } else {
-                mergedResult.push_back(result[i]);
+                mergedResult.push_back(std::move(result[i]));
             }
         }
 
-        result = mergedResult;
+        result = std::move(mergedResult);
     }
 
     return result;
