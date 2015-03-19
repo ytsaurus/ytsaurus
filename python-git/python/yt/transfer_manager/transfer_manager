@@ -139,7 +139,7 @@ class Task(object):
         self.user = user
         self.mr_user = mr_user
         self.error = error
-        self.token = get_value(token, "")
+        self.token = get_value(token)
         self.copy_method = copy_method
         self.progress = progress
 
