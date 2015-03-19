@@ -99,7 +99,9 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetMovable());
     Save(context, GetVital());
     Save(context, Parents_);
-    Save(context, StoredReplicas_);
+    // NB: RemoveReplica calls do not commute and their order is not
+    // deterministic (i.e. when unregistering a node we traverse certain hashtables).
+    TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, StoredReplicas_);
     Save(context, CachedReplicas_);
 }
 
