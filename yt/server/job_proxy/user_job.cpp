@@ -11,7 +11,6 @@
 #include "user_job_io.h"
 
 #include <server/exec_agent/public.h>
-#include <server/exec_agent/subprocess.h>
 
 #include <ytlib/chunk_client/public.h>
 
