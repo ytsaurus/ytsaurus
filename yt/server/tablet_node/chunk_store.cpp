@@ -288,9 +288,14 @@ class TChunkStore::TBlockCache
     : public IBlockCache
 {
 public:
-    TBlockCache(TChunkStorePtr owner, const TChunkId& chunkId)
+    TBlockCache(
+        TChunkStorePtr owner,
+        const TChunkId& chunkId,
+        IBlockCachePtr underlyingCache)
         : Owner_(owner)
         , ChunkId_(chunkId)
+        , UnderlyingCache_(std::move(underlyingCache))
+
     { }
 
     virtual void Put(
@@ -327,12 +332,20 @@ public:
         YASSERT(id.ChunkId == ChunkId_);
 
         TReaderGuard guard(SpinLock_);
-        return id.BlockIndex < Blocks_.size() ? Blocks_[id.BlockIndex] : TSharedRef();
+        if (id.BlockIndex < Blocks_.size()) {
+            const auto& block = Blocks_[id.BlockIndex];
+            if (block) {
+                return block;
+            }
+        }
+
+        return UnderlyingCache_->Find(id);
     }
 
 private:
     const TWeakPtr<TChunkStore> Owner_;
     const TChunkId ChunkId_;
+    const IBlockCachePtr UnderlyingCache_;
 
     TReaderWriterSpinLock SpinLock_;
     std::vector<TSharedRef> Blocks_;
@@ -401,13 +414,18 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
             UncompressedPreloadedBlockCache_.Reset();
             PreloadState_ = EStorePreloadState::Disabled;
         } else {
-            auto blockCache = New<TBlockCache>(this, StoreId_);
             switch (mode) {
                 case EInMemoryMode::Compressed:
-                    CompressedPreloadedBlockCache_ = blockCache;
+                    CompressedPreloadedBlockCache_ = New<TBlockCache>(
+                        this,
+                        StoreId_,
+                        Bootstrap_->GetBlockStore()->GetCompressedBlockCache());
                     break;
                 case EInMemoryMode::Uncompressed:
-                    UncompressedPreloadedBlockCache_ = blockCache;
+                    UncompressedPreloadedBlockCache_ = New<TBlockCache>(
+                        this,
+                        StoreId_,
+                        Bootstrap_->GetUncompressedBlockCache());
                     break;
                 default:
                     YUNREACHABLE();
