@@ -100,13 +100,11 @@ public:
 
         i64 priority = 0;
         for (int blockIndex : blockIndexes) {
-            if (BlockCache_) {
-                auto blockId = TBlockId(Chunk_->GetId(), blockIndex);
-                auto cachedBlock = BlockCache_->Find(blockId);
-                if (cachedBlock) {
-                    asyncBlocks.push_back(MakeFuture(cachedBlock));
-                    continue;
-                }
+            auto blockId = TBlockId(Chunk_->GetId(), blockIndex);
+            auto cachedBlock = BlockCache_->Find(blockId);
+            if (cachedBlock) {
+                asyncBlocks.push_back(MakeFuture(cachedBlock));
+                continue;
             }
 
             auto asyncBlock =
@@ -772,7 +770,9 @@ IBlockCachePtr TChunkStore::GetCompressedBlockCache()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TReaderGuard guard(PreloadedBlockCacheLock_);
-    return CompressedPreloadedBlockCache_;
+    return CompressedPreloadedBlockCache_
+        ? CompressedPreloadedBlockCache_
+        : Bootstrap_->GetBlockStore()->GetCompressedBlockCache();
 }
 
 IBlockCachePtr TChunkStore::GetUncompressedBlockCache()
