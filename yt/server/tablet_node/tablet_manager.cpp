@@ -271,7 +271,7 @@ public:
             tablet,
             chunkMeta,
             Bootstrap_);
-        store->SetInMemoryMode(tablet->GetConfig()->InMemory);
+        store->SetInMemoryMode(tablet->GetConfig()->InMemoryMode);
         StartMemoryUsageTracking(store);
         return store;
     }

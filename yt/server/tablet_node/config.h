@@ -106,7 +106,7 @@ public:
 
     int MaxReadFanIn;
 
-    bool InMemory;
+    EInMemoryMode InMemoryMode;
 
     TTableMountConfig()
     {
@@ -178,8 +178,8 @@ public:
             .GreaterThan(0)
             .Default(20);
 
-        RegisterParameter("in_memory", InMemory)
-            .Default(false);
+        RegisterParameter("in_memory_mode", InMemoryMode)
+            .Default(EInMemoryMode::Disabled);
 
         RegisterValidator([&] () {
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {

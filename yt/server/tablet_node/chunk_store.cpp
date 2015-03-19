@@ -13,6 +13,8 @@
 
 #include <core/misc/protobuf_helpers.h>
 
+#include <core/tracing/trace_context.h>
+
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/new_table_client/versioned_reader.h>
@@ -32,7 +34,6 @@
 
 #include <ytlib/transaction_client/helpers.h>
 
-#include <server/data_node/local_chunk_reader.h>
 #include <server/data_node/block_store.h>
 #include <server/data_node/chunk_registry.h>
 #include <server/data_node/chunk.h>
@@ -69,61 +70,153 @@ static const auto ChunkReaderExpirationTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkStore::TLocalChunkReaderWrapper
-    : public IChunkReader
+class TChunkStore::TLocalChunkReader
+    : public NChunkClient::IChunkReader
 {
 public:
-    TLocalChunkReaderWrapper(
-        IChunkReaderPtr underlyingReader,
-        TChunkStorePtr owner)
-        : UnderlyingReader_(std::move(underlyingReader))
-        , Owner_(std::move(owner))
+    TLocalChunkReader(
+        TChunkStorePtr owner,
+        IChunkPtr chunk,
+        IBlockCachePtr blockCache)
+        : Bootstrap_(owner->Bootstrap_)
+        , Owner_(owner)
+        , Config_(Bootstrap_->GetConfig()->TabletNode->ChunkReader)
+        , Chunk_(std::move(chunk))
+        , BlockCache_(std::move(blockCache))
     { }
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
-        return UnderlyingReader_->ReadBlocks(blockIndexes).Apply(
-            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TSharedRef>>& result) -> std::vector<TSharedRef> {
-                return CheckResult(result);
-            }));
+        NTracing::TTraceSpanGuard guard(
+            // XXX(sandello): Disable tracing due to excessive output.
+            NTracing::NullTraceContext, /* NTracing::GetCurrentTraceContext(), */
+            "LocalChunkReader",
+            "ReadBlocks");
+
+        auto blockStore = Bootstrap_->GetBlockStore();
+
+        std::vector<TFuture<TSharedRef>> asyncBlocks;
+        asyncBlocks.reserve(blockIndexes.size());
+
+        i64 priority = 0;
+        for (int blockIndex : blockIndexes) {
+            if (BlockCache_) {
+                auto blockId = TBlockId(Chunk_->GetId(), blockIndex);
+                auto cachedBlock = BlockCache_->Find(blockId);
+                if (cachedBlock) {
+                    asyncBlocks.push_back(MakeFuture(cachedBlock));
+                    continue;
+                }
+            }
+
+            auto asyncBlock =
+                BIND(
+                    &TBlockStore::FindBlock,
+                    blockStore,
+                    Chunk_->GetId(),
+                    blockIndex,
+                    priority,
+                    Config_->EnableCaching)
+                .AsyncVia(Bootstrap_->GetControlInvoker())
+                .Run();
+
+            asyncBlocks.push_back(asyncBlock.Apply(BIND(
+                &TLocalChunkReader::OnGotBlock,
+                MakeStrong(this),
+                blockIndex)));
+
+            // Assign decreasing priorities to block requests to take advantage of sequential read.
+            --priority;
+        }
+
+        return Combine(asyncBlocks);
     }
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
     {
-        return UnderlyingReader_->ReadBlocks(firstBlockIndex, blockCount).Apply(
-            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TSharedRef>>& result) -> std::vector<TSharedRef> {
-                return CheckResult(result);
-            }));
+        std::vector<int> blockIndexes;
+        for (int index = firstBlockIndex; index < firstBlockIndex + blockCount; ++index) {
+            blockIndexes.push_back(index);
+        }
+        return ReadBlocks(blockIndexes);
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {
-        return UnderlyingReader_->GetMeta(partitionTag, extensionTags).Apply(
-            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TChunkMeta>& result) -> TChunkMeta {
-                return CheckResult(result);
-            }));
+        NTracing::TTraceSpanGuard guard(
+            // XXX(sandello): Disable tracing due to excessive output.
+            NTracing::NullTraceContext, /* NTracing::GetCurrentTraceContext(), */
+            "LocalChunkReader",
+            "GetChunkMeta");
+        return Chunk_->GetMeta(0, extensionTags).Apply(BIND(
+            &TLocalChunkReader::OnGotMeta,
+            MakeStrong(this),
+            partitionTag,
+            Passed(std::move(guard))));
     }
 
     virtual TChunkId GetChunkId() const override
     {
-        return UnderlyingReader_->GetChunkId();
+        return Chunk_->GetId();
     }
 
 private:
-    const IChunkReaderPtr UnderlyingReader_;
-    const TChunkStorePtr Owner_;
+    const TBootstrap* Bootstrap_;
+    TWeakPtr<TChunkStore> Owner_;
+    const TReplicationReaderConfigPtr Config_;
+    const IChunkPtr Chunk_;
+    const IBlockCachePtr BlockCache_;
 
 
-    template <class T>
-    T CheckResult(const TErrorOr<T>& result)
+    TChunkMeta OnGotMeta(
+        const TNullable<int>& partitionTag,
+        NTracing::TTraceSpanGuard /*guard*/,
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
-        if (!result.IsOK()) {
-            Owner_->OnLocalReaderFailed();
-            THROW_ERROR(result);
+        if (!metaOrError.IsOK()) {
+            OnFailed();
+            THROW_ERROR metaOrError;
         }
-        return result.Value();
+
+        const auto& meta = metaOrError.Value();
+        return partitionTag
+            ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
+            : TChunkMeta(*meta);
+    }
+
+    TSharedRef OnGotBlock(int blockIndex, const TErrorOr<TSharedRef>& blockOrError)
+    {
+        if (!blockOrError.IsOK()) {
+            OnFailed();
+            THROW_ERROR_EXCEPTION(
+                NDataNode::EErrorCode::LocalChunkReaderFailed,
+                "Error reading local chunk block %v:%v",
+                Chunk_->GetId(),
+                blockIndex)
+                << blockOrError;
+        }
+
+        const auto& block = blockOrError.Value();
+        if (!block) {
+            OnFailed();
+            THROW_ERROR_EXCEPTION(
+                NDataNode::EErrorCode::LocalChunkReaderFailed,
+                "Local chunk block %v:%v is not available",
+                Chunk_->GetId(),
+                blockIndex);
+        }
+
+        return block;
+    }
+
+    void OnFailed()
+    {
+        auto owner = Owner_.Lock();
+        if (owner) {
+            owner->OnLocalReaderFailed();
+        }
     }
 
 };
@@ -298,39 +391,67 @@ bool TChunkStore::HasBackingStore() const
     return BackingStore_ != nullptr;
 }
 
-void TChunkStore::SetInMemoryMode(bool value)
+void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
+{
+    if (InMemoryMode_ == mode)
+        return;
+
+    {
+        TWriterGuard guard(PreloadedBlockCacheLock_);
+        if  (mode == EInMemoryMode::Disabled) {
+            CompressedPreloadedBlockCache_.Reset();
+            UncompressedPreloadedBlockCache_.Reset();
+            PreloadState_ = EStorePreloadState::Disabled;
+        } else {
+            auto blockCache = New<TBlockCache>(this, StoreId_);
+            switch (mode) {
+                case EInMemoryMode::Compressed:
+                    CompressedPreloadedBlockCache_ = blockCache;
+                    break;
+                case EInMemoryMode::Uncompressed:
+                    UncompressedPreloadedBlockCache_ = blockCache;
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
+            switch (PreloadState_) {
+                case EStorePreloadState::Disabled:
+                case EStorePreloadState::Failed:
+                    PreloadState_ = EStorePreloadState::None;
+                    break;
+                case EStorePreloadState::None:
+                case EStorePreloadState::Scheduled:
+                case EStorePreloadState::Running:
+                    // XXX(babenko): cancel?
+                case EStorePreloadState::Complete:
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
+        }
+    }
+
+    {
+        TWriterGuard guard(ChunkReaderLock_);
+        ChunkReader_.Reset();
+    }
+
+    InMemoryMode_ = mode;
+}
+
+IBlockCachePtr TChunkStore::GetCompressedPreloadedBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(UncompressedPreloadedBlockCacheLock_);
-    if (value) {
-        if (!UncompressedPreloadedBlockCache_) {
-            UncompressedPreloadedBlockCache_ = New<TBlockCache>(this, StoreId_);
-        }
-        switch (PreloadState_) {
-            case EStorePreloadState::Disabled:
-            case EStorePreloadState::Failed:
-                PreloadState_ = EStorePreloadState::None;
-                break;
-            case EStorePreloadState::None:
-            case EStorePreloadState::Scheduled:
-            case EStorePreloadState::Running:
-            case EStorePreloadState::Complete:
-                break;
-            default:
-                YUNREACHABLE();
-        }
-    } else {
-        UncompressedPreloadedBlockCache_.Reset();
-        PreloadState_ = EStorePreloadState::Disabled;
-    }
+    TReaderGuard guard(PreloadedBlockCacheLock_);
+    return CompressedPreloadedBlockCache_;
 }
 
 IBlockCachePtr TChunkStore::GetUncompressedPreloadedBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(UncompressedPreloadedBlockCacheLock_);
+    TReaderGuard guard(PreloadedBlockCacheLock_);
     return UncompressedPreloadedBlockCache_;
 }
 
@@ -582,18 +703,15 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
 
     IChunkReaderPtr chunkReader;
     if (chunk) {
-        auto localChunkReader = CreateLocalChunkReader(
-            Bootstrap_,
-            Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-            chunk);
-        chunkReader = New<TLocalChunkReaderWrapper>(
-            localChunkReader,
-            this);
+        chunkReader = New<TLocalChunkReader>(
+            this,
+            chunk,
+            GetCompressedBlockCache());
     } else {
         // TODO(babenko): provide seed replicas
         chunkReader = CreateReplicationReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-            Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
+            GetCompressedBlockCache(),
             Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
             New<TNodeDirectory>(),
             Bootstrap_->GetLocalDescriptor(),
@@ -645,15 +763,23 @@ IStorePtr TChunkStore::GetBackingStore()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(UncompressedPreloadedBlockCacheLock_);
+    TReaderGuard guard(PreloadedBlockCacheLock_);
     return BackingStore_;
+}
+
+IBlockCachePtr TChunkStore::GetCompressedBlockCache()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(PreloadedBlockCacheLock_);
+    return CompressedPreloadedBlockCache_;
 }
 
 IBlockCachePtr TChunkStore::GetUncompressedBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(UncompressedPreloadedBlockCacheLock_);
+    TReaderGuard guard(PreloadedBlockCacheLock_);
     return UncompressedPreloadedBlockCache_
         ? UncompressedPreloadedBlockCache_
         : Bootstrap_->GetUncompressedBlockCache();
