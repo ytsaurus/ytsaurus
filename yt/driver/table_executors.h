@@ -150,6 +150,7 @@ private:
     TCLAP::ValueArg<NTransactionClient::TTimestamp> TimestampArg;
     TCLAP::ValueArg<int> InputRowLimitArg;
     TCLAP::ValueArg<int> OutputRowLimitArg;
+    TCLAP::SwitchArg VerboseLoggingArg;
 
     virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

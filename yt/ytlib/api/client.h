@@ -161,6 +161,8 @@ struct TSelectRowsOptions
     TNullable<i64> OutputRowLimit;
     //! If |true| then incomplete result would lead to a failure.
     bool FailOnIncompleteResult = true;
+    //! If |true| then logging is more verbose.
+    bool VerboseLogging = false;
 };
 
 struct TGetNodeOptions

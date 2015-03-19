@@ -1188,6 +1188,7 @@ void ToProto(NProto::TPlanFragment* proto, const TConstPlanFragmentPtr& fragment
     ToProto(proto->mutable_data_split(), fragment->DataSplits);
     ToProto(proto->mutable_foreign_data_split(), fragment->ForeignDataSplit);
     proto->set_ordered(fragment->Ordered);
+    proto->set_verbose_logging(fragment->VerboseLogging);
     
     proto->set_source(fragment->Source);
 }
@@ -1200,6 +1201,7 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
     result->NodeDirectory = New<TNodeDirectory>();
     result->Query = FromProto(serialized.query());
     result->Ordered = serialized.ordered();
+    result->VerboseLogging = serialized.verbose_logging();
 
     result->DataSplits.reserve(serialized.data_split_size());
     for (int i = 0; i < serialized.data_split_size(); ++i) {

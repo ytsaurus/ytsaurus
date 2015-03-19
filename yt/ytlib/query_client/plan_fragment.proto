@@ -132,6 +132,7 @@ message TPlanFragment
     required NYT.NChunkClient.NProto.TChunkSpec foreign_data_split = 3;
     required TQuery query = 4;
     required bool ordered = 5;
+	required bool verbose_logging = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

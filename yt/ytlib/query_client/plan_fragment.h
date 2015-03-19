@@ -368,6 +368,7 @@ struct TPlanFragment
     TDataSplit ForeignDataSplit;
     TConstQueryPtr Query;
     bool Ordered = false;
+    bool VerboseLogging = false;
 
 };
 
