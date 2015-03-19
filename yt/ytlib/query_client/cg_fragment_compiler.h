@@ -402,22 +402,27 @@ void CodegenScanOp(
     TCGContext& builder,
     const TCodegenConsumer& codegenConsumer);
 
-TCodegenSource MakeCodegenJoinOp(
-    std::vector<Stroka> joinColumns,
-    TTableSchema sourceTableSchema,
-    TCodegenSource codegenSource);
-
 TCodegenSource MakeCodegenFilterOp(
     TCodegenExpression codegenPredicate,
     TCodegenSource codegenSource);
 
-TCodegenSource MakeCodegenProjectOp(
-    std::vector<TCodegenExpression> codegenArgs,
+TCodegenSource MakeCodegenJoinOp(
+    std::vector<Stroka> joinColumns,
+    TTableSchema sourceSchema,
     TCodegenSource codegenSource);
 
 TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
     std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
+    TCodegenSource codegenSource);
+
+TCodegenSource MakeCodegenOrderOp(
+    std::vector<Stroka> orderColumns,
+    TTableSchema sourceSchema,
+    TCodegenSource codegenSource);
+
+TCodegenSource MakeCodegenProjectOp(
+    std::vector<TCodegenExpression> codegenArgs,
     TCodegenSource codegenSource);
 
 ////////////////////////////////////////////////////////////////////////////////

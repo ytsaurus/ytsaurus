@@ -2713,6 +2713,40 @@ TEST_F(TQueryEvaluateTest, TestJoin)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestOrderBy)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source;
+    
+    for (size_t i = 0; i < 10000; ++i) {
+        auto value = std::rand() % 100000 + 10000;
+        source.push_back(Stroka() + "a=" + ToString(value) + ";b=" + ToString(value * 10));
+    }
+
+    for (size_t i = 0; i < 10000; ++i) {
+        auto value = 10000 - i;
+        source.push_back(Stroka() + "a=" + ToString(value) + ";b=" + ToString(value * 10));
+    }
+
+    std::vector<TOwningRow> result;
+    
+    for (const auto& row : source) {
+        result.push_back(BuildRow(row, split, false));
+    }
+
+    std::sort(result.begin(), result.end());
+
+    result.resize(100);
+
+    Evaluate("* FROM [//t] order by a limit 100", split, source, result);
+
+    SUCCEED();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEvaluateExpressionTest

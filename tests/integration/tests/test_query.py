@@ -4,6 +4,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 from time import sleep
+from random import randint
 
 ##################################################################
 
@@ -77,6 +78,31 @@ class TestQuery(YTEnvSetup):
         self._sample_data(path="//tmp/l1")
         expected = [{"a": 1, "b": 10}]
         actual = select_rows("* from [//tmp/l1] limit 1")
+        assert expected == actual
+
+    def test_order_by(self):
+        self._sync_create_cells(3, 1)
+
+        create("table", "//tmp/o1",
+            attributes = {
+                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "int64"}],
+                "key_columns": ["key"]
+            })
+
+        mount_table("//tmp/o1")
+        self._wait_for_tablet_state("//tmp/o1", ["mounted"])
+
+        data = [
+            {"key": i, "value": randint(0, 1000)}
+            for i in xrange(0, 100)]
+        insert_rows("//tmp/o1", data)
+
+        expected = data[:]
+        expected = sorted(expected, cmp=lambda x, y: x['value'] - y['value'])[0:10]
+	
+	print expected	
+
+        actual = select_rows("key, value from [//tmp/o1] order by value limit 10")
         assert expected == actual
 
     def test_join(self):
