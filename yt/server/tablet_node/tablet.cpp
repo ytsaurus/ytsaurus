@@ -255,6 +255,9 @@ void TTablet::Load(TLoadContext& context)
         YCHECK(PartitionMap_.insert(std::make_pair(partition->GetId(), partition.get())).second);
         PartitionList_.push_back(std::move(partition));
     }
+
+    // This schedules preload of in-memory tablets.
+    UpdateInMemoryMode();
 }
 
 const std::vector<std::unique_ptr<TPartition>>& TTablet::Partitions() const
@@ -632,8 +635,6 @@ void TTablet::Initialize()
     }
 
     ColumnLockCount_ = groupToIndex.size() + 1;
-
-    UpdateInMemoryMode();
 }
 
 TPartition* TTablet::GetContainingPartition(IStorePtr store)
