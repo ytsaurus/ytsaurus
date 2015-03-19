@@ -507,7 +507,7 @@ private:
             fragment->DataSplits,
             Connection_->GetColumnEvaluatorCache(),
             fragment->VerboseLogging);
-        auto splits = Split(prunedSplits, nodeDirectory, Logger);
+        auto splits = Split(prunedSplits, nodeDirectory, Logger, fragment->VerboseLogging);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
