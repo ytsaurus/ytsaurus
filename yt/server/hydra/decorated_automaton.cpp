@@ -19,7 +19,7 @@
 #include <ytlib/hydra/hydra_service.pb.h>
 #include <ytlib/hydra/hydra_manager.pb.h>
 
-#include <ytlib/pipes/async_reader.h>
+#include <core/pipes/async_reader.h>
 
 #include <server/misc/snapshot_builder_detail.h>
 
@@ -266,7 +266,7 @@ private:
 
     TFuture<void> AsyncTransferResult_;
     ISnapshotWriterPtr SnapshotWriter_;
-    
+
 
     virtual TDuration GetTimeout() const override
     {
@@ -538,7 +538,7 @@ void TDecoratedAutomaton::LogLeaderMutation(
     MutationHeader_.set_random_seed(pendingMutation.RandomSeed);
     MutationHeader_.set_segment_id(pendingMutation.Version.SegmentId);
     MutationHeader_.set_record_id(pendingMutation.Version.RecordId);
-    
+
     *recordData = SerializeMutationRecord(MutationHeader_, request.Data);
 
     LOG_DEBUG("Logging mutation (Version: %v, MutationType: %v)",
@@ -547,7 +547,7 @@ void TDecoratedAutomaton::LogLeaderMutation(
 
     *localFlushResult = Changelog_->Append(*recordData);
     *commitResult = pendingMutation.CommitPromise;
-    
+
     LoggedVersion_ = pendingMutation.Version.Advance();
 }
 

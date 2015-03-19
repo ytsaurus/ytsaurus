@@ -3,7 +3,7 @@
 #include "subprocess.h"
 #include "private.h"
 
-#include <ytlib/pipes/async_reader.h>
+#include <core/pipes/async_reader.h>
 
 #include <core/misc/proc.h>
 #include <core/misc/finally.h>

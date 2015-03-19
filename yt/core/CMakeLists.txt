@@ -11,6 +11,7 @@ set( DIRS
   yson
   ypath
   profiling
+  pipes
   tracing
   codegen
 )
