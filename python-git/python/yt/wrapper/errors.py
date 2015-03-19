@@ -35,15 +35,15 @@ class YtResponseError(YtError):
 
     def is_resolve_error(self):
         """Resolving error."""
-        return int(self.error["code"]) == 500
+        return YtResponseError._contains_code(self.error, 500)
 
     def is_access_denied(self):
         """Access denied."""
-        return int(self.error["code"]) == 901
+        return YtResponseError._contains_code(self.error, 901)
 
     def is_concurrent_transaction_lock_conflict(self):
         """Transaction lock conflict."""
-        return int(self.error["code"]) == 402
+        return YtResponseError._contains_code(self.error, 402)
 
     def is_request_rate_limit_exceeded(self):
         """Request rate limit exceeded."""
