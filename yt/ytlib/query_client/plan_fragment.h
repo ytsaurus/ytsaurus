@@ -358,7 +358,7 @@ struct TQuery
         }
 
         if (JoinClause) {
-            return GroupClause->GetTableSchema();
+            return JoinClause->GetTableSchema();
         }
 
         return TableSchema;
