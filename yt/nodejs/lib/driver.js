@@ -48,11 +48,11 @@ function promisinglyPipe(source, destination)
         }
         function on_source_close() {
             debug("Source stream has been closed");
-            reject(new YtError("Source stream in the pipe has been closed."));
+            reject(new YtError("Source stream in the pipe has been closed"));
         }
         function on_destination_close() {
             debug("Destination stream has been closed");
-            reject(new YtError("Destination stream in the pipe has been closed."));
+            reject(new YtError("Destination stream in the pipe has been closed"));
         }
         function on_error(err) {
             debug("An error occured");
