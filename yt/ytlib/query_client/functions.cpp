@@ -31,11 +31,10 @@ TTypedFunction::TTypedFunction(
     Stroka functionName,
     std::vector<TType> argumentTypes,
     TType resultType)
-    : TTypedFunction(
-        functionName,
-        argumentTypes,
-        EValueType::Null,
-        resultType)
+    : FunctionName_(functionName)
+    , ArgumentTypes_(argumentTypes)
+    , RepeatedArgumentType_(EValueType::Null)
+    , ResultType_(resultType)
 { }
 
 Stroka TTypedFunction::GetName() const
