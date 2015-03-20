@@ -1816,6 +1816,26 @@ TEST_F(TQueryEvaluateTest, Simple)
     Evaluate("a, b FROM [//t]", split, source, result);
 }
 
+TEST_F(TQueryEvaluateTest, SelectAll)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=4;b=5",
+        "a=10;b=11"
+    };
+
+    auto result = BuildRows({
+        "a=4;b=5",
+        "a=10;b=11"
+    }, split);
+
+    Evaluate("* FROM [//t]", split, source, result);
+}
+
 TEST_F(TQueryEvaluateTest, SimpleCmpInt)
 {
     auto split = MakeSplit({
