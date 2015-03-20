@@ -7,6 +7,7 @@ from errors import YtError, YtResponseError
 from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api, get_proxy_url, parse_error_from_headers
 
 from yt.yson.convert import json_to_yson
+import yt.yson as yson
 
 import sys
 import simplejson as json
@@ -191,16 +192,27 @@ def make_request(command_name, params,
                "Accept-Encoding": config.http.ACCEPT_ENCODING,
                "X-YT-Correlation-Id": generate_uuid()}
 
+    header_format = get_value(config.http.HEADER_FORMAT, "json")
+    if header_format not in ["json", "yson"]:
+        raise YtError("Incorrect headers format: " + str(header_format))
+    def dumps(obj):
+        if header_format == "json":
+            return json.dumps(escape_utf8(yson.yson_to_json(obj)))
+        if header_format == "yson":
+            return yson.dumps(obj)
+        assert False
+
+    headers["X-YT-Header-Format"] = header_format
     if command.input_type is None:
         # Should we also check that command is volatile?
         require(data is None, YtError("Body should be empty in commands without input type"))
         if command.is_volatile:
-            headers["Content-Type"] = "application/json"
-            data = json.dumps(escape_utf8(params))
+            headers["Content-Type"] = "application/x-yt-yson-text" if header_format == "yson" else "application/json"
+            data = dumps(params)
             params = {}
 
     if params:
-        headers.update({"X-YT-Parameters": json.dumps(escape_utf8(params))})
+        headers.update({"X-YT-Parameters": dumps(params)})
 
     if command.is_volatile and allow_retries:
         def set_retry():
@@ -253,10 +265,11 @@ def make_request(command_name, params,
 def make_formatted_request(command_name, params, format, **kwargs):
     # None format means that we want parsed output (as YSON structure) instead of string.
     # Yson parser is too slow, so we request result in JsonFormat and then convert it to YSON structure.
+
     if format is None:
         params["output_format"] = "json"
     else:
-        params["output_format"] = format.json()
+        params["output_format"] = format.to_yson_type()
 
     response_should_be_json = format is None
     result = make_request(command_name, params, response_should_be_json=response_should_be_json, **kwargs)

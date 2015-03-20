@@ -118,9 +118,9 @@ class TablePath(object):
         """Check attributes for delimiters (channel, lower or upper limits)"""
         return any(key in self.name.attributes for key in ["channel", "lower_limit", "upper_limit"])
 
-    def get_json(self):
-        """Get path in JSON representation (dict)"""
-        return {"$value": str(self.name), "$attributes": self.name.attributes}
+    def to_yson_type(self):
+        """Return YSON representation of path"""
+        return self.name
 
     def __eq__(self, other):
         return self.name == other.name
@@ -146,4 +146,4 @@ def to_name(object, client=None):
     return to_table(object, client=client).name
 
 def prepare_path(object, client=None):
-    return to_table(object, client=client).get_json()
+    return to_table(object, client=client).to_yson_type()

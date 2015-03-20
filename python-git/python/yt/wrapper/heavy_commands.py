@@ -34,7 +34,7 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                     current_time = datetime.now()
                     try:
                         with PingableTransaction(timeout=config.http.get_timeout(), client=client):
-                            params["path"] = path.get_json()
+                            params["path"] = path.to_yson_type()
                             _make_transactional_request(
                                 command_name,
                                 params,
@@ -52,7 +52,7 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                             time.sleep(backoff)
                         logger.warning("New retry (%d) ...", attempt + 2)
         else:
-            params["path"] = path.get_json()
+            params["path"] = path.to_yson_type()
             _make_transactional_request(
                 command_name,
                 params,
