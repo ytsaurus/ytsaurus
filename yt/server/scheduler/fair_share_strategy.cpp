@@ -367,6 +367,11 @@ public:
         return BestLeafDescendant_;
     }
 
+    virtual bool IsRoot() const
+    {
+        return false;
+    }
+
     void AddChild(ISchedulerElementPtr child)
     {
         YCHECK(Children.insert(child).second);
@@ -920,6 +925,11 @@ public:
         return MinSubtreeStartTime;
     }
 
+    virtual bool IsRoot() const override
+    {
+        return true;
+    }
+
     virtual Stroka GetId() const override
     {
         return Stroka("<Root>");
@@ -1213,6 +1223,9 @@ private:
     typedef yhash_map<TOperationPtr, TOperationElementPtr> TOperationMap;
     TOperationMap OperationToElement;
 
+    std::list<TOperationPtr> OperationQueue;
+    yhash_map<Stroka, int> RunningOperationCount;
+
     typedef std::list<TJobPtr> TJobList;
     TJobList JobList;
     yhash_map<TJobPtr, TJobList::iterator> JobToIterator;
@@ -1267,19 +1280,33 @@ private:
         return params;
     }
 
+    bool CanAddOperationToPool(TPool* pool)
+    {
+        TCompositeSchedulerElement* element = pool;
+        while (element) {
+            if (element->IsRoot()) {
+                break;
+            }
+            auto poolName = element->GetId();
+            if (RunningOperationCount[poolName] >= Config->MaxRunningOperationsPerPool) {
+                return false;
+            }
+            element = element->GetParent();
+        }
+        return true;
+    }
 
     void OnOperationRegistered(TOperationPtr operation)
     {
         auto spec = ParseSpec(operation, operation->GetSpec());
-        auto params = BuildInitialRuntimeParams(spec);
-
-        auto poolId = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
-        auto pool = FindPool(poolId);
+        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
+        auto pool = FindPool(poolName);
         if (!pool) {
-            pool = New<TPool>(Host, poolId);
-            RegisterPool(pool, RootElement);
+            pool = New<TPool>(Host, poolName);
+            RegisterPool(pool);
         }
 
+        auto params = BuildInitialRuntimeParams(spec);
         auto operationElement = New<TOperationElement>(
             Config,
             spec,
@@ -1287,10 +1314,32 @@ private:
             Host,
             operation);
         YCHECK(OperationToElement.insert(std::make_pair(operation, operationElement)).second);
-
         operationElement->SetPool(pool.Get());
+
+        auto operationCount = OperationToElement.size();
+        if (CanAddOperationToPool(pool.Get()) && operationCount < Config->MaxRunningOperations) {
+            AddOperationToTree(operation);
+        } else {
+            OperationQueue.push_back(operation);
+            operation->SetEnqueued(true);
+        }
+    }
+
+    void AddOperationToTree(TOperationPtr operation)
+    {
+        auto operationElement = GetOperationElement(operation);
+        auto pool = operationElement->GetPool();
+        if (!pool->GetParent()) {
+            SetPoolParent(pool, RootElement);
+        }
         pool->AddChild(operationElement);
         pool->IncreaseUsage(operationElement->ResourceUsage());
+
+        TCompositeSchedulerElement* element = pool;
+        while (element && !element->IsRoot()) {
+            RunningOperationCount[element->GetId()] += 1;
+            element = element->GetParent();
+        }
 
         LOG_INFO("Operation added to pool (OperationId: %v, Pool: %v)",
             operation->GetId(),
@@ -1309,6 +1358,28 @@ private:
         LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
             operation->GetId(),
             pool->GetId());
+
+        TCompositeSchedulerElement* element = pool;
+        while (element && !element->IsRoot()) {
+            RunningOperationCount[element->GetId()] -= 1;
+            element = element->GetParent();
+        }
+
+        // Try to run operations from queue.
+        auto it = OperationQueue.begin();
+        while (it != OperationQueue.end() && OperationToElement.size() < Config->MaxRunningOperations) {
+            auto operation = *it;
+            if (CanAddOperationToPool(GetOperationElement(operation)->GetPool())) {
+                AddOperationToTree(operation);
+                operation->SetState(EOperationState::Running);
+                operation->SetEnqueued(false);
+
+                auto toRemove = it++;
+                OperationQueue.erase(toRemove);
+            } else {
+                ++it;
+            }
+        }
 
         if (pool->IsEmpty() && pool->IsDefaultConfigured()) {
             UnregisterPool(pool);
@@ -1375,6 +1446,12 @@ private:
         OnJobResourceUsageUpdated(job, element, resourcesDelta);
     }
 
+    void RegisterPool(TPoolPtr pool)
+    {
+        YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
+        LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
+    }
+
     void RegisterPool(TPoolPtr pool, TCompositeSchedulerElementPtr parent)
     {
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
@@ -1412,6 +1489,10 @@ private:
         if (parent) {
             parent->AddChild(pool);
             parent->IncreaseUsage(pool->ResourceUsage());
+
+            LOG_INFO("Set parent pool (Pool: %v, Parent: %v)",
+                pool->GetId(),
+                parent->GetId());
         }
     }
 

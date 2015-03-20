@@ -133,6 +133,33 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
         with pytest.raises(YtError):
             reduce(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", reduce_by=["foo"])
 
+class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "max_running_operations_per_pool" : 1
+        }
+    }
+
+    def test_operations_pool_limit(self):
+        create("table", "//tmp/in")
+        create("table", "//tmp/out1")
+        create("table", "//tmp/out2")
+        write("//tmp/in", [{"foo": i} for i in xrange(5)])
+
+        op1 = map(dont_track=True, command="sleep 1.0; cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
+        op2 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out2")
+
+        time.sleep(0.8)
+        assert get("//sys/operations/{0}/@state".format(op1)) == "running"
+        assert get("//sys/operations/{0}/@state".format(op2)) == "pending"
+
+        track_op(op1)
+        track_op(op2)
+
 
 class TestSchedulingTags(YTEnvSetup):
     NUM_MASTERS = 3

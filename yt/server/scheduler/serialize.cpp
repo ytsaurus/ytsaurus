@@ -8,12 +8,12 @@ namespace NScheduler {
 
 int GetCurrentSnapshotVersion()
 {
-    return 20;
+    return 21;
 }
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version == 20;
+    return version == 21;
 }
 
 ////////////////////////////////////////////////////////////////////

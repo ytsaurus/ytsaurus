@@ -1116,7 +1116,11 @@ private:
             throw TFiberCanceledException();
         }
 
-        operation->SetState(EOperationState::Running);
+        if (operation->GetEnqueued()) {
+            operation->SetState(EOperationState::Pending);
+        } else {
+            operation->SetState(EOperationState::Running);
+        }
 
         LOG_INFO("Operation has been prepared and is now running (OperationId: %v)",
             operationId);
@@ -1227,7 +1231,11 @@ private:
         // Discard the snapshot, if any.
         operation->Snapshot().Reset();
 
-        operation->SetState(EOperationState::Running);
+        if (operation->GetEnqueued()) {
+            operation->SetState(EOperationState::Pending);
+        } else {
+            operation->SetState(EOperationState::Running);
+        }
 
         LOG_INFO("Operation has been revived and is now running (OperationId: %v)",
             operation->GetId());
