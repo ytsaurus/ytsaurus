@@ -26,13 +26,6 @@ DECLARE_REFCOUNTED_CLASS(TCheckpointer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A sentinel value indicating that the number of records in the previous
-//! changelog is undetermined since there is no previous changelog.
-const int NonexistingPrevRecordCount = -1;
-
-//! A special value representing an invalid snapshot (or changelog) id.
-const int NonexistingSegmentId = -1;
-
 extern const Stroka SnapshotExtension;
 extern const Stroka ChangelogExtension;
 extern const Stroka ChangelogIndexSuffix;

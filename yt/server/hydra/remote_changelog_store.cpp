@@ -213,7 +213,7 @@ private:
             LOG_DEBUG("Changelog list received");
 
             auto keys = ConvertTo<std::vector<Stroka>>(result);
-            int latestId = NonexistingSegmentId;
+            int latestId = InvalidSegmentId;
             yhash_set<int> ids;
 
             for (const auto& key : keys) {
@@ -227,12 +227,12 @@ private:
                     continue;
                 }
                 YCHECK(ids.insert(id).second);
-                if (id >= initialId && (id > latestId || latestId == NonexistingSegmentId)) {
+                if (id >= initialId && (id > latestId || latestId == InvalidSegmentId)) {
                     latestId = id;
                 }
             }
 
-            if (latestId != NonexistingSegmentId) {
+            if (latestId != InvalidSegmentId) {
                 for (int id = initialId; id <= latestId; ++id) {
                     if (ids.find(id) == ids.end()) {
                         THROW_ERROR_EXCEPTION("Interim changelog %v is missing",

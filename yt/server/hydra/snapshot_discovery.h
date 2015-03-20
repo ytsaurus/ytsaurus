@@ -23,7 +23,7 @@ struct TRemoteSnapshotParams
 
 //! Looks for the latest snapshot within the cell up to a given id.
 /*!
- *  If none are found, then |NonexistingSegmentId| is returned in the info.
+ *  If none are found, then |InvalidSegmentId| is returned in the info.
  */
 TFuture<TRemoteSnapshotParams> DiscoverLatestSnapshot(
     TDistributedHydraManagerConfigPtr config,
@@ -32,7 +32,7 @@ TFuture<TRemoteSnapshotParams> DiscoverLatestSnapshot(
 
 //! Looks for a particular snapshot within the cell.
 /*!
- *  If the snapshot is not found, then |NonexistingSegmentId| is returned in the info.
+ *  If the snapshot is not found, then |InvalidSegmentId| is returned in the info.
  */
 TFuture<TRemoteSnapshotParams> DiscoverSnapshot(
     TDistributedHydraManagerConfigPtr config,

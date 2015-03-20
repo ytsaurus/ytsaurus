@@ -105,7 +105,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         targetVersion);
 
     int initialChangelogId;
-    if (snapshotId != NonexistingSegmentId && snapshotId > currentVersion.SegmentId) {
+    if (snapshotId != InvalidSegmentId && snapshotId > currentVersion.SegmentId) {
         // Load the snapshot.
         LOG_INFO("Using snapshot %v for recovery", snapshotId);
 
