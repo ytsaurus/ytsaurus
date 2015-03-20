@@ -27,6 +27,12 @@ def main():
                 sys.exit(1)
             raise
 
+        def handler():
+            tx.__exit__(None, None, None)
+            sys.exit(1)
+
+        signal.signal(signal.SIGTERM, lambda signum, frame: handler())
+
         ctypes.cdll.LoadLibrary("libc.so.6")
         libc = ctypes.CDLL('libc.so.6')
         PR_SET_PDEATHSIG = 1
