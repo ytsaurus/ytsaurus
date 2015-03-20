@@ -27,7 +27,6 @@
 #include <core/profiling/profile_manager.h>
 
 #include <ytlib/monitoring/monitoring_manager.h>
-#include <ytlib/monitoring/http_server.h>
 #include <ytlib/monitoring/http_integration.h>
 
 #include <ytlib/orchid/orchid_service.h>
@@ -124,8 +123,8 @@ static const auto& Logger = CellMasterLogger;
 TBootstrap::TBootstrap(
     const Stroka& configFileName,
     TCellMasterConfigPtr config)
-    : ConfigFileName(configFileName)
-    , Config(config)
+    : ConfigFileName_(configFileName)
+    , Config_(config)
 { }
 
 // Neither remove it nor move it to the header.
@@ -134,122 +133,140 @@ TBootstrap::~TBootstrap()
 
 const TCellId& TBootstrap::GetCellId() const
 {
-    return Config->Master->CellId;
+    return Config_->Master->CellId;
 }
 
 TCellTag TBootstrap::GetCellTag() const
 {
-    return Config->Master->CellTag;
+    return Config_->Master->CellTag;
 }
 
 TCellMasterConfigPtr TBootstrap::GetConfig() const
 {
-    return Config;
+    return Config_;
 }
 
 IServerPtr TBootstrap::GetRpcServer() const
 {
-    return RpcServer;
+    return RpcServer_;
 }
 
 TCellManagerPtr TBootstrap::GetCellManager() const
 {
-    return CellManager;
+    return CellManager_;
 }
 
 IChangelogStorePtr TBootstrap::GetChangelogStore() const
 {
-    return ChangelogStore;
+    return ChangelogStore_;
 }
 
 ISnapshotStorePtr TBootstrap::GetSnapshotStore() const
 {
-    return SnapshotStore;
+    return SnapshotStore_;
 }
 
 TNodeTrackerPtr TBootstrap::GetNodeTracker() const
 {
-    return NodeTracker;
+    return NodeTracker_;
 }
 
 TTransactionManagerPtr TBootstrap::GetTransactionManager() const
 {
-    return TransactionManager;
+    return TransactionManager_;
 }
 
 TTransactionSupervisorPtr TBootstrap::GetTransactionSupervisor() const
 {
-    return TransactionSupervisor;
+    return TransactionSupervisor_;
 }
 
 TCypressManagerPtr TBootstrap::GetCypressManager() const
 {
-    return CypressManager;
+    return CypressManager_;
 }
 
 THydraFacadePtr TBootstrap::GetHydraFacade() const
 {
-    return HydraFacade;
+    return HydraFacade_;
 }
 
 TWorldInitializerPtr TBootstrap::GetWorldInitializer() const
 {
-    return WorldInitializer;
+    return WorldInitializer_;
 }
 
 TObjectManagerPtr TBootstrap::GetObjectManager() const
 {
-    return ObjectManager;
+    return ObjectManager_;
 }
 
 TChunkManagerPtr TBootstrap::GetChunkManager() const
 {
-    return ChunkManager;
+    return ChunkManager_;
 }
 
 TSecurityManagerPtr TBootstrap::GetSecurityManager() const
 {
-    return SecurityManager;
+    return SecurityManager_;
 }
 
 TTabletManagerPtr TBootstrap::GetTabletManager() const
 {
-    return TabletManager;
+    return TabletManager_;
 }
 
 THiveManagerPtr TBootstrap::GetHiveManager() const
 {
-    return HiveManager;
+    return HiveManager_;
 }
 
 TCellDirectoryPtr TBootstrap::GetCellDirectory() const
 {
-    return CellDirectory;
+    return CellDirectory_;
 }
 
 IInvokerPtr TBootstrap::GetControlInvoker() const
 {
-    return ControlQueue->GetInvoker();
+    return ControlQueue_->GetInvoker();
+}
+
+void TBootstrap::Initialize()
+{
+    srand(time(nullptr));
+
+    ControlQueue_ = New<TActionQueue>("Control");
+
+    BIND(&TBootstrap::DoInitialize, this)
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get()
+        .ThrowOnError();
 }
 
 void TBootstrap::Run()
 {
-    srand(time(nullptr));
-
-    ControlQueue = New<TActionQueue>("Control");
-
-    auto result = BIND(&TBootstrap::DoRun, this)
+    BIND(&TBootstrap::DoRun, this)
         .AsyncVia(GetControlInvoker())
         .Run()
-        .Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
-
+        .Get()
+        .ThrowOnError();
     Sleep(TDuration::Max());
 }
 
-void TBootstrap::DoRun()
+void TBootstrap::LoadSnapshot(const Stroka& fileName)
 {
-    LOG_INFO("Starting cell master (CellId: %v, CellTag: %v)",
+    BIND(&TBootstrap::DoLoadSnapshot, this, fileName)
+        .AsyncVia(HydraFacade_->GetAutomatonInvoker())
+        .Run()
+        .Get()
+        .ThrowOnError();
+    _exit(0);
+}
+
+void TBootstrap::DoInitialize()
+{
+    LOG_INFO("Initializing cell master (CellId: %v, CellTag: %v)",
         GetCellId(),
         GetCellTag());
 
@@ -261,20 +278,20 @@ void TBootstrap::DoRun()
         LOG_ERROR("No custom cell tag is set, cluster can only be used for testing purposes");
     }
 
-    Config->Master->ValidateAllPeersPresent();
+    Config_->Master->ValidateAllPeersPresent();
 
-    HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
+    HttpServer_.reset(new NHttp::TServer(Config_->MonitoringPort));
 
-    auto busServerConfig = TTcpBusServerConfig::CreateTcp(Config->RpcPort);
+    auto busServerConfig = TTcpBusServerConfig::CreateTcp(Config_->RpcPort);
     auto busServer = CreateTcpBusServer(busServerConfig);
 
-    RpcServer = CreateBusServer(busServer);
+    RpcServer_ = CreateBusServer(busServer);
 
     auto selfAddress = BuildServiceAddress(
         TAddressResolver::Get()->GetLocalHostName(),
-        Config->RpcPort);
+        Config_->RpcPort);
 
-    const auto& addresses = Config->Master->Addresses;
+    const auto& addresses = Config_->Master->Addresses;
 
     auto selfId = std::distance(
         addresses.begin(),
@@ -285,99 +302,99 @@ void TBootstrap::DoRun()
             selfAddress);
     }
 
-    CellManager = New<TCellManager>(
-        Config->Master,
+    CellManager_ = New<TCellManager>(
+        Config_->Master,
         GetBusChannelFactory(),
         selfId);
 
-    ChangelogStore = CreateLocalChangelogStore(
+    ChangelogStore_ = CreateLocalChangelogStore(
         "ChangelogFlush",
-        Config->Changelogs);
+        Config_->Changelogs);
 
     auto fileSnapshotStore = New<TFileSnapshotStore>(
-        Config->Snapshots);
+        Config_->Snapshots);
 
-    SnapshotStore = CreateLocalSnapshotStore(
-        Config->HydraManager,
-        CellManager,
+    SnapshotStore_ = CreateLocalSnapshotStore(
+        Config_->HydraManager,
+        CellManager_,
         fileSnapshotStore);
 
-    HydraFacade = New<THydraFacade>(Config, this);
+    HydraFacade_ = New<THydraFacade>(Config_, this);
 
-    WorldInitializer = New<TWorldInitializer>(Config, this);
+    WorldInitializer_ = New<TWorldInitializer>(Config_, this);
 
-    CellDirectory = New<TCellDirectory>(
-        Config->CellDirectory,
+    CellDirectory_ = New<TCellDirectory>(
+        Config_->CellDirectory,
         GetBusChannelFactory());
-    CellDirectory->RegisterCell(Config->Master);
+    CellDirectory_->RegisterCell(Config_->Master);
 
-    HiveManager = New<THiveManager>(
-        Config->HiveManager,
-        CellDirectory,
+    HiveManager_ = New<THiveManager>(
+        Config_->HiveManager,
+        CellDirectory_,
         GetCellId(),
-        HydraFacade->GetAutomatonInvoker(),
-        HydraFacade->GetHydraManager(),
-        HydraFacade->GetAutomaton());
+        HydraFacade_->GetAutomatonInvoker(),
+        HydraFacade_->GetHydraManager(),
+        HydraFacade_->GetAutomaton());
 
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
-    ObjectManager = New<TObjectManager>(Config->ObjectManager, this);
+    ObjectManager_ = New<TObjectManager>(Config_->ObjectManager, this);
 
-    SecurityManager = New<TSecurityManager>(Config->SecurityManager, this);
+    SecurityManager_ = New<TSecurityManager>(Config_->SecurityManager, this);
 
-    NodeTracker = New<TNodeTracker>(Config->NodeTracker, this);
+    NodeTracker_ = New<TNodeTracker>(Config_->NodeTracker, this);
 
-    TransactionManager = New<TTransactionManager>(Config->TransactionManager, this);
+    TransactionManager_ = New<TTransactionManager>(Config_->TransactionManager, this);
 
-    CypressManager = New<TCypressManager>(Config->CypressManager, this);
+    CypressManager_ = New<TCypressManager>(Config_->CypressManager, this);
 
-    ChunkManager = New<TChunkManager>(Config->ChunkManager, this);
+    ChunkManager_ = New<TChunkManager>(Config_->ChunkManager, this);
 
-    TabletManager = New<TTabletManager>(Config->TabletManager, this);
+    TabletManager_ = New<TTabletManager>(Config_->TabletManager, this);
 
     auto timestampManager = New<TTimestampManager>(
-        Config->TimestampManager,
-        HydraFacade->GetAutomatonInvoker(),
-        HydraFacade->GetHydraManager(),
-        HydraFacade->GetAutomaton());
+        Config_->TimestampManager,
+        HydraFacade_->GetAutomatonInvoker(),
+        HydraFacade_->GetHydraManager(),
+        HydraFacade_->GetAutomaton());
 
     auto timestampProvider = CreateRemoteTimestampProvider(
-        Config->TimestampProvider,
+        Config_->TimestampProvider,
         GetBusChannelFactory());
 
-    TransactionSupervisor = New<TTransactionSupervisor>(
-        Config->TransactionSupervisor,
-        HydraFacade->GetAutomatonInvoker(),
-        HydraFacade->GetHydraManager(),
-        HydraFacade->GetAutomaton(),
-        HydraFacade->GetResponseKeeper(),
-        HiveManager,
-        TransactionManager,
+    TransactionSupervisor_ = New<TTransactionSupervisor>(
+        Config_->TransactionSupervisor,
+        HydraFacade_->GetAutomatonInvoker(),
+        HydraFacade_->GetHydraManager(),
+        HydraFacade_->GetAutomaton(),
+        HydraFacade_->GetResponseKeeper(),
+        HiveManager_,
+        TransactionManager_,
         timestampProvider);
 
     fileSnapshotStore->Initialize();
-    ObjectManager->Initialize();
-    SecurityManager->Initialize();
-    NodeTracker->Initialize();
-    TransactionManager->Initialize();
-    CypressManager->Initialize();
-    ChunkManager->Initialize();
-    TabletManager->Initialize();
+    ObjectManager_->Initialize();
+    SecurityManager_->Initialize();
+    NodeTracker_->Initialize();
+    TransactionManager_->Initialize();
+    CypressManager_->Initialize();
+    ChunkManager_->Initialize();
+    TabletManager_->Initialize();
 
-    auto monitoringManager = New<TMonitoringManager>();
-    monitoringManager->Register(
+    MonitoringManager_ = New<TMonitoringManager>();
+    MonitoringManager_->Register(
         "/ref_counted",
         TRefCountedTracker::Get()->GetMonitoringProducer());
-    monitoringManager->Register(
+    MonitoringManager_->Register(
         "/hydra",
-        HydraFacade->GetHydraManager()->GetMonitoringProducer());
+        HydraFacade_->GetHydraManager()->GetMonitoringProducer());
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
     SetNodeByYPath(
         orchidRoot,
         "/monitoring",
-        CreateVirtualNode(monitoringManager->GetService()));
+        CreateVirtualNode(MonitoringManager_->GetService()));
     SetNodeByYPath(
         orchidRoot,
         "/profiling",
@@ -385,60 +402,70 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        CreateVirtualNode(CreateYsonFileService(ConfigFileName)));
+        CreateVirtualNode(CreateYsonFileService(ConfigFileName_)));
 
     SetBuildAttributes(orchidRoot, "master");
 
-    RpcServer->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker())); // null realm
-    RpcServer->RegisterService(timestampManager->GetRpcService()); // null realm
-    RpcServer->RegisterService(HiveManager->GetRpcService()); // cell realm
-    RpcServer->RegisterService(TransactionSupervisor->GetRpcService()); // cell realm
-    RpcServer->RegisterService(New<TLocalSnapshotService>(GetCellId(), fileSnapshotStore)); // cell realm
-    RpcServer->RegisterService(CreateNodeTrackerService(Config->NodeTracker, this)); // master hydra service
-    RpcServer->RegisterService(CreateObjectService(this)); // master hydra service
-    RpcServer->RegisterService(CreateJobTrackerService(this)); // master hydra service
-    RpcServer->RegisterService(CreateChunkService(this)); // master hydra service
+    RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker())); // null realm
+    RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
+    RpcServer_->RegisterService(HiveManager_->GetRpcService()); // cell realm
+    RpcServer_->RegisterService(TransactionSupervisor_->GetRpcService()); // cell realm
+    RpcServer_->RegisterService(New<TLocalSnapshotService>(GetCellId(), fileSnapshotStore)); // cell realm
+    RpcServer_->RegisterService(CreateNodeTrackerService(Config_->NodeTracker, this)); // master hydra service
+    RpcServer_->RegisterService(CreateObjectService(this)); // master hydra service
+    RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service
+    RpcServer_->RegisterService(CreateChunkService(this)); // master hydra service
 
-    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
-    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostChunkMap));
-    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostVitalChunkMap));
-    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnderreplicatedChunkMap));
-    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::OverreplicatedChunkMap));
-    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::DataMissingChunkMap));
-    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ParityMissingChunkMap));
-    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::QuorumMissingChunkMap));
-    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnsafelyPlacedChunkMap));
-    CypressManager->RegisterHandler(CreateChunkListMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateTopmostTransactionMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateLockMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateOrchidTypeHandler(this));
-    CypressManager->RegisterHandler(CreateCellNodeTypeHandler(this));
-    CypressManager->RegisterHandler(CreateCellNodeMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateRackMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateFileTypeHandler(this));
-    CypressManager->RegisterHandler(CreateTableTypeHandler(this));
-    CypressManager->RegisterHandler(CreateJournalTypeHandler(this));
-    CypressManager->RegisterHandler(CreateAccountMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateUserMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateGroupMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
-    CypressManager->RegisterHandler(CreateTabletMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostVitalChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnderreplicatedChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::OverreplicatedChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::DataMissingChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ParityMissingChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::QuorumMissingChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnsafelyPlacedChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkListMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateTransactionMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateTopmostTransactionMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateLockMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateOrchidTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateCellNodeTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateCellNodeMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateRackMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateFileTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateTableTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateJournalTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateAccountMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateUserMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateGroupMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
 
-    HydraFacade->Start();
-
-    monitoringManager->Start();
-
-    HttpServer->Register(
+    HttpServer_->Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
-    LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
-    HttpServer->Start();
+    RpcServer_->Configure(Config_->RpcServer);
+}
 
-    LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
-    RpcServer->Configure(Config->RpcServer);
-    RpcServer->Start();
+void TBootstrap::DoRun()
+{
+    HydraFacade_->Start();
+
+    MonitoringManager_->Start();
+
+    LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+    HttpServer_->Start();
+
+    LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    RpcServer_->Start();
+}
+
+void TBootstrap::DoLoadSnapshot(const Stroka& fileName)
+{
+    auto reader = CreateFileSnapshotReader(fileName, InvalidSegmentId, false);
+    HydraFacade_->LoadSnapshot(reader);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

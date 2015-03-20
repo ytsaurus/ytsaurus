@@ -19,6 +19,11 @@
 
 #include <ytlib/chunk_client/dispatcher.h>
 
+#include <ytlib/monitoring/monitoring_manager.h>
+#include <ytlib/monitoring/http_server.h>
+
+#include <ytlib/cgroup/cgroup.h>
+
 #include <core/misc/crash_handler.h>
 #include <core/misc/proc.h>
 
@@ -38,8 +43,6 @@
 
 #ifdef _linux_
     #include <sys/resource.h>
-
-    #include <ytlib/cgroup/cgroup.h>
 #endif
 
 namespace NYT {
@@ -73,8 +76,9 @@ public:
         , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
         , Config("", "config", "configuration file", false, "", "FILE")
         , ConfigTemplate("", "config-template", "print configuration file template")
-        , CellNode("", "node", "start cell node")
-        , CellMaster("", "master", "start cell master")
+        , Node("", "node", "start cell node")
+        , Master("", "master", "start cell master")
+        , DumpMasterSnapshot("", "dump-master-snapshot", "load a given master snapshot and dump its content to stderr", false, "", "FILE")
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
@@ -97,8 +101,11 @@ public:
         CmdLine.add(WorkingDirectory);
         CmdLine.add(Config);
         CmdLine.add(ConfigTemplate);
-        CmdLine.add(CellNode);
-        CmdLine.add(CellMaster);
+        CmdLine.add(Node);
+        CmdLine.add(Master);
+#ifdef YT_ENABLE_SERIALIZATION_DUMP
+        CmdLine.add(DumpMasterSnapshot);
+#endif
         CmdLine.add(Scheduler);
         CmdLine.add(JobProxy);
         CmdLine.add(JobId);
@@ -124,8 +131,9 @@ public:
     TCLAP::ValueArg<Stroka> WorkingDirectory;
     TCLAP::ValueArg<Stroka> Config;
     TCLAP::SwitchArg ConfigTemplate;
-    TCLAP::SwitchArg CellNode;
-    TCLAP::SwitchArg CellMaster;
+    TCLAP::SwitchArg Node;
+    TCLAP::SwitchArg Master;
+    TCLAP::ValueArg<Stroka> DumpMasterSnapshot;
     TCLAP::SwitchArg Scheduler;
     TCLAP::SwitchArg JobProxy;
     TCLAP::ValueArg<Stroka> JobId;
@@ -161,8 +169,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
     parser.CmdLine.parse(argc, argv);
 
     // Figure out the mode: cell master, cell node, scheduler or job proxy.
-    bool isCellMaster = parser.CellMaster.getValue();
-    bool isCellNode = parser.CellNode.getValue();
+    bool isMaster = parser.Master.getValue();
+    bool isMasterSnapshotDump =  parser.DumpMasterSnapshot.isSet();
+    bool isNode = parser.Node.getValue();
     bool isScheduler = parser.Scheduler.getValue();
     bool isJobProxy = parser.JobProxy.getValue();
 
@@ -181,10 +190,13 @@ EExitCode GuardedMain(int argc, const char* argv[])
     Stroka workingDirectory = parser.WorkingDirectory.getValue();
 
     int modeCount = 0;
-    if (isCellNode) {
+    if (isNode) {
         ++modeCount;
     }
-    if (isCellMaster) {
+    if (isMaster) {
+        ++modeCount;
+    }
+    if (isMasterSnapshotDump) {
         ++modeCount;
     }
     if (isScheduler) {
@@ -328,7 +340,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
 #ifdef _linux_
     bool enableCGroups = true;
-    if (isCellNode) {
+    if (isNode) {
         auto config = New<NCellNode::TCellNodeConfig>();
 
         try {
@@ -393,7 +405,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 #endif
 
     // Start an appropriate server.
-    if (isCellNode) {
+    if (isNode) {
         NConcurrency::SetCurrentThreadName("NodeMain");
 
         auto config = New<NCellNode::TCellNodeConfig>();
@@ -417,7 +429,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         bootstrap->Run();
     }
 
-    if (isCellMaster) {
+    if (isMaster || isMasterSnapshotDump) {
         NConcurrency::SetCurrentThreadName("MasterMain");
 
         auto config = New<NCellMaster::TCellMasterConfig>();
@@ -438,7 +450,14 @@ EExitCode GuardedMain(int argc, const char* argv[])
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
         auto* bootstrap = new NCellMaster::TBootstrap(configFileName, config);
-        bootstrap->Run();
+        bootstrap->Initialize();
+        if (isMaster) {
+            bootstrap->Run();
+        } else if (isMasterSnapshotDump) {
+            bootstrap->LoadSnapshot(parser.DumpMasterSnapshot.getValue());
+        } else {
+            YUNREACHABLE();
+        }
     }
 
     if (isScheduler) {
