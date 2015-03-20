@@ -271,6 +271,11 @@ DECLARE_REFCOUNTED_STRUCT(ISchemaProxy)
 struct ISchemaProxy
     : public TIntrinsicRefCounted
 {
+    TTableSchema* TableSchema;
+
+    explicit ISchemaProxy(TTableSchema* tableSchema)
+        : TableSchema(tableSchema)
+    { }
 
     // NOTE: result must be used before next call
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) = 0;
@@ -284,6 +289,9 @@ struct ISchemaProxy
             "Misuse of aggregate function %v",
             aggregateFunction);
     }
+
+    virtual void Finish()
+    { }
 
     static const TColumnSchema* AddColumn(TTableSchema* tableSchema, const TColumnSchema& column)
     {
@@ -520,19 +528,18 @@ DEFINE_REFCOUNTED_TYPE(ISchemaProxy)
 struct TSimpleSchemaProxy
     : public ISchemaProxy
 {
-    TTableSchema* TableSchema;
     TNullable<TTableSchema> SourceTableSchema;
 
     explicit TSimpleSchemaProxy(
         TTableSchema* tableSchema)
-        : TableSchema(tableSchema)
+        : ISchemaProxy(tableSchema)
     { }
     
     TSimpleSchemaProxy(
         TTableSchema* tableSchema,
         const TTableSchema& sourceTableSchema,
         size_t keyColumnCount = 0)
-        : TableSchema(tableSchema)
+        : ISchemaProxy(tableSchema)
         , SourceTableSchema(sourceTableSchema)
     {
         const auto& columns = sourceTableSchema.Columns();
@@ -542,6 +549,16 @@ struct TSimpleSchemaProxy
         }
     }
 
+    virtual void Finish()
+    {
+        if (SourceTableSchema) {
+            for (const auto& column : SourceTableSchema->Columns()) {
+                if (!TableSchema->FindColumn(column.Name)) {
+                    AddColumn(TableSchema, column);
+                }
+            }
+        }
+    }
 
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
     {
@@ -559,7 +576,6 @@ struct TSimpleSchemaProxy
 struct TJoinSchemaProxy
     : public ISchemaProxy
 {
-    TTableSchema* TableSchema;
     ISchemaProxyPtr Self;
     ISchemaProxyPtr Foreign;
 
@@ -567,10 +583,28 @@ struct TJoinSchemaProxy
         TTableSchema* tableSchema,
         ISchemaProxyPtr self,
         ISchemaProxyPtr foreign)
-        : TableSchema(tableSchema)
+        : ISchemaProxy(tableSchema)
         , Self(self)
         , Foreign(foreign)
     { }
+
+    virtual void Finish()
+    {
+        Self->Finish();
+        Foreign->Finish();
+
+        for (const auto& column : Self->TableSchema->Columns()) {
+            if (!TableSchema->FindColumn(column.Name)) {
+                AddColumn(TableSchema, column);
+            }
+        }
+
+        for (const auto& column : Foreign->TableSchema->Columns()) {
+            if (!TableSchema->FindColumn(column.Name)) {
+                AddColumn(TableSchema, column);
+            }
+        }
+    }
 
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
     {
@@ -596,17 +630,14 @@ struct TJoinSchemaProxy
 struct TGroupSchemaProxy
     : public ISchemaProxy
 {
-    TTableSchema* TableSchema;
     ISchemaProxyPtr Base;
     TAggregateItemList* AggregateItems;
-
-    std::map<Stroka, size_t> SubexprNames;
 
     TGroupSchemaProxy(
         TTableSchema* tableSchema,
         ISchemaProxyPtr base,
         TAggregateItemList* aggregateItems)
-        : TableSchema(tableSchema)
+        : ISchemaProxy(tableSchema)
         , Base(base)
         , AggregateItems(aggregateItems)
     { }
@@ -622,8 +653,9 @@ struct TGroupSchemaProxy
         Stroka subexprName,
         Stroka source)
     {
-        auto emplaced = SubexprNames.emplace(subexprName, AggregateItems->size());
-        if (emplaced.second) {
+        const TColumnSchema* aggregateColumn = TableSchema->FindColumn(subexprName);
+
+        if (!aggregateColumn) {
             auto typedOperands = Base->BuildTypedExpression(
                 arguments,
                 source);
@@ -640,12 +672,9 @@ struct TGroupSchemaProxy
                 typedOperands.front(),
                 aggregateFunction,
                 subexprName);
+
+            aggregateColumn = AddColumn(TableSchema, TColumnSchema(subexprName, typedOperands.front()->Type));
         }
-
-
-        const TColumnSchema* aggregateColumn = AddColumn(
-            TableSchema,
-            TColumnSchema(subexprName, (*AggregateItems)[emplaced.first->second].Expression->Type));
 
         return aggregateColumn;
     }
@@ -760,6 +789,8 @@ TQueryPtr PrepareQuery(
         query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy);
     }
 
+    schemaProxy->Finish();
+
     return query;
 }
 
@@ -873,6 +904,8 @@ TPlanFragmentPtr PreparePlanFragment(
     if (ast.SelectExprs) {
         query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy);
     }
+
+    schemaProxy->Finish();
 
     auto planFragment = New<TPlanFragment>(source);
     planFragment->NodeDirectory = New<TNodeDirectory>();
@@ -1197,11 +1230,11 @@ TGroupClausePtr FromProto(const NProto::TGroupClause& serialized)
     auto result = New<TGroupClause>();
     result->GroupItems.reserve(serialized.group_items_size());
     for (int i = 0; i < serialized.group_items_size(); ++i) {
-        result->GroupItems.push_back(FromProto(serialized.group_items(i)));
+        result->AddGroupItem(FromProto(serialized.group_items(i)));
     }
     result->AggregateItems.reserve(serialized.aggregate_items_size());
     for (int i = 0; i < serialized.aggregate_items_size(); ++i) {
-        result->AggregateItems.push_back(FromProto(serialized.aggregate_items(i)));
+        result->AddAggregateItem(FromProto(serialized.aggregate_items(i)));
     }
 
     return result;
@@ -1213,7 +1246,7 @@ TProjectClausePtr FromProto(const NProto::TProjectClause& serialized)
 
     result->Projections.reserve(serialized.projections_size());
     for (int i = 0; i < serialized.projections_size(); ++i) {
-        result->Projections.push_back(FromProto(serialized.projections(i)));
+        result->AddProjection(FromProto(serialized.projections(i)));
     }
 
     return result;
