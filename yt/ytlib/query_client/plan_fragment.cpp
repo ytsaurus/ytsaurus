@@ -439,6 +439,32 @@ static std::vector<TConstExpressionPtr> BuildTypedExpression(
             auto typedOperandExpr = buildTypedExpression(tableSchema, unaryExpr->Operand.Get(), groupProxy);
 
             for (const auto& operand : typedOperandExpr) {
+                if (auto literalExpr = operand->As<TLiteralExpression>()) {
+                    if (unaryExpr->Opcode == EUnaryOp::Plus) {
+                        result.push_back(literalExpr);
+                        continue;
+                    } else if (unaryExpr->Opcode == EUnaryOp::Minus) {
+                        TUnversionedValue value = literalExpr->Value;
+                        switch (value.Type) {
+                            case EValueType::Int64:
+                                value.Data.Int64 = -value.Data.Int64;
+                                break;
+                            case EValueType::Uint64:
+                                value.Data.Uint64 = -value.Data.Uint64;
+                                break;
+                            case EValueType::Double:
+                                value.Data.Double = -value.Data.Double;
+                                break;
+                            default:
+                                YUNREACHABLE();
+                        }
+                        result.push_back(New<TLiteralExpression>(
+                            literalExpr->SourceLocation,
+                            EValueType(value.Type),
+                            value));
+                        continue;
+                    }
+                }
                 result.push_back(New<TUnaryOpExpression>(
                     unaryExpr->SourceLocation,
                     InferUnaryExprType(

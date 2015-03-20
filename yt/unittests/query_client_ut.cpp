@@ -1160,6 +1160,21 @@ TEST_F(TRefineKeyRangeTest, Range1)
     EXPECT_EQ(BuildKey("100"), result.second);
 }
 
+TEST_F(TRefineKeyRangeTest, NegativeRange1)
+{
+    auto expr = PrepareExpression("k > -100 and (k) <= -(-1)", GetSampleTableSchema());
+
+    TKeyColumns keyColumns;
+    keyColumns.push_back("k");
+    auto result = RefineKeyRange(
+        keyColumns,
+        std::make_pair(BuildKey(""), BuildKey("1000000000")),
+        expr);
+
+    EXPECT_EQ(BuildKey("-100;" _MAX_), result.first);
+    EXPECT_EQ(BuildKey("1;" _MAX_), result.second);
+}
+
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 {
     auto expr = PrepareExpression("k >= 10 and k < 90", GetSampleTableSchema());
