@@ -178,6 +178,8 @@ private:
     TDynamicData* AllocateDynamicData();
     void FreeDynamicData(TDynamicData* data);
 
+    void DoClear();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
