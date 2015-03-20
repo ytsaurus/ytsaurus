@@ -22,6 +22,7 @@ OUTPUT_ROW_LIMIT = 100000000
 # Mapper job options.
 JOB_COUNT = 20
 JOB_MEMORY_LIMIT = "2GB"
+MAX_FAILDED_JOB_COUNT = 10
 
 # Simple transformation class - just copy everything.
 class Copy:
@@ -105,7 +106,7 @@ def regions_mapper(r):
     config = yson.load(f)
 
     # Get something like ((key1, key2, key3), (bound1, bound2, bound3)) from a bound.
-    get_bound_value = lambda bound : ",".join(['"' + x + '"' if isinstance(x, str) else str(x) for x in bound])
+    get_bound_value = lambda bound : ",".join([yson.dumps(x, yson_format="text") for x in bound])
     get_bound_key = lambda width : ",".join([str(x) for x in config["key_columns"][:width]])
     expand_bound = lambda bound : (get_bound_key(len(bound)), get_bound_value(bound))
 
@@ -113,7 +114,7 @@ def regions_mapper(r):
     def query(left, right):
         left = "(%s) >= (%s)" % expand_bound(left) if left != None else None
         right = "(%s) < (%s)" % expand_bound(right) if right != None else None
-        bounds = [x for x in [left, right] if x is not None]
+        bounds = [x for x in [left, right, config.get("select_where")] if x is not None]
         where = (" where " + " and ".join(bounds)) if len(bounds) > 0 else ""
         query = "* from [%s]%s" % (config["source"], where)
         return sp.check_output(["yt", "select_rows", "--output_row_limit", str(config["output_row_limit"]),"--format", "<format=text>yson",  query]) 
@@ -145,9 +146,11 @@ if __name__ == "__main__":
     parser.add_argument("--force", action="store_true", help="Overwrite destination table if it exists")
     parser.add_argument("--proxy", type=yt.config.set_proxy, help="YT proxy")
     parser.add_argument("--job_count", type=int, default=JOB_COUNT, help="Numbser of jobs in copy task")
+    parser.add_argument("--max_failed_job_count", type=int, default=MAX_FAILDED_JOB_COUNT, help="Maximum number of failed jobs")
     parser.add_argument("--memory_limit", type=parse_size, default=JOB_MEMORY_LIMIT, help="Memory limit for a copy task")
     parser.add_argument("--insert_size", type=int, default=MAX_ROWS_PER_INSERT, help="Number of rows passed to 'yt insert' call")
     parser.add_argument("--output_row_limit", type=int, default=OUTPUT_ROW_LIMIT, help="Limit the output of 'yt select' call")
+    parser.add_argument("--where", type=str, help="Additional predicate for 'yt select'")
     args = parser.parse_args()
 
     src = args.input
@@ -158,6 +161,10 @@ if __name__ == "__main__":
             yt.remove(dst)
         else:
             raise Exception("Destination table exists. Use --force")
+
+    yt.mount_table(src)
+    while not all(x["state"] == "mounted" for x in yt.get(src + "/@tablets")):
+        sleep(1)
 
     tablets = yt.get(src + "/@tablets")
 
@@ -181,7 +188,7 @@ if __name__ == "__main__":
     else:
         tablets_table = yt.create_temp_table()
         partitions_table = yt.create_temp_table()
-        yt.write_table(tablets_table, tablets, format=yt.JsonFormat(), raw=False)
+        yt.write_table(tablets_table, tablets, format=yt.YsonFormat(format="text"), raw=False)
         try:
             yt.run_map(
                 tablets_mapper,
@@ -192,7 +199,7 @@ if __name__ == "__main__":
         except YtError as e:
             print yt.errors.format_error(e)
             raise e
-        partition_keys = yt.read_table(partitions_table, format=yt.JsonFormat(), raw=False)
+        partition_keys = yt.read_table(partitions_table, format=yt.YsonFormat(format="text"), raw=False)
         partition_keys = [p["pivot_key"] for p in partition_keys]
         yt.remove(tablets_table)   
         yt.remove(partitions_table)
@@ -209,7 +216,7 @@ if __name__ == "__main__":
     yt.write_table(
         regions_table,
         regions,
-        format=yt.JsonFormat(), raw=False)
+        format=yt.YsonFormat(format="text"), raw=False)
 
     schema = yt.get(src + "/@schema")
     key_columns = yt.get(src + "/@key_columns")
@@ -221,10 +228,12 @@ if __name__ == "__main__":
         "destination": dst,
         "rows_per_insert": args.insert_size,
         "output_row_limit": args.output_row_limit}
+    if (args.where): config["select_where"] = args.where
     with open(CONFIG_FILE_NAME, "w") as config_file: config_file.write(yson.dumps(config))
     
     # Copy tablet pivot keys from source table.
     pivot_keys = sorted([tablet["pivot_key"] for tablet in tablets])
+    #if len(pivot_keys) > 1 and pivot_keys[1][0] == -2**63: pivot_keys = pivot_keys[0] + pivot_keys[2:]
 
     # Create destination table.
     yt.create_table(dst)
@@ -243,7 +252,7 @@ if __name__ == "__main__":
             out_regions_table,
             spec={
                 "job_count": args.job_count,
-                "max_failed_job_count": 10,
+                "max_failed_job_count": args.max_failed_job_count,
                 "job_proxy_memory_control": False,
                 "mapper": { "memory_limit": args.memory_limit }},
             format=yt.YsonFormat(format="text"),
