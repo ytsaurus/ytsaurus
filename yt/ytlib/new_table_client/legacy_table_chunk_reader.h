@@ -6,6 +6,8 @@
 
 #include <core/logging/log.h>
 
+#include <core/yson/lexer.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -93,6 +95,8 @@ private:
     int UnfetchedChannelIndex_ = -1;
 
     std::vector<TLegacyChannelReaderPtr> ChannelReaders_;
+
+    NYson::TStatelessLexer Lexer_;
 
     NLogging::TLogger Logger;
 };

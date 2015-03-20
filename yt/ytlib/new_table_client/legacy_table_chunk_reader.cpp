@@ -30,10 +30,8 @@ using NChunkClient::TReadLimit;
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: not using TYsonString here to avoid copying.
-TUnversionedValue MakeUnversionedValue(const TStringBuf& ysonString, int id)
+TUnversionedValue MakeUnversionedValue(const TStringBuf& ysonString, int id, TStatelessLexer& lexer)
 {
-    static TStatelessLexer lexer;
-
     TToken token;
     lexer.GetToken(ysonString, &token);
     YCHECK(!token.IsEmpty());
@@ -667,7 +665,7 @@ void TLegacyTableChunkReader::MakeAndValidateRow()
             if (columnInfo.RowIndex < CurrentRowIndex_) {
                 columnInfo.RowIndex = CurrentRowIndex_;
 
-                auto value = MakeUnversionedValue(channel->GetValue(), id);
+                auto value = MakeUnversionedValue(channel->GetValue(), id, Lexer_);
                 if (columnInfo.ChunkKeyIndex >= 0) {
                     CurrentKey_[columnInfo.ChunkKeyIndex] = value;
                 }
