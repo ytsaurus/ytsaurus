@@ -102,7 +102,7 @@ message TProjectClause
 message TJoinClause
 {
     repeated string join_columns = 1;
-    required NYT.NVersionedTableClient.NProto.TTableSchemaExt self_table_schema = 2;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt joined_table_schema = 2;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
 }

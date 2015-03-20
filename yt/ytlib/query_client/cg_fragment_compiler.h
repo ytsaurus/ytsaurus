@@ -359,7 +359,7 @@ typedef std::function<void(TCGContext& builder, Value* row, Value* newRow, int i
 ////////////////////////////////////////////////////////////////////////////////
 
 TCodegenAggregate MakeCodegenAggregateFunction(
-    EAggregateFunctions aggregateFunction,
+    EAggregateFunction aggregateFunction,
     EValueType type,
     Twine name = Twine());
 

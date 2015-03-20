@@ -179,7 +179,7 @@ Value* CodegenValuesPtrFromRow(TCGIRBuilder& builder, Value* row)
 //
 
 TCodegenAggregate MakeCodegenAggregateFunction(
-    EAggregateFunctions aggregateFunction,
+    EAggregateFunction aggregateFunction,
     EValueType type,
     Twine name)
 {
@@ -211,7 +211,7 @@ TCodegenAggregate MakeCodegenAggregateFunction(
                             // TODO(lukyan): support other types
 
                             switch (aggregateFunction) {
-                                case EAggregateFunctions::Sum:
+                                case EAggregateFunction::Sum:
                                     switch (type) {
                                         case EValueType::Int64:
                                         case EValueType::Uint64:
@@ -228,7 +228,7 @@ TCodegenAggregate MakeCodegenAggregateFunction(
                                             YUNIMPLEMENTED();
                                     }
                                     break;
-                                case EAggregateFunctions::Min:{
+                                case EAggregateFunction::Min:{
                                     Value* compareResult = nullptr;
                                     switch (type) {
                                         case EValueType::Int64:
@@ -250,7 +250,7 @@ TCodegenAggregate MakeCodegenAggregateFunction(
                                         newData);
                                     break;
                                 }
-                                case EAggregateFunctions::Max:{
+                                case EAggregateFunction::Max:{
                                     Value* compareResult = nullptr;
                                     switch (type) {
                                         case EValueType::Int64:

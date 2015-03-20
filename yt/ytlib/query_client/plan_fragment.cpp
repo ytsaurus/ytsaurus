@@ -36,54 +36,6 @@ static const int PlanFragmentDepthLimit = 50;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableSchemaProxy
-{
-    TTableSchema TableSchema;
-    std::set<Stroka>* LiveColumns;
-
-    explicit TTableSchemaProxy(
-        const TTableSchema& tableSchema,
-        std::set<Stroka>* liveColumns)
-        : TableSchema(tableSchema)
-        , LiveColumns(liveColumns)
-    { }
-
-    const TColumnSchema& operator [] (size_t index) const
-    {
-        return TableSchema.Columns()[index];
-    }
-
-    size_t GetColumnIndex(const TStringBuf& name) const
-    {
-        if (LiveColumns) {
-            LiveColumns->emplace(name);
-        }
-
-        auto* column = TableSchema.FindColumn(name);
-        if (!column) {
-            THROW_ERROR_EXCEPTION("Undefined reference %Qv", name);
-        }
-
-        return TableSchema.GetColumnIndex(*column);
-    }
-
-};
-
-struct TGroupClauseProxy
-{
-    TTableSchemaProxy SourceSchemaProxy;
-    TGroupClause& Op;
-    std::map<Stroka, size_t> SubexprNames;
-
-    TGroupClauseProxy(
-        const TTableSchemaProxy& sourceSchemaProxy,
-        TGroupClause& op)
-        : SourceSchemaProxy(sourceSchemaProxy)
-        , Op(op)
-    { }
-
-};
-
 Stroka InferName(TConstExpressionPtr expr)
 {
     bool newTuple = true;
@@ -167,7 +119,7 @@ Stroka InferName(TConstQueryPtr query)
     str += block() + "SELECT ";
     if (query->ProjectClause) {
         newTuple = true;
-        for (const auto& namedItem : query->ProjectClause.Get().Projections) {
+        for (const auto& namedItem : query->ProjectClause->Projections) {
             str += comma() + InferName(namedItem.Expression) + " AS " + namedItem.Name;
         }
     } else {
@@ -177,13 +129,13 @@ Stroka InferName(TConstQueryPtr query)
     if (query->GroupClause) {
         str += block() + "GROUP BY ";
         newTuple = true;
-        for (const auto& namedItem : query->GroupClause.Get().GroupItems) {
+        for (const auto& namedItem : query->GroupClause->GroupItems) {
             str += comma() + InferName(namedItem.Expression) + " AS " + namedItem.Name;
         }
     }
 
-    if (query->Predicate) {
-        str += block() + "WHERE " + InferName(query->Predicate);
+    if (query->WhereClause) {
+        str += block() + "WHERE " + InferName(query->WhereClause);
     }
 
     return str;
@@ -314,30 +266,51 @@ void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
     YUNREACHABLE();
 };
 
-static std::vector<TConstExpressionPtr> BuildTypedExpression(
-    const TTableSchemaProxy& tableSchema,
-    const NAst::TExpression* expr,
-    TGroupClauseProxy* groupProxy,
-    const Stroka& querySourceString)
+DECLARE_REFCOUNTED_STRUCT(ISchemaProxy)
+
+struct ISchemaProxy
+    : public TIntrinsicRefCounted
 {
-    auto getAggregate = [] (TStringBuf functionName) {
+
+    // NOTE: result must be used before next call
+    virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) = 0;
+    virtual const TColumnSchema* GetAggregateColumnPtr(
+        EAggregateFunction aggregateFunction,
+        const NAst::TExpression* arguments,
+        Stroka subexprName,
+        Stroka source)
+    {
+        THROW_ERROR_EXCEPTION(
+            "Misuse of aggregate function %v",
+            aggregateFunction);
+    }
+
+    static const TColumnSchema* AddColumn(TTableSchema* tableSchema, const TColumnSchema& column)
+    {
+        tableSchema->Columns().push_back(column);
+        return &tableSchema->Columns().back();
+    }
+
+    static TNullable<EAggregateFunction> GetAggregate(TStringBuf functionName)
+    {
         Stroka name(functionName);
         name.to_lower();
 
-        TNullable<EAggregateFunctions> result;
+        TNullable<EAggregateFunction> result;
 
         if (name == "sum") {
-            result.Assign(EAggregateFunctions::Sum);
+            result.Assign(EAggregateFunction::Sum);
         } else if (name == "min") {
-            result.Assign(EAggregateFunctions::Min);
+            result.Assign(EAggregateFunction::Min);
         } else if (name == "max") {
-            result.Assign(EAggregateFunctions::Max);
+            result.Assign(EAggregateFunction::Max);
         }
 
         return result;
     };
 
-    auto captureRows = [] (const NAst::TValueTupleList& literalTuples, size_t keySize) {
+    static std::vector<TOwningRow> CaptureRows(const NAst::TValueTupleList& literalTuples, size_t keySize)
+    {
         TUnversionedOwningRowBuilder rowBuilder;
 
         std::vector<TOwningRow> result;
@@ -352,19 +325,14 @@ static std::vector<TConstExpressionPtr> BuildTypedExpression(
         return result;
     };
 
-    std::function<std::vector<TConstExpressionPtr>(
-        const TTableSchemaProxy&,
-        const NAst::TExpression*,
-        TGroupClauseProxy*)>
-        buildTypedExpression = [&] (
-            const TTableSchemaProxy& tableSchema,
-            const NAst::TExpression* expr,
-            TGroupClauseProxy* groupProxy) -> std::vector<TConstExpressionPtr> {
-
+    std::vector<TConstExpressionPtr> BuildTypedExpression(
+        const NAst::TExpression* expr,
+        const Stroka& source)
+    {
         std::vector<TConstExpressionPtr> result;
         if (auto commaExpr = expr->As<NAst::TCommaExpression>()) {
-            auto typedLhsExprs = buildTypedExpression(tableSchema, commaExpr->Lhs.Get(), groupProxy);
-            auto typedRhsExprs = buildTypedExpression(tableSchema, commaExpr->Rhs.Get(), groupProxy);
+            auto typedLhsExprs = BuildTypedExpression(commaExpr->Lhs.Get(), source);
+            auto typedRhsExprs = BuildTypedExpression(commaExpr->Rhs.Get(), source);
 
             result.insert(result.end(), typedLhsExprs.begin(), typedLhsExprs.end());
             result.insert(result.end(), typedRhsExprs.begin(), typedRhsExprs.end());
@@ -374,56 +342,45 @@ static std::vector<TConstExpressionPtr> BuildTypedExpression(
                 EValueType(literalExpr->Value.Type),
                 literalExpr->Value));
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
-            size_t index = tableSchema.GetColumnIndex(referenceExpr->ColumnName);
+            const auto* column = GetColumnPtr(referenceExpr->ColumnName);
+
+            if (!column) {
+                THROW_ERROR_EXCEPTION("Undefined reference %Qv", referenceExpr->ColumnName);
+            }
+
             result.push_back(New<TReferenceExpression>(
                 referenceExpr->SourceLocation,
-                tableSchema[index].Type,
+                column->Type,
                 referenceExpr->ColumnName));
         } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
             auto functionName = functionExpr->FunctionName;
-            auto aggregateFunction = getAggregate(functionName);
+            auto aggregateFunction = GetAggregate(functionName);
 
             if (aggregateFunction) {
-                if (!groupProxy) {
-                    THROW_ERROR_EXCEPTION(
-                        "Misuse of aggregate function %v",
-                        aggregateFunction.Get())
-                        << TErrorAttribute("source", functionExpr->GetSource(querySourceString));
-                }
-                
-                auto& groupOp = groupProxy->Op;
-
                 auto subexprName = InferName(functionExpr);
-                auto emplaced = groupProxy->SubexprNames.emplace(subexprName, groupOp.AggregateItems.size());
-                if (emplaced.second) {
-                    auto typedOperands = buildTypedExpression(
-                        groupProxy->SourceSchemaProxy,
-                        functionExpr->Arguments.Get(),
-                        nullptr);
 
-                    if (typedOperands.size() != 1) {
-                        THROW_ERROR_EXCEPTION(
-                            "Aggregate function %Qv must have exactly one argument",
-                            aggregateFunction.Get())
-                            << TErrorAttribute("source", functionExpr->GetSource(querySourceString));
-                    }
-
-                    CheckExpressionDepth(typedOperands.front());
-
-                    groupOp.AggregateItems.emplace_back(
-                        typedOperands.front(),
+                try {
+                    const auto* aggregateColumn = GetAggregateColumnPtr(
                         aggregateFunction.Get(),
-                        subexprName);
+                        functionExpr->Arguments.Get(),
+                        subexprName,
+                        source);
+
+                    result.push_back(New<TReferenceExpression>(
+                        NullSourceLocation,
+                        aggregateColumn->Type,
+                        aggregateColumn->Name));
+
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Failed creating aggregate")
+                        << TErrorAttribute("source", functionExpr->GetSource(source))
+                        << ex;
                 }
 
-                result.push_back(New<TReferenceExpression>(
-                    NullSourceLocation,
-                    groupOp.AggregateItems[emplaced.first->second].Expression->Type,
-                    subexprName));
             } else {
                 std::vector<EValueType> types;
 
-                auto typedOperands = buildTypedExpression(tableSchema, functionExpr->Arguments.Get(), groupProxy);
+                auto typedOperands = BuildTypedExpression(functionExpr->Arguments.Get(), source);
 
                 for (const auto& typedOperand : typedOperands) {
                     types.push_back(typedOperand->Type);
@@ -431,12 +388,12 @@ static std::vector<TConstExpressionPtr> BuildTypedExpression(
 
                 result.push_back(New<TFunctionExpression>(
                     functionExpr->SourceLocation,
-                    InferFunctionExprType(functionName, types, functionExpr->GetSource(querySourceString)),
+                    InferFunctionExprType(functionName, types, functionExpr->GetSource(source)),
                     functionName,
                     typedOperands));
             }
         } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
-            auto typedOperandExpr = buildTypedExpression(tableSchema, unaryExpr->Operand.Get(), groupProxy);
+            auto typedOperandExpr = BuildTypedExpression(unaryExpr->Operand.Get(), source);
 
             for (const auto& operand : typedOperandExpr) {
                 if (auto literalExpr = operand->As<TLiteralExpression>()) {
@@ -470,13 +427,13 @@ static std::vector<TConstExpressionPtr> BuildTypedExpression(
                     InferUnaryExprType(
                         unaryExpr->Opcode,
                         operand->Type,
-                        unaryExpr->GetSource(querySourceString)),
+                        unaryExpr->GetSource(source)),
                     unaryExpr->Opcode,
                     operand));
             }
         } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
-            auto typedLhsExpr = buildTypedExpression(tableSchema, binaryExpr->Lhs.Get(), groupProxy);
-            auto typedRhsExpr = buildTypedExpression(tableSchema, binaryExpr->Rhs.Get(), groupProxy);
+            auto typedLhsExpr = BuildTypedExpression(binaryExpr->Lhs.Get(), source);
+            auto typedRhsExpr = BuildTypedExpression(binaryExpr->Rhs.Get(), source);
 
             auto makeBinaryExpr = [&] (EBinaryOp op, const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs) {
                 return New<TBinaryOpExpression>(
@@ -485,7 +442,7 @@ static std::vector<TConstExpressionPtr> BuildTypedExpression(
                         op,
                         lhs->Type,
                         rhs->Type,
-                        binaryExpr->GetSource(querySourceString)),
+                        binaryExpr->GetSource(source)),
                     op,
                     lhs,
                     rhs);
@@ -521,7 +478,7 @@ static std::vector<TConstExpressionPtr> BuildTypedExpression(
 
                 if (typedLhsExpr.size() != typedRhsExpr.size()) {
                     THROW_ERROR_EXCEPTION("Expecting tuples of same size")
-                        << TErrorAttribute("source", binaryExpr->Rhs->GetSource(querySourceString));
+                        << TErrorAttribute("source", binaryExpr->Rhs->GetSource(source));
                 }
 
                 size_t keySize = typedLhsExpr.size();
@@ -530,22 +487,22 @@ static std::vector<TConstExpressionPtr> BuildTypedExpression(
             } else {
                 if (typedLhsExpr.size() != 1) {
                     THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                        << TErrorAttribute("source", binaryExpr->Lhs->GetSource(querySourceString));
+                        << TErrorAttribute("source", binaryExpr->Lhs->GetSource(source));
                 }
 
                 if (typedRhsExpr.size() != 1) {
                     THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                        << TErrorAttribute("source", binaryExpr->Rhs->GetSource(querySourceString));
+                        << TErrorAttribute("source", binaryExpr->Rhs->GetSource(source));
                 }
 
                 result.push_back(makeBinaryExpr(binaryExpr->Opcode, typedLhsExpr.front(), typedRhsExpr.front()));
             }
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
-            auto inExprOperands = buildTypedExpression(tableSchema, inExpr->Expr.Get(), groupProxy);
+            auto inExprOperands = BuildTypedExpression(inExpr->Expr.Get(), source);
 
             size_t keySize = inExprOperands.size();
 
-            auto caturedRows = captureRows(inExpr->Values, keySize);
+            auto caturedRows = CaptureRows(inExpr->Values, keySize);
 
             result.push_back(New<TInOpExpression>(
                 inExpr->SourceLocation,
@@ -554,135 +511,259 @@ static std::vector<TConstExpressionPtr> BuildTypedExpression(
         }
 
         return result;
-    };
-
-    return buildTypedExpression(tableSchema, expr, groupProxy);
-};
-
-static TQueryPtr PrepareQuery(
-    NAst::TQuery& ast,
-    const Stroka& querySourceString,
-    i64 inputRowLimit,
-    i64 outputRowLimit,
-    const TTableSchema& tableSchema,
-    std::set<Stroka>* liveColumns)
-{
-    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
-    auto tableSchemaProxy = TTableSchemaProxy(tableSchema, liveColumns);
-
-    if (ast.WherePredicate) {
-
-        auto typedPredicate = BuildTypedExpression(
-            tableSchemaProxy,
-            ast.WherePredicate.Get(),
-            nullptr,
-            querySourceString);
-
-        if (typedPredicate.size() != 1) {
-            THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                << TErrorAttribute("source", ast.WherePredicate->GetSource(querySourceString));
-        }
-
-        auto predicate = typedPredicate.front();
-
-        CheckExpressionDepth(predicate);
-
-        auto actualType = predicate->Type;
-        EValueType expectedType(EValueType::Boolean);
-        if (actualType != expectedType) {
-            THROW_ERROR_EXCEPTION("WHERE-clause is not a boolean expression")
-                << TErrorAttribute("actual_type", actualType)
-                << TErrorAttribute("expected_type", expectedType);
-        }
-
-        query->Predicate = predicate;
     }
 
-    TNullable<TGroupClauseProxy> groupClauseProxy;
+};
 
-    if (ast.GroupExprs) {
-        TTableSchema tableSchema;
+DEFINE_REFCOUNTED_TYPE(ISchemaProxy)
 
-        TGroupClause groupClause;
+struct TSimpleSchemaProxy
+    : public ISchemaProxy
+{
+    TTableSchema* TableSchema;
+    TNullable<TTableSchema> SourceTableSchema;
 
-        for (const auto& expr : ast.GroupExprs.Get()) {
-            auto typedExprs = BuildTypedExpression(
-                tableSchemaProxy,
-                expr.first.Get(),
-                nullptr,
-                querySourceString);
+    explicit TSimpleSchemaProxy(
+        TTableSchema* tableSchema)
+        : TableSchema(tableSchema)
+    { }
+    
+    TSimpleSchemaProxy(
+        TTableSchema* tableSchema,
+        const TTableSchema& sourceTableSchema,
+        size_t keyColumnCount = 0)
+        : TableSchema(tableSchema)
+        , SourceTableSchema(sourceTableSchema)
+    {
+        const auto& columns = sourceTableSchema.Columns();
+        size_t count = std::min(sourceTableSchema.HasComputedColumns() ? keyColumnCount : 0, columns.size());
+        for (size_t i = 0; i < count; ++i) {
+            AddColumn(TableSchema, columns[i]);
+        }
+    }
 
-            if (typedExprs.size() != 1) {
-                THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                    << TErrorAttribute("source", expr.first->GetSource(querySourceString));
+
+    virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
+    {
+        const auto* column = TableSchema->FindColumn(name);
+
+        !column
+            && SourceTableSchema
+            && (column = SourceTableSchema->FindColumn(name))
+            && (column = AddColumn(TableSchema, *column));       
+
+        return column;
+    }
+};
+
+struct TJoinSchemaProxy
+    : public ISchemaProxy
+{
+    TTableSchema* TableSchema;
+    ISchemaProxyPtr Self;
+    ISchemaProxyPtr Foreign;
+
+    TJoinSchemaProxy(
+        TTableSchema* tableSchema,
+        ISchemaProxyPtr self,
+        ISchemaProxyPtr foreign)
+        : TableSchema(tableSchema)
+        , Self(self)
+        , Foreign(foreign)
+    { }
+
+    virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
+    {
+        const TColumnSchema* column = TableSchema->FindColumn(name);
+
+        if (!column) {
+            if (column = Self->GetColumnPtr(name)) {
+                if (Foreign->GetColumnPtr(name)) {
+                    THROW_ERROR_EXCEPTION("Column %Qv collision", name);
+                } else {
+                    column = AddColumn(TableSchema, *column);
+                }
+            } else if (column = Foreign->GetColumnPtr(name)) {
+                column = AddColumn(TableSchema, *column);
             }
-
-            CheckExpressionDepth(typedExprs.front());
-            groupClause.GroupItems.emplace_back(typedExprs.front(), expr.second);
-            tableSchema.Columns().emplace_back(expr.second, typedExprs.front()->Type);
         }
 
-        ValidateTableSchema(tableSchema);
+        return column;
+    }
 
-        query->GroupClause = std::move(groupClause);
+};
 
-        groupClauseProxy.Emplace(tableSchemaProxy, query->GroupClause.Get());
-        tableSchemaProxy = TTableSchemaProxy(tableSchema, nullptr);
+struct TGroupSchemaProxy
+    : public ISchemaProxy
+{
+    TTableSchema* TableSchema;
+    ISchemaProxyPtr Base;
+    TAggregateItemList* AggregateItems;
+
+    std::map<Stroka, size_t> SubexprNames;
+
+    TGroupSchemaProxy(
+        TTableSchema* tableSchema,
+        ISchemaProxyPtr base,
+        TAggregateItemList* aggregateItems)
+        : TableSchema(tableSchema)
+        , Base(base)
+        , AggregateItems(aggregateItems)
+    { }
+
+    virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
+    {
+        return TableSchema->FindColumn(name);
+    }
+
+    virtual const TColumnSchema* GetAggregateColumnPtr(
+        EAggregateFunction aggregateFunction,
+        const NAst::TExpression* arguments,
+        Stroka subexprName,
+        Stroka source)
+    {
+        auto emplaced = SubexprNames.emplace(subexprName, AggregateItems->size());
+        if (emplaced.second) {
+            auto typedOperands = Base->BuildTypedExpression(
+                arguments,
+                source);
+
+            if (typedOperands.size() != 1) {
+                THROW_ERROR_EXCEPTION(
+                    "Aggregate function %Qv must have exactly one argument",
+                    aggregateFunction);
+            }
+
+            CheckExpressionDepth(typedOperands.front());
+
+            AggregateItems->emplace_back(
+                typedOperands.front(),
+                aggregateFunction,
+                subexprName);
+        }
+
+
+        const TColumnSchema* aggregateColumn = AddColumn(
+            TableSchema,
+            TColumnSchema(subexprName, (*AggregateItems)[emplaced.first->second].Expression->Type));
+
+        return aggregateColumn;
+    }
+};
+
+TConstExpressionPtr BuildWhereClause(
+    NAst::TExpressionPtr& expressionAst,
+    const Stroka& source,
+    const ISchemaProxyPtr& schemaProxy)
+{
+    auto typedPredicate = schemaProxy->BuildTypedExpression(
+        expressionAst.Get(),
+        source);
+
+    if (typedPredicate.size() != 1) {
+        THROW_ERROR_EXCEPTION("Expecting scalar expression")
+            << TErrorAttribute("source", expressionAst->GetSource(source));
+    }
+
+    auto predicate = typedPredicate.front();
+
+    CheckExpressionDepth(predicate);
+
+    auto actualType = predicate->Type;
+    EValueType expectedType(EValueType::Boolean);
+    if (actualType != expectedType) {
+        THROW_ERROR_EXCEPTION("WHERE-clause is not a boolean expression")
+            << TErrorAttribute("actual_type", actualType)
+            << TErrorAttribute("expected_type", expectedType);
+    }
+
+    return predicate;
+}
+
+TConstGroupClausePtr BuildGroupClause(
+    NAst::TNullableNamedExprs& expressionsAst,
+    const Stroka& source,
+    ISchemaProxyPtr& schemaProxy)
+{
+    auto groupClause = New<TGroupClause>();
+    TTableSchema& tableSchema = groupClause->GroupedTableSchema;
+
+    for (const auto& expr : expressionsAst.Get()) {
+        auto typedExprs = schemaProxy->BuildTypedExpression(
+            expr.first.Get(),
+            source);
+
+        if (typedExprs.size() != 1) {
+            THROW_ERROR_EXCEPTION("Expecting scalar expression")
+                << TErrorAttribute("source", expr.first->GetSource(source));
+        }
+
+        CheckExpressionDepth(typedExprs.front());
+        groupClause->GroupItems.emplace_back(typedExprs.front(), expr.second);
+        tableSchema.Columns().emplace_back(expr.second, typedExprs.front()->Type);
+    }
+
+    ValidateTableSchema(tableSchema);
+    schemaProxy = New<TGroupSchemaProxy>(&tableSchema, std::move(schemaProxy), &groupClause->AggregateItems);
+
+    return groupClause;
+}
+
+TConstProjectClausePtr BuildProjectClause(
+    NAst::TNullableNamedExprs& expressionsAst,
+    const Stroka& source,
+    ISchemaProxyPtr& schemaProxy)
+{
+    auto projectClause = New<TProjectClause>();
+
+    for (const auto& expr : expressionsAst.Get()) {
+        auto typedExprs = schemaProxy->BuildTypedExpression(
+            expr.first.Get(),
+            source);
+
+        if (typedExprs.size() != 1) {
+            THROW_ERROR_EXCEPTION("Expecting scalar expression")
+                << TErrorAttribute("source", expr.first->GetSource(source));
+        }
+
+        CheckExpressionDepth(typedExprs.front());
+
+        projectClause->AddProjection(typedExprs.front(), expr.second);
+
+    }
+
+    ValidateTableSchema(projectClause->ProjectTableSchema);
+    schemaProxy = New<TSimpleSchemaProxy>(&projectClause->ProjectTableSchema);
+
+    return projectClause;
+}
+
+TQueryPtr PrepareQuery(
+    NAst::TQuery& ast,
+    const Stroka& source,
+    i64 inputRowLimit,
+    i64 outputRowLimit,
+    const TTableSchema& tableSchema)
+{
+    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
+    ISchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
+
+    if (ast.WherePredicate) {
+        query->WhereClause = BuildWhereClause(ast.WherePredicate, source, schemaProxy);
+    }
+
+    if (ast.GroupExprs) {
+        query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy);
     }
 
     if (ast.SelectExprs) {
-        TTableSchema tableSchema;
-
-        TProjectClause projectClause;
-
-        for (const auto& expr : ast.SelectExprs.Get()) {
-            auto typedExprs = BuildTypedExpression(
-                tableSchemaProxy,
-                expr.first.Get(),
-                groupClauseProxy.GetPtr(),
-                querySourceString);
-
-            if (typedExprs.size() != 1) {
-                THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                    << TErrorAttribute("source", expr.first->GetSource(querySourceString));
-            }
-
-            CheckExpressionDepth(typedExprs.front());
-
-            projectClause.Projections.emplace_back(typedExprs.front(), expr.second);
-            tableSchema.Columns().emplace_back(expr.second, typedExprs.front()->Type);
-        }
-
-        ValidateTableSchema(tableSchema);
-
-        query->ProjectClause = std::move(projectClause);
-
-        groupClauseProxy.Reset();
-        tableSchemaProxy = TTableSchemaProxy(tableSchema, nullptr);
-    }
-
-    // Now we have planOperator and tableSchemaProxy
-
-    // Prune references
-
-    query->TableSchema = tableSchema;
-    auto& columns = query->TableSchema.Columns();
-
-    if (!tableSchemaProxy.LiveColumns /*ast.GroupExprs || ast.SelectExprs*/) {
-        columns.erase(
-            std::remove_if(
-                columns.begin(),
-                columns.end(),
-                [&liveColumns] (const TColumnSchema& columnSchema) {
-                    return liveColumns->find(columnSchema.Name) == liveColumns->end();
-                }),
-            columns.end());
+        query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy);
     }
 
     return query;
 }
 
-static void ParseYqlString(
+void ParseYqlString(
     NAst::TAstHead* astHead,
     TRowBuffer* rowBuffer,
     const Stroka& source,
@@ -712,20 +793,20 @@ TPlanFragmentPtr PreparePlanFragment(
 
     auto& ast = astHead.As<NAst::TQuery>();
     
-    auto planFragment = New<TPlanFragment>(source);
-    planFragment->NodeDirectory = New<TNodeDirectory>();
+    TDataSplit selfDataSplit;
+    TDataSplit foreignDataSplit;
 
-    TDataSplit initialDataSplit;
-    TQueryPtr query;
-
+    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
+    ISchemaProxyPtr schemaProxy;
+    
     if (auto simpleSource = ast.Source->As<NAst::TSimpleSource>()) {
         LOG_DEBUG("Getting initial data split for %v", simpleSource->Path);
 
-        initialDataSplit =  WaitFor(callbacks->GetInitialSplit(simpleSource->Path, timestamp)).ValueOrThrow();
-        auto tableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
+        selfDataSplit = WaitFor(callbacks->GetInitialSplit(simpleSource->Path, timestamp)).ValueOrThrow();
+        auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
+        auto keyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
 
-        std::set<Stroka> liveColumns;
-        query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema, &liveColumns);
+        schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema, keyColumns.size());
     } else if (auto joinSource = ast.Source->As<NAst::TJoinSource>()) {
         LOG_DEBUG("Getting initial data split for %v and %v", joinSource->LeftPath, joinSource->RightPath);
 
@@ -736,101 +817,81 @@ TPlanFragmentPtr PreparePlanFragment(
 
         auto splits = WaitFor(Combine<TDataSplit>(splitFutures)).ValueOrThrow();
 
-        auto leftDataSplit = splits[0];
-        auto rightDataSplit = splits[1];
+        selfDataSplit = splits[0];
+        auto selfTableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
+        auto selfKeyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
 
-        auto leftTableSchema = GetTableSchemaFromDataSplit(leftDataSplit);
-        auto rightTableSchema = GetTableSchemaFromDataSplit(rightDataSplit);
+        foreignDataSplit = splits[1];
+        auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
+        auto foreignKeyColumns = GetKeyColumnsFromDataSplit(foreignDataSplit);
 
-        auto leftKeyColumns = GetKeyColumnsFromDataSplit(leftDataSplit);
-        auto rightKeyColumns = GetKeyColumnsFromDataSplit(rightDataSplit);
+        auto joinClause = New<TJoinClause>();
+        joinClause->ForeignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
+        joinClause->ForeignKeyColumns = GetKeyColumnsFromDataSplit(foreignDataSplit);
 
-        TTableSchema tableSchema = leftTableSchema;
-        
-        // Merge columns.
         const auto& joinFields = joinSource->Fields;
-        for (const auto& column : rightTableSchema.Columns()) {
-            if (std::find(joinFields.begin(), joinFields.end(), column.Name) == joinFields.end()) {
-                if (tableSchema.FindColumn(column.Name)) {
-                    THROW_ERROR_EXCEPTION("Column %Qv collision", column.Name);
-                }
-                tableSchema.Columns().push_back(column);
+        joinClause->JoinColumns = joinFields;
+
+        auto selfSourceProxy = New<TSimpleSchemaProxy>(&query->TableSchema, selfTableSchema, selfKeyColumns.size());
+        auto foreignSourceProxy = New<TSimpleSchemaProxy>(&joinClause->ForeignTableSchema, foreignTableSchema, foreignKeyColumns.size());
+        // Merge columns.
+        for (const auto& name : joinFields) {
+            const auto* selfColumn = selfSourceProxy->GetColumnPtr(name);
+            const auto* foreignColumn = foreignSourceProxy->GetColumnPtr(name);
+
+            if (!selfColumn || !foreignColumn) {
+                THROW_ERROR_EXCEPTION("Column %Qv not found", name);
             }
+
+            if (selfColumn->Type != foreignColumn->Type) {
+                THROW_ERROR_EXCEPTION("Column type %Qv mismatch", name)
+                    << TErrorAttribute("self_type", selfColumn->Type)
+                    << TErrorAttribute("foreign_type", foreignColumn->Type);
+            }
+
+            joinClause->JoinedTableSchema.Columns().push_back(*selfColumn);
         }
 
-        std::set<Stroka> liveColumns(joinFields.begin(), joinFields.end());
-        query = PrepareQuery(ast, source, inputRowLimit, outputRowLimit, tableSchema, &liveColumns);
-
-        auto leftConstraints = ExtractMultipleConstraints(query->Predicate, leftKeyColumns, &rowBuffer);
-        auto rigthConstraints = ExtractMultipleConstraints(query->Predicate, rightKeyColumns, &rowBuffer);
-
-        TJoinClause joinClause;
-        joinClause.JoinColumns = joinFields;
-
-        if (rigthConstraints.Offset == 0 && leftConstraints.Offset != 0) {
-            initialDataSplit = rightDataSplit;
-            planFragment->ForeignDataSplit = leftDataSplit;
-            joinClause.ForeignTableSchema = GetTableSchemaFromDataSplit(leftDataSplit);
-            joinClause.ForeignKeyColumns = GetKeyColumnsFromDataSplit(leftDataSplit);
-        } else {
-            initialDataSplit = leftDataSplit;
-            planFragment->ForeignDataSplit = rightDataSplit;
-            joinClause.ForeignTableSchema = GetTableSchemaFromDataSplit(rightDataSplit);
-            joinClause.ForeignKeyColumns = GetKeyColumnsFromDataSplit(rightDataSplit);
-        }
-
+        schemaProxy = New<TJoinSchemaProxy>(
+            &joinClause->JoinedTableSchema, 
+            selfSourceProxy,
+            foreignSourceProxy);
+        
         query->JoinClause = std::move(joinClause);
     } else {
         YUNREACHABLE();
     }
+    
+    if (ast.WherePredicate) {
+        query->WhereClause = BuildWhereClause(ast.WherePredicate, source, schemaProxy);
+    }
+
+    if (ast.GroupExprs) {
+        query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy);
+    }
+
+    if (ast.SelectExprs) {
+        query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy);
+    }
+
+    auto planFragment = New<TPlanFragment>(source);
+    planFragment->NodeDirectory = New<TNodeDirectory>();
     
     if (ast.Limit) {
         query->Limit = ast.Limit;
         planFragment->Ordered = true;
     }
 
-    const auto& queryTableSchema = query->TableSchema;
-    auto initialTableSchema = GetTableSchemaFromDataSplit(initialDataSplit);
-    query->KeyColumns = GetKeyColumnsFromDataSplit(initialDataSplit);
-
-    auto getColumnFilter = [&] (const TDataSplit& dataSplit) -> std::function<bool(const TColumnSchema& columnSchema)> {
-        auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
-        auto keyColumns = GetKeyColumnsFromDataSplit(dataSplit);
-        int keyColumnCount = keyColumns.size();
-
-        if (tableSchema.HasComputedColumns()) {
-            return [&queryTableSchema, tableSchema, keyColumnCount] (const TColumnSchema& columnSchema) {
-                int index = tableSchema.GetColumnIndexOrThrow(columnSchema.Name);
-                return index >= keyColumnCount
-                    && queryTableSchema.FindColumn(columnSchema.Name) == nullptr;
-            };
-        } else {
-            return [&queryTableSchema] (const TColumnSchema& columnSchema) {
-                return queryTableSchema.FindColumn(columnSchema.Name) == nullptr;
-            };
-        }
-    };
-
-    auto removeUnusedColumns = [&] (
-        std::vector<TColumnSchema>& columns,
-        const std::function<bool(const TColumnSchema& columnSchema)>& columnFilter) {
-        columns.erase(
-            std::remove_if(columns.begin(), columns.end(), columnFilter),
-            columns.end());
-    };
-
-    removeUnusedColumns(initialTableSchema.Columns(), getColumnFilter(initialDataSplit));
-    SetTableSchema(&initialDataSplit, initialTableSchema);
-
-    if (auto joinClause = query->JoinClause.GetPtr()) {
-        joinClause->SelfTableSchema = initialTableSchema;
-        removeUnusedColumns(joinClause->ForeignTableSchema.Columns(), getColumnFilter(planFragment->ForeignDataSplit));
-        SetTableSchema(&planFragment->ForeignDataSplit, joinClause->ForeignTableSchema);
-    }
-
     planFragment->Query = query;
-    planFragment->DataSplits.push_back(initialDataSplit);
 
+    SetTableSchema(&selfDataSplit, query->TableSchema);
+    planFragment->DataSplits.push_back(selfDataSplit);
+
+    if (auto joinClause = query->JoinClause.Get()) {
+        SetTableSchema(&foreignDataSplit, joinClause->ForeignTableSchema);
+        planFragment->ForeignDataSplit = foreignDataSplit;
+    }
+    
     return planFragment;
 }
 
@@ -854,9 +915,8 @@ TPlanFragmentPtr PrepareJobPlanFragment(
 
     auto planFragment = New<TPlanFragment>(source);
     auto unlimited = std::numeric_limits<i64>::max();
-    
-    std::set<Stroka> liveColumns;
-    auto query = PrepareQuery(ast, source, unlimited, unlimited, tableSchema, &liveColumns);
+
+    auto query = PrepareQuery(ast, source, unlimited, unlimited, tableSchema);
 
     planFragment->Query = query;
 
@@ -865,7 +925,7 @@ TPlanFragmentPtr PrepareJobPlanFragment(
 
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
-    const TTableSchema& tableSchema)
+    TTableSchema tableSchema)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TNamedExpression>()};
     NAst::TRowBuffer rowBuffer;
@@ -873,9 +933,9 @@ TConstExpressionPtr PrepareExpression(
 
     auto& expr = astHead.As<NAst::TNamedExpression>();
 
-    std::set<Stroka> liveColumns;
-    auto tableSchemaProxy = TTableSchemaProxy(tableSchema, &liveColumns);
-    auto typedExprs = BuildTypedExpression(tableSchemaProxy, expr.first.Get(), nullptr, source);
+    auto schemaProxy = New<TSimpleSchemaProxy>(&tableSchema);
+
+    auto typedExprs = schemaProxy->BuildTypedExpression(expr.first.Get(), source);
 
     if (typedExprs.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
@@ -1070,23 +1130,23 @@ void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
     ToProto(serialized->mutable_name(), original.Name);
 }
 
-void ToProto(NProto::TGroupClause* proto, const TGroupClause& original)
+void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
 {
-    ToProto(proto->mutable_group_items(), original.GroupItems);
-    ToProto(proto->mutable_aggregate_items(), original.AggregateItems);
+    ToProto(proto->mutable_group_items(), original->GroupItems);
+    ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
 }
 
-void ToProto(NProto::TProjectClause* proto, const TProjectClause& original)
+void ToProto(NProto::TProjectClause* proto, const TConstProjectClausePtr& original)
 {
-    ToProto(proto->mutable_projections(), original.Projections);
+    ToProto(proto->mutable_projections(), original->Projections);
 }
 
-void ToProto(NProto::TJoinClause* proto, const TJoinClause& original)
+void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
 {
-    ToProto(proto->mutable_join_columns(), original.JoinColumns);
-    ToProto(proto->mutable_self_table_schema(), original.SelfTableSchema);
-    ToProto(proto->mutable_foreign_table_schema(), original.ForeignTableSchema);
-    ToProto(proto->mutable_foreign_key_columns(), original.ForeignKeyColumns);
+    ToProto(proto->mutable_join_columns(), original->JoinColumns);
+    ToProto(proto->mutable_joined_table_schema(), original->JoinedTableSchema);
+    ToProto(proto->mutable_foreign_table_schema(), original->ForeignTableSchema);
+    ToProto(proto->mutable_foreign_key_columns(), original->ForeignKeyColumns);
 }
 
 void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
@@ -1101,19 +1161,19 @@ void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
     ToProto(proto->mutable_key_columns(), original->KeyColumns);
 
     if (original->JoinClause) {
-        ToProto(proto->mutable_join_clause(), original->JoinClause.Get());
+        ToProto(proto->mutable_join_clause(), original->JoinClause);
     }
 
-    if (original->Predicate) {
-        ToProto(proto->mutable_predicate(), original->Predicate);
+    if (original->WhereClause) {
+        ToProto(proto->mutable_predicate(), original->WhereClause);
     }
 
     if (original->GroupClause) {
-        ToProto(proto->mutable_group_clause(), original->GroupClause.Get());
+        ToProto(proto->mutable_group_clause(), original->GroupClause);
     }
     
     if (original->ProjectClause) {
-        ToProto(proto->mutable_project_clause(), original->ProjectClause.Get());
+        ToProto(proto->mutable_project_clause(), original->ProjectClause);
     }
 }
 
@@ -1128,49 +1188,49 @@ TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
 {
     return TAggregateItem(
         FromProto(serialized.expression()),
-        EAggregateFunctions(serialized.aggregate_function()),
+        EAggregateFunction(serialized.aggregate_function()),
         serialized.name());
 }
 
-TGroupClause FromProto(const NProto::TGroupClause& serialized)
+TGroupClausePtr FromProto(const NProto::TGroupClause& serialized)
 {
-    TGroupClause result;
-    result.GroupItems.reserve(serialized.group_items_size());
+    auto result = New<TGroupClause>();
+    result->GroupItems.reserve(serialized.group_items_size());
     for (int i = 0; i < serialized.group_items_size(); ++i) {
-        result.GroupItems.push_back(FromProto(serialized.group_items(i)));
+        result->GroupItems.push_back(FromProto(serialized.group_items(i)));
     }
-    result.AggregateItems.reserve(serialized.aggregate_items_size());
+    result->AggregateItems.reserve(serialized.aggregate_items_size());
     for (int i = 0; i < serialized.aggregate_items_size(); ++i) {
-        result.AggregateItems.push_back(FromProto(serialized.aggregate_items(i)));
+        result->AggregateItems.push_back(FromProto(serialized.aggregate_items(i)));
     }
 
     return result;
 }
 
-TProjectClause FromProto(const NProto::TProjectClause& serialized)
+TProjectClausePtr FromProto(const NProto::TProjectClause& serialized)
 {
-    TProjectClause result;
+    auto result = New<TProjectClause>();
 
-    result.Projections.reserve(serialized.projections_size());
+    result->Projections.reserve(serialized.projections_size());
     for (int i = 0; i < serialized.projections_size(); ++i) {
-        result.Projections.push_back(FromProto(serialized.projections(i)));
+        result->Projections.push_back(FromProto(serialized.projections(i)));
     }
 
     return result;
 }
 
-TJoinClause FromProto(const NProto::TJoinClause& serialized)
+TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
 {
-    TJoinClause result;
+    auto result = New<TJoinClause>();
 
-    result.JoinColumns.reserve(serialized.join_columns_size());
+    result->JoinColumns.reserve(serialized.join_columns_size());
     for (int i = 0; i < serialized.join_columns_size(); ++i) {
-        result.JoinColumns.push_back(serialized.join_columns(i));
+        result->JoinColumns.push_back(serialized.join_columns(i));
     }
 
-    FromProto(&result.SelfTableSchema, serialized.self_table_schema());
-    FromProto(&result.ForeignTableSchema, serialized.foreign_table_schema());
-    FromProto(&result.ForeignKeyColumns, serialized.foreign_key_columns());
+    FromProto(&result->JoinedTableSchema, serialized.joined_table_schema());
+    FromProto(&result->ForeignTableSchema, serialized.foreign_table_schema());
+    FromProto(&result->ForeignKeyColumns, serialized.foreign_key_columns());
 
     return result;
 }
@@ -1192,7 +1252,7 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
     }
 
     if (serialized.has_predicate()) {
-        query->Predicate = FromProto(serialized.predicate());
+        query->WhereClause = FromProto(serialized.predicate());
     }
 
     if (serialized.has_group_clause()) {
