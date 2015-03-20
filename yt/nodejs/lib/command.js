@@ -308,7 +308,7 @@ YtCommand.prototype._getName = function() {
     }
 
     if (!_VERSION_TO_FACADE.hasOwnProperty(version)) {
-        throw new YtError("Unsupported API version " + JSON.stringify(version) + ".");
+        throw new YtError("Unsupported API version " + JSON.stringify(version));
     }
 
     facade = _VERSION_TO_FACADE[version];
@@ -323,7 +323,7 @@ YtCommand.prototype._getName = function() {
     }
 
     if (!/^[a-z_]+$/.test(name)) {
-        throw new YtError("Malformed command name " + JSON.stringify(name) + ".");
+        throw new YtError("Malformed command name " + JSON.stringify(name));
     }
 
     this.name = name;
@@ -337,7 +337,7 @@ YtCommand.prototype._getUser = function() {
     if (typeof(this.req.authenticated_user) === "string") {
         this.user = this.req.authenticated_user;
     } else {
-        throw new YtError("Failed to identify user credentials.");
+        throw new YtError("Failed to identify user credentials");
     }
 
     var rate_check_result = this.rate_check_cache.get(this.user);
@@ -355,7 +355,7 @@ YtCommand.prototype._getDescriptor = function() {
 
     if (!this.descriptor) {
         this.rsp.statusCode = 404;
-        throw new YtError("Command '" + this.name + "' is not registered.");
+        throw new YtError("Command '" + this.name + "' is not registered");
     }
 };
 
@@ -383,8 +383,7 @@ YtCommand.prototype._checkHttpMethod = function() {
             "' have to be executed with the " +
             expected_http_method +
             " HTTP method while the actual one is " +
-            actual_http_method +
-            ".");
+            actual_http_method);
     }
 };
 
@@ -395,7 +394,7 @@ YtCommand.prototype._checkAvailability = function() {
     if (this.coordinator.getSelf().banned) {
         this.rsp.statusCode = 503;
         this.rsp.setHeader("Retry-After", "60");
-        throw new YtError("This proxy is banned.");
+        throw new YtError("This proxy is banned");
     }
 
     if (this.descriptor.is_heavy && this.watcher.is_choking()) {
@@ -403,8 +402,8 @@ YtCommand.prototype._checkAvailability = function() {
         this.rsp.setHeader("Retry-After", "60");
         throw new YtError(
             "Command '" + this.name +
-            "' is heavy and the proxy is currently under heavy load. " +
-            "Please, try another proxy or try again later.");
+            "' is heavy and the proxy is currently under heavy load; " +
+            "please try another proxy or try again later");
     }
 };
 
@@ -427,7 +426,7 @@ YtCommand.prototype._redirectHeavyRequests = function() {
         } else {
             this.rsp.statusCode = 503;
             this.rsp.setHeader("Retry-After", "60");
-            throw new YtError("There are no data proxies available.");
+            throw new YtError("There are no data proxies available");
         }
     }
 };
@@ -472,7 +471,7 @@ YtCommand.prototype._getInputFormat = function() {
                 binding.ECompression_None,
                 this.header_format);
         } catch (err) {
-            throw new YtError("Unable to parse X-YT-Input-Format header.", err);
+            throw new YtError("Unable to parse X-YT-Input-Format header", err);
         }
     }
 
@@ -498,8 +497,8 @@ YtCommand.prototype._getInputCompression = function() {
             result = _ENCODING_TO_COMPRESSION[header];
         } else {
             throw new YtError(
-                "Unsupported Content-Encoding " + JSON.stringify(header) + "." +
-                " Candidates are: " + _ENCODING_ALL.join(", ") + ".");
+                "Unsupported Content-Encoding " + JSON.stringify(header) + "; " +
+                "candidates are: " + _ENCODING_ALL.join(", "));
         }
     }
 
@@ -593,8 +592,8 @@ YtCommand.prototype._getOutputFormat = function() {
         if (!result_mime) {
             this.rsp.statusCode = 406;
             throw new YtError(
-                "Could not determine feasible Content-Type given Accept constraints." +
-                " Candidates are: " + _MIME_BY_OUTPUT_TYPE[this.descriptor.output_type_as_integer].join(", ") + ".");
+                "Could not determine feasible Content-Type given Accept constraints; " +
+                "candidates are: " + _MIME_BY_OUTPUT_TYPE[this.descriptor.output_type_as_integer].join(", "));
         }
 
         result_format = _MIME_TO_FORMAT[result_mime];
@@ -610,7 +609,7 @@ YtCommand.prototype._getOutputFormat = function() {
                 binding.ECompression_None,
                 this.header_format);
         } catch (err) {
-            throw new YtError("Unable to parse X-YT-Output-Format header.", err);
+            throw new YtError("Unable to parse X-YT-Output-Format header", err);
         }
     }
 
@@ -642,8 +641,8 @@ YtCommand.prototype._getOutputCompression = function() {
         if (!result_mime) {
             this.rsp.statusCode = 415;
             throw new YtError(
-                "Could not determine feasible Content-Encoding given Accept-Encoding constraints." +
-                " Candidates are: " + _ENCODING_ALL.join(", ") + ".");
+                "Could not determine feasible Content-Encoding given Accept-Encoding constraints; " +
+                "candidates are: " + _ENCODING_ALL.join(", "));
         }
 
         result_compression = _ENCODING_TO_COMPRESSION[result_mime];
@@ -672,7 +671,7 @@ YtCommand.prototype._captureParameters = function() {
         };
         from_formats = binding.CreateV8Node(from_formats);
     } catch (err) {
-        throw new YtError("Unable to parse formats.", err);
+        throw new YtError("Unable to parse formats", err);
     }
 
     try {
@@ -686,7 +685,7 @@ YtCommand.prototype._captureParameters = function() {
 
         from_url = binding.CreateV8Node(from_url);
     } catch (err) {
-        throw new YtError("Unable to parse parameters from the query string.", err);
+        throw new YtError("Unable to parse parameters from the query string", err);
     }
 
     try {
@@ -698,7 +697,7 @@ YtCommand.prototype._captureParameters = function() {
                 this.header_format);
         }
     } catch (err) {
-        throw new YtError("Unable to parse parameters from the request header X-YT-Parameters.", err);
+        throw new YtError("Unable to parse parameters from the request header X-YT-Parameters", err);
     }
 
     if (this.req.method === "POST") {
@@ -749,7 +748,7 @@ YtCommand.prototype._captureBody = function() {
             }
         } catch (err) {
             deferred.reject(new YtError(
-                "Unable to parse parameters from the request body.",
+                "Unable to parse parameters from the request body",
                 err));
         }
     });
