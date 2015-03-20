@@ -133,6 +133,16 @@ public:
         SnapshotCleanupExecutor_->Start();
     }
 
+    void LoadSnapshot(ISnapshotReaderPtr reader)
+    {
+        WaitFor(reader->Open())
+            .ThrowOnError();
+
+        auto syncReader = CreateSyncAdapter(reader);
+        Automaton_->Clear();
+        Automaton_->LoadSnapshot(syncReader.get());
+    }
+
     TMasterAutomatonPtr GetAutomaton() const
     {
         return Automaton_;
@@ -307,6 +317,11 @@ THydraFacade::~THydraFacade()
 void THydraFacade::Start()
 {
     Impl_->Start();
+}
+
+void THydraFacade::LoadSnapshot(ISnapshotReaderPtr reader)
+{
+    Impl_->LoadSnapshot(reader);
 }
 
 TMasterAutomatonPtr THydraFacade::GetAutomaton() const

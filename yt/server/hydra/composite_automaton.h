@@ -164,6 +164,14 @@ DEFINE_REFCOUNTED_TYPE(TCompositeAutomatonPart)
 class TCompositeAutomaton
     : public IAutomaton
 {
+public:
+    virtual void SaveSnapshot(TOutputStream* output) override;
+    virtual void LoadSnapshot(TInputStream* input) override;
+
+    virtual void ApplyMutation(TMutationContext* context) override;
+
+    virtual void Clear() override;
+
 protected:
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
@@ -218,14 +226,6 @@ private:
 
     yhash_map<Stroka, TLoaderInfo> Loaders_;
     yhash_map<Stroka, TSaverInfo> Savers_;
-
-
-    virtual void SaveSnapshot(TOutputStream* output) override;
-    virtual void LoadSnapshot(TInputStream* input) override;
-
-    virtual void ApplyMutation(TMutationContext* context) override;
-
-    virtual void Clear() override;
 
 
     void OnRecoveryStarted();
