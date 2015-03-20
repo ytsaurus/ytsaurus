@@ -1169,9 +1169,9 @@ TCodegenSource MakeCodegenJoinOp(
                     auto id = index;
 
                     auto columnName = joinColumns[index];
-                    auto column = sourceSchema.GetColumnOrThrow(columnName);
-
                     auto columnIndex = sourceSchema.GetColumnIndexOrThrow(columnName);
+                    auto column = sourceSchema.Columns()[columnIndex];
+                    
                     TCGValue::CreateFromRow(
                         builder,
                         row,
