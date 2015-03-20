@@ -38,7 +38,9 @@ public:
     //! Any operation with usage less than this cannot be preempted.
     double MinPreemptableRatio;
 
-    TNullable<Stroka> SchedulingTag;
+    //! Limit on number of running operations.
+    int MaxRunningOperations;
+    int MaxRunningOperationsPerPool;
 
     TFairShareStrategyConfig()
     {
@@ -60,8 +62,13 @@ public:
             .InRange(0.0, 1.0)
             .Default(0.05);
 
-        RegisterParameter("scheduling_tag", SchedulingTag)
-            .Default(Null);
+        RegisterParameter("max_running_operations", MaxRunningOperations)
+            .Default(200)
+            .GreaterThan(0);
+
+        RegisterParameter("max_running_operations_per_pool", MaxRunningOperationsPerPool)
+            .Default(50)
+            .GreaterThan(0);
     }
 };
 
@@ -364,7 +371,7 @@ public:
             .Default(20000)
             .GreaterThan(0);
         RegisterParameter("max_operation_count", MaxOperationCount)
-            .Default(100)
+            .Default(1000)
             .GreaterThan(0);
 
         RegisterParameter("environment", Environment)
