@@ -202,7 +202,7 @@ private:
 
     int DoGetLatestChangelogId(int initialId)
     {
-        int latestId = NonexistingSegmentId;
+        int latestId = InvalidSegmentId;
 
         auto fileNames = NFS::EnumerateFiles(Config_->Path);
         for (const auto& fileName : fileNames) {
@@ -212,7 +212,7 @@ private:
             auto name = NFS::GetFileNameWithoutExtension(fileName);
             try {
                 int id = FromString<int>(name);
-                if (id >= initialId && (id > latestId || latestId == NonexistingSegmentId)) {
+                if (id >= initialId && (id > latestId || latestId == InvalidSegmentId)) {
                     latestId = id;
                 }
             } catch (const std::exception&) {
