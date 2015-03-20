@@ -12,7 +12,7 @@ def parse_ypath(path, client=None):
     if isinstance(path, YsonString):
         attributes = copy.deepcopy(path.attributes)
 
-    result = loads(make_request("parse_ypath", {"path": path, "output_format": YsonFormat().json()}, client=client))
+    result = loads(make_request("parse_ypath", {"path": path, "output_format": YsonFormat().to_yson_type()}, client=client))
     result.attributes = update(attributes, result.attributes)
 
     return result
@@ -27,7 +27,7 @@ def get_user_name(token, proxy=None, client=None):
         "http://{0}/auth/login".format(proxy),
         data="token=" + token,
         response_should_be_json=True)
-    login = response.json()["login"]
+    login = response.parse_content()["login"]
     if not login:
         return None
     return login

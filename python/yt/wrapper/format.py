@@ -41,11 +41,9 @@ class Format(object):
         self._name.attributes = get_value(attributes, {})
         self._raw = raw
 
-    def json(self):
-        """
-        Return JSON representation of format.
-        """
-        return yson.yson_to_json(self._name)
+    def to_yson_type(self):
+        """Return YSON representation of format"""
+        return self._name
 
     def name(self):
         """

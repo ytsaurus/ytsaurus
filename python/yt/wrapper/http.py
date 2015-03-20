@@ -5,6 +5,8 @@ from common import require, get_backoff, get_value
 from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, build_response_error, YtRequestRateLimitExceeded
 from command import parse_commands
 
+import yt.yson as yson
+
 import os
 import string
 import time
@@ -41,6 +43,14 @@ def parse_error_from_headers(headers):
     return None
 
 def create_response(response, request_headers):
+    header_format = get_value(config.http.HEADER_FORMAT, "json")
+    def loads(str):
+        if header_format == "json":
+            return yson.json_to_yson(json.loads(str))
+        if header_format == "yson":
+            return yson.loads(str)
+        assert False, header_format
+
     def get_error():
         if not str(response.status_code).startswith("2"):
             # 401 is case of incorrect token
@@ -63,6 +73,8 @@ def create_response(response, request_headers):
     def is_ok(self):
         return self._error is None
 
+    if "X-YT-Response-Parameters" in response.headers:
+        response.headers["X-YT-Response-Parameters"] = loads(response.headers["X-YT-Response-Parameters"])
     response.request_headers = request_headers
     response._error = get_error()
     response.error = types.MethodType(error, response)
