@@ -24,7 +24,7 @@ def main():
         except yt.YtResponseError as error:
             if error.is_concurrent_transaction_lock_conflict():
                 logger.info("Lock conflict (path %s)", args.path)
-                return
+                sys.exit(1)
             raise
 
         ctypes.cdll.LoadLibrary("libc.so.6")
