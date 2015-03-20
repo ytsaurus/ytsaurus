@@ -250,12 +250,10 @@ private:
                             .ValueOrThrow();
                     });
 
-                auto id = subquery->Id;
-
-                asyncStatistics.Subscribe(BIND([pipe, &Logger, id] (const TErrorOr<TQueryStatistics>& result) {
+                asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
-                        LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", id);
+                        LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", subquery->Id);
                     }
                 }));
 
