@@ -176,7 +176,7 @@ TEntityMap<TKey, TValue, TTraits, THash>::TEntityMap(const TTraits& traits)
 template <class TKey, class TValue, class TTraits, class THash>
 TEntityMap<TKey, TValue, TTraits, THash>::~TEntityMap()
 {
-    Clear();
+    DoClear();
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -230,6 +230,14 @@ std::unique_ptr<TValue> TEntityMap<TKey, TValue, TTraits, THash>::Release(const 
 
 template <class TKey, class TValue, class TTraits, class THash>
 void TEntityMap<TKey, TValue, TTraits, THash>::Clear()
+{
+    VERIFY_THREAD_AFFINITY(this->UserThread);
+
+    DoClear();
+}
+
+template <class TKey, class TValue, class TTraits, class THash>
+void TEntityMap<TKey, TValue, TTraits, THash>::DoClear()
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
