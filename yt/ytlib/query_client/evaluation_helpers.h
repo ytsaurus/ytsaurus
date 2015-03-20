@@ -131,6 +131,7 @@ bool CountRow(i64* limit);
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,
     const TConstExpressionPtr& predicate,
+    const TTableSchema& selfTableSchema,
     TExecuteQuery executeCallback);
 
 ////////////////////////////////////////////////////////////////////////////////

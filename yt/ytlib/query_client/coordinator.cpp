@@ -362,6 +362,7 @@ private:
     };
 };
 
+// TODO: Do not refine at Client, it is useless
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     const TConstQueryPtr& query,
     const std::vector<TKeyRange>& ranges,
@@ -401,8 +402,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
             }
         }
 
-        if (query->Predicate) {
-            subquery->Predicate = RefinePredicate(keyRange, commonPrefixSize, query->Predicate, subquery->KeyColumns);
+        if (query->WhereClause) {
+            subquery->WhereClause = RefinePredicate(keyRange, commonPrefixSize, query->WhereClause, subquery->KeyColumns);
         }
 
         if (query->GroupClause) {
@@ -426,9 +427,10 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         if (pushdownGroupClause) {
             topQuery->TableSchema = query->GroupClause->GetTableSchema();
             if (subqueries.size() > 1) {
-                topQuery->GroupClause.Emplace();
+                auto groupClause = New<TGroupClause>();
+                groupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
 
-                auto& finalGroupItems = topQuery->GroupClause->GroupItems;
+                auto& finalGroupItems = groupClause->GroupItems;
                 for (const auto& groupItem : query->GroupClause->GroupItems) {
                     auto referenceExpr = New<TReferenceExpression>(
                         NullSourceLocation,
@@ -437,7 +439,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
                     finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
                 }
 
-                auto& finalAggregateItems = topQuery->GroupClause->AggregateItems;
+                auto& finalAggregateItems = groupClause->AggregateItems;
                 for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
                     auto referenceExpr = New<TReferenceExpression>(
                         NullSourceLocation,
@@ -448,6 +450,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
                         aggregateItem.AggregateFunction,
                         aggregateItem.Name);
                 }
+
+                topQuery->GroupClause = groupClause;
             }
         } else {
             topQuery->TableSchema = query->TableSchema;
@@ -470,7 +474,7 @@ TDataSplits GetPrunedSplits(
 {
     auto Logger = BuildLogger(query);
 
-    TRangeInferrer rangeInferrer(query->Predicate, splits, evaluatorCache, verboseLogging);
+    TRangeInferrer rangeInferrer(query->WhereClause, splits, evaluatorCache, verboseLogging);
 
     auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
         return Format("[%v .. %v]",

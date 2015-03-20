@@ -35,7 +35,7 @@ DEFINE_ENUM(EBinaryOp,
     (GreaterOrEqual)
 );
 
-DEFINE_ENUM(EAggregateFunctions,
+DEFINE_ENUM(EAggregateFunction,
     (Sum)
     (Min)
     (Max)

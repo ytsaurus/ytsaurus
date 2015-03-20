@@ -86,42 +86,44 @@ TCodegenSource TFoldingProfiler::Profile(const TConstQueryPtr& query)
     Profile(query->TableSchema);
     TCodegenSource codegenSource = &CodegenScanOp;
 
-    if (auto joinClause = query->JoinClause.GetPtr()) {
+    TTableSchema schema = query->TableSchema;
+
+    if (auto joinClause = query->JoinClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::JoinOp));
 
-        Profile(joinClause->SelfTableSchema);
+        Profile(schema);
         Profile(joinClause->ForeignTableSchema);
 
         for (const auto& column : joinClause->JoinColumns) {
             Fold(column.c_str());
         }
 
-        if (auto selfFilter = ExtractPredicateForColumnSubset(query->Predicate, joinClause->SelfTableSchema)) {
-            codegenSource = MakeCodegenFilterOp(Profile(selfFilter, joinClause->SelfTableSchema), std::move(codegenSource));
+        if (auto selfFilter = ExtractPredicateForColumnSubset(query->WhereClause, schema)) {
+            codegenSource = MakeCodegenFilterOp(Profile(selfFilter, schema), std::move(codegenSource));
         }
 
-        codegenSource = MakeCodegenJoinOp(joinClause->JoinColumns, joinClause->SelfTableSchema, std::move(codegenSource));
+        codegenSource = MakeCodegenJoinOp(joinClause->JoinColumns, schema, std::move(codegenSource));
+
+        schema = joinClause->JoinedTableSchema;
     }
 
-    TTableSchema sourceSchema = query->TableSchema;
-
-    if (query->Predicate) {
+    if (query->WhereClause) {
         Fold(static_cast<int>(EFoldingObjectType::FilterOp));
-        codegenSource = MakeCodegenFilterOp(Profile(query->Predicate, sourceSchema), std::move(codegenSource));
+        codegenSource = MakeCodegenFilterOp(Profile(query->WhereClause, schema), std::move(codegenSource));
     }
 
-    if (auto groupClause = query->GroupClause.GetPtr()) {
+    if (auto groupClause = query->GroupClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::GroupOp));
 
         std::vector<TCodegenExpression> codegenGroupExprs;
         std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates;
 
         for (const auto& groupItem : groupClause->GroupItems) {
-            codegenGroupExprs.push_back(Profile(groupItem, sourceSchema));
+            codegenGroupExprs.push_back(Profile(groupItem, schema));
         }
 
         for (const auto& aggregateItem : groupClause->AggregateItems) {
-            codegenAggregates.push_back(Profile(aggregateItem, sourceSchema));
+            codegenAggregates.push_back(Profile(aggregateItem, schema));
         }
 
         codegenSource = MakeCodegenGroupOp(
@@ -129,20 +131,20 @@ TCodegenSource TFoldingProfiler::Profile(const TConstQueryPtr& query)
             std::move(codegenAggregates),
             std::move(codegenSource));
 
-        sourceSchema = groupClause->GetTableSchema();
+        schema = groupClause->GetTableSchema();
     }
 
-    if (auto projectClause = query->ProjectClause.GetPtr()) {
+    if (auto projectClause = query->ProjectClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::ProjectOp));
 
         std::vector<TCodegenExpression> codegenProjectExprs;
 
         for (const auto& item : projectClause->Projections) {
-            codegenProjectExprs.push_back(Profile(item, sourceSchema));
+            codegenProjectExprs.push_back(Profile(item, schema));
         }
 
         codegenSource = MakeCodegenProjectOp(std::move(codegenProjectExprs), std::move(codegenSource));
-        sourceSchema = query->ProjectClause->GetTableSchema();
+        schema = query->ProjectClause->GetTableSchema();
     }
 
     return codegenSource;

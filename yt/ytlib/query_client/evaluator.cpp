@@ -104,9 +104,7 @@ public:
 
                 TExecutionContext executionContext;
                 executionContext.Reader = reader.Get();
-                executionContext.Schema = query->JoinClause
-                    ? query->JoinClause->SelfTableSchema
-                    : query->TableSchema;
+                executionContext.Schema = query->TableSchema;
 
                 executionContext.LiteralRows = &fragmentParams.LiteralRows;
                 executionContext.PermanentBuffer = &permanentBuffer;
@@ -122,11 +120,12 @@ public:
                 executionContext.Limit = query->Limit;
 
                 if (query->JoinClause) {
-                    auto& joinClause = query->JoinClause.Get();
+                    auto joinClause = query->JoinClause.Get();
                     YCHECK(executeCallback);
                     executionContext.EvaluateJoin = GetJoinEvaluator(
-                        joinClause,
-                        query->Predicate,
+                        *joinClause,
+                        query->WhereClause,
+                        query->TableSchema,
                         executeCallback);
                 }
 
