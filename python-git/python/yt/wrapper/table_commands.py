@@ -68,8 +68,6 @@ from heavy_commands import make_heavy_request
 from http import RETRIABLE_ERRORS, get_api_version
 import yt.logger as logger
 
-from yt.yson import yson_to_json
-
 import os
 import sys
 import types
@@ -287,13 +285,11 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     spec = update(
         {
             op_type: {
-                "input_format": input_format.json(),
-                "output_format": output_format.json(),
+                "input_format": input_format.to_yson_type(),
+                "output_format": output_format.to_yson_type(),
                 "command": binary,
-                "file_paths": map(
-                    yson_to_json,
-                    flatten(files + additional_files + map(lambda path: prepare_path(path, client=client), get_value(file_paths, [])))
-                ),
+                "file_paths":
+                    flatten(files + additional_files + map(lambda path: prepare_path(path, client=client), get_value(file_paths, []))),
                 "use_yamr_descriptors": bool_to_string(config.USE_MAPREDUCE_STYLE_DESTINATION_FDS),
                 "check_input_fully_consumed": bool_to_string(config.CHECK_INPUT_FULLY_CONSUMED)
             }
@@ -323,9 +319,9 @@ def _configure_spec(spec):
 
 def _add_input_output_spec(source_table, destination_table, spec):
     def get_input_name(table):
-        return table.get_json()
+        return table.to_yson_type()
     def get_output_name(table):
-        return table.get_json()
+        return table.to_yson_type()
 
     spec = update({"input_table_paths": map(get_input_name, source_table)}, spec)
     if isinstance(destination_table, TablePath):
@@ -476,7 +472,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     format = _prepare_format(format, raw)
 
     params = {}
-    params["input_format"] = format.json()
+    params["input_format"] = format.to_yson_type()
     if table_writer is not None:
         params["table_writer"] = table_writer
 
@@ -533,8 +529,8 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
         return StringIO() if raw else EMPTY_GENERATOR
 
     params = {
-        "path": table.get_json(),
-        "output_format": format.json()
+        "path": table.to_yson_type(),
+        "output_format": format.to_yson_type()
     }
     if table_reader is not None:
         params["table_reader"] = table_reader
@@ -559,7 +555,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             return_content=False,
             use_heavy_proxy=True,
             client=client)
-        set_response_parameters(json.loads(response.headers["X-YT-Response-Parameters"]))
+        set_response_parameters(response.headers["X-YT-Response-Parameters"])
         return read_content(ResponseStream.from_response(response))
     else:
         title = "Python wrapper: read {0}".format(to_name(table, client=client))
@@ -607,7 +603,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 client=client)
             if "X-YT-Response-Parameters" not in response.headers:
                 raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
-            return json.loads(response.headers["X-YT-Response-Parameters"])
+            return response.headers["X-YT-Response-Parameters"]
 
         class Iterator(object):
             def __init__(self, index):
@@ -617,7 +613,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
 
             def execute_read(self):
                 table.name.attributes["lower_limit"] = {"row_index": self.index}
-                params["path"] = table.get_json()
+                params["path"] = table.to_yson_type()
                 self.response = _make_transactional_request(
                     command_name,
                     params,
@@ -847,7 +843,7 @@ def select_rows(query, timestamp=None, format=None, raw=True, client=None):
     format = _prepare_format(format, raw)
     params = {
         "query": query,
-        "output_format": format.json()}
+        "output_format": format.to_yson_type()}
     if timestamp is not None:
         params["timestamp"] = timestamp
 
@@ -877,9 +873,9 @@ def lookup_rows(table, input_stream, format=None, raw=False, client=None):
     format = _prepare_format(format, raw)
 
     params = {}
-    params["path"] = table.get_json()
-    params["input_format"] = format.json()
-    params["output_format"] = format.json()
+    params["path"] = table.to_yson_type()
+    params["input_format"] = format.to_yson_type()
+    params["output_format"] = format.to_yson_type()
 
     if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
         input_stream = _split_rows(input_stream, format, raw)
@@ -914,8 +910,8 @@ def insert_rows(table, input_stream, format=None, raw=False, client=None):
     format = _prepare_format(format, raw)
 
     params = {}
-    params["path"] = table.get_json()
-    params["input_format"] = format.json()
+    params["path"] = table.to_yson_type()
+    params["input_format"] = format.to_yson_type()
 
     if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
         input_stream = _split_rows(input_stream, format, raw)
@@ -943,8 +939,8 @@ def delete_rows(table, input_stream, format=None, raw=False, client=None):
     format = _prepare_format(format, raw)
 
     params = {}
-    params["path"] = table.get_json()
-    params["input_format"] = format.json()
+    params["path"] = table.to_yson_type()
+    params["input_format"] = format.to_yson_type()
 
     if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
         input_stream = _split_rows(input_stream, format, raw)
@@ -975,7 +971,7 @@ def run_erase(table, spec=None, strategy=None, sync=True, client=None):
     table = to_table(table, client=client)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name, client=client):
         return
-    spec = update({"table_path": table.get_json()}, get_value(spec, {}))
+    spec = update({"table_path": table.to_yson_type()}, get_value(spec, {}))
     spec = _configure_spec(spec)
     return _make_operation_request("erase", spec, strategy, sync, client=client)
 
@@ -1384,7 +1380,7 @@ def run_remote_copy(source_table, destination_table, cluster_name,
     .. seealso::  :ref:`operation_parameters`.
     """
     def get_input_name(table):
-        return to_table(table, client=client).get_json()
+        return to_table(table, client=client).to_yson_type()
 
     # TODO(ignat): use base string in other places
     if isinstance(source_table, basestring):
@@ -1417,7 +1413,7 @@ def run_remote_copy(source_table, destination_table, cluster_name,
         _configure_spec,
         lambda _: update({"network_name": network_name}, _) if network_name is not None else _,
         lambda _: update({"input_table_paths": map(get_input_name, source_table),
-                          "output_table_path": destination_table.get_json(),
+                          "output_table_path": destination_table.to_yson_type(),
                           "cluster_name": cluster_name},
                           _),
         lambda _: get_value(spec, {})

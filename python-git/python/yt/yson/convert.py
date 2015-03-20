@@ -67,9 +67,9 @@ def yson_to_json(yson_tree, print_attributes=True):
     if hasattr(yson_tree, "attributes") and yson_tree.attributes and print_attributes:
         return {"$attributes": process_dict(yson_tree.attributes),
                 "$value": yson_to_json(yson_tree, print_attributes=False)}
-    if isinstance(yson_tree, YsonList):
+    if isinstance(yson_tree, list):
         return map(yson_to_json, yson_tree)
-    elif isinstance(yson_tree, YsonMap):
+    elif isinstance(yson_tree, dict):
         return process_dict(yson_tree)
     elif isinstance(yson_tree, YsonEntity):
         return None
