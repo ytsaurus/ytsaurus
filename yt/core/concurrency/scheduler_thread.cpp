@@ -222,7 +222,7 @@ void TSchedulerThread::FiberMain(unsigned int spawnedEpoch)
     ++FibersAlive;
     Profiler.Enqueue("/fibers_alive", FibersAlive);
 
-    LOG_DEBUG_IF(EnableLogging, "Fiber started (Name: %v, Created: %v, Alive: %v)",
+    LOG_TRACE_IF(EnableLogging, "Fiber started (Name: %v, Created: %v, Alive: %v)",
         ThreadName,
         FibersCreated,
         FibersAlive);
@@ -232,7 +232,7 @@ void TSchedulerThread::FiberMain(unsigned int spawnedEpoch)
     --FibersAlive;
     Profiler.Enqueue("/fibers_alive", FibersAlive);
 
-    LOG_DEBUG_IF(EnableLogging, "Fiber finished (Name: %v, Created: %v, Alive: %v)",
+    LOG_TRACE_IF(EnableLogging, "Fiber finished (Name: %v, Created: %v, Alive: %v)",
         ThreadName,
         FibersCreated,
         FibersAlive);
