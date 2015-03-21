@@ -266,7 +266,7 @@ private:
             Canceled_.Subscribe(GetCurrentFiberCanceler());
 
             if (timeout != TDuration::Max()) {
-                LOG_DEBUG("Setting up server-side request timeout (RequestId: %v, Timeout: %v)",
+                LOG_TRACE("Setting up server-side request timeout (RequestId: %v, Timeout: %v)",
                     RequestId_,
                     timeout);
                 TimeoutCookie_ = TDelayedExecutor::Submit(
@@ -386,6 +386,10 @@ private:
         }
 
         AppendInfo(&builder, "Retry: %v", IsRetry());
+
+        if (RequestHeader_->has_timeout()) {
+            AppendInfo(&builder, "Timeout: %v", TDuration(RequestHeader_->timeout()));
+        }
 
         if (!RequestInfo_.empty()) {
             AppendInfo(&builder, "%v", RequestInfo_);
