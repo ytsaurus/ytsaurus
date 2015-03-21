@@ -715,7 +715,7 @@ void TServiceBase::RegisterCancelableRequest(TServiceContext* context)
         replyBus->SubscribeTerminated(BIND(&TServiceBase::OnReplyBusTerminated, MakeWeak(this), replyBus));
     }
 
-    LOG_DEBUG("Cancelable request registered (RequestId: %v, ReplyBus: %p, Subscribe: %v, RequestsPerBus: %v)",
+    LOG_TRACE("Cancelable request registered (RequestId: %v, ReplyBus: %p, Subscribe: %v, RequestsPerBus: %v)",
         requestId,
         replyBus.Get(),
         subscribe,
@@ -743,7 +743,7 @@ void TServiceBase::UnregisterCancelableRequest(TServiceContext* context)
         }
     }
 
-    LOG_DEBUG("Cancelable request unregistered (RequestId: %v, ReplyBus: %p, RequestsPerBus: %v)",
+    LOG_TRACE("Cancelable request unregistered (RequestId: %v, ReplyBus: %p, RequestsPerBus: %v)",
         requestId,
         replyBus.Get(),
         requestsPerBus);
