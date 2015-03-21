@@ -127,7 +127,7 @@ void TJournalChunk::DoReadBlocks(
         auto changelog = WaitFor(dispatcher->OpenChangelog(Location_, Id_, false))
             .ValueOrThrow();
 
-        LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+        LOG_TRACE("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
@@ -155,7 +155,7 @@ void TJournalChunk::DoReadBlocks(
         int blocksRead = static_cast<int>(blocks.size());
         i64 bytesRead = GetTotalSize(blocks);
 
-        LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, BytesReadActually: %v)",
+        LOG_TRACE("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, BytesReadActually: %v)",
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,

@@ -71,7 +71,7 @@ bool TChunkBase::TryAcquireReadLock()
         lockCount = ++ReadLockCounter_;
     }
 
-    LOG_DEBUG("Chunk read lock acquired (ChunkId: %v, LockCount: %v)",
+    LOG_TRACE("Chunk read lock acquired (ChunkId: %v, LockCount: %v)",
         Id_,
         lockCount);
 
@@ -91,7 +91,7 @@ void TChunkBase::ReleaseReadLock()
         }
     }
 
-    LOG_DEBUG("Chunk read lock released (ChunkId: %v, LockCount: %v)",
+    LOG_TRACE("Chunk read lock released (ChunkId: %v, LockCount: %v)",
         Id_,
         lockCount);
 
