@@ -39,6 +39,11 @@ namespace NApi {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TTimeoutOptions
+{
+    TNullable<TDuration> Timeout;
+};
+
 struct TTabletRangeOptions
 {
     TNullable<int> FirstTabletIndex;
@@ -74,39 +79,43 @@ struct TPrerequisiteOptions
     std::vector<NTransactionClient::TTransactionId> PrerequisiteTransactionIds;
 };
 
-struct TGetTableInfoOptions
-{ };
-
 struct TMountTableOptions
-    : public TTabletRangeOptions
+    : public TTimeoutOptions
+    , public TTabletRangeOptions
 {
     NTabletClient::TTabletCellId CellId;
 };
 
 struct TUnmountTableOptions
-    : public TTabletRangeOptions
+    : public TTimeoutOptions
+    , public TTabletRangeOptions
 {
     bool Force = false;
 };
 
 struct TRemountTableOptions
-    : public TTabletRangeOptions
+    : public TTimeoutOptions
+    , public TTabletRangeOptions
 { };
 
 struct TReshardTableOptions
-    : public TTabletRangeOptions
+    : public TTimeoutOptions
+    , public TTabletRangeOptions
 { };
 
 struct TAddMemberOptions
-    : public TMutatingOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
 { };
 
 struct TRemoveMemberOptions
-    : public TMutatingOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
 { };
 
 struct TCheckPermissionOptions
-    : public TReadOnlyOptions
+    : public TTimeoutOptions
+    , public TReadOnlyOptions
     , public TTransactionalOptions
 { };
 
@@ -144,6 +153,7 @@ struct TTransactionAbortOptions
 };
 
 struct TLookupRowsOptions
+    : public TTimeoutOptions
 {
     NVersionedTableClient::TColumnFilter ColumnFilter;
     //! Ignored when queried via transaction.
@@ -152,6 +162,7 @@ struct TLookupRowsOptions
 };
 
 struct TSelectRowsOptions
+    : public TTimeoutOptions
 {
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
@@ -166,7 +177,8 @@ struct TSelectRowsOptions
 };
 
 struct TGetNodeOptions
-    : public TTransactionalOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
     , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
 {
@@ -178,13 +190,15 @@ struct TGetNodeOptions
 };
 
 struct TSetNodeOptions
-    : public TTransactionalOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 { };
 
 struct TRemoveNodeOptions
-    : public TTransactionalOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
@@ -193,7 +207,8 @@ struct TRemoveNodeOptions
 };
 
 struct TListNodeOptions
-    : public TTransactionalOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
     , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
 {
@@ -202,7 +217,8 @@ struct TListNodeOptions
 };
 
 struct TCreateNodeOptions
-    : public TTransactionalOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
@@ -212,7 +228,8 @@ struct TCreateNodeOptions
 };
 
 struct TLockNodeOptions
-    : public TTransactionalOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
@@ -222,7 +239,8 @@ struct TLockNodeOptions
 };
 
 struct TCopyNodeOptions
-    : public TTransactionalOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
@@ -231,7 +249,8 @@ struct TCopyNodeOptions
 };
 
 struct TMoveNodeOptions
-    : public TTransactionalOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
@@ -240,7 +259,8 @@ struct TMoveNodeOptions
 };
 
 struct TLinkNodeOptions
-    : public TTransactionalOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
@@ -251,12 +271,14 @@ struct TLinkNodeOptions
 };
 
 struct TNodeExistsOptions
-    : public TReadOnlyOptions
+    : public TTimeoutOptions
+    , public TReadOnlyOptions
     , public TTransactionalOptions
 { };
 
 struct TCreateObjectOptions
-    : public TTransactionalOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
@@ -297,8 +319,29 @@ struct TJournalWriterOptions
 };
 
 struct TStartOperationOptions
-    : public TTransactionalOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
     , public TMutatingOptions
+{ };
+
+struct TAbortOperationOptions
+    : public TTimeoutOptions
+{ };
+
+struct TSuspendOperationOptions
+    : public TTimeoutOptions
+{ };
+
+struct TResumeOperationOptions
+    : public TTimeoutOptions
+{ };
+
+struct TDumpJobInputContextOptions
+    : public TTimeoutOptions
+{ };
+
+struct TStraceJobOptions
+    : public TTimeoutOptions
 { };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -495,18 +538,26 @@ struct IClient
         const NYTree::TYsonString& spec,
         const TStartOperationOptions& options = TStartOperationOptions()) = 0;
 
-    virtual TFuture<void> AbortOperation(const NScheduler::TOperationId& operationId) = 0;
+    virtual TFuture<void> AbortOperation(
+        const NScheduler::TOperationId& operationId,
+        const TAbortOperationOptions& options = TAbortOperationOptions()) = 0;
 
-    virtual TFuture<void> SuspendOperation(const NScheduler::TOperationId& operationId) = 0;
+    virtual TFuture<void> SuspendOperation(
+        const NScheduler::TOperationId& operationId,
+        const TSuspendOperationOptions& options = TSuspendOperationOptions()) = 0;
 
-    virtual TFuture<void> ResumeOperation(const NScheduler::TOperationId& operationId) = 0;
-
+    virtual TFuture<void> ResumeOperation(
+        const NScheduler::TOperationId& operationId,
+        const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
 
     virtual TFuture<void> DumpJobInputContext(
         const NJobTrackerClient::TJobId& jobId,
-        const NYPath::TYPath& path) = 0;
+        const NYPath::TYPath& path,
+        const TDumpJobInputContextOptions& options = TDumpJobInputContextOptions()) = 0;
 
-    virtual TFuture<NYTree::TYsonString> StraceJob(const NJobTrackerClient::TJobId& jobId) = 0;
+    virtual TFuture<NYTree::TYsonString> StraceJob(
+        const NJobTrackerClient::TJobId& jobId,
+        const TStraceJobOptions& options = TStraceJobOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)
