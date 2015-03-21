@@ -295,7 +295,6 @@ public:
         : Owner_(owner)
         , ChunkId_(chunkId)
         , UnderlyingCache_(std::move(underlyingCache))
-
     { }
 
     virtual void Put(
