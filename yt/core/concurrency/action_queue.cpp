@@ -2,6 +2,7 @@
 #include "action_queue.h"
 #include "scheduler_thread.h"
 #include "single_queue_scheduler_thread.h"
+#include "private.h"
 
 #include <core/actions/invoker_detail.h>
 
