@@ -683,6 +683,7 @@ public:
     { \
         return Execute( \
             #method, \
+            options, \
             BIND( \
                 &TClient::Do ## method, \
                 MakeStrong(this), \
@@ -864,22 +865,27 @@ public:
         const TStartOperationOptions& options),
         (type, spec, options))
     IMPLEMENT_METHOD(void, AbortOperation, (
-        const TOperationId& operationId),
-        (operationId))
+        const TOperationId& operationId,
+        const TAbortOperationOptions& options),
+        (operationId, options))
     IMPLEMENT_METHOD(void, SuspendOperation, (
-        const TOperationId& operationId),
-        (operationId))
+        const TOperationId& operationId,
+        const TSuspendOperationOptions& options),
+        (operationId, options))
     IMPLEMENT_METHOD(void, ResumeOperation, (
-        const TOperationId& operationId),
-        (operationId))
+        const TOperationId& operationId,
+        const TResumeOperationOptions& options),
+        (operationId, options))
 
     IMPLEMENT_METHOD(void, DumpJobInputContext, (
         const TJobId& jobId,
-        const TYPath& path),
-        (jobId, path))
+        const TYPath& path,
+        const TDumpJobInputContextOptions& options),
+        (jobId, path, options))
     IMPLEMENT_METHOD(TYsonString, StraceJob, (
-        const TJobId& jobId),
-        (jobId))
+        const TJobId& jobId,
+        const TStraceJobOptions& options),
+        (jobId, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -912,7 +918,10 @@ private:
 
 
     template <class T>
-    TFuture<T> Execute(const Stroka& commandName, TCallback<T()> callback)
+    TFuture<T> Execute(
+        const Stroka& commandName,
+        const TTimeoutOptions& options,
+        TCallback<T()> callback)
     {
         return
             BIND([=, this_ = MakeStrong(this)] () {
@@ -927,7 +936,8 @@ private:
                 }
             })
             .AsyncVia(Invoker_)
-            .Run();
+            .Run()
+            .WithTimeout(options.Timeout);
     }
 
 
@@ -1707,7 +1717,9 @@ private:
         return FromProto<TOperationId>(rsp->operation_id());
     }
 
-    void DoAbortOperation(const TOperationId& operationId)
+    void DoAbortOperation(
+        const TOperationId& operationId,
+        const TAbortOperationOptions& /*options*/)
     {
         auto req = SchedulerProxy_->AbortOperation();
         ToProto(req->mutable_operation_id(), operationId);
@@ -1716,7 +1728,9 @@ private:
             .ThrowOnError();
     }
 
-    void DoSuspendOperation(const TOperationId& operationId)
+    void DoSuspendOperation(
+        const TOperationId& operationId,
+        const TSuspendOperationOptions& /*options*/)
     {
         auto req = SchedulerProxy_->SuspendOperation();
         ToProto(req->mutable_operation_id(), operationId);
@@ -1725,7 +1739,9 @@ private:
             .ThrowOnError();
     }
 
-    void DoResumeOperation(const TOperationId& operationId)
+    void DoResumeOperation(
+        const TOperationId& operationId,
+        const TResumeOperationOptions& /*options*/)
     {
         auto req = SchedulerProxy_->ResumeOperation();
         ToProto(req->mutable_operation_id(), operationId);
@@ -1735,7 +1751,10 @@ private:
     }
 
 
-    void DoDumpJobInputContext(const TJobId& jobId, const TYPath& path)
+    void DoDumpJobInputContext(
+        const TJobId& jobId,
+        const TYPath& path,
+        const TDumpJobInputContextOptions& /*options*/)
     {
         auto req = JobProberProxy_->DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
@@ -1745,7 +1764,9 @@ private:
             .ThrowOnError();
     }
 
-    TYsonString DoStraceJob(const TJobId& jobId)
+    TYsonString DoStraceJob(
+        const TJobId& jobId,
+        const TStraceJobOptions& /*options*/)
     {
         auto req = JobProberProxy_->Strace();
         ToProto(req->mutable_job_id(), jobId);
