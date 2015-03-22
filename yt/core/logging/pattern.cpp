@@ -2,11 +2,10 @@
 #include "pattern.h"
 
 #include <core/misc/fs.h>
-#include <core/misc/common.h>
 
 #ifdef YT_USE_SSE42
-#include <emmintrin.h>
-#include <pmmintrin.h>
+    #include <emmintrin.h>
+    #include <pmmintrin.h>
 #endif
 
 namespace NYT {

@@ -6,7 +6,7 @@ namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TRule::IsApplicable(const Stroka& category) const
+bool TRuleConfig::IsApplicable(const Stroka& category) const
 {
     if (IncludeCategories && IncludeCategories->find(category) == IncludeCategories->end()) {
         // No match in include_categories.
@@ -21,7 +21,7 @@ bool TRule::IsApplicable(const Stroka& category) const
     return true;
 }
 
-bool TRule::IsApplicable(const Stroka& category, ELogLevel level) const
+bool TRuleConfig::IsApplicable(const Stroka& category, ELogLevel level) const
 {
     return MinLevel <= level && level <= MaxLevel && IsApplicable(category);
 }
@@ -30,7 +30,7 @@ bool TRule::IsApplicable(const Stroka& category, ELogLevel level) const
 
 TLogConfigPtr TLogConfig::CreateDefault()
 {
-    auto rule = New<TRule>();
+    auto rule = New<TRuleConfig>();
     rule->MinLevel = DefaultStderrMinLevel;
     rule->Writers.push_back(DefaultStderrWriterName);
     
