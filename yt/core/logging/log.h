@@ -37,30 +37,26 @@ class TLogger
 {
 public:
     explicit TLogger(const Stroka& category = "");
-    TLogger(const TLogger& other);
+    TLogger(const TLogger& other) = default;
 
     const Stroka& GetCategory() const;
     bool IsEnabled(ELogLevel level) const;
     void Write(TLogEvent&& event) const;
 
     void AddRawTag(const Stroka& tag);
-
     template <class... TArgs>
-    void AddTag(const char* format, const TArgs&... args)
-    {
-        AddRawTag(Format(format, args...));
-    }
+    void AddTag(const char* format, const TArgs&... args);
 
 private:
-    TLogManager* GetLogManager() const;
-    void Update();
-    static Stroka GetMessageWithContext(const Stroka& originalMessage, const Stroka& context);
-
     Stroka Category_;
     Stroka Context_;
     int Version_ = -1;
     mutable TLogManager* LogManager_ = nullptr;
     ELogLevel MinLevel_;
+
+    TLogManager* GetLogManager() const;
+    void Update();
+    static Stroka GetMessageWithContext(const Stroka& originalMessage, const Stroka& context);
 
 };
 

@@ -16,11 +16,6 @@ TLogger::TLogger(const Stroka& category)
     : Category_(category)
 { }
 
-TLogger::TLogger(const TLogger& other)
-    : Category_(other.Category_)
-    , Context_(other.Context_)
-{ }
-
 const Stroka& TLogger::GetCategory() const
 {
     return Category_;
@@ -38,7 +33,6 @@ bool TLogger::IsEnabled(ELogLevel level) const
 
     return level >= MinLevel_;
 }
-
 
 void TLogger::Write(TLogEvent&& event) const
 {

@@ -1,13 +1,22 @@
 #ifndef LOG_INL_H_
 #error "Direct inclusion of this file is not allowed, include log.h"
 #endif
-#undef LOG_H_
+#undef LOG_INL_H_
 
 namespace NYT {
 namespace NLogging {
-namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class... TArgs>
+void TLogger::AddTag(const char* format, const TArgs&... args)
+{
+    AddRawTag(Format(format, args...));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
 
 template <class... TArgs>
 inline Stroka FormatLogMessage(const char* format, const TArgs&... args)
@@ -54,8 +63,9 @@ void LogEventImpl(
     logger.Write(std::move(event));
 }
 
+} // namespace NDetail
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDetail
 } // namespace NLogging
 } // namespace NYT
