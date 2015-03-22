@@ -130,7 +130,7 @@ TEST_F(TLoggingTest, StreamWriter)
 
 TEST_F(TLoggingTest, Rule)
 {
-    auto rule = New<TRule>();
+    auto rule = New<TRuleConfig>();
     rule->Load(ConvertToNode(TYsonString(
         R"({
             exclude_categories = [ bus ];

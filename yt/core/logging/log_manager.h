@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <core/misc/shutdownable.h>
 
@@ -16,7 +16,6 @@ class TLogManager
 {
 public:
     TLogManager();
-
     ~TLogManager();
 
     static TLogManager* Get();
@@ -35,7 +34,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

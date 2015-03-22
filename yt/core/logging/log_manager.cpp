@@ -50,7 +50,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static TLogger Logger(SystemLoggingCategory);
-static NProfiling::TProfiler LoggingProfiler("");
+static auto& Profiler = LoggingProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,6 +120,8 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(int, FD);
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TNotificationWatch
     : private TNonCopyable
@@ -226,9 +228,9 @@ public:
             false,
             false))
         , LoggingThread_(New<TThread>(this))
-        , EnqueuedCounter_("/enqueued")
-        , WrittenCounter_("/written")
-        , BacklogCounter_("/backlog")
+        , EnqueuedEventCounter_("/enqueued_events")
+        , WrittenEventCounter_("/written_events")
+        , BacklogEventCounter_("/backlog_events")
     {
         SystemWriters_.push_back(New<TStderrLogWriter>());
         UpdateConfig(TLogConfig::CreateDefault(), false);
@@ -298,7 +300,7 @@ public:
             ShutdownRequested_ = true;
 
             // Add fatal message to log and notify event log queue.
-            LoggingProfiler.Increment(EnqueuedCounter_);
+            Profiler.Increment(EnqueuedEventCounter_);
             PushLogEvent(std::move(event));
 
             if (LoggingThread_->GetId() != GetCurrentThreadId()) {
@@ -339,8 +341,8 @@ public:
             return;
         }
 
-        int backlogSize = LoggingProfiler.Increment(BacklogCounter_);
-        LoggingProfiler.Increment(EnqueuedCounter_);
+        int backlogSize = Profiler.Increment(BacklogEventCounter_);
+        Profiler.Increment(EnqueuedEventCounter_);
         PushLogEvent(std::move(event));
         EventCount_.NotifyOne();
 
@@ -438,7 +440,7 @@ private:
             }))
         { }
 
-        int backlogSize = LoggingProfiler.Increment(BacklogCounter_, -eventsWritten);
+        int backlogSize = Profiler.Increment(BacklogEventCounter_, -eventsWritten);
         if (Suspended_ && backlogSize < Config_->LowBacklogWatermark) {
             Suspended_ = false;
             LOG_INFO("Backlog size has dropped below low watermark %v, logging resumed",
@@ -466,14 +468,14 @@ private:
         EventQueue_->EndExecute(&CurrentAction_);
     }
 
-    ILogWriters GetWriters(const TLogEvent& event)
+    std::vector<ILogWriterPtr> GetWriters(const TLogEvent& event)
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
         if (event.Category == SystemLoggingCategory) {
             return SystemWriters_;
         } else {
-            ILogWriters writers;
+            std::vector<ILogWriterPtr> writers;
 
             std::pair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
             auto it = CachedWriters_.find(cacheKey);
@@ -504,7 +506,7 @@ private:
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
         for (auto& writer : GetWriters(event)) {
-            LoggingProfiler.Increment(WrittenCounter_);
+            Profiler.Increment(WrittenEventCounter_);
             writer->Write(event);
         }
     }
@@ -693,18 +695,21 @@ private:
     // default configuration (default level etc.).
     std::atomic<int> Version_ = {-1};
     TLogConfigPtr Config_;
-    NProfiling::TSimpleCounter EnqueuedCounter_;
-    NProfiling::TSimpleCounter WrittenCounter_;
-    NProfiling::TAggregateCounter BacklogCounter_;
+
+    NProfiling::TSimpleCounter EnqueuedEventCounter_;
+    NProfiling::TSimpleCounter WrittenEventCounter_;
+    NProfiling::TSimpleCounter BacklogEventCounter_;
+
     bool Suspended_ = false;
+
     TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> LoggerQueue_;
 
     std::atomic<ui64> EnqueuedLogEvents_ = {0};
     std::atomic<ui64> DequeuedLogEvents_ = {0};
 
     yhash_map<Stroka, ILogWriterPtr> Writers_;
-    yhash_map<std::pair<Stroka, ELogLevel>, ILogWriters> CachedWriters_;
-    ILogWriters SystemWriters_;
+    yhash_map<std::pair<Stroka, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;
+    std::vector<ILogWriterPtr> SystemWriters_;
 
     volatile bool ReopenRequested_ = false;
     std::atomic<bool> ShutdownRequested_ = {false};

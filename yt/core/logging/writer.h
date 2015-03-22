@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "config.h"
 #include "pattern.h"
 
@@ -29,6 +28,8 @@ struct ILogWriter
     virtual void Reload() = 0;
     virtual void CheckSpace(i64 minSpace) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(ILogWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
