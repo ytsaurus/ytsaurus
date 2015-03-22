@@ -91,13 +91,16 @@ private:
             return false;
         }
 
-        tablet->PopStoreForPreload(store);
-        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
-            &TStorePreloader::PreloadStore,
-            MakeStrong(this),
-            Passed(std::move(guard)),
-            tablet,
-            store));
+        auto future =
+            BIND(
+                &TStorePreloader::PreloadStore,
+                MakeStrong(this),
+                Passed(std::move(guard)),
+                tablet,
+                store)
+            .AsyncVia(tablet->GetEpochAutomatonInvoker())
+            .Run();
+        tablet->BeginStorePreload(store, future);
         return true;
     }
 
@@ -113,7 +116,7 @@ private:
 
         try {
             GuardedPreloadStore(tablet, store, Logger);
-            store->SetPreloadState(EStorePreloadState::Complete);
+            tablet->EndStorePreload(store);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error preloading tablet store, backing off");
             tablet->BackoffStorePreload(store, Config_->TabletManager->ErrorBackoffTime);

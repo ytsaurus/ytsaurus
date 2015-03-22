@@ -491,11 +491,18 @@ TChunkStorePtr TTablet::PeekStoreForPreload()
     return nullptr;
 }
 
-void TTablet::PopStoreForPreload(TChunkStorePtr store)
+void TTablet::BeginStorePreload(TChunkStorePtr store, TFuture<void> future)
 {
     YCHECK(store->GetId() == PreloadQueue_.front());
     PreloadQueue_.pop_front();
     store->SetPreloadState(EStorePreloadState::Running);
+    store->SetPreloadFuture(future);
+}
+
+void TTablet::EndStorePreload(TChunkStorePtr store)
+{
+    store->SetPreloadState(EStorePreloadState::Complete);
+    store->SetPreloadFuture(TFuture<void>());
 }
 
 void TTablet::BackoffStorePreload(TChunkStorePtr store, TDuration delay)
@@ -504,6 +511,7 @@ void TTablet::BackoffStorePreload(TChunkStorePtr store, TDuration delay)
         return;
 
     store->SetPreloadState(EStorePreloadState::Failed);
+    store->SetPreloadFuture(TFuture<void>());
     NConcurrency::TDelayedExecutor::Submit(
         BIND([=] () {
             if (store->GetPreloadState() == EStorePreloadState::Failed) {

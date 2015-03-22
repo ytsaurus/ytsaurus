@@ -158,7 +158,8 @@ public:
 
     void ScheduleStorePreload(TChunkStorePtr store);
     TChunkStorePtr PeekStoreForPreload();
-    void PopStoreForPreload(TChunkStorePtr store);
+    void BeginStorePreload(TChunkStorePtr store, TFuture<void> future);
+    void EndStorePreload(TChunkStorePtr store);
     void BackoffStorePreload(TChunkStorePtr store, TDuration delay);
 
     const TDynamicMemoryStorePtr& GetActiveStore() const;

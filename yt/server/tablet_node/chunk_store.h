@@ -43,6 +43,10 @@ class TChunkStore
     : public TStoreBase
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(EStorePreloadState, PreloadState);
+    DEFINE_BYVAL_RW_PROPERTY(TFuture<void>, PreloadFuture);
+
+public:
     TChunkStore(
         const TStoreId& id,
         TTablet* tablet,
@@ -59,9 +63,6 @@ public:
     NChunkClient::IBlockCachePtr GetCompressedPreloadedBlockCache();
     NChunkClient::IBlockCachePtr GetUncompressedPreloadedBlockCache();
     NChunkClient::IChunkReaderPtr GetChunkReader();
-
-    EStorePreloadState GetPreloadState() const;
-    void SetPreloadState(EStorePreloadState value);
 
     // IStore implementation.
     virtual EStoreType GetType() const override;
@@ -130,7 +131,6 @@ private:
     NChunkClient::IBlockCachePtr CompressedPreloadedBlockCache_;
     NChunkClient::IBlockCachePtr UncompressedPreloadedBlockCache_;
 
-    EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
     EInMemoryMode InMemoryMode_ = EInMemoryMode::Disabled;
 
 
