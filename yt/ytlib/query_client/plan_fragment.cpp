@@ -837,6 +837,7 @@ TPlanFragmentPtr PreparePlanFragment(
         auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
         auto keyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
 
+        query->KeyColumns = keyColumns;
         schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema, keyColumns.size());
     } else if (auto joinSource = ast.Source->As<NAst::TJoinSource>()) {
         LOG_DEBUG("Getting initial data split for %v and %v", joinSource->LeftPath, joinSource->RightPath);
@@ -857,9 +858,7 @@ TPlanFragmentPtr PreparePlanFragment(
         auto foreignKeyColumns = GetKeyColumnsFromDataSplit(foreignDataSplit);
 
         auto joinClause = New<TJoinClause>();
-        joinClause->ForeignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
-        joinClause->ForeignKeyColumns = GetKeyColumnsFromDataSplit(foreignDataSplit);
-
+        
         const auto& joinFields = joinSource->Fields;
         joinClause->JoinColumns = joinFields;
 
@@ -888,6 +887,8 @@ TPlanFragmentPtr PreparePlanFragment(
             selfSourceProxy,
             foreignSourceProxy);
         
+        query->KeyColumns = selfKeyColumns;
+        joinClause->ForeignKeyColumns = foreignKeyColumns;
         query->JoinClause = std::move(joinClause);
     } else {
         YUNREACHABLE();
@@ -917,12 +918,16 @@ TPlanFragmentPtr PreparePlanFragment(
 
     planFragment->Query = query;
 
-    SetTableSchema(&selfDataSplit, query->TableSchema);
-    planFragment->DataSplits.push_back(selfDataSplit);
+    planFragment->Timestamp = timestamp;
+
+    planFragment->DataSources.push_back({
+        GetObjectIdFromDataSplit(selfDataSplit),
+        GetBothBoundsFromDataSplit(selfDataSplit)});
 
     if (auto joinClause = query->JoinClause.Get()) {
-        SetTableSchema(&foreignDataSplit, joinClause->ForeignTableSchema);
-        planFragment->ForeignDataSplit = foreignDataSplit;
+        planFragment->ForeignDataSource = {
+            GetObjectIdFromDataSplit(foreignDataSplit),
+            GetBothBoundsFromDataSplit(foreignDataSplit)};
     }
     
     return planFragment;
@@ -1301,15 +1306,36 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::TDataSource* proto, const TDataSource& dataSource)
+{
+    ToProto(proto->mutable_id(), dataSource.Id);
+    ToProto(proto->mutable_lower_bound(), dataSource.Range.first);
+    ToProto(proto->mutable_upper_bound(), dataSource.Range.second);
+}
+
+TDataSource FromProto(const NProto::TDataSource& serialized)
+{
+    TDataSource dataSource;
+
+    FromProto(&dataSource.Id, serialized.id());
+    FromProto(&dataSource.Range.first, serialized.lower_bound());
+    FromProto(&dataSource.Range.second, serialized.upper_bound());
+
+    return dataSource;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TPlanFragment* proto, const TConstPlanFragmentPtr& fragment)
 {
     ToProto(proto->mutable_query(), fragment->Query);
-    ToProto(proto->mutable_data_split(), fragment->DataSplits);
-    ToProto(proto->mutable_foreign_data_split(), fragment->ForeignDataSplit);
+    ToProto(proto->mutable_data_sources(), fragment->DataSources);
+    ToProto(proto->mutable_foreign_data_source(), fragment->ForeignDataSource);
     proto->set_ordered(fragment->Ordered);
     proto->set_verbose_logging(fragment->VerboseLogging);
     
     proto->set_source(fragment->Source);
+    proto->set_timestamp(fragment->Timestamp);
 }
 
 TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
@@ -1321,15 +1347,14 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
     result->Query = FromProto(serialized.query());
     result->Ordered = serialized.ordered();
     result->VerboseLogging = serialized.verbose_logging();
+    result->Timestamp = serialized.timestamp();
 
-    result->DataSplits.reserve(serialized.data_split_size());
-    for (int i = 0; i < serialized.data_split_size(); ++i) {
-        TDataSplit dataSplit;
-        FromProto(&dataSplit, serialized.data_split(i));
-        result->DataSplits.push_back(dataSplit);
+    result->DataSources.reserve(serialized.data_sources_size());
+    for (int i = 0; i < serialized.data_sources_size(); ++i) {
+        result->DataSources.push_back(FromProto(serialized.data_sources(i)));
     }
 
-    FromProto(&result->ForeignDataSplit, serialized.foreign_data_split());
+    result->ForeignDataSource = FromProto(serialized.foreign_data_source());
 
     return result;
 }

@@ -48,6 +48,7 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: replace with lambdas
 class TRangeInferrer
 {
 private:
@@ -61,17 +62,15 @@ public:
     // Use Heavy if we need to enrich ranges with computed columns, otherwise Light.
     TRangeInferrer(
        const TConstExpressionPtr& predicate,
-       const TDataSplits& splits,
+       const TTableSchema& schema,
+       const TKeyColumns& keyColumns,
        const TColumnEvaluatorCachePtr& evaluatorCache,
        bool verboseLogging)
     {
-        if (splits.size() == 0 || !predicate) {
+        if (/*splits.size() == 0 ||*/ !predicate) {
             Impl_ = std::make_unique<TRangeInferrerLight>(predicate, TKeyColumns(), verboseLogging);
             return;
         }
-
-        auto schema = GetTableSchemaFromDataSplit(splits[0]);
-        auto keyColumns = GetKeyColumnsFromDataSplit(splits[0]);
 
 #ifdef YT_USE_LLVM
         if (!schema.HasComputedColumns()) {
@@ -466,15 +465,15 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     return std::make_pair(topQuery, subqueries);
 }
 
-TDataSplits GetPrunedSplits(
-    const TConstQueryPtr& query,
-    const TDataSplits& splits,
+TDataSources GetPrunedSources(
+    const TConstExpressionPtr& predicate,
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns,
+    const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     bool verboseLogging)
 {
-    auto Logger = BuildLogger(query);
-
-    TRangeInferrer rangeInferrer(query->WhereClause, splits, evaluatorCache, verboseLogging);
+    TRangeInferrer rangeInferrer(predicate, tableSchema, keyColumns, evaluatorCache, verboseLogging);
 
     auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
         return Format("[%v .. %v]",
@@ -482,44 +481,61 @@ TDataSplits GetPrunedSplits(
             range.second);
     };
 
-    LOG_DEBUG("Splitting %v splits according to ranges", splits.size());
+    LOG_DEBUG("Splitting %v sources according to ranges", sources.size());
 
-    TDataSplits prunedSplits;
-    for (const auto& split : splits) {
-        auto originalRange = GetBothBoundsFromDataSplit(split);
-
+    TDataSources prunedSources;
+    for (const auto& source : sources) {
+        const auto& originalRange = source.Range;
         auto ranges = rangeInferrer.GetRangesWithinRange(originalRange);
 
         for (const auto& range : ranges) {
-            auto splitCopy = split;
+            auto sourceCopy = source;
 
-            LOG_DEBUG_IF(verboseLogging, "Narrowing split %v key range from %v to %v",
-                GetObjectIdFromDataSplit(splitCopy),
+            LOG_DEBUG_IF(verboseLogging, "Narrowing source %v key range from %v to %v",
+                sourceCopy.Id,
                 keyRangeFormatter(originalRange),
                 keyRangeFormatter(range));
-            SetBothBounds(&splitCopy, range);
 
-            prunedSplits.push_back(std::move(splitCopy));
+            sourceCopy.Range = range;
+
+            prunedSources.push_back(std::move(sourceCopy));
         }
     }
 
-    return prunedSplits;
+    return prunedSources;
 }
 
-TKeyRange GetRange(const TDataSplits& splits)
+TDataSources GetPrunedSources(
+    const TConstQueryPtr& query,
+    const TDataSources& sources,
+    const TColumnEvaluatorCachePtr& evaluatorCache,
+    bool verboseLogging)
 {
-    if (splits.empty()) {
+    return GetPrunedSources(
+        query->WhereClause,
+        query->TableSchema,
+        query->KeyColumns,
+        sources,
+        evaluatorCache,
+        verboseLogging);
+}
+
+
+
+TKeyRange GetRange(const TDataSources& sources)
+{
+    if (sources.empty()) {
         return TKeyRange();
     }
 
-    auto keyRange = GetBothBoundsFromDataSplit(splits[0]);
-    for (int index = 1; index < splits.size(); ++index) {
-        keyRange = Unite(keyRange, GetBothBoundsFromDataSplit(splits[index]));
+    auto keyRange = sources[0].Range;
+    for (int index = 1; index < sources.size(); ++index) {
+        keyRange = Unite(keyRange, sources[index].Range);
     }
     return keyRange;
 }
 
-std::vector<TKeyRange> GetRanges(const TGroupedDataSplits& groupedSplits)
+std::vector<TKeyRange> GetRanges(const std::vector<TDataSources>& groupedSplits)
 {
     std::vector<TKeyRange> ranges(groupedSplits.size());
     for (int index = 0; index < groupedSplits.size(); ++index) {

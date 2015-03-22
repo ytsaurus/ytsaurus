@@ -442,7 +442,14 @@ protected:
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source);
 
-        auto prunedSplits = GetPrunedSplits(planFragment->Query, dataSplits, ColumnEvaluatorCache_, true);
+        TDataSources sources;
+        for (const auto& split : dataSplits) {
+            sources.push_back(TDataSource{
+                GetObjectIdFromDataSplit(split),
+                GetBothBoundsFromDataSplit(split)});
+        }
+
+        auto prunedSplits = GetPrunedSources(planFragment->Query, sources, ColumnEvaluatorCache_, true);
 
         EXPECT_EQ(prunedSplits.size(), subqueriesCount);
     }
@@ -1649,9 +1656,10 @@ struct TQueryExecutor
                 auto planFragment = New<TPlanFragment>();
 
                 planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+                planFragment->Timestamp = fragment->Timestamp;
+                planFragment->DataSources.push_back(fragment->ForeignDataSource);
                 planFragment->Query = subquery;
-                planFragment->DataSplits.push_back(fragment->ForeignDataSplit);
-
+                
                 auto subqueryResult = ExecuteCallback->Execute(planFragment, writer);
 
                 return WaitFor(subqueryResult)
@@ -2807,27 +2815,32 @@ protected:
     std::vector<TKeyRange> Coordinate(const Stroka& source)
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source);
-        auto prunedSplits = GetPrunedSplits(
+        auto prunedSplits = GetPrunedSources(
             planFragment->Query,
-            planFragment->DataSplits,
+            planFragment->DataSources,
             ColumnEvaluatorCache_,
             true);
 
-        return GetRangesFromSplits(prunedSplits);
+        return GetRangesFromSources(prunedSplits);
     }
 
     std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source);
 
-        TDataSplits foreignSplits{planFragment->ForeignDataSplit};
-        auto prunedSplits = GetPrunedSplits(
-            planFragment->Query,
+        TDataSources foreignSplits{planFragment->ForeignDataSource};
+
+        const auto& query = planFragment->Query;
+
+        auto prunedSplits = GetPrunedSources(
+            query->WhereClause,
+            query->JoinClause->ForeignTableSchema,
+            query->JoinClause->ForeignKeyColumns,
             foreignSplits,
             ColumnEvaluatorCache_,
             true);
 
-        return GetRangesFromSplits(prunedSplits);
+        return GetRangesFromSources(prunedSplits);
     }
 
     void SetSchema(const TTableSchema& schema, const TKeyColumns& keyColumns)
@@ -2875,12 +2888,12 @@ private:
         return WrapInFuture(dataSplit);
     }
 
-    std::vector<TKeyRange> GetRangesFromSplits(const TDataSplits& prunedSplits)
+    std::vector<TKeyRange> GetRangesFromSources(const TDataSources& prunedSplits)
     {
         std::vector<TKeyRange> ranges;
 
         for (const auto& split : prunedSplits) {
-            ranges.push_back(GetBothBoundsFromDataSplit(split));
+            ranges.push_back(split.Range);
         }
 
         std::sort(ranges.begin(), ranges.end());

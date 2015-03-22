@@ -18,15 +18,23 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     const std::vector<TKeyRange>& ranges,
     bool pushdownGroupClause = true);
 
-TDataSplits GetPrunedSplits(
-    const TConstQueryPtr& query,
-    const TDataSplits& splits,
+TDataSources GetPrunedSources(
+    const TConstExpressionPtr& predicate,
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns,
+    const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     bool verboseLogging);
 
-TKeyRange GetRange(const TDataSplits& splits);
+TDataSources GetPrunedSources(
+    const TConstQueryPtr& query,
+    const TDataSources& sources,
+    const TColumnEvaluatorCachePtr& evaluatorCache,
+    bool verboseLogging);
 
-std::vector<TKeyRange> GetRanges(const TGroupedDataSplits& groupedSplits);
+TKeyRange GetRange(const TDataSources& sources);
+
+std::vector<TKeyRange> GetRanges(const std::vector<TDataSources>& groupedSplits);
 
 typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResult;
 
