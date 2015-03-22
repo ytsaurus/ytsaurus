@@ -380,6 +380,14 @@ struct TQuery
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
 
+struct TDataSource
+{
+    NObjectClient::TObjectId Id;
+    TKeyRange Range;
+};
+
+typedef std::vector<TDataSource> TDataSources;
+
 struct TPlanFragment
     : public TIntrinsicRefCounted
 {
@@ -390,8 +398,12 @@ struct TPlanFragment
     Stroka Source;
 
     TNodeDirectoryPtr NodeDirectory;
-    TDataSplits DataSplits;
-    TDataSplit ForeignDataSplit;
+    
+    TTimestamp Timestamp;
+
+    TDataSources DataSources;
+    TDataSource ForeignDataSource;
+
     TConstQueryPtr Query;
     bool Ordered = false;
     bool VerboseLogging = false;
