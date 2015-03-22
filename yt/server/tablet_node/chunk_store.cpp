@@ -362,6 +362,7 @@ TChunkStore::TChunkStore(
     : TStoreBase(
         id,
         tablet)
+    , PreloadState_(EStorePreloadState::Disabled)
     , Bootstrap_(boostrap)
 {
     YCHECK(
@@ -408,9 +409,16 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
 
     {
         TWriterGuard guard(PreloadedBlockCacheLock_);
+
+        CompressedPreloadedBlockCache_.Reset();
+        UncompressedPreloadedBlockCache_.Reset();
+
+        if (PreloadFuture_) {
+            PreloadFuture_.Cancel();
+            PreloadFuture_.Reset();
+        }
+
         if  (mode == EInMemoryMode::Disabled) {
-            CompressedPreloadedBlockCache_.Reset();
-            UncompressedPreloadedBlockCache_.Reset();
             PreloadState_ = EStorePreloadState::Disabled;
         } else {
             switch (mode) {
@@ -432,13 +440,12 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
             switch (PreloadState_) {
                 case EStorePreloadState::Disabled:
                 case EStorePreloadState::Failed:
+                case EStorePreloadState::Running:
+                case EStorePreloadState::Complete:
                     PreloadState_ = EStorePreloadState::None;
                     break;
                 case EStorePreloadState::None:
                 case EStorePreloadState::Scheduled:
-                case EStorePreloadState::Running:
-                    // XXX(babenko): cancel?
-                case EStorePreloadState::Complete:
                     break;
                 default:
                     YUNREACHABLE();
@@ -476,16 +483,6 @@ NChunkClient::IChunkReaderPtr TChunkStore::GetChunkReader()
 
     auto chunk = PrepareChunk();
     return PrepareChunkReader(chunk);
-}
-
-EStorePreloadState TChunkStore::GetPreloadState() const
-{
-    return PreloadState_;
-}
-
-void TChunkStore::SetPreloadState(EStorePreloadState value)
-{
-    PreloadState_ = value;
 }
 
 EStoreType TChunkStore::GetType() const
