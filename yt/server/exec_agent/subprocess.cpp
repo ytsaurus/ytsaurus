@@ -10,6 +10,8 @@
 
 #include <util/system/execpath.h>
 
+#include <array>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -44,7 +46,7 @@ void TSubprocess::AddArguments(std::initializer_list<TStringBuf> args)
 
 TSubprocessResult TSubprocess::Execute()
 {
-#ifdef _linux_
+#ifndef _win_
     std::array<TPipe, 3> pipes;
 
     {
@@ -133,9 +135,9 @@ TSubprocessResult TSubprocess::Execute()
     // This can block indefinetely.
     auto exitCode = Process_.Wait();
     return TSubprocessResult{outputs[0], outputs[1], exitCode};
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
-
-    return *(TSubprocessResult*) nullptr;
 }
 
 void TSubprocess::Kill(int signal)
