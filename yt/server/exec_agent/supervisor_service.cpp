@@ -93,7 +93,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
 
     context->SetRequestInfo("JobId: %v, ResourceUsage: {%v}",
         jobId,
-        ~FormatResources(resourceUsage));
+        FormatResources(resourceUsage));
 
     auto jobController = Bootstrap->GetJobController();
     auto job = jobController->GetJobOrThrow(jobId);
