@@ -62,7 +62,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TClusterResources, CachedResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
-    DEFINE_BYVAL_RW_PROPERTY(NProto::TAccessStatisticsUpdate*, AccessStatisticsUpdate);
+    DEFINE_BYVAL_RW_PROPERTY(int, AccessStatisticsUpdateIndex);
 
     explicit TCypressNodeBase(const TVersionedNodeId& id);
     virtual ~TCypressNodeBase();
