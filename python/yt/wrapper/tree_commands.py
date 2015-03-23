@@ -281,7 +281,6 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
                 raise
         return None
 
-    result = []
     def walk(path, object, depth, ignore_opaque=False):
         if object is None:
             return
@@ -299,22 +298,22 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
            (path_filter is None or path_filter(path)):
             yson_path = yson.YsonString(path)
             yson_path.attributes = dict(filter(lambda item: item[0] in attributes, object.attributes.iteritems()))
-            result.append(yson_path)
+            yield yson_path
 
         if object_type in ["account_map", "tablet_cell"]:
             object = safe_get(path)
 
         if isinstance(object, dict):
             for key, value in object.iteritems():
-                walk("{0}/{1}".format(path, key), value, depth + 1)
+                for obj in walk("{0}/{1}".format(path, key), value, depth + 1):
+                    yield obj
 
         if isinstance(object, __builtin__.list):
             for index, value in enumerate(object):
-                walk("{0}/{1}".format(path, index), value, depth + 1)
+                for obj in walk("{0}/{1}".format(path, index), value, depth + 1):
+                    yield obj
 
-
-    walk(root, safe_get(root), 0, True)
-    return result
+    return walk(root, safe_get(root), 0, True)
 
 def remove_with_empty_dirs(path, force=True, client=None):
     """Remove path and all empty dirs that appear after deletion.
