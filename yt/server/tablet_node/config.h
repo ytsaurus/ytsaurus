@@ -168,8 +168,8 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("samples_per_partition", SamplesPerPartition)
-            .Default(1)
-            .GreaterThanOrEqual(1);
+            .Default(0)
+            .GreaterThanOrEqual(0);
 
         RegisterParameter("backing_store_retention_time", BackingStoreRetentionTime)
             .Default(TDuration::Seconds(60));
