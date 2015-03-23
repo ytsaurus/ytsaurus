@@ -1668,7 +1668,8 @@ struct TQueryExecutor
 
                 return WaitFor(subqueryResult)
                     .ValueOrThrow();
-            }));
+            },
+            CreateBuiltinFunctionRegistry()));
     }
 };
 
@@ -2737,7 +2738,7 @@ TEST_P(TEvaluateExpressionTest, Basic)
 
     TCGVariables variables;
 
-    auto callback = Profile(expr, schema, nullptr, &variables, nullptr)();
+    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
 
     auto row = NVersionedTableClient::BuildRow(rowString, keyColumns, schema, true);
     TUnversionedValue result;

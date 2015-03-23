@@ -376,7 +376,8 @@ TCodegenExpression MakeCodegenFunctionExpr(
     Stroka functionName,
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name);
+    Stroka name,
+    const TFunctionRegistry& functionRegistry);
 
 TCodegenExpression MakeCodegenUnaryOpExpr(
     EUnaryOp opcode,

@@ -497,7 +497,7 @@ private:
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
-                return evaluator->Run(topQuery, std::move(reader), std::move(writer));
+                return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
             },
             false);
     }
@@ -551,7 +551,7 @@ private:
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating topquery (TopqueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
-                return evaluator->Run(topQuery, std::move(reader), std::move(writer));
+                return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
             });
     }
 
