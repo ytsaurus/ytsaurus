@@ -27,7 +27,7 @@ def get_user_name(token, proxy=None, client=None):
         "http://{0}/auth/login".format(proxy),
         data="token=" + token,
         response_should_be_json=True)
-    login = response.parse_content()["login"]
+    login = response.json()["login"]
     if not login:
         return None
     return login
