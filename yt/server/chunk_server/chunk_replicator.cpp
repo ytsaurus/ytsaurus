@@ -224,6 +224,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     }
 
     if (Any(result.Status & (EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced)) &&
+        None(result.Status & EChunkStatus::Overreplicated) &&
         replicaCount + decommissionedReplicaCount > 0)
     {
         result.ReplicationIndexes.push_back(GenericChunkReplicaIndex);
@@ -260,7 +261,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         if (rack) {
             int rackIndex = rack->GetIndex();
             if (++perRackReplicaCounters[rackIndex] > maxReplicasPerRack) {
-                // An erasure chunk is considered placed unsafely if some non-null rack
+                // A erasure chunk is considered placed unsafely if some non-null rack
                 // contains more replicas than returned by ICodec::GetGuaranteedRepairablePartCount.
                 unsafelyPlacedReplicaIndex = index;
             }
@@ -304,7 +305,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     if (unsafelyPlacedReplicaIndex != -1) {
         result.Status |= EChunkStatus::UnsafelyPlaced;
-        if (result.ReplicationIndexes.empty()) {
+        if (None(result.Status & EChunkStatus::Overreplicated) && result.ReplicationIndexes.empty()) {
             result.ReplicationIndexes.push_back(unsafelyPlacedReplicaIndex);
         }
     }
@@ -387,6 +388,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
     }
 
     if (Any(result.Status & (EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced)) &&
+        None(result.Status & EChunkStatus::Overreplicated) &&
         sealedReplicaCount > 0)
     {
         result.ReplicationIndexes.push_back(GenericChunkReplicaIndex);
@@ -573,6 +575,10 @@ bool TChunkReplicator::CreateReplicationJob(
     int decommissionedReplicaCount = statistics.DecommissionedReplicaCount[index];
 
     if (replicaCount + decommissionedReplicaCount == 0) {
+        return true;
+    }
+
+    if (replicaCount > replicationFactor) {
         return true;
     }
 
