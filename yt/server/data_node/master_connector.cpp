@@ -32,7 +32,7 @@
 
 #include <server/job_agent/job_controller.h>
 
-#include <server/tablet_node/tablet_slot_manager.h>
+#include <server/tablet_node/slot_manager.h>
 #include <server/tablet_node/tablet_slot.h>
 #include <server/tablet_node/tablet.h>
 
@@ -251,9 +251,9 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     result.set_total_replication_session_count(sessionManager->GetSessionCount(EWriteSessionType::Replication));
     result.set_total_repair_session_count(sessionManager->GetSessionCount(EWriteSessionType::Repair));
 
-    auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-    result.set_available_tablet_slots(tabletSlotManager->GetAvailableTabletSlotCount());
-    result.set_used_tablet_slots(tabletSlotManager->GetUsedTableSlotCount());
+    auto slotManager = Bootstrap_->GetTabletSlotManager();
+    result.set_available_tablet_slots(slotManager->GetAvailableTabletSlotCount());
+    result.set_used_tablet_slots(slotManager->GetUsedTableSlotCount());
     
     result.add_accepted_chunk_types(static_cast<int>(EObjectType::Chunk));
     result.add_accepted_chunk_types(static_cast<int>(EObjectType::ErasureChunk));
@@ -350,8 +350,8 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         *request->add_removed_chunks() = BuildRemoveChunkInfo(chunk);
     }
 
-    auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-    for (auto slot : tabletSlotManager->Slots()) {
+    auto slotManager = Bootstrap_->GetTabletSlotManager();
+    for (auto slot : slotManager->Slots()) {
         auto* protoSlotInfo = request->add_tablet_slots();
         if (slot) {
             ToProto(protoSlotInfo->mutable_cell_id(), slot->GetCellId());
@@ -364,7 +364,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         }
     }
 
-    auto tabletSnapshots = tabletSlotManager->GetTabletSnapshots();
+    auto tabletSnapshots = slotManager->GetTabletSnapshots();
     for (auto snapshot : tabletSnapshots) {
         auto* protoTabletInfo = request->add_tablets();
         ToProto(protoTabletInfo->mutable_tablet_id(), snapshot->TabletId);
@@ -494,45 +494,45 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
     }
 
     const auto& rsp = rspOrError.Value();
-    auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+    auto slotManager = Bootstrap_->GetTabletSlotManager();
     for (const auto& info : rsp->tablet_slots_to_remove()) {
         auto cellId = FromProto<TCellId>(info.cell_id());
         YCHECK(cellId != NullCellId);
-        auto slot = tabletSlotManager->FindSlot(cellId);
+        auto slot = slotManager->FindSlot(cellId);
         if (!slot) {
             LOG_WARNING("Requested to remove a non-existing slot %v, ignored",
                 cellId);
             continue;
         }
-        tabletSlotManager->RemoveSlot(slot);
+        slotManager->RemoveSlot(slot);
     }
 
     for (const auto& info : rsp->tablet_slots_to_create()) {
         auto cellId = FromProto<TCellId>(info.cell_id());
         YCHECK(cellId != NullCellId);
-        if (tabletSlotManager->GetAvailableTabletSlotCount() == 0) {
+        if (slotManager->GetAvailableTabletSlotCount() == 0) {
             LOG_WARNING("Requested to start cell %v when all slots are used, ignored",
                 cellId);
             continue;
         }
-        if (tabletSlotManager->FindSlot(cellId)) {
+        if (slotManager->FindSlot(cellId)) {
             LOG_WARNING("Requested to start cell %v when this cell is already being served by the node, ignored",
                 cellId);
             continue;
         }
-        tabletSlotManager->CreateSlot(info);
+        slotManager->CreateSlot(info);
     }
 
     for (const auto& info : rsp->tablet_slots_configure()) {
         auto cellId = FromProto<TCellId>(info.cell_id());
         YCHECK(cellId != NullCellId);
-        auto slot = tabletSlotManager->FindSlot(cellId);
+        auto slot = slotManager->FindSlot(cellId);
         if (!slot) {
             LOG_WARNING("Requested to configure a non-existing slot %v, ignored",
                 cellId);
             continue;
         }
-        tabletSlotManager->ConfigureSlot(slot, info);
+        slotManager->ConfigureSlot(slot, info);
     }
 
     auto cellDirectory = Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory();

@@ -5,7 +5,7 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "tablet_manager.h"
-#include "tablet_slot_manager.h"
+#include "slot_manager.h"
 #include "private.h"
 
 #include <core/concurrency/scheduler.h>
@@ -47,8 +47,8 @@ public:
         , Bootstrap_(bootstrap)
         , Semaphore_(Config_->StorePreloader->MaxConcurrentPreloads)
     {
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->SubscribeScanSlot(BIND(&TStorePreloader::ScanSlot, MakeStrong(this)));
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        slotManager->SubscribeScanSlot(BIND(&TStorePreloader::ScanSlot, MakeStrong(this)));
     }
 
 private:

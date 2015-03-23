@@ -73,7 +73,7 @@
 #include <server/exec_agent/scheduler_connector.h>
 #include <server/exec_agent/job.h>
 
-#include <server/tablet_node/tablet_slot_manager.h>
+#include <server/tablet_node/slot_manager.h>
 #include <server/tablet_node/store_flusher.h>
 #include <server/tablet_node/store_compactor.h>
 #include <server/tablet_node/partition_balancer.h>
@@ -271,7 +271,7 @@ void TBootstrap::DoRun()
     JobProxyConfig->SupervisorConnection->Priority = 6;
     JobProxyConfig->CellId = GetCellId();
 
-    ExecSlotManager = New<TSlotManager>(Config->ExecAgent->SlotManager, this);
+    ExecSlotManager = New<NExecAgent::TSlotManager>(Config->ExecAgent->SlotManager, this);
 
     JobController = New<TJobController>(Config->ExecAgent->JobController, this);
 
@@ -327,7 +327,7 @@ void TBootstrap::DoRun()
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
-    TabletSlotManager = New<TTabletSlotManager>(Config->TabletNode, this);
+    TabletSlotManager = New<NTabletNode::TSlotManager>(Config->TabletNode, this);
 
     SecurityManager = New<TSecurityManager>(Config->TabletNode->SecurityManager, this);
 
@@ -458,7 +458,7 @@ TJobTrackerPtr TBootstrap::GetJobController() const
     return JobController;
 }
 
-TTabletSlotManagerPtr TBootstrap::GetTabletSlotManager() const
+NTabletNode::TSlotManagerPtr TBootstrap::GetTabletSlotManager() const
 {
     return TabletSlotManager;
 }
@@ -468,7 +468,7 @@ TSecurityManagerPtr TBootstrap::GetSecurityManager() const
     return SecurityManager;
 }
 
-TSlotManagerPtr TBootstrap::GetExecSlotManager() const
+NExecAgent::TSlotManagerPtr TBootstrap::GetExecSlotManager() const
 {
     return ExecSlotManager;
 }

@@ -2,7 +2,7 @@
 #include "partition_balancer.h"
 #include "config.h"
 #include "tablet_slot.h"
-#include "tablet_slot_manager.h"
+#include "slot_manager.h"
 #include "tablet_manager.h"
 #include "tablet.h"
 #include "partition.h"
@@ -57,8 +57,8 @@ public:
         , Bootstrap_(bootstrap)
         , Semaphore_(Config_->MaxConcurrentSamplings)
     {
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        slotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
     }
 
 private:

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "store_compactor.h"
 #include "config.h"
-#include "tablet_slot_manager.h"
+#include "slot_manager.h"
 #include "tablet_slot.h"
 #include "tablet_manager.h"
 #include "tablet.h"
@@ -73,8 +73,8 @@ public:
 
     void Start()
     {
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->SubscribeScanSlot(BIND(&TStoreCompactor::ScanSlot, MakeStrong(this)));
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        slotManager->SubscribeScanSlot(BIND(&TStoreCompactor::ScanSlot, MakeStrong(this)));
     }
 
 private:

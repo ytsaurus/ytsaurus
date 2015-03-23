@@ -56,7 +56,7 @@ public:
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
     NJobAgent::TJobTrackerPtr GetJobController() const;
-    NTabletNode::TTabletSlotManagerPtr GetTabletSlotManager() const;
+    NTabletNode::TSlotManagerPtr GetTabletSlotManager() const;
     NTabletNode::TSecurityManagerPtr GetSecurityManager() const;
     NExecAgent::TSlotManagerPtr GetExecSlotManager() const;
     NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
@@ -128,7 +128,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairOutThrottler;
 
-    NTabletNode::TTabletSlotManagerPtr TabletSlotManager;
+    NTabletNode::TSlotManagerPtr TabletSlotManager;
     NTabletNode::TSecurityManagerPtr SecurityManager;
 
     NQueryClient::IExecutorPtr QueryExecutor;
