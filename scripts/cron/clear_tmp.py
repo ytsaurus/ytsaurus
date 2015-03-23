@@ -42,10 +42,10 @@ def main():
         args.max_size = yt.get("//sys/accounts/{0}/@resource_limits/disk_space".format(args.account)) / 2.0
 
     # collect links
-    links = yt.search(args.directory, node_type="link")
+    links = list(yt.search(args.directory, node_type="link"))
 
     # collect dirs
-    dirs = yt.search(args.directory, node_type="map_node", attributes=["modification_time", "count"])
+    dirs = list(yt.search(args.directory, node_type="map_node", attributes=["modification_time", "count"]))
     dir_sizes = dict((str(obj), obj.attributes["count"]) for obj in dirs)
 
     # collect table and files
