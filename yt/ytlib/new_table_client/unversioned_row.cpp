@@ -6,7 +6,7 @@
 #include <core/misc/varint.h>
 #include <core/misc/string.h>
 #include <core/misc/hash.h>
-#include <core/misc/farmhash.h>
+#include <core/misc/farm_hash.h>
 
 #include <core/yson/consumer.h>
 
