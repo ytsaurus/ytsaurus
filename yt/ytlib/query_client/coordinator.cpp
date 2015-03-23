@@ -361,11 +361,10 @@ private:
     };
 };
 
-// TODO: Do not refine at Client, it is useless
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     const TConstQueryPtr& query,
     const std::vector<TKeyRange>& ranges,
-    bool pushdownGroupClause)
+    bool refinePredicates)
 {
     auto Logger = BuildLogger(query);
 
@@ -375,9 +374,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         ? 0
         : 2 * std::min(query->InputRowLimit, std::numeric_limits<i64>::max() / 2) / ranges.size();
 
-    auto subqueryOutputRowLimit = pushdownGroupClause
-        ? query->OutputRowLimit
-        : std::numeric_limits<i64>::max();
+    auto subqueryOutputRowLimit = query->OutputRowLimit;
 
     for (const auto& keyRange : ranges) {
         // Set initial schema and key columns
@@ -402,13 +399,13 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         }
 
         if (query->WhereClause) {
-            subquery->WhereClause = RefinePredicate(keyRange, commonPrefixSize, query->WhereClause, subquery->KeyColumns);
+            subquery->WhereClause = refinePredicates
+                ? RefinePredicate(keyRange, commonPrefixSize, query->WhereClause, subquery->KeyColumns)
+                : query->WhereClause;
         }
 
         if (query->GroupClause) {
-            if (pushdownGroupClause) {
-                subquery->GroupClause = query->GroupClause; 
-            }
+            subquery->GroupClause = query->GroupClause;
         } else {
             subquery->ProjectClause = query->ProjectClause;
         }
@@ -423,38 +420,33 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     topQuery->Limit = query->Limit;
 
     if (query->GroupClause) {
-        if (pushdownGroupClause) {
-            topQuery->TableSchema = query->GroupClause->GetTableSchema();
-            if (subqueries.size() > 1) {
-                auto groupClause = New<TGroupClause>();
-                groupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
+        topQuery->TableSchema = query->GroupClause->GetTableSchema();
+        if (subqueries.size() > 1) {
+            auto groupClause = New<TGroupClause>();
+            groupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
 
-                auto& finalGroupItems = groupClause->GroupItems;
-                for (const auto& groupItem : query->GroupClause->GroupItems) {
-                    auto referenceExpr = New<TReferenceExpression>(
-                        NullSourceLocation,
-                        groupItem.Expression->Type,
-                        groupItem.Name);
-                    finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
-                }
-
-                auto& finalAggregateItems = groupClause->AggregateItems;
-                for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
-                    auto referenceExpr = New<TReferenceExpression>(
-                        NullSourceLocation,
-                        aggregateItem.Expression->Type,
-                        aggregateItem.Name);
-                    finalAggregateItems.emplace_back(
-                        std::move(referenceExpr),
-                        aggregateItem.AggregateFunction,
-                        aggregateItem.Name);
-                }
-
-                topQuery->GroupClause = groupClause;
+            auto& finalGroupItems = groupClause->GroupItems;
+            for (const auto& groupItem : query->GroupClause->GroupItems) {
+                auto referenceExpr = New<TReferenceExpression>(
+                    NullSourceLocation,
+                    groupItem.Expression->Type,
+                    groupItem.Name);
+                finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
             }
-        } else {
-            topQuery->TableSchema = query->TableSchema;
-            topQuery->GroupClause = query->GroupClause;
+
+            auto& finalAggregateItems = groupClause->AggregateItems;
+            for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
+                auto referenceExpr = New<TReferenceExpression>(
+                    NullSourceLocation,
+                    aggregateItem.Expression->Type,
+                    aggregateItem.Name);
+                finalAggregateItems.emplace_back(
+                    std::move(referenceExpr),
+                    aggregateItem.AggregateFunction,
+                    aggregateItem.Name);
+            }
+
+            topQuery->GroupClause = groupClause;
         }
 
         topQuery->ProjectClause = query->ProjectClause;
@@ -549,7 +541,7 @@ TQueryStatistics CoordinateAndExecute(
     const std::vector<TKeyRange>& ranges,
     std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
-    bool pushdownGroupOp)
+    bool refinePredicates)
 {
     auto nodeDirectory = fragment->NodeDirectory;
     auto query = fragment->Query;
@@ -559,7 +551,7 @@ TQueryStatistics CoordinateAndExecute(
 
     TConstQueryPtr topQuery;
     std::vector<TConstQueryPtr> subqueries;
-    std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, pushdownGroupOp);
+    std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, refinePredicates);
 
     LOG_DEBUG("Finished coordinating query");
 

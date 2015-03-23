@@ -16,7 +16,7 @@ namespace NQueryClient {
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     const TConstQueryPtr& query,
     const std::vector<TKeyRange>& ranges,
-    bool pushdownGroupClause = true);
+    bool refinePredicates);
 
 TDataSources GetPrunedSources(
     const TConstExpressionPtr& predicate,
@@ -45,7 +45,7 @@ TQueryStatistics CoordinateAndExecute(
     const std::vector<TKeyRange>& ranges,
     std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
-    bool pushdownGroupOp = true);
+    bool refinePredicates = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
