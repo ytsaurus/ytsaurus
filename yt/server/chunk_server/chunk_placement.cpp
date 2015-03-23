@@ -26,6 +26,53 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkPlacement::TTargetChecker
+{
+public:
+    TTargetChecker(
+        const TChunk* chunk,
+        const TSortedNodeList* forbiddenNodes)
+        : Chunk_(chunk)
+        , ForbiddenNodes_(forbiddenNodes)
+        , MaxReplicasPerRack_(chunk->GetMaxReplicasPerRack())
+    {
+        for (auto replica : chunk->StoredReplicas()) {
+            Add(replica.GetPtr());
+        }
+    }
+
+    bool Check(const TNode* node) const
+    {
+        if (ForbiddenNodes_ && std::binary_search(ForbiddenNodes_->begin(), ForbiddenNodes_->end(), node)) {
+            return false;
+        }
+
+        const auto* rack = node->GetRack();
+        if (rack && PerRackCounters_[rack->GetIndex()] >= MaxReplicasPerRack_) {
+            return false;
+        }
+
+        return true;
+    }
+
+    void Add(const TNode* node)
+    {
+        const auto* rack = node->GetRack();
+        if (rack) {
+            ++PerRackCounters_[rack->GetIndex()];
+        }
+    }
+
+private:
+    const TChunk* const Chunk_;
+    const TSortedNodeList* const ForbiddenNodes_;
+    const int MaxReplicasPerRack_;
+    std::array<i8, MaxRackCount> PerRackCounters_{};
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkPlacement::TChunkPlacement(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
@@ -142,36 +189,13 @@ TNodeList TChunkPlacement::GetWriteTargets(
     EWriteSessionType sessionType)
 {
     TNodeList targets;
-    std::array<i8, MaxRackCount> perRackCounters{};
+    TTargetChecker checker(chunk, forbiddenNodes);
 
-    int maxReplicasPerRack = chunk->GetMaxReplicasPerRack();
-
-    auto incrementPerRackCounter = [&] (const TNode* node) {
-        const auto* rack = node->GetRack();
-        if (rack) {
-            ++perRackCounters[rack->GetIndex()];
-        }
-    };
-
-    auto checkPerRackCounter = [&] (const TNode* node) -> bool {
-        const auto* rack = node->GetRack();
-        return !rack || perRackCounters[rack->GetIndex()] < maxReplicasPerRack;
-    };
-
-    if (forbiddenNodes) {
-        for (auto* node : *forbiddenNodes) {
-            incrementPerRackCounter(node);
-        }
-    }
-
-    auto isValidTarget = [&] (TNode* node) -> bool {
+    auto checkTarget = [&] (TNode* node) -> bool {
         if (!IsValidWriteTarget(node, chunk, sessionType)) {
             return false;
         }
-        if (forbiddenNodes && std::binary_search(forbiddenNodes->begin(), forbiddenNodes->end(), node)) {
-            return false;
-        }
-        if (!checkPerRackCounter(node)) {
+        if (!checker.Check(node)) {
             return false;
         }
         return true;
@@ -179,13 +203,13 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
     auto addTarget = [&] (TNode* node) {
         targets.push_back(node);
-        incrementPerRackCounter(node);
+        checker.Add(node);
     };
 
     if (preferredHostName) {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto* preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName);
-        if (preferredNode && isValidTarget(preferredNode)) {
+        if (preferredNode && checkTarget(preferredNode)) {
             addTarget(preferredNode);
         }
     }
@@ -195,7 +219,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
             break;
         if (!targets.empty() && targets[0] == node)
             continue; // skip preferred node
-        if (!isValidTarget(node))
+        if (!checkTarget(node))
             continue;
         addTarget(node);
     }
@@ -335,16 +359,18 @@ TNode* TChunkPlacement::GetBalancingTarget(
     TChunkPtrWithIndex chunkWithIndex,
     double maxFillFactor)
 {
-    auto chunkManager = Bootstrap_->GetChunkManager();
+    TTargetChecker checker(chunkWithIndex.GetPtr(), nullptr);
+
     for (const auto& pair : FillFactorToNode_) {
         auto* node = pair.second;
         if (GetFillFactor(node) > maxFillFactor) {
             break;
         }
-        if (IsValidBalancingTarget(node, chunkWithIndex)) {
+        if (IsValidBalancingTarget(node, chunkWithIndex) && checker.Check(node)) {
             return node;
         }
     }
+
     return nullptr;
 }
 
