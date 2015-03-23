@@ -580,10 +580,10 @@ TQueryStatistics CoordinateAndExecute(
             const auto& subquery = subqueries[index];
 
             ISchemafulReaderPtr reader;
-            TFuture <TQueryStatistics> asyncStatistics;
-            std::tie(reader, asyncStatistics) = evaluateSubquery(subquery, index);
+            TFuture <TQueryStatistics> statistics;
+            std::tie(reader, statistics) = evaluateSubquery(subquery, index);
 
-            subqueryHolders.push_back(MakeHolder(asyncStatistics, false));
+            subqueryHolders.push_back(MakeHolder(statistics, false));
 
             ++index;
 
