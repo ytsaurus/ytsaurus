@@ -20,14 +20,14 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Controls all tablet slots running at this node.
-class TTabletSlotManager
+class TSlotManager
     : public TRefCounted
 {
 public:
-    TTabletSlotManager(
+    TSlotManager(
         TTabletNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
-    ~TTabletSlotManager();
+    ~TSlotManager();
 
     void Initialize();
 
@@ -84,7 +84,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletSlotManager)
+DEFINE_REFCOUNTED_TYPE(TSlotManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

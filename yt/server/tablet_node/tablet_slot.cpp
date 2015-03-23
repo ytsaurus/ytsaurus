@@ -1,6 +1,6 @@
 #include "tablet_slot.h"
 #include "config.h"
-#include "tablet_slot_manager.h"
+#include "slot_manager.h"
 #include "serialize.h"
 #include "automaton.h"
 #include "tablet_manager.h"
@@ -369,8 +369,8 @@ public:
 
         LOG_INFO("Finalizing slot");
 
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->UnregisterTabletSnapshots(Owner_);
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        slotManager->UnregisterTabletSnapshots(Owner_);
 
         State_ = EPeerState::None;
 

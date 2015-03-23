@@ -8,7 +8,7 @@
 #include "transaction_manager.h"
 #include "config.h"
 #include "store_manager.h"
-#include "tablet_slot_manager.h"
+#include "slot_manager.h"
 #include "dynamic_memory_store.h"
 #include "chunk_store.h"
 #include "store_flusher.h"
@@ -1324,8 +1324,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->StartEpoch(Slot_);
 
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->RegisterTabletSnapshot(tablet);
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        slotManager->RegisterTabletSnapshot(tablet);
     }
 
     void StopTabletEpoch(TTablet* tablet)
@@ -1345,8 +1345,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->StopEpoch();
 
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->UnregisterTabletSnapshot(tablet);
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        slotManager->UnregisterTabletSnapshot(tablet);
     }
 
 
@@ -1464,8 +1464,8 @@ private:
     void UpdateTabletSnapshot(TTablet* tablet)
     {
         if (!IsRecovery()) {
-            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            tabletSlotManager->UpdateTabletSnapshot(tablet);
+            auto slotManager = Bootstrap_->GetTabletSlotManager();
+            slotManager->UpdateTabletSnapshot(tablet);
         }
     }
 

@@ -1,4 +1,4 @@
-#include "tablet_slot_manager.h"
+#include "slot_manager.h"
 #include "config.h"
 #include "tablet.h"
 #include "tablet_slot.h"
@@ -39,7 +39,7 @@ static auto SlotScanPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletSlotManager::TImpl
+class TSlotManager::TImpl
     : public TRefCounted
 {
 public:
@@ -342,7 +342,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletSlotManager::TTabletSlotManager(
+TSlotManager::TSlotManager(
     TTabletNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
@@ -350,102 +350,102 @@ TTabletSlotManager::TTabletSlotManager(
         bootstrap))
 { }
 
-TTabletSlotManager::~TTabletSlotManager()
+TSlotManager::~TSlotManager()
 { }
 
-void TTabletSlotManager::Initialize()
+void TSlotManager::Initialize()
 {
     Impl_->Initialize();
 }
 
-bool TTabletSlotManager::IsOutOfMemory() const
+bool TSlotManager::IsOutOfMemory() const
 {
     return Impl_->IsOutOfMemory();
 }
 
-bool TTabletSlotManager::IsRotationForced(i64 passiveUsage) const
+bool TSlotManager::IsRotationForced(i64 passiveUsage) const
 {
     return Impl_->IsRotationForced(passiveUsage);
 }
 
-int TTabletSlotManager::GetAvailableTabletSlotCount() const
+int TSlotManager::GetAvailableTabletSlotCount() const
 {
     return Impl_->GetAvailableTabletSlotCount();
 }
 
-int TTabletSlotManager::GetUsedTableSlotCount() const
+int TSlotManager::GetUsedTableSlotCount() const
 {
     return Impl_->GetUsedTabletSlotCount();
 }
 
-const std::vector<TTabletSlotPtr>& TTabletSlotManager::Slots() const
+const std::vector<TTabletSlotPtr>& TSlotManager::Slots() const
 {
     return Impl_->Slots();
 }
 
-TTabletSlotPtr TTabletSlotManager::FindSlot(const TCellId& id)
+TTabletSlotPtr TSlotManager::FindSlot(const TCellId& id)
 {
     return Impl_->FindSlot(id);
 }
 
-void TTabletSlotManager::CreateSlot(const TCreateTabletSlotInfo& createInfo)
+void TSlotManager::CreateSlot(const TCreateTabletSlotInfo& createInfo)
 {
     Impl_->CreateSlot(createInfo);
 }
 
-void TTabletSlotManager::ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabletSlotInfo& configureInfo)
+void TSlotManager::ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabletSlotInfo& configureInfo)
 {
     Impl_->ConfigureSlot(slot, configureInfo);
 }
 
-void TTabletSlotManager::RemoveSlot(TTabletSlotPtr slot)
+void TSlotManager::RemoveSlot(TTabletSlotPtr slot)
 {
     Impl_->RemoveSlot(slot);
 }
 
-std::vector<TTabletSnapshotPtr> TTabletSlotManager::GetTabletSnapshots()
+std::vector<TTabletSnapshotPtr> TSlotManager::GetTabletSnapshots()
 {
     return Impl_->GetTabletSnapshots();
 }
 
-TTabletSnapshotPtr TTabletSlotManager::FindTabletSnapshot(const TTabletId& tabletId)
+TTabletSnapshotPtr TSlotManager::FindTabletSnapshot(const TTabletId& tabletId)
 {
     return Impl_->FindTabletSnapshot(tabletId);
 }
 
-TTabletSnapshotPtr TTabletSlotManager::GetTabletSnapshotOrThrow(const TTabletId& tabletId)
+TTabletSnapshotPtr TSlotManager::GetTabletSnapshotOrThrow(const TTabletId& tabletId)
 {
     return Impl_->GetTabletSnapshotOrThrow(tabletId);
 }
 
-void TTabletSlotManager::RegisterTabletSnapshot(TTablet* tablet)
+void TSlotManager::RegisterTabletSnapshot(TTablet* tablet)
 {
     Impl_->RegisterTabletSnapshot(tablet);
 }
 
-void TTabletSlotManager::UnregisterTabletSnapshot(TTablet* tablet)
+void TSlotManager::UnregisterTabletSnapshot(TTablet* tablet)
 {
     Impl_->UnregisterTabletSnapshot(tablet);
 }
 
-void TTabletSlotManager::UpdateTabletSnapshot(TTablet* tablet)
+void TSlotManager::UpdateTabletSnapshot(TTablet* tablet)
 {
     Impl_->UpdateTabletSnapshot(tablet);
 }
 
-void TTabletSlotManager::UnregisterTabletSnapshots(TTabletSlotPtr slot)
+void TSlotManager::UnregisterTabletSnapshots(TTabletSlotPtr slot)
 {
     Impl_->UnregisterTabletSnapshots(std::move(slot));
 }
 
-IYPathServicePtr TTabletSlotManager::GetOrchidService()
+IYPathServicePtr TSlotManager::GetOrchidService()
 {
     return Impl_->GetOrchidService();
 }
 
-DELEGATE_SIGNAL(TTabletSlotManager, void(), BeginSlotScan, *Impl_);
-DELEGATE_SIGNAL(TTabletSlotManager, void(TTabletSlotPtr), ScanSlot, *Impl_);
-DELEGATE_SIGNAL(TTabletSlotManager, void(), EndSlotScan, *Impl_);
+DELEGATE_SIGNAL(TSlotManager, void(), BeginSlotScan, *Impl_);
+DELEGATE_SIGNAL(TSlotManager, void(TTabletSlotPtr), ScanSlot, *Impl_);
+DELEGATE_SIGNAL(TSlotManager, void(), EndSlotScan, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

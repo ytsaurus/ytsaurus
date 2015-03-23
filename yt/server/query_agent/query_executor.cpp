@@ -39,7 +39,7 @@
 
 #include <server/data_node/block_store.h>
 
-#include <server/tablet_node/tablet_slot_manager.h>
+#include <server/tablet_node/slot_manager.h>
 #include <server/tablet_node/tablet_manager.h>
 #include <server/tablet_node/tablet_slot.h>
 #include <server/tablet_node/tablet.h>
@@ -306,8 +306,8 @@ private:
                 return lhs.first < rhs.first;
             });
 
-            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
+            auto slotManager = Bootstrap_->GetTabletSlotManager();
+            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
             securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
@@ -606,8 +606,8 @@ private:
         try {
             auto tabletId = source.Id;
 
-            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
+            auto slotManager = Bootstrap_->GetTabletSlotManager();
+            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
             auto securityManager = Bootstrap_->GetSecurityManager();
             securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
