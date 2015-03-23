@@ -231,16 +231,17 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
 EValueType InferFunctionExprType(
     Stroka functionName,
     const std::vector<EValueType>& argTypes,
-    const TStringBuf& source)
+    const TStringBuf& source,
+    const TFunctionRegistry& functionRegistry)
 {
-    if (!GetFunctionRegistry()->IsRegistered(functionName)) {
+    if (!functionRegistry.IsRegistered(functionName)) {
         THROW_ERROR_EXCEPTION(
             "Unknown function in expression %Qv",
             source)
             << TErrorAttribute("function_name", functionName);
     }
 
-    return GetFunctionRegistry()->GetFunction(functionName).InferResultType(argTypes, source);
+    return functionRegistry.GetFunction(functionName).InferResultType(argTypes, source);
 }
 
 void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
@@ -284,7 +285,8 @@ struct ISchemaProxy
         EAggregateFunction aggregateFunction,
         const NAst::TExpression* arguments,
         Stroka subexprName,
-        Stroka source)
+        Stroka source,
+        const TFunctionRegistry& functionRegistry)
     {
         THROW_ERROR_EXCEPTION(
             "Misuse of aggregate function %v",
@@ -336,12 +338,13 @@ struct ISchemaProxy
 
     std::vector<TConstExpressionPtr> BuildTypedExpression(
         const NAst::TExpression* expr,
-        const Stroka& source)
+        const Stroka& source,
+        const TFunctionRegistry& functionRegistry)
     {
         std::vector<TConstExpressionPtr> result;
         if (auto commaExpr = expr->As<NAst::TCommaExpression>()) {
-            auto typedLhsExprs = BuildTypedExpression(commaExpr->Lhs.Get(), source);
-            auto typedRhsExprs = BuildTypedExpression(commaExpr->Rhs.Get(), source);
+            auto typedLhsExprs = BuildTypedExpression(commaExpr->Lhs.Get(), source, functionRegistry);
+            auto typedRhsExprs = BuildTypedExpression(commaExpr->Rhs.Get(), source, functionRegistry);
 
             result.insert(result.end(), typedLhsExprs.begin(), typedLhsExprs.end());
             result.insert(result.end(), typedRhsExprs.begin(), typedRhsExprs.end());
@@ -373,7 +376,8 @@ struct ISchemaProxy
                         aggregateFunction.Get(),
                         functionExpr->Arguments.Get(),
                         subexprName,
-                        source);
+                        source,
+                        functionRegistry);
 
                     result.push_back(New<TReferenceExpression>(
                         NullSourceLocation,
@@ -389,7 +393,7 @@ struct ISchemaProxy
             } else {
                 std::vector<EValueType> types;
 
-                auto typedOperands = BuildTypedExpression(functionExpr->Arguments.Get(), source);
+                auto typedOperands = BuildTypedExpression(functionExpr->Arguments.Get(), source, functionRegistry);
 
                 for (const auto& typedOperand : typedOperands) {
                     types.push_back(typedOperand->Type);
@@ -397,12 +401,12 @@ struct ISchemaProxy
 
                 result.push_back(New<TFunctionExpression>(
                     functionExpr->SourceLocation,
-                    InferFunctionExprType(functionName, types, functionExpr->GetSource(source)),
+                    InferFunctionExprType(functionName, types, functionExpr->GetSource(source), functionRegistry),
                     functionName,
                     typedOperands));
             }
         } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
-            auto typedOperandExpr = BuildTypedExpression(unaryExpr->Operand.Get(), source);
+            auto typedOperandExpr = BuildTypedExpression(unaryExpr->Operand.Get(), source, functionRegistry);
 
             for (const auto& operand : typedOperandExpr) {
                 if (auto literalExpr = operand->As<TLiteralExpression>()) {
@@ -441,8 +445,8 @@ struct ISchemaProxy
                     operand));
             }
         } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
-            auto typedLhsExpr = BuildTypedExpression(binaryExpr->Lhs.Get(), source);
-            auto typedRhsExpr = BuildTypedExpression(binaryExpr->Rhs.Get(), source);
+            auto typedLhsExpr = BuildTypedExpression(binaryExpr->Lhs.Get(), source, functionRegistry);
+            auto typedRhsExpr = BuildTypedExpression(binaryExpr->Rhs.Get(), source, functionRegistry);
 
             auto makeBinaryExpr = [&] (EBinaryOp op, const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs) {
                 return New<TBinaryOpExpression>(
@@ -507,7 +511,7 @@ struct ISchemaProxy
                 result.push_back(makeBinaryExpr(binaryExpr->Opcode, typedLhsExpr.front(), typedRhsExpr.front()));
             }
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
-            auto inExprOperands = BuildTypedExpression(inExpr->Expr.Get(), source);
+            auto inExprOperands = BuildTypedExpression(inExpr->Expr.Get(), source, functionRegistry);
 
             size_t keySize = inExprOperands.size();
 
@@ -652,14 +656,16 @@ struct TGroupSchemaProxy
         EAggregateFunction aggregateFunction,
         const NAst::TExpression* arguments,
         Stroka subexprName,
-        Stroka source)
+        Stroka source,
+        const TFunctionRegistry& functionRegistry)
     {
         const TColumnSchema* aggregateColumn = TableSchema->FindColumn(subexprName);
 
         if (!aggregateColumn) {
             auto typedOperands = Base->BuildTypedExpression(
                 arguments,
-                source);
+                source,
+                functionRegistry);
 
             if (typedOperands.size() != 1) {
                 THROW_ERROR_EXCEPTION(
@@ -684,11 +690,13 @@ struct TGroupSchemaProxy
 TConstExpressionPtr BuildWhereClause(
     NAst::TExpressionPtr& expressionAst,
     const Stroka& source,
-    const ISchemaProxyPtr& schemaProxy)
+    const ISchemaProxyPtr& schemaProxy,
+    const TFunctionRegistry& functionRegistry)
 {
     auto typedPredicate = schemaProxy->BuildTypedExpression(
         expressionAst.Get(),
-        source);
+        source,
+        functionRegistry);
 
     if (typedPredicate.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
@@ -713,7 +721,8 @@ TConstExpressionPtr BuildWhereClause(
 TConstGroupClausePtr BuildGroupClause(
     NAst::TNullableNamedExprs& expressionsAst,
     const Stroka& source,
-    ISchemaProxyPtr& schemaProxy)
+    ISchemaProxyPtr& schemaProxy,
+    const TFunctionRegistry& functionRegistry)
 {
     auto groupClause = New<TGroupClause>();
     TTableSchema& tableSchema = groupClause->GroupedTableSchema;
@@ -721,7 +730,8 @@ TConstGroupClausePtr BuildGroupClause(
     for (const auto& expr : expressionsAst.Get()) {
         auto typedExprs = schemaProxy->BuildTypedExpression(
             expr.first.Get(),
-            source);
+            source,
+            functionRegistry);
 
         if (typedExprs.size() != 1) {
             THROW_ERROR_EXCEPTION("Expecting scalar expression")
@@ -742,14 +752,16 @@ TConstGroupClausePtr BuildGroupClause(
 TConstProjectClausePtr BuildProjectClause(
     NAst::TNullableNamedExprs& expressionsAst,
     const Stroka& source,
-    ISchemaProxyPtr& schemaProxy)
+    ISchemaProxyPtr& schemaProxy,
+    const TFunctionRegistry& functionRegistry)
 {
     auto projectClause = New<TProjectClause>();
 
     for (const auto& expr : expressionsAst.Get()) {
         auto typedExprs = schemaProxy->BuildTypedExpression(
             expr.first.Get(),
-            source);
+            source,
+            functionRegistry);
 
         if (typedExprs.size() != 1) {
             THROW_ERROR_EXCEPTION("Expecting scalar expression")
@@ -773,21 +785,22 @@ TQueryPtr PrepareQuery(
     const Stroka& source,
     i64 inputRowLimit,
     i64 outputRowLimit,
-    const TTableSchema& tableSchema)
+    const TTableSchema& tableSchema,
+    const TFunctionRegistry& functionRegistry)
 {
     auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
     ISchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
 
     if (ast.WherePredicate) {
-        query->WhereClause = BuildWhereClause(ast.WherePredicate, source, schemaProxy);
+        query->WhereClause = BuildWhereClause(ast.WherePredicate, source, schemaProxy, functionRegistry);
     }
 
     if (ast.GroupExprs) {
-        query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy);
+        query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy, functionRegistry);
     }
 
     if (ast.SelectExprs) {
-        query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy);
+        query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy, functionRegistry);
     }
 
     schemaProxy->Finish();
@@ -815,6 +828,7 @@ void ParseYqlString(
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
+    const TFunctionRegistry& functionRegistry,
     i64 inputRowLimit,
     i64 outputRowLimit,
     TTimestamp timestamp)
@@ -896,15 +910,15 @@ TPlanFragmentPtr PreparePlanFragment(
     }
     
     if (ast.WherePredicate) {
-        query->WhereClause = BuildWhereClause(ast.WherePredicate, source, schemaProxy);
+        query->WhereClause = BuildWhereClause(ast.WherePredicate, source, schemaProxy, functionRegistry);
     }
 
     if (ast.GroupExprs) {
-        query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy);
+        query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy, functionRegistry);
     }
 
     if (ast.SelectExprs) {
-        query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy);
+        query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy, functionRegistry);
     }
 
     schemaProxy->Finish();
@@ -936,7 +950,8 @@ TPlanFragmentPtr PreparePlanFragment(
 
 TPlanFragmentPtr PrepareJobPlanFragment(
     const Stroka& source,
-    const TTableSchema& tableSchema)
+    const TTableSchema& tableSchema,
+    TFunctionRegistry& functionRegistry)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
     NAst::TRowBuffer rowBuffer;
@@ -955,7 +970,7 @@ TPlanFragmentPtr PrepareJobPlanFragment(
     auto planFragment = New<TPlanFragment>(source);
     auto unlimited = std::numeric_limits<i64>::max();
 
-    auto query = PrepareQuery(ast, source, unlimited, unlimited, tableSchema);
+    auto query = PrepareQuery(ast, source, unlimited, unlimited, tableSchema, functionRegistry);
 
     planFragment->Query = query;
 
@@ -974,7 +989,7 @@ TConstExpressionPtr PrepareExpression(
 
     auto schemaProxy = New<TSimpleSchemaProxy>(&tableSchema);
 
-    auto typedExprs = schemaProxy->BuildTypedExpression(expr.first.Get(), source);
+    auto typedExprs = schemaProxy->BuildTypedExpression(expr.first.Get(), source, CreateBuiltinFunctionRegistry());
 
     if (typedExprs.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")

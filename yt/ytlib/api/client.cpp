@@ -1291,6 +1291,7 @@ private:
         auto fragment = PreparePlanFragment(
             QueryHelper_.Get(),
             query,
+            FunctionRegistry_,
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
