@@ -195,8 +195,8 @@ class YamrModeTester(YtTestBase, YTEnv):
         self.assertEqual(yt.get_attribute(table, "my_attribute/000"), 10)
         #self.assertEqual(yt.list_attributes(table, "my_attribute"), ["000"])
 
-        result = yt.search(table, node_type='table', attributes=('my_attribute', ))
-        self.assertEqual(len(list(result)), 1)
+        result = list(yt.search(table, node_type='table', attributes=('my_attribute', )))
+        self.assertEqual(len(result), 1)
         self.assertEqual(str(result[0]), table)
         self.assertEqual(result[0].attributes['my_attribute'], {'000': 10})
 
