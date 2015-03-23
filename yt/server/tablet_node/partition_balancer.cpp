@@ -282,7 +282,7 @@ private:
             config->SamplesPerPartition);
 
         try {
-            auto samples = GetPartitionSamples(partition, config->SamplesPerPartition - 1);
+            auto samples = GetPartitionSamples(partition, config->SamplesPerPartition);
             samples.erase(
                 std::unique(samples.begin(), samples.end()),
                 samples.end());
