@@ -26,7 +26,7 @@ class TUser
     // Request counters.
     DEFINE_BYVAL_RW_PROPERTY(i64, RequestCounter);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
-    DEFINE_BYVAL_RW_PROPERTY(NProto::TRequestStatisticsUpdate*, RequestStatisticsUpdate);
+    DEFINE_BYVAL_RW_PROPERTY(int, RequestStatisticsUpdateIndex);
     
     // Request rate management.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CheckpointTime);

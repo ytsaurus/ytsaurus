@@ -30,7 +30,7 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     , Account_(nullptr)
     , CachedResourceUsage_(ZeroClusterResources())
     , Acd_(this)
-    , AccessStatisticsUpdate_(nullptr)
+    , AccessStatisticsUpdateIndex_(-1)
     , Parent_(nullptr)
     , TransactionId(id.TransactionId)
 { }

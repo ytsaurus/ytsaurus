@@ -14,7 +14,7 @@ TUser::TUser(const TUserId& id)
     , RequestRateLimit_(100.0)
     , RequestCounter_(0)
     , AccessTime_(TInstant::Zero())
-    , RequestStatisticsUpdate_(nullptr)
+    , RequestStatisticsUpdateIndex_(-1)
 {
     ResetRequestRate();
 }

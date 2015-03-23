@@ -86,19 +86,21 @@ void TAccessTracker::OnAccess(TCypressNodeBase* trunkNode)
     YCHECK(trunkNode->IsTrunk());
     YCHECK(trunkNode->IsAlive());
 
-    auto* update = trunkNode->GetAccessStatisticsUpdate();
-    if (!update) {
-        update = UpdateAccessStatisticsRequest.add_updates();
-        ToProto(update->mutable_node_id(), trunkNode->GetId());
-
-        trunkNode->SetAccessStatisticsUpdate(update);
+    int index = trunkNode->GetAccessStatisticsUpdateIndex();
+    if (index < 0) {
+        index = UpdateAccessStatisticsRequest.updates_size();
+        trunkNode->SetAccessStatisticsUpdateIndex(index);
         NodesWithAccessStatisticsUpdate.push_back(trunkNode);
+
+        auto* update = UpdateAccessStatisticsRequest.add_updates();
+        ToProto(update->mutable_node_id(), trunkNode->GetId());
 
         auto objectManager = Bootstrap->GetObjectManager();
         objectManager->WeakRefObject(trunkNode);
     }
 
     auto now = NProfiling::CpuInstantToInstant(NProfiling::GetCpuInstant());
+    auto* update = UpdateAccessStatisticsRequest.mutable_updates(index);
     update->set_access_time(now.MicroSeconds());
     update->set_access_counter_delta(update->access_counter_delta() + 1);
 }
@@ -107,7 +109,7 @@ void TAccessTracker::Reset()
 {
     auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (auto* node, NodesWithAccessStatisticsUpdate) {
-        node->SetAccessStatisticsUpdate(nullptr);
+        node->SetAccessStatisticsUpdateIndex(-1);
         objectManager->WeakUnrefObject(node);
     }    
 
