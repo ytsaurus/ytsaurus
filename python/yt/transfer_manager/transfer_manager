@@ -120,12 +120,11 @@ def now():
 class Task(object):
     # NB: destination table is missing if we copy to kiwi
     def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
-                 destination_table=None, source_database=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
+                 destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
                  start_time=None, finish_time=None, copy_method=None, progress=None, backend_tag=None, kiwi_user=None, kwworm_options=None, pool=None, meta=None,
                  destination_compression_codec=None, destination_erasure_codec=None, destination_force_sort=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
-        self.source_database = source_database
         self.source_cluster_token = get_value(source_cluster_token, token)
         self.destination_cluster = destination_cluster
         self.destination_table = destination_table
@@ -432,7 +431,11 @@ class Application(object):
         self._pending_tasks_per_user = defaultdict(lambda: 0)
 
         for id, options in self._yt.get(tasks_path).iteritems():
-            task = Task(**options)
+            try:
+                task = Task(**options)
+            except Exception:
+                logger.warning("Failed to load task " + id)
+                continue
 
             active_client, passive_client = self._get_active_and_passive_clients(task)
             if active_client._type != "yt":
@@ -587,8 +590,9 @@ class Application(object):
 
             if destination_client._type == "kiwi" and self.kiwi_transmitter is None:
                 raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
-            if source_client._type == "hive" and task.source_database is None:
-                raise yt.YtError("Source database is not set")
+
+            if source_client._type == "hive" and "." not in task.source_table:
+                raise yt.YtError("Incorrect source table for hive, it must have format {database_name}.{table_name}")
         except TimeoutExpired:
             custom_logger.info("Precheck timed out")
             if not ignore_timeout:
@@ -827,7 +831,7 @@ class Application(object):
                 copy_hive_to_yt(
                     source_client,
                     destination_client,
-                    (task.source_database, task.source_table),
+                    task.source_table,
                     task.destination_table,
                     spec_template=task_spec,
                     message_queue=message_queue)
