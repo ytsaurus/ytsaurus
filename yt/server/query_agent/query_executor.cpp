@@ -194,7 +194,7 @@ private:
 
         LOG_DEBUG("Splitting %v sources", fragment->DataSources.size());
 
-        auto splits = Split(fragment->DataSources, nodeDirectory, Logger);
+        auto splits = Split(fragment->DataSources, nodeDirectory, Logger, fragment->VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
         std::vector<TDataSources> groupedSplits;
@@ -278,7 +278,8 @@ private:
     TDataSources Split(
         const TDataSources& splits,
         TNodeDirectoryPtr nodeDirectory,
-        const NLogging::TLogger& Logger)
+        const NLogging::TLogger& Logger,
+        bool verboseLogging)
     {
         yhash_map<TGuid, std::vector<TKeyRange>> rangesByTablet;
         TDataSources allSplits;
@@ -321,6 +322,11 @@ private:
 
                 if (totalSampleCount != 0 || partitionCount != 0) {
                     resultRanges.emplace_back(keyRanges[lastIndex].first, upperBound);
+
+                    LOG_DEBUG_IF(verboseLogging, "Merging %v ranges into %v", 
+                        index - lastIndex,
+                        Format("[%v .. %v]", keyRanges[lastIndex].first, upperBound));
+
                     lastIndex = index;
                 }
             }
@@ -386,6 +392,7 @@ private:
 
         // Run binary search to find the relevant partitions.
         const auto& partitions = tabletSnapshot->Partitions;
+        YCHECK(!partitions.empty());
         YCHECK(lowerBound >= partitions[0]->PivotKey);
         auto startPartitionIt = std::upper_bound(
             partitions.begin(),
@@ -401,7 +408,7 @@ private:
             [] (const TPartitionSnapshotPtr& lhs, const TOwningKey& rhs) {
                 return lhs->PivotKey < rhs;
             });
-        int partitionCount = std::distance(startPartitionIt, endPartitionIt);
+        int partitionCount = std::distance(startPartitionIt, endPartitionIt) - 1;
 
         int totalSampleCount = 0;
         for (auto partitionIt = startPartitionIt; partitionIt != endPartitionIt; ++partitionIt) {
