@@ -22,7 +22,7 @@ IFunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName) 
     return *RegisteredFunctions_.at(to_lower(functionName));
 }
 
-bool TFunctionRegistry::IsRegistered(const Stroka& functionName)
+bool TFunctionRegistry::IsRegistered(const Stroka& functionName) const
 {
     return RegisteredFunctions_.count(to_lower(functionName)) != 0;
 }

@@ -15,7 +15,7 @@ public:
     void RegisterFunction(IFunctionDescriptorPtr descriptor);
     IFunctionDescriptor& GetFunction(const Stroka& functionName) const;
 
-    bool IsRegistered(const Stroka& functionName);
+    bool IsRegistered(const Stroka& functionName) const;
 
 private:
     std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
