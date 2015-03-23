@@ -135,8 +135,8 @@ message TPlanFragment
 {
     required string source = 1;
     required uint64 timestamp = 2;
-	repeated TDataSource data_sources = 3;
-	required TDataSource foreign_data_source = 4;
+    repeated TDataSource data_sources = 3;
+    required TDataSource foreign_data_source = 4;
 
     required TQuery query = 5;
     required bool ordered = 6;

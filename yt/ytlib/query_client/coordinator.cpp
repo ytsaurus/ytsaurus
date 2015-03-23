@@ -520,8 +520,6 @@ TDataSources GetPrunedSources(
         verboseLogging);
 }
 
-
-
 TKeyRange GetRange(const TDataSources& sources)
 {
     if (sources.empty()) {
