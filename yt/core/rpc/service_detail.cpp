@@ -659,8 +659,15 @@ void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeI
     --runtimeInfo->RunningRequestSemaphore;
 }
 
+static PER_THREAD bool ScheduleRequestsRunning = false;
+
 void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
+    // Prevent reeentarant invocations.
+    if (ScheduleRequestsRunning)
+        return;
+    ScheduleRequestsRunning = true;
+
     while (true) {
         if (runtimeInfo->RequestQueue.IsEmpty())
             break;
@@ -676,6 +683,8 @@ void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
 
         ReleaseRequestSemaphore(runtimeInfo);
     }
+
+    ScheduleRequestsRunning = false;
 }
 
 void TServiceBase::RunRequest(const TServiceContextPtr& context)
