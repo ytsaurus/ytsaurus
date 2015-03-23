@@ -142,7 +142,7 @@
                 "hcatalog_host": "v013h.hdp.yandex.net:50111",
                 "hdfs_host": "v009h.hdp.yandex.net:14000",
                 "hive_exporter_library": "/home/ignat/hive_import/hiveExporter.jar",
-                "java_path": "/usr/local/jdk1.8.0_25/bin"
+                "java_path": "/usr/local/java8/bin"
             }
         }
     },
