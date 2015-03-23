@@ -129,7 +129,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         # Search empty tables
         res = yt.search(TEST_DIR, attributes=["row_count"],
                         object_filter=lambda x: x.attributes.get("row_count", -1) == 0)
-        self.assertEqual(sorted(res),
+        self.assertEqual(sorted(list(res)),
                          sorted([yson.to_yson_type(TEST_DIR + "/dir/table", {"row_count": 0})]))
 
     def test_create(self):
