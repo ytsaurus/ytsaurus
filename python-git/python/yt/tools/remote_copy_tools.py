@@ -511,10 +511,11 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
 def copy_yamr_to_kiwi():
     pass
 
-def copy_hive_to_yt(hive_client, yt_client, source, destination_table, spec_template=None, message_queue=None):
+def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, spec_template=None, message_queue=None):
     if spec_template is None:
         spec_template = {}
 
+    source = source_table.split(".", 1)
     read_config, files = hive_client.get_table_config_and_files(*source)
     read_command = hive_client.get_read_command(read_config)
 
