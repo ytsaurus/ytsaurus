@@ -80,7 +80,7 @@ public:
         }
 
         yhash_set<Stroka> references;
-        Profile(predicate, schema, nullptr, nullptr, &references);
+        Profile(predicate, schema, nullptr, nullptr, &references, functionRegistry);
 
         for (const auto& reference : references) {
             if (schema.GetColumnOrThrow(reference).Expression) {

@@ -70,7 +70,8 @@ public:
         const TConstQueryPtr& query,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
-        TExecuteQuery executeCallback)
+        TExecuteQuery executeCallback,
+        const TFunctionRegistry& functionRegistry)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
             TRACE_ANNOTATION("fragment_id", query->Id);
@@ -84,7 +85,7 @@ public:
                 NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
                 TCGVariables fragmentParams;
-                auto cgQuery = Codegen(query, fragmentParams);
+                auto cgQuery = Codegen(query, fragmentParams, functionRegistry);
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -181,11 +182,11 @@ public:
     }
 
 private:
-    TCGQueryCallback Codegen(const TConstQueryPtr& query, TCGVariables& variables)
+    TCGQueryCallback Codegen(const TConstQueryPtr& query, TCGVariables& variables, const TFunctionRegistry& functionRegistry)
     {
         llvm::FoldingSetNodeID id;
 
-        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr);
+        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr, functionRegistry);
 
         auto Logger = BuildLogger(query);
 
@@ -246,10 +247,11 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     const TConstQueryPtr& query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
-    TExecuteQuery executeCallback)
+    TExecuteQuery executeCallback,
+    const TFunctionRegistry& functionRegistry)
 {
 #ifdef YT_USE_LLVM
-    return Impl_->Run(query, std::move(reader), std::move(writer), executeCallback);
+    return Impl_->Run(query, std::move(reader), std::move(writer), executeCallback, functionRegistry);
 #else
     THROW_ERROR_EXCEPTION("Query evaluation is not supported in this build");
 #endif
@@ -258,9 +260,10 @@ TQueryStatistics TEvaluator::RunWithExecutor(
 TQueryStatistics TEvaluator::Run(
     const TConstQueryPtr& query,
     ISchemafulReaderPtr reader,
-    ISchemafulWriterPtr writer)
+    ISchemafulWriterPtr writer,
+    const TFunctionRegistry& functionRegistry)
 {
-    return RunWithExecutor(query, std::move(reader), std::move(writer), nullptr);
+    return RunWithExecutor(query, std::move(reader), std::move(writer), nullptr, functionRegistry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

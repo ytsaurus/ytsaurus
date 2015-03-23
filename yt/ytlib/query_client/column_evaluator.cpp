@@ -36,7 +36,7 @@ void TColumnEvaluator::PrepareEvaluator(int index)
 
     if (!Evaluators_[index]) {
         auto expr = PrepareExpression(Schema_.Columns()[index].Expression.Get(), Schema_);
-        Evaluators_[index] = Profile(expr, Schema_, nullptr, &Variables_[index], &References_[index])();
+        Evaluators_[index] = Profile(expr, Schema_, nullptr, &Variables_[index], &References_[index], CreateBuiltinFunctionRegistry())();
     }
 #else
     THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
@@ -176,7 +176,7 @@ public:
     TColumnEvaluatorPtr Get(const TTableSchema& schema, int keySize)
     {
         llvm::FoldingSetNodeID id;
-        Profile(schema, keySize, &id);
+        Profile(schema, keySize, &id, CreateBuiltinFunctionRegistry());
 
         auto cachedEvaluator = Find(id);
         if (!cachedEvaluator) {

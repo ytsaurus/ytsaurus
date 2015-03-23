@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "callbacks.h"
+#include "function_registry.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -19,12 +20,14 @@ public:
         const TConstQueryPtr& fragment,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
-        TExecuteQuery executeCallback);
+        TExecuteQuery executeCallback,
+        const TFunctionRegistry& functionRegistry);
 
     TQueryStatistics Run(
         const TConstQueryPtr& fragment,
         ISchemafulReaderPtr reader,
-        ISchemafulWriterPtr writer);
+        ISchemafulWriterPtr writer,
+        const TFunctionRegistry& functionRegistry);
 
 private:
     class TImpl;

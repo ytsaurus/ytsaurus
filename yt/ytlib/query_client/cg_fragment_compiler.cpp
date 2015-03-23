@@ -1060,10 +1060,10 @@ TCodegenExpression MakeCodegenFunctionExpr(
     Stroka functionName,
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name)
+    Stroka name,
+    const TFunctionRegistry& functionRegistry)
 {
-    auto& function = GetFunctionRegistry()->GetFunction(functionName);
-    YUNREACHABLE();
+    auto& function = functionRegistry.GetFunction(functionName);
     return function.MakeCodegenExpr(std::move(codegenArgs), type, name);
 }
 
