@@ -199,10 +199,14 @@ def make_request(command_name, params,
         if header_format == "json":
             return json.dumps(escape_utf8(yson.yson_to_json(obj)))
         if header_format == "yson":
-            return yson.dumps(obj)
+            return yson.dumps(obj, yson_format="text")
         assert False
 
-    headers["X-YT-Header-Format"] = header_format
+    header_format_header = header_format
+    if header_format == "yson":
+        header_format_header = "<format=text>yson"
+
+    headers["X-YT-Header-Format"] = header_format_header
     if command.input_type is None:
         # Should we also check that command is volatile?
         require(data is None, YtError("Body should be empty in commands without input type"))
