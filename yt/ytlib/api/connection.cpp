@@ -117,8 +117,12 @@ public:
             GetMasterChannel(EMasterChannelKind::Cache),
             CellDirectory_);
 
+        FunctionRegistry_ = CreateBuiltinFunctionRegistry();
+
         QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(Config_->ColumnEvaluatorCache);
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
+            Config_->ColumnEvaluatorCache,
+            GetFunctionRegistry());
     }
 
     // IConnection implementation.
@@ -168,6 +172,11 @@ public:
         return CellDirectory_;
     }
 
+    virtual TFunctionRegistryPtr GetFunctionRegistry() override
+    {
+        return FunctionRegistry_;
+    }
+
     virtual TEvaluatorPtr GetQueryEvaluator() override
     {
         return QueryEvaluator_;
@@ -205,6 +214,7 @@ private:
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
+    TFunctionRegistryPtr FunctionRegistry_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 

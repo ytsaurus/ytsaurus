@@ -24,7 +24,6 @@ private:
     std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
 };
 
-DECLARE_REFCOUNTED_CLASS(TFunctionRegistry)
 DEFINE_REFCOUNTED_TYPE(TFunctionRegistry)
 
 TFunctionRegistryPtr CreateBuiltinFunctionRegistry();

@@ -173,9 +173,11 @@ class TColumnEvaluatorCache::TImpl
     : public TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedColumnEvaluator>
 {
 public:
-    explicit TImpl(TColumnEvaluatorCacheConfigPtr config)
+    explicit TImpl(
+        TColumnEvaluatorCacheConfigPtr config,
+        const TFunctionRegistryPtr functionRegistry)
         : TSyncSlruCacheBase(config->CGCache)
-        , FunctionRegistry_(CreateBuiltinFunctionRegistry())
+        , FunctionRegistry_(functionRegistry)
     { }
 
     TColumnEvaluatorPtr Get(const TTableSchema& schema, int keySize)
@@ -201,9 +203,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnEvaluatorCache::TColumnEvaluatorCache(TColumnEvaluatorCacheConfigPtr config)
+TColumnEvaluatorCache::TColumnEvaluatorCache(
+    TColumnEvaluatorCacheConfigPtr config,
+    const TFunctionRegistryPtr functionRegistry)
 #ifdef YT_USE_LLVM
-    : Impl_(New<TImpl>(std::move(config)))
+    : Impl_(New<TImpl>(std::move(config), functionRegistry))
 #endif
 { }
 

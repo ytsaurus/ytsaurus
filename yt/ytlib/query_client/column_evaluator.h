@@ -65,7 +65,9 @@ class TColumnEvaluatorCache
     : public TRefCounted
 {
 public:
-    explicit TColumnEvaluatorCache(TColumnEvaluatorCacheConfigPtr config);
+    explicit TColumnEvaluatorCache(
+        TColumnEvaluatorCacheConfigPtr config,
+        const TFunctionRegistryPtr functionRegistry);
     ~TColumnEvaluatorCache();
 
     TColumnEvaluatorPtr Find(const TTableSchema& schema, int keySize);

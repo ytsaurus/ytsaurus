@@ -435,7 +435,7 @@ protected:
             .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
     }
 
     void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
@@ -2814,7 +2814,7 @@ protected:
             .WillRepeatedly(Invoke(this, &TComputedColumnTest::MakeSimpleSplit));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
     }
 
     std::vector<TKeyRange> Coordinate(const Stroka& source)
