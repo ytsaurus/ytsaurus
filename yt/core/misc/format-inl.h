@@ -16,7 +16,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char GenericSpecSymbol = 'v';
+static const char GenericSpecSymbol = 'v';
+static const char Int2Hex[] = "0123456789abcdef";
 
 template <class TValue>
 void FormatValue(TStringBuilder* builder, const TValue& value, const TStringBuf& format);
@@ -77,15 +78,12 @@ inline void FormatValue(TStringBuilder* builder, const TStringBuf& value, const 
     }
 
     if (singleQuotes || doubleQuotes) {
-        auto int2hex = [] (unsigned char x)->char {
-            YASSERT(x < 16);
-            return x < 10 ? ('0' + x) : ('A' + x - 10);
-        };
         for (const char* current = value.begin(); current < value.end(); ++current) {
-            if (!std::isprint(*current) && !std::isspace(*current)) {
+            char ch = *current;
+            if (!std::isprint(ch) && !std::isspace(ch)) {
                 builder->AppendString("\\x");
-                builder->AppendChar(int2hex(static_cast<unsigned char>(*current) >> 4));
-                builder->AppendChar(int2hex(static_cast<unsigned char>(*current) & 0xF));
+                builder->AppendChar(Int2Hex[static_cast<ui8>(ch) >> 4]);
+                builder->AppendChar(Int2Hex[static_cast<ui8>(ch) & 0xf]);
             } else if ((singleQuotes && *current == '\'') || (doubleQuotes && *current == '\"')) {
                 builder->AppendChar('\\');
                 builder->AppendChar(*current);

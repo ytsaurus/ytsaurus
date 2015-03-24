@@ -56,6 +56,7 @@ TFuture<void> TSnapshotBuilderBase::Run()
         Result_.OnCanceled(BIND(&TSnapshotBuilderBase::OnCanceled, MakeWeak(this)));
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error building snapshot");
+        DoCleanup();
         Result_.Set(ex);
     }
 

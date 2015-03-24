@@ -16,16 +16,25 @@ namespace NQueryClient {
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     const TConstQueryPtr& query,
     const std::vector<TKeyRange>& ranges,
-    bool pushdownGroupClause = true);
+    bool refinePredicates);
 
-TDataSplits GetPrunedSplits(
+TDataSources GetPrunedSources(
+    const TConstExpressionPtr& predicate,
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns,
+    const TDataSources& sources,
+    const TColumnEvaluatorCachePtr& evaluatorCache,
+    bool verboseLogging);
+
+TDataSources GetPrunedSources(
     const TConstQueryPtr& query,
-    const TDataSplits& splits,
-    const TColumnEvaluatorCachePtr& evaluatorCache);
+    const TDataSources& sources,
+    const TColumnEvaluatorCachePtr& evaluatorCache,
+    bool verboseLogging);
 
-TKeyRange GetRange(const TDataSplits& splits);
+TKeyRange GetRange(const TDataSources& sources);
 
-std::vector<TKeyRange> GetRanges(const TGroupedDataSplits& groupedSplits);
+std::vector<TKeyRange> GetRanges(const std::vector<TDataSources>& groupedSplits);
 
 typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResult;
 
@@ -34,9 +43,9 @@ TQueryStatistics CoordinateAndExecute(
     ISchemafulWriterPtr writer,
     bool isOrdered,
     const std::vector<TKeyRange>& ranges,
-    std::function<TEvaluateResult(const TConstQueryPtr&, size_t)> evaluateSubquery,
+    std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
-    bool pushdownGroupOp = true);
+    bool refinePredicates = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -31,8 +31,6 @@ public:
         const TSharedRef& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
 
-    ~TCachedBlock();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedBlock)

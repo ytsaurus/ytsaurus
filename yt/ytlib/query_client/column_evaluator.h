@@ -3,7 +3,7 @@
 #include "public.h"
 
 #ifdef YT_USE_LLVM
-#include "cg_types.h"
+#include "evaluation_helpers.h"
 #endif
 
 #include <ytlib/new_table_client/unversioned_row.h>

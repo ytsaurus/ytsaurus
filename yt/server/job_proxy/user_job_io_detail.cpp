@@ -10,8 +10,6 @@
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
 
-#include <core/ytree/convert.h>
-
 #include <core/concurrency/scheduler.h>
 
 namespace NYT {
@@ -51,7 +49,7 @@ void TUserJobIOBase::Init()
         if (outputSpec.has_key_columns()) {
             keyColumns = FromProto<TKeyColumns>(outputSpec.key_columns());
         }
-        
+
         auto writer = DoCreateWriter(options, chunkListId, transactionId, keyColumns);
         // ToDo(psushin): open writers in parallel.
         auto error = WaitFor(writer->Open());
@@ -141,7 +139,7 @@ std::vector<ISchemalessMultiChunkReaderPtr> TUserJobIOBase::CreateRegularReaders
 
 ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
     TMultiChunkReaderOptionsPtr options,
-    const std::vector<TChunkSpec>& chunkSpecs, 
+    const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
     bool isParallel)
 {

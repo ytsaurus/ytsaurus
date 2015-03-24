@@ -10,12 +10,11 @@
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <ytlib/chunk_client/chunk_reader.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/object_client/helpers.h>
-
-#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
@@ -40,7 +39,7 @@
 
 #include <server/data_node/block_store.h>
 
-#include <server/tablet_node/tablet_slot_manager.h>
+#include <server/tablet_node/slot_manager.h>
 #include <server/tablet_node/tablet_manager.h>
 #include <server/tablet_node/tablet_slot.h>
 #include <server/tablet_node/tablet.h>
@@ -68,8 +67,6 @@ using namespace NVersionedTableClient;
 using namespace NVersionedTableClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NTabletNode;
-using namespace NTableClient;
-using namespace NTableClient::NProto;
 using namespace NDataNode;
 using namespace NCellNode;
 
@@ -167,9 +164,12 @@ public:
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer) override
     {
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto maybeUser = securityManager->GetAuthenticatedUser();
+
         return BIND(&TQueryExecutor::DoExecute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
-            .Run(fragment, std::move(writer));
+            .Run(fragment, std::move(writer), maybeUser);
     }
 
 private:
@@ -181,14 +181,25 @@ private:
 
     TQueryStatistics DoExecute(
         const TPlanFragmentPtr& fragment,
-        ISchemafulWriterPtr writer)
+        ISchemafulWriterPtr writer,
+        const TNullable<Stroka>& maybeUser)
     {
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
+
+        auto timestamp = fragment->Timestamp;
+
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
-        auto splits = Split(fragment->DataSplits, nodeDirectory, Logger);
+
+        LOG_DEBUG("Splitting %v sources", fragment->DataSources.size());
+
+        auto splits = Split(fragment->DataSources, nodeDirectory, Logger, fragment->VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
-        TGroupedDataSplits groupedSplits;
+        std::vector<TDataSources> groupedSplits;
+
+        LOG_DEBUG("Grouping %v splits", splits.size());
 
         for (int queryIndex = 1; queryIndex <= Config_->MaxSubqueries; ++queryIndex) {
             int nextSplitOffset = queryIndex * splitCount / Config_->MaxSubqueries;
@@ -198,30 +209,43 @@ private:
             }
         }
 
+        LOG_DEBUG("Grouped into %v groups", groupedSplits.size());
         auto ranges = GetRanges(groupedSplits);
+
+        Stroka rangesString;
+        for (const auto& range : ranges) {
+            rangesString += Format("[%v .. %v]", range.first, range.second);
+        }
+
+        LOG_DEBUG("Got ranges for groups %v", rangesString);
 
         return CoordinateAndExecute(
             fragment,
             writer,
             false,
             ranges,
-            [&] (const TConstQueryPtr& subquery, size_t index) {
+            [&] (const TConstQueryPtr& subquery, int index) {
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
                 for (const auto& dataSplit : groupedSplits[index]) {
-                    bottomSplitReaders.push_back(GetReader(dataSplit, nodeDirectory));
+                    bottomSplitReaders.push_back(GetReader(dataSplit, timestamp, nodeDirectory));
                 }
                 auto mergingReader = CreateUnorderedSchemafulReader(bottomSplitReaders);
 
                 auto pipe = New<TSchemafulPipe>();
 
+                LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
+
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
                     .Run(subquery, mergingReader, pipe->GetWriter(), [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
-                        auto planFragment = New<TPlanFragment>();
+                        LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
+                        auto planFragment = New<TPlanFragment>();
                         planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+                        planFragment->Timestamp = fragment->Timestamp;
+                        planFragment->DataSources.push_back(fragment->ForeignDataSource);
                         planFragment->Query = subquery;
-                        planFragment->DataSplits.push_back(fragment->ForeignDataSplit);
+                        planFragment->VerboseLogging = fragment->VerboseLogging;
 
                         auto subqueryResult = RemoteExecutor_->Execute(planFragment, writer);
 
@@ -229,76 +253,85 @@ private:
                             .ValueOrThrow();
                     });
 
-                asyncStatistics.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& result) {
+                asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
+                        LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", subquery->Id);
                     }
                 }));
 
                 return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+                LOG_DEBUG("Evaluating topquery (TopqueryId: %v)", topQuery->Id);
+
                 auto asyncQueryStatisticsOrError = BIND(&TEvaluator::Run, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
                     .Run(topQuery, std::move(reader), std::move(writer));
 
-                return WaitFor(asyncQueryStatisticsOrError)
-                    .ValueOrThrow();
+                auto result = WaitFor(asyncQueryStatisticsOrError);
+                LOG_DEBUG(result, "Finished evaluating topquery (TopqueryId: %v)", topQuery->Id);
+                return result.ValueOrThrow();
             });
     }
 
-    TDataSplits Split(
-        const TDataSplits& splits,
+    TDataSources Split(
+        const TDataSources& splits,
         TNodeDirectoryPtr nodeDirectory,
-        const NLogging::TLogger& Logger)
+        const NLogging::TLogger& Logger,
+        bool verboseLogging)
     {
-        yhash_map<TGuid, TDataSplits> splitsByTablet;
-
-        TDataSplits allSplits;
+        yhash_map<TGuid, std::vector<TKeyRange>> rangesByTablet;
+        TDataSources allSplits;
         for (const auto& split : splits) {
-            auto objectId = GetObjectIdFromDataSplit(split);
+            auto objectId = split.Id;
             auto type = TypeFromId(objectId);
 
             if (type == EObjectType::Tablet) {
-                splitsByTablet[objectId].push_back(split);
+                rangesByTablet[objectId].push_back(split.Range);
             } else {
                 allSplits.push_back(split);
             }
         }
 
-        for (auto& tabletIdSplit : splitsByTablet) {
-            auto tabletId = tabletIdSplit.first;
-            auto& splits = tabletIdSplit.second;
+        auto securityManager = Bootstrap_->GetSecurityManager();
 
-            YCHECK(!splits.empty());
+        for (auto& tabletIdRange : rangesByTablet) {
+            auto tabletId = tabletIdRange.first;
+            auto& keyRanges = tabletIdRange.second;
 
-            auto keyColumns = GetKeyColumnsFromDataSplit(splits.front());
-            auto schema = GetTableSchemaFromDataSplit(splits.front());
-            auto timestamp = GetTimestampFromDataSplit(splits.front());
+            YCHECK(!keyRanges.empty());
 
-            std::sort(splits.begin(), splits.end(), [] (const TDataSplit& lhs, const TDataSplit& rhs) {
-                return GetLowerBoundFromDataSplit(lhs) < GetLowerBoundFromDataSplit(rhs);
+            std::sort(keyRanges.begin(), keyRanges.end(), [] (const TKeyRange& lhs, const TKeyRange& rhs) {
+                return lhs.first < rhs.first;
             });
 
-            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
+            auto slotManager = Bootstrap_->GetTabletSlotManager();
+            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+
+            securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
             int lastIndex = 0;
             std::vector<std::pair<TOwningKey, TOwningKey>> resultRanges;
-            for (int index = 1; index < splits.size(); ++index) {
-                auto lowerBound = GetLowerBoundFromDataSplit(splits[index]);
-                auto upperBound = GetUpperBoundFromDataSplit(splits[index - 1]);
+            for (int index = 1; index < keyRanges.size(); ++index) {
+                auto lowerBound = keyRanges[index].first;
+                auto upperBound = keyRanges[index - 1].second;
 
                 int totalSampleCount, partitionCount;
                 std::tie(totalSampleCount, partitionCount) = GetBoundSampleKeys(tabletSnapshot, upperBound, lowerBound);
 
                 if (totalSampleCount != 0 || partitionCount != 0) {
-                    resultRanges.emplace_back(GetLowerBoundFromDataSplit(splits[lastIndex]), upperBound);
+                    resultRanges.emplace_back(keyRanges[lastIndex].first, upperBound);
+
+                    LOG_DEBUG_IF(verboseLogging, "Merging %v ranges into %v", 
+                        index - lastIndex,
+                        Format("[%v .. %v]", keyRanges[lastIndex].first, upperBound));
+
                     lastIndex = index;
                 }
             }
 
-            resultRanges.emplace_back(GetLowerBoundFromDataSplit(splits[lastIndex]), GetUpperBoundFromDataSplit(splits.back()));
+            resultRanges.emplace_back(keyRanges[lastIndex].first, keyRanges.back().second);
 
             int totalSampleCount = 0;
             int totalPartitionCount = 0;
@@ -329,14 +362,9 @@ private:
                     const auto& nextKey = (splitKeyIndex == splitKeys.size() - 1)
                         ? MaxKey()
                         : splitKeys[splitKeyIndex + 1];
-                    TDataSplit subsplit;
-                    SetObjectId(&subsplit, tabletId);
-                    SetKeyColumns(&subsplit, keyColumns);
-                    SetTableSchema(&subsplit, schema);
-                    SetLowerBound(&subsplit, std::max(range.first, thisKey));
-                    SetUpperBound(&subsplit, std::min(range.second, nextKey));
-                    SetTimestamp(&subsplit, timestamp);
-                    allSplits.push_back(std::move(subsplit));
+                    TDataSource subsource{tabletId, TKeyRange(std::max(range.first, thisKey), std::min(range.second, nextKey))};
+
+                    allSplits.push_back(std::move(subsource));
                 }
             }
         }
@@ -364,6 +392,7 @@ private:
 
         // Run binary search to find the relevant partitions.
         const auto& partitions = tabletSnapshot->Partitions;
+        YCHECK(!partitions.empty());
         YCHECK(lowerBound >= partitions[0]->PivotKey);
         auto startPartitionIt = std::upper_bound(
             partitions.begin(),
@@ -379,7 +408,7 @@ private:
             [] (const TPartitionSnapshotPtr& lhs, const TOwningKey& rhs) {
                 return lhs->PivotKey < rhs;
             });
-        int partitionCount = std::distance(startPartitionIt, endPartitionIt);
+        int partitionCount = std::distance(startPartitionIt, endPartitionIt) - 1;
 
         int totalSampleCount = 0;
         for (auto partitionIt = startPartitionIt; partitionIt != endPartitionIt; ++partitionIt) {
@@ -479,17 +508,18 @@ private:
     }
 
     ISchemafulReaderPtr GetReader(
-        const TDataSplit& split,
+        const TDataSource& source,
+        TTimestamp timestamp,
         TNodeDirectoryPtr nodeDirectory)
     {
-        auto objectId = FromProto<TObjectId>(split.chunk_id());
+        auto objectId = source.Id;
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetChunkReader(split, std::move(nodeDirectory));
+                return GetChunkReader(source, timestamp, std::move(nodeDirectory));
 
             case EObjectType::Tablet:
-                return GetTabletReader(split, std::move(nodeDirectory));
+                return GetTabletReader(source, timestamp, std::move(nodeDirectory));
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -498,23 +528,24 @@ private:
     }
 
     ISchemafulReaderPtr GetChunkReader(
-        const TDataSplit& split,
+        const TDataSource& source,
+        TTimestamp timestamp,
         TNodeDirectoryPtr nodeDirectory)
     {
         auto futureReader = BIND(&TQueryExecutor::GetChunkReaderControl, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetControlInvoker())
-            .Run(split, std::move(nodeDirectory));
+            .Run(source, timestamp, std::move(nodeDirectory));
         return New<TLazySchemafulReader>(std::move(futureReader));
     }
 
     ISchemafulReaderPtr GetChunkReaderControl(
-        const TDataSplit& split,
+        const TDataSource& source,
+        TTimestamp timestamp,
         TNodeDirectoryPtr nodeDirectory)
     {
-        auto chunkId = FromProto<TChunkId>(split.chunk_id());
-        auto lowerBound = FromProto<TReadLimit>(split.lower_limit());
-        auto upperBound = FromProto<TReadLimit>(split.upper_limit());
-        auto timestamp = GetTimestampFromDataSplit(split);
+        auto chunkId = source.Id;
+        auto lowerBound = source.Range.first;
+        auto upperBound = source.Range.second;
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
@@ -549,33 +580,40 @@ private:
                 chunkId);
         }
 
+        auto chunkMeta = WaitFor(chunkReader->GetMeta()).ValueOrThrow();
+
+        TReadLimit lowerReadLimit;
+        lowerReadLimit.SetKey(lowerBound);
+
+        TReadLimit upperReadLimit;
+        upperReadLimit.SetKey(upperBound);
+
         return CreateSchemafulChunkReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             std::move(chunkReader),
             Bootstrap_->GetUncompressedBlockCache(),
-            split.chunk_meta(),
-            lowerBound,
-            upperBound,
+            chunkMeta,
+            lowerReadLimit,
+            upperReadLimit,
             timestamp);
     }
 
-
     ISchemafulReaderPtr GetTabletReader(
-        const TDataSplit& split,
+        const TDataSource& source,
+        TTimestamp timestamp,
         TNodeDirectoryPtr nodeDirectory)
     {
         try {
-            auto tabletId = FromProto<TTabletId>(split.chunk_id());
+            auto tabletId = source.Id;
 
-            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
+            auto slotManager = Bootstrap_->GetTabletSlotManager();
+            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
             auto securityManager = Bootstrap_->GetSecurityManager();
             securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
-            auto lowerBound = GetLowerBoundFromDataSplit(split);
-            auto upperBound = GetUpperBoundFromDataSplit(split);
-            auto timestamp = GetTimestampFromDataSplit(split);
+            auto lowerBound = source.Range.first;
+            auto upperBound = source.Range.second;
 
             return CreateSchemafulTabletReader(
                 Bootstrap_->GetQueryPoolInvoker(),

@@ -4,18 +4,6 @@
 #include "master_connector.h"
 #include "job_resources.h"
 
-#include <core/ytree/yson_serializable.h>
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/fluent.h>
-
-#include <ytlib/scheduler/helpers.h>
-
-#include <ytlib/object_client/object_service_proxy.h>
-
-#include <ytlib/node_tracker_client/helpers.h>
-
-#include <core/logging/log.h>
-
 namespace NYT {
 namespace NScheduler {
 
@@ -38,9 +26,6 @@ static const double RatioComparisonPrecision = 1e-6;
 struct ISchedulerElement;
 typedef TIntrusivePtr<ISchedulerElement> ISchedulerElementPtr;
 
-struct ISchedulableElement;
-typedef TIntrusivePtr<ISchedulableElement> ISchedulableElementPtr;
-
 class TOperationElement;
 typedef TIntrusivePtr<TOperationElement> TOperationElementPtr;
 
@@ -58,152 +43,185 @@ typedef TIntrusivePtr<TRootElement> TRootElementPtr;
 struct TSchedulableAttributes
 {
     TSchedulableAttributes()
-        : DominantResource(EResourceType::Cpu)
-        , DemandRatio(0.0)
-        , FairShareRatio(0.0)
-        , AdjustedMinShareRatio(0.0)
-        , MaxShareRatio(1.0)
-        , SatisfactionRatio(0.0)
-        , Active(true)
     { }
 
-    EResourceType DominantResource;
-    double DemandRatio;
-    double FairShareRatio;
-    double AdjustedMinShareRatio;
-    double MaxShareRatio;
-    double SatisfactionRatio;
-    bool Active;
+    EResourceType DominantResource = EResourceType::Cpu;
+    double DemandRatio = 0.0;
+    double UsageRatio = 0.0;
+    double FairShareRatio = 0.0;
+    double AdjustedMinShareRatio = 0.0;
+    double MaxShareRatio = 1.0;
+    double SatisfactionRatio = 0.0;
+    double BestAllocationRatio = 1.0;
+    i64 DominantLimit = 0;
+    bool Active = true;
 };
 
 ////////////////////////////////////////////////////////////////////
 
 struct ISchedulerElement
-    : public virtual TRefCounted
+    : public TRefCounted
 {
     virtual void Update() = 0;
+    virtual void UpdateBottomUp() = 0;
+    virtual void UpdateTopDown() = 0;
 
     virtual void BeginHeartbeat() = 0;
+    virtual void UpdateDynamicAttributes() = 0;
     virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) = 0;
     virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) = 0;
     virtual void EndHeartbeat() = 0;
 
     virtual const TSchedulableAttributes& Attributes() const = 0;
     virtual TSchedulableAttributes& Attributes() = 0;
-};
+    virtual void UpdateAttributes() = 0;
 
-////////////////////////////////////////////////////////////////////
-
-struct ISchedulableElement
-    : public virtual ISchedulerElement
-{
     virtual TInstant GetStartTime() const = 0;
+
+    virtual Stroka GetId() const = 0;
 
     virtual double GetWeight() const = 0;
     virtual double GetMinShareRatio() const = 0;
     virtual double GetMaxShareRatio() const = 0;
 
-    virtual TNodeResources GetDemand() const = 0;
+    virtual ISchedulerElement* GetBestLeafDescendant() = 0;
 
+    virtual const TNodeResources& ResourceDemand() const = 0;
     virtual const TNodeResources& ResourceUsage() const = 0;
     virtual const TNodeResources& ResourceUsageDiscount() const = 0;
     virtual const TNodeResources& ResourceLimits() const = 0;
 
-    virtual double GetUsageRatio() const = 0;
-    virtual double GetDemandRatio() const = 0;
+    virtual void IncreaseUsage(const TNodeResources& delta) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
 
+} // namespace NScheduler
+} // namespace NYT
+
+template <>
+struct THash<NYT::NScheduler::ISchedulerElementPtr> {
+    inline size_t operator()(const NYT::NScheduler::ISchedulerElementPtr& a) const {
+        return THash<Stroka>()(a->GetId());
+    }
+};
+
+namespace NYT {
+namespace NScheduler {
+
+////////////////////////////////////////////////////////////////////
+
 class TSchedulerElementBase
-    : public virtual ISchedulerElement
+    : public ISchedulerElement
 {
 public:
+    virtual void Update() override
+    {
+        UpdateBottomUp();
+        UpdateTopDown();
+    }
+
+    // Updates attributes that need to be computed from leafs up to root.
+    // For example: parent->ResourceDemand = Sum(child->ResourceDemand).
+    virtual void UpdateBottomUp() override
+    {
+        UpdateAttributes();
+    }
+
+    // Updates attributes that are propagated from root down to leafs.
+    // For example: child->FairShareRatio = fraction(parent->FairShareRatio).
+    virtual void UpdateTopDown() override
+    { }
+
     virtual void BeginHeartbeat() override
     {
         Attributes_.Active = true;
     }
 
-    virtual void PrescheduleJob(TExecNodePtr /*node*/, bool /*starvingOnly*/) override
+    virtual void UpdateDynamicAttributes() override
     {
         Attributes_.SatisfactionRatio = ComputeLocalSatisfactionRatio();
     }
+
+    virtual void PrescheduleJob(TExecNodePtr /*node*/, bool /*starvingOnly*/) override
+    {
+        UpdateDynamicAttributes();
+    }
+
+    virtual void EndHeartbeat() override
+    { }
 
     virtual TNullable<Stroka> GetSchedulingTag() const
     {
         return Null;
     }
 
+    virtual void UpdateAttributes() override
+    {
+        // Choose dominant resource types, compute max share ratios, compute demand ratios.
+        auto demand = ResourceDemand();
+        auto usage = ResourceUsage();
+        auto totalLimits = Host->GetTotalResourceLimits();
+        auto allocationLimits = GetAdjustedResourceLimits(
+            demand,
+            totalLimits,
+            Host->GetExecNodeCount());
+        auto limits = Min(totalLimits, ResourceLimits());
+
+        Attributes_.DominantResource = GetDominantResource(usage, totalLimits);
+
+        i64 dominantDemand = GetResource(demand, Attributes_.DominantResource);
+        i64 dominantUsage = GetResource(usage, Attributes_.DominantResource);
+        i64 dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
+        i64 dominantLimit = GetResource(totalLimits, Attributes_.DominantResource);
+
+        Attributes_.DemandRatio =
+            dominantLimit == 0 ? 1.0 : (double) dominantDemand / dominantLimit;
+
+        Attributes_.UsageRatio =
+            dominantLimit == 0 ? 1.0 : (double) dominantUsage / dominantLimit;
+
+        Attributes_.BestAllocationRatio =
+            dominantLimit == 0 ? 1.0 : (double) dominantAllocationLimit / dominantLimit;
+
+        Attributes_.DominantLimit = dominantLimit;
+
+        Attributes_.MaxShareRatio = GetMaxShareRatio();
+        if (Attributes_.UsageRatio > RatioComputationPrecision)
+        {
+            Attributes_.MaxShareRatio = std::min(
+                    GetMinResourceRatio(limits, usage) * Attributes_.UsageRatio,
+                    Attributes_.MaxShareRatio);
+        }
+    }
+
+    void IncreaseUsageRatio(const TNodeResources& delta)
+    {
+        if (Attributes_.DominantLimit != 0) {
+            i64 dominantDeltaUsage = GetResource(delta, Attributes_.DominantResource);
+            Attributes_.UsageRatio += (double) dominantDeltaUsage / Attributes_.DominantLimit;
+        } else {
+            Attributes_.UsageRatio = 1.0;
+        }
+    }
+
+    virtual void IncreaseUsage(const TNodeResources& delta) override
+    { }
+
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
 
 protected:
     ISchedulerStrategyHost* Host;
 
-
     explicit TSchedulerElementBase(ISchedulerStrategyHost* host)
         : Host(host)
     { }
 
-    virtual double ComputeLocalSatisfactionRatio() const
-    {
-        return 1.0;
-    }
-
-
-};
-
-////////////////////////////////////////////////////////////////////
-
-class TSchedulableElementBase
-    : public virtual TSchedulerElementBase
-    , public virtual ISchedulableElement
-{
-public:
-    explicit TSchedulableElementBase(ISchedulerStrategyHost* host)
-        : TSchedulerElementBase(host)
-    { }
-
-    virtual void Update() override
-    { }
-
-    virtual double GetUsageRatio() const override
-    {
-        const auto& attributes = Attributes();
-
-        auto demand = GetDemand();
-        auto usage = ResourceUsage() - ResourceUsageDiscount();
-        auto limits = GetAdjustedResourceLimits(
-            demand,
-            Host->GetTotalResourceLimits(),
-            Host->GetExecNodeCount());
-
-        i64 dominantUsage = GetResource(usage, attributes.DominantResource);
-        i64 dominantLimit = GetResource(limits, attributes.DominantResource);
-
-        return dominantLimit == 0 ? 1.0 : (double) dominantUsage / dominantLimit;
-    }
-
-    virtual double GetDemandRatio() const override
-    {
-        const auto& attributes = Attributes();
-
-        auto demand = GetDemand();
-        auto limits = GetAdjustedResourceLimits(
-            demand,
-            Host->GetTotalResourceLimits(),
-            Host->GetExecNodeCount());
-
-        i64 dominantDemand = GetResource(demand, attributes.DominantResource);
-        i64 dominantLimit = GetResource(limits, attributes.DominantResource);
-        return dominantLimit == 0 ? 1.0 : (double) dominantDemand / dominantLimit;
-    }
-
- protected:
-    virtual double ComputeLocalSatisfactionRatio() const override
+    double ComputeLocalSatisfactionRatio() const
     {
         double minShareRatio = Attributes_.AdjustedMinShareRatio;
         double fairShareRatio = Attributes_.FairShareRatio;
-        double usageRatio = GetUsageRatio();
+        double usageRatio = Attributes_.UsageRatio;
 
         // Check for corner cases.
         if (fairShareRatio < RatioComparisonPrecision) {
@@ -218,23 +236,60 @@ public:
             return usageRatio / fairShareRatio;
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////
 
 class TCompositeSchedulerElement
-    : public virtual TSchedulerElementBase
+    : public TSchedulerElementBase
 {
 public:
     explicit TCompositeSchedulerElement(ISchedulerStrategyHost* host)
         : TSchedulerElementBase(host)
+        , Parent_(nullptr)
+        , ResourceDemand_(ZeroNodeResources())
+        , ResourceUsage_(ZeroNodeResources())
+        , ResourceUsageDiscount_(ZeroNodeResources())
+        , ResourceLimits_(InfiniteNodeResources())
         , Mode(ESchedulingMode::Fifo)
     { }
 
-    virtual void Update() override
+    virtual void UpdateBottomUp() override
     {
-        ComputeAll();
+        ResourceDemand_ = ZeroNodeResources();
+        Attributes_.BestAllocationRatio = 0.0;
+        for (const auto& child : Children) {
+            child->UpdateBottomUp();
+
+            ResourceDemand_ += child->ResourceDemand();
+            Attributes_.BestAllocationRatio = std::max(
+                Attributes_.BestAllocationRatio,
+                child->Attributes().BestAllocationRatio);
+        }
+        TSchedulerElementBase::UpdateBottomUp();
+    }
+
+    virtual void UpdateTopDown() override
+    {
+        switch (Mode) {
+            case ESchedulingMode::Fifo:
+                // Easy case -- the first child get everything, others get none.
+                UpdateFifo();
+                break;
+
+            case ESchedulingMode::FairShare:
+                // Hard case -- compute fair shares using fit factor.
+                UpdateFairShare();
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+
+        // Propagate updates to children.
+        for (const auto& child : Children) {
+            child->UpdateTopDown();
+        }
     }
 
     virtual void BeginHeartbeat() override
@@ -245,70 +300,91 @@ public:
         }
     }
 
-    virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly)
+    virtual void UpdateDynamicAttributes() override
     {
         // Compute local satisfaction ratio.
-        TSchedulerElementBase::PrescheduleJob(node, starvingOnly);
+        Attributes_.SatisfactionRatio = ComputeLocalSatisfactionRatio();
         // Start times bubble up from leaf nodes with operations.
         MinSubtreeStartTime = TInstant::Max();
-
-        if (!Attributes_.Active)
-            return;
-
         // Adjust satisfaction ratio using children.
         // Declare the element passive if all children are passive.
         Attributes_.Active = false;
+        BestLeafDescendant_ = nullptr;
+
+        auto bestChild = GetBestChild();
+        if (bestChild) {
+            // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
+            // because parent can use different scheduling mode.
+            MinSubtreeStartTime = std::min(MinSubtreeStartTime, bestChild->GetStartTime());
+
+            Attributes_.SatisfactionRatio = std::min(
+                Attributes_.SatisfactionRatio,
+                bestChild->Attributes().SatisfactionRatio);
+
+            BestLeafDescendant_ = bestChild->GetBestLeafDescendant();
+            Attributes_.Active = true;
+        }
+    }
+
+    virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) override
+    {
+        if (!Attributes_.Active)
+            return;
+
         if (!node->CanSchedule(GetSchedulingTag())) {
+            Attributes_.Active = false;
             return;
         }
 
         for (const auto& child : GetActiveChildren()) {
             child->PrescheduleJob(node, starvingOnly);
-            if (child->Attributes().Active) {
-                // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
-                // because parent can use different scheduling mode.
-                MinSubtreeStartTime = std::min(MinSubtreeStartTime, child->GetStartTime());
-
-                Attributes_.SatisfactionRatio = std::min(
-                    Attributes_.SatisfactionRatio,
-                    child->Attributes().SatisfactionRatio);
-
-                Attributes_.Active = true;
-            }
         }
+        UpdateDynamicAttributes();
     }
 
     virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) override
     {
-        auto bestChild = GetBestChild();
-
-        if (!bestChild) {
+        if (!BestLeafDescendant_) {
             return false;
         }
 
         // NB: Ignore the child's result.
-        bestChild->ScheduleJob(context, starvingOnly);
+        BestLeafDescendant_->ScheduleJob(context, starvingOnly);
 
         return true;
     }
 
     virtual void EndHeartbeat() override
-    { }
+    {
+        TSchedulerElementBase::EndHeartbeat();
+        for (const auto& child : Children) {
+            child->EndHeartbeat();
+        }
+    }
 
+    virtual ISchedulerElement* GetBestLeafDescendant() override
+    {
+        return BestLeafDescendant_;
+    }
 
-    void AddChild(ISchedulableElementPtr child)
+    virtual bool IsRoot() const
+    {
+        return false;
+    }
+
+    void AddChild(ISchedulerElementPtr child)
     {
         YCHECK(Children.insert(child).second);
     }
 
-    void RemoveChild(ISchedulableElementPtr child)
+    void RemoveChild(ISchedulerElementPtr child)
     {
         YCHECK(Children.erase(child) == 1);
     }
 
-    std::vector<ISchedulableElementPtr> GetChildren() const
+    std::vector<ISchedulerElementPtr> GetChildren() const
     {
-        return std::vector<ISchedulableElementPtr>(Children.begin(), Children.end());
+        return std::vector<ISchedulerElementPtr>(Children.begin(), Children.end());
     }
 
     bool IsEmpty() const
@@ -316,10 +392,19 @@ public:
         return Children.empty();
     }
 
+    DEFINE_BYVAL_RW_PROPERTY(TCompositeSchedulerElement*, Parent);
+
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceDemand);
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
+    DEFINE_BYREF_RO_PROPERTY(TNodeResources, ResourceLimits);
+
 protected:
     ESchedulingMode Mode;
 
-    yhash_set<ISchedulableElementPtr> Children;
+    yhash_set<ISchedulerElementPtr> Children;
+
+    ISchedulerElement* BestLeafDescendant_ = nullptr;
 
     TInstant MinSubtreeStartTime;
 
@@ -371,55 +456,7 @@ protected:
     }
 
 
-    void ComputeAll()
-    {
-        // Choose dominant resource types.
-        // Compute max share ratios.
-        // Compute demand ratios.
-        for (const auto& child : Children) {
-            auto& childAttributes = child->Attributes();
-
-            auto demand = child->GetDemand();
-
-            auto totalLimits = GetAdjustedResourceLimits(
-                demand,
-                Host->GetTotalResourceLimits(),
-                Host->GetExecNodeCount());
-            auto limits = Min(Host->GetTotalResourceLimits(), child->ResourceLimits());
-
-            childAttributes.MaxShareRatio = std::min(
-                GetMinResourceRatio(limits, totalLimits),
-                child->GetMaxShareRatio());
-
-            childAttributes.DominantResource = GetDominantResource(child->ResourceUsage(), totalLimits);
-
-            i64 dominantTotalLimits = GetResource(totalLimits, childAttributes.DominantResource);
-            i64 dominantDemand = GetResource(demand, childAttributes.DominantResource);
-            childAttributes.DemandRatio = dominantTotalLimits == 0 ? 0.0 : (double) dominantDemand / dominantTotalLimits;
-        }
-
-        switch (Mode) {
-            case ESchedulingMode::Fifo:
-                // Easy case -- the first child get everything, others get none.
-                ComputeFifo();
-                break;
-
-            case ESchedulingMode::FairShare:
-                // Hard case -- compute fair shares using fit factor.
-                ComputeFairShare();
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-
-        // Propagate updates to children.
-        for (const auto& child : Children) {
-            child->Update();
-        }
-    }
-
-    void ComputeFifo()
+    void UpdateFifo()
     {
         auto bestChild = GetBestChildFifo(false);
         for (const auto& child : Children) {
@@ -438,7 +475,7 @@ protected:
         }
     }
 
-    void ComputeFairShare()
+    void UpdateFairShare()
     {
         // Compute min shares.
         // Compute min weight.
@@ -451,6 +488,8 @@ protected:
             result = std::min(result, childAttributes.DemandRatio);
             // Never give more than max share allows.
             result = std::min(result, childAttributes.MaxShareRatio);
+            // Never give more than we can allocate.
+            result = std::min(result, childAttributes.BestAllocationRatio);
             childAttributes.AdjustedMinShareRatio = result;
             minShareSum += result;
 
@@ -470,7 +509,7 @@ protected:
 
         // Compute fair shares.
         ComputeByFitting(
-            [&] (double fitFactor, const ISchedulableElementPtr& child) -> double {
+            [&] (double fitFactor, const ISchedulerElementPtr& child) -> double {
                 const auto& childAttributes = child->Attributes();
                 double result = fitFactor * child->GetWeight() / minWeight;
                 // Never give less than promised by min share.
@@ -479,9 +518,11 @@ protected:
                 result = std::min(result, childAttributes.DemandRatio);
                 // Never give more than max share allows.
                 result = std::min(result, childAttributes.MaxShareRatio);
+                // Never give more than we can allocate.
+                result = std::min(result, childAttributes.BestAllocationRatio);
                 return result;
             },
-            [&] (const ISchedulableElementPtr& child, double value) {
+            [&] (const ISchedulerElementPtr& child, double value) {
                 auto& attributes = child->Attributes();
                 attributes.FairShareRatio = value;
             },
@@ -489,9 +530,9 @@ protected:
     }
 
 
-    std::vector<ISchedulableElementPtr> GetActiveChildren()
+    std::vector<ISchedulerElementPtr> GetActiveChildren() const
     {
-        std::vector<ISchedulableElementPtr> result;
+        std::vector<ISchedulerElementPtr> result;
         result.reserve(Children.size());
         for (const auto& child : Children) {
             if (child->Attributes().Active) {
@@ -501,7 +542,7 @@ protected:
         return result;
     }
 
-    ISchedulableElementPtr GetBestChild()
+    ISchedulerElementPtr GetBestChild() const
     {
         switch (Mode) {
             case ESchedulingMode::Fifo:
@@ -513,9 +554,9 @@ protected:
         }
     }
 
-    ISchedulableElementPtr GetBestChildFifo(bool needsActive)
+    ISchedulerElementPtr GetBestChildFifo(bool needsActive) const
     {
-        auto isBetter = [] (const ISchedulableElementPtr& lhs, const ISchedulableElementPtr& rhs) -> bool {
+        auto isBetter = [] (const ISchedulerElementPtr& lhs, const ISchedulerElementPtr& rhs) -> bool {
             if (lhs->GetWeight() > rhs->GetWeight()) {
                 return true;
             }
@@ -525,7 +566,7 @@ protected:
             return lhs->GetStartTime() < rhs->GetStartTime();
         };
 
-        ISchedulableElementPtr bestChild;
+        ISchedulerElementPtr bestChild;
         for (const auto& child : Children) {
             if (needsActive && !child->Attributes().Active)
                 continue;
@@ -538,9 +579,9 @@ protected:
         return bestChild;
     }
 
-    ISchedulableElementPtr GetBestChildFairShare()
+    ISchedulerElementPtr GetBestChildFairShare() const
     {
-        ISchedulableElementPtr bestChild;
+        ISchedulerElementPtr bestChild;
         for (const auto& child : GetActiveChildren()) {
             if (!bestChild ||
                 child->Attributes().SatisfactionRatio < bestChild->Attributes().SatisfactionRatio)
@@ -556,7 +597,7 @@ protected:
     {
         if (Mode != mode) {
             Mode = mode;
-            ComputeAll();
+            Update();
         }
     }
 
@@ -566,35 +607,22 @@ protected:
 
 class TPool
     : public TCompositeSchedulerElement
-    , public TSchedulableElementBase
 {
 public:
     TPool(
         ISchedulerStrategyHost* host,
         const Stroka& id)
-        : TSchedulerElementBase(host)
-        , TCompositeSchedulerElement(host)
-        , TSchedulableElementBase(host)
-        , Parent_(nullptr)
-        , ResourceUsage_(ZeroNodeResources())
-        , ResourceUsageDiscount_(ZeroNodeResources())
-        , ResourceLimits_(InfiniteNodeResources())
+        : TCompositeSchedulerElement(host)
         , Id(id)
     {
         SetDefaultConfig();
     }
 
 
-    const Stroka& GetId() const
-    {
-        return Id;
-    }
-
     bool IsDefaultConfigured() const
     {
         return DefaultConfigured;
     }
-
 
     TPoolConfigPtr GetConfig()
     {
@@ -619,6 +647,11 @@ public:
         return MinSubtreeStartTime;
     }
 
+    virtual Stroka GetId() const override
+    {
+        return Id;
+    }
+
     virtual double GetWeight() const override
     {
         return Config->Weight;
@@ -639,27 +672,22 @@ public:
         return Config->SchedulingTag;
     }
 
-    virtual TNodeResources GetDemand() const override
+    virtual void UpdateBottomUp() override
     {
-        auto result = ZeroNodeResources();
-        for (const auto& child : Children) {
-            result += child->GetDemand();
+        ResourceLimits_ = ComputeResourceLimits();
+        TCompositeSchedulerElement::UpdateBottomUp();
+    }
+
+    virtual void IncreaseUsage(const TNodeResources& delta) override
+    {
+        TCompositeSchedulerElement* currentPool = this;
+        while (currentPool) {
+            currentPool->ResourceUsage() += delta;
+            currentPool->IncreaseUsageRatio(delta);
+            currentPool->UpdateDynamicAttributes();
+            currentPool = currentPool->GetParent();
         }
-        return result;
     }
-
-    virtual void Update() override
-    {
-        TCompositeSchedulerElement::Update();
-        ComputeResourceLimits();
-    }
-
-
-    DEFINE_BYVAL_RW_PROPERTY(TPool*, Parent);
-
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
-    DEFINE_BYREF_RO_PROPERTY(TNodeResources, ResourceLimits);
 
 private:
     Stroka Id;
@@ -672,28 +700,16 @@ private:
     {
         Config = newConfig;
         SetMode(Config->Mode);
-        ComputeResourceLimits();
     }
 
-    void ComputeResourceLimits()
+    TNodeResources ComputeResourceLimits() const
     {
         auto combinedLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config->MaxShareRatio;
-        auto perTypeLimits = InfiniteNodeResources();
-        if (Config->ResourceLimits->UserSlots) {
-            perTypeLimits.set_user_slots(*Config->ResourceLimits->UserSlots);
-        }
-        if (Config->ResourceLimits->Cpu) {
-            perTypeLimits.set_cpu(*Config->ResourceLimits->Cpu);
-        }
-        if (Config->ResourceLimits->Memory) {
-            perTypeLimits.set_memory(*Config->ResourceLimits->Memory);
-        }
-
-        ResourceLimits_ = Min(combinedLimits, perTypeLimits);
+        auto perTypeLimits = Config->ResourceLimits->ToNodeResources();
+        return Min(combinedLimits, perTypeLimits);
     }
 
 };
-
 
 ////////////////////////////////////////////////////////////////////
 
@@ -704,17 +720,16 @@ DEFINE_ENUM(EOperationStatus,
 );
 
 class TOperationElement
-    : public TSchedulableElementBase
+    : public TSchedulerElementBase
 {
 public:
-    explicit TOperationElement(
+    TOperationElement(
         TFairShareStrategyConfigPtr config,
         TStrategyOperationSpecPtr spec,
         TOperationRuntimeParamsPtr runtimeParams,
         ISchedulerStrategyHost* host,
         TOperationPtr operation)
         : TSchedulerElementBase(host)
-        , TSchedulableElementBase(host)
         , Operation_(operation)
         , Spec_(spec)
         , RuntimeParams_(runtimeParams)
@@ -729,7 +744,7 @@ public:
 
     virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) override
     {
-        TSchedulableElementBase::PrescheduleJob(node, starvingOnly);
+        TSchedulerElementBase::PrescheduleJob(node, starvingOnly);
 
         if (!node->CanSchedule(GetSchedulingTag())) {
             Attributes_.Active = false;
@@ -755,28 +770,37 @@ public:
 
         // Compute job limits from node limits and pool limits.
         auto jobLimits = node->ResourceLimits() - node->ResourceUsage() + node->ResourceUsageDiscount();
-        auto* pool = Pool_;
+        TCompositeSchedulerElement* pool = Pool_;
         while (pool) {
             auto poolLimits = pool->ResourceLimits() - pool->ResourceUsage() + pool->ResourceUsageDiscount();
             jobLimits = Min(jobLimits, poolLimits);
             pool = pool->GetParent();
         }
+        auto operationLimits = ResourceLimits() - ResourceUsage();
+        jobLimits = Min(jobLimits, operationLimits);
 
         auto job = controller->ScheduleJob(context, jobLimits);
         if (job) {
             return true;
         } else {
             Attributes_.Active = false;
+            TCompositeSchedulerElement* pool = Pool_;
+            while (pool) {
+                pool->UpdateDynamicAttributes();
+                pool = pool->GetParent();
+            }
             return false;
         }
     }
 
-    virtual void EndHeartbeat() override
-    { }
-
     virtual TInstant GetStartTime() const override
     {
         return Operation_->GetStartTime();
+    }
+
+    virtual Stroka GetId() const override
+    {
+        return ToString(Operation_->GetId());
     }
 
     virtual double GetWeight() const override
@@ -799,21 +823,30 @@ public:
         return Spec_->SchedulingTag;
     }
 
-    virtual TNodeResources GetDemand() const override
+    virtual ISchedulerElement* GetBestLeafDescendant() override
     {
-        if (Operation_->GetSuspended()) {
-            return ZeroNodeResources();
-        }
-        auto controller = Operation_->GetController();
-        return ResourceUsage_ + controller->GetNeededResources();
+        return this;
     }
 
-    virtual const TNodeResources& ResourceLimits() const
+    virtual const TNodeResources& ResourceDemand() const override
+    {
+        ResourceDemand_ = ZeroNodeResources();
+        if (!Operation_->GetSuspended()) {
+            auto controller = Operation_->GetController();
+            ResourceDemand_ = ResourceUsage_ + controller->GetNeededResources();
+        }
+        return ResourceDemand_;
+    }
+
+    virtual const TNodeResources& ResourceLimits() const override
     {
         ResourceLimits_ = Host->GetResourceLimits(GetSchedulingTag());
+
+        auto perTypeLimits = Spec_->ResourceLimits->ToNodeResources();
+        ResourceLimits_ = Min(ResourceLimits_, perTypeLimits);
+
         return ResourceLimits_;
     }
-
 
     EOperationStatus GetStatus() const
     {
@@ -826,8 +859,8 @@ public:
             return EOperationStatus::Normal;
         }
 
-        double usageRatio = GetUsageRatio();
-        double demandRatio = GetDemandRatio();
+        double usageRatio = Attributes().UsageRatio;
+        double demandRatio = Attributes().DemandRatio;
 
         double tolerance =
             demandRatio < Attributes_.FairShareRatio + RatioComparisonPrecision
@@ -843,6 +876,13 @@ public:
                : EOperationStatus::BelowFairShare;
     }
 
+    virtual void IncreaseUsage(const TNodeResources& delta) override
+    {
+        ResourceUsage() += delta;
+        IncreaseUsageRatio(delta);
+        UpdateDynamicAttributes();
+        GetPool()->IncreaseUsage(delta);
+    }
 
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
@@ -859,6 +899,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TJobList, PreemptableJobs);
 
 private:
+    mutable TNodeResources ResourceDemand_;
     mutable TNodeResources ResourceLimits_;
 
     TFairShareStrategyConfigPtr Config;
@@ -871,12 +912,47 @@ class TRootElement
 {
 public:
     explicit TRootElement(ISchedulerStrategyHost* host)
-        : TSchedulerElementBase(host)
-        , TCompositeSchedulerElement(host)
+        : TCompositeSchedulerElement(host)
     {
-        SetMode(ESchedulingMode::FairShare);
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
+        SetMode(ESchedulingMode::FairShare);
+    }
+
+    virtual TInstant GetStartTime() const override
+    {
+        // For pools StartTime is equal to minimal start time among active children.
+        return MinSubtreeStartTime;
+    }
+
+    virtual bool IsRoot() const override
+    {
+        return true;
+    }
+
+    virtual Stroka GetId() const override
+    {
+        return Stroka("<Root>");
+    }
+
+    virtual double GetWeight() const override
+    {
+        return 1.0;
+    }
+
+    virtual double GetMinShareRatio() const override
+    {
+        return 0.0;
+    }
+
+    virtual double GetMaxShareRatio() const override
+    {
+        return 1.0;
+    }
+
+    virtual TNullable<Stroka> GetSchedulingTag() const override
+    {
+        return Null;
     }
 };
 
@@ -886,7 +962,7 @@ class TFairShareStrategy
     : public ISchedulerStrategy
 {
 public:
-    explicit TFairShareStrategy(
+    TFairShareStrategy(
         TFairShareStrategyConfigPtr config,
         ISchedulerStrategyHost* host)
         : Config(config)
@@ -946,8 +1022,8 @@ public:
 
         // First-chance scheduling.
         LOG_DEBUG("Scheduling new jobs");
+        RootElement->PrescheduleJob(context->GetNode(), false);
         while (context->CanStartMoreJobs()) {
-            RootElement->PrescheduleJob(context->GetNode(), false);
             if (!RootElement->ScheduleJob(context, false)) {
                 break;
             }
@@ -955,16 +1031,13 @@ public:
 
         // Compute discount to node usage.
         LOG_DEBUG("Looking for preemptable jobs");
-        yhash_set<TOperationElementPtr> discountedOperations;
-        yhash_set<TPoolPtr> discountedPools;
+        yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         for (const auto& job : context->RunningJobs()) {
             auto operation = job->GetOperation();
             auto operationElement = GetOperationElement(operation);
-            operationElement->ResourceUsageDiscount() += job->ResourceUsage();
-            discountedOperations.insert(operationElement);
             if (IsJobPreemptable(job)) {
-                auto* pool = operationElement->GetPool();
+                TCompositeSchedulerElement* pool = operationElement->GetPool();
                 while (pool) {
                     discountedPools.insert(pool);
                     pool->ResourceUsageDiscount() += job->ResourceUsage();
@@ -984,8 +1057,8 @@ public:
         // Second-chance scheduling.
         // NB: Schedule at most one job.
         LOG_DEBUG("Scheduling new jobs with preemption");
+        RootElement->PrescheduleJob(context->GetNode(), true);
         while (context->CanStartMoreJobs()) {
-            RootElement->PrescheduleJob(context->GetNode(), true);
             if (!RootElement->ScheduleJob(context, true)) {
                 break;
             }
@@ -996,9 +1069,6 @@ public:
 
         // Reset discounts.
         node->ResourceUsageDiscount() = ZeroNodeResources();
-        for (const auto& operationElement : discountedOperations) {
-            operationElement->ResourceUsageDiscount() = ZeroNodeResources();
-        }
         for (const auto& pool : discountedPools) {
             pool->ResourceUsageDiscount() = ZeroNodeResources();
         }
@@ -1014,7 +1084,7 @@ public:
         auto poolLimitsViolated = [&] (TJobPtr job) -> bool {
             auto operation = job->GetOperation();
             auto operationElement = GetOperationElement(operation);
-            auto* pool = operationElement->GetPool();
+            TCompositeSchedulerElement* pool = operationElement->GetPool();
             while (pool) {
                 if (!Dominates(pool->ResourceLimits(), pool->ResourceUsage())) {
                     return true;
@@ -1057,7 +1127,6 @@ public:
         RootElement->EndHeartbeat();
     }
 
-
     virtual void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer) override
     {
         auto element = GetOperationElement(operation);
@@ -1095,17 +1164,19 @@ public:
         const auto& attributes = element->Attributes();
         return Format(
             "Scheduling = {Status: %v, DominantResource: %v, Demand: %.4lf, "
-            "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, "
+            "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lf, AdjustedMinShare: %.4lf, "
+            "MaxShare: %.4lf,  BestAllocation: %.4lf, "
             "Starving: %v, Weight: %v, "
             "PreemptableRunningJobs: %v}",
             element->GetStatus(),
             attributes.DominantResource,
             attributes.DemandRatio,
-            element->GetUsageRatio(),
+            attributes.UsageRatio,
             attributes.FairShareRatio,
             attributes.SatisfactionRatio,
             attributes.AdjustedMinShareRatio,
             attributes.MaxShareRatio,
+            attributes.BestAllocationRatio,
             element->GetStarving(),
             element->GetWeight(),
             element->PreemptableJobs().size());
@@ -1152,6 +1223,9 @@ private:
     typedef yhash_map<TOperationPtr, TOperationElementPtr> TOperationMap;
     TOperationMap OperationToElement;
 
+    std::list<TOperationPtr> OperationQueue;
+    yhash_map<Stroka, int> RunningOperationCount;
+
     typedef std::list<TJobPtr> TJobList;
     TJobList JobList;
     yhash_map<TJobPtr, TJobList::iterator> JobToIterator;
@@ -1170,7 +1244,7 @@ private:
         auto element = GetOperationElement(operation);
         auto spec = element->GetSpec();
 
-        double usageRatio = element->GetUsageRatio();
+        double usageRatio = element->Attributes().UsageRatio;
         if (usageRatio < Config->MinPreemptableRatio) {
             return false;
         }
@@ -1206,19 +1280,33 @@ private:
         return params;
     }
 
+    bool CanAddOperationToPool(TPool* pool)
+    {
+        TCompositeSchedulerElement* element = pool;
+        while (element) {
+            if (element->IsRoot()) {
+                break;
+            }
+            auto poolName = element->GetId();
+            if (RunningOperationCount[poolName] >= Config->MaxRunningOperationsPerPool) {
+                return false;
+            }
+            element = element->GetParent();
+        }
+        return true;
+    }
 
     void OnOperationRegistered(TOperationPtr operation)
     {
         auto spec = ParseSpec(operation, operation->GetSpec());
-        auto params = BuildInitialRuntimeParams(spec);
-
-        auto poolId = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
-        auto pool = FindPool(poolId);
+        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
+        auto pool = FindPool(poolName);
         if (!pool) {
-            pool = New<TPool>(Host, poolId);
+            pool = New<TPool>(Host, poolName);
             RegisterPool(pool);
         }
 
+        auto params = BuildInitialRuntimeParams(spec);
         auto operationElement = New<TOperationElement>(
             Config,
             spec,
@@ -1226,10 +1314,32 @@ private:
             Host,
             operation);
         YCHECK(OperationToElement.insert(std::make_pair(operation, operationElement)).second);
-
         operationElement->SetPool(pool.Get());
+
+        auto operationCount = OperationToElement.size();
+        if (CanAddOperationToPool(pool.Get()) && operationCount < Config->MaxRunningOperations) {
+            AddOperationToTree(operation);
+        } else {
+            OperationQueue.push_back(operation);
+            operation->SetEnqueued(true);
+        }
+    }
+
+    void AddOperationToTree(TOperationPtr operation)
+    {
+        auto operationElement = GetOperationElement(operation);
+        auto pool = operationElement->GetPool();
+        if (!pool->GetParent()) {
+            SetPoolParent(pool, RootElement);
+        }
         pool->AddChild(operationElement);
-        IncreasePoolUsage(pool, operationElement->ResourceUsage());
+        pool->IncreaseUsage(operationElement->ResourceUsage());
+
+        TCompositeSchedulerElement* element = pool;
+        while (element && !element->IsRoot()) {
+            RunningOperationCount[element->GetId()] += 1;
+            element = element->GetParent();
+        }
 
         LOG_INFO("Operation added to pool (OperationId: %v, Pool: %v)",
             operation->GetId(),
@@ -1243,11 +1353,33 @@ private:
 
         YCHECK(OperationToElement.erase(operation) == 1);
         pool->RemoveChild(operationElement);
-        IncreasePoolUsage(pool, -operationElement->ResourceUsage());
+        pool->IncreaseUsage(-operationElement->ResourceUsage());
 
         LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
             operation->GetId(),
             pool->GetId());
+
+        TCompositeSchedulerElement* element = pool;
+        while (element && !element->IsRoot()) {
+            RunningOperationCount[element->GetId()] -= 1;
+            element = element->GetParent();
+        }
+
+        // Try to run operations from queue.
+        auto it = OperationQueue.begin();
+        while (it != OperationQueue.end() && OperationToElement.size() < Config->MaxRunningOperations) {
+            auto operation = *it;
+            if (CanAddOperationToPool(GetOperationElement(operation)->GetPool())) {
+                AddOperationToTree(operation);
+                operation->SetState(EOperationState::Running);
+                operation->SetEnqueued(false);
+
+                auto toRemove = it++;
+                OperationQueue.erase(toRemove);
+            } else {
+                ++it;
+            }
+        }
 
         if (pool->IsEmpty() && pool->IsDefaultConfigured()) {
             UnregisterPool(pool);
@@ -1314,69 +1446,55 @@ private:
         OnJobResourceUsageUpdated(job, element, resourcesDelta);
     }
 
-
-    TCompositeSchedulerElementPtr GetPoolParentElement(TPoolPtr pool)
-    {
-        auto* parentPool = pool->GetParent();
-        return parentPool ? TCompositeSchedulerElementPtr(parentPool) : RootElement;
-    }
-
-    // Handles nullptr (aka "root") properly.
-    Stroka GetPoolId(TPoolPtr pool)
-    {
-        return pool ? pool->GetId() : Stroka("<Root>");
-    }
-
-
     void RegisterPool(TPoolPtr pool)
     {
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
-        GetPoolParentElement(pool)->AddChild(pool);
+        LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
+    }
+
+    void RegisterPool(TPoolPtr pool, TCompositeSchedulerElementPtr parent)
+    {
+        YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
+        pool->SetParent(parent.Get());
+        parent->AddChild(pool);
 
         LOG_INFO("Pool registered (Pool: %v, Parent: %v)",
-            GetPoolId(pool),
-            GetPoolId(pool->GetParent()));
+            pool->GetId(),
+            parent->GetId());
     }
 
     void UnregisterPool(TPoolPtr pool)
     {
         YCHECK(Pools.erase(pool->GetId()) == 1);
+        auto parent = pool->GetParent();
         SetPoolParent(pool, nullptr);
-        GetPoolParentElement(pool)->RemoveChild(pool);
 
         LOG_INFO("Pool unregistered (Pool: %v, Parent: %v)",
-            GetPoolId(pool),
-            GetPoolId(pool->GetParent()));
+            pool->GetId(),
+            parent->GetId());
     }
 
-    void SetPoolParent(TPoolPtr pool, TPoolPtr parent)
+    void SetPoolParent(TPoolPtr pool, TCompositeSchedulerElementPtr parent)
     {
         if (pool->GetParent() == parent)
             return;
 
         auto* oldParent = pool->GetParent();
         if (oldParent) {
-            IncreasePoolUsage(oldParent, -pool->ResourceUsage());
+            oldParent->IncreaseUsage(-pool->ResourceUsage());
+            oldParent->RemoveChild(pool);
         }
-        GetPoolParentElement(pool)->RemoveChild(pool);
 
         pool->SetParent(parent.Get());
-
-        GetPoolParentElement(pool)->AddChild(pool);
         if (parent) {
-            IncreasePoolUsage(parent, pool->ResourceUsage());
+            parent->AddChild(pool);
+            parent->IncreaseUsage(pool->ResourceUsage());
+
+            LOG_INFO("Set parent pool (Pool: %v, Parent: %v)",
+                pool->GetId(),
+                parent->GetId());
         }
     }
-
-    void IncreasePoolUsage(TPoolPtr pool, const TNodeResources& delta)
-    {
-        auto* currentPool = pool.Get();
-        while (currentPool) {
-            currentPool->ResourceUsage() += delta;
-            currentPool = currentPool->GetParent();
-        }
-    }
-
 
     TPoolPtr FindPool(const Stroka& id)
     {
@@ -1418,8 +1536,8 @@ private:
             yhash_map<Stroka, TYPath> poolIdToPath;
 
             // NB: std::function is needed by parseConfig to capture itself.
-            std::function<void(INodePtr, TPoolPtr)> parseConfig =
-                [&] (INodePtr configNode, TPoolPtr parent) {
+            std::function<void(INodePtr, TCompositeSchedulerElementPtr)> parseConfig =
+                [&] (INodePtr configNode, TCompositeSchedulerElementPtr parent) {
                     auto configMap = configNode->AsMap();
                     for (const auto& pair : configMap->GetChildren()) {
                         const auto& childId = pair.first;
@@ -1453,7 +1571,7 @@ private:
                             // Create new pool.
                             pool = New<TPool>(Host, childId);
                             pool->SetConfig(config);
-                            RegisterPool(pool);
+                            RegisterPool(pool, parent);
                         }
                         SetPoolParent(pool, parent);
 
@@ -1463,7 +1581,7 @@ private:
                 };
 
             // Run recursive descent parsing.
-            parseConfig(poolsNode, nullptr);
+            parseConfig(poolsNode, RootElement);
 
             // Unregister orphan pools.
             for (const auto& id : orphanPoolIds) {
@@ -1472,7 +1590,7 @@ private:
                     UnregisterPool(pool);
                 } else {
                     pool->SetDefaultConfig();
-                    SetPoolParent(pool, nullptr);
+                    SetPoolParent(pool, RootElement);
                 }
             }
 
@@ -1545,8 +1663,7 @@ private:
         TOperationElementPtr element,
         const TNodeResources& resourcesDelta)
     {
-        element->ResourceUsage() += resourcesDelta;
-        IncreasePoolUsage(element->GetPool(), resourcesDelta);
+        element->IncreaseUsage(resourcesDelta);
 
         const auto& attributes = element->Attributes();
         auto limits = Host->GetTotalResourceLimits();
@@ -1605,12 +1722,12 @@ private:
 
     static void BuildElementYson(
         TCompositeSchedulerElementPtr composite,
-        ISchedulableElementPtr element,
+        ISchedulerElementPtr element,
         IYsonConsumer* consumer)
     {
         const auto& attributes = element->Attributes();
         BuildYsonMapFluently(consumer)
-            .Item("resource_demand").Value(element->GetDemand())
+            .Item("resource_demand").Value(element->ResourceDemand())
             .Item("resource_usage").Value(element->ResourceUsage())
             .Item("resource_limits").Value(element->ResourceLimits())
             .Item("dominant_resource").Value(attributes.DominantResource)
@@ -1618,10 +1735,11 @@ private:
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
             .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
             .Item("max_share_ratio").Value(attributes.MaxShareRatio)
-            .Item("usage_ratio").Value(element->GetUsageRatio())
+            .Item("usage_ratio").Value(attributes.UsageRatio)
             .Item("demand_ratio").Value(attributes.DemandRatio)
             .Item("fair_share_ratio").Value(attributes.FairShareRatio)
-            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio);
+            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio)
+            .Item("best_allocation_ratio").Value(attributes.BestAllocationRatio);
     }
 
 };

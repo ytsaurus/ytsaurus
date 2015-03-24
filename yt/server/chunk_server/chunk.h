@@ -14,8 +14,6 @@
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk_info.pb.h>
 
-#include <ytlib/table_client/table_chunk_meta.pb.h>
-
 #include <server/cell_master/public.h>
 
 #include <server/security_server/cluster_resources.h>
@@ -33,6 +31,22 @@ struct TChunkProperties
 
 bool operator== (const TChunkProperties& lhs, const TChunkProperties& rhs);
 bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkDynamicData
+    : public NHydra::TEntityDynamicDataBase
+{
+    struct {
+        bool RefreshScheduled : 1;
+        bool PropertiesUpdateScheduled : 1;
+        bool SealScheduled : 1;
+    } Flags = {};
+
+    //! Contains a valid iterator for those chunks belonging to the repair queue
+    //! and |Null| for others.
+    TNullable<TChunkRepairQueueIterator> RepairQueueIterator;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,12 +71,10 @@ public:
     typedef std::unique_ptr<yhash_set<TNodePtrWithIndex>> TCachedReplicas;
     DEFINE_BYREF_RO_PROPERTY(TCachedReplicas, CachedReplicas);
 
-    //! Contains a valid iterator for those chunks belonging to the repair queue
-    //! and |Null| for others.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TChunkRepairQueueIterator>, RepairQueueIterator);
-
 public:
     explicit TChunk(const TChunkId& id);
+
+    TChunkDynamicData* GetDynamicData() const;
 
     TChunkTreeStatistics GetStatistics() const;
     NSecurityServer::TClusterResources GetResourceUsage() const;
@@ -97,6 +109,9 @@ public:
 
     bool GetSealScheduled() const;
     void SetSealScheduled(bool value);
+
+    const TNullable<TChunkRepairQueueIterator>& GetRepairQueueIterator() const;
+    void SetRepairQueueIterator(const TNullable<TChunkRepairQueueIterator>& value);
 
     int GetReplicationFactor() const;
     void SetReplicationFactor(int value);
@@ -146,9 +161,6 @@ private:
     struct {
         bool Movable : 1;
         bool Vital : 1;
-        bool RefreshScheduled : 1;
-        bool PropertiesUpdateScheduled : 1;
-        bool SealScheduled : 1;
     } Flags_;
 
     i8 ReplicationFactor_;

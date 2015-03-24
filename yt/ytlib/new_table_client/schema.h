@@ -5,7 +5,6 @@
 #include <core/misc/error.h>
 #include <core/misc/nullable.h>
 #include <core/misc/property.h>
-#include <core/misc/serialize.h>
 
 #include <core/ytree/public.h>
 
@@ -63,6 +62,9 @@ public:
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
     TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
 
+    TTableSchema Deplete() const;
+    TKeyColumns DepleteKeyColumns(const TKeyColumns& keyColumns) const;
+
     bool HasComputedColumns() const;
 
     void Save(TStreamSaveContext& context) const;
@@ -86,6 +88,7 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 void ValidateTableSchema(const TTableSchema& schema);
 void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColumns& keyColumns);
+void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

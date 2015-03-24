@@ -58,8 +58,9 @@ TSchedulerThread::TSchedulerThread(
     , ThreadName(threadName)
     , EnableLogging(enableLogging)
     , Profiler("/action_queue", tagIds)
-    , Epoch(0)
     , Thread(ThreadMain, (void*) this)
+    , CreatedFibersCounter("/created_fibers")
+    , AliveFibersCounter("/alive_fibers")
 {
     Profiler.SetEnabled(enableProfiling);
 }
@@ -216,26 +217,25 @@ void TSchedulerThread::ThreadMainStep()
 
 void TSchedulerThread::FiberMain(unsigned int spawnedEpoch)
 {
-    ++FibersCreated;
-    Profiler.Enqueue("/fibers_created", FibersCreated);
-
-    ++FibersAlive;
-    Profiler.Enqueue("/fibers_alive", FibersAlive);
-
-    LOG_DEBUG_IF(EnableLogging, "Fiber started (Name: %v, Created: %v, Alive: %v)",
-        ThreadName,
-        FibersCreated,
-        FibersAlive);
+    {
+        auto createdFibers = Profiler.Increment(CreatedFibersCounter);
+        auto aliveFibers = Profiler.Increment(AliveFibersCounter, +1);
+        LOG_TRACE_IF(EnableLogging, "Fiber started (Name: %v, Created: %v, Alive: %v)",
+            ThreadName,
+            createdFibers,
+            aliveFibers);
+    }
 
     while (FiberMainStep(spawnedEpoch));
 
-    --FibersAlive;
-    Profiler.Enqueue("/fibers_alive", FibersAlive);
-
-    LOG_DEBUG_IF(EnableLogging, "Fiber finished (Name: %v, Created: %v, Alive: %v)",
-        ThreadName,
-        FibersCreated,
-        FibersAlive);
+    {
+        auto createdFibers = CreatedFibersCounter.Current.load();
+        auto aliveFibers = Profiler.Increment(AliveFibersCounter, -1);
+        LOG_TRACE_IF(EnableLogging, "Fiber finished (Name: %v, Created: %v, Alive: %v)",
+            ThreadName,
+            createdFibers,
+            aliveFibers);
+    }
 }
 
 bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)

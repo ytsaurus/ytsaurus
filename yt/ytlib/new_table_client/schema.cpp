@@ -8,7 +8,6 @@
 #include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/new_table_client/chunk_meta.pb.h>
-#include <ytlib/table_client/table_chunk_meta.pb.h> // TODO(babenko): remove after migration
 
 #ifdef YT_USE_LLVM
 #include <ytlib/query_client/plan_fragment.h>
@@ -193,6 +192,28 @@ TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) cons
     return result;
 }
 
+TTableSchema TTableSchema::Deplete() const
+{
+    TTableSchema result;
+    for (int index = 0; index < Columns().size(); ++index) {
+        if (!Columns_[index].Expression) {
+            result.Columns().push_back(Columns_[index]);
+        }
+    }
+    return result;
+}
+
+TKeyColumns TTableSchema::DepleteKeyColumns(const TKeyColumns& keyColumns) const
+{
+    TKeyColumns result;
+    for (int index = 0; index < keyColumns.size(); ++index) {
+        if (!GetColumnOrThrow(keyColumns[index]).Expression) {
+            result.push_back(keyColumns[index]);
+        }
+    }
+    return result;
+}
+
 bool TTableSchema::HasComputedColumns() const
 {
     for (const auto& column : Columns()) {
@@ -330,10 +351,15 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
             if (index < keyColumns.size()) {
 #ifdef YT_USE_LLVM
                 auto expr = PrepareExpression(columnSchema.Expression.Get(), schema);
+                if (expr->Type != columnSchema.Type) {
+                    THROW_ERROR_EXCEPTION("Computed column %Qv type mismatch: declared type %v but expression type is %v",
+                        columnSchema.Name,
+                        columnSchema.Type,
+                        expr->Type);
+                }
+
                 yhash_set<Stroka> references;
-                TFoldingProfiler()
-                    .Set(references)
-                    .Profile(expr);
+                Profile(expr, schema, nullptr, nullptr, &references);
                 for (const auto& ref : references) {
                     if (schema.GetColumnIndexOrThrow(ref) >= keyColumns.size()) {
                         THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",
@@ -352,6 +378,23 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
             } else {
                 THROW_ERROR_EXCEPTION("Computed column %Qv is not a key column", columnSchema.Name);
             }
+        }
+    }
+}
+
+void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount)
+{
+    if (pivotKey.GetCount() > keyColumnCount) {
+        THROW_ERROR_EXCEPTION("Pivot key must form a prefix of key");
+    }
+
+    for (int index = 0; index < pivotKey.GetCount(); ++index) {
+        if (pivotKey[index].Type != schema.Columns()[index].Type) {
+            THROW_ERROR_EXCEPTION(
+                "Mismatched type of column %Qv in pivot key: expected %Qlv, found %Qlv",
+                schema.Columns()[index].Name,
+                schema.Columns()[index].Type,
+                pivotKey[index].Type);
         }
     }
 }

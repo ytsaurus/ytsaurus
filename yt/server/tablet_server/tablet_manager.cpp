@@ -617,6 +617,13 @@ public:
             }
         }
 
+        // Validate pivot keys against table schema.
+        auto schema = GetTableSchema(table);
+        ValidateTableSchemaAndKeyColumns(schema, table->KeyColumns());
+        for (const auto& pivotKey : pivotKeys) {
+            ValidatePivotKey(pivotKey, schema, table->KeyColumns().size());
+        }
+
         if (lastTabletIndex != tablets.size() - 1) {
             if (pivotKeys.back() >= tablets[lastTabletIndex + 1]->GetPivotKey()) {
                 THROW_ERROR_EXCEPTION(
@@ -1216,7 +1223,7 @@ private:
         if (tablet->GetState() != ETabletState::Mounted &&
             tablet->GetState() != ETabletState::Unmounting)
         {
-            LOG_INFO_UNLESS(IsRecovery(), "Requested to update stoares for a tablet in %Qlv state, ignored (TabletId: %v)",
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to update stores for a tablet in %Qlv state, ignored (TabletId: %v)",
                 tablet->GetState(),
                 tabletId);
             return;
@@ -1291,7 +1298,7 @@ private:
             auto error = TError(ex);
             LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %v)",
                 tabletId);
-            ToProto(response.mutable_error(), error);
+            ToProto(response.mutable_error(), error.Sanitize());
         }
 
         auto hiveManager = Bootstrap_->GetHiveManager();
@@ -1507,14 +1514,14 @@ private:
                 tablet->SetState(ETabletState::Unmounting);
                 tablet->NodeStatistics().Clear();
                 tablet->PerformanceCounters() = TTabletPerformanceCounters();
+            }
 
-                {
-                    TReqUnmountTablet request;
-                    ToProto(request.mutable_tablet_id(), tablet->GetId());
-                    request.set_force(force);
-                    auto* mailbox = hiveManager->GetMailbox(cell->GetId());
-                    hiveManager->PostMessage(mailbox, request);
-                }
+            if (cell) {
+                TReqUnmountTablet request;
+                ToProto(request.mutable_tablet_id(), tablet->GetId());
+                request.set_force(force);
+                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                hiveManager->PostMessage(mailbox, request);
             }
 
             if (force && tablet->GetState() != ETabletState::Unmounted) {

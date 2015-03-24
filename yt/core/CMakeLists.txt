@@ -48,6 +48,7 @@ target_link_libraries ( ytcore
   ytext-httpserver
   ytext-yajl
   protobuf
+  farmhash
 )
 
 if (YT_BUILD_ENABLE_LLVM)

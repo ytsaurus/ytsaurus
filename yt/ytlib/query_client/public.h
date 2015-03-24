@@ -32,6 +32,15 @@ class TQueryStatistics;
 DECLARE_REFCOUNTED_STRUCT(TExpression)
 typedef TIntrusivePtr<const TExpression> TConstExpressionPtr;
 
+DECLARE_REFCOUNTED_STRUCT(TJoinClause)
+typedef TIntrusivePtr<const TJoinClause> TConstJoinClausePtr;
+
+DECLARE_REFCOUNTED_STRUCT(TGroupClause)
+typedef TIntrusivePtr<const TGroupClause> TConstGroupClausePtr;
+
+DECLARE_REFCOUNTED_STRUCT(TProjectClause)
+typedef TIntrusivePtr<const TProjectClause> TConstProjectClausePtr;
+
 DECLARE_REFCOUNTED_STRUCT(TQuery);
 typedef TIntrusivePtr<const TQuery> TConstQueryPtr;
 
@@ -57,7 +66,6 @@ DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
 // TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 typedef std::vector<TDataSplit> TDataSplits;
-typedef std::vector<TDataSplits> TGroupedDataSplits;
 
 using NVersionedTableClient::ISchemafulReader;
 using NVersionedTableClient::ISchemafulReaderPtr;

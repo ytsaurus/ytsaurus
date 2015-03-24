@@ -30,7 +30,8 @@ public:
         TMultiChunkWriterOptionsPtr options,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const TChunkListId& parentChunkListId);
+        const TChunkListId& parentChunkListId,
+        NConcurrency::IThroughputThrottlerPtr throttler);
 
     virtual TFuture<void> Open() override;
     virtual TFuture<void> Close() override;
@@ -64,11 +65,6 @@ private:
         IChunkWriterPtr UnderlyingWriter;
         TChunkId ChunkId;
 
-        TSession()
-            : TemplateWriter(nullptr)
-            , UnderlyingWriter(nullptr)
-        { }
-
         bool IsActive() const
         {
             return bool(TemplateWriter);
@@ -76,26 +72,27 @@ private:
 
         void Reset()
         {
-            TemplateWriter = nullptr;
-            UnderlyingWriter = nullptr;
+            TemplateWriter.Reset();
+            UnderlyingWriter.Reset();
             ChunkId = TChunkId();
         }
     };
 
     TMultiChunkWriterConfigPtr Config_;
-    TMultiChunkWriterOptionsPtr Options_;
-    NRpc::IChannelPtr MasterChannel_;
-    NTransactionClient::TTransactionId TransactionId_;
-    TChunkListId ParentChunkListId_;
+    const TMultiChunkWriterOptionsPtr Options_;
+    const NRpc::IChannelPtr MasterChannel_;
+    const NTransactionClient::TTransactionId TransactionId_;
+    const TChunkListId ParentChunkListId_;
+    const NConcurrency::IThroughputThrottlerPtr Throttler_;
 
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
-    volatile double Progress_;
+    volatile double Progress_ = 0.0;
 
     TSession CurrentSession_;
     TSession NextSession_;
 
-    bool Closing_;
+    bool Closing_ = false;
 
     TFuture<void> NextSessionReady_;
     TFuture<void> ReadyEvent_;
@@ -138,13 +135,15 @@ public:
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
-        std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> createChunkWriter)
+        std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
+        NConcurrency::IThroughputThrottlerPtr throttler)
         : TNontemplateMultiChunkWriterBase(
             config, 
             options, 
             masterChannel, 
             transactionId, 
-            parentChunkListId)
+            parentChunkListId,
+            throttler)
         , CreateChunkWriter_(createChunkWriter)
     { }
 

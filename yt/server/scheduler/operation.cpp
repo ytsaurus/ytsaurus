@@ -6,8 +6,6 @@
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <core/ytree/fluent.h>
-
 namespace NYT {
 namespace NScheduler {
 
@@ -30,6 +28,7 @@ TOperation::TOperation(
     , MutationId_(mutationId)
     , State_(state)
     , Suspended_(suspended)
+    , Enqueued_(false)
     , UserTransaction_(userTransaction)
     , Spec_(spec)
     , AuthenticatedUser_(authenticatedUser)
@@ -75,7 +74,7 @@ bool TOperation::IsFinishingState() const
 
 void TOperation::UpdateStatistics(const TStatistics& statistics, EJobFinalState state)
 {
-    Statistics[state].Merge(statistics);
+    Statistics[state].AddSample(statistics);
 }
 
 void TOperation::BuildStatistics(NYson::IYsonConsumer* consumer) const

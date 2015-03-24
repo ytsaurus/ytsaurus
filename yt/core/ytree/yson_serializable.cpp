@@ -115,7 +115,7 @@ void TYsonSerializableLite::Validate(const TYPath& path) const
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Validation failed at %v",
-            path.empty() ? "/" : path)
+            path.empty() ? "root" : path)
             << ex;
     }
 }
@@ -164,7 +164,7 @@ TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value)
     value.Save(
         &writer,
         true); // truth matters :)
-    return TYsonString(result, EYsonType::Node);   
+    return TYsonString(result, EYsonType::Node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

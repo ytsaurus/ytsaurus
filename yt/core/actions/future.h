@@ -167,6 +167,7 @@ public:
     //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
     //! or to |EErrorCode::Timeout| (in case of timeout).
     TFuture<T> WithTimeout(TDuration timeout);
+    TFuture<T> WithTimeout(TNullable<TDuration> timeout);
 
     //! Chains the asynchronous computation with another synchronous function.
     template <class R>
@@ -224,6 +225,9 @@ private:
     template <class U>
     friend TFuture<U> MakeFuture(U value);
     template <class U>
+    // XXX(babenko): 'NYT::' is a workaround; cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625 
+    friend class NYT::TFutureBase;
+    template <class U>
     friend class TPromiseBase;
 
 };
@@ -249,6 +253,9 @@ private:
 
     template <class U>
     friend TFuture<U> MakeFuture(TErrorOr<U> value);
+    template <class U>
+    // XXX(babenko): 'NYT::' is a workaround; cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625 
+    friend class NYT::TFutureBase;
     template <class U>
     friend class TPromiseBase;
 

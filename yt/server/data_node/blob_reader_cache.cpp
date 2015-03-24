@@ -64,7 +64,7 @@ public:
         TInsertCookie cookie(chunkId);
         if (BeginInsert(&cookie)) {
             auto fileName = chunk->GetFileName();
-            LOG_DEBUG("Started opening blob chunk reader (LocationId: %v, ChunkId: %v)",
+            LOG_TRACE("Started opening blob chunk reader (LocationId: %v, ChunkId: %v)",
                 location->GetId(),
                 chunkId);
 
@@ -85,7 +85,7 @@ public:
                 }
             }
 
-            LOG_DEBUG("Finished opening blob chunk reader (LocationId: %v, ChunkId: %v)",
+            LOG_TRACE("Finished opening blob chunk reader (LocationId: %v, ChunkId: %v)",
                 chunk->GetLocation()->GetId(),
                 chunkId);
         }
@@ -101,13 +101,13 @@ public:
 private:
     virtual void OnAdded(TCachedReader* reader) override
     {
-        LOG_DEBUG("Block chunk reader added to cache (ChunkId: %v)",
+        LOG_TRACE("Block chunk reader added to cache (ChunkId: %v)",
             reader->GetKey());
     }
 
     virtual void OnRemoved(TCachedReader* reader) override
     {
-        LOG_DEBUG("Block chunk reader evicted from cache (ChunkId: %v)",
+        LOG_TRACE("Block chunk reader evicted from cache (ChunkId: %v)",
             reader->GetKey());
     }
 

@@ -303,6 +303,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (parent && parent->GetPersistentState() != ETransactionState::Active) {
+            parent->ThrowInvalidState();
+        }
+
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Transaction);
 
@@ -351,10 +355,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto state = transaction->GetState();
+        auto state = transaction->GetPersistentState();
         
         if (state != ETransactionState::Active &&
-            state != ETransactionState::TransientCommitPrepared &&
             state != ETransactionState::PersistentCommitPrepared)
         {
             transaction->ThrowInvalidState();
@@ -381,7 +384,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto state = transaction->GetState();
+        auto state = transaction->GetPersistentState();
         if (state == ETransactionState::PersistentCommitPrepared && !force) {
             transaction->ThrowInvalidState();
         }
@@ -502,23 +505,23 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        auto state = transaction->GetState();
-        
+
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
+        auto state = persistent ? transaction->GetPersistentState() : transaction->GetState();
         if (state != ETransactionState::Active &&
             (!persistent || state != ETransactionState::TransientCommitPrepared))
         {
             transaction->ThrowInvalidState();
         }
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(transaction, EPermission::Write);
-
         if (!transaction->NestedTransactions().empty()) {
             THROW_ERROR_EXCEPTION("Cannot commit transaction %v since it has %v active nested transaction(s)",
                 transaction->GetId(),
                 transaction->NestedTransactions().size());
         }
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(transaction, EPermission::Write);
 
         transaction->SetState(persistent
             ? ETransactionState::PersistentCommitPrepared
@@ -586,7 +589,7 @@ public:
 private:
     friend class TTransactionTypeHandler;
 
-    TTransactionManagerConfigPtr Config_;
+    const TTransactionManagerConfigPtr Config_;
 
     NHydra::TEntityMap<TTransactionId, TTransaction> TransactionMap_;
     yhash_map<TTransactionId, TLease> LeaseMap_;
@@ -628,7 +631,6 @@ private:
     void DoPingTransaction(TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
         YCHECK(transaction->GetState() == ETransactionState::Active);
 
         auto timeout = transaction->GetTimeout();

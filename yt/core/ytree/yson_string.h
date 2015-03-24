@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <core/misc/nullable.h>
-#include <core/misc/serialize.h>
 #include <core/misc/property.h>
 
 #include <core/yson/public.h>
@@ -16,14 +15,15 @@ namespace NYTree {
 class TYsonString
 {
 public:
+    DEFINE_BYREF_RO_PROPERTY(Stroka, Data);
+    DEFINE_BYVAL_RO_PROPERTY(NYson::EYsonType, Type);
+
+public:
     TYsonString();
 
     explicit TYsonString(
         const Stroka& data,
         NYson::EYsonType type = NYson::EYsonType::Node);
-
-    DEFINE_BYREF_RO_PROPERTY(Stroka, Data);
-    DEFINE_BYVAL_RO_PROPERTY(NYson::EYsonType, Type);
 
     void Validate() const;
 

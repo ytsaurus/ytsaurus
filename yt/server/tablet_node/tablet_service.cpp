@@ -3,7 +3,7 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "tablet_manager.h"
-#include "tablet_slot_manager.h"
+#include "slot_manager.h"
 #include "transaction_manager.h"
 #include "transaction.h"
 #include "store_manager.h"
@@ -33,7 +33,6 @@ using namespace NRpc;
 using namespace NCompression;
 using namespace NChunkClient;
 using namespace NTabletClient;
-using namespace NTableClient;
 using namespace NVersionedTableClient;
 using namespace NHydra;
 using namespace NCellNode;
@@ -116,8 +115,8 @@ private:
             [&] () {
                 ValidateActiveLeader();
 
-                auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-                auto tabletSnapshot = tabletSlotManager->GetTabletSnapshotOrThrow(tabletId);
+                auto slotManager = Bootstrap_->GetTabletSlotManager();
+                auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
                 TWireProtocolReader reader(requestData);
                 TWireProtocolWriter writer;

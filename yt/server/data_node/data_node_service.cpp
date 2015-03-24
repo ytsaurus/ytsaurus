@@ -29,13 +29,8 @@
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/action_queue.h>
 
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/private.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/private.h>
-
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
@@ -61,18 +56,10 @@ using namespace NRpc;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
-using namespace NTableClient;
 using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NVersionedTableClient;
 using namespace NVersionedTableClient::NProto;
-
-using NTableClient::NProto::TSamplePart;
-using NTableClient::NProto::TIndexExt;
-using NTableClient::NProto::TIndexRow;
-using NTableClient::NProto::TOldBoundaryKeysExt;
-using NTableClient::NProto::TOldSamplesExt;
-using NTableClient::NProto::TSample;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -682,7 +669,7 @@ private:
         const NChunkClient::NProto::TChunkSpec* chunkSpec,
         NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
         i64 minSplitSize,
-        const NTableClient::TKeyColumns& keyColumns,
+        const NVersionedTableClient::TKeyColumns& keyColumns,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
@@ -769,7 +756,7 @@ private:
     void ProcessSample(
         const NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
         NChunkClient::NProto::TRspGetTableSamples::TChunkSamples* sampleResponse,
-        const NTableClient::TKeyColumns& keyColumns,
+        const NVersionedTableClient::TKeyColumns& keyColumns,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
@@ -815,7 +802,7 @@ private:
     void ProcessOldChunkSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
-        const NTableClient::TKeyColumns& keyColumns,
+        const NVersionedTableClient::TKeyColumns& keyColumns,
         const NChunkClient::NProto::TChunkMeta& chunkMeta)
     {
         auto samplesExt = GetProtoExtension<TOldSamplesExt>(chunkMeta.extensions());
@@ -845,23 +832,17 @@ private:
                 auto keyPart = MakeUnversionedSentinelValue(EValueType::Null);
                 size += sizeof(keyPart); // part type
                 if (it != sample.parts().end() && it->column() == column) {
-                    switch (EKeyPartType(it->key_part().type())) {
-                        case EKeyPartType::Composite:
+                    switch (ELegacyKeyPartType(it->key_part().type())) {
+                        case ELegacyKeyPartType::Composite:
                             keyPart = MakeUnversionedAnyValue(TStringBuf());
                             break;
-                        case EKeyPartType::Int64:
+                        case ELegacyKeyPartType::Int64:
                             keyPart = MakeUnversionedInt64Value(it->key_part().int64_value());
                             break;
-                        case EKeyPartType::Uint64:
-                            keyPart = MakeUnversionedUint64Value(it->key_part().uint64_value());
-                            break;
-                        case EKeyPartType::Double:
+                        case ELegacyKeyPartType::Double:
                             keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());
                             break;
-                        case EKeyPartType::Boolean:
-                            keyPart = MakeUnversionedBooleanValue(it->key_part().boolean_value());
-                            break;
-                        case EKeyPartType::String: {
+                        case ELegacyKeyPartType::String: {
                             auto partSize = std::min(it->key_part().str_value().size(), MaxSampleSize - size);
                             auto value = TStringBuf(it->key_part().str_value().begin(), partSize);
                             keyPart = MakeUnversionedStringValue(value);
@@ -881,7 +862,7 @@ private:
     void ProcessVersionedChunkSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
-        const NTableClient::TKeyColumns& keyColumns,
+        const NVersionedTableClient::TKeyColumns& keyColumns,
         const NChunkClient::NProto::TChunkMeta& chunkMeta)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
@@ -958,15 +939,15 @@ private:
                 size += GetByteSize(value);
             }
 
-            while (size > MaxKeySize && keyValues.size() > 1) {
+            while (size > MaxSampleSize && keyValues.size() > 1) {
                 size -= GetByteSize(keyValues.back());
                 keyValues.pop_back();
             }
 
-            if (size > MaxKeySize) {
+            if (size > MaxSampleSize) {
                 YCHECK(keyValues.size() == 1);
                 YCHECK(keyValues.front().Type == EValueType::String);
-                keyValues.front().Length = MaxKeySize;
+                keyValues.front().Length = MaxSampleSize;
             }
 
             auto* key = chunkSamples->add_keys();

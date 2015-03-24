@@ -4,7 +4,6 @@
 #include "schema.h"
 
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -17,11 +16,7 @@ namespace NChunkClient {
 
 using namespace NChunkClient::NProto;
 using namespace NVersionedTableClient;
-
-using NTableClient::NProto::TIndexExt;
-using NTableClient::NProto::TIndexRow;
-using NVersionedTableClient::NProto::TBlockMetaExt;
-using NVersionedTableClient::NProto::TBlockMeta;
+using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

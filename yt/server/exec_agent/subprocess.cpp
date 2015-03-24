@@ -8,11 +8,6 @@
 #include <core/misc/proc.h>
 #include <core/misc/finally.h>
 
-#include <core/concurrency/async_stream.h>
-#include <core/concurrency/scheduler.h>
-
-#include <core/logging/log.h>
-
 #include <util/system/execpath.h>
 
 #include <array>
@@ -51,6 +46,7 @@ void TSubprocess::AddArguments(std::initializer_list<TStringBuf> args)
 
 TSubprocessResult TSubprocess::Execute()
 {
+#ifndef _win_
     std::array<TPipe, 3> pipes;
 
     {
@@ -73,12 +69,12 @@ TSubprocessResult TSubprocess::Execute()
             try {
                 Process_.Kill(9);
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Cannot kill subprocess %v", Process_.GetProcessId());
+                LOG_ERROR(ex, "Failed to kill subprocess %v", Process_.GetProcessId());
             }
 
             auto error = Process_.Wait();
             if (!error.IsOK()) {
-                LOG_ERROR(error, "Cannot wait subprocess %v", Process_.GetProcessId());
+                LOG_ERROR(error, "Failed to wait subprocess %v", Process_.GetProcessId());
             }
         }
     });
@@ -131,10 +127,7 @@ TSubprocessResult TSubprocess::Execute()
     }
 
     auto outputsOrError = WaitFor(Combine(futures));
-    if (!outputsOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("IO error occured during subprocess call")
-            << outputsOrError;
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(outputsOrError, "IO error occured during subprocess call");
 
     const auto& outputs = outputsOrError.Value();
     YCHECK(outputs.size() == 2);
@@ -142,6 +135,9 @@ TSubprocessResult TSubprocess::Execute()
     // This can block indefinetely.
     auto exitCode = Process_.Wait();
     return TSubprocessResult{outputs[0], outputs[1], exitCode};
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
 }
 
 void TSubprocess::Kill(int signal)

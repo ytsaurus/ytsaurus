@@ -8,9 +8,9 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EStoreState IStore::GetPersistentState() const
+EStoreState IStore::GetPersistentStoreState() const
 {
-    auto state = GetState();
+    auto state = GetStoreState();
     switch (state) {
         case EStoreState::Flushing:
         case EStoreState::FlushFailed:

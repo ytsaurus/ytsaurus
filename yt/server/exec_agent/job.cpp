@@ -7,18 +7,10 @@
 #include "slot_manager.h"
 #include "config.h"
 
-#include <core/misc/fs.h>
 #include <core/misc/proc.h>
-#include <core/misc/assert.h>
 
-#include <core/concurrency/scheduler.h>
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/actions/invoker_util.h>
-
-#include <core/ytree/serialize.h>
-
-#include <core/logging/log.h>
 #include <core/logging/log_manager.h>
 
 #include <core/bus/tcp_client.h>
@@ -27,23 +19,15 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
+#include <ytlib/file_client/config.h>
 #include <ytlib/file_client/file_ypath_proxy.h>
 #include <ytlib/file_client/file_chunk_reader.h>
 
-#include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/helpers.h>
 
-#include <ytlib/file_client/config.h>
-#include <ytlib/file_client/file_chunk_reader.h>
-
-#include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
-#include <ytlib/node_tracker_client/helpers.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
 
@@ -52,22 +36,15 @@
 #include <ytlib/security_client/public.h>
 
 #include <server/data_node/chunk.h>
-#include <server/data_node/location.h>
 #include <server/data_node/chunk_cache.h>
 #include <server/data_node/block_store.h>
-
-#include <server/job_proxy/config.h>
-#include <server/job_proxy/public.h>
 
 #include <server/job_agent/job.h>
 
 #include <server/scheduler/config.h>
-#include <server/scheduler/job_resources.h>
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
-
-#include <server/data_node/config.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -282,13 +259,19 @@ public:
         }
     }
 
-    std::vector<TChunkId> DumpInputContexts() const override
+    NJobProberClient::TJobProberServiceProxy CreateJobProber() const
     {
         auto jobProberClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
         auto jobProberChannel = CreateBusChannel(jobProberClient);
 
         NJobProberClient::TJobProberServiceProxy jobProberProxy(jobProberChannel);
+        jobProberProxy.SetDefaultTimeout(Bootstrap->GetConfig()->ExecAgent->JobProberRpcTimeout);
+        return jobProberProxy;
+    }
 
+    std::vector<TChunkId> DumpInputContexts() const override
+    {
+        auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.DumpInputContext();
 
         ToProto(req->mutable_job_id(), JobId);
@@ -296,6 +279,18 @@ public:
             .ValueOrThrow();
 
         return FromProto<TGuid>(rsp->chunk_id());
+    }
+
+    virtual TYsonString Strace() const override
+    {
+        auto jobProberProxy = CreateJobProber();
+        auto req = jobProberProxy.Strace();
+
+        ToProto(req->mutable_job_id(), JobId);
+        auto res = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        return TYsonString(FromProto<Stroka>(res->trace()));
     }
 
 private:
@@ -771,7 +766,8 @@ private:
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
-            error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork);
+            error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||
+            error.FindMatching(NVersionedTableClient::EErrorCode::InvalidDoubleValue);
     }
 
 };

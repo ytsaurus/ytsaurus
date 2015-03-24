@@ -118,7 +118,7 @@ private:
                 
                 auto address = pickResult.As<Stroka>();
 
-                LOG_DEBUG("Quering peer %v", address);
+                LOG_DEBUG("Querying peer %v", address);
 
                 auto channel = Owner_->ChannelFactory_->CreateChannel(address);
        

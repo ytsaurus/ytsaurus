@@ -17,7 +17,6 @@ THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
     , Meta_(meta)
     , IdMapping_(idMapping)
     , KeyColumnCount_(keyColumnCount)
-    , Closed_(false)
 {
     YCHECK(Meta_.row_count() > 0);
 
@@ -37,21 +36,17 @@ THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
 
 bool THorizontalSchemalessBlockReader::NextRow()
 {
-    YCHECK(!Closed_);
     return JumpToRowIndex(RowIndex_ + 1);
 }
 
 bool THorizontalSchemalessBlockReader::SkipToRowIndex(i64 rowIndex)
 {
-    YCHECK(!Closed_);
     YCHECK(rowIndex >= RowIndex_);
     return JumpToRowIndex(rowIndex);
 }
     
 bool THorizontalSchemalessBlockReader::SkipToKey(const TOwningKey& key)
 {
-    YCHECK(!Closed_);
-
     if (GetKey() >= key) {
         // We are already further than pivot key.
         return true;
@@ -90,11 +85,6 @@ TUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPool* mem
     row.GetHeader()->Count = valueCount;
     return row;
 }
-    
-const char* THorizontalSchemalessBlockReader::GetRowPointer() const
-{
-    return RowPointer_;
-}
 
 i64 THorizontalSchemalessBlockReader::GetRowIndex() const
 {
@@ -103,17 +93,14 @@ i64 THorizontalSchemalessBlockReader::GetRowIndex() const
 
 bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
 {
-    YCHECK(!Closed_);
-
     if (rowIndex >= Meta_.row_count()) {
-        Closed_ = true;
         return false;
     }
 
     RowIndex_ = rowIndex;
 
     ui32 offset = *reinterpret_cast<ui32*>(Offsets_.Begin() + rowIndex * sizeof(ui32));
-    CurrentPointer_ = RowPointer_ = Data_.Begin() + offset;
+    CurrentPointer_ = Data_.Begin() + offset;
 
     CurrentPointer_ += ReadVarUint32(CurrentPointer_, &ValueCount_);
     YCHECK(ValueCount_ >= KeyColumnCount_);
@@ -124,20 +111,6 @@ bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
     }
 
     return true;
-}
-
-TUnversionedRow THorizontalSchemalessBlockReader::GetRow(
-    const char *rowPointer,
-    TChunkedMemoryPool *memoryPool)
-{
-    ui32 valueCount;
-    rowPointer += ReadVarUint32(rowPointer, &valueCount);
-
-    TUnversionedRow row = TUnversionedRow::Allocate(memoryPool, valueCount);
-    for (int i = 0; i < valueCount; ++i) {
-        rowPointer += ReadValue(rowPointer, row.Begin() + i);
-    }
-    return row;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,8 +5,6 @@
 #include "operation_controller.h"
 #include "job_resources.h"
 
-#include <ytlib/node_tracker_client/helpers.h>
-
 namespace NYT {
 namespace NScheduler {
 

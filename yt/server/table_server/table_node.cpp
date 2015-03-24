@@ -25,7 +25,6 @@ using namespace NYTree;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NObjectServer;
-using namespace NTableClient;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NTabletServer;
@@ -221,6 +220,14 @@ protected:
 
         clonedNode->SetSorted(sourceNode->GetSorted());
         clonedNode->KeyColumns() = sourceNode->KeyColumns();
+
+        if (sourceNode->IsDynamic()) {
+            auto objectManager = Bootstrap->GetObjectManager();
+            for (auto* tablet : sourceNode->Tablets()) {
+                objectManager->RefObject(tablet);
+                clonedNode->Tablets().push_back(tablet);
+            }
+        }
     }
 
 };

@@ -6,7 +6,10 @@
 
 #include <core/rpc/public.h>
 
+#include <core/concurrency/public.h>
+
 #include <ytlib/node_tracker_client/public.h>
+#include <core/concurrency/throughput_throttler.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -24,7 +27,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     NErasure::ICodec* codec,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NRpc::IChannelPtr masterChannel,
-    EWriteSessionType sessionType);
+    EWriteSessionType sessionType = EWriteSessionType::User,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ///////////////////////////////////////////////////////////////////////////////
 

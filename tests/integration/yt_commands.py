@@ -107,10 +107,15 @@ def execute_command_with_output_format(command_name, kwargs, input_stream=None):
 
 ###########################################################################
 
-def dump_input_context(job_id, path, **kwargs):
+def dump_job_input_context(job_id, path, **kwargs):
     kwargs["job_id"] = job_id
     kwargs["path"] = path
-    return execute_command("dump_input_context", kwargs)
+    return execute_command("dump_job_input_context", kwargs)
+
+def strace_job(job_id, **kwargs):
+    kwargs["job_id"] = job_id
+    result = execute_command('strace_job', kwargs)
+    return yson.loads(result)
 
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
@@ -375,6 +380,9 @@ def build_snapshot(*args, **kwargs):
 def gc_collect():
     get_driver().gc_collect()
 
+def clear_metadata_caches():
+    get_driver().clear_metadata_caches()
+    
 def create_account(name, **kwargs):
     kwargs["type"] = "account"
     kwargs["attributes"] = {"name": name}
@@ -427,7 +435,7 @@ def create_rack(name, **kwargs):
 def remove_rack(name, **kwargs):
     remove("//sys/racks/" + name, **kwargs)
     gc_collect()
-    
+
 #########################################
 # Helpers:
 

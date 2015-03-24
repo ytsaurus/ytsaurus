@@ -5,17 +5,7 @@
 #include "exec_node.h"
 #include "operation_controller.h"
 
-#include <ytlib/object_client/helpers.h>
-
 #include <ytlib/node_tracker_client/helpers.h>
-
-#include <ytlib/security_client/public.h>
-
-#include <ytlib/api/connection.h>
-
-#include <core/concurrency/scheduler.h>
-
-#include <core/ytree/fluent.h>
 
 namespace NYT {
 namespace NScheduler {

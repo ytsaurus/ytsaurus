@@ -4,6 +4,7 @@
 
 #include "chunk_reader_base.h"
 #include "config.h"
+#include "legacy_table_chunk_reader.h"
 #include "name_table.h"
 #include "private.h"
 #include "schema.h"
@@ -76,7 +77,7 @@ public:
 
     virtual TNameTablePtr GetNameTable() const override;
 
-    i64 GetTableRowIndex() const;
+    virtual i64 GetTableRowIndex() const;
 
 private:
     const TNameTablePtr NameTable_;
@@ -400,6 +401,19 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 tableRowIndex,
                 partitionTag);
 
+        case ETableChunkFormat::Old:
+            YCHECK(!partitionTag);
+            return New<TLegacyTableChunkReader>(
+                config,
+                columnFilter,
+                nameTable,
+                keyColumns,
+                underlyingReader,
+                uncompressedBlockCache,
+                lowerLimit,
+                upperLimit,
+                tableRowIndex);
+
         default:
             YUNREACHABLE();
     }
@@ -422,7 +436,8 @@ public:
         TNodeDirectoryPtr nodeDirectory,
         const std::vector<TChunkSpec>& chunkSpecs,
         TNameTablePtr nameTable,
-        const TKeyColumns& keyColumns);
+        const TKeyColumns& keyColumns,
+        IThroughputThrottlerPtr throttler);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
@@ -430,7 +445,7 @@ public:
 
     virtual i64 GetSessionRowIndex() const override;
 
-    virtual i64 GetSessionRowCount() const override;
+    virtual i64 GetTotalRowCount() const override;
 
     virtual TNameTablePtr GetNameTable() const override;
 
@@ -443,9 +458,9 @@ private:
 
     IBlockCachePtr UncompressedBlockCache_;
 
-    TSchemalessChunkReaderPtr CurrentReader_ = nullptr;
-    std::atomic<i64> RowIndex_;
-    std::atomic<i64> RowCount_;
+    ISchemalessChunkReaderPtr CurrentReader_;
+    std::atomic<i64> RowIndex_ = {0};
+    std::atomic<i64> RowCount_ = {-1};
 
     using TBase::ReadyEvent_;
     using TBase::CurrentSession_;
@@ -468,13 +483,20 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns)
-    : TBase(config, options, masterChannel, compressedBlockCache, nodeDirectory, chunkSpecs)
+    const TKeyColumns& keyColumns,
+    IThroughputThrottlerPtr throttler)
+    : TBase(
+        config,
+        options,
+        masterChannel,
+        compressedBlockCache,
+        nodeDirectory,
+        chunkSpecs,
+        throttler)
     , Config_(config)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , UncompressedBlockCache_(uncompressedBlockCache)
-    , RowIndex_(0)
     , RowCount_(GetCumulativeRowCount(chunkSpecs))
 { }
 
@@ -532,12 +554,12 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
 template <class TBase>
 void TSchemalessMultiChunkReader<TBase>::OnReaderSwitched()
 {
-    CurrentReader_ = dynamic_cast<TSchemalessChunkReader*>(CurrentSession_.ChunkReader.Get());
+    CurrentReader_ = dynamic_cast<ISchemalessChunkReader*>(CurrentSession_.ChunkReader.Get());
     YCHECK(CurrentReader_);
 }
 
 template <class TBase>
-i64 TSchemalessMultiChunkReader<TBase>::GetSessionRowCount() const
+i64 TSchemalessMultiChunkReader<TBase>::GetTotalRowCount() const
 {
     return RowCount_;
 }
@@ -577,7 +599,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns)
+    const TKeyColumns& keyColumns,
+    IThroughputThrottlerPtr throttler)
 {
     return New<TSchemalessMultiChunkReader<TSequentialMultiChunkReaderBase>>(
         config,
@@ -588,7 +611,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
         nodeDirectory,
         chunkSpecs,
         nameTable,
-        keyColumns);
+        keyColumns,
+        throttler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -602,7 +626,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns)
+    const TKeyColumns& keyColumns,
+    IThroughputThrottlerPtr throttler)
 {
     return New<TSchemalessMultiChunkReader<TParallelMultiChunkReaderBase>>(
         config,
@@ -613,7 +638,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
         nodeDirectory,
         chunkSpecs,
         nameTable,
-        keyColumns);
+        keyColumns,
+        throttler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -630,7 +656,8 @@ public:
         IBlockCachePtr compressedBlockCache,
         IBlockCachePtr uncompressedBlockCache,
         const TRichYPath& richPath,
-        TNameTablePtr nameTable);
+        TNameTablePtr nameTable,
+        IThroughputThrottlerPtr throttler);
 
     virtual TFuture<void> Open() override;
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
@@ -653,6 +680,7 @@ private:
     const IBlockCachePtr UncompressedBlockCache_;
     const TRichYPath RichPath_;
     const TNameTablePtr NameTable_;
+    const IThroughputThrottlerPtr Throttler_;
 
     const TTransactionId TransactionId_;
 
@@ -671,7 +699,8 @@ TSchemalessTableReader::TSchemalessTableReader(
     IBlockCachePtr compressedBlockCache,
     IBlockCachePtr uncompressedBlockCache,
     const TRichYPath& richPath,
-    TNameTablePtr nameTable)
+    TNameTablePtr nameTable,
+    IThroughputThrottlerPtr throttler)
     : Logger(TableClientLogger)
     , Config_(config)
     , MasterChannel_(masterChannel)
@@ -680,6 +709,7 @@ TSchemalessTableReader::TSchemalessTableReader(
     , UncompressedBlockCache_(uncompressedBlockCache)
     , RichPath_(richPath)
     , NameTable_(nameTable)
+    , Throttler_(throttler)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
 {
     YCHECK(Config_);
@@ -777,7 +807,8 @@ void TSchemalessTableReader::DoOpen()
             nodeDirectory,
             chunkSpecs,
             NameTable_,
-            TKeyColumns());
+            TKeyColumns(),
+            Throttler_);
 
         WaitFor(UnderlyingReader_->Open())
             .ThrowOnError();
@@ -820,7 +851,7 @@ i64 TSchemalessTableReader::GetTableRowIndex() const
 i64 TSchemalessTableReader::GetTotalRowCount() const
 {
     YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->GetSessionRowCount();
+    return UnderlyingReader_->GetTotalRowCount();
 }
 
 TNameTablePtr TSchemalessTableReader::GetNameTable() const
@@ -837,7 +868,8 @@ ISchemalessTableReaderPtr CreateSchemalessTableReader(
     IBlockCachePtr compressedBlockCache,
     IBlockCachePtr uncompressedBlockCache,
     const NYPath::TRichYPath& richPath,
-    TNameTablePtr nameTable)
+    TNameTablePtr nameTable,
+    IThroughputThrottlerPtr throttler)
 {
     return New<TSchemalessTableReader>(
         config,
@@ -846,7 +878,8 @@ ISchemalessTableReaderPtr CreateSchemalessTableReader(
         compressedBlockCache,
         uncompressedBlockCache,
         richPath,
-        nameTable);
+        nameTable,
+        throttler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

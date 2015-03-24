@@ -12,7 +12,8 @@ DEFINE_ENUM(EMemoryConsumer,
     (BlockCache)
     (ChunkMeta)
     (Job)
-    (Tablet)
+    (TabletStatic)
+    (TabletDynamic)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

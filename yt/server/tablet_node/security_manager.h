@@ -3,6 +3,8 @@
 #include "public.h"
 #include "config.h"
 
+#include <core/misc/nullable.h>
+
 #include <core/ytree/permission.h>
 
 #include <core/actions/future.h>
@@ -23,11 +25,12 @@ class TAuthenticatedUserGuard
     : private TNonCopyable
 {
 public:
-    TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, const Stroka& user);
+    TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, const TNullable<Stroka>& maybeUser);
     ~TAuthenticatedUserGuard();
 
 private:
     const TSecurityManagerPtr SecurityManager_;
+    const bool IsNull_;
 
 };
 
@@ -44,6 +47,7 @@ public:
 
     void SetAuthenticatedUser(const Stroka& user);
     void ResetAuthenticatedUser();
+    TNullable<Stroka> GetAuthenticatedUser();
 
     TFuture<void> CheckPermission(
         TTabletSnapshotPtr tabletSnapshot,

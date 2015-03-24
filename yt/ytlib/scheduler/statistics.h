@@ -1,15 +1,73 @@
 #pragma once
 
-#include <core/misc/property.h>
+#include <core/ytree/forwarding_yson_consumer.h>
+#include <core/ytree/tree_builder.h>
+#include <core/ytree/convert.h>
 
 #include <core/actions/callback.h>
 
-#include <core/yson/consumer.h>
-
-#include <core/ytree/tree_builder.h>
+#include <core/misc/property.h>
 
 namespace NYT {
 namespace NScheduler {
+
+////////////////////////////////////////////////////////////////////
+
+template <class T>
+class TBaseStatistics
+{
+public:
+    T Get(const NYPath::TYPath& name) const;
+
+protected:
+    yhash_map<NYPath::TYPath, T> Data_;
+
+    template <class U>
+    friend void Serialize(const TBaseStatistics<U>& statistics, NYson::IYsonConsumer* consumer);
+};
+
+template <class T>
+void Serialize(const TBaseStatistics<T>& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////
+
+class TStatistics
+    : public TBaseStatistics<i64>
+{
+public:
+    void Add(const NYPath::TYPath& name, i64 value);
+
+    template <class T>
+    void AddComplex(const NYPath::TYPath& path, const T& statistics);
+
+    void Merge(const TStatistics& other);
+
+private:
+    friend void Deserialize(TStatistics& value, NYTree::INodePtr node);
+
+    friend class TAggregatedStatistics;
+};
+
+void Deserialize(TStatistics& value, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////
+
+class TStatisticsConsumer
+    : public NYTree::TForwardingYsonConsumer
+{
+public:
+    typedef TCallback<void(const TStatistics&)> TParsedStatisticsConsumer;
+    explicit TStatisticsConsumer(TParsedStatisticsConsumer consumer, const NYPath::TYPath& path);
+
+    virtual void OnMyListItem() override;
+
+private:
+    NYPath::TYPath Path_;
+    std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
+    TParsedStatisticsConsumer Consumer_;
+
+    void ProcessItem();
+};
 
 ////////////////////////////////////////////////////////////////////
 
@@ -17,9 +75,8 @@ class TSummary
 {
 public:
     TSummary();
-    explicit TSummary(i64 value);
 
-    void Merge(const TSummary& other);
+    void AddSample(i64 value);
 
     DEFINE_BYVAL_RO_PROPERTY(i64, Sum);
     DEFINE_BYVAL_RO_PROPERTY(i64, Count);
@@ -34,64 +91,11 @@ void Deserialize(TSummary& value, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////
 
-class TStatistics
+class TAggregatedStatistics
+    : public TBaseStatistics<TSummary>
 {
 public:
-    void Add(const NYPath::TYPath& name, const TSummary& summary);
-
-    template <class T>
-    void Add(const NYPath::TYPath& path, const T& statistics);
-
-    void Merge(const TStatistics& other);
-    void Clear();
-    bool IsEmpty() const;
-
-    TSummary Get(const NYPath::TYPath& name) const;
-
-private:
-    yhash_map<NYPath::TYPath, TSummary> PathToSummary_;
-
-    friend void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer);
-    friend void Deserialize(TStatistics& value, NYTree::INodePtr node);
-};
-
-void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer);
-void Deserialize(TStatistics& value, NYTree::INodePtr node);
-
-////////////////////////////////////////////////////////////////////
-
-class TStatisticsConsumer
-    : public NYson::TYsonConsumerBase
-{
-public:
-    typedef TCallback<void(const TStatistics&)> TParsedStatisticsConsumer;
-    explicit TStatisticsConsumer(TParsedStatisticsConsumer consumer, const NYPath::TYPath& path);
-
-    virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnInt64Scalar(i64 value) override;
-    virtual void OnUint64Scalar(ui64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-    virtual void OnBooleanScalar(bool value) override;
-    virtual void OnEntity() override;
-
-    virtual void OnBeginList() override;
-    virtual void OnListItem() override;
-    virtual void OnEndList() override;
-
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
-    virtual void OnEndMap() override;
-
-    virtual void OnBeginAttributes() override;
-    virtual void OnEndAttributes() override;
-
-private:
-    int Depth_ = 0;
-    NYPath::TYPath Path_;
-    std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
-    TParsedStatisticsConsumer Consumer_;
-
-    void ConvertToStatistics(TStatistics& value, NYTree::INodePtr node);
+    void AddSample(const TStatistics& statistics);
 };
 
 ////////////////////////////////////////////////////////////////////

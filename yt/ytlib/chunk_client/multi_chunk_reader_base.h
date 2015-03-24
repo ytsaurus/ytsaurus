@@ -31,7 +31,8 @@ public:
         NRpc::IChannelPtr masterChannel,
         IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        const std::vector<NProto::TChunkSpec>& chunkSpecs);
+        const std::vector<NProto::TChunkSpec>& chunkSpecs,
+        NConcurrency::IThroughputThrottlerPtr throttler);
 
     virtual TFuture<void> Open() override;
 
@@ -47,11 +48,11 @@ protected:
     struct TSession
     {
         IChunkReaderBasePtr ChunkReader;
-        int ChunkSpecIndex;
+        int ChunkSpecIndex = -1;
 
         void Reset()
         {
-            ChunkReader = nullptr;
+            ChunkReader.Reset();
             ChunkSpecIndex = -1;
         }
     };
@@ -59,9 +60,11 @@ protected:
     NLogging::TLogger Logger;
 
     TMultiChunkReaderConfigPtr Config_;
-    TMultiChunkReaderOptionsPtr Options_;
+    const TMultiChunkReaderOptionsPtr Options_;
 
-    std::vector<NProto::TChunkSpec> ChunkSpecs_;
+    const std::vector<NProto::TChunkSpec> ChunkSpecs_;
+
+    const NConcurrency::IThroughputThrottlerPtr Throttler_;
 
     TSession CurrentSession_;
 
@@ -92,11 +95,11 @@ protected:
     void RegisterFailedChunk(int chunkIndex);
 
 private:
-    IBlockCachePtr BlockCache_;
-    NRpc::IChannelPtr MasterChannel_;
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const IBlockCachePtr BlockCache_;
+    const NRpc::IChannelPtr MasterChannel_;
+    const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
-    int PrefetchReaderIndex_;
+    int PrefetchReaderIndex_ = 0;
     int PrefetchWindow_;
 
     NConcurrency::TParallelAwaiterPtr FetchingCompletedAwaiter_;
@@ -104,9 +107,9 @@ private:
     TSpinLock FailedChunksLock_;
     std::vector<TChunkId> FailedChunks_;
 
-    bool IsOpen_;
+    bool IsOpen_ = false;
 
-    int OpenedReaderCount_;
+    int OpenedReaderCount_ = 0;
 
     TSpinLock DataStatisticsLock_;
     NProto::TDataStatistics DataStatistics_;
@@ -135,10 +138,11 @@ public:
         NRpc::IChannelPtr masterChannel,
         IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        const std::vector<NProto::TChunkSpec>& chunkSpecs);
+        const std::vector<NProto::TChunkSpec>& chunkSpecs,
+        NConcurrency::IThroughputThrottlerPtr throttler);
 
 private:
-    int NextReaderIndex_;
+    int NextReaderIndex_ = 0;
     std::vector<TPromise<IChunkReaderBasePtr>> NextReaders_;
 
 
@@ -170,13 +174,14 @@ public:
         NRpc::IChannelPtr masterChannel,
         IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        const std::vector<NProto::TChunkSpec>& chunkSpecs);
+        const std::vector<NProto::TChunkSpec>& chunkSpecs,
+        NConcurrency::IThroughputThrottlerPtr throttler);
 
 private:
     typedef NConcurrency::TNonblockingQueue<TSession> TSessionQueue;
 
     TSessionQueue ReadySessions_;
-    int FinishedReaderCount_;
+    int FinishedReaderCount_ = 0;
 
 
     virtual void DoOpen() override;

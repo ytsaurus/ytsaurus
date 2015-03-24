@@ -1,14 +1,10 @@
 ﻿#include "stdafx.h"
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
 namespace NYT {
 namespace NChunkClient {
 
 using namespace NChunkClient::NProto;
-using namespace NTableClient;
-using namespace NTableClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 

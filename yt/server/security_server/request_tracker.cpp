@@ -62,19 +62,21 @@ void TRequestTracker::ChargeUser(TUser* user, int requestCount)
 {
     YCHECK(FlushExecutor_);
 
-    auto* update = user->GetRequestStatisticsUpdate();
-    if (!update) {
-        update = UpdateRequestStatisticsRequest_.add_updates();
-        ToProto(update->mutable_user_id(), user->GetId());
-    
-        user->SetRequestStatisticsUpdate(update);
+    int index = user->GetRequestStatisticsUpdateIndex();
+    if (index < 0) {
+        index = UpdateRequestStatisticsRequest_.updates_size();
+        user->SetRequestStatisticsUpdateIndex(index);
         UsersWithRequestStatisticsUpdate_.push_back(user);
+
+        auto* update = UpdateRequestStatisticsRequest_.add_updates();
+        ToProto(update->mutable_user_id(), user->GetId());
     
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->WeakRefObject(user);
     }
     
     auto now = NProfiling::CpuInstantToInstant(NProfiling::GetCpuInstant());
+    auto* update = UpdateRequestStatisticsRequest_.mutable_updates(index);
     update->set_access_time(now.MicroSeconds());
     update->set_request_counter_delta(update->request_counter_delta() + requestCount);
 }
@@ -83,7 +85,7 @@ void TRequestTracker::Reset()
 {
     auto objectManager = Bootstrap_->GetObjectManager();
     for (auto* user : UsersWithRequestStatisticsUpdate_) {
-        user->SetRequestStatisticsUpdate(nullptr);
+        user->SetRequestStatisticsUpdateIndex(-1);
         objectManager->WeakUnrefObject(user);
     }    
 

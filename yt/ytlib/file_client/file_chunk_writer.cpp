@@ -26,6 +26,7 @@ using namespace NProto;
 using namespace NRpc;
 using namespace NTransactionClient;
 using namespace NApi;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,7 +201,8 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     TMultiChunkWriterOptionsPtr options,
     IChannelPtr masterChannel,
     const TTransactionId& transactionId,
-    const TChunkListId& parentChunkListId)
+    const TChunkListId& parentChunkListId,
+    IThroughputThrottlerPtr throttler)
 {
     typedef TMultiChunkWriterBase<
         IFileMultiChunkWriter,
@@ -220,7 +222,8 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
         masterChannel, 
         transactionId, 
         parentChunkListId, 
-        createChunkWriter);
+        createChunkWriter,
+        throttler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

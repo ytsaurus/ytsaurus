@@ -65,7 +65,6 @@
 
 // TODO(babenko): refactor this
 #include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/table_ypath_proxy.h>
@@ -167,13 +166,19 @@ private:
 
     void OnResponse(
         const TTableSchema& schema,
-        TQueryServiceProxy::TRspExecutePtr response)
+        const TQueryServiceProxy::TErrorOrRspExecutePtr& responseOrError)
     {
+        if (!responseOrError.IsOK()) {
+            QueryResult_.Set(responseOrError);
+            THROW_ERROR responseOrError;
+        }
+        const auto& response = responseOrError.Value();
+
         QueryResult_.Set(FromProto(response->query_statistics()));
 
         YCHECK(!ProtocolReader_);
         auto data  = NCompression::DecompressWithEnvelope(response->Attachments());
-        ProtocolReader_.reset(new TWireProtocolReader(data));
+        ProtocolReader_ = std::make_unique<TWireProtocolReader>(data);
 
         YCHECK(!RowsetReader_);
         RowsetReader_ = ProtocolReader_->CreateSchemafulRowsetReader();
@@ -253,68 +258,68 @@ private:
     }
 
 
-    TDataSplits Split(
-        const TDataSplits& splits,
+    std::vector<std::pair<TDataSource, TChunkReplica>> Split(
+        const TDataSources& sources,
         TNodeDirectoryPtr nodeDirectory,
-        const NLogging::TLogger& Logger)
+        const NLogging::TLogger& Logger,
+        bool verboseLogging)
     {
-        TDataSplits allSplits;
-        for (const auto& split : splits) {
-            auto objectId = GetObjectIdFromDataSplit(split);
+        std::vector<std::pair<TDataSource, TChunkReplica>> result;
+        for (const auto& source : sources) {
+            auto objectId = source.Id;
             auto type = TypeFromId(objectId);
 
             if (type != EObjectType::Table) {
-                allSplits.push_back(split);
                 continue;
             }
 
-            auto newSplits = SplitFurther(split, nodeDirectory);
+            auto newSources = SplitFurther(source, nodeDirectory);
 
-            LOG_DEBUG("Got %v splits for input %v", newSplits.size(), objectId);
+            LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v", newSources.size(), objectId);
 
-            allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
+            result.insert(result.end(), newSources.begin(), newSources.end());
         }
 
-        return allSplits;
+        return result;
     }
 
-    std::vector<TDataSplit> SplitFurther(
-        const TDataSplit& split,
+    std::vector<std::pair<TDataSource, TChunkReplica>> SplitFurther(
+        const TDataSource& source,
         TNodeDirectoryPtr nodeDirectory)
     {
-        auto objectId = GetObjectIdFromDataSplit(split);
+        auto objectId = source.Id;
 
-        std::vector<TDataSplit> subsplits;
+        std::vector<std::pair<TDataSource, TChunkReplica>> subsources;
         switch (TypeFromId(objectId)) {
             case EObjectType::Table:
-                subsplits = SplitTableFurther(split, std::move(nodeDirectory));
+                subsources = SplitTableFurther(source, std::move(nodeDirectory));
                 break;
 
             default:
                 YUNREACHABLE();
         }
 
-        return subsplits;
+        return subsources;
     }
 
-    std::vector<TDataSplit> SplitTableFurther(
-        const TDataSplit& split,
+    std::vector<std::pair<TDataSource, TChunkReplica>> SplitTableFurther(
+        const TDataSource& source,
         TNodeDirectoryPtr nodeDirectory)
     {
-        auto tableId = GetObjectIdFromDataSplit(split);
+        auto tableId = source.Id;
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
         return tableInfo->Sorted
-            ? SplitSortedTableFurther(split, std::move(nodeDirectory))
-            : SplitUnsortedTableFurther(split, std::move(nodeDirectory), std::move(tableInfo));
+            ? SplitSortedTableFurther(source, std::move(nodeDirectory))
+            : SplitUnsortedTableFurther(source, std::move(nodeDirectory), std::move(tableInfo));
     }
 
-    std::vector<TDataSplit> SplitSortedTableFurther(
-        const TDataSplit& split,
+    std::vector<std::pair<TDataSource, TChunkReplica>> SplitSortedTableFurther(
+        const TDataSource& source,
         TNodeDirectoryPtr nodeDirectory)
     {
-        auto tableId = GetObjectIdFromDataSplit(split);
+        auto tableId = source.Id;
 
         // TODO(babenko): refactor and optimize
         TObjectServiceProxy proxy(MasterChannel_);
@@ -329,8 +334,8 @@ private:
         nodeDirectory->MergeFrom(rsp->node_directory());
 
         auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-        auto keyColumns = GetKeyColumnsFromDataSplit(split);
-        auto schema = GetTableSchemaFromDataSplit(split);
+
+        std::vector<std::pair<TDataSource, TChunkReplica>> result;
 
         for (auto& chunkSpec : chunkSpecs) {
             auto chunkKeyColumns = FindProtoExtension<TKeyColumnsExt>(chunkSpec.chunk_meta().extensions());
@@ -341,37 +346,44 @@ private:
             YCHECK(!chunkKeyColumns);
             YCHECK(!chunkSchema);
 
-            SetKeyColumns(&chunkSpec, keyColumns);
-            SetTableSchema(&chunkSpec, schema);
-
             TOwningKey chunkLowerBound, chunkUpperBound;
             if (TryGetBoundaryKeys(chunkSpec.chunk_meta(), &chunkLowerBound, &chunkUpperBound)) {
                 chunkUpperBound = GetKeySuccessor(chunkUpperBound.Get());
                 SetLowerBound(&chunkSpec, chunkLowerBound);
                 SetUpperBound(&chunkSpec, chunkUpperBound);
             }
+
+            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+            if (replicas.empty()) {
+                auto objectId = GetObjectIdFromDataSplit(chunkSpec);
+                THROW_ERROR_EXCEPTION("No alive replicas for source %v",
+                    objectId);
+            }
+            auto replica = replicas[RandomNumber(replicas.size())];
+
+            result.emplace_back(TDataSource{
+                GetObjectIdFromDataSplit(chunkSpec),
+                GetBothBoundsFromDataSplit(chunkSpec)},
+                replica);
         }
 
-        return chunkSpecs;
+        return result;
     }
 
-    std::vector<TDataSplit> SplitUnsortedTableFurther(
-        const TDataSplit& split,
+    std::vector<std::pair<TDataSource, TChunkReplica>> SplitUnsortedTableFurther(
+        const TDataSource& source,
         TNodeDirectoryPtr nodeDirectory,
         TTableMountInfoPtr tableInfo)
     {
-        auto tableId = GetObjectIdFromDataSplit(split);
+        auto tableId = source.Id;
 
         if (tableInfo->Tablets.empty()) {
             THROW_ERROR_EXCEPTION("Table %v is neither sorted nor has tablets",
                 tableId);
         }
 
-        auto lowerBound = GetLowerBoundFromDataSplit(split);
-        auto upperBound = GetUpperBoundFromDataSplit(split);
-        auto keyColumns = GetKeyColumnsFromDataSplit(split);
-        auto schema = GetTableSchemaFromDataSplit(split);
-        auto timestamp = GetTimestampFromDataSplit(split);
+        auto lowerBound = source.Range.first;
+        auto upperBound = source.Range.second;
 
         // Run binary search to find the relevant tablets.
         auto startIt = std::upper_bound(
@@ -382,7 +394,7 @@ private:
                 return key < tabletInfo->PivotKey;
             }) - 1;
 
-        std::vector<TDataSplit> subsplits;
+        std::vector<std::pair<TDataSource, TChunkReplica>> subsources;
         for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
             const auto& tabletInfo = *it;
             if (upperBound <= tabletInfo->PivotKey)
@@ -394,27 +406,30 @@ private:
                     tabletInfo->TabletId);
             }
 
-            TDataSplit subsplit;
-            SetObjectId(&subsplit, tabletInfo->TabletId);
-            SetKeyColumns(&subsplit, keyColumns);
-            SetTableSchema(&subsplit, schema);
+            TDataSource subsource;
+            subsource.Id = tabletInfo->TabletId;
 
             auto pivotKey = tabletInfo->PivotKey;
             auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
 
-            SetLowerBound(&subsplit, std::max(lowerBound, pivotKey));
-            SetUpperBound(&subsplit, std::min(upperBound, nextPivotKey));
-            SetTimestamp(&subsplit, timestamp);
+            subsource.Range.first = std::max(lowerBound, pivotKey);
+            subsource.Range.second = std::min(upperBound, nextPivotKey);
 
-            for (const auto& tabletReplica : tabletInfo->Replicas) {
-                nodeDirectory->AddDescriptor(tabletReplica.Id, tabletReplica.Descriptor);
-                TChunkReplica chunkReplica(tabletReplica.Id, 0);
-                subsplit.add_replicas(ToProto<ui32>(chunkReplica));
+            const auto& replicas = tabletInfo->Replicas;
+
+            if (replicas.empty()) {
+                auto objectId = tabletInfo->TabletId;
+                THROW_ERROR_EXCEPTION("No alive replicas for source %v",
+                    objectId);
             }
 
-            subsplits.push_back(std::move(subsplit));
+            auto replica = replicas[RandomNumber(replicas.size())];
+            nodeDirectory->AddDescriptor(replica.Id, replica.Descriptor);
+            TChunkReplica chunkReplica(replica.Id, 0);
+
+            subsources.emplace_back(std::move(subsource), chunkReplica);
         }
-        return subsplits;
+        return subsources;
     }
 
 
@@ -425,29 +440,22 @@ private:
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto prunedSplits = GetPrunedSplits(
+        auto prunedSources = GetPrunedSources(
             fragment->Query,
-            fragment->DataSplits,
-            Connection_->GetColumnEvaluatorCache());
-        auto splits = Split(prunedSplits, nodeDirectory, Logger);
+            fragment->DataSources,
+            Connection_->GetColumnEvaluatorCache(),
+            fragment->VerboseLogging);
+        auto splits = Split(prunedSources, nodeDirectory, Logger, fragment->VerboseLogging);
 
         LOG_DEBUG("Regrouping %v splits", splits.size());
 
-        std::map<Stroka, TDataSplits> groups;
+        std::map<Stroka, TDataSources> groups;
         for (const auto& split : splits) {
-            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(split.replicas());
-            if (replicas.empty()) {
-                auto objectId = GetObjectIdFromDataSplit(split);
-                THROW_ERROR_EXCEPTION("No alive replicas for split %v",
-                    objectId);
-            }
-            auto replica = replicas[RandomNumber(replicas.size())];
-            auto descriptor = nodeDirectory->GetDescriptor(replica);
-
-            groups[descriptor.GetInterconnectAddress()].push_back(split);
+            auto descriptor = nodeDirectory->GetDescriptor(split.second);
+            groups[descriptor.GetInterconnectAddress()].push_back(split.first);
         }
 
-        std::vector<std::pair<TDataSplits, Stroka>> groupedSplits;
+        std::vector<std::pair<TDataSources, Stroka>> groupedSplits;
         std::vector<TKeyRange> ranges;
         for (const auto& group : groups) {
             if (group.second.empty()) {
@@ -458,28 +466,36 @@ private:
             ranges.push_back(GetRange(group.second));
         }
 
+        LOG_DEBUG("Regrouped into %v groups", groups.size());
+
         return CoordinateAndExecute(
             fragment,
             writer,
             false,
             ranges,
-            [&] (const TConstQueryPtr& subquery, size_t index) {
+            [&] (const TConstQueryPtr& subquery, int index) {
                 auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = nodeDirectory;
-                subfragment->DataSplits = groupedSplits[index].first;
-                subfragment->ForeignDataSplit = fragment->ForeignDataSplit;
+                subfragment->Timestamp = fragment->Timestamp;
+                subfragment->DataSources = groupedSplits[index].first;
+                subfragment->ForeignDataSource = fragment->ForeignDataSource;
                 subfragment->Query = subquery;
+                subfragment->VerboseLogging = fragment->VerboseLogging;
 
-                LOG_DEBUG("Delegating subfragment (SubfragmentId: %v) to %v",
+                const auto& address = groupedSplits[index].second;
+
+                LOG_DEBUG("Delegating subfragment (SubfragmentId: %v, Address: %v)",
                     subquery->Id,
-                    groupedSplits[index].second);
+                    address);
 
-                return Delegate(subfragment, groupedSplits[index].second);
+                return Delegate(subfragment, address);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+                LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
                 return evaluator->Run(topQuery, std::move(reader), std::move(writer));
-            });
+            },
+            false);
     }
 
     TQueryStatistics DoExecuteOrdered(
@@ -489,21 +505,22 @@ private:
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto prunedSplits = GetPrunedSplits(
+        auto prunedSplits = GetPrunedSources(
             fragment->Query,
-            fragment->DataSplits,
-            Connection_->GetColumnEvaluatorCache());
-        auto splits = Split(prunedSplits, nodeDirectory, Logger);
+            fragment->DataSources,
+            Connection_->GetColumnEvaluatorCache(),
+            fragment->VerboseLogging);
+        auto splits = Split(prunedSplits, nodeDirectory, Logger, fragment->VerboseLogging);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
-        std::sort(splits.begin(), splits.end(), [] (const TDataSplit& lhs, const TDataSplit& rhs) {
-            return GetLowerBoundFromDataSplit(lhs) < GetLowerBoundFromDataSplit(rhs);
+        std::sort(splits.begin(), splits.end(), [] (const std::pair<TDataSource, TChunkReplica>& lhs, const std::pair<TDataSource, TChunkReplica>& rhs) {
+            return lhs.first.Range.first < rhs.first.Range.first;
         });
 
         std::vector<TKeyRange> ranges;
         for (auto const& split : splits) {
-            ranges.push_back(GetBothBoundsFromDataSplit(split));
+            ranges.push_back(split.first.Range);
         }
 
         return CoordinateAndExecute(
@@ -511,26 +528,23 @@ private:
             writer,
             true,
             ranges,
-            [&] (const TConstQueryPtr& subquery, size_t index) {
-                auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(splits[index].replicas());
-                if (replicas.empty()) {
-                    auto objectId = GetObjectIdFromDataSplit(splits[index]);
-                    THROW_ERROR_EXCEPTION("No alive replicas for split %v", objectId);
-                }
-                auto replica = replicas[RandomNumber(replicas.size())];
-                auto descriptor = nodeDirectory->GetDescriptor(replica);
+            [&] (const TConstQueryPtr& subquery, int index) {
+                auto descriptor = nodeDirectory->GetDescriptor(splits[index].second);
+                const auto& address = descriptor.GetInterconnectAddress();
 
-                LOG_DEBUG("Delegating subquery (SubqueryId: %v)", subquery->Id);
+                LOG_DEBUG("Delegating subquery (SubqueryId: %v) to %v", subquery->Id, address);
 
                 auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = nodeDirectory;
-                subfragment->DataSplits.push_back(splits[index]);
-                subfragment->ForeignDataSplit = fragment->ForeignDataSplit;
+                subfragment->DataSources.push_back(splits[index].first);
+                subfragment->ForeignDataSource = fragment->ForeignDataSource;
                 subfragment->Query = subquery;
+                subfragment->VerboseLogging = fragment->VerboseLogging;
 
-                return Delegate(subfragment, descriptor.GetInterconnectAddress());
+                return Delegate(subfragment, address);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+                LOG_DEBUG("Evaluating topquery (TopqueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
                 return evaluator->Run(topQuery, std::move(reader), std::move(writer));
             });
@@ -666,6 +680,7 @@ public:
     { \
         return Execute( \
             #method, \
+            options, \
             BIND( \
                 &TClient::Do ## method, \
                 MakeStrong(this), \
@@ -847,19 +862,27 @@ public:
         const TStartOperationOptions& options),
         (type, spec, options))
     IMPLEMENT_METHOD(void, AbortOperation, (
-        const TOperationId& operationId),
-        (operationId))
+        const TOperationId& operationId,
+        const TAbortOperationOptions& options),
+        (operationId, options))
     IMPLEMENT_METHOD(void, SuspendOperation, (
-        const TOperationId& operationId),
-        (operationId))
+        const TOperationId& operationId,
+        const TSuspendOperationOptions& options),
+        (operationId, options))
     IMPLEMENT_METHOD(void, ResumeOperation, (
-        const TOperationId& operationId),
-        (operationId))
+        const TOperationId& operationId,
+        const TResumeOperationOptions& options),
+        (operationId, options))
 
-    IMPLEMENT_METHOD(void, DumpInputContext, (
+    IMPLEMENT_METHOD(void, DumpJobInputContext, (
         const TJobId& jobId,
-        const TYPath& path),
-        (jobId, path))
+        const TYPath& path,
+        const TDumpJobInputContextOptions& options),
+        (jobId, path, options))
+    IMPLEMENT_METHOD(TYsonString, StraceJob, (
+        const TJobId& jobId,
+        const TStraceJobOptions& options),
+        (jobId, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -892,7 +915,10 @@ private:
 
 
     template <class T>
-    TFuture<T> Execute(const Stroka& commandName, TCallback<T()> callback)
+    TFuture<T> Execute(
+        const Stroka& commandName,
+        const TTimeoutOptions& options,
+        TCallback<T()> callback)
     {
         return
             BIND([=, this_ = MakeStrong(this)] () {
@@ -907,7 +933,8 @@ private:
                 }
             })
             .AsyncVia(Invoker_)
-            .Run();
+            .Run()
+            .WithTimeout(options.Timeout);
     }
 
 
@@ -916,6 +943,12 @@ private:
         const auto& tableMountCache = Connection_->GetTableMountCache();
         return WaitFor(tableMountCache->GetTableInfo(path))
             .ValueOrThrow();
+    }
+
+    bool SyncForgetTableInfo(const TYPath& path)
+    {
+        const auto& tableMountCache = Connection_->GetTableMountCache();
+        return tableMountCache->EraseTableInfo(path);
     }
 
     static TTabletInfoPtr SyncGetTabletInfo(
@@ -938,12 +971,8 @@ private:
         if (options.MutationId == NullMutationId) {
             options.MutationId = NRpc::GenerateMutationId();
         }
-        SetMutationId(request, options.MutationId);
+        SetMutationId(request, options.MutationId, options.Retry);
         ++options.MutationId.Parts32[1];
-
-        if (options.Retry) {
-            request->SetRetry(true);
-        }
     }
 
 
@@ -969,11 +998,10 @@ private:
             THROW_ERROR_EXCEPTION("A valid master transaction is required");
         }
 
-        TTransactionAttachOptions attachOptions(options.TransactionId);
-        attachOptions.AutoAbort = false;
+        TTransactionAttachOptions attachOptions;
         attachOptions.Ping = pingTransaction;
         attachOptions.PingAncestors = options.PingAncestors;
-        return TransactionManager_->Attach(attachOptions);
+        return TransactionManager_->Attach(options.TransactionId, attachOptions);
     }
 
     void SetTransactionId(
@@ -1269,6 +1297,7 @@ private:
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
+        fragment->VerboseLogging = options.VerboseLogging;
         auto statistics = WaitFor(QueryHelper_->Execute(fragment, writer))
             .ValueOrThrow();
         if (options.FailOnIncompleteResult) {
@@ -1303,6 +1332,7 @@ private:
         auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
+        SyncForgetTableInfo(path);
     }
 
     void DoUnmountTable(
@@ -1321,6 +1351,7 @@ private:
         auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
+        SyncForgetTableInfo(path);
     }
 
     void DoRemountTable(
@@ -1338,6 +1369,7 @@ private:
         auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
+        SyncForgetTableInfo(path);
     }
 
     void DoReshardTable(
@@ -1357,6 +1389,7 @@ private:
         auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
+        SyncForgetTableInfo(path);
     }
 
 
@@ -1693,7 +1726,9 @@ private:
         return FromProto<TOperationId>(rsp->operation_id());
     }
 
-    void DoAbortOperation(const TOperationId& operationId)
+    void DoAbortOperation(
+        const TOperationId& operationId,
+        const TAbortOperationOptions& /*options*/)
     {
         auto req = SchedulerProxy_->AbortOperation();
         ToProto(req->mutable_operation_id(), operationId);
@@ -1702,7 +1737,9 @@ private:
             .ThrowOnError();
     }
 
-    void DoSuspendOperation(const TOperationId& operationId)
+    void DoSuspendOperation(
+        const TOperationId& operationId,
+        const TSuspendOperationOptions& /*options*/)
     {
         auto req = SchedulerProxy_->SuspendOperation();
         ToProto(req->mutable_operation_id(), operationId);
@@ -1711,7 +1748,9 @@ private:
             .ThrowOnError();
     }
 
-    void DoResumeOperation(const TOperationId& operationId)
+    void DoResumeOperation(
+        const TOperationId& operationId,
+        const TResumeOperationOptions& /*options*/)
     {
         auto req = SchedulerProxy_->ResumeOperation();
         ToProto(req->mutable_operation_id(), operationId);
@@ -1721,7 +1760,10 @@ private:
     }
 
 
-    void DoDumpInputContext(const TJobId& jobId, const TYPath& path)
+    void DoDumpJobInputContext(
+        const TJobId& jobId,
+        const TYPath& path,
+        const TDumpJobInputContextOptions& /*options*/)
     {
         auto req = JobProberProxy_->DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
@@ -1731,6 +1773,18 @@ private:
             .ThrowOnError();
     }
 
+    TYsonString DoStraceJob(
+        const TJobId& jobId,
+        const TStraceJobOptions& /*options*/)
+    {
+        auto req = JobProberProxy_->Strace();
+        ToProto(req->mutable_job_id(), jobId);
+
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        return TYsonString(FromProto<Stroka>(rsp->trace()));
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

@@ -109,6 +109,7 @@ set( HDRS
   ${BASE}/ref_tracked.h
   ${BASE}/ring_queue.h
   ${BASE}/serialize.h
+  ${BASE}/serialize_dump.h
   ${BASE}/singleton.h
   ${BASE}/small_set.h
   ${BASE}/small_string.h
@@ -127,7 +128,6 @@ set( HDRS
   ${BASE}/collection_helpers-inl.h
   ${BASE}/lock_free.h
   ${BASE}/lock_free-inl.h
-  ${BASE}/ioprio.h
   ${BASE}/variant.h
   ${BASE}/variant-inl.h
   ${BASE}/any.h

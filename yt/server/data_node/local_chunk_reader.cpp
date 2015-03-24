@@ -95,8 +95,11 @@ public:
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
     {
-        // TODO(babenko): implement when first needed
-        YUNIMPLEMENTED();
+        std::vector<int> blockIndexes;
+        for (int index = firstBlockIndex; index < firstBlockIndex + blockCount; ++index) {
+            blockIndexes.push_back(index);
+        }
+        return ReadBlocks(blockIndexes);
     }
 
     virtual TFuture<TChunkMeta> GetMeta(

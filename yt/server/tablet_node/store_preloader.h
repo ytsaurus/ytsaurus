@@ -1,13 +1,19 @@
-#include "stdafx.h"
+#pragma once
+
 #include "public.h"
 
+#include <server/cell_node/public.h>
+
 namespace NYT {
-namespace NTableClient {
+namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void StartStorePreloader(
+    TTabletNodeConfigPtr config,
+    NCellNode::TBootstrap* bootstrap);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NTabletNode
 } // namespace NYT
-

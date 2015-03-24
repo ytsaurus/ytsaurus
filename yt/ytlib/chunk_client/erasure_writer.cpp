@@ -16,6 +16,7 @@
 #include <core/ytree/yson_serializable.h>
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
+#include <ytlib/chunk_client/chunk_info.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -452,7 +453,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     NErasure::ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
     NRpc::IChannelPtr masterChannel,
-    EWriteSessionType sessionType)
+    EWriteSessionType sessionType,
+    IThroughputThrottlerPtr throttler)
 {
     // Patch writer configs to ignore upload replication factor for erasure chunk parts.
     auto config_ = NYTree::CloneYsonSerializable(config);
@@ -490,7 +492,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             TChunkReplicaList(1, replicas[index]),
             nodeDirectory,
             nullptr,
-            sessionType));
+            sessionType,
+            throttler));
     }
 
     return writers;

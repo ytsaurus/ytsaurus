@@ -48,7 +48,7 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)
         snapshotId = maxSnapshotId;
     } else {
         snapshotId = FileStore_->GetLatestSnapshotId(maxSnapshotId);
-        if (snapshotId == NonexistingSegmentId) {
+        if (snapshotId == InvalidSegmentId) {
             THROW_ERROR_EXCEPTION(
                 NHydra::EErrorCode::NoSuchSnapshot,
                 "No appropriate snapshots in store");

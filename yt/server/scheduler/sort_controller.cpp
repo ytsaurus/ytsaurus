@@ -7,27 +7,9 @@
 #include "job_resources.h"
 #include "helpers.h"
 
-#include <core/misc/string.h>
-
-#include <core/concurrency/scheduler.h>
-
-#include <core/ytree/fluent.h>
-
-#include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/chunk_spec.h>
-
 #include <ytlib/new_table_client/samples_fetcher.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schemaless_block_writer.h>
-
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_spec.pb.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-
-#include <server/job_proxy/config.h>
 
 #include <cmath>
 
@@ -38,7 +20,6 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
 using namespace NChunkServer;
-using namespace NTableClient;
 using namespace NVersionedTableClient;
 using namespace NJobProxy;
 using namespace NObjectClient;
@@ -300,7 +281,8 @@ protected:
             , Controller(controller)
             , ChunkPool(CreateUnorderedChunkPool(
                 Controller->NodeDirectory,
-                Controller->PartitionJobCounter.GetTotal()))
+                Controller->PartitionJobCounter.GetTotal(),
+                Controller->Config->MaxChunkStripesPerJob))
         { }
 
         virtual Stroka GetId() const override
@@ -1188,7 +1170,8 @@ protected:
             maxResourceLimits = Max(maxResourceLimits, node->ResourceLimits());
         }
         for (auto node : nodes) {
-            double weight = GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits);
+            double weight = std::min(
+                    1.0, GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits));
             if (weight > 0) {
                 auto assignedNode = New<TAssignedNode>(node, weight);
                 nodeHeap.push_back(assignedNode);
@@ -1259,7 +1242,8 @@ protected:
     {
         SimpleSortPool = CreateUnorderedChunkPool(
             NodeDirectory,
-            sortJobCount);
+            sortJobCount,
+            Config->MaxChunkStripesPerJob);
     }
 
     virtual bool IsCompleted() const override
@@ -1275,7 +1259,7 @@ protected:
                 totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
             }
             i64 totalOutputRowCount = 0;
-            for (const auto& statistics : TotalOutputsDataStatistics) {
+            for (const auto& statistics : OutputDataStatistics) {
                 totalOutputRowCount += statistics.row_count();
             }
             if (totalInputRowCount != totalOutputRowCount) {
@@ -1419,7 +1403,7 @@ protected:
 
     i64 GetSortBuffersMemorySize(const TChunkStripeStatistics& stat) const
     {
-        return (i64) 16 * Spec->SortBy.size() * stat.RowCount + (i64) 12 * stat.RowCount;
+        return (i64) 16 * Spec->SortBy.size() * stat.RowCount + (i64) 20 * stat.RowCount;
     }
 
     i64 GetRowCountEstimate(TPartitionPtr partition, i64 dataSize) const
@@ -1732,8 +1716,13 @@ private:
 
         std::vector<const TOwningKey*> sortedSamples;
         sortedSamples.reserve(sampleCount);
-        for (const auto& sample : samples) {
-            sortedSamples.push_back(&sample);
+        try {
+            for (const auto& sample : samples) {
+                ValidateKey(sample);
+                sortedSamples.push_back(&sample);
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error validating table samples") << ex;
         }
 
         std::sort(
@@ -2016,6 +2005,7 @@ private:
         const TChunkStripeStatistics& stat,
         i64 valueCount) const override
     {
+        // ToDo(psushin): rewrite simple sort estimates.
         TNodeResources result;
         result.set_user_slots(1);
         result.set_cpu(1);
@@ -2599,26 +2589,32 @@ private:
     {
         TNodeResources result;
         result.set_user_slots(1);
-        if (IsSortedMergeNeeded(partition)) {
-            result.set_cpu(Spec->ReduceCombiner ? Spec->ReduceCombiner->CpuLimit : 1);
-            result.set_memory(
-                GetSortInputIOMemorySize(stat) +
-                GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
-                GetSortBuffersMemorySize(stat) +
-                (Spec->ReduceCombiner ? GetMemoryReserve(memoryReserveEnabled, Spec->ReduceCombiner) : 0) +
-                GetFootprintMemorySize());
-        } else {
+
+        if (!IsSortedMergeNeeded(partition)) {
             result.set_cpu(Spec->Reducer->CpuLimit);
             result.set_memory(
                 GetSortInputIOMemorySize(stat) +
                 GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
                 GetSortBuffersMemorySize(stat) +
-                // Sorting reader extra memory compared to partition_sort job, because it uses
-                // separate buffer of i32 to write out sorted indexes.
-                4 * stat.RowCount +
                 GetMemoryReserve(memoryReserveEnabled, Spec->Reducer) +
                 GetFootprintMemorySize());
+        } else if (Spec->ReduceCombiner) {
+            result.set_cpu(Spec->ReduceCombiner->CpuLimit);
+            result.set_memory(
+                GetSortInputIOMemorySize(stat) +
+                GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
+                GetSortBuffersMemorySize(stat) +
+                GetMemoryReserve(memoryReserveEnabled, Spec->ReduceCombiner) +
+                GetFootprintMemorySize());
+        } else {
+            result.set_cpu(1);
+            result.set_memory(
+                GetSortInputIOMemorySize(stat) +
+                GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
+                GetSortBuffersMemorySize(stat) +
+                GetFootprintMemorySize());
         }
+
         result.set_network(Spec->ShuffleNetworkLimit);
         return result;
     }

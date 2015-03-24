@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "rpc_helpers.h"
 
-#include <core/ytree/attribute_helpers.h>
-
 #include <core/rpc/client.h>
 #include <core/rpc/service.h>
 

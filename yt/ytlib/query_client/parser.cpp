@@ -2411,8 +2411,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 } } } // NYT::NQueryClient::NAst
 
 
-#include <core/misc/format.h>
-
 namespace NYT {
 namespace NQueryClient {
 namespace NAst {

@@ -6,21 +6,9 @@
 #include "chunk_pool.h"
 #include "job_resources.h"
 
-#include <core/ytree/fluent.h>
-
-#include <core/rpc/helpers.h>
-
-#include <ytlib/api/connection.h>
-
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_slice.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_directory_builder.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-
-#include <server/job_proxy/config.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -95,7 +83,10 @@ private:
                 int jobCount)
             : TTask(controller)
             , Controller_(controller)
-            , ChunkPool_(CreateUnorderedChunkPool(Controller_->NodeDirectory, jobCount))
+            , ChunkPool_(CreateUnorderedChunkPool(
+                Controller_->NodeDirectory,
+                jobCount,
+                Controller_->Config->MaxChunkStripesPerJob))
         { }
 
         virtual Stroka GetId() const override

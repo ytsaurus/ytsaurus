@@ -14,6 +14,15 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkListDynamicData
+    : public NHydra::TEntityDynamicDataBase
+{
+    //! Used to mark visited chunk lists with "unique" marks.
+    ui64 VisitMark = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkList
     : public TChunkTree
     , public TRefTracked<TChunkList>
@@ -43,13 +52,14 @@ public:
     // Enables optimistic locking during chunk tree traversing.
     DEFINE_BYVAL_RO_PROPERTY(int, Version);
 
-    // Used to mark visited chunk lists with "unique" marks.
-    DEFINE_BYVAL_RW_PROPERTY(ui64, VisitMark);
-
+    ui64 GetVisitMark() const;
+    void SetVisitMark(ui64 value);
     static ui64 GenerateVisitMark();
 
 public:
     explicit TChunkList(const TChunkListId& id);
+
+    TChunkListDynamicData* GetDynamicData() const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "evaluator.h"
 
-
 #include "helpers.h"
 #include "private.h"
 #include "plan_fragment.h"
@@ -10,26 +9,14 @@
 
 #ifdef YT_USE_LLVM
 #include "evaluation_helpers.h"
-#include "cg_fragment_compiler.h"
-#include "cg_routines.h"
 #include "folding_profiler.h"
-
 #endif
 
 #include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/row_buffer.h>
-
-#include <ytlib/query_client/plan_fragment.pb.h>
-
-#include <core/concurrency/scheduler.h>
 
 #include <core/profiling/scoped_timer.h>
 
 #include <core/misc/sync_cache.h>
-
-#include <core/logging/log.h>
-
-#include <core/tracing/trace_context.h>
 
 #ifdef YT_USE_LLVM
 
@@ -39,8 +26,6 @@
 #include <llvm/Support/TargetSelect.h>
 
 #endif
-
-#include <mutex>
 
 namespace NYT {
 namespace NQueryClient {
@@ -119,9 +104,7 @@ public:
 
                 TExecutionContext executionContext;
                 executionContext.Reader = reader.Get();
-                executionContext.Schema = query->JoinClause
-                    ? query->JoinClause->SelfTableSchema
-                    : query->TableSchema;
+                executionContext.Schema = query->TableSchema;
 
                 executionContext.LiteralRows = &fragmentParams.LiteralRows;
                 executionContext.PermanentBuffer = &permanentBuffer;
@@ -137,11 +120,12 @@ public:
                 executionContext.Limit = query->Limit;
 
                 if (query->JoinClause) {
-                    auto& joinClause = query->JoinClause.Get();
+                    auto joinClause = query->JoinClause.Get();
                     YCHECK(executeCallback);
                     executionContext.EvaluateJoin = GetJoinEvaluator(
-                        joinClause,
-                        query->Predicate,
+                        *joinClause,
+                        query->WhereClause,
+                        query->TableSchema,
                         executeCallback);
                 }
 
@@ -193,38 +177,34 @@ public:
             TRACE_ANNOTATION("incomplete_output", statistics.IncompleteOutput);
 
             return statistics;
-        }        
+        }
     }
 
 private:
     TCGQueryCallback Codegen(const TConstQueryPtr& query, TCGVariables& variables)
     {
         llvm::FoldingSetNodeID id;
-        TCGBinding binding;
 
-        TFoldingProfiler()
-            .Set(id)
-            .Set(binding)
-            .Set(variables)
-            .Profile(query);
+        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr);
+
         auto Logger = BuildLogger(query);
 
         auto cgQuery = Find(id);
-        if (!cgQuery) {
+        if (cgQuery) {
+            LOG_TRACE("Codegen cache hit");
+        } else {
             LOG_DEBUG("Codegen cache miss");
             try {
                 TRACE_CHILD("QueryClient", "Compile") {
                     LOG_DEBUG("Started compiling fragment");
-                    cgQuery = New<TCachedCGQuery>(id, CodegenEvaluate(query, binding));
+                    cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
                     LOG_DEBUG("Finished compiling fragment");
                     TryInsert(cgQuery, &cgQuery);
                 }
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to compile a fragment")
+                THROW_ERROR_EXCEPTION("Failed to compile a query fragment")
                     << ex;
             }
-        } else {
-            LOG_DEBUG("Codegen cache hit");
         }
 
         return cgQuery->GetQueryCallback();

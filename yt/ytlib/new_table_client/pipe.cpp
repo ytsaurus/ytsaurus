@@ -4,8 +4,6 @@
 #include "schemaful_writer.h"
 #include "row_buffer.h"
 
-#include <core/actions/future.h>
-
 #include <core/misc/ring_queue.h>
 
 namespace NYT {
@@ -17,14 +15,14 @@ struct TSchemafulPipe::TData
     : public TIntrinsicRefCounted
 {
     TSpinLock SpinLock;
-    
+
     TPromise<void> WriterOpened = NewPromise<void>();
 
     TTableSchema Schema;
 
     TRowBuffer RowBuffer;
     TRingQueue<TUnversionedRow> RowQueue;
-    
+
     TPromise<void> ReaderReadyEvent = NewPromise<void>();
     TPromise<void> WriterReadyEvent = NewPromise<void>();
 
@@ -61,7 +59,7 @@ public:
 
         {
             TGuard<TSpinLock> guard(Data_->SpinLock);
-            
+
             YCHECK(Data_->ReaderOpened);
 
             if (Data_->WriterClosed && Data_->RowsWritten == Data_->RowsRead) {
@@ -100,7 +98,7 @@ private:
     {
         {
             TGuard<TSpinLock> guard(Data_->SpinLock);
-            
+
             YCHECK(!Data_->ReaderOpened);
             Data_->ReaderOpened = true;
         }
@@ -245,6 +243,7 @@ public:
             writerReadyEvent = Data_->WriterReadyEvent;
         }
 
+        Data_->WriterOpened.TrySet(error);
         readerReadyEvent.Set(error);
         writerReadyEvent.Set(error);
     }

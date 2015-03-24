@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/signal.h>
+
 #include <core/yson/public.h>
 
 #include <ytlib/new_table_client/public.h>
@@ -24,9 +26,9 @@ struct IStore
 
     virtual EStoreType GetType() const = 0;
 
-    virtual EStoreState GetState() const = 0;
-    EStoreState GetPersistentState() const;
-    virtual void SetState(EStoreState state) = 0;
+    virtual EStoreState GetStoreState() const = 0;
+    EStoreState GetPersistentStoreState() const;
+    virtual void SetStoreState(EStoreState state) = 0;
 
     TDynamicMemoryStorePtr AsDynamicMemory();
     TChunkStorePtr AsChunk();
@@ -80,6 +82,12 @@ struct IStore
         TKey key,
         TTransaction* transaction,
         ui32 lockMask) = 0;
+
+    //! Returns the number of bytes currently used by the store.
+    virtual i64 GetMemoryUsage() const = 0;
+
+    //! Raised whenever the store memory usage is changed.
+    DECLARE_INTERFACE_SIGNAL(void(i64 delta), MemoryUsageUpdated);
 
 
     virtual void Save(TSaveContext& context) const = 0;

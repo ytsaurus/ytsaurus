@@ -45,9 +45,6 @@ TPartitionChunkReader::TPartitionChunkReader(
     , KeyColumns_(keyColumns)
     , ChunkMeta_(masterMeta)
     , PartitionTag_(partitionTag)
-    , CurrentBlockIndex_(0)
-    , RowCount_(0)
-    , BlockReader_(nullptr)
 {
     Logger.AddTag("PartitionChunkReader: %p", this);
 }
@@ -67,7 +64,7 @@ std::vector<TSequentialReader::TBlockInfo> TPartitionChunkReader::GetBlockSequen
 
     ChunkMeta_ = errorOrMeta.Value();
 
-    auto chunkNameTable = New<TNameTable>();
+    TNameTablePtr chunkNameTable;
     auto nameTableExt = GetProtoExtension<TNameTableExt>(ChunkMeta_.extensions());
     FromProto(&chunkNameTable, nameTableExt);
 
@@ -119,8 +116,8 @@ void TPartitionChunkReader::InitNameTable(TNameTablePtr chunkNameTable)
 
     for (int chunkNameId = 0; chunkNameId < chunkNameTable->GetSize(); ++chunkNameId) {
         auto& name = chunkNameTable->GetName(chunkNameId);
-        YCHECK(NameTable_->GetIdOrRegisterName(name) == chunkNameId);
-        IdMapping_[chunkNameId] = chunkNameId;
+        auto id = NameTable_->GetIdOrRegisterName(name);
+        IdMapping_[chunkNameId] = id;
     }
 }
 
@@ -135,14 +132,16 @@ TPartitionMultiChunkReader::TPartitionMultiChunkReader(
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec> &chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns &keyColumns)
+    const TKeyColumns& keyColumns,
+    IThroughputThrottlerPtr throttler)
     : TParallelMultiChunkReaderBase(
           config,
           options,
           masterChannel,
           compressedBlockCache,
           nodeDirectory,
-          chunkSpecs)
+          chunkSpecs,
+          throttler)
     , UncompressedBlockCache_(uncompressedBlockCache)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)

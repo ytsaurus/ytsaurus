@@ -1,8 +1,6 @@
 package NYT.NQueryClient.NProto;
 
 import "yt/core/misc/guid.proto";
-import "yt/ytlib/chunk_client/chunk_spec.proto";
-import "yt/ytlib/table_client/table_chunk_meta.proto";
 import "yt/ytlib/new_table_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,7 +101,7 @@ message TProjectClause
 message TJoinClause
 {
     repeated string join_columns = 1;
-    required NYT.NVersionedTableClient.NProto.TTableSchemaExt self_table_schema = 2;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt joined_table_schema = 2;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
 }
@@ -125,14 +123,23 @@ message TQuery
     optional TProjectClause project_clause = 10;
 }
 
+message TDataSource
+{
+    required NYT.NProto.TGuid id = 1;
+    required bytes lower_bound = 2;
+    required bytes upper_bound = 3; 
+}
+
 message TPlanFragment
 {
     required string source = 1;
+    required uint64 timestamp = 2;
+    repeated TDataSource data_sources = 3;
+    required TDataSource foreign_data_source = 4;
 
-    repeated NYT.NChunkClient.NProto.TChunkSpec data_split = 2;
-    required NYT.NChunkClient.NProto.TChunkSpec foreign_data_split = 3;
-    required TQuery query = 4;
-    required bool ordered = 5;
+    required TQuery query = 5;
+    required bool ordered = 6;
+    optional bool verbose_logging = 7 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

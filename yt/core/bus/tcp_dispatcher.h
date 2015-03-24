@@ -31,11 +31,9 @@ TTcpDispatcherStatistics& operator += (
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Local means UNIX domain sockets.
-//! Remove means standard TCP sockets.
 DEFINE_ENUM(ETcpInterfaceType,
-    (Local)
-    (Remote)
+    (Local)  // UNIX domain sockets
+    (Remote) // regular TCP sockets
 );
 
 ////////////////////////////////////////////////////////////////////////////////

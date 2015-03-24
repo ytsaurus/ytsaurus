@@ -24,7 +24,7 @@ using namespace NConcurrency;
 
 TRemoteSnapshotParams::TRemoteSnapshotParams()
     : PeerId(InvalidPeerId)
-    , SnapshotId(NonexistingSegmentId)
+    , SnapshotId(InvalidSegmentId)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,7 +128,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (Params_.SnapshotId == NonexistingSegmentId) {
+        if (Params_.SnapshotId == InvalidSegmentId) {
             LOG_INFO("Snapshot lookup failed, no suitable snapshot found");
         } else {
             LOG_INFO("Snapshot lookup succeeded (PeerId: %v, SnapshotId: %v)",

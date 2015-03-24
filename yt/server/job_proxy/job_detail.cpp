@@ -4,15 +4,11 @@
 
 #include "private.h"
 
-#include <ytlib/job_tracker_client/job.pb.h>
-
 #include <ytlib/new_table_client/helpers.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
-
-#include <core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -23,6 +19,7 @@ using namespace NConcurrency;
 using namespace NJobTrackerClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NVersionedTableClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,6 +43,11 @@ TDuration TJob::GetElapsedTime() const
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
 {
     THROW_ERROR_EXCEPTION("Dumping input context is not supported for built-in jobs");
+}
+
+TYsonString TJob::Strace()
+{
+    THROW_ERROR_EXCEPTION("Stracing is not supported for built-in jobs");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,7 +76,7 @@ TJobResult TSimpleJobBase::Run()
 
         LOG_INFO("Reading and writing");
         {
-            PipeReaderToWriter(Reader_, Writer_, 10000);
+            PipeReaderToWriter(Reader_, Writer_, 10000, true);
         }
 
         PROFILE_TIMING_CHECKPOINT("reading_writing");

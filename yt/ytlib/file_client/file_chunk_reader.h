@@ -13,6 +13,10 @@
 
 #include <core/compression/public.h>
 
+#include <core/misc/ref.h>
+
+#include <core/concurrency/throughput_throttler.h>
+
 namespace NYT {
 namespace NFileClient {
 
@@ -63,7 +67,8 @@ IFileMultiChunkReaderPtr CreateFileMultiChunkReader(
     NChunkClient::IBlockCachePtr compressedBlockCache,
     NChunkClient::IBlockCachePtr uncompressedBlockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs);
+    const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,9 +9,11 @@
 #include <core/misc/fs.h>
 
 #ifdef _linux_
-  #include <sys/wait.h>
-  #include <unistd.h>
-  #include <sys/eventfd.h>
+    #include <sys/eventfd.h>
+    #include <sys/stat.h>
+    #include <sys/wait.h>
+    #include <unistd.h>
+    #include <fcntl.h>
 #endif
 
 #include <array>

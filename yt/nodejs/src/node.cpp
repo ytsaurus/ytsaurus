@@ -314,12 +314,17 @@ bool TNodeWrap::HasInstance(Handle<Value> value)
         ConstructorTemplate->HasInstance(value->ToObject());
 }
 
-INodePtr TNodeWrap::UnwrapNode(Handle<Value> value)
+TNodeWrap* TNodeWrap::Unwrap(Handle<Value> value)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    return ObjectWrap::Unwrap<TNodeWrap>(value->ToObject())->GetNode();
+    return ObjectWrap::Unwrap<TNodeWrap>(value->ToObject());
+}
+
+INodePtr TNodeWrap::UnwrapNode(Handle<Value> value)
+{
+    return Unwrap(value)->GetNode();
 }
 
 Handle<Value> TNodeWrap::New(const Arguments& args)
@@ -413,7 +418,7 @@ Handle<Value> TNodeWrap::CreateMerged(const Arguments& args)
     }
 
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
-    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(std::move(result));
+    TNodeWrap::Unwrap(handle)->SetNode(std::move(result));
 
     return scope.Close(std::move(handle));
 }
@@ -436,7 +441,7 @@ Handle<Value> TNodeWrap::CreateV8(const Arguments& args)
     }
 
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
-    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(std::move(node));
+    TNodeWrap::Unwrap(handle)->SetNode(std::move(node));
 
     return scope.Close(std::move(handle));
 }
@@ -508,7 +513,7 @@ Handle<Value> TNodeWrap::GetByYPath(const Arguments& args)
     }
 
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
-    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(std::move(node));
+    TNodeWrap::Unwrap(handle)->SetNode(std::move(node));
 
     return scope.Close(std::move(handle));
 }
@@ -559,7 +564,7 @@ Handle<Value> TNodeWrap::GetAttribute(const Arguments& args)
     }
 
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
-    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(std::move(node));
+    TNodeWrap::Unwrap(handle)->SetNode(std::move(node));
 
     return scope.Close(std::move(handle));
 }
@@ -588,15 +593,9 @@ Handle<Value> TNodeWrap::SetAttribute(const Arguments& args)
     return args.This();
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 INodePtr TNodeWrap::GetNode()
-{
-    return Node_;
-}
-
-const INodePtr TNodeWrap::GetNode() const
 {
     return Node_;
 }

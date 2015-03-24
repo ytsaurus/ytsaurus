@@ -21,6 +21,10 @@
 
 #include <core/erasure/codec.h>
 
+#include <core/logging/log.h>
+
+#include <core/profiling/profiler.h>
+
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
@@ -28,17 +32,10 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/schema.h>
 
-#include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/new_table_client/table_ypath.pb.h>
-
 #include <ytlib/journal_client/helpers.h>
 
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/entity_map.h>
-
-#include <core/logging/log.h>
-
-#include <core/profiling/profiler.h>
 
 #include <server/chunk_server/chunk_manager.pb.h>
 
@@ -144,7 +141,8 @@ public:
     }
 
 private:
-    NCellMaster::TBootstrap* Bootstrap_;
+    NCellMaster::TBootstrap* const Bootstrap_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,7 +168,8 @@ public:
         TRspCreateObjects* response) override;
 
 protected:
-    TImpl* Owner_;
+    TImpl* const Owner_;
+
 
     virtual IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
 
@@ -282,7 +281,8 @@ public:
         TRspCreateObjects* response) override;
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
+
 
     virtual Stroka DoGetName(TChunkList* chunkList) override
     {
@@ -876,7 +876,7 @@ private:
     friend class TErasureChunkTypeHandler;
     friend class TChunkListTypeHandler;
 
-    TChunkManagerConfigPtr Config_;
+    const TChunkManagerConfigPtr Config_;
 
     TChunkTreeBalancer ChunkTreeBalancer_;
 
@@ -1161,6 +1161,7 @@ private:
             chunkList->SetVisitMark(visitMark);
 
             statistics = TChunkTreeStatistics();
+            statistics.Rank = 1;
             int childrenCount = chunkList->Children().size();
 
             auto& rowCountSums = chunkList->RowCountSums();
@@ -1461,8 +1462,9 @@ private:
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
-        if (!IsObjectAlive(chunk)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Cached: %v, Address: %v, NodeId: %v)",
+        // NB: Chunk could already be a zombie but we still need to remove the replica.
+        if (!chunk) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, NodeId: %d)",
                  chunkIdWithIndex,
                  cached,
                  node->GetAddress(),

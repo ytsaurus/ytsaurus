@@ -44,18 +44,18 @@ public:
     TChunkInfo(
         TChunk* chunk,
         i64 rowIndex,
-        TReadLimit startLimit,
-        TReadLimit endLimit)
+        TReadLimit lowerLimit,
+        TReadLimit upperLimit)
             : Chunk(chunk)
             , RowIndex(rowIndex)
-            , StartLimit(startLimit)
-            , EndLimit(endLimit)
+            , LowerLimit(lowerLimit)
+            , UpperLimit(upperLimit)
     { }
 
     TChunk* Chunk;
     i64 RowIndex;
-    TReadLimit StartLimit;
-    TReadLimit EndLimit;
+    TReadLimit LowerLimit;
+    TReadLimit UpperLimit;
 };
 
 bool operator < (const TChunkInfo& lhs, const TChunkInfo& rhs)
@@ -67,16 +67,16 @@ bool operator == (const TChunkInfo& lhs, const TChunkInfo& rhs)
 {
     return lhs.Chunk->GetId() == rhs.Chunk->GetId()
         && lhs.RowIndex == rhs.RowIndex
-        && lhs.StartLimit == rhs.StartLimit
-        && lhs.EndLimit == rhs.EndLimit;
+        && lhs.LowerLimit == rhs.LowerLimit
+        && lhs.UpperLimit == rhs.UpperLimit;
 }
 
 std::ostream& operator << (std::ostream& os, const TChunkInfo& chunkInfo)
 {
     os << "ChunkInfo(Id=" << ToString(chunkInfo.Chunk->GetId())
        << ", RowIndex=" << chunkInfo.RowIndex
-       << ", StartLimit=(" << chunkInfo.StartLimit.AsProto().DebugString() << ")"
-       << ", EndLimit=(" << chunkInfo.EndLimit.AsProto().DebugString() << ")"
+       << ", LowerLimit_=(" << chunkInfo.LowerLimit.AsProto().DebugString() << ")"
+       << ", UpperLimit_=(" << chunkInfo.UpperLimit.AsProto().DebugString() << ")"
        << ")";
     return os;
 }
@@ -91,10 +91,10 @@ public:
     virtual bool OnChunk(
         TChunk* chunk,
         i64 rowIndex,
-        const TReadLimit& startLimit,
-        const TReadLimit& endLimit) override
+        const TReadLimit& lowerLimit,
+        const TReadLimit& upperLimit) override
     {
-        ChunkInfos.insert(TChunkInfo(chunk, rowIndex, startLimit, endLimit));
+        ChunkInfos.insert(TChunkInfo(chunk, rowIndex, lowerLimit, upperLimit));
         return true;
     }
 
@@ -226,31 +226,31 @@ TEST(TraverseChunkTree, Simple)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit startLimit;
-        startLimit.SetRowIndex(2);
+        TReadLimit lowerLimit;
+        lowerLimit.SetRowIndex(2);
 
-        TReadLimit endLimit;
-        endLimit.SetRowIndex(5);
+        TReadLimit upperLimit;
+        upperLimit.SetRowIndex(5);
 
-        TraverseChunkTree(callbacks, visitor, listA.get(), startLimit, endLimit);
+        TraverseChunkTree(callbacks, visitor, listA.get(), lowerLimit, upperLimit);
 
-        TReadLimit correctStartLimit;
-        correctStartLimit.SetRowIndex(1);
+        TReadLimit correctLowerLimit;
+        correctLowerLimit.SetRowIndex(1);
 
-        TReadLimit correctEndLimit;
-        correctEndLimit.SetRowIndex(2);
+        TReadLimit correctUpperLimit;
+        correctUpperLimit.SetRowIndex(2);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
             chunk2.get(),
             1,
-            correctStartLimit,
+            correctLowerLimit,
             TReadLimit()));
         correctResult.insert(TChunkInfo(
             chunk3.get(),
             3,
             TReadLimit(),
-            correctEndLimit));
+            correctUpperLimit));
 
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }

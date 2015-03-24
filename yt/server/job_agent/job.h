@@ -51,7 +51,7 @@ struct IJob
     virtual void SetJobStatistics(const NJobTrackerClient::NProto::TJobStatistics& statistics) = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContexts() const = 0;
-
+    virtual NYTree::TYsonString Strace() const = 0;
 };
 
 typedef

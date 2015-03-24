@@ -8,22 +8,11 @@
 #include "job_resources.h"
 #include "helpers.h"
 
-#include <core/concurrency/scheduler.h>
-
-#include <core/ytree/fluent.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_splits_fetcher.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
-
-#include <cmath>
 
 namespace NYT {
 namespace NScheduler {
@@ -65,6 +54,7 @@ public:
         , TotalChunkCount(0)
         , TotalDataSize(0)
         , CurrentTaskDataSize(0)
+        , CurrentChunkCount(0)
         , CurrentPartitionIndex(0)
         , MaxDataSizePerJob(0)
         , ChunkSliceSize(0)
@@ -106,6 +96,10 @@ protected:
     //! The total data size accumulated in #CurrentTaskStripes.
     //! Not serialized.
     i64 CurrentTaskDataSize;
+
+    //! The total number of chunks in #CurrentTaskStripes.
+    //! Not serialized.
+    int CurrentChunkCount;
 
     //! The number of output partitions generated so far.
     //! Not serialized.
@@ -308,17 +302,25 @@ protected:
     {
         YCHECK(HasActiveTask());
 
+        if (CurrentChunkCount > Config->MaxChunkStripesPerJob) {
+            OnOperationFailed(TError("Maximum number of chunk per job exceeded: %v > %v",
+                CurrentChunkCount,
+                Config->MaxChunkStripesPerJob));
+        }
+
         task->AddInput(CurrentTaskStripes);
         task->FinishInput();
         RegisterTask(task);
 
         ++CurrentPartitionIndex;
 
-        LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v)",
+        LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v, TaskChunkCount: %v)",
             task->GetId(),
-            CurrentTaskDataSize);
+            CurrentTaskDataSize,
+            CurrentChunkCount);
 
         CurrentTaskDataSize = 0;
+        CurrentChunkCount = 0;
         ClearCurrentTaskStripes();
     }
 
@@ -351,11 +353,12 @@ protected:
         return CurrentTaskDataSize > 0;
     }
 
-    //! Returns True if the total data size of currently queued stripes exceeds the pre-configured limit.
+    //! Returns True if the total data size of currently queued stripes exceeds the pre-configured limit
+    //! or number of stripes greater than pre-configured limit.
     bool HasLargeActiveTask()
     {
         YCHECK(MaxDataSizePerJob > 0);
-        return CurrentTaskDataSize >= MaxDataSizePerJob;
+        return CurrentTaskDataSize >= MaxDataSizePerJob || CurrentChunkCount >= Config->MaxChunkStripesPerJob;
     }
 
     //! Add chunk to the current task's pool.
@@ -372,6 +375,7 @@ protected:
         ++TotalChunkCount;
 
         CurrentTaskDataSize += chunkDataSize;
+        ++CurrentChunkCount;
         stripe->ChunkSlices.push_back(chunkSlice);
     }
 
@@ -1030,6 +1034,16 @@ protected:
             YCHECK(chunk->upper_limit().has_key());
             FromProto(&leftEndpoint.MaxBoundaryKey, chunk->upper_limit().key());
 
+            try {
+                ValidateKey(leftEndpoint.MinBoundaryKey);
+                ValidateKey(leftEndpoint.MaxBoundaryKey);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    "Error validating sample key in input table %v",
+                    GetInputTablePaths()[chunk->table_index()])
+                    << ex;
+            }
+
             leftEndpoint.IsTeleport = false;
             Endpoints.push_back(leftEndpoint);
 
@@ -1123,7 +1137,7 @@ private:
             YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
 
             if (currentPartitionTag != DefaultPartitionTag) {
-                if (chunkSpec->partition_tag() == currentPartitionTag) {       
+                if (chunkSpec->partition_tag() == currentPartitionTag) {
                     if (endpoint.Type == EEndpointType::Right && CompareRows(maxKey, endpoint.MaxBoundaryKey, KeyColumns.size()) == 0) {
                         // The last slice of a full chunk.
                         currentPartitionTag = DefaultPartitionTag;
@@ -1524,8 +1538,8 @@ private:
 
                 TOwningKey maxKey, minKey;
                 YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
-                if (previousEndpoint.Type == EEndpointType::Right 
-                    && CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0) 
+                if (previousEndpoint.Type == EEndpointType::Right
+                    && CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0)
                 {
                     for (int j = startTeleportIndex; j < i; ++j) {
                         Endpoints[j].IsTeleport = true;

@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "schemaless_block_writer.h"
 
-#include <core/misc/serialize.h>
-
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -12,14 +10,15 @@ using namespace NProto;
 
 struct THorizontalSchemalessBlockWriterTag { };
 
-const i64 THorizontalSchemalessBlockWriter::MinReserveSize = (i64) 16 * 1024;
+// NB! Must exceed lf_alloc small block size limit.
+const i64 THorizontalSchemalessBlockWriter::MinReserveSize = (i64) 64 * 1024 + 1;
 const i64 THorizontalSchemalessBlockWriter::MaxReserveSize = (i64) 2 * 1024 * 1024;
 
 THorizontalSchemalessBlockWriter::THorizontalSchemalessBlockWriter(i64 reserveSize)
     : RowCount_(0)
     , Closed_(false)
     , ReserveSize_(std::min(
-        std::max(MinReserveSize, reserveSize), 
+        std::max(MinReserveSize, reserveSize),
         MaxReserveSize))
     , Offsets_(THorizontalSchemalessBlockWriterTag(), 4 * 1024, ReserveSize_ / 2)
     , Data_(THorizontalSchemalessBlockWriterTag(), 4 * 1024, ReserveSize_ / 2)

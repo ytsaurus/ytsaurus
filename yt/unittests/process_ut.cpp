@@ -45,7 +45,7 @@ TEST(TProcessTest, GoodDup)
     ASSERT_TRUE(error.IsOK()) << ToString(error);
 }
 
-TEST(TProcess, IgnoreCloseInvalidFd)
+TEST(TProcess, IgnoreCloseInvalidFD)
 {
     TProcess p("/bin/sh");
     p.AddArgument("-c");
@@ -164,6 +164,7 @@ TEST(TProcessTest, KillZombie)
 
     p.Kill(9);
     auto error = p.Wait();
+    EXPECT_TRUE(error.IsOK());
 }
 
 #endif

@@ -314,17 +314,16 @@ void TBlobSession::DoOpenWriter()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Started opening blob chunk writer");
+    LOG_TRACE("Started opening blob chunk writer");
 
     PROFILE_TIMING ("/blob_chunk_open_time") {
         try {
             auto fileName = Location_->GetChunkPath(ChunkId_);
             Writer_ = New<TFileWriter>(fileName, Options_.SyncOnClose);
-            auto result = Writer_->Open();
-
             // File writer opens synchronously.
-            YCHECK(result.IsSet());
-            YCHECK(result.Get().IsOK());
+            Writer_->Open()
+                .Get()
+                .ThrowOnError();
         }
         catch (const std::exception& ex) {
             SetFailed(TError(
@@ -336,7 +335,7 @@ void TBlobSession::DoOpenWriter()
         }
     }
 
-    LOG_DEBUG("Finished opening blob chunk writer");
+    LOG_TRACE("Finished opening blob chunk writer");
 }
 
 TFuture<void> TBlobSession::AbortWriter()

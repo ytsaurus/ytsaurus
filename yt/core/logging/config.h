@@ -10,15 +10,10 @@ namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EWriterType,
-    (File)
-    (Stdout)
-    (Stderr)
-);
-
-struct TWriterConfig
+class TWriterConfig
     : public NYTree::TYsonSerializable
 {
+public:
     EWriterType Type;
     Stroka FileName;
 
@@ -38,13 +33,14 @@ struct TWriterConfig
     }
 };
 
-typedef TIntrusivePtr<TWriterConfig> TWriterConfigPtr;
+DEFINE_REFCOUNTED_TYPE(TWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRule
+class TRuleConfig
     : public NYTree::TYsonSerializable
 {
+public:
     TNullable<yhash_set<Stroka>> IncludeCategories;
     yhash_set<Stroka> ExcludeCategories;
     ELogLevel MinLevel;
@@ -52,7 +48,7 @@ struct TRule
 
     std::vector<Stroka> Writers;
 
-    TRule()
+    TRuleConfig()
     {
         RegisterParameter("include_categories", IncludeCategories)
             .Default();
@@ -70,7 +66,7 @@ struct TRule
     bool IsApplicable(const Stroka& category, ELogLevel level) const;
 };
 
-typedef TIntrusivePtr<TRule> TRulePtr;
+DEFINE_REFCOUNTED_TYPE(TRuleConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,7 +85,7 @@ public:
 
     TDuration ShutdownGraceTimeout;
 
-    std::vector<TRulePtr> Rules;
+    std::vector<TRuleConfigPtr> Rules;
     yhash_map<Stroka, TWriterConfigPtr> WriterConfigs;
 
     TLogConfig()
@@ -129,6 +125,8 @@ public:
     static TLogConfigPtr CreateDefault();
     static TLogConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
 };
+
+DEFINE_REFCOUNTED_TYPE(TLogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

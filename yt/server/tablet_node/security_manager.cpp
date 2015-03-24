@@ -32,15 +32,20 @@ static const auto& Logger = TabletNodeLogger;
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     TSecurityManagerPtr securityManager,
-    const Stroka& user)
+    const TNullable<Stroka>& maybeUser)
     : SecurityManager_(std::move(securityManager))
+    , IsNull_(!maybeUser)
 {
-    SecurityManager_->SetAuthenticatedUser(user);
+    if (!IsNull_) {
+        SecurityManager_->SetAuthenticatedUser(*maybeUser);
+    }
 }
 
 TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 {
-    SecurityManager_->ResetAuthenticatedUser();
+    if (!IsNull_) {
+        SecurityManager_->ResetAuthenticatedUser();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,7 +106,8 @@ private:
 
     virtual TFuture<void> DoGet(const TTablePermissionKey& key) override
     {
-        LOG_DEBUG("Checking permission (Key: {%v})", key);
+        LOG_DEBUG("Table permission check started (Key: {%v})",
+            key);
 
         auto client = Bootstrap_->GetMasterClient();
         return client->CheckPermission(key.User, FromObjectId(key.TableId), key.Permission).Apply(
@@ -114,9 +120,13 @@ private:
                     THROW_ERROR wrappedError;
                 }
 
-                LOG_DEBUG("Table permission check succeded (Key: {%v})", key);
+                const auto& result = resultOrError.Value();
 
-                ResultToError(key, resultOrError.Value())
+                LOG_DEBUG("Table permission check complete (Key: {%v}, Action: %v)",
+                    key,
+                    result.Action);
+
+                ResultToError(key, result)
                     .ThrowOnError();
             }));
     }
@@ -250,6 +260,11 @@ void TSecurityManager::SetAuthenticatedUser(const Stroka& user)
 void TSecurityManager::ResetAuthenticatedUser()
 {
     Impl_->ResetAuthenticatedUser();
+}
+
+TNullable<Stroka> TSecurityManager::GetAuthenticatedUser()
+{
+    return Impl_->GetAuthenticatedUser();
 }
 
 TFuture<void> TSecurityManager::CheckPermission(

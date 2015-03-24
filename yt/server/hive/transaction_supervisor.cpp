@@ -257,7 +257,7 @@ private:
             SetCommitFailed(commit, ex);
             TransientCommitMap_.Remove(transactionId);
             // Best effort, fire-and-forget.
-            AbortTransaction(transactionId, false);
+            AbortTransaction(transactionId, true);
             return;
         }
 
@@ -283,7 +283,7 @@ private:
             SetCommitFailed(commit, ex);
             TransientCommitMap_.Remove(transactionId);
             // Best effort, fire-and-forget.
-            AbortTransaction(transactionId, false);
+            AbortTransaction(transactionId, true);
             return;
         }
 
@@ -432,7 +432,7 @@ private:
             if (IsLeader()) {
                 // Best effort, fire-and-forget.
                 EpochAutomatonInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
-                    AbortTransaction(transactionId, false);
+                    AbortTransaction(transactionId, true);
                 }));
             }
             return;

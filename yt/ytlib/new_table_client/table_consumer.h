@@ -3,8 +3,6 @@
 #include "public.h"
 #include "unversioned_row.h"
 
-#include <ytlib/table_client/public.h>
-
 #include <core/misc/blob_output.h>
 #include <core/misc/error.h>
 
@@ -163,7 +161,7 @@ protected:
     IValueConsumer* CurrentValueConsumer_;
 
     EControlState ControlState_ = EControlState::None;
-    NTableClient::EControlAttribute ControlAttribute_;
+    EControlAttribute ControlAttribute_;
 
     TBlobOutput ValueBuffer_;
     NYson::TYsonWriter ValueWriter_;

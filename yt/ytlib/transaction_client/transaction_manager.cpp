@@ -58,7 +58,9 @@ public:
         ETransactionType type,
         const TTransactionStartOptions& options);
 
-    TTransactionPtr Attach(const TTransactionAttachOptions& options);
+    TTransactionPtr Attach(
+        const TTransactionId& id,
+        const TTransactionAttachOptions& options);
 
     void AbortAll();
 
@@ -128,12 +130,14 @@ public:
             .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
     }
 
-    void Attach(const TTransactionAttachOptions& options)
+    void Attach(
+        const TTransactionId& id,
+        const TTransactionAttachOptions& options)
     {
-        YCHECK(TypeFromId(options.Id) == EObjectType::Transaction);
+        YCHECK(TypeFromId(id) == EObjectType::Transaction);
 
         Type_ = ETransactionType::Master;
-        Id_ = options.Id;
+        Id_ = id;
         AutoAbort_ = options.AutoAbort;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
@@ -220,7 +224,7 @@ public:
                 ToProto(req->add_participant_cell_ids(), cellId);
             }
         }
-        SetOrGenerateMutationId(req, options.MutationId);
+        SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
         return req->Invoke().Apply(
             BIND(&TImpl::OnTransactionCommitted, MakeStrong(this), coordinatorCellId));
@@ -478,7 +482,7 @@ private:
         reqExt->set_timeout(options.Timeout.Get(Owner_->Config_->DefaultTransactionTimeout).MilliSeconds());
 
         if (options.ParentId != NullTransactionId) {
-            SetOrGenerateMutationId(req, options.MutationId);
+            SetOrGenerateMutationId(req, options.MutationId, options.Retry);
         }
 
         return proxy.Execute(req).Apply(
@@ -669,9 +673,7 @@ private:
             auto req = proxy.AbortTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
             req->set_force(options.Force);
-            if (options.MutationId != NullMutationId) {
-                SetMutationId(req, options.MutationId);
-            }
+            SetMutationId(req, options.MutationId, options.Retry);
 
             auto asyncRspOrError = req->Invoke();
             // NB: "this" could be dying; can't capture it.
@@ -791,12 +793,14 @@ TFuture<TTransactionPtr> TTransactionManager::TImpl::Start(
     }));
 }
 
-TTransactionPtr TTransactionManager::TImpl::Attach(const TTransactionAttachOptions& options)
+TTransactionPtr TTransactionManager::TImpl::Attach(
+    const TTransactionId& id,
+    const TTransactionAttachOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto transaction = New<TTransaction::TImpl>(this);
-    transaction->Attach(options);
+    transaction->Attach(id, options);
     return TTransaction::Create(transaction);
 }
 
@@ -904,9 +908,11 @@ TFuture<TTransactionPtr> TTransactionManager::Start(
     return Impl_->Start(type, options);
 }
 
-TTransactionPtr TTransactionManager::Attach(const TTransactionAttachOptions& options)
+TTransactionPtr TTransactionManager::Attach(
+    const TTransactionId& id,
+    const TTransactionAttachOptions& options)
 {
-    return Impl_->Attach(options);
+    return Impl_->Attach(id, options);
 }
 
 void TTransactionManager::AbortAll()

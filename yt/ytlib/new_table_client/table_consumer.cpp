@@ -7,11 +7,12 @@
 
 #include <core/concurrency/scheduler.h>
 
+#include <util/generic/ymath.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NConcurrency;
-using namespace NTableClient;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,8 +24,8 @@ const static i64 MaxBufferSize = (i64) 1 * 1024 * 1024;
 TBuildingValueConsumer::TBuildingValueConsumer(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns)
-    : Schema_(schema)
-    , KeyColumns_(keyColumns)
+    : Schema_(schema.Deplete())
+    , KeyColumns_(schema.DepleteKeyColumns(keyColumns))
     , NameTable_(TNameTable::FromSchema(Schema_, true))
     , WrittenFlags_(NameTable_->GetSize(), false)
     , ValueWriter_(&ValueBuffer_)
@@ -97,19 +98,11 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
 void TBuildingValueConsumer::OnValue(const TUnversionedValue& value)
 {
     auto schemaType = Schema_.Columns()[value.Id].Type;
-    if (value.Type == schemaType) {
-        Builder_.AddValue(value);
+    if (schemaType == EValueType::Any && value.Type != EValueType::Any) {
+        Builder_.AddValue(MakeAnyFromScalar(value));
+        ValueBuffer_.Clear();
     } else {
-        if (schemaType == EValueType::Any) {
-            Builder_.AddValue(MakeAnyFromScalar(value));
-            ValueBuffer_.Clear();
-        } else {
-            THROW_ERROR_EXCEPTION("Invalid value type in column %Qv: expected %Qlv, actual %Qlv",
-                Schema_.Columns()[value.Id].Name,
-                schemaType,
-                value.Type)
-                << TErrorAttribute("row_index", Rows_.size());
-        }
+        Builder_.AddValue(value);
     }
     WrittenFlags_[value.Id] = true;
 }
@@ -244,6 +237,13 @@ void TTableConsumer::OnDoubleScalar(double value)
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else if (Depth_ == 1) {
+        if (!IsValidFloat(value)) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::InvalidDoubleValue, 
+               "Failed to parse double value: %Qv is not a valid double",
+                value);
+        }
+
         CurrentValueConsumer_->OnValue(MakeUnversionedDoubleValue(value, ColumnIndex_));
     } else {
         ValueWriter_.OnDoubleScalar(value);

@@ -84,7 +84,7 @@ describe("YtAuthentication", function() {
         YtRegistry.clear();
     });
 
-    it("should authenticate as guest without Authorization header", function(done) {
+    it("should authenticate as guest without Authorization header and cookie", function(done) {
         ask("GET", "/", {},
         function(rsp) {
             rsp.should.be.http2xx;
@@ -218,6 +218,54 @@ describe("YtAuthentication", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             rsp.body.should.eql("amidala");
+            mock.done();
+        }, done).end();
+    });
+
+    it("should accept valid authentication 1-cookie", function(done) {
+        var mock = nock("http://localhost:9000")
+            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=mysessionid")
+            .reply(200, {
+                status: { value: "VALID", id: 0 },
+                login: "anakin",
+            });
+        ask("GET", "/",
+        { "Cookie": "Session_id=mysessionid;" },
+        function(rsp) {
+            rsp.should.be.http2x;
+            rsp.body.should.eql("anakin");
+            mock.done();
+        }, done).end();
+    });
+
+    it("should accept valid authentication 2-cookie", function(done) {
+        var mock = nock("http://localhost:9000")
+            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=mysessionid&sslsessionid=mysslsessionid")
+            .reply(200, {
+                status: { value: "VALID", id: 0 },
+                login: "anakin",
+            });
+        ask("GET", "/",
+        { "Cookie": "Session_id=mysessionid; sessionid2=mysslsessionid;" },
+        function(rsp) {
+            rsp.should.be.http2x;
+            rsp.body.should.eql("anakin");
+            mock.done();
+        }, done).end();
+    });
+
+    it("should accept a cookie which requires resigning", function(done) {
+        var mock = nock("http://localhost:9000")
+            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=resigning")
+            .reply(200, {
+                status: { value: "NEED_RESET", id: 1 },
+                login: "anakin",
+            });
+        ask("GET", "/",
+        { "Cookie": "Session_id=resigning;" },
+        function(rsp) {
+            rsp.should.be.http2x;
+            rsp.body.should.eql("anakin");
             mock.done();
         }, done).end();
     });

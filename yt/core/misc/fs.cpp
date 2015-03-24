@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "fs.h"
-#include "error.h"
+
+#include <core/misc/error.h>
+#include <core/misc/proc.h>
 
 #include <core/logging/log.h>
 
@@ -13,6 +15,7 @@
 #if defined(_linux_)
     #include <sys/vfs.h>
     #include <sys/stat.h>
+    #include <fcntl.h>
 #elif defined(_freebsd_) || defined(_darwin_)
     #include <sys/param.h>
     #include <sys/mount.h>
@@ -403,6 +406,28 @@ Stroka GetHomePath()
     return Stroka(buffer.data());
 #else
     return std::getenv("HOME");
+#endif
+}
+
+void FlushDirectory(const Stroka& path)
+{
+#ifdef _linux_
+    int fd = ::open(~path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (fd < 0) {
+        THROW_ERROR_EXCEPTION("Failed to open directory %v", path)
+            << TError::FromSystem();
+    }
+
+    int result = ::fsync(fd);
+    if (result < 0) {
+        SafeClose(fd);
+        THROW_ERROR_EXCEPTION("Failed to flush directory %v", path)
+            << TError::FromSystem();
+    }
+
+    SafeClose(fd);
+#else
+    // No-op.
 #endif
 }
 

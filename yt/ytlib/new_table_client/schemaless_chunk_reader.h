@@ -14,6 +14,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/concurrency/throughput_throttler.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -22,7 +24,9 @@ namespace NVersionedTableClient {
 struct ISchemalessChunkReader
     : public virtual NChunkClient::IChunkReaderBase
     , public ISchemalessReader
-{ };
+{
+    virtual i64 GetTableRowIndex() const = 0; 
+};
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 
@@ -55,7 +59,7 @@ struct ISchemalessMultiChunkReader
 
     //! Approximate row count readable with this reader.
     //! May change over time and finally converges to actually read row count.
-    virtual i64 GetSessionRowCount() const = 0;
+    virtual i64 GetTotalRowCount() const = 0;
 
 };
 
@@ -72,7 +76,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns = TKeyColumns());
+    const TKeyColumns& keyColumns = TKeyColumns(),
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,7 +90,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns = TKeyColumns());
+    const TKeyColumns& keyColumns = TKeyColumns(),
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,7 +118,8 @@ ISchemalessTableReaderPtr CreateSchemalessTableReader(
     NChunkClient::IBlockCachePtr compressedBlockCache,
     NChunkClient::IBlockCachePtr uncompressedBlockCache,
     const NYPath::TRichYPath& richPath,
-    TNameTablePtr nameTable);
+    TNameTablePtr nameTable,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 

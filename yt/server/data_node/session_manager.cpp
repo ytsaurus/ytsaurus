@@ -198,7 +198,7 @@ void TSessionManager::UpdatePendingWriteSize(i64 delta)
     VERIFY_THREAD_AFFINITY_ANY();
 
     i64 result = (PendingWriteSize_ += delta);
-    LOG_DEBUG("Pending write size updated (PendingWriteSize: %v, Delta: %v"")",
+    LOG_TRACE("Pending write size updated (PendingWriteSize: %v, Delta: %v"")",
         result,
         delta);
 }

@@ -4,15 +4,7 @@
 #include "config.h"
 #include "subprocess.h"
 
-#include <ytlib/cgroup/cgroup.h>
-
 #include <core/logging/log_manager.h>
-
-#include <core/misc/string.h>
-
-#include <core/bus/config.h>
-
-#include <core/ytree/yson_producer.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -127,13 +119,13 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
 
 TTcpBusServerConfigPtr TSlot::GetRpcServerConfig() const
 {
-    Stroka unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
+    auto unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
     return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
 }
 
 TTcpBusClientConfigPtr TSlot::GetRpcClientConfig() const
 {
-    Stroka unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
+    auto unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
     return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
 }
 
@@ -141,7 +133,7 @@ void TSlot::DoCleanSandbox()
 {
     try {
         if (NFS::Exists(SandboxPath_)) {
-            if (UserId_.HasValue()) {
+            if (UserId_) {
                 auto process = TSubprocess::CreateCurrentProcessSpawner();
                 process.AddArguments({
                     "--cleaner",

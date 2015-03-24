@@ -72,6 +72,7 @@ public:
 
     void Shutdown()
     {
+
         InvokerQueue_->Shutdown();
         Thread_->Shutdown();
     }

@@ -29,5 +29,5 @@ struct TTableYPathProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NVersionedTableClient
 } // namespace NYT

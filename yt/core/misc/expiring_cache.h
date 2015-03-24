@@ -18,6 +18,8 @@ public:
 
     TFuture<TValue> Get(const TKey& key);
 
+    bool Erase(const TKey& key);
+
     void Clear();
 
 protected:

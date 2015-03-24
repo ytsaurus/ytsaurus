@@ -28,9 +28,11 @@ inline TEntitySerializationKey TSaveContext::GenerateSerializationKey()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void TLoadContext::RegisterEntity(TEntityBase* entity)
+inline TEntitySerializationKey TLoadContext::RegisterEntity(TEntityBase* entity)
 {
+    auto key = TEntitySerializationKey{static_cast<int>(Entities_.size())};
     Entities_.push_back(entity);
+    return key;
 }
 
 template <class T>

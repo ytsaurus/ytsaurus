@@ -8,7 +8,7 @@ namespace NYT {
 
 struct TPipe
 {
-    static const int InvalidFd;
+    static const int InvalidFD;
 
     int ReadFD;
     int WriteFD;

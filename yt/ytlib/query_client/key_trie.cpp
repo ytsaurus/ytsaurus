@@ -123,12 +123,9 @@ TKeyTrieNode& TKeyTrieNode::Unite(const TKeyTrieNode& rhs)
     }
 
     for (const auto& next : rhs.Next) {
-        auto found = Next.find(next.first);
-
-        if (found != Next.end()) {
-            found->second = found->second.Unite(next.second);
-        } else {
-            Next.insert(next);
+        auto emplaced = Next.emplace(next);
+        if (!emplaced.second) {
+            emplaced.first->second.Unite(next.second);
         }
     }
 
@@ -493,18 +490,17 @@ std::vector<TKeyRange> GetRangesFromTrieWithinRange(
     if (!result.empty()) {
         std::sort(result.begin(), result.end());
         std::vector<TKeyRange> mergedResult;
-    
         mergedResult.push_back(result.front());
 
         for (size_t i = 1; i < result.size(); ++i) {
             if (mergedResult.back().second == result[i].first) {
-                mergedResult.back().second = result[i].second;
+                mergedResult.back().second = std::move(result[i].second);
             } else {
-                mergedResult.push_back(result[i]);
+                mergedResult.push_back(std::move(result[i]));
             }
         }
 
-        result = mergedResult;
+        result = std::move(mergedResult);
     }
 
     return result;
@@ -519,11 +515,11 @@ Stroka ToString(const TKeyTrieNode& node) {
         return str;
     };
 
-    std::function<Stroka(const TKeyTrieNode&, int)> printNode =
-        [&](const TKeyTrieNode& node, int offset) {
+    std::function<Stroka(const TKeyTrieNode&, size_t)> printNode =
+        [&](const TKeyTrieNode& node, size_t offset) {
             Stroka str;
             str += printOffset(offset);
-            if (node.Offset == std::numeric_limits<int>::max()) {
+            if (node.Offset == std::numeric_limits<size_t>::max()) {
                 str += "(universe)";
             } else {
                 str += "(key";

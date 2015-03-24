@@ -48,7 +48,7 @@ public:
         , Handler(std::move(handler))
         , Logger(BusLogger)
         , ServerSocket(INVALID_SOCKET)
-        , ServerFd(INVALID_SOCKET)
+        , ServerFD(INVALID_SOCKET)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(Handler);
@@ -65,7 +65,7 @@ public:
 
         AcceptWatcher.reset(new ev::io(DispatcherThread->GetEventLoop()));
         AcceptWatcher->set<TTcpBusServerBase, &TTcpBusServerBase::OnAccept>(this);
-        AcceptWatcher->start(ServerFd, ev::READ);
+        AcceptWatcher->start(ServerFD, ev::READ);
     }
 
     virtual void SyncFinalize() override
@@ -103,7 +103,7 @@ protected:
     std::unique_ptr<ev::io> AcceptWatcher;
 
     int ServerSocket;
-    int ServerFd;
+    int ServerFD;
 
     //! Protects the following members.
     TSpinLock SpinLock;
@@ -161,12 +161,12 @@ protected:
 
     void CloseServerSocket()
     {
-        if (ServerFd != INVALID_SOCKET) {
-            close(ServerFd);
+        if (ServerFD != INVALID_SOCKET) {
+            close(ServerFD);
             LOG_DEBUG("Server socket closed");
         }
         ServerSocket = INVALID_SOCKET;
-        ServerFd = INVALID_SOCKET;
+        ServerFD = INVALID_SOCKET;
     }
 
     void InitSocket(SOCKET socket)
@@ -316,9 +316,9 @@ private:
         }
 
 #ifdef _WIN32
-        ServerFd = _open_osfhandle(ServerSocket, 0);
+        ServerFD = _open_osfhandle(ServerSocket, 0);
 #else
-        ServerFd = ServerSocket;
+        ServerFD = ServerSocket;
 #endif
 
         // TODO(babenko): check for errors
@@ -407,7 +407,7 @@ private:
                 << TError::FromSystem();
         }
 
-        ServerFd = ServerSocket;
+        ServerFD = ServerSocket;
 
         {
             TNetworkAddress netAddress;

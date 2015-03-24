@@ -3,6 +3,8 @@
 #include "yson_stream.h"
 #include "null_yson_consumer.h"
 
+#include <core/misc/serialize.h>
+
 #include <core/yson/parser.h>
 #include <core/yson/consumer.h>
 

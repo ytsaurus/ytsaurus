@@ -1,11 +1,19 @@
 #include "stdafx.h"
 #include "store_detail.h"
 #include "tablet.h"
+#include "private.h"
+
+#include <core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NYson;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const i64 MemoryUsageGranularity = (i64) 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +31,16 @@ TStoreBase::TStoreBase(
     , ColumnLockCount_(Tablet_->GetColumnLockCount())
     , LockIndexToName_(Tablet_->LockIndexToName())
     , ColumnIndexToLockIndex_(Tablet_->ColumnIndexToLockIndex())
-{ }
+{
+    Logger = TabletNodeLogger;
+    Logger.AddTag("StoreId: %v", StoreId_);
+}
+
+TStoreBase::~TStoreBase()
+{
+    MemoryUsageUpdated_.Fire(-MemoryUsage_);
+    MemoryUsage_ = 0;
+}
 
 TStoreId TStoreBase::GetId() const
 {
@@ -35,14 +52,14 @@ TTablet* TStoreBase::GetTablet() const
     return Tablet_;
 }
 
-EStoreState TStoreBase::GetState() const
+EStoreState TStoreBase::GetStoreState() const
 {
-    return State_;
+    return StoreState_;
 }
 
-void TStoreBase::SetState(EStoreState state)
+void TStoreBase::SetStoreState(EStoreState state)
 {
-    State_ = state;
+    StoreState_ = state;
 }
 
 TPartition* TStoreBase::GetPartition() const
@@ -55,14 +72,44 @@ void TStoreBase::SetPartition(TPartition* partition)
     Partition_ = partition;
 }
 
+i64 TStoreBase::GetMemoryUsage() const
+{
+    return MemoryUsage_;
+}
+
+void TStoreBase::SubscribeMemoryUsageUpdated(const TCallback<void(i64 delta)>& callback)
+{
+    MemoryUsageUpdated_.Subscribe(callback);
+    callback.Run(+GetMemoryUsage());
+}
+
+void TStoreBase::UnsubscribeMemoryUsageUpdated(const TCallback<void(i64 delta)>& callback)
+{
+    MemoryUsageUpdated_.Unsubscribe(callback);
+    callback.Run(-GetMemoryUsage());
+}
+
+void TStoreBase::SetMemoryUsage(i64 value)
+{
+    YASSERT(value >= MemoryUsage_);
+    if (value > MemoryUsage_ + MemoryUsageGranularity) {
+        i64 delta = value - MemoryUsage_;
+        MemoryUsage_ = value;
+        MemoryUsageUpdated_.Fire(delta);
+    }
+}
+
 void TStoreBase::Save(TSaveContext& /*context*/) const
 { }
 
 void TStoreBase::Load(TLoadContext& /*context*/)
 { }
 
-void TStoreBase::BuildOrchidYson(IYsonConsumer* /*consumer*/)
-{ }
+void TStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("store_state").Value(StoreState_);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

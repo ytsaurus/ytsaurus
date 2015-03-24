@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/ref.h>
+
 #include <core/rpc/rpc.pb.h>
 
 namespace NYT {
