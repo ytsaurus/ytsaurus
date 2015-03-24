@@ -204,7 +204,7 @@ public:
         IConnectionPtr connection,
         IChannelPtr masterChannel,
         IChannelFactoryPtr nodeChannelFactory,
-        const TFunctionRegistry& functionRegistry)
+        const TFunctionRegistryPtr functionRegistry)
         : Connection_(std::move(connection))
         , MasterChannel_(std::move(masterChannel))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
@@ -241,7 +241,7 @@ private:
     const IConnectionPtr Connection_;
     const IChannelPtr MasterChannel_;
     const IChannelFactoryPtr NodeChannelFactory_;
-    const TFunctionRegistry& FunctionRegistry_;
+    const TFunctionRegistryPtr FunctionRegistry_;
 
 
     TDataSplit DoGetInitialSplit(
@@ -909,7 +909,7 @@ private:
 
     const IInvokerPtr Invoker_;
 
-    const TFunctionRegistry FunctionRegistry_;
+    const TFunctionRegistryPtr FunctionRegistry_;
 
     TEnumIndexedVector<IChannelPtr, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;

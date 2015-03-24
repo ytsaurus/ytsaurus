@@ -38,7 +38,7 @@ TKeyTrieNode ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer,
-    const TFunctionRegistry& functionRegistry)
+    const TFunctionRegistryPtr functionRegistry)
 {
     if (!expr) {
         return TKeyTrieNode::Universal();
@@ -122,7 +122,7 @@ TKeyTrieNode ExtractMultipleConstraints(
         }
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         Stroka functionName = functionExpr->FunctionName;
-        auto& function = functionRegistry.GetFunction(functionName);
+        auto& function = functionRegistry->GetFunction(functionName);
 
         return function.ExtractKeyRange(functionExpr, keyColumns, rowBuffer);
     } else if (auto inExpr = expr->As<TInOpExpression>()) {
