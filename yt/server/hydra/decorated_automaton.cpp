@@ -477,7 +477,13 @@ void TDecoratedAutomaton::LoadSnapshot(TVersion version, TInputStream* input)
 
     PROFILE_TIMING ("/snapshot_load_time") {
         Automaton_->Clear();
-        Automaton_->LoadSnapshot(input);
+        try {
+            Automaton_->LoadSnapshot(input);
+        } catch (...) {
+            // Don't leave the state corrupted.
+            Automaton_->Clear();
+            throw;
+        }
     }
 
     LOG_INFO("Finished loading snapshot");
