@@ -979,7 +979,8 @@ TPlanFragmentPtr PrepareJobPlanFragment(
 
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
-    TTableSchema tableSchema)
+    TTableSchema tableSchema,
+    const TFunctionRegistryPtr functionRegistry)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TNamedExpression>()};
     NAst::TRowBuffer rowBuffer;
@@ -989,7 +990,7 @@ TConstExpressionPtr PrepareExpression(
 
     auto schemaProxy = New<TSimpleSchemaProxy>(&tableSchema);
 
-    auto typedExprs = schemaProxy->BuildTypedExpression(expr.first.Get(), source, CreateBuiltinFunctionRegistry());
+    auto typedExprs = schemaProxy->BuildTypedExpression(expr.first.Get(), source, functionRegistry);
 
     if (typedExprs.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")

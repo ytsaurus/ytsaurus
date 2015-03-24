@@ -430,7 +430,8 @@ TPlanFragmentPtr PrepareJobPlanFragment(
 
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
-    TTableSchema initialTableSchema);
+    TTableSchema initialTableSchema,
+    const TFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry());
 
 Stroka InferName(TConstExpressionPtr expr);
 Stroka InferName(TConstQueryPtr query);

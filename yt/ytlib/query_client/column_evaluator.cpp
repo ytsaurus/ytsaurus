@@ -18,9 +18,13 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnEvaluator::TColumnEvaluator(const TTableSchema& schema, int keySize)
+TColumnEvaluator::TColumnEvaluator(
+    const TTableSchema& schema,
+    int keySize,
+    const TFunctionRegistryPtr functionRegistry)
     : Schema_(schema)
     , KeySize_(keySize)
+    , FunctionRegistry_(functionRegistry)
 #ifdef YT_USE_LLVM
     , Evaluators_(keySize)
     , Variables_(keySize)
@@ -35,8 +39,8 @@ void TColumnEvaluator::PrepareEvaluator(int index)
     YCHECK(Schema_.Columns()[index].Expression);
 
     if (!Evaluators_[index]) {
-        auto expr = PrepareExpression(Schema_.Columns()[index].Expression.Get(), Schema_);
-        Evaluators_[index] = Profile(expr, Schema_, nullptr, &Variables_[index], &References_[index], CreateBuiltinFunctionRegistry())();
+        auto expr = PrepareExpression(Schema_.Columns()[index].Expression.Get(), Schema_, FunctionRegistry_);
+        Evaluators_[index] = Profile(expr, Schema_, nullptr, &Variables_[index], &References_[index], FunctionRegistry_)();
     }
 #else
     THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
@@ -171,22 +175,26 @@ class TColumnEvaluatorCache::TImpl
 public:
     explicit TImpl(TColumnEvaluatorCacheConfigPtr config)
         : TSyncSlruCacheBase(config->CGCache)
+        , FunctionRegistry_(CreateBuiltinFunctionRegistry())
     { }
 
     TColumnEvaluatorPtr Get(const TTableSchema& schema, int keySize)
     {
         llvm::FoldingSetNodeID id;
-        Profile(schema, keySize, &id, CreateBuiltinFunctionRegistry());
+        Profile(schema, keySize, &id, FunctionRegistry_);
 
         auto cachedEvaluator = Find(id);
         if (!cachedEvaluator) {
-            auto evaluator = New<TColumnEvaluator>(schema, keySize);
+            auto evaluator = New<TColumnEvaluator>(schema, keySize, FunctionRegistry_);
             cachedEvaluator = New<TCachedColumnEvaluator>(id, evaluator);
             TryInsert(cachedEvaluator, &cachedEvaluator);
         }
 
         return cachedEvaluator->GetColumnEvaluator();
     }
+
+private:
+    const TFunctionRegistryPtr FunctionRegistry_;
 };
 
 #endif
