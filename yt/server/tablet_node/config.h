@@ -108,6 +108,8 @@ public:
 
     EInMemoryMode InMemoryMode;
 
+    int MaxStoresPerTablet;
+
     TTableMountConfig()
     {
         RegisterParameter("enable_codegen", EnableCodegen)
@@ -180,6 +182,10 @@ public:
 
         RegisterParameter("in_memory_mode", InMemoryMode)
             .Default(EInMemoryMode::Disabled);
+
+        RegisterParameter("max_stores_per_tablet", MaxStoresPerTablet)
+            .Default(10000)
+            .GreaterThan(0);
 
         RegisterValidator([&] () {
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {

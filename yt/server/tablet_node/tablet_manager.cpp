@@ -1456,7 +1456,16 @@ private:
     void ValidateMemoryLimit()
     {
         if (Bootstrap_->GetTabletSlotManager()->IsOutOfMemory()) {
-            THROW_ERROR_EXCEPTION("Out of tablet memory, all writes disabled");
+            THROW_ERROR_EXCEPTION("Node is out of tablet memory, all writes disabled");
+        }
+    }
+
+    void ValidateStoreLimit(TTablet* tablet)
+    {
+        if (tablet->Stores().size() >= tablet->GetConfig()->MaxStoresPerTablet) {
+            THROW_ERROR_EXCEPTION("Too many stores in tablet, all writes disabled")
+                << TErrorAttribute("tablet_id", tablet->GetTableId())
+                << TErrorAttribute("store_limit", tablet->GetConfig()->MaxStoresPerTablet);
         }
     }
 
