@@ -90,7 +90,7 @@ public:
 };
 
 class TSchedulerConnectorConfig
-    : public NScheduler::TSchedulerConnectionConfig
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Period between consequent heartbeats.
@@ -121,6 +121,7 @@ public:
     NYTree::INodePtr JobProxyTracing;
 
     TDuration SupervisorRpcTimeout;
+    TDuration JobProberRpcTimeout;
     TDuration MemoryWatchdogPeriod;
     TDuration BlockIOWatchdogPeriod;
 
@@ -148,6 +149,8 @@ public:
 
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));
+        RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
+            .Default(TDuration::Seconds(300));
         RegisterParameter("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
         RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)

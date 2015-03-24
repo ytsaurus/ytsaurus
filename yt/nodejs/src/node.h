@@ -26,6 +26,7 @@ public:
     static void Initialize(v8::Handle<v8::Object> target);
     static bool HasInstance(v8::Handle<v8::Value> value);
 
+    static TNodeWrap* Unwrap(v8::Handle<v8::Value> value);
     static NYTree::INodePtr UnwrapNode(v8::Handle<v8::Value> value);
 
     // Synchronous JS API.
@@ -43,16 +44,14 @@ public:
 
     // Synchronous C++ API.
     NYTree::INodePtr GetNode();
-    const NYTree::INodePtr GetNode() const;
-
     void SetNode(NYTree::INodePtr node);
 
 protected:
     NYTree::INodePtr Node_;
 
 private:
-    TNodeWrap(const TNodeWrap&);
-    TNodeWrap& operator=(const TNodeWrap&);
+    TNodeWrap(const TNodeWrap&) = delete;
+    TNodeWrap& operator=(const TNodeWrap&) = delete;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

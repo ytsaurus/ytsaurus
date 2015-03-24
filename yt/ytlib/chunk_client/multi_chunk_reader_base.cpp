@@ -31,6 +31,8 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 int CalculatePrefetchWindow(const std::vector<TChunkSpec>& sortedChunkSpecs, TMultiChunkReaderConfigPtr config)
 {
     int prefetchWindow = 0;
@@ -46,7 +48,7 @@ int CalculatePrefetchWindow(const std::vector<TChunkSpec>& sortedChunkSpecs, TMu
 
         if (currentSize > miscExt.max_block_size()) {
             chunkBufferSize += config->WindowSize + config->GroupSize;
-        } 
+        }
 
         if (bufferSize + chunkBufferSize > config->MaxBufferSize) {
             break;
@@ -61,6 +63,8 @@ int CalculatePrefetchWindow(const std::vector<TChunkSpec>& sortedChunkSpecs, TMu
     return prefetchWindow;
 }
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMultiChunkReaderBase::TMultiChunkReaderBase(
@@ -69,18 +73,17 @@ TMultiChunkReaderBase::TMultiChunkReaderBase(
     NRpc::IChannelPtr masterChannel,
     IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const std::vector<NProto::TChunkSpec>& chunkSpecs)
+    const std::vector<NProto::TChunkSpec>& chunkSpecs,
+    IThroughputThrottlerPtr throttler)
     : Logger(ChunkClientLogger)
     , Options_(options)
     , ChunkSpecs_(chunkSpecs)
+    , Throttler_(throttler)
     , CompletionError_(NewPromise<void>())
     , BlockCache_(blockCache)
     , MasterChannel_(masterChannel)
     , NodeDirectory_(nodeDirectory)
-    , PrefetchReaderIndex_(0)
     , FetchingCompletedAwaiter_(New<TParallelAwaiter>(GetSyncInvoker()))
-    , IsOpen_(false)
-    , OpenedReaderCount_(0)
 {
     Logger.AddTag("Reader: %v", this);
 
@@ -88,7 +91,8 @@ TMultiChunkReaderBase::TMultiChunkReaderBase(
 
     CurrentSession_.Reset();
 
-    LOG_DEBUG("Creating multi chunk reader for %v chunks", ChunkSpecs_.size());
+    LOG_DEBUG("Creating multi chunk reader for %v chunks",
+        ChunkSpecs_.size());
 
     if (ChunkSpecs_.empty()) {
         CompletionError_.Set(TError());
@@ -225,7 +229,49 @@ IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunkSpec& chun
 
     LOG_DEBUG("Creating remote reader (ChunkId: %v)", chunkId);
 
-    if (!IsErasureChunkId(chunkId)) {
+    if (IsErasureChunkId(chunkId)) {
+        std::sort(
+            replicas.begin(),
+            replicas.end(),
+            [] (TChunkReplica lhs, TChunkReplica rhs) {
+                return lhs.GetIndex() < rhs.GetIndex();
+            });
+
+        auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
+        auto* erasureCodec = GetCodec(erasureCodecId);
+        auto dataPartCount = erasureCodec->GetDataPartCount();
+
+        std::vector<IChunkReaderPtr> readers;
+        readers.reserve(dataPartCount);
+
+        auto it = replicas.begin();
+        while (it != replicas.end() && it->GetIndex() < dataPartCount) {
+            auto jt = it;
+            while (jt != replicas.end() && it->GetIndex() == jt->GetIndex()) {
+                ++jt;
+            }
+
+            TChunkReplicaList partReplicas(it, jt);
+            auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
+            auto reader = CreateReplicationReader(
+                Config_,
+                BlockCache_,
+                MasterChannel_,
+                NodeDirectory_,
+                Null,
+                partId,
+                partReplicas,
+                NNodeTrackerClient::InterconnectNetworkName,
+                EReadSessionType::User,
+                Throttler_);
+            readers.push_back(reader);
+
+            it = jt;
+        }
+
+        YCHECK(readers.size() == dataPartCount);
+        return CreateNonRepairingErasureReader(readers);
+    } else {
         return CreateReplicationReader(
             Config_,
             BlockCache_,
@@ -233,47 +279,11 @@ IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunkSpec& chun
             NodeDirectory_,
             Null,
             chunkId,
-            replicas);
+            replicas,
+            NNodeTrackerClient::InterconnectNetworkName,
+            EReadSessionType::User,
+            Throttler_);
     }
-     
-    std::sort(
-        replicas.begin(),
-        replicas.end(),
-        [] (TChunkReplica lhs, TChunkReplica rhs) {
-            return lhs.GetIndex() < rhs.GetIndex();
-        });
-
-    auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
-    auto* erasureCodec = GetCodec(erasureCodecId);
-    auto dataPartCount = erasureCodec->GetDataPartCount();
-
-    std::vector<IChunkReaderPtr> readers;
-    readers.reserve(dataPartCount);
-
-    auto it = replicas.begin();
-    while (it != replicas.end() && it->GetIndex() < dataPartCount) {
-        auto jt = it;
-        while (jt != replicas.end() && it->GetIndex() == jt->GetIndex()) {
-            ++jt;
-        }
-
-        TChunkReplicaList partReplicas(it, jt);
-        auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
-        auto reader = CreateReplicationReader(
-            Config_,
-            BlockCache_,
-            MasterChannel_,
-            NodeDirectory_,
-            Null,
-            partId,
-            partReplicas);
-        readers.push_back(reader);
-
-        it = jt;
-    }
-    
-    YCHECK(readers.size() == dataPartCount);
-    return CreateNonRepairingErasureReader(readers);
 }
 
 void TMultiChunkReaderBase::OnReaderFinished()
@@ -325,15 +335,16 @@ TSequentialMultiChunkReaderBase::TSequentialMultiChunkReaderBase(
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const std::vector<NProto::TChunkSpec>& chunkSpecs)
+    const std::vector<NProto::TChunkSpec>& chunkSpecs,
+    IThroughputThrottlerPtr throttler)
     : TMultiChunkReaderBase(
         config, 
         options, 
         masterChannel, 
         blockCache, 
         nodeDirectory, 
-        chunkSpecs)
-    , NextReaderIndex_(0)
+        chunkSpecs,
+        throttler)
 {
     NextReaders_.reserve(ChunkSpecs_.size());
     for (int i = 0; i < ChunkSpecs_.size(); ++i) {
@@ -422,15 +433,16 @@ TParallelMultiChunkReaderBase::TParallelMultiChunkReaderBase(
     NRpc::IChannelPtr masterChannel,
     IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const std::vector<NProto::TChunkSpec>& chunkSpecs)
+    const std::vector<NProto::TChunkSpec>& chunkSpecs,
+    IThroughputThrottlerPtr throttler)
     : TMultiChunkReaderBase(
         config,
         options,
         masterChannel,
         blockCache,
         nodeDirectory,
-        chunkSpecs)
-    , FinishedReaderCount_(0)
+        chunkSpecs,
+        throttler)
 { }
 
 void TParallelMultiChunkReaderBase::DoOpen()

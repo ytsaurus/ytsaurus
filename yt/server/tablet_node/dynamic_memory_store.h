@@ -138,11 +138,6 @@ public:
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
-    // Memory usage tracking.
-    i64 GetMemoryUsage() const;
-
-    DEFINE_SIGNAL(void(i64 delta), MemoryUsageUpdated)
-    
     DEFINE_SIGNAL(void(TDynamicRow row, int lockIndex), RowBlocked)
 
 private:
@@ -157,8 +152,6 @@ private:
 
     NVersionedTableClient::TRowBuffer RowBuffer_;
     std::unique_ptr<TSkipList<TDynamicRow, TDynamicRowKeyComparer>> Rows_;
-
-    i64 MemoryUsage_ = 0;
 
     TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;
     TTimestamp MaxTimestamp_ = NTransactionClient::MinTimestamp;

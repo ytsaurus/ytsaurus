@@ -50,7 +50,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static TLogger Logger(SystemLoggingCategory);
-static NProfiling::TProfiler LoggingProfiler("");
+static auto& Profiler = LoggingProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,36 +59,36 @@ class TNotificationHandle
 {
 public:
     TNotificationHandle()
-        : Fd_(-1)
+        : FD_(-1)
     {
 #ifdef _linux_
-        Fd_ = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-        YCHECK(Fd_ >= 0);
+        FD_ = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+        YCHECK(FD_ >= 0);
 #endif
     }
 
     ~TNotificationHandle()
     {
 #ifdef _linux_
-        YCHECK(Fd_ >= 0);
-        ::close(Fd_);
+        YCHECK(FD_ >= 0);
+        ::close(FD_);
 #endif
     }
 
     int Poll()
     {
 #ifdef _linux_
-        YCHECK(Fd_ >= 0);
+        YCHECK(FD_ >= 0);
 
         char buffer[sizeof(struct inotify_event) + NAME_MAX + 1];
-        auto rv = ::read(Fd_, buffer, sizeof(buffer));
+        auto rv = ::read(FD_, buffer, sizeof(buffer));
 
         if (rv < 0) {
             if (errno != EAGAIN) {
                 LOG_ERROR(
                     TError::FromSystem(errno),
                     "Unable to poll inotify() descriptor %v",
-                    Fd_);
+                    FD_);
             }
         } else if (rv > 0) {
             YASSERT(rv >= sizeof(struct inotify_event));
@@ -118,8 +118,10 @@ public:
         return 0;
     }
 
-    DEFINE_BYVAL_RO_PROPERTY(int, Fd);
+    DEFINE_BYVAL_RO_PROPERTY(int, FD);
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TNotificationWatch
     : private TNonCopyable
@@ -129,14 +131,14 @@ public:
         TNotificationHandle* handle,
         const Stroka& path,
         TClosure callback)
-        : Fd_(handle->GetFd())
-        , Wd_(-1)
+        : FD_(handle->GetFD())
+        , WD_(-1)
         , Path_(path)
         , Callback_(std::move(callback))
 
     {
-        Fd_ = handle->GetFd();
-        YCHECK(Fd_ >= 0);
+        FD_ = handle->GetFD();
+        YCHECK(FD_ >= 0);
 
         CreateWatch();
     }
@@ -146,8 +148,8 @@ public:
         DropWatch();
     }
 
-    DEFINE_BYVAL_RO_PROPERTY(int, Fd);
-    DEFINE_BYVAL_RO_PROPERTY(int, Wd);
+    DEFINE_BYVAL_RO_PROPERTY(int, FD);
+    DEFINE_BYVAL_RO_PROPERTY(int, WD);
 
     void Run()
     {
@@ -160,40 +162,40 @@ public:
 private:
     void CreateWatch()
     {
-        YCHECK(Wd_ <= 0);
+        YCHECK(WD_ <= 0);
 #ifdef _linux_
-        Wd_ = inotify_add_watch(
-            Fd_,
+        WD_ = inotify_add_watch(
+            FD_,
             Path_.c_str(),
             IN_ATTRIB | IN_DELETE_SELF | IN_MOVE_SELF);
 
-        if (Wd_ < 0) {
+        if (WD_ < 0) {
             LOG_ERROR(TError::FromSystem(errno), "Error registering watch for %v",
                 Path_);
-            Wd_ = -1;
-        } else if (Wd_ > 0) {
+            WD_ = -1;
+        } else if (WD_ > 0) {
             LOG_TRACE("Registered watch %v for %v",
-                Wd_,
+                WD_,
                 Path_);
         } else {
             YUNREACHABLE();
         }
 #else
-        Wd_ = -1;
+        WD_ = -1;
 #endif
     }
 
     void DropWatch()
     {
 #ifdef _linux_
-        if (Wd_ > 0) {
+        if (WD_ > 0) {
             LOG_TRACE("Unregistering watch %v for %v",
-                Wd_,
+                WD_,
                 Path_);
-            inotify_rm_watch(Fd_, Wd_);
+            inotify_rm_watch(FD_, WD_);
         }
 #endif
-        Wd_ = -1;
+        WD_ = -1;
     }
 
 private:
@@ -226,9 +228,9 @@ public:
             false,
             false))
         , LoggingThread_(New<TThread>(this))
-        , EnqueuedCounter_("/enqueued")
-        , WrittenCounter_("/written")
-        , BacklogCounter_("/backlog")
+        , EnqueuedEventCounter_("/enqueued_events")
+        , WrittenEventCounter_("/written_events")
+        , BacklogEventCounter_("/backlog_events")
     {
         SystemWriters_.push_back(New<TStderrLogWriter>());
         UpdateConfig(TLogConfig::CreateDefault(), false);
@@ -298,7 +300,7 @@ public:
             ShutdownRequested_ = true;
 
             // Add fatal message to log and notify event log queue.
-            LoggingProfiler.Increment(EnqueuedCounter_);
+            Profiler.Increment(EnqueuedEventCounter_);
             PushLogEvent(std::move(event));
 
             if (LoggingThread_->GetId() != GetCurrentThreadId()) {
@@ -339,8 +341,8 @@ public:
             return;
         }
 
-        int backlogSize = LoggingProfiler.Increment(BacklogCounter_);
-        LoggingProfiler.Increment(EnqueuedCounter_);
+        int backlogSize = Profiler.Increment(BacklogEventCounter_);
+        Profiler.Increment(EnqueuedEventCounter_);
         PushLogEvent(std::move(event));
         EventCount_.NotifyOne();
 
@@ -438,7 +440,7 @@ private:
             }))
         { }
 
-        int backlogSize = LoggingProfiler.Increment(BacklogCounter_, -eventsWritten);
+        int backlogSize = Profiler.Increment(BacklogEventCounter_, -eventsWritten);
         if (Suspended_ && backlogSize < Config_->LowBacklogWatermark) {
             Suspended_ = false;
             LOG_INFO("Backlog size has dropped below low watermark %v, logging resumed",
@@ -466,14 +468,14 @@ private:
         EventQueue_->EndExecute(&CurrentAction_);
     }
 
-    ILogWriters GetWriters(const TLogEvent& event)
+    std::vector<ILogWriterPtr> GetWriters(const TLogEvent& event)
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
         if (event.Category == SystemLoggingCategory) {
             return SystemWriters_;
         } else {
-            ILogWriters writers;
+            std::vector<ILogWriterPtr> writers;
 
             std::pair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
             auto it = CachedWriters_.find(cacheKey);
@@ -504,7 +506,7 @@ private:
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
         for (auto& writer : GetWriters(event)) {
-            LoggingProfiler.Increment(WrittenCounter_);
+            Profiler.Increment(WrittenEventCounter_);
             writer->Write(event);
         }
     }
@@ -568,11 +570,11 @@ private:
             YCHECK(Writers_.insert(std::make_pair(name, std::move(writer))).second);
 
             if (watch) {
-                if (watch->GetWd() >= 0) {
+                if (watch->GetWD() >= 0) {
                     // Watch can fail to initialize if the writer is disabled
                     // e.g. due to the lack of space.
                     YCHECK(NotificationWatchesIndex_.insert(
-                        std::make_pair(watch->GetWd(), watch.get())).second);
+                        std::make_pair(watch->GetWD(), watch.get())).second);
                 }
                 NotificationWatches_.emplace_back(std::move(watch));
             }
@@ -647,29 +649,29 @@ private:
         if (!NotificationHandle_)
             return;
 
-        int previousWd = -1, currentWd = -1;
-        while ((currentWd = NotificationHandle_->Poll()) > 0) {
-            if (currentWd == previousWd) {
+        int previousWD = -1, currentWD = -1;
+        while ((currentWD = NotificationHandle_->Poll()) > 0) {
+            if (currentWD == previousWD) {
                 continue;
             }
-            auto&& it = NotificationWatchesIndex_.find(currentWd);
+            auto&& it = NotificationWatchesIndex_.find(currentWD);
             auto&& jt = NotificationWatchesIndex_.end();
             YCHECK(it != jt);
 
             auto* watch = it->second;
             watch->Run();
 
-            if (watch->GetWd() != currentWd) {
+            if (watch->GetWD() != currentWD) {
                 NotificationWatchesIndex_.erase(it);
-                if (watch->GetWd() >= 0) {
+                if (watch->GetWD() >= 0) {
                     // Watch can fail to initialize if the writer is disabled
                     // e.g. due to the lack of space.
                     YCHECK(NotificationWatchesIndex_.insert(
-                        std::make_pair(watch->GetWd(), watch)).second);
+                        std::make_pair(watch->GetWD(), watch)).second);
                 }
             }
 
-            previousWd = currentWd;
+            previousWD = currentWD;
         }
     }
 
@@ -693,18 +695,21 @@ private:
     // default configuration (default level etc.).
     std::atomic<int> Version_ = {-1};
     TLogConfigPtr Config_;
-    NProfiling::TSimpleCounter EnqueuedCounter_;
-    NProfiling::TSimpleCounter WrittenCounter_;
-    NProfiling::TAggregateCounter BacklogCounter_;
+
+    NProfiling::TSimpleCounter EnqueuedEventCounter_;
+    NProfiling::TSimpleCounter WrittenEventCounter_;
+    NProfiling::TSimpleCounter BacklogEventCounter_;
+
     bool Suspended_ = false;
+
     TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> LoggerQueue_;
 
     std::atomic<ui64> EnqueuedLogEvents_ = {0};
     std::atomic<ui64> DequeuedLogEvents_ = {0};
 
     yhash_map<Stroka, ILogWriterPtr> Writers_;
-    yhash_map<std::pair<Stroka, ELogLevel>, ILogWriters> CachedWriters_;
-    ILogWriters SystemWriters_;
+    yhash_map<std::pair<Stroka, ELogLevel>, std::vector<ILogWriterPtr>> CachedWriters_;
+    std::vector<ILogWriterPtr> SystemWriters_;
 
     volatile bool ReopenRequested_ = false;
     std::atomic<bool> ShutdownRequested_ = {false};

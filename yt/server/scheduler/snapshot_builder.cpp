@@ -8,27 +8,10 @@
 #include <core/misc/fs.h>
 #include <core/misc/proc.h>
 
-#include <core/concurrency/scheduler.h>
-
-#include <core/logging/log.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
-
 #include <ytlib/scheduler/helpers.h>
 
 #include <ytlib/api/transaction.h>
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
 #include <ytlib/api/file_writer.h>
-
-#include <core/ytree/ypath_detail.h>
-#include <core/ytree/attribute_helpers.h>
-
-#include <server/cell_scheduler/bootstrap.h>
-
-#include <util/stream/file.h>
-#include <util/stream/buffered.h>
 
 namespace NYT {
 namespace NScheduler {

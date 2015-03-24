@@ -33,8 +33,6 @@ struct TGetRequest
     }
 };
 
-typedef TIntrusivePtr<TGetRequest> TGetRequestPtr;
-
 class TGetCommand
     : public TTypedCommand<TGetRequest>
 {
@@ -56,8 +54,6 @@ struct TSetRequest
         RegisterParameter("path", Path);
     }
 };
-
-typedef TIntrusivePtr<TSetRequest> TSetRequestPtr;
 
 class TSetCommand
     : public TTypedCommand<TSetRequest>
@@ -89,8 +85,6 @@ struct TRemoveRequest
     }
 };
 
-typedef TIntrusivePtr<TRemoveRequest> TRemoveRequestPtr;
-
 class TRemoveCommand
     : public TTypedCommand<TRemoveRequest>
 {
@@ -119,8 +113,6 @@ struct TListRequest
             .Default();
     }
 };
-
-typedef TIntrusivePtr<TListRequest> TListRequestPtr;
 
 class TListCommand
     : public TTypedCommand<TListRequest>
@@ -155,8 +147,6 @@ struct TCreateRequest
             .Default(false);
     }
 };
-
-typedef TIntrusivePtr<TCreateRequest> TCreateRequestPtr;
 
 class TCreateCommand
     : public TTypedCommand<TCreateRequest>
@@ -207,8 +197,6 @@ struct TLockRequest
     }
 };
 
-typedef TIntrusivePtr<TLockRequest> TLockRequestPtr;
-
 class TLockCommand
     : public TTypedCommand<TLockRequest>
 {
@@ -238,8 +226,6 @@ struct TCopyRequest
             .Default(false);
     }
 };
-
-typedef TIntrusivePtr<TCopyRequest> TCopyRequestPtr;
 
 class TCopyCommand
     : public TTypedCommand<TCopyRequest>
@@ -271,8 +257,6 @@ struct TMoveRequest
     }
 };
 
-typedef TIntrusivePtr<TMoveRequest> TMoveRequestPtr;
-
 class TMoveCommand
     : public TTypedCommand<TMoveRequest>
 {
@@ -294,8 +278,6 @@ struct TExistsRequest
         RegisterParameter("path", Path);
     }
 };
-
-typedef TIntrusivePtr<TExistsRequest> TExistsRequestPtr;
 
 class TExistsCommand
     : public TTypedCommand<TExistsRequest>
@@ -329,8 +311,6 @@ struct TLinkRequest
             .Default(false);
     }
 };
-
-typedef TIntrusivePtr<TLinkRequest> TLinkRequestPtr;
 
 class TLinkCommand
     : public TTypedCommand<TLinkRequest>

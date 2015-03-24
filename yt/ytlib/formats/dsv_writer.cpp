@@ -10,7 +10,7 @@ namespace NFormats {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NTableClient;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,6 +4,7 @@
 
 #include <core/compression/codec.h>
 
+#include <contrib/libs/protobuf/text_format.h>
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -132,7 +133,7 @@ bool DeserializeFromProtoWithEnvelope(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::protobuf::MessageLite& message)
+void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::protobuf::Message& message)
 {
     TSharedRef data;
     YCHECK(SerializeToProtoWithEnvelope(message, &data));
@@ -140,12 +141,35 @@ void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::p
     TRangeSerializer::Save(context, data);
 }
 
-void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobuf::MessageLite& message)
+namespace {
+
+#ifdef YT_ENABLE_SERIALIZATION_DUMP
+
+Stroka DumpProto(::google::protobuf::Message& message)
 {
-    size_t size = TSizeSerializer::Load(context);
+    ::google::protobuf::TextFormat::Printer printer;
+    printer.SetSingleLineMode(true);
+    Stroka result;
+    YCHECK(printer.PrintToString(message, &result));
+    return result;
+}
+
+#endif
+
+} // namespace
+
+void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobuf::Message& message)
+{
+    size_t size = TSizeSerializer::LoadSuspended(context);
     auto data = TSharedRef::Allocate(size, false);
-    TRangeSerializer::Load(context, data);
+
+    SERIALIZATION_DUMP_SUSPEND(context) {
+        TRangeSerializer::Load(context, data);
+    }
+
     YCHECK(DeserializeFromProtoWithEnvelope(&message, data));
+
+    SERIALIZATION_DUMP_WRITE(context, "proto[%v] %v", size, DumpProto(message));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

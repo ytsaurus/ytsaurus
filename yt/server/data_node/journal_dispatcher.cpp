@@ -240,7 +240,7 @@ private:
         TInsertCookie cookie)
     {
         auto fileName = location->GetChunkPath(chunkId);
-        LOG_DEBUG("Started opening journal chunk (LocationId: %v, ChunkId: %v)",
+        LOG_TRACE("Started opening journal chunk (LocationId: %v, ChunkId: %v)",
             location->GetId(),
             chunkId);
 
@@ -267,7 +267,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Finished opening journal chunk (LocationId: %v, ChunkId: %v)",
+        LOG_TRACE("Finished opening journal chunk (LocationId: %v, ChunkId: %v)",
             location->GetId(),
             chunkId);
     }
@@ -697,7 +697,7 @@ private:
         if (chunkStore->FindChunk(chunkId))
             return;
 
-        auto location = chunkStore->GetNewChunkLocation();
+        auto location = chunkStore->GetReplayedChunkLocation();
 
         auto chunk = New<TJournalChunk>(
             Owner_->Bootstrap_,
@@ -945,13 +945,13 @@ TFuture<void> TJournalDispatcher::TImpl::AppendMultiplexedRecord(
 
 void TJournalDispatcher::TImpl::OnAdded(TCachedChangelog* changelog)
 {
-    LOG_DEBUG("Journal chunk added to cache (ChunkId: %v)",
+    LOG_TRACE("Journal chunk added to cache (ChunkId: %v)",
         changelog->GetKey());
 }
 
 void TJournalDispatcher::TImpl::OnRemoved(TCachedChangelog* changelog)
 {
-    LOG_DEBUG("Journal chunk evicted from cache (ChunkId: %v)",
+    LOG_TRACE("Journal chunk evicted from cache (ChunkId: %v)",
         changelog->GetKey());
 }
 

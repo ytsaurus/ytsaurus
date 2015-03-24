@@ -36,14 +36,6 @@ DEFINE_ENUM(EOperatorKind,
     (Project)
 );
 
-DEFINE_ENUM(EAggregateFunctions,
-    (Sum)
-    (Min)
-    (Max)
-    (Average)
-    (Count)
-);
-
 struct TExpression
     : public TIntrinsicRefCounted
 {
@@ -253,67 +245,92 @@ struct TAggregateItem
     TAggregateItem()
     { }
 
-    TAggregateItem(const TConstExpressionPtr& expression, EAggregateFunctions aggregateFunction, Stroka name)
+    TAggregateItem(const TConstExpressionPtr& expression, EAggregateFunction aggregateFunction, Stroka name)
         : TNamedItem(expression, name)
         , AggregateFunction(aggregateFunction)
     { }
 
-    EAggregateFunctions AggregateFunction;
+    EAggregateFunction AggregateFunction;
 };
 
 typedef std::vector<TAggregateItem> TAggregateItemList;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGroupClause
-{
-    TNamedItemList GroupItems;
-    TAggregateItemList AggregateItems;
-
-    TTableSchema GetTableSchema() const
-    {
-        TTableSchema result;
-
-        for (const auto& groupItem : GroupItems) {
-            result.Columns().emplace_back(groupItem.GetColumnSchema());
-        }
-
-        for (const auto& aggregateItem : AggregateItems) {
-            result.Columns().emplace_back(aggregateItem.GetColumnSchema());
-        }
-
-        ValidateTableSchema(result);
-
-        return result;
-    }
-};
-
-struct TProjectClause
-{
-    TNamedItemList Projections;
-
-    TTableSchema GetTableSchema() const
-    {
-        TTableSchema result;
-
-        for (const auto& item : Projections) {
-            result.Columns().emplace_back(item.GetColumnSchema());
-        }
-
-        ValidateTableSchema(result);
-
-        return result;
-    }
-};
-
 struct TJoinClause
+    : public TIntrinsicRefCounted
 {
-    TTableSchema SelfTableSchema;
     TTableSchema ForeignTableSchema;
     TKeyColumns ForeignKeyColumns;
     std::vector<Stroka> JoinColumns;
 
+    // TODO: Use ITableSchemaInterface
+    TTableSchema JoinedTableSchema;
+
+    TTableSchema GetTableSchema() const
+    {
+        return JoinedTableSchema;
+    }
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TJoinClause)
+
+struct TGroupClause
+    : public TIntrinsicRefCounted
+{
+    TNamedItemList GroupItems;
+    TAggregateItemList AggregateItems;
+
+    // TODO: Use ITableSchemaInterface
+    TTableSchema GroupedTableSchema;
+
+    void AddGroupItem(const TNamedItem& namedItem)
+    {
+        GroupItems.push_back(namedItem);
+        GroupedTableSchema.Columns().emplace_back(namedItem.Name, namedItem.Expression->Type);
+    }
+
+    void AddAggregateItem(const TAggregateItem& aggregateItem)
+    {
+        AggregateItems.push_back(aggregateItem);
+        GroupedTableSchema.Columns().emplace_back(aggregateItem.Name, aggregateItem.Expression->Type);
+    }
+
+    TTableSchema GetTableSchema() const
+    {
+        return GroupedTableSchema;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TGroupClause)
+
+struct TProjectClause
+    : public TIntrinsicRefCounted
+{
+    TNamedItemList Projections;
+
+    // TODO: Use ITableSchemaInterface
+    TTableSchema ProjectTableSchema;
+
+    void AddProjection(const TNamedItem& namedItem)
+    {
+        Projections.push_back(namedItem);
+        ProjectTableSchema.Columns().emplace_back(namedItem.Name, namedItem.Expression->Type);
+    }
+
+    void AddProjection(const TConstExpressionPtr& expression, Stroka name)
+    {
+        AddProjection(TNamedItem(expression, name));
+    }
+
+    TTableSchema GetTableSchema() const
+    {
+        return ProjectTableSchema;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TProjectClause)
 
 struct TQuery
     : public TIntrinsicRefCounted
@@ -330,20 +347,17 @@ struct TQuery
     i64 InputRowLimit;
     i64 OutputRowLimit;
     TGuid Id;
-    
-    TNullable<TJoinClause> JoinClause;
 
-    i64 Limit = std::numeric_limits<i64>::max();
-
+    // TODO: Move out TableSchema and KeyColumns 
     TTableSchema TableSchema;
-    // TODO: Move out KeyColumns
     TKeyColumns KeyColumns;
 
-    TConstExpressionPtr Predicate;
+    TConstJoinClausePtr JoinClause;
+    TConstExpressionPtr WhereClause;
+    TConstGroupClausePtr GroupClause;
+    TConstProjectClausePtr ProjectClause;
 
-    TNullable<TGroupClause> GroupClause;
-
-    TNullable<TProjectClause> ProjectClause;
+    i64 Limit = std::numeric_limits<i64>::max();
 
     TTableSchema GetTableSchema() const
     {
@@ -355,12 +369,24 @@ struct TQuery
             return GroupClause->GetTableSchema();
         }
 
+        if (JoinClause) {
+            return JoinClause->GetTableSchema();
+        }
+
         return TableSchema;
     }
 
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
+
+struct TDataSource
+{
+    NObjectClient::TObjectId Id;
+    TKeyRange Range;
+};
+
+typedef std::vector<TDataSource> TDataSources;
 
 struct TPlanFragment
     : public TIntrinsicRefCounted
@@ -372,10 +398,15 @@ struct TPlanFragment
     Stroka Source;
 
     TNodeDirectoryPtr NodeDirectory;
-    TDataSplits DataSplits;
-    TDataSplit ForeignDataSplit;
+    
+    TTimestamp Timestamp;
+
+    TDataSources DataSources;
+    TDataSource ForeignDataSource;
+
     TConstQueryPtr Query;
     bool Ordered = false;
+    bool VerboseLogging = false;
 
 };
 
@@ -397,7 +428,7 @@ TPlanFragmentPtr PrepareJobPlanFragment(
 
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
-    const TTableSchema& initialTableSchema);
+    TTableSchema initialTableSchema);
 
 Stroka InferName(TConstExpressionPtr expr);
 Stroka InferName(TConstQueryPtr query);

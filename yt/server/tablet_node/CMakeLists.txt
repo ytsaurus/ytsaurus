@@ -3,7 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/tablet_node )
 set( SRCS
   ${BASE}/private.cpp
   ${BASE}/tablet_slot.cpp
-  ${BASE}/tablet_slot_manager.cpp
+  ${BASE}/slot_manager.cpp
   ${BASE}/automaton.cpp
   ${BASE}/tablet_manager.cpp
   ${BASE}/tablet.cpp
@@ -26,13 +26,14 @@ set( SRCS
   ${BASE}/row_merger.cpp
   ${BASE}/lookup.cpp
   ${BASE}/security_manager.cpp
+  ${BASE}/store_preloader.cpp
 )
 set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/config.h
   ${BASE}/tablet_slot.h
-  ${BASE}/tablet_slot_manager.h
+  ${BASE}/slot_manager.h
   ${BASE}/automaton.h
   ${BASE}/tablet_manager.h
   ${BASE}/tablet.h
@@ -56,6 +57,7 @@ set( HDRS
   ${BASE}/lookup.h
   ${BASE}/row_comparer_generator.h
   ${BASE}/security_manager.h
+  ${BASE}/store_preloader.h
 )
 
 if (YT_BUILD_ENABLE_LLVM)

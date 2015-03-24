@@ -167,7 +167,7 @@ protected:
     NChunkClient::NProto::TDataStatistics TotalIntermediateDataStatistics;
 
     // These totals are exact.
-    std::vector<NChunkClient::NProto::TDataStatistics> TotalOutputsDataStatistics;
+    std::vector<NChunkClient::NProto::TDataStatistics> OutputDataStatistics;
 
     int UnavailableInputChunkCount;
 
@@ -511,7 +511,7 @@ protected:
         void AddIntermediateOutputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
-            TNullable<NTableClient::TKeyColumns> keyColumns);
+            TNullable<NVersionedTableClient::TKeyColumns> keyColumns);
 
         static void UpdateInputSpecTotals(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
@@ -622,7 +622,9 @@ protected:
     void InitInputChunkScratcher();
     void SuspendUnavailableInputStripes();
 
-    // Initialize transactions.
+    void ValidateKey(const NVersionedTableClient::TOwningKey& key);
+
+    // Initialize transactions
     void StartAsyncSchedulerTransaction();
     void StartSyncSchedulerTransaction();
     void StartIOTransactions();
@@ -852,7 +854,7 @@ private:
         TInputChunkMap::iterator NextChunkIterator;
         bool Started;
 
-        NLogging::TLogger& Logger;
+        NLogging::TLogger Logger;
 
     };
 

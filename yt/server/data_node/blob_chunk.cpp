@@ -72,7 +72,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::GetMeta(
         TGuard<TSpinLock> guard(SpinLock_);
         if (Meta_) {
             guard.Release();
-            LOG_DEBUG("Meta cache hit (ChunkId: %v)", Id_);
+            LOG_TRACE("Meta cache hit (ChunkId: %v)", Id_);
             return MakeFuture(FilterCachedMeta(extensionTags));
         }
     }
@@ -145,7 +145,7 @@ void TBlobChunkBase::DoReadBlocks(
 
         std::vector<TSharedRef> blocks;
 
-        LOG_DEBUG("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+        LOG_TRACE("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
@@ -158,7 +158,7 @@ void TBlobChunkBase::DoReadBlocks(
 
         auto readTime = timer.GetElapsed();
 
-        LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+        LOG_TRACE("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
@@ -212,7 +212,7 @@ void TBlobChunkBase::DoReadMeta(
     TPromise<void> promise)
 {
     auto& Profiler = Location_->Profiler();
-    LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v)",
+    LOG_TRACE("Started reading chunk meta (ChunkId: %v, LocationId: %v)",
         Id_,
         Location_->GetId());
 
@@ -231,7 +231,7 @@ void TBlobChunkBase::DoReadMeta(
 
     InitializeCachedMeta(reader->GetMeta());
 
-    LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v)",
+    LOG_TRACE("Finished reading chunk meta (ChunkId: %v, LocationId: %v)",
         Id_,
         Location_->GetId());
 

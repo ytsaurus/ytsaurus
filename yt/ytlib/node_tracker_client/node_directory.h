@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <core/misc/serialize.h>
 #include <core/misc/nullable.h>
+#include <core/misc/property.h>
 
 #include <ytlib/chunk_client/chunk_replica.h>
 

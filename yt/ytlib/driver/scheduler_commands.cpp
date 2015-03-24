@@ -12,27 +12,40 @@ namespace NDriver {
 
 using namespace NScheduler;
 using namespace NYTree;
-using namespace NHydra;
 using namespace NConcurrency;
 using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDumpInputContextCommand::DoExecute()
+void TDumpJobInputContextCommand::DoExecute()
 {
-    WaitFor(Context_->GetClient()->DumpInputContext(Request_->JobId, Request_->Path))
+    WaitFor(Context_->GetClient()->DumpJobInputContext(Request_->JobId, Request_->Path))
         .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSchedulerCommandBase::StartOperation(EOperationType type)
+void TStraceJobCommand::DoExecute()
+{
+    auto asyncResult = Context_->GetClient()->StraceJob(Request_->JobId);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    Reply(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("traces").Value(result)
+        .EndMap());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TStartOperationCommandBase::DoExecute()
 {
     TStartOperationOptions options;
     SetTransactionalOptions(&options);
     SetMutatingOptions(&options);
     auto asyncOperationId = Context_->GetClient()->StartOperation(
-        type,
+        GetOperationType(),
         ConvertToYsonString(Request_->Spec),
         options);
 
@@ -45,51 +58,51 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMapCommand::DoExecute()
+EOperationType TMapCommand::GetOperationType() const
 {
-    StartOperation(EOperationType::Map);
+    return EOperationType::Map;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMergeCommand::DoExecute()
+EOperationType TMergeCommand::GetOperationType() const
 {
-    StartOperation(EOperationType::Merge);
+    return EOperationType::Merge;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSortCommand::DoExecute()
+EOperationType TSortCommand::GetOperationType() const
 {
-    StartOperation(EOperationType::Sort);
+    return EOperationType::Sort;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TEraseCommand::DoExecute()
+EOperationType TEraseCommand::GetOperationType() const
 {
-    StartOperation(EOperationType::Erase);
+    return EOperationType::Erase;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReduceCommand::DoExecute()
+EOperationType TReduceCommand::GetOperationType() const
 {
-    StartOperation(EOperationType::Reduce);
+    return EOperationType::Reduce;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMapReduceCommand::DoExecute()
+EOperationType TMapReduceCommand::GetOperationType() const
 {
-    StartOperation(EOperationType::MapReduce);
+    return EOperationType::MapReduce;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoteCopyCommand::DoExecute()
+EOperationType TRemoteCopyCommand::GetOperationType() const
 {
-    StartOperation(EOperationType::RemoteCopy);
+    return EOperationType::RemoteCopy;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

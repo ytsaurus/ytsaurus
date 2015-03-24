@@ -43,8 +43,8 @@ exports.that = function Middleware__YtMinPythonWrapperVersion()
             if (compareVersions(version, min_version) < 0) {
                 var error = new YtError(
                     "You are using deprecated version of `yandex-yt-python` " +
-                    "(" + printVersion(version) + " < " + printVersion(min_version) + "). " +
-                    "Please, consider upgrading.");
+                    "(" + printVersion(version) + " < " + printVersion(min_version) + "); " +
+                    "please consider upgrading");
                 (req.logger || logger).debug(
                     "Client is using deprecated version of yandex-yt-python",
                     {

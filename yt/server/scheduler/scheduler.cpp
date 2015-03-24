@@ -15,37 +15,14 @@
 #include "event_log.h"
 
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_executor.h>
 
-#include <core/misc/string.h>
-
-#include <core/actions/invoker_util.h>
-
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/scheduler.h>
-
-#include <core/rpc/dispatcher.h>
 #include <core/rpc/message.h>
 #include <core/rpc/response_keeper.h>
 
-#include <core/logging/log.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-
 #include <ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/helpers.h>
-
-#include <ytlib/scheduler/scheduler_service.pb.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-
-#include <ytlib/object_client/helpers.h>
-#include <ytlib/object_client/object_ypath_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
 
-#include <ytlib/chunk_client/data_statistics.h>
 #include <ytlib/chunk_client/private.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
@@ -60,11 +37,6 @@
 #include <ytlib/new_table_client/schemaless_writer.h>
 #include <ytlib/new_table_client/schemaless_buffered_table_writer.h>
 #include <ytlib/new_table_client/table_consumer.h>
-
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/fluent.h>
-
-#include <ytlib/hive/cluster_directory.h>
 
 #include <server/cell_scheduler/config.h>
 #include <server/cell_scheduler/bootstrap.h>
@@ -89,7 +61,6 @@ using namespace NNodeTrackerClient;
 using namespace NVersionedTableClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
-using namespace NTableClient;
 
 using NNodeTrackerClient::TNodeDescriptor;
 
@@ -312,14 +283,12 @@ public:
 
         // Attach user transaction if any. Don't ping it.
         auto transactionManager = GetMasterClient()->GetTransactionManager();
-        TTransactionAttachOptions userAttachOptions(transactionId);
-        userAttachOptions.AutoAbort = false;
+        TTransactionAttachOptions userAttachOptions;
         userAttachOptions.Ping = false;
         userAttachOptions.PingAncestors = false;
-        auto userTransaction =
-            transactionId == NullTransactionId
+        auto userTransaction = transactionId == NullTransactionId
             ? nullptr
-            : transactionManager->Attach(userAttachOptions);
+            : transactionManager->Attach(transactionId, userAttachOptions);
 
         // Merge operation spec with template
         auto specTemplate = GetSpecTemplate(type, spec);
@@ -427,6 +396,30 @@ public:
         return VoidFuture;
     }
 
+    TFuture<TYsonString> Strace(const TJobId& jobId)
+    {
+        return BIND(&TImpl::DoStrace, MakeStrong(this), jobId)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    TYsonString DoStrace(const TJobId& jobId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto probeProxy = CreateJobProber(jobId);
+
+        auto req = probeProxy.Strace();
+        ToProto(req->mutable_job_id(), jobId);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error stracing processes of job %v", jobId);
+
+        auto& res = rspOrError.Value();
+
+        return TYsonString(FromProto<Stroka>(res->trace()));
+    }
+
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
     {
         return BIND(&TImpl::DoDumpInputContext, MakeStrong(this), jobId, path)
@@ -438,6 +431,25 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto probeProxy = CreateJobProber(jobId);
+
+        auto req = probeProxy.DumpInputContext();
+        ToProto(req->mutable_job_id(), jobId);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error dumping input context for job %v", jobId)
+
+        auto& res = rspOrError.Value();
+        auto chunkIds = FromProto<TGuid>(res->chunk_id());
+        MasterConnector_->AttachJobInputContext(path, chunkIds);
+
+        LOG_INFO("Input context saved (JobId: %v, Path: %v)",
+            jobId,
+            path);
+    }
+
+    TJobProberServiceProxy CreateJobProber(const TJobId& jobId)
+    {
         auto job = FindJob(jobId);
         if (!job) {
             THROW_ERROR_EXCEPTION("No such job %v", jobId);
@@ -446,25 +458,9 @@ public:
         const auto& address = job->GetNode()->Descriptor().GetInterconnectAddress();
         auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
 
-        TJobProberServiceProxy probeProxy(channel);
-
-        auto req = probeProxy.DumpInputContext();
-        ToProto(req->mutable_job_id(), jobId);
-
-        auto errorOrResponse = WaitFor(req->Invoke());
-
-        if (!errorOrResponse.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error dumping input context for job: %v", jobId)
-                << errorOrResponse;
-        }
-
-        auto response = errorOrResponse.Value();
-        auto chunkIds = FromProto<TGuid>(response->chunk_id());
-        MasterConnector_->SaveInputContext(path, chunkIds);
-
-        LOG_INFO("Input context saved (JobId: %v, Path: %v)",
-            jobId,
-            path);
+        TJobProberServiceProxy jobProber(channel);
+        jobProber.SetDefaultTimeout(Bootstrap_->GetConfig()->Scheduler->JobProberRpcTimeout);
+        return jobProber;
     }
 
     void ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
@@ -485,6 +481,11 @@ public:
         TotalResourceLimits_ -= oldResourceLimits;
         TotalResourceLimits_ += node->ResourceLimits();
 
+        auto updateResourceUsage = [&] () {
+            TotalResourceUsage_ -= oldResourceUsage;
+            TotalResourceUsage_ += node->ResourceUsage();
+        };
+
         for (const auto& tag : node->SchedulingTags()) {
             auto& resources = SchedulingTagResources_[tag];
             resources -= oldResourceLimits;
@@ -492,11 +493,12 @@ public:
         }
 
         if (MasterConnector_->IsConnected()) {
-            std::vector<TJobPtr> runningJobs;
-            bool hasWaitingJobs = false;
-            yhash_set<TOperationPtr> operationsToLog;
-            PROFILE_TIMING ("/analysis_time") {
-                auto missingJobs = node->Jobs();
+            try {
+                std::vector<TJobPtr> runningJobs;
+                bool hasWaitingJobs = false;
+                yhash_set<TOperationPtr> operationsToLog;
+                PROFILE_TIMING ("/analysis_time") {
+                    auto missingJobs = node->Jobs();
 
                 for (auto& jobStatus : *request->mutable_jobs()) {
                     auto jobType = EJobType(jobStatus.job_type());
@@ -504,30 +506,30 @@ public:
                     if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
                         continue;
 
-                    auto job = ProcessJobHeartbeat(
-                        node,
-                        request,
-                        response,
-                        &jobStatus);
-                    if (job) {
-                        YCHECK(missingJobs.erase(job) == 1);
-                        switch (job->GetState()) {
-                        case EJobState::Completed:
-                        case EJobState::Failed:
-                        case EJobState::Aborted:
-                            operationsToLog.insert(job->GetOperation());
-                            break;
-                        case EJobState::Running:
-                            runningJobs.push_back(job);
-                            break;
-                        case EJobState::Waiting:
-                            hasWaitingJobs = true;
-                            break;
-                        default:
-                            break;
+                        auto job = ProcessJobHeartbeat(
+                            node,
+                            request,
+                            response,
+                            &jobStatus);
+                        if (job) {
+                            YCHECK(missingJobs.erase(job) == 1);
+                            switch (job->GetState()) {
+                            case EJobState::Completed:
+                            case EJobState::Failed:
+                            case EJobState::Aborted:
+                                operationsToLog.insert(job->GetOperation());
+                                break;
+                            case EJobState::Running:
+                                runningJobs.push_back(job);
+                                break;
+                            case EJobState::Waiting:
+                                hasWaitingJobs = true;
+                                break;
+                            default:
+                                break;
+                            }
                         }
                     }
-                }
 
                 // Check for missing jobs.
                 for (auto job : missingJobs) {
@@ -567,15 +569,20 @@ public:
                         .AsyncVia(specBuilderInvoker)
                         .Run());
 
-                // Release to avoid circular references.
-                job->SetSpecBuilder(TJobSpecBuilder());
-                operationsToLog.insert(job->GetOperation());
-            }
+                    // Release to avoid circular references.
+                    job->SetSpecBuilder(TJobSpecBuilder());
+                    operationsToLog.insert(job->GetOperation());
+                }
 
-            context->ReplyFrom(Combine(asyncResults));
+                context->ReplyFrom(Combine(asyncResults));
 
-            for (auto operation : operationsToLog) {
-                LogOperationProgress(operation);
+                for (auto operation : operationsToLog) {
+                    LogOperationProgress(operation);
+                }
+            } catch (const std::exception&) {
+                // Do not forget to update resource usage if heartbeat failed.
+                updateResourceUsage();
+                throw;
             }
         } else {
             context->Reply(GetMasterDisconnectedError());
@@ -583,8 +590,7 @@ public:
 
         // Update total resource usage _after_ processing the heartbeat to avoid
         // "unsaturated CPU" phenomenon.
-        TotalResourceUsage_ -= oldResourceUsage;
-        TotalResourceUsage_ += node->ResourceUsage();
+        updateResourceUsage();
     }
 
 
@@ -1114,7 +1120,11 @@ private:
             throw TFiberCanceledException();
         }
 
-        operation->SetState(EOperationState::Running);
+        if (operation->GetEnqueued()) {
+            operation->SetState(EOperationState::Pending);
+        } else {
+            operation->SetState(EOperationState::Running);
+        }
 
         LOG_INFO("Operation has been prepared and is now running (OperationId: %v)",
             operationId);
@@ -1225,7 +1235,11 @@ private:
         // Discard the snapshot, if any.
         operation->Snapshot().Reset();
 
-        operation->SetState(EOperationState::Running);
+        if (operation->GetEnqueued()) {
+            operation->SetState(EOperationState::Pending);
+        } else {
+            operation->SetState(EOperationState::Running);
+        }
 
         LOG_INFO("Operation has been revived and is now running (OperationId: %v)",
             operation->GetId());
@@ -1469,7 +1483,9 @@ private:
         JobUpdated_.Fire(job, -job->ResourceUsage());
         job->ResourceUsage() = ZeroNodeResources();
 
-        AbortJob(job, TError("Job preempted"));
+        TError error("Job preempted");
+        error.Attributes().Set("abort_reason", EAbortReason::Preemption);
+        AbortJob(job, error);
     }
 
 
@@ -2240,6 +2256,11 @@ TFuture<void> TScheduler::SuspendOperation(TOperationPtr operation)
 TFuture<void> TScheduler::ResumeOperation(TOperationPtr operation)
 {
     return Impl_->ResumeOperation(operation);
+}
+
+TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId)
+{
+    return Impl_->Strace(jobId);
 }
 
 TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)

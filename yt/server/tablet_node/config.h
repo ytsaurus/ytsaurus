@@ -106,6 +106,8 @@ public:
 
     int MaxReadFanIn;
 
+    EInMemoryMode InMemoryMode;
+
     TTableMountConfig()
     {
         RegisterParameter("enable_codegen", EnableCodegen)
@@ -137,7 +139,7 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("max_partition_count", MaxPartitionCount)
-            .Default(1024)
+            .Default(10240)
             .GreaterThan(0);
 
         RegisterParameter("max_eden_data_size", MaxEdenDataSize)
@@ -166,8 +168,8 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("samples_per_partition", SamplesPerPartition)
-            .Default(1)
-            .GreaterThanOrEqual(1);
+            .Default(0)
+            .GreaterThanOrEqual(0);
 
         RegisterParameter("backing_store_retention_time", BackingStoreRetentionTime)
             .Default(TDuration::Seconds(60));
@@ -175,6 +177,9 @@ public:
         RegisterParameter("max_read_fan_in", MaxReadFanIn)
             .GreaterThan(0)
             .Default(20);
+
+        RegisterParameter("in_memory_mode", InMemoryMode)
+            .Default(EInMemoryMode::Disabled);
 
         RegisterValidator([&] () {
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {
@@ -304,6 +309,28 @@ DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStorePreloaderConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int MaxConcurrentPreloads;
+    i64 WindowSize;
+
+    TStorePreloaderConfig()
+    {
+        RegisterParameter("max_concurrent_preloads", MaxConcurrentPreloads)
+            .GreaterThan(0)
+            .Default(1);
+        RegisterParameter("window_size", WindowSize)
+            .GreaterThan(0)
+            .Default((i64) 16 * 1024 * 1024);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TStorePreloaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPartitionBalancerConfig
     : public NYTree::TYsonSerializable
 {
@@ -401,11 +428,23 @@ public:
     TTabletManagerConfigPtr TabletManager;
     TStoreFlusherConfigPtr StoreFlusher;
     TStoreCompactorConfigPtr StoreCompactor;
+    TStorePreloaderConfigPtr StorePreloader;
     TPartitionBalancerConfigPtr PartitionBalancer;
     TSecurityManagerConfigPtr SecurityManager;
 
     TTabletChunkReaderConfigPtr ChunkReader;
     NVersionedTableClient::TTableWriterConfigPtr ChunkWriter;
+
+    //! Controls outcoming bandwidth used by store flushes.
+    NConcurrency::TThroughputThrottlerConfigPtr StoreFlushOutThrottler;
+
+
+    //! Controls incoming bandwidth used by store compactions.
+    NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionInThrottler;
+
+    //! Controls outcoming bandwidth used by store compactions.
+    NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionOutThrottler;
+
 
     TTabletNodeConfig()
     {
@@ -438,6 +477,8 @@ public:
             .DefaultNew();
         RegisterParameter("store_compactor", StoreCompactor)
             .DefaultNew();
+        RegisterParameter("store_preloader", StorePreloader)
+            .DefaultNew();
         RegisterParameter("partition_balancer", PartitionBalancer)
             .DefaultNew();
         RegisterParameter("security_manager", SecurityManager)
@@ -446,6 +487,14 @@ public:
         RegisterParameter("chunk_reader", ChunkReader)
             .DefaultNew();
         RegisterParameter("chunk_writer", ChunkWriter)
+            .DefaultNew();
+
+        RegisterParameter("store_flush_out_throttler", StoreFlushOutThrottler)
+            .DefaultNew();
+
+        RegisterParameter("store_compaction_in_throttler", StoreCompactionInThrottler)
+            .DefaultNew();
+        RegisterParameter("store_compaction_out_throttler", StoreCompactionOutThrottler)
             .DefaultNew();
     }
 };

@@ -14,8 +14,6 @@
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/multi_chunk_writer_base.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h> // TODO(babenko): remove after migration
-
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -23,7 +21,6 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NRpc;
-using namespace NTableClient::NProto;
 using namespace NTransactionClient;
 using namespace NVersionedTableClient::NProto;
 
@@ -320,7 +317,8 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     const TKeyColumns& keyColumns,
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
-    const TChunkListId& parentChunkListId)
+    const TChunkListId& parentChunkListId,
+    IThroughputThrottlerPtr throttler)
 {
     typedef TMultiChunkWriterBase<
         IVersionedMultiChunkWriter,
@@ -342,7 +340,8 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         masterChannel,
         transactionId,
         parentChunkListId,
-        createChunkWriter);
+        createChunkWriter,
+        throttler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

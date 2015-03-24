@@ -573,7 +573,7 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
 
     NConcurrency::TDelayedExecutor::Submit(
         BIND([=] () mutable {
-            promise.TrySet(TError(NYT::EErrorCode::Timeout, "Future has timed out"));
+            promise.TrySet(TError(NYT::EErrorCode::Timeout, "Operation timed out"));
         }),
         timeout);
 
@@ -583,6 +583,12 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
     }));
 
     return promise;
+}
+
+template <class T>
+TFuture<T> TFutureBase<T>::WithTimeout(TNullable<TDuration> timeout)
+{
+    return timeout ? WithTimeout(*timeout) : TFuture<T>(Impl_);
 }
 
 template <class T>

@@ -23,23 +23,28 @@ public:
         }
 
         // Slow path.
-        FlushedLength_ += (Current_ - Begin_);
+        size_t committedLength = GetLength();
         size = std::max(size, static_cast<size_t>(1024));
-        size_t capacity = FlushedLength_ + size;
-        Str_.ReserveAndResize(capacity);
-        Begin_ = Current_ = &*Str_.begin() + FlushedLength_;
+        Str_.ReserveAndResize(committedLength + size);
+        Begin_ = Current_ = &*Str_.begin() + committedLength;
         End_ = Begin_ + size;
         return Current_;
     }
 
     size_t GetLength() const
     {
-        return FlushedLength_ + (Current_ - Begin_);
+        return Current_ ? Current_ - Str_.Data() : 0;
+    }
+
+    TStringBuf GetBuffer() const
+    {
+        return TStringBuf(&*Str_.begin(), GetLength());
     }
 
     void Advance(size_t size)
     {
         Current_ += size;
+        YASSERT(Current_ <= End_);
     }
 
     void AppendChar(char ch)
@@ -76,21 +81,24 @@ public:
 
     Stroka Flush()
     {
-        FlushedLength_ += (Current_ - Begin_);
+        Str_.resize(GetLength());
         Begin_ = Current_ = End_ = nullptr;
-        Str_.resize(FlushedLength_);
         return std::move(Str_);
     }
 
 private:
     Stroka Str_;
-    size_t FlushedLength_ = 0;
 
     char* Begin_ = nullptr;
     char* Current_ = nullptr;
     char* End_ = nullptr;
 
 };
+
+inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, const TStringBuf& /*format*/)
+{
+    builder->AppendString(value.GetBuffer());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,7 +151,7 @@ Stroka JoinToString(
 //! Joins a collection of given items into a string intermixing them with the delimiter.
 /*!
  *  The function assume the presence of begin()- and end()-like methods in the collection.
- *  
+ *
  *  \param collection A collection containing the items to be joined.
  *  \param delimiter A delimiter to be inserted between items. By default equals ", ".
  *  \return The resulting combined string.
@@ -222,6 +230,7 @@ void CamelCaseToUnderscoreCase(TStringBuilder* builder, const TStringBuf& str);
 Stroka CamelCaseToUnderscoreCase(const TStringBuf& str);
 
 Stroka TrimLeadingWhitespaces(const Stroka& str);
+Stroka Trim(const Stroka& str, const Stroka& whitespaces);
 
 bool ParseBool(const Stroka& value);
 TStringBuf FormatBool(bool value);

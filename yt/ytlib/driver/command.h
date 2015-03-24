@@ -61,8 +61,6 @@ struct TTransactionalRequest
     }
 };
 
-typedef TIntrusivePtr<TTransactionalRequest> TTransactionalRequestPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TMutatingRequest
@@ -80,8 +78,6 @@ struct TMutatingRequest
     }
 };
 
-typedef TIntrusivePtr<TMutatingRequest> TMutatingRequestPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TReadOnlyRequest
@@ -95,8 +91,6 @@ struct TReadOnlyRequest
             .Default(NApi::EMasterChannelKind::LeaderOrFollower);
     }
 };
-
-typedef TIntrusivePtr<TReadOnlyRequest> TReadOnlyRequestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,8 +108,6 @@ struct TSuppressableAccessTrackingRequest
             .Default(false);
     }
 };
-
-typedef TIntrusivePtr<TSuppressableAccessTrackingRequest> TAccessTrackingSuppressableRequestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -215,16 +207,6 @@ template <class TRequest, class = void>
 class TTransactionalCommandBase
 { };
 
-DEFINE_ENUM(EAllowNullTransaction,
-    (Yes)
-    (No)
-);
-
-DEFINE_ENUM(EPingTransaction,
-    (Yes)
-    (No)
-);
-
 template <class TRequest>
 class TTransactionalCommandBase<
     TRequest,
@@ -233,32 +215,22 @@ class TTransactionalCommandBase<
     : public virtual TTypedCommandBase<TRequest>
 {
 protected:
-    NTransactionClient::TTransactionId GetTransactionId(EAllowNullTransaction allowNullTransaction)
+    NTransactionClient::TTransactionPtr AttachTransaction(bool required)
     {
-        auto transaction = this->GetTransaction(allowNullTransaction, EPingTransaction::Yes);
-        return transaction ? transaction->GetId() : NTransactionClient::NullTransactionId;
-    }
-
-    NTransactionClient::TTransactionPtr GetTransaction(EAllowNullTransaction allowNullTransaction, EPingTransaction pingTransaction)
-    {
-        if (allowNullTransaction == EAllowNullTransaction::No &&
-            this->Request_->TransactionId == NTransactionClient::NullTransactionId)
-        {
-            THROW_ERROR_EXCEPTION("Transaction is required");
-        }
-
-        auto transactionId = this->Request_->TransactionId;
+        const auto& transactionId = this->Request_->TransactionId;
         if (transactionId == NTransactionClient::NullTransactionId) {
+            if (required) {
+                THROW_ERROR_EXCEPTION("Transaction is required");
+            }
             return nullptr;
         }
 
-        NTransactionClient::TTransactionAttachOptions options(transactionId);
-        options.AutoAbort = false;
-        options.Ping = (pingTransaction == EPingTransaction::Yes);
-        options.PingAncestors = this->Request_->PingAncestors;
-
         auto transactionManager = this->Context_->GetClient()->GetTransactionManager();
-        return transactionManager->Attach(options);
+
+        NTransactionClient::TTransactionAttachOptions options;
+        options.Ping = !required;
+        options.PingAncestors = this->Request_->PingAncestors;
+        return transactionManager->Attach(transactionId, options);
     }
 
     void SetTransactionalOptions(NApi::TTransactionalOptions* options)

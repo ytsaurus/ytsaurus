@@ -18,19 +18,19 @@ using namespace NFormats;
 using namespace NVersionedTableClient;
 using namespace NConcurrency;
 
-static const auto& Logger = JobProxyLogger;
+////////////////////////////////////////////////////////////////////////////////
+
+static const size_t BufferSize = 1024 * 1024;
+static const int BufferRowCount = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int BufferSize = 1024 * 1024;
-static const int BufferRowCount = 1024;
-
 TContextPreservingInput::TContextPreservingInput(
     ISchemalessMultiChunkReaderPtr reader,
-    const TFormat& format, 
+    const TFormat& format,
     bool enableTableSwitch)
     : Reader_(reader)
-    , EnableTableSwitch_(enableTableSwitch) 
+    , EnableTableSwitch_(enableTableSwitch)
     , TableIndex_(-1)
 {
     CurrentBuffer_.Reserve(BufferSize);
@@ -40,7 +40,7 @@ TContextPreservingInput::TContextPreservingInput(
 
     Consumer_ = consumer.get();
     Writer_ = CreateSchemalessWriterAdapter(
-        std::move(consumer), 
+        std::move(consumer),
         Reader_->GetNameTable());
 }
 
@@ -85,7 +85,7 @@ void TContextPreservingInput::WriteRows(const std::vector<TUnversionedRow>& rows
             WaitFor(Writer_->GetReadyEvent())
                 .ThrowOnError();
         }
-        
+
         if (CurrentBuffer_.Size() < BufferSize) {
             continue;
         }

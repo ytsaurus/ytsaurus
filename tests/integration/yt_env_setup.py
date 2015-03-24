@@ -61,6 +61,7 @@ class YTEnvSetup(YTEnv):
 
             yt_commands.set('//tmp', {})
             yt_commands.gc_collect()
+            yt_commands.clear_metadata_caches()
 
             self._remove_accounts()
             self._remove_users()

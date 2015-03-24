@@ -44,6 +44,9 @@ DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
 
+//! A special value representing an invalid snapshot (or changelog) id.
+const int InvalidSegmentId = -1;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHydra

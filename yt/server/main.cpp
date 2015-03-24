@@ -1,7 +1,30 @@
 #include "stdafx.h"
 
+#include <server/cell_master/bootstrap.h>
+#include <server/cell_master/config.h>
+#include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
+
+#include <server/cell_scheduler/config.h>
+#include <server/cell_scheduler/bootstrap.h>
+
+#include <server/job_proxy/job_proxy.h>
+#include <server/job_proxy/stracer.h>
+
+#include <ytlib/scheduler/config.h>
+
+#include <ytlib/shutdown.h>
+
+#include <ytlib/misc/tclap_helpers.h>
+
+#include <ytlib/chunk_client/dispatcher.h>
+
+#include <ytlib/monitoring/monitoring_manager.h>
+#include <ytlib/monitoring/http_server.h>
+
+#include <ytlib/cgroup/cgroup.h>
+
 #include <core/misc/crash_handler.h>
-#include <core/misc/address.h>
 #include <core/misc/proc.h>
 
 #include <core/build.h>
@@ -12,34 +35,6 @@
 
 #include <core/tracing/trace_manager.h>
 
-#include <core/ytree/yson_serializable.h>
-
-#include <ytlib/scheduler/config.h>
-
-#include <ytlib/shutdown.h>
-
-#include <ytlib/misc/tclap_helpers.h>
-
-#include <ytlib/scheduler/config.h>
-
-#include <ytlib/chunk_client/dispatcher.h>
-
-#include <server/data_node/config.h>
-
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/config.h>
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
-#include <server/cell_node/bootstrap.h>
-
-#include <server/cell_scheduler/config.h>
-#include <server/cell_scheduler/bootstrap.h>
-
-#include <server/job_proxy/config.h>
-#include <server/job_proxy/job_proxy.h>
-
-#include <tclap/CmdLine.h>
-
 #include <util/system/sigset.h>
 #include <util/system/execpath.h>
 #include <util/folder/dirut.h>
@@ -48,10 +43,6 @@
 
 #ifdef _linux_
     #include <sys/resource.h>
-
-    #include <core/misc/ioprio.h>
-
-    #include <ytlib/cgroup/cgroup.h>
 #endif
 
 namespace NYT {
@@ -85,15 +76,18 @@ public:
         , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
         , Config("", "config", "configuration file", false, "", "FILE")
         , ConfigTemplate("", "config-template", "print configuration file template")
-        , CellNode("", "node", "start cell node")
-        , CellMaster("", "master", "start cell master")
+        , Node("", "node", "start cell node")
+        , Master("", "master", "start cell master")
+        , DumpMasterSnapshot("", "dump-master-snapshot", "load a given master snapshot and dump its content to stderr", false, "", "FILE")
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
 #ifdef _linux_
         , Cleaner("", "cleaner", "start cleaner")
         , Killer("", "killer", "start killer")
-        , CloseAllFds("", "close-all-fds", "close all file descriptors")
+        , Stracer("", "stracer", "start stracer")
+        , Spec("", "spec", "command spec", false, "", "SPEC")
+        , CloseAllFDs("", "close-all-fds", "close all file descriptors")
         , DirToRemove("", "dir-to-remove", "directory to remove (for cleaner mode)", false, "", "DIR")
         , ProcessGroupPath("", "process-group-path", "path to process group to kill (for killer mode)", false, "", "UID")
         , CGroups("", "cgroup", "run in cgroup", false, "")
@@ -101,23 +95,26 @@ public:
         , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
         , EnableCoreDump("", "enable-core-dump", "enable core dump (for executor mode)")
         , Uid("", "uid", "set uid  (for executor mode)", false, -1, "NUM")
-        // compat
-        , EnableIOPrio("", "enable-io-prio", "set low io prio (for executor mode)")
         , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
 #endif
     {
         CmdLine.add(WorkingDirectory);
         CmdLine.add(Config);
         CmdLine.add(ConfigTemplate);
-        CmdLine.add(CellNode);
-        CmdLine.add(CellMaster);
+        CmdLine.add(Node);
+        CmdLine.add(Master);
+#ifdef YT_ENABLE_SERIALIZATION_DUMP
+        CmdLine.add(DumpMasterSnapshot);
+#endif
         CmdLine.add(Scheduler);
         CmdLine.add(JobProxy);
         CmdLine.add(JobId);
 #ifdef _linux_
         CmdLine.add(Cleaner);
         CmdLine.add(Killer);
-        CmdLine.add(CloseAllFds);
+        CmdLine.add(Stracer);
+        CmdLine.add(Spec);
+        CmdLine.add(CloseAllFDs);
         CmdLine.add(DirToRemove);
         CmdLine.add(ProcessGroupPath);
         CmdLine.add(CGroups);
@@ -125,7 +122,6 @@ public:
         CmdLine.add(PreparePipes);
         CmdLine.add(EnableCoreDump);
         CmdLine.add(Uid);
-        CmdLine.add(EnableIOPrio);
         CmdLine.add(Command);
 #endif
     }
@@ -135,8 +131,9 @@ public:
     TCLAP::ValueArg<Stroka> WorkingDirectory;
     TCLAP::ValueArg<Stroka> Config;
     TCLAP::SwitchArg ConfigTemplate;
-    TCLAP::SwitchArg CellNode;
-    TCLAP::SwitchArg CellMaster;
+    TCLAP::SwitchArg Node;
+    TCLAP::SwitchArg Master;
+    TCLAP::ValueArg<Stroka> DumpMasterSnapshot;
     TCLAP::SwitchArg Scheduler;
     TCLAP::SwitchArg JobProxy;
     TCLAP::ValueArg<Stroka> JobId;
@@ -144,7 +141,9 @@ public:
 #ifdef _linux_
     TCLAP::SwitchArg Cleaner;
     TCLAP::SwitchArg Killer;
-    TCLAP::SwitchArg CloseAllFds;
+    TCLAP::SwitchArg Stracer;
+    TCLAP::ValueArg<Stroka> Spec;
+    TCLAP::SwitchArg CloseAllFDs;
     TCLAP::ValueArg<Stroka> DirToRemove;
     TCLAP::ValueArg<Stroka> ProcessGroupPath;
     TCLAP::MultiArg<Stroka> CGroups;
@@ -152,7 +151,6 @@ public:
     TCLAP::MultiArg<int> PreparePipes;
     TCLAP::SwitchArg EnableCoreDump;
     TCLAP::ValueArg<int> Uid;
-    TCLAP::SwitchArg EnableIOPrio;
     TCLAP::ValueArg<Stroka> Command;
 #endif
 
@@ -171,16 +169,18 @@ EExitCode GuardedMain(int argc, const char* argv[])
     parser.CmdLine.parse(argc, argv);
 
     // Figure out the mode: cell master, cell node, scheduler or job proxy.
-    bool isCellMaster = parser.CellMaster.getValue();
-    bool isCellNode = parser.CellNode.getValue();
+    bool isMaster = parser.Master.getValue();
+    bool isMasterSnapshotDump =  parser.DumpMasterSnapshot.isSet();
+    bool isNode = parser.Node.getValue();
     bool isScheduler = parser.Scheduler.getValue();
     bool isJobProxy = parser.JobProxy.getValue();
 
 #ifdef _linux_
     bool isCleaner = parser.Cleaner.getValue();
     bool isKiller = parser.Killer.getValue();
+    bool isStracer = parser.Stracer.getValue();
     bool isExecutor = parser.Executor.getValue();
-    bool doCloseAllFds = parser.CloseAllFds.getValue();
+    bool doCloseAllFDs = parser.CloseAllFDs.getValue();
 #endif
 
     bool printConfigTemplate = parser.ConfigTemplate.getValue();
@@ -190,10 +190,13 @@ EExitCode GuardedMain(int argc, const char* argv[])
     Stroka workingDirectory = parser.WorkingDirectory.getValue();
 
     int modeCount = 0;
-    if (isCellNode) {
+    if (isNode) {
         ++modeCount;
     }
-    if (isCellMaster) {
+    if (isMaster) {
+        ++modeCount;
+    }
+    if (isMasterSnapshotDump) {
         ++modeCount;
     }
     if (isScheduler) {
@@ -210,6 +213,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isKiller) {
         ++modeCount;
     }
+    if (isStracer) {
+        ++modeCount;
+    }
     if (isExecutor) {
         ++modeCount;
     }
@@ -221,7 +227,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
 #ifdef _linux_
-    if (doCloseAllFds) {
+    if (doCloseAllFDs) {
         CloseAllDescriptors();
     }
 #endif
@@ -264,6 +270,44 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         return EExitCode::OK;
     }
+
+    if (isStracer) {
+        NConcurrency::SetCurrentThreadName("StracerMain");
+
+        YCHECK(setuid(0) == 0);
+
+        auto builder = CreateBuilderFromFactory(NYT::NYTree::GetEphemeralNodeFactory());
+        NYT::NYTree::BuildYsonFluently(builder.get())
+            .BeginMap()
+                .Item("rules")
+                .BeginList()
+                    .Item()
+                    .BeginMap()
+                        .Item("min_level").Value("info")
+                        .Item("writers").BeginList().Item().Value("stderr").EndList()
+                        .Item("categories").List("*")
+                    .EndMap()
+                .EndList()
+                .Item("writers")
+                .BeginMap()
+                    .Item("stderr")
+                    .BeginMap()
+                        .Item("type").Value("stderr")
+                        .Item("pattern").Value("$(datetime) $(level) $(category) $(message)")
+                    .EndMap()
+                .EndMap()
+            .EndMap();
+        NYT::NLogging::TLogManager::Get()->Configure(builder->EndTree());
+
+        auto spec = ConvertToNode(NYTree::TYsonString(parser.Spec.getValue()));
+        auto pids = NYTree::ConvertTo<std::vector<int>>(spec->AsMap()->GetChild("pids"));
+
+        auto straceResult = Strace(pids);
+
+        Cout << NYTree::ConvertToYsonString(straceResult).Data();
+
+        return EExitCode::OK;
+    }
 #endif
 
     INodePtr configNode;
@@ -296,7 +340,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
 #ifdef _linux_
     bool enableCGroups = true;
-    if (isCellNode) {
+    if (isNode) {
         auto config = New<NCellNode::TCellNodeConfig>();
 
         try {
@@ -335,7 +379,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
             auto res = setrlimit(RLIMIT_CORE, &rlimit);
             if (res) {
-                fprintf(stderr, "Failed to disable core dumps\n%s", strerror(errno));
+                auto errorMessage = Format("Failed to disable core dumps\n%v", TError::FromSystem());
+                fprintf(stderr, "%s", ~errorMessage);
                 return EExitCode::ExecutorError;
             }
         }
@@ -360,7 +405,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 #endif
 
     // Start an appropriate server.
-    if (isCellNode) {
+    if (isNode) {
         NConcurrency::SetCurrentThreadName("NodeMain");
 
         auto config = New<NCellNode::TCellNodeConfig>();
@@ -384,7 +429,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         bootstrap->Run();
     }
 
-    if (isCellMaster) {
+    if (isMaster || isMasterSnapshotDump) {
         NConcurrency::SetCurrentThreadName("MasterMain");
 
         auto config = New<NCellMaster::TCellMasterConfig>();
@@ -405,7 +450,14 @@ EExitCode GuardedMain(int argc, const char* argv[])
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
         auto* bootstrap = new NCellMaster::TBootstrap(configFileName, config);
-        bootstrap->Run();
+        bootstrap->Initialize();
+        if (isMaster) {
+            bootstrap->Run();
+        } else if (isMasterSnapshotDump) {
+            bootstrap->LoadSnapshot(parser.DumpMasterSnapshot.getValue());
+        } else {
+            YUNREACHABLE();
+        }
     }
 
     if (isScheduler) {

@@ -30,7 +30,7 @@ public:
     void AddArguments(std::initializer_list<TStringBuf> args);
 
     void AddCloseFileAction(int fd);
-    void AddDup2FileAction(int oldFd, int newFd);
+    void AddDup2FileAction(int oldFD, int newFD);
 
     void Spawn();
     TError Wait();
@@ -48,15 +48,13 @@ private:
     };
 
     TSpinLock LifecycleChangeLock_;
-    bool Started_;
-    bool Finished_;
-
-    TError InternalError_;
+    bool Started_ = false;
+    bool Finished_ = false;
 
     int ProcessId_;
     Stroka Path_;
 
-    int MaxSpawnActionFD_;
+    int MaxSpawnActionFD_ = - 1;
 
     TPipe Pipe_;
     std::vector<Stroka> StringHolder_;
@@ -66,9 +64,11 @@ private:
 
     char* Capture(TStringBuf arg);
 
-    void DoSpawn();
-    void Swap(TProcess& other);
+    void SpawnChild();
+    void ThrowOnChildError();
+    void Child();
 
+    void Swap(TProcess& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

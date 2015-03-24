@@ -3,10 +3,6 @@
 #include "chunk_meta_extensions.h"
 #include "format.h"
 
-#include <core/misc/serialize.h>
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/fs.h>
-
 namespace NYT {
 namespace NChunkClient {
 

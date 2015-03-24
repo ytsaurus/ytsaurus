@@ -30,6 +30,7 @@ DEFINE_ENUM(EOperationState,
     (Initializing)
     (Preparing)
     (Reviving)
+    (Pending)
     (Running)
     (Completing)
     (Completed)
@@ -55,6 +56,7 @@ DEFINE_ENUM(EAbortReason,
     (FailedChunks)
     (ResourceOverdraft)
     (Other)
+    (Preemption)
 );
 
 DEFINE_ENUM(EJobFinalState,
@@ -67,6 +69,9 @@ class TSchedulerServiceProxy;
 
 class TJobIOConfig;
 typedef TIntrusivePtr<TJobIOConfig> TJobIOConfigPtr;
+
+class TResourceLimitsConfig;
+typedef TIntrusivePtr<TResourceLimitsConfig> TResourceLimitsConfigPtr;
 
 class TOperationSpecBase;
 typedef TIntrusivePtr<TOperationSpecBase> TOperationSpecBasePtr;
@@ -109,9 +114,6 @@ typedef TIntrusivePtr<TMapReduceOperationSpec> TMapReduceOperationSpecPtr;
 
 class  TRemoteCopyOperationSpec;
 typedef TIntrusivePtr<TRemoteCopyOperationSpec> TRemoteCopyOperationSpecPtr;
-
-class TPoolResourceLimitsConfig;
-typedef TIntrusivePtr<TPoolResourceLimitsConfig> TPoolResourceLimitsConfigPtr;
 
 class TPoolConfig;
 typedef TIntrusivePtr<TPoolConfig> TPoolConfigPtr;

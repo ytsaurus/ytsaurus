@@ -171,6 +171,7 @@ private:
 
     void DoWrite()
     {
+#ifndef _win_
         YCHECK(Position_ < Length_);
 
         int size;
@@ -200,6 +201,9 @@ private:
         if (Position_ == Length_) {
             WriteResultPromise_.Set(TError());
         }
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
     }
 
 };

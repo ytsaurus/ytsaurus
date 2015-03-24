@@ -1,25 +1,24 @@
 #include "stdafx.h"
-#include "channel_reader.h"
-#include "value.h"
+#include "legacy_channel_reader.h"
 
 #include <core/misc/varint.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChannelReader::TChannelReader(const NChunkClient::TChannel& channel)
+TLegacyChannelReader::TLegacyChannelReader(const NChunkClient::TChannel& channel)
     : Channel(channel)
     , ColumnBuffers(channel.GetColumns().size() + 1)
-    , CurrentColumnIndex(-1)
 { }
 
-void TChannelReader::SetBlock(const TSharedRef& block)
+void TLegacyChannelReader::SetBlock(const TSharedRef& block)
 {
     YASSERT(CurrentColumnIndex == -1);
 
     CurrentBlock = block;
+    BlockFinished = false;
 
     TMemoryInput input(CurrentBlock.Begin(), CurrentBlock.Size());
     std::vector<size_t> columnSizes;
@@ -42,9 +41,9 @@ void TChannelReader::SetBlock(const TSharedRef& block)
     }
 }
 
-bool TChannelReader::NextRow()
+bool TLegacyChannelReader::NextRow()
 {
-    if (!CurrentBlock) {
+    if (BlockFinished) {
         return false;
     }
 
@@ -56,13 +55,30 @@ bool TChannelReader::NextRow()
     CurrentColumnIndex = -1;
 
     if (ColumnBuffers.front().Avail() == 0) {
+        BlockFinished = true;
         return false;
     }
 
     return true;
 }
 
-bool TChannelReader::NextColumn()
+TStringBuf TLegacyChannelReader::LoadValue(TMemoryInput* input)
+{
+    YASSERT(input);
+
+    ui64 size;
+    ReadVarUint64(input, &size);
+    if (size == 0) {
+        return TStringBuf();
+    }
+
+    --size;
+    TStringBuf tmp(const_cast<char*>(input->Buf()), static_cast<size_t>(size));
+    input->Skip(static_cast<size_t>(size));
+    return tmp;
+}
+
+bool TLegacyChannelReader::NextColumn()
 {
     int columnBuffersSize = static_cast<int>(ColumnBuffers.size());
     while (true) {
@@ -74,12 +90,12 @@ bool TChannelReader::NextColumn()
             YASSERT(ColumnBuffers.back().Avail() > 0);
             // Processing range column.
             auto& rangeBuffer = ColumnBuffers[CurrentColumnIndex];
-            auto value = TValue::Load(&rangeBuffer);
-            if (value.IsNull()) {
+            auto value = LoadValue(&rangeBuffer);
+            if (!value.IsInited()) {
                 ++CurrentColumnIndex;
                 return false;
             }
-            CurrentValue = value.ToStringBuf();
+            CurrentValue = value;
             i32 nameSize;
             ReadVarInt32(&rangeBuffer, &nameSize);
 
@@ -100,16 +116,16 @@ bool TChannelReader::NextColumn()
         if (CurrentColumnIndex < columnBuffersSize - 1) {
             // Processing fixed column.
             auto& rangeBuffer = ColumnBuffers[CurrentColumnIndex];
-            auto value = TValue::Load(&rangeBuffer);
-            if (!value.IsNull()) {
-                CurrentValue = value.ToStringBuf();
+            auto value = LoadValue(&rangeBuffer);
+            if (value.IsInited()) {
+                CurrentValue = value;
                 return true;
             }
         }
     }
 }
 
-TStringBuf TChannelReader::GetColumn() const
+TStringBuf TLegacyChannelReader::GetColumn() const
 {
     YASSERT(CurrentColumnIndex >= 0);
 
@@ -123,7 +139,7 @@ TStringBuf TChannelReader::GetColumn() const
     }
 }
 
-const TStringBuf& TChannelReader::GetValue() const
+const TStringBuf& TLegacyChannelReader::GetValue() const
 {
     YASSERT(CurrentColumnIndex >= 0);
     YASSERT(CurrentColumnIndex <= static_cast<int>(ColumnBuffers.size()));
@@ -133,5 +149,5 @@ const TStringBuf& TChannelReader::GetValue() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NVersionedTableClient
 } // namespace NYT

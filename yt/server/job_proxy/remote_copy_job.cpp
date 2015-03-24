@@ -3,8 +3,6 @@
 #include "job_detail.h"
 #include "config.h"
 
-#include <server/chunk_server/public.h>
-
 #include <ytlib/api/connection.h>
 
 #include <ytlib/chunk_client/chunk_writer.h>
@@ -25,19 +23,9 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/public.h>
-
-#include <core/misc/protobuf_helpers.h>
 
 #include <core/erasure/codec.h>
-
-#include <core/rpc/helpers.h>
-
-#include <fstream>
-#include <iostream>
 
 namespace NYT {
 namespace NJobProxy {
@@ -46,12 +34,10 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NObjectClient;
-using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
-using namespace NTableClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NVersionedTableClient;
 using namespace NApi;

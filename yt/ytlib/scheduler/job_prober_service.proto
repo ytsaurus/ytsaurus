@@ -13,4 +13,14 @@ message TReqDumpInputContext
 message TRspDumpInputContext
 { }
 
+message TReqStrace
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspStrace
+{
+    required string trace = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

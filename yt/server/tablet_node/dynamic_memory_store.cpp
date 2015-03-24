@@ -6,7 +6,6 @@
 #include "automaton.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
-#include "private.h"
 
 #include <core/misc/small_vector.h>
 #include <core/misc/skip_list.h>
@@ -37,7 +36,6 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
 static auto NullRowFuture = MakeFuture(TVersionedRow());
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +45,6 @@ static const int EditListCapacityMultiplier = 2;
 static const int MaxEditListCapacity = 256;
 static const int TypicalEditListCount = 16;
 static const int TabletReaderPoolSize = 1024;
-static const i64 MemoryUsageGranularity = (i64) 1024 * 1024;
 
 struct TDynamicMemoryStoreFetcherPoolTag { };
 
@@ -568,20 +565,15 @@ TDynamicMemoryStore::TDynamicMemoryStore(
         RowBuffer_.GetAlignedPool(),
         tablet->GetRowKeyComparer()))
 {
-    State_ = EStoreState::ActiveDynamic;
+    StoreState_ = EStoreState::ActiveDynamic;
 
-    LOG_DEBUG("Dynamic memory store created (TabletId: %v, StoreId: %v)",
-        TabletId_,
-        StoreId_);
+    LOG_DEBUG("Dynamic memory store created (TabletId: %v)",
+        TabletId_);
 }
 
 TDynamicMemoryStore::~TDynamicMemoryStore()
 {
-    LOG_DEBUG("Dynamic memory store destroyed (StoreId: %v)",
-        StoreId_);
-
-    MemoryUsageUpdated_.Fire(-MemoryUsage_);
-    MemoryUsage_ = 0;
+    LOG_DEBUG("Dynamic memory store destroyed");
 }
 
 int TDynamicMemoryStore::GetLockCount() const
@@ -592,8 +584,7 @@ int TDynamicMemoryStore::GetLockCount() const
 int TDynamicMemoryStore::Lock()
 {
     int result = ++StoreLockCount_;
-    LOG_TRACE("Store locked (StoreId: %v, Count: %v)",
-        StoreId_,
+    LOG_TRACE("Store locked (Count: %v)",
         result);
     return result;
 }
@@ -602,8 +593,7 @@ int TDynamicMemoryStore::Unlock()
 {
     YASSERT(StoreLockCount_ > 0);
     int result = --StoreLockCount_;
-    LOG_TRACE("Store unlocked (StoreId: %v, Count: %v)",
-        StoreId_,
+    LOG_TRACE("Store unlocked (Count: %v)",
         result);
     return result;
 }
@@ -654,7 +644,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     };
 
     auto newKeyProvider = [&] () -> TDynamicRow {
-        YASSERT(State_ == EStoreState::ActiveDynamic);
+        YASSERT(StoreState_ == EStoreState::ActiveDynamic);
 
         auto dynamicRow = AllocateRow();
 
@@ -702,7 +692,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     TDynamicRow result;
 
     auto newKeyProvider = [&] () -> TDynamicRow {
-        YASSERT(State_ == EStoreState::ActiveDynamic);
+        YASSERT(StoreState_ == EStoreState::ActiveDynamic);
 
         auto dynamicRow = AllocateRow();
 
@@ -886,7 +876,7 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
     // NB: Don't update min/max timestamps for passive stores since
     // others are relying on its properties to remain constant.
     // See, e.g., TStoreManager::MaxTimestampToStore_.
-    if (State_ == EStoreState::ActiveDynamic) {
+    if (StoreState_ == EStoreState::ActiveDynamic) {
         MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
         MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
     }
@@ -1235,7 +1225,7 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
 
     using NYT::Save;
 
-    Save(context, GetPersistentState());
+    Save(context, GetPersistentStoreState());
 
     SmallVector<TValueList, TypicalEditListCount> valueLists;
     SmallVector<TTimestampList, TypicalEditListCount> timestampLists;
@@ -1300,7 +1290,7 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
 
     using NYT::Load;
 
-    Load(context, State_);
+    Load(context, StoreState_);
 
     auto* slot = context.GetSlot();
     auto transactionManager = slot->GetTransactionManager();
@@ -1356,20 +1346,9 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("unaligned_pool_capacity").Value(GetUnalignedPoolCapacity());
 }
 
-i64 TDynamicMemoryStore::GetMemoryUsage() const
-{
-    return MemoryUsage_;
-}
-
 void TDynamicMemoryStore::OnMemoryUsageUpdated()
 {
-    i64 memoryUsage = GetAlignedPoolCapacity() + GetUnalignedPoolCapacity();
-    YASSERT(memoryUsage >= MemoryUsage_);
-    if (memoryUsage > MemoryUsage_ + MemoryUsageGranularity) {
-        i64 delta = memoryUsage - MemoryUsage_;
-        MemoryUsage_ = memoryUsage;
-        MemoryUsageUpdated_.Fire(delta);
-    }
+    SetMemoryUsage(GetAlignedPoolCapacity() + GetUnalignedPoolCapacity());
 }
 
 TOwningKey TDynamicMemoryStore::RowToKey(TDynamicRow row)

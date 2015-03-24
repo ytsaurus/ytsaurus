@@ -24,7 +24,7 @@ using namespace NConcurrency;
 
 TChangelogInfo::TChangelogInfo()
     : PeerId(InvalidPeerId)
-    , ChangelogId(NonexistingSegmentId)
+    , ChangelogId(InvalidSegmentId)
     , RecordCount(-1)
 { }
 
@@ -145,7 +145,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (ChangelogInfo.ChangelogId == NonexistingSegmentId) {
+        if (ChangelogInfo.ChangelogId == InvalidSegmentId) {
             LOG_INFO("Changelog lookup failed, no suitable replica found");
         } else {
             LOG_INFO("Changelog lookup succeeded, found replica on peer %v (RecordCount: %v)",

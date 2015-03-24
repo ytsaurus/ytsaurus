@@ -853,7 +853,7 @@ private:
                 int maxSnapshotId = WaitFor(asyncMaxSnapshotId)
                     .ValueOrThrow();
 
-                if (maxSnapshotId == NonexistingSegmentId) {
+                if (maxSnapshotId == InvalidSegmentId) {
                     LOG_INFO("No snapshots found");
                     // Let's pretend we have snapshot 0.
                     maxSnapshotId = 0;
@@ -865,7 +865,7 @@ private:
                 int maxChangelogId = WaitFor(asyncMaxChangelog)
                     .ValueOrThrow();
 
-                if (maxChangelogId == NonexistingSegmentId) {
+                if (maxChangelogId == InvalidSegmentId) {
                     LOG_INFO("No changelogs found");
                     ReachableVersion_ = TVersion(maxSnapshotId, 0);
                 } else {

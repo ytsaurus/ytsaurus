@@ -142,10 +142,11 @@ public:
         auto objectManager = this->Bootstrap_->GetObjectManager();
         objectManager->TryRemoveAttributes(TVersionedObjectId(object->GetId()));
 
+        // Run custom destruction logic.
+        this->DoDestroy(static_cast<TObject*>(object));
+
         // Remove the object from the map but keep it alive.
         Map_->Release(object->GetId()).release();
-
-        this->DoDestroy(static_cast<TObject*>(object));
     }
 
     virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override

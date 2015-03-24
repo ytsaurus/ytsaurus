@@ -33,6 +33,16 @@ static const pid_t InvalidProcessId = -1;
 
 #ifdef _linux_
 
+bool TryKill(int pid, int signal)
+{
+    YCHECK(pid > 0);
+    int result = ::kill(pid, signal);
+    if (result < 0) {
+        return false;
+    }
+    return true;
+}
+
 bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 {
     while (true) {
@@ -80,18 +90,41 @@ void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     YCHECK(infop->si_pid == id);
 }
 
+void Cleanup(int pid)
+{
+    YCHECK(pid > 0);
+
+    YCHECK(TryKill(pid, 9));
+    YCHECK(TryWaitid(P_PID, pid, nullptr, WEXITED));
+}
+
+bool TrySetSignalMask(const sigset_t* sigmask, sigset_t* oldSigmask)
+{
+    int error = pthread_sigmask(SIG_SETMASK, sigmask, oldSigmask);
+    if (error != 0) {
+      return false;
+    }
+    return true;
+}
+
+bool TryResetSignals()
+{
+    for (int sig = 1; sig < NSIG; ++sig) {
+        // Ignore invalid signal errors.
+        ::signal(sig, SIG_DFL);
+    }
+    return true;
+}
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TProcess::TProcess(const Stroka& path, bool copyEnv)
-    : Started_(false)
-    , Finished_(false)
-    , ProcessId_(InvalidProcessId)
+    : ProcessId_(InvalidProcessId)
     // Stroka is guaranteed to be zero-terminated.
     // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
     , Path_(path)
-    , MaxSpawnActionFD_(-1)
 {
     AddArgument(NFS::GetFileName(path));
 
@@ -111,10 +144,7 @@ TProcess::~TProcess()
 }
 
 TProcess::TProcess(TProcess&& other)
-    : Started_(false)
-    , Finished_(false)
-    , ProcessId_(InvalidProcessId)
-    , MaxSpawnActionFD_(-1)
+    : ProcessId_(InvalidProcessId)
 {
     Swap(other);
 }
@@ -175,14 +205,14 @@ void TProcess::AddCloseFileAction(int fd)
     SpawnActions_.push_back(action);
 }
 
-void TProcess::AddDup2FileAction(int oldFd, int newFd)
+void TProcess::AddDup2FileAction(int oldFD, int newFD)
 {
     TSpawnAction action = {
-        std::bind(TryDup2, oldFd, newFd),
-        Format("Error duplicating %v file descriptor to %v in the child", oldFd, newFd)
+        std::bind(TryDup2, oldFD, newFD),
+        Format("Error duplicating %v file descriptor to %v in the child", oldFD, newFD)
     };
 
-    MaxSpawnActionFD_ = std::max(MaxSpawnActionFD_, newFd);
+    MaxSpawnActionFD_ = std::max(MaxSpawnActionFD_, newFD);
     SpawnActions_.push_back(action);
 }
 
@@ -201,21 +231,71 @@ void TProcess::Spawn()
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
 
+    // Block all signals around vfork; see http://ewontfix.com/7/
+
+    // As the child may run in the same address space as the parent until
+    // the actual execve() system call, any (custom) signal handlers that
+    // the parent has might alter parent's memory if invoked in the child,
+    // with undefined results.  So we block all signals in the parent before
+    // vfork(), which will cause them to be blocked in the child as well (we
+    // rely on the fact that Linux, just like all sane implementations, only
+    // clones the calling thread).  Then, in the child, we reset all signals
+    // to their default dispositions (while still blocked), and unblock them
+    // (so the exec()ed process inherits the parent's signal mask)
+
+    sigset_t allBlocked;
+    sigfillset(&allBlocked);
+    sigset_t oldSignals;
+
+    if (!TrySetSignalMask(&allBlocked, &oldSignals)) {
+        THROW_ERROR_EXCEPTION("Failed to block all signals")
+            << TError::FromSystem();
+    }
+
+    SpawnActions_.push_back(TSpawnAction {
+        TryResetSignals,
+        "Error resetting signals to default disposition in the child: signal failed"
+    });
+
+    SpawnActions_.push_back(TSpawnAction {
+        std::bind(TrySetSignalMask, &oldSignals, nullptr),
+        "Error unblocking signals in the child: pthread_sigmask failed"
+    });
+
     SpawnActions_.push_back(TSpawnAction {
         std::bind(TryExecve, ~Path_, Args_.data(), Env_.data()),
         "Error starting child process: execve failed"
     });
 
-    int pid = vfork();
+    SpawnChild();
 
-    if (pid == 0) {
-        DoSpawn();
-    }
+    LOG_DEBUG("Child process is spawned. Pid: %v", ProcessId_);
+
+    // This should not fail ever.
+    YCHECK(TrySetSignalMask(&oldSignals, nullptr));
+
+    YCHECK(TryClose(Pipe_.WriteFD));
+    Pipe_.WriteFD = TPipe::InvalidFD;
+
+    ThrowOnChildError();
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
+}
+
+void TProcess::SpawnChild()
+{
+#ifdef _linux_
+    int pid = vfork();
 
     if (pid < 0) {
         THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
             << TErrorAttribute("path", Path_)
             << TError::FromSystem();
+    }
+
+    if (pid == 0) {
+        Child();
     }
 
     ProcessId_ = pid;
@@ -224,12 +304,14 @@ void TProcess::Spawn()
         TGuard<TSpinLock> guard(LifecycleChangeLock_);
         Started_ = true;
     }
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
+}
 
-    LOG_DEBUG("Children process is spawned. Pid: %v", ProcessId_);
-
-    YCHECK(TryClose(Pipe_.WriteFD));
-    Pipe_.WriteFD = TPipe::InvalidFd;
-
+void TProcess::ThrowOnChildError()
+{
+#ifdef _linux_
     int data[2];
     int res = ::read(Pipe_.ReadFD, &data, sizeof(data));
     if (res == 0) {
@@ -242,15 +324,17 @@ void TProcess::Spawn()
         return;
     }
 
-    ProcessId_ = InvalidProcessId;
-
     YCHECK(res == sizeof(data));
-    YCHECK(TryWaitid(P_PID, pid, nullptr, WEXITED));
 
     {
         TGuard<TSpinLock> guard(LifecycleChangeLock_);
         Finished_ = true;
     }
+
+#ifdef _linux_
+    Cleanup(ProcessId_);
+#endif
+    ProcessId_ = InvalidProcessId;
 
     int actionIndex = data[0];
     int errorCode = data[1];
@@ -264,6 +348,7 @@ void TProcess::Spawn()
 #endif
 }
 
+#ifdef _linux_
 TError ProcessInfoToError(const siginfo_t& processInfo)
 {
     int signalBase = static_cast<int>(EExitStatus::SignalBase);
@@ -285,6 +370,7 @@ TError ProcessInfoToError(const siginfo_t& processInfo)
     }
     YUNREACHABLE();
 }
+#endif
 
 TError TProcess::Wait()
 {
@@ -330,8 +416,8 @@ void TProcess::Kill(int signal)
         return;
     }
 
-    int result = ::kill(ProcessId_, signal);
-    if (result < 0) {
+    auto result = TryKill(ProcessId_, signal);
+    if (!result) {
         THROW_ERROR_EXCEPTION("kill failed")
             << TError::FromSystem();
     }
@@ -361,9 +447,10 @@ char* TProcess::Capture(TStringBuf arg)
     return const_cast<char*>(~StringHolder_.back());
 }
 
-void TProcess::DoSpawn()
+void TProcess::Child()
 {
-    YCHECK(Pipe_.WriteFD != TPipe::InvalidFd);
+#ifdef _linux_
+    YCHECK(Pipe_.WriteFD != TPipe::InvalidFD);
 
     for (int actionIndex = 0; actionIndex < SpawnActions_.size(); ++actionIndex) {
         auto& action = SpawnActions_[actionIndex];
@@ -379,6 +466,10 @@ void TProcess::DoSpawn()
             _exit(1);
         }
     }
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
+    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

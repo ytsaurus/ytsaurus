@@ -34,6 +34,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(EOperationState, State);
     DEFINE_BYVAL_RW_PROPERTY(bool, Suspended);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Enqueued);
 
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionPtr, UserTransaction);
@@ -130,7 +131,7 @@ public:
         bool suspended = false);
 
 private:
-    TEnumIndexedVector<TStatistics, EJobFinalState> Statistics;
+    TEnumIndexedVector<TAggregatedStatistics, EJobFinalState> Statistics;
     TPromise<void> StartedPromise;
     TPromise<void> FinishedPromise;
 

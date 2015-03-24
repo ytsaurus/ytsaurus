@@ -73,11 +73,12 @@
 #include <server/exec_agent/scheduler_connector.h>
 #include <server/exec_agent/job.h>
 
-#include <server/tablet_node/tablet_slot_manager.h>
+#include <server/tablet_node/slot_manager.h>
 #include <server/tablet_node/store_flusher.h>
 #include <server/tablet_node/store_compactor.h>
 #include <server/tablet_node/partition_balancer.h>
 #include <server/tablet_node/security_manager.h>
+#include <server/tablet_node/store_preloader.h>
 
 #include <server/query_agent/query_executor.h>
 #include <server/query_agent/query_service.h>
@@ -178,10 +179,12 @@ void TBootstrap::DoRun()
         "Query");
     BoundedConcurrencyQueryPoolInvoker = CreateBoundedConcurrencyInvoker(
         QueryThreadPool->GetInvoker(),
-        Config->QueryAgent->MaxConcurrentQueries);
+        Config->QueryAgent->MaxConcurrentQueries,
+        "Queries");
     BoundedConcurrencyQueryPoolInvoker = CreateBoundedConcurrencyInvoker(
         QueryThreadPool->GetInvoker(),
-        Config->QueryAgent->MaxConcurrentReads);
+        Config->QueryAgent->MaxConcurrentReads,
+        "Reads");
 
     BusServer = CreateTcpBusServer(TTcpBusServerConfig::CreateTcp(Config->RpcPort));
 
@@ -268,7 +271,7 @@ void TBootstrap::DoRun()
     JobProxyConfig->SupervisorConnection->Priority = 6;
     JobProxyConfig->CellId = GetCellId();
 
-    ExecSlotManager = New<TSlotManager>(Config->ExecAgent->SlotManager, this);
+    ExecSlotManager = New<NExecAgent::TSlotManager>(Config->ExecAgent->SlotManager, this);
 
     JobController = New<TJobController>(Config->ExecAgent->JobController, this);
 
@@ -324,7 +327,7 @@ void TBootstrap::DoRun()
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
-    TabletSlotManager = New<TTabletSlotManager>(Config->TabletNode, this);
+    TabletSlotManager = New<NTabletNode::TSlotManager>(Config->TabletNode, this);
 
     SecurityManager = New<TSecurityManager>(Config->TabletNode->SecurityManager, this);
 
@@ -398,6 +401,7 @@ void TBootstrap::DoRun()
     SchedulerConnector->Start();
     StartStoreFlusher(Config->TabletNode, this);
     StartStoreCompactor(Config->TabletNode, this);
+    StartStorePreloader(Config->TabletNode, this);
     StartPartitionBalancer(Config->TabletNode->PartitionBalancer, this);
 
     RpcServer->Start();
@@ -454,7 +458,7 @@ TJobTrackerPtr TBootstrap::GetJobController() const
     return JobController;
 }
 
-TTabletSlotManagerPtr TBootstrap::GetTabletSlotManager() const
+NTabletNode::TSlotManagerPtr TBootstrap::GetTabletSlotManager() const
 {
     return TabletSlotManager;
 }
@@ -464,7 +468,7 @@ TSecurityManagerPtr TBootstrap::GetSecurityManager() const
     return SecurityManager;
 }
 
-TSlotManagerPtr TBootstrap::GetExecSlotManager() const
+NExecAgent::TSlotManagerPtr TBootstrap::GetExecSlotManager() const
 {
     return ExecSlotManager;
 }

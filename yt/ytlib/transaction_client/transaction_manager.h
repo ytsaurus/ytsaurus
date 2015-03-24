@@ -32,12 +32,7 @@ struct TTransactionStartOptions
 
 struct TTransactionAttachOptions
 {
-    explicit TTransactionAttachOptions(const TTransactionId& id)
-        : Id(id)
-    { }
-
-    TTransactionId Id;
-    bool AutoAbort = true;
+    bool AutoAbort = false;
     bool Ping = true;
     bool PingAncestors = false;
 };
@@ -168,7 +163,7 @@ public:
      */
     TFuture<TTransactionPtr> Start(
         ETransactionType type,
-        const TTransactionStartOptions& options);
+        const TTransactionStartOptions& options = TTransactionStartOptions());
     
     //! Attaches to an existing transaction.
     /*!
@@ -184,7 +179,9 @@ public:
      *  \note
      *  This call does not block.
      */
-    TTransactionPtr Attach(const TTransactionAttachOptions& options);
+    TTransactionPtr Attach(
+        const TTransactionId& id,
+        const TTransactionAttachOptions& options = TTransactionAttachOptions());
 
     //! Asynchronously aborts all active transactions.
     void AbortAll();

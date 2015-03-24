@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "invoker_queue.h"
 #include "event_count.h"
 #include "scheduler.h"
@@ -22,11 +22,6 @@
 
 namespace NYT {
 namespace NConcurrency {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSchedulerThread;
-typedef TIntrusivePtr<TSchedulerThread> TSchedulerThreadPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,7 +84,7 @@ protected:
     NProfiling::TProfiler Profiler;
 
     // If (Epoch & 0x1) == 0x1 then the thread is stopping.
-    std::atomic<ui32> Epoch;
+    std::atomic<ui32> Epoch = {0};
 
     TEvent ThreadStartedEvent;
 
@@ -99,8 +94,8 @@ protected:
     TExecutionContext SchedulerContext;
 
     std::list<TFiberPtr> RunQueue;
-    int FibersCreated = 0;
-    int FibersAlive = 0;
+    NProfiling::TSimpleCounter CreatedFibersCounter;
+    NProfiling::TSimpleCounter AliveFibersCounter;
 
     TFiberPtr IdleFiber;
     TFiberPtr CurrentFiber;
@@ -112,6 +107,8 @@ protected:
 
     DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 };
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 

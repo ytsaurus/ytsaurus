@@ -442,7 +442,9 @@ IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return TypeToEntry_[type].Handler;
+    return type >= MinObjectType && type <= MaxObjectType
+        ? TypeToEntry_[type].Handler
+        : nullptr;
 }
 
 IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
@@ -995,7 +997,7 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
                 "Prerequisite check failed: transaction %v is missing",
                 transactionId);
         }
-        if (transaction->GetState() != ETransactionState::Active) {
+        if (transaction->GetPersistentState() != ETransactionState::Active) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                 "Prerequisite check failed: transaction %v is not active",

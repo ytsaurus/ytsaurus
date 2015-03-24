@@ -1,21 +1,38 @@
 #pragma once
 
-#include <core/misc/intrusive_ptr.h>
-
-#include <vector>
+#include <core/misc/common.h>
+#include <core/misc/enum.h>
 
 namespace NYT {
 namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogConfig;
-typedef TIntrusivePtr<TLogConfig> TLogConfigPtr;
+// Any changes to this enum must be also propagated to FormatLevel.
+DEFINE_ENUM(ELogLevel,
+    (Minimum)
+    (Trace)
+    (Debug)
+    (Info)
+    (Warning)
+    (Error)
+    (Fatal)
+    (Maximum)
+);
 
-struct ILogWriter;
-typedef TIntrusivePtr<ILogWriter> ILogWriterPtr;
-typedef std::vector<ILogWriterPtr> ILogWriters;
+DEFINE_ENUM(EWriterType,
+    (File)
+    (Stdout)
+    (Stderr)
+);
 
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TLogConfig)
+DECLARE_REFCOUNTED_CLASS(TWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TRuleConfig)
+
+struct TLogEvent;
 class TLogger;
 class TLogManager;
 

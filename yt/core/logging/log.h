@@ -1,11 +1,12 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <core/misc/error.h>
 #include <core/misc/format.h>
 
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/thread.h>
 
 #include <core/tracing/trace_context.h>
 
@@ -14,36 +15,48 @@ namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogManager;
+struct TLogEvent
+{
+    static const int InvalidLine = -1;
+
+    Stroka Category;
+    ELogLevel Level;
+    Stroka Message;
+    TInstant DateTime;
+    const char* FileName = nullptr;
+    int Line = InvalidLine;
+    NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
+    NConcurrency::TFiberId FiberId = NConcurrency::InvalidFiberId;
+    NTracing::TTraceId TraceId = NTracing::InvalidTraceId;
+    const char* Function = nullptr;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TLogger
 {
 public:
     explicit TLogger(const Stroka& category = "");
-    TLogger(const TLogger& other);
+    TLogger(const TLogger& other) = default;
 
     const Stroka& GetCategory() const;
     bool IsEnabled(ELogLevel level) const;
     void Write(TLogEvent&& event) const;
 
     void AddRawTag(const Stroka& tag);
-
     template <class... TArgs>
-    void AddTag(const char* format, const TArgs&... args)
-    {
-        AddRawTag(Format(format, args...));
-    }
+    void AddTag(const char* format, const TArgs&... args);
 
 private:
-    TLogManager* GetLogManager() const;
-    void Update();
-    static Stroka GetMessageWithContext(const Stroka& originalMessage, const Stroka& context);
-
     Stroka Category_;
     Stroka Context_;
     int Version_ = -1;
     mutable TLogManager* LogManager_ = nullptr;
     ELogLevel MinLevel_;
+
+    TLogManager* GetLogManager() const;
+    void Update();
+    static Stroka GetMessageWithContext(const Stroka& originalMessage, const Stroka& context);
 
 };
 
@@ -95,56 +108,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-template <class... TArgs>
-inline Stroka FormatLogMessage(const char* format, const TArgs&... args)
-{
-    return Format(format, args...);
-}
-
-template <class... TArgs>
-inline Stroka FormatLogMessage(const TError& error, const char* format, const TArgs&... args)
-{
-    TStringBuilder builder;
-    Format(&builder, format, args...);
-    builder.AppendChar('\n');
-    builder.AppendString(ToString(error));
-    return builder.Flush();
-}
-
-template <class T>
-inline Stroka FormatLogMessage(const T& obj)
-{
-    return ToString(obj);
-}
-
-template <class TLogger>
-void LogEventImpl(
-    TLogger& logger,
-    const char* fileName,
-    int line,
-    const char* function,
-    ELogLevel level,
-    const Stroka& message)
-{
-    TLogEvent event;
-    event.DateTime = TInstant::Now();
-    event.Category = logger.GetCategory();
-    event.Level = level;
-    event.Message = message;
-    event.FileName = fileName;
-    event.Line = line;
-    event.ThreadId = NConcurrency::GetCurrentThreadId();
-    event.FiberId = NConcurrency::GetCurrentFiberId();
-    event.TraceId = NTracing::GetCurrentTraceContext().GetTraceId();
-    event.Function = function;
-    logger.Write(std::move(event));
-}
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NLogging
 } // namespace NYT
+
+#define LOG_INL_H_
+#include "log-inl.h"
+#undef LOG_INL_H_
+

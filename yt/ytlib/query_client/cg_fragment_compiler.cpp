@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "cg_fragment_compiler.h"
-
+#include "function_registry.h"
 #include "private.h"
 #include "helpers.h"
 
@@ -44,354 +44,6 @@ namespace NQueryClient {
 using namespace NVersionedTableClient;
 using namespace NConcurrency;
 
-// Import extensively used LLVM types.
-using llvm::BasicBlock;
-using llvm::Constant;
-using llvm::ConstantFP;
-using llvm::ConstantInt;
-using llvm::ConstantPointerNull;
-using llvm::Function;
-using llvm::FunctionType;
-using llvm::Instruction;
-using llvm::PHINode;
-using llvm::PointerType;
-using llvm::Twine;
-using llvm::Type;
-using llvm::TypeBuilder;
-using llvm::Value;
-
-using NCodegen::TCGModule;
-using NCodegen::TCGModulePtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCGContext
-    : public TCGIRBuilder
-{
-    Value* ConstantsRow_;
-    Value* ExecutionContextPtr_;
-
-public:
-    const TCGModulePtr Module;
-    
-    TCGContext(
-        TCGModulePtr module,
-        Value* constantsRow,
-        Value* executionContextPtr,
-        llvm::BasicBlock* basicBlock)
-        : TCGIRBuilder(basicBlock)        
-        , ConstantsRow_(constantsRow)
-        , ExecutionContextPtr_(executionContextPtr)
-        , Module(std::move(module))
-    { }
-
-    TCGContext(
-        llvm::Function* function,
-        TCGContext* parent,
-        llvm::Value* closurePtr)
-        : TCGIRBuilder(function, parent, closurePtr)
-        , ConstantsRow_(parent->ConstantsRow_)
-        , ExecutionContextPtr_(parent->ExecutionContextPtr_)
-        , Module(parent->Module)
-    { }
-
-    Value* GetConstantsRows()
-    {
-        return ViaClosure(ConstantsRow_, "constantsRow");
-    }
-
-    Value* GetExecutionContextPtr()
-    {
-        return ViaClosure(ExecutionContextPtr_, "executionContextPtr");
-    }
-};
-
-typedef std::function<void(TCGContext& builder, Value* row)> TCodegenConsumer;
-typedef std::function<void(TCGContext& builder, const TCodegenConsumer& codegenConsumer)> TCodegenSource;
-
-static Value* CodegenValuesPtrFromRow(TCGIRBuilder&, Value*);
-
-typedef TypeBuilder<TValue, false> TTypeBuilder;
-typedef TypeBuilder<TValueData, false> TDataTypeBuilder;
-
-class TCGValue
-{
-private:
-    Value* Type_;
-    Value* Length_;
-    Value* Data_;
-    EValueType StaticType_;
-    std::string Name_;
-
-    TCGValue(Value* type, Value* length, Value* data, EValueType staticType, Twine name)
-        : Type_(type)
-        , Length_(length)
-        , Data_(data)
-        , StaticType_(staticType)
-        , Name_(name.str())
-    {
-        YCHECK(
-            StaticType_ == EValueType::Int64 ||
-            StaticType_ == EValueType::Uint64 ||
-            StaticType_ == EValueType::Double ||
-            StaticType_ == EValueType::Boolean ||
-            StaticType_ == EValueType::String);
-    }
-
-public:
-    TCGValue(const TCGValue& other) = default;
-
-    TCGValue(TCGValue&& other)
-        : Type_(other.Type_)
-        , Length_(other.Length_)
-        , Data_(other.Data_)
-        , StaticType_(other.StaticType_)
-        , Name_(std::move(other.Name_))
-    {
-        other.Reset();
-    }
-
-    TCGValue& operator=(TCGValue&& other)
-    {
-        Type_ = other.Type_;
-        Length_ = other.Length_;
-        Data_ = other.Data_;
-        StaticType_ = other.StaticType_;
-
-        other.Reset();
-
-        return *this;
-    }
-
-    TCGValue&& Steal()
-    {
-        return std::move(*this);
-    }
-
-    void Reset()
-    {
-        Type_ = nullptr;
-        Length_ = nullptr;
-        Data_ = nullptr;
-        StaticType_ = EValueType::TheBottom;
-    }
-
-    EValueType GetStaticType() const
-    {
-        return StaticType_;
-    }
-
-    static TCGValue CreateFromValue(
-        TCGIRBuilder& builder,
-        Value* type,
-        Value* length,
-        Value* data,
-        EValueType staticType,
-        Twine name = Twine())
-    {
-        if (type) {
-            YCHECK(type->getType() == TTypeBuilder::TType::get(builder.getContext()));
-        }
-        if (length) {
-            YCHECK(length->getType() == TTypeBuilder::TLength::get(builder.getContext()));
-        }
-        if (data) {
-            YCHECK(data->getType() == TDataTypeBuilder::get(builder.getContext(), staticType));
-        }
-        return TCGValue(type, length, data, staticType, name);
-    }
-
-    static TCGValue CreateFromRow(
-        TCGIRBuilder& builder,
-        Value* row,
-        int index,
-        EValueType staticType,
-        Twine name = Twine())
-    {
-        auto valuePtr = builder.CreateConstInBoundsGEP1_32(
-            CodegenValuesPtrFromRow(builder, row),
-            index,
-            name + ".valuePtr");
-        auto type = builder.CreateLoad(
-            builder.CreateStructGEP(valuePtr, TTypeBuilder::Type, name + ".typePtr"),
-            name + ".type");
-        auto length = builder.CreateLoad(
-            builder.CreateStructGEP(valuePtr, TTypeBuilder::Length, name + ".lengthPtr"),
-            name + ".length");
-        auto data = builder.CreateLoad(
-            builder.CreateStructGEP(valuePtr, TTypeBuilder::Data, name + ".dataPtr"),
-            name + ".data");
-
-        Type* targetType = TDataTypeBuilder::get(builder.getContext(), staticType);
-
-        Value* castedData = nullptr;
-
-        if (targetType->isPointerTy()) {
-            castedData = builder.CreateIntToPtr(data,
-                targetType,
-                Twine(name) + ".data");
-        } else if (targetType->isFloatingPointTy()) {
-            castedData = builder.CreateBitCast(data,
-                targetType,
-                Twine(name) + ".data");
-        } else {
-            castedData = builder.CreateIntCast(data,
-                targetType,
-                false,
-                Twine(name) + ".data");
-        }
-
-        return CreateFromValue(builder, type, length, castedData, staticType, name);
-    }
-
-    static TCGValue CreateNull(
-        TCGIRBuilder& builder,
-        EValueType staticType,
-        Twine name = Twine())
-    {
-        return CreateFromValue(
-            builder, 
-            builder.getInt16(static_cast<ui16>(EValueType::Null)),
-            llvm::UndefValue::get(TTypeBuilder::TLength::get(builder.getContext())),
-            llvm::UndefValue::get(TDataTypeBuilder::get(builder.getContext(), staticType)),
-            staticType,
-            name);
-    }
-
-    void StoreToRow(TCGIRBuilder& builder, Value* row, int index, ui16 id)
-    {
-        auto name = row->getName();
-        auto nameTwine =
-            (name.empty() ? Twine::createNull() : Twine(name).concat(".")) +
-            Twine(".at.") +
-            Twine(index);
-
-        auto valuePtr = builder.CreateConstInBoundsGEP1_32(
-            CodegenValuesPtrFromRow(builder, row),
-            index,
-            nameTwine);
-
-        StoreToValue(builder, valuePtr, id);
-    }
-
-    void StoreToValue(TCGIRBuilder& builder, Value* valuePtr, ui16 id, Twine nameTwine = "")
-    {
-        builder.CreateStore(
-            builder.getInt16(id),
-            builder.CreateStructGEP(valuePtr, TTypeBuilder::Id, nameTwine + ".idPtr"));
-
-        if (Type_) {
-            builder.CreateStore(
-                Type_,
-                builder.CreateStructGEP(valuePtr, TTypeBuilder::Type, nameTwine + ".typePtr"));
-        }
-        if (Length_) {
-            builder.CreateStore(
-                Length_,
-                builder.CreateStructGEP(valuePtr, TTypeBuilder::Length, nameTwine + ".lengthPtr"));
-        }
-        if (Data_) {
-            Value* data = nullptr;
-            auto targetType = TDataTypeBuilder::get(builder.getContext());
-                
-            if (Data_->getType()->isPointerTy()) {
-                data = builder.CreatePtrToInt(Data_, targetType);
-            } else if (Data_->getType()->isFloatingPointTy()) {
-                data = builder.CreateBitCast(Data_, targetType);
-            } else {
-                data = builder.CreateIntCast(Data_, targetType, false);
-            }
-
-            builder.CreateStore(
-                data,
-                builder.CreateStructGEP(valuePtr, TTypeBuilder::Data, nameTwine + ".dataPtr"));
-        }
-    }
-
-    Value* IsNull(TCGIRBuilder& builder)
-    {
-        // A little bit of manual constant folding.
-        if (Type_ && llvm::isa<ConstantInt>(Type_)) {
-            auto* constantType = llvm::cast<ConstantInt>(Type_);
-            if (constantType->getZExtValue() == static_cast<ui16>(EValueType::Null)) {
-                return builder.getFalse();
-            }
-        }
-        return builder.CreateICmpEQ(
-            Type_,
-            builder.getInt16(static_cast<ui16>(EValueType::Null)),
-            Twine(Name_) + ".isNull");
-    }
-
-    Value* GetType()
-    {
-        return Type_;
-    }
-
-    Value* GetLength()
-    {
-        return Length_;
-    }
-
-    Value* GetData()
-    {
-        return Data_;
-    }
-
-    TCGValue Cast(TCGIRBuilder& builder, EValueType dest, bool bitcast = false)
-    {
-        if (dest == StaticType_) {
-            return *this;
-        }
-
-        auto value = GetData();
-
-        Value* result;
-        if (dest == EValueType::Int64) {
-            auto destType = TDataTypeBuilder::TUint64::get(builder.getContext());
-            if (bitcast) {
-                result = builder.CreateBitCast(value, destType);
-            } else if (StaticType_ == EValueType::Uint64) {
-                result = builder.CreateIntCast(value, destType, false);
-            } else if (StaticType_ == EValueType::Double) {
-                result = builder.CreateFPToSI(value, destType);
-            } else {
-                YUNREACHABLE();
-            }
-        } else if (dest == EValueType::Uint64) {
-            auto destType = TDataTypeBuilder::TUint64::get(builder.getContext());
-            if (bitcast) {
-                result = builder.CreateBitCast(value, destType);
-            } if (StaticType_ == EValueType::Int64) {
-                result = builder.CreateIntCast(value, destType, true);
-            } else if (StaticType_ == EValueType::Double) {
-                result = builder.CreateFPToUI(value, destType);
-            } else {
-                YUNREACHABLE();
-            }
-        } else if (dest == EValueType::Double) {
-            auto destType = TDataTypeBuilder::TDouble::get(builder.getContext());
-            if (bitcast) {
-                result = builder.CreateBitCast(value, destType);
-            } if (StaticType_ == EValueType::Uint64) {
-                result = builder.CreateUIToFP(value, destType);
-            } else if (StaticType_ == EValueType::Int64) {
-                result = builder.CreateSIToFP(value, destType);
-            } else {
-                YUNREACHABLE();
-            }
-        } else {
-            YUNREACHABLE();
-        }
-
-        return CreateFromValue(builder, GetType(), GetLength(), result, dest);
-    }
-};
-
-typedef std::function<Value* (TCGIRBuilder& builder)> TCodegenBlock;
-typedef std::function<TCGValue(TCGContext& builder, Value* row)> TCodegenExpression;
-typedef std::function<void(TCGContext& builder, Value* row, Value* newRow)> TCodegenAggregate;
-
 TCGValue MakePhi(
     TCGIRBuilder& builder,
     BasicBlock* thenBB,
@@ -400,17 +52,17 @@ TCGValue MakePhi(
     TCGValue elseValue,
     Twine name = Twine())
 {
-    Value* thenType = thenValue.GetType();
+    Value* thenNull = thenValue.IsNull();
     Value* thenLength = thenValue.GetLength();
     Value* thenData = thenValue.GetData();
     
-    Value* elseType = elseValue.GetType();
+    Value* elseNull = elseValue.IsNull();
     Value* elseLength = elseValue.GetLength();
     Value* elseData = elseValue.GetData();
 
-    PHINode* phiType = builder.CreatePHI(builder.getInt16Ty(), 2, name + ".phiType");
-    phiType->addIncoming(thenType, thenBB);
-    phiType->addIncoming(elseType, elseBB);
+    PHINode* phiNull = builder.CreatePHI(builder.getInt1Ty(), 2, name + ".phiNull");
+    phiNull->addIncoming(thenNull, thenBB);
+    phiNull->addIncoming(elseNull, elseBB);
 
     YCHECK(thenValue.GetStaticType() == elseValue.GetStaticType());
     EValueType type = thenValue.GetStaticType();
@@ -429,7 +81,7 @@ TCGValue MakePhi(
         phiLength->addIncoming(elseLength, elseBB);
     }
 
-    return TCGValue::CreateFromValue(builder, phiType, phiLength, phiData, type, name);
+    return TCGValue::CreateFromValue(builder, phiNull, phiLength, phiData, type, name);
 }
 
 Value* MakePhi(
@@ -452,7 +104,7 @@ TResult CodegenIf(
     Value* condition,
     const std::function<TResult(TBuilder& builder)>& thenCodegen,
     const std::function<TResult(TBuilder& builder)>& elseCodegen,
-    Twine name = Twine())
+    Twine name)
 {
     auto* thenBB = builder.CreateBBHere("then");
     auto* elseBB = builder.CreateBBHere("else");
@@ -505,7 +157,7 @@ void CodegenIf(
 // Row manipulation helpers
 //
 
-static Value* CodegenValuesPtrFromRow(TCGIRBuilder& builder, Value* row)
+Value* CodegenValuesPtrFromRow(TCGIRBuilder& builder, Value* row)
 {
     auto name = row->getName();
     auto namePrefix = name.empty() ? Twine::createNull() : Twine(name).concat(".");
@@ -526,113 +178,114 @@ static Value* CodegenValuesPtrFromRow(TCGIRBuilder& builder, Value* row)
 // Operator helpers
 //
 
-void CodegenAggregateFunction(
-    TCGContext& builder,
-    Value* aggregateRow,
-    Value* newRow,
-    EAggregateFunctions aggregateFunction,
-    int index,
-    ui16 id,
+TCodegenAggregate MakeCodegenAggregateFunction(
+    EAggregateFunction aggregateFunction,
     EValueType type,
-    Twine name = Twine())
+    Twine name)
 {
-    auto newValue = TCGValue::CreateFromRow(builder, newRow, index, type, name + ".new");
-
-    CodegenIf<TCGContext>(
-        builder,
-        newValue.IsNull(builder),
-        [&] (TCGContext& builder) { },
-        [&] (TCGContext& builder) {
-            auto aggregateValue = TCGValue::CreateFromRow(builder, aggregateRow, index, type, name + ".aggregate");
-
-            CodegenIf<TCGContext, TCGValue>(
+    return [
+            aggregateFunction,
+            type,
+            MOVE(name)
+        ] (TCGContext& builder, Value* aggregateRow, Value* newRow, int index) {
+            auto newValue = TCGValue::CreateFromRow(builder, newRow, index, type, name + ".new");
+            ui16 id = index;
+            CodegenIf<TCGContext>(
                 builder,
-                aggregateValue.IsNull(builder),
+                newValue.IsNull(),
+                [&] (TCGContext& builder) { },
                 [&] (TCGContext& builder) {
-                    return newValue;
-                },
-                [&] (TCGContext& builder) {
-                    Value* newData = newValue.GetData();
-                    Value* aggregateData = aggregateValue.GetData();
-                    Value* resultData = nullptr;
+                    auto aggregateValue = TCGValue::CreateFromRow(builder, aggregateRow, index, type, name + ".aggregate");
 
-                    // TODO(lukyan): support other types
-
-                    switch (aggregateFunction) {
-                        case EAggregateFunctions::Sum:
-                            switch (type) {
-                                case EValueType::Int64:
-                                case EValueType::Uint64:
-                                    resultData = builder.CreateAdd(
-                                        aggregateData,
-                                        newData);
-                                    break;
-                                case EValueType::Double:
-                                    resultData = builder.CreateFAdd(
-                                        aggregateData,
-                                        newData);
-                                    break;
-                                default:
-                                    YUNIMPLEMENTED();
-                            }
-                            break;
-                        case EAggregateFunctions::Min:{
-                            Value* compareResult = nullptr;
-                            switch (type) {
-                                case EValueType::Int64:
-                                    compareResult = builder.CreateICmpSLE(aggregateData, newData);
-                                    break;
-                                case EValueType::Uint64:
-                                    compareResult = builder.CreateICmpULE(aggregateData, newData);
-                                    break;
-                                case EValueType::Double:
-                                    compareResult = builder.CreateFCmpULE(aggregateData, newData);
-                                    break;
-                                default:
-                                    YUNIMPLEMENTED();
-                            }
-
-                            resultData = builder.CreateSelect(
-                                compareResult,
-                                aggregateData,
-                                newData);
-                            break;
-                        }
-                        case EAggregateFunctions::Max:{
-                            Value* compareResult = nullptr;
-                            switch (type) {
-                                case EValueType::Int64:
-                                    compareResult = builder.CreateICmpSGE(aggregateData, newData);
-                                    break;
-                                case EValueType::Uint64:
-                                    compareResult = builder.CreateICmpUGE(aggregateData, newData);
-                                    break;
-                                case EValueType::Double:
-                                    compareResult = builder.CreateFCmpUGE(aggregateData, newData);
-                                    break;
-                                default:
-                                    YUNIMPLEMENTED();
-                            }
-
-                            resultData = builder.CreateSelect(
-                                compareResult,
-                                aggregateData,
-                                newData);
-                            break;
-                        }
-                        default:
-                            YUNIMPLEMENTED();
-                    }
-
-                    return TCGValue::CreateFromValue(
+                    CodegenIf<TCGContext, TCGValue>(
                         builder,
-                        builder.getInt16(static_cast<ui16>(type)),
-                        nullptr,
-                        resultData,
-                        type,
-                        name);
-                }).StoreToRow(builder, aggregateRow, index, id);
-        });
+                        aggregateValue.IsNull(),
+                        [&] (TCGContext& builder) {
+                            return newValue;
+                        },
+                        [&] (TCGContext& builder) {
+                            Value* newData = newValue.GetData();
+                            Value* aggregateData = aggregateValue.GetData();
+                            Value* resultData = nullptr;
+
+                            // TODO(lukyan): support other types
+
+                            switch (aggregateFunction) {
+                                case EAggregateFunction::Sum:
+                                    switch (type) {
+                                        case EValueType::Int64:
+                                        case EValueType::Uint64:
+                                            resultData = builder.CreateAdd(
+                                                aggregateData,
+                                                newData);
+                                            break;
+                                        case EValueType::Double:
+                                            resultData = builder.CreateFAdd(
+                                                aggregateData,
+                                                newData);
+                                            break;
+                                        default:
+                                            YUNIMPLEMENTED();
+                                    }
+                                    break;
+                                case EAggregateFunction::Min:{
+                                    Value* compareResult = nullptr;
+                                    switch (type) {
+                                        case EValueType::Int64:
+                                            compareResult = builder.CreateICmpSLE(aggregateData, newData);
+                                            break;
+                                        case EValueType::Uint64:
+                                            compareResult = builder.CreateICmpULE(aggregateData, newData);
+                                            break;
+                                        case EValueType::Double:
+                                            compareResult = builder.CreateFCmpULE(aggregateData, newData);
+                                            break;
+                                        default:
+                                            YUNIMPLEMENTED();
+                                    }
+
+                                    resultData = builder.CreateSelect(
+                                        compareResult,
+                                        aggregateData,
+                                        newData);
+                                    break;
+                                }
+                                case EAggregateFunction::Max:{
+                                    Value* compareResult = nullptr;
+                                    switch (type) {
+                                        case EValueType::Int64:
+                                            compareResult = builder.CreateICmpSGE(aggregateData, newData);
+                                            break;
+                                        case EValueType::Uint64:
+                                            compareResult = builder.CreateICmpUGE(aggregateData, newData);
+                                            break;
+                                        case EValueType::Double:
+                                            compareResult = builder.CreateFCmpUGE(aggregateData, newData);
+                                            break;
+                                        default:
+                                            YUNIMPLEMENTED();
+                                    }
+
+                                    resultData = builder.CreateSelect(
+                                        compareResult,
+                                        aggregateData,
+                                        newData);
+                                    break;
+                                }
+                                default:
+                                    YUNIMPLEMENTED();
+                            }
+
+                            return TCGValue::CreateFromValue(
+                                builder,
+                                builder.getFalse(),
+                                nullptr,
+                                resultData,
+                                type,
+                                name);
+                        }).StoreToRow(builder, aggregateRow, index, id);
+                });
+        };
 }
 
 void CodegenForEachRow(
@@ -723,9 +376,9 @@ Function* CodegenGroupComparerFunction(
 
         CodegenIf<TCGIRBuilder>(
             builder,
-            builder.CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
+            builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
             [&] (TCGIRBuilder& builder) {
-                returnIf(builder.CreateICmpNE(lhsValue.GetType(), rhsValue.GetType()));
+                returnIf(builder.CreateICmpNE(lhsValue.IsNull(), rhsValue.IsNull()));
             },
             [&] (TCGIRBuilder& builder) {
                 auto* lhsData = lhsValue.GetData();
@@ -812,7 +465,7 @@ Function* CodegenGroupHasherFunction(
         builder.CreateBr(conditionBB);
 
         builder.SetInsertPoint(conditionBB);
-        builder.CreateCondBr(value.IsNull(builder), elseBB, thenBB);
+        builder.CreateCondBr(value.IsNull(), elseBB, thenBB);
         conditionBB = builder.GetInsertBlock();
 
         builder.SetInsertPoint(thenBB);
@@ -919,12 +572,12 @@ Function* CodegenRowComparerFunction(
 
         CodegenIf<TCGIRBuilder>(
             builder,
-            builder.CreateOr(lhsValue.IsNull(builder), rhsValue.IsNull(builder)),
+            builder.CreateOr(lhsValue.IsNull(), rhsValue.IsNull()),
             [&] (TCGIRBuilder& builder) {
                 returnIf(
-                    builder.CreateICmpNE(lhsValue.GetType(), rhsValue.GetType()),
+                    builder.CreateICmpNE(lhsValue.IsNull(), rhsValue.IsNull()),
                     [&] (TCGIRBuilder&) {
-                        return builder.CreateICmpULT(lhsValue.GetType(), rhsValue.GetType());
+                        return builder.CreateICmpULT(lhsValue.IsNull(), rhsValue.IsNull());
                     });
             },
             [&] (TCGIRBuilder& builder) {
@@ -1004,135 +657,91 @@ Function* CodegenRowComparerFunction(
     return function;
 }
 
-TCodegenExpression MakeCodegenFunctionExpr(
-    Stroka functionName,
-    std::vector<TCodegenExpression> codegenArgs,
+TCodegenExpression MakeCodegenLiteralExpr(
+    size_t index,
+    EValueType type)
+{
+    return [
+            index,
+            type
+        ] (TCGContext& builder, Value* row) {
+            return TCGValue::CreateFromRow(
+                builder,
+                builder.GetConstantsRows(),
+                index,
+                type,
+                "literal." + Twine(index))
+                .Steal();
+        };
+}
+
+TCodegenExpression MakeCodegenReferenceExpr(
+    size_t index,
     EValueType type,
     Stroka name)
 {
-    functionName.to_lower();
-
     return [
-        MOVE(functionName),
-        MOVE(codegenArgs),
-        MOVE(type),
-        MOVE(name)
-    ] (TCGContext& builder, Value* row) {
-        auto nameTwine = Twine(name.c_str());
-
-        if (functionName == "if") {
-            YCHECK(codegenArgs.size() == 3);
-            auto condition = codegenArgs[0](builder, row);
-            YCHECK(condition.GetStaticType() == EValueType::Boolean);
-
-            return CodegenIf<TCGContext, TCGValue>(
+            index,
+            type,
+            name
+        ] (TCGContext& builder, Value* row) {
+            return TCGValue::CreateFromRow(
                 builder,
-                condition.IsNull(builder),
-                [&] (TCGContext& builder) {
-                    return TCGValue::CreateNull(builder, type);
-                },
-                [&] (TCGContext& builder) {
-                    return CodegenIf<TCGContext, TCGValue>(
-                        builder,
-                        builder.CreateICmpNE(
-                            builder.CreateZExtOrBitCast(condition.GetData(), builder.getInt64Ty()),
-                            builder.getInt64(0)),
-                        [&] (TCGContext& builder) {
-                            return codegenArgs[1](builder, row);
-                        },
-                        [&] (TCGContext& builder) {
-                            return codegenArgs[2](builder, row);
-                        });
-                },
-                nameTwine);
-        } else if (functionName == "is_prefix") {
-            YCHECK(codegenArgs.size() == 2);
-            auto lhsValue = codegenArgs[0](builder, row);
-            YCHECK(lhsValue.GetStaticType() == EValueType::String);
-    
-            return CodegenIf<TCGContext, TCGValue>(
-                builder,
-                lhsValue.IsNull(builder),
-                [&] (TCGContext& builder) {
-                    return TCGValue::CreateNull(builder, type);
-                },
-                [&] (TCGContext& builder) {
-                    auto rhsValue = codegenArgs[1](builder, row);
-                    YCHECK(rhsValue.GetStaticType() == EValueType::String);
+                row,
+                index,
+                type,
+                "reference." + Twine(name));
+        };
+}
 
-                    return CodegenIf<TCGContext, TCGValue>(
-                        builder,
-                        rhsValue.IsNull(builder),
-                        [&] (TCGContext& builder) {
-                            return TCGValue::CreateNull(builder, type);
-                        },
-                        [&] (TCGContext& builder) {
-                            Value* lhsData = lhsValue.GetData();
-                            Value* lhsLength = lhsValue.GetLength();
-                            Value* rhsData = rhsValue.GetData();
-                            Value* rhsLength = rhsValue.GetLength();
+TCGValue MakeBinaryFunctionCall(
+    Stroka routineName,
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name,
+    TCGContext& builder,
+    Value* row)
+{
+    auto nameTwine = Twine(name.c_str());
+        YCHECK(codegenArgs.size() == 2);
+        auto lhsValue = codegenArgs[0](builder, row);
+        YCHECK(lhsValue.GetStaticType() == EValueType::String);
 
-                            Value* result = builder.CreateCall4(
-                                builder.Module->GetRoutine("IsPrefix"),
-                                lhsData, lhsLength, rhsData, rhsLength);
+        return CodegenIf<TCGContext, TCGValue>(
+            builder,
+            lhsValue.IsNull(),
+            [&] (TCGContext& builder) {
+                return TCGValue::CreateNull(builder, type);
+            },
+            [&] (TCGContext& builder) {
+                auto rhsValue = codegenArgs[1](builder, row);
+                YCHECK(rhsValue.GetStaticType() == EValueType::String);
 
-                            return TCGValue::CreateFromValue(
-                                builder,
-                                builder.getInt16(static_cast<ui16>(type)),
-                                nullptr,
-                                result,
-                                type);
-                        });
-                },
-                nameTwine);
-        } else if (functionName == "lower") {
-            YCHECK(codegenArgs.size() == 1);
-            auto argValue = codegenArgs[0](builder, row);
-            YCHECK(argValue.GetStaticType() == EValueType::String);
+                return CodegenIf<TCGContext, TCGValue>(
+                    builder,
+                    rhsValue.IsNull(),
+                    [&] (TCGContext& builder) {
+                        return TCGValue::CreateNull(builder, type);
+                    },
+                    [&] (TCGContext& builder) {
+                        Value* lhsData = lhsValue.GetData();
+                        Value* lhsLength = lhsValue.GetLength();
+                        Value* rhsData = rhsValue.GetData();
+                        Value* rhsLength = rhsValue.GetLength();
 
-            return CodegenIf<TCGContext, TCGValue>(
-                builder,
-                argValue.IsNull(builder),
-                [&] (TCGContext& builder) {
-                    return TCGValue::CreateNull(builder, type);
-                },
-                [&] (TCGContext& builder) {
-                    Value* argData = argValue.GetData();
-                    Value* argLength = argValue.GetLength();
+                        Value* result = builder.CreateCall4(
+                            builder.Module->GetRoutine(routineName),
+                            lhsData, lhsLength, rhsData, rhsLength);
 
-                    Value* result = builder.CreateCall3(
-                        builder.Module->GetRoutine("ToLower"),
-                        builder.GetExecutionContextPtr(),
-                        argData,
-                        argLength);
-
-                    return TCGValue::CreateFromValue(
-                        builder,
-                        builder.getInt16(static_cast<ui16>(type)),
-                        argLength,
-                        result,
-                        type);
-                },
-                nameTwine);
-        } else if (functionName == "is_null") {
-            YCHECK(codegenArgs.size() == 1);
-            auto argValue = codegenArgs[0](builder, row);
-
-            return TCGValue::CreateFromValue(
-                builder,
-                builder.getInt16(static_cast<ui16>(type)),
-                nullptr,            
-                builder.CreateZExtOrBitCast(
-                    argValue.IsNull(builder),
-                    TDataTypeBuilder::TBoolean::get(builder.getContext())),
-                type);
-        } else if (functionName == "int64" || functionName == "uint64" || functionName == "double") {
-            YCHECK(codegenArgs.size() == 1);
-            return codegenArgs[0](builder, row).Cast(builder, type);
-        }
-
-        YUNIMPLEMENTED();
-    };
+                        return TCGValue::CreateFromValue(
+                            builder,
+                            builder.getFalse(),
+                            nullptr,
+                            result,
+                            type);
+                    });
+            },
+            nameTwine);
 }
 
 TCodegenExpression MakeCodegenUnaryOpExpr(
@@ -1152,7 +761,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
 
         return CodegenIf<TCGContext, TCGValue>(
             builder,
-            operandValue.IsNull(builder),
+            operandValue.IsNull(),
             [&] (TCGIRBuilder& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
@@ -1186,7 +795,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
 
                 return TCGValue::CreateFromValue(
                     builder,
-                    builder.getInt16(static_cast<ui16>(type)),
+                    builder.getFalse(),
                     nullptr,
                     evalData,
                     type);
@@ -1215,7 +824,7 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 
         return CodegenIf<TCGContext, TCGValue>(
             builder,
-            lhsValue.IsNull(builder),
+            lhsValue.IsNull(),
             [&] (TCGContext& builder) {
                 return TCGValue::CreateNull(builder, type);
             },
@@ -1224,7 +833,7 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 
                 return CodegenIf<TCGContext, TCGValue>(
                     builder,
-                    rhsValue.IsNull(builder),
+                    rhsValue.IsNull(),
                     [&] (TCGContext& builder) {
                         return TCGValue::CreateNull(builder, type);
                     },
@@ -1391,7 +1000,7 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
 
                         return TCGValue::CreateFromValue(
                             builder,
-                            builder.getInt16(static_cast<ui16>(type)),
+                            builder.getFalse(),
                             nullptr,
                             evalData,
                             type);
@@ -1439,82 +1048,21 @@ TCodegenExpression MakeCodegenInOpExpr(
 
         return TCGValue::CreateFromValue(
             builder,
-            builder.getInt16(static_cast<ui16>(EValueType::Boolean)),
+            builder.getFalse(),
             nullptr,
             result,
             EValueType::Boolean);
     };
 }
 
-TCodegenExpression MakeCodegenExpr(
-    const TConstExpressionPtr& expr,
-    const TCGBinding& binding,
-    const TTableSchema& schema)
+TCodegenExpression MakeCodegenFunctionExpr(
+    Stroka functionName,
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name)
 {
-    if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        auto it = binding.NodeToConstantIndex.find(literalExpr);
-        YCHECK(it != binding.NodeToConstantIndex.end());
-        auto index = it->second;
-        return [index, literalExpr] (TCGContext& builder, Value* row) {
-            return TCGValue::CreateFromRow(
-                builder,
-                builder.GetConstantsRows(),
-                index,
-                literalExpr->Type,
-                "literal." + Twine(index))
-                .Steal();
-        };
-    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-        auto column = referenceExpr->ColumnName;
-        return [
-            referenceExpr,
-            column,
-            index = schema.GetColumnIndexOrThrow(column)            
-        ] (TCGContext& builder, Value* row) {
-            return TCGValue::CreateFromRow(
-            builder,
-            row,
-            index,
-            referenceExpr->Type,
-            "reference." + Twine(column.c_str()));
-        };
-    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        std::vector<TCodegenExpression> codegenArgs;
-        for (const auto& argument : functionExpr->Arguments) {
-            codegenArgs.push_back(MakeCodegenExpr(argument, binding, schema));
-        }
-
-        return MakeCodegenFunctionExpr(
-            functionExpr->FunctionName,
-            std::move(codegenArgs),
-            functionExpr->Type,
-            "{" + functionExpr->GetName() + "}");
-    } else if (auto unaryOpExpr = expr->As<TUnaryOpExpression>()) {
-        return MakeCodegenUnaryOpExpr(
-            unaryOpExpr->Opcode,
-            MakeCodegenExpr(unaryOpExpr->Operand, binding, schema),
-            unaryOpExpr->Type,
-            "{" + unaryOpExpr->GetName() + "}");
-    } else if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
-        return MakeCodegenBinaryOpExpr(
-            binaryOpExpr->Opcode,
-            MakeCodegenExpr(binaryOpExpr->Lhs, binding, schema),
-            MakeCodegenExpr(binaryOpExpr->Rhs, binding, schema),
-            binaryOpExpr->Type,
-            "{" + binaryOpExpr->GetName() + "}");
-    } else if (auto inOpExpr = expr->As<TInOpExpression>()) {
-        std::vector<TCodegenExpression> codegenArgs;
-        for (const auto& argument : inOpExpr->Arguments) {
-            codegenArgs.push_back(MakeCodegenExpr(argument, binding, schema));
-        }
-
-        auto it = binding.NodeToRows.find(inOpExpr);
-        YCHECK(it != binding.NodeToRows.end());
-
-        return MakeCodegenInOpExpr(codegenArgs, it->second);
-    } else {
-        YUNREACHABLE();
-    }
+    auto& function = GetFunctionRegistry()->GetFunction(functionName);
+    return function.MakeCodegenExpr(std::move(codegenArgs), type, name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1562,12 +1110,12 @@ void CodegenScanOp(
 
 TCodegenSource MakeCodegenJoinOp(
     std::vector<Stroka> joinColumns,
-    TTableSchema sourceTableSchema,
+    TTableSchema sourceSchema,
     TCodegenSource codegenSource)
 {
     return [
         MOVE(joinColumns),
-        MOVE(sourceTableSchema),
+        MOVE(sourceSchema),
         codegenSource = std::move(codegenSource)
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         auto module = builder.Module->GetModule();
@@ -1621,9 +1169,9 @@ TCodegenSource MakeCodegenJoinOp(
                     auto id = index;
 
                     auto columnName = joinColumns[index];
-                    auto column = sourceTableSchema.GetColumnOrThrow(columnName);
-
-                    auto columnIndex = sourceTableSchema.GetColumnIndexOrThrow(columnName);
+                    auto columnIndex = sourceSchema.GetColumnIndexOrThrow(columnName);
+                    auto column = sourceSchema.Columns()[columnIndex];
+                    
                     TCGValue::CreateFromRow(
                         builder,
                         row,
@@ -1676,7 +1224,7 @@ TCodegenSource MakeCodegenJoinOp(
  
         std::vector<EValueType> keyTypes;
         for (int index = 0; index < joinColumns.size(); ++index) {
-            keyTypes.push_back(sourceTableSchema.FindColumn(joinColumns[index])->Type);
+            keyTypes.push_back(sourceSchema.FindColumn(joinColumns[index])->Type);
         }
 
         builder.CreateCallWithArgs(
@@ -1766,13 +1314,11 @@ TCodegenSource MakeCodegenProjectOp(
 
 TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
-    std::vector<TCodegenExpression> codegenAggregateExprs,
-    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
     TCodegenSource codegenSource)
 {
     return [
         MOVE(codegenGroupExprs),
-        MOVE(codegenAggregateExprs),
         MOVE(codegenAggregates),
         codegenSource = std::move(codegenSource)
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
@@ -1797,7 +1343,7 @@ TCodegenSource MakeCodegenGroupOp(
             collectClosure);
 
         int keySize = codegenGroupExprs.size();
-        int aggregatesCount = codegenAggregateExprs.size();
+        int aggregatesCount = codegenAggregates.size();
 
         Value* newRowPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
@@ -1830,7 +1376,7 @@ TCodegenSource MakeCodegenGroupOp(
                 for (int index = 0; index < aggregatesCount; ++index) {
                     auto id = keySize + index;
 
-                    codegenAggregateExprs[index](builder, row)
+                    codegenAggregates[index].first(builder, row)
                         .StoreToRow(builder, newRowRef, keySize + index, id);
                 }
 
@@ -1852,7 +1398,7 @@ TCodegenSource MakeCodegenGroupOp(
                     [&] (TCGContext& builder) {
                         Value* foundRow = builder.CreateLoad(foundRowPtr);
                         for (int index = 0; index < aggregatesCount; ++index) {
-                            codegenAggregates[index](builder, foundRow, newRowRef);
+                            codegenAggregates[index].second(builder, foundRow, newRowRef, keySize + index);
                         }
                     },
                     [&] (TCGContext& builder) { });
@@ -1903,75 +1449,12 @@ TCodegenSource MakeCodegenGroupOp(
     };
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TCGQueryCallback CodegenEvaluate(
-    const TConstQueryPtr& query,
-    const TCGBinding& binding)
+    TCodegenSource codegenSource)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
-
-    TTableSchema sourceSchema = query->TableSchema;
-    
-    TCodegenSource codegenSource = &CodegenScanOp;
-    
-    if (auto joinClause = query->JoinClause.GetPtr()) {
-        if (binding.SelfJoinPredicate) {
-            codegenSource = MakeCodegenFilterOp(MakeCodegenExpr(binding.SelfJoinPredicate, binding, joinClause->SelfTableSchema), std::move(codegenSource));
-        }
-
-        codegenSource = MakeCodegenJoinOp(joinClause->JoinColumns, joinClause->SelfTableSchema, std::move(codegenSource));
-    }
-
-    if (auto predicate = query->Predicate.Get()) {
-        codegenSource = MakeCodegenFilterOp(MakeCodegenExpr(predicate, binding, sourceSchema), std::move(codegenSource));
-    }
-
-    if (auto groupClause = query->GroupClause.GetPtr()) {
-        std::vector<TCodegenExpression> codegenGroupExprs;
-        std::vector<TCodegenExpression> codegenAggregateExprs;
-        std::vector<TCodegenAggregate> codegenAggregates;
-
-        for (const auto& groupItem : groupClause->GroupItems) {
-            codegenGroupExprs.push_back(MakeCodegenExpr(groupItem.Expression, binding, sourceSchema));
-        }
-
-        int aggregateIndex = codegenGroupExprs.size();
-
-        for (const auto& aggregateItem : groupClause->AggregateItems) {
-            codegenAggregateExprs.push_back(MakeCodegenExpr(aggregateItem.Expression, binding, sourceSchema));
-
-            codegenAggregates.push_back([aggregateItem, aggregateIndex] (TCGContext& builder, Value* foundRow, Value* newRowRef) {
-                CodegenAggregateFunction(
-                    builder,
-                    foundRow,
-                    newRowRef,
-                    aggregateItem.AggregateFunction,
-                    aggregateIndex,
-                    aggregateIndex,
-                    aggregateItem.Expression->Type,
-                    aggregateItem.Name.c_str());
-            });
-            ++aggregateIndex;
-        }
-
-        codegenSource = MakeCodegenGroupOp(
-            std::move(codegenGroupExprs),
-            std::move(codegenAggregateExprs),
-            std::move(codegenAggregates),
-            std::move(codegenSource));
-
-        sourceSchema = query->GroupClause->GetTableSchema();
-    }
-
-    if (auto projectClause = query->ProjectClause.GetPtr()) {
-        std::vector<TCodegenExpression> codegenProjectExprs;
-
-        for (const auto& item : projectClause->Projections) {
-            codegenProjectExprs.push_back(MakeCodegenExpr(item.Expression, binding, sourceSchema));
-        }
-
-        codegenSource = MakeCodegenProjectOp(std::move(codegenProjectExprs), std::move(codegenSource));
-        sourceSchema = query->ProjectClause->GetTableSchema();
-    }
 
     auto& context = module->GetContext();
 
@@ -2001,10 +1484,7 @@ TCGQueryCallback CodegenEvaluate(
     return module->GetCompiledFunction<TCGQuerySignature>(entryFunctionName);
 }
 
-TCGExpressionCallback CodegenExpression(
-    const TConstExpressionPtr& expression,
-    const TTableSchema& tableSchema,
-    const TCGBinding& binding)
+TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
     auto& context = module->GetContext();
@@ -2026,7 +1506,7 @@ TCGExpressionCallback CodegenExpression(
 
     TCGContext builder(module, constants, executionContextPtr, BasicBlock::Create(context, "entry", function));
 
-    auto result = MakeCodegenExpr(expression, binding, tableSchema)(builder, inputRow);
+    auto result = codegenExpression(builder, inputRow);
 
     result.StoreToValue(builder, resultPtr, 0, "writeResult");
 

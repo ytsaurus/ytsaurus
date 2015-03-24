@@ -101,6 +101,9 @@ bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath);
 //! Interestingly, implemented for both Windows and *nix.
 Stroka GetHomePath();
 
+//! Flushes the directory's metadata. Useful for, e.g., committing renames happen in #path.
+void FlushDirectory(const Stroka& path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS

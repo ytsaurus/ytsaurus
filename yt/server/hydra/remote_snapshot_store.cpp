@@ -366,7 +366,7 @@ private:
             LOG_DEBUG("Snapshot list received");
 
             auto keys = ConvertTo<std::vector<Stroka>>(result);
-            int lastestSnapshotId = NonexistingSegmentId;
+            int lastestSnapshotId = InvalidSegmentId;
             for (const auto& key : keys) {
                 int id;
                 try {

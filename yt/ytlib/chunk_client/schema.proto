@@ -17,7 +17,7 @@ message TChannel
 
 message TKeyPart
 {
-    // EKeyPartType
+    // ELegacyKeyPartType
     required int32 type = 1;
     optional bytes str_value = 2;
     optional int64 int64_value = 3;

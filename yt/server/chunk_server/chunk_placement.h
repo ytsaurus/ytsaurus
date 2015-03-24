@@ -58,11 +58,12 @@ public:
         double maxFillFactor);
 
 private:
-    typedef ymultimap<double, TNode*> TFactorToNode;
-    typedef yhash_map<TNode*, TFactorToNode::iterator> TNodeToFactorIt;
+    class TTargetChecker;
+    using TFactorToNode = ymultimap<double, TNode*>;
+    using TNodeToFactorIt = yhash_map<TNode*, TFactorToNode::iterator>;
 
-    TChunkManagerConfigPtr Config_;
-    NCellMaster::TBootstrap* Bootstrap_;
+    const TChunkManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* const Bootstrap_;
 
     std::vector<TNode*> LoadRankToNode_;
     TFillFactorToNodeMap FillFactorToNode_;

@@ -2,6 +2,7 @@
 
 #include <core/misc/common.h>
 #include <core/misc/error.h>
+#include <core/misc/lazy_ptr.h>
 
 #include <core/ytree/public.h>
 
@@ -112,6 +113,38 @@ DEFINE_ENUM(ECompression,
 );
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// Assuming presence of outer HandleScope.
+inline void Invoke(
+    const v8::Handle<v8::Function>& callback,
+    const v8::Handle<v8::Value>& a1)
+{
+    v8::Handle<v8::Value> args[] = { a1 };
+    node::MakeCallback(v8::Object::New(), callback, ARRAY_SIZE(args), args);
+}
+
+// Assuming presence of outer v8::HandleScope.
+inline void Invoke(
+    const v8::Handle<v8::Function>& callback,
+    const v8::Handle<v8::Value>& a1,
+    const v8::Handle<v8::Value>& a2)
+{
+    v8::Handle<v8::Value> args[] = { a1, a2 };
+    node::MakeCallback(v8::Object::New(), callback, ARRAY_SIZE(args), args);
+}
+
+// Assuming presence of outer v8::HandleScope.
+inline void Invoke(
+    const v8::Handle<v8::Function>& callback,
+    const v8::Handle<v8::Value>& a1,
+    const v8::Handle<v8::Value>& a2,
+    const v8::Handle<v8::Value>& a3)
+{
+    v8::Handle<v8::Value> args[] = { a1, a2, a3 };
+    node::MakeCallback(v8::Object::New(), callback, ARRAY_SIZE(args), args);
+}
+
+IInvokerPtr GetUVInvoker();
 
 void InitializeCommon(v8::Handle<v8::Object> target);
 

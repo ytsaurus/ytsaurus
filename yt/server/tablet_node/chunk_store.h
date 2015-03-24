@@ -30,9 +30,22 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EStorePreloadState,
+    (Disabled)
+    (None)
+    (Scheduled)
+    (Running)
+    (Complete)
+    (Failed)
+)
+
 class TChunkStore
     : public TStoreBase
 {
+public:
+    DEFINE_BYVAL_RW_PROPERTY(EStorePreloadState, PreloadState);
+    DEFINE_BYVAL_RW_PROPERTY(TFuture<void>, PreloadFuture);
+
 public:
     TChunkStore(
         const TStoreId& id,
@@ -45,6 +58,11 @@ public:
 
     void SetBackingStore(IStorePtr store);
     bool HasBackingStore() const;
+
+    void SetInMemoryMode(EInMemoryMode mode);
+    NChunkClient::IBlockCachePtr GetCompressedPreloadedBlockCache();
+    NChunkClient::IBlockCachePtr GetUncompressedPreloadedBlockCache();
+    NChunkClient::IChunkReaderPtr GetChunkReader();
 
     // IStore implementation.
     virtual EStoreType GetType() const override;
@@ -79,9 +97,10 @@ public:
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 private:
-    class TLocalChunkReaderWrapper;
+    class TLocalChunkReader;
     class TVersionedReaderWrapper;
     class TVersionedLookuperWrapper;
+    class TBlockCache;
 
     NCellNode::TBootstrap* const Bootstrap_;
 
@@ -108,6 +127,12 @@ private:
     NConcurrency::TReaderWriterSpinLock BackingStoreLock_;
     IStorePtr BackingStore_;
 
+    NConcurrency::TReaderWriterSpinLock PreloadedBlockCacheLock_;
+    NChunkClient::IBlockCachePtr CompressedPreloadedBlockCache_;
+    NChunkClient::IBlockCachePtr UncompressedPreloadedBlockCache_;
+
+    EInMemoryMode InMemoryMode_ = EInMemoryMode::Disabled;
+
 
     NDataNode::IChunkPtr PrepareChunk();
     NDataNode::IChunkPtr DoFindChunk();
@@ -116,6 +141,8 @@ private:
     NVersionedTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
         NChunkClient::IChunkReaderPtr chunkReader);
     IStorePtr GetBackingStore();
+    NChunkClient::IBlockCachePtr GetCompressedBlockCache();
+    NChunkClient::IBlockCachePtr GetUncompressedBlockCache();
 
     void PrecacheProperties();
 

@@ -105,6 +105,11 @@ public:
         return TExpiringCache::Get(path);
     }
 
+    bool EraseTableInfo(const TYPath& path)
+    {
+        return TExpiringCache::Erase(path);
+    }
+
     void Clear()
     {
         TExpiringCache::Clear();
@@ -200,6 +205,11 @@ TTableMountCache::~TTableMountCache()
 TFuture<TTableMountInfoPtr> TTableMountCache::GetTableInfo(const TYPath& path)
 {
     return Impl_->GetTableInfo(path);
+}
+
+bool TTableMountCache::EraseTableInfo(const NYPath::TYPath& path)
+{
+    return Impl_->Erase(path);
 }
 
 void TTableMountCache::Clear()

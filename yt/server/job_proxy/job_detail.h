@@ -32,6 +32,7 @@ protected:
     TDuration GetElapsedTime() const;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
+    virtual NYTree::TYsonString Strace() override;
 
 };
 

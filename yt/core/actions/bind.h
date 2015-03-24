@@ -100,7 +100,8 @@ Bind(
 }
 
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-#define BIND(...) ::NYT::Bind<::NYT::TCurrentTranslationUnitTag, __COUNTER__>(FROM_HERE, __VA_ARGS__)
+// XXX(babenko): CLion regards <:: as a trigraph; cf. https://youtrack.jetbrains.com/issue/CPP-1421
+#define BIND(...) ::NYT::Bind< ::NYT::TCurrentTranslationUnitTag, __COUNTER__>(FROM_HERE, __VA_ARGS__)
 #else
 #define BIND(...) ::NYT::Bind(__VA_ARGS__)
 #endif

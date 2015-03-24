@@ -1,3 +1,4 @@
+var cookies = require("cookies")
 var Q = require("bluebird");
 
 var YtError = require("./error").that;
@@ -40,28 +41,47 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next)
         return void epilogue("root", "root");
     }
 
-    if (!req.headers.hasOwnProperty("authorization")) {
-        logger.debug("Client is missing Authorization header");
+    var result = null;
+
+    if (req.headers.hasOwnProperty("authorization")) {
+        var parts = req.headers["authorization"].split(/\s+/);
+        var token = parts[1];
+
+        if (parts[0] !== "OAuth" || !token) {
+            logger.debug("Client has improper 'Authorization' header", {
+                header: req.headers["authorization"]
+            });
+            // Reject all invalid requests.
+            return void utils.dispatchUnauthorized(rsp, "YT");
+        }
+
+        if (token) {
+            result = authority.authenticateByToken(
+                logger,
+                req.origin || req.connection.remoteAddress,
+                token);
+        }
+    } else {
+        var jar = new cookies(req, rsp);
+        var sessionid = jar.get("Session_id");
+        var sslsessionid = jar.get("sessionid2");
+
+        if (sessionid || sslsessionid) {
+            result = authority.authenticateByCookie(
+                logger,
+                req.origin || req.connection.remoteAddress,
+                sessionid,
+                sslsessionid);
+        }
+    }
+
+    if (!result) {
+        logger.debug("Client is missing credentials")
         // Fallback to guest credentials.
         return void epilogue(config.guest_login, config.guest_realm);
     }
 
-    var parts = req.headers["authorization"].split(/\s+/);
-    var token = parts[1];
-
-    if (parts[0] !== "OAuth" || !token) {
-        logger.debug("Client has improper Authorization header", {
-            header: req.headers["authorization"]
-        });
-        // Reject all invalid requests.
-        return void utils.dispatchUnauthorized(rsp, "YT");
-    }
-
-    return authority.authenticate(
-        logger,
-        req.origin || req.connection.remoteAddress,
-        token)
-    .then(
+    return result.then(
     function(result) {
         if (result.isAuthenticated) {
             return void epilogue(result.login, result.realm);

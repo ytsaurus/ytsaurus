@@ -95,7 +95,7 @@ struct IChangelogStore
 
     //! Scans for the maximum contiguous sequence of existing
     //! changelogs starting from #initialId and returns the id of the latest one.
-    //! Returns |NonexistingSegmentId| if the initial changelog does not exist.
+    //! Returns |InvalidSegmentId| if the initial changelog does not exist.
     virtual TFuture<int> GetLatestChangelogId(int initialId) = 0;
 
 

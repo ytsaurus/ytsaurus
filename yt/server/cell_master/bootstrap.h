@@ -6,6 +6,7 @@
 
 #include <core/rpc/public.h>
 
+#include <ytlib/monitoring/public.h>
 #include <ytlib/monitoring/http_server.h>
 
 #include <ytlib/election/public.h>
@@ -65,32 +66,38 @@ public:
     NHive::TCellDirectoryPtr GetCellDirectory() const;
     IInvokerPtr GetControlInvoker() const;
 
+    void Initialize();
     void Run();
+    void LoadSnapshot(const Stroka& fileName);
 
 private:
-    Stroka ConfigFileName;
-    TCellMasterConfigPtr Config;
+    const Stroka ConfigFileName_;
+    const TCellMasterConfigPtr Config_;
 
-    NRpc::IServerPtr RpcServer;
-    std::unique_ptr<NHttp::TServer> HttpServer;
-    NElection::TCellManagerPtr CellManager;
-    NHydra::IChangelogStorePtr ChangelogStore;
-    NHydra::ISnapshotStorePtr SnapshotStore;
-    NNodeTrackerServer::TNodeTrackerPtr NodeTracker;
-    NTransactionServer::TTransactionManagerPtr TransactionManager;
-    NHive::TTransactionSupervisorPtr TransactionSupervisor;
-    NCypressServer::TCypressManagerPtr CypressManager;
-    THydraFacadePtr HydraFacade;
-    TWorldInitializerPtr WorldInitializer;
-    NObjectServer::TObjectManagerPtr ObjectManager;
-    NChunkServer::TChunkManagerPtr ChunkManager;
-    NSecurityServer::TSecurityManagerPtr SecurityManager;
-    NTabletServer::TTabletManagerPtr TabletManager;
-    NHive::THiveManagerPtr HiveManager;
-    NHive::TCellDirectoryPtr CellDirectory;
-    NConcurrency::TActionQueuePtr ControlQueue;
+    NRpc::IServerPtr RpcServer_;
+    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    std::unique_ptr<NHttp::TServer> HttpServer_;
+    NElection::TCellManagerPtr CellManager_;
+    NHydra::IChangelogStorePtr ChangelogStore_;
+    NHydra::ISnapshotStorePtr SnapshotStore_;
+    NNodeTrackerServer::TNodeTrackerPtr NodeTracker_;
+    NTransactionServer::TTransactionManagerPtr TransactionManager_;
+    NHive::TTransactionSupervisorPtr TransactionSupervisor_;
+    NCypressServer::TCypressManagerPtr CypressManager_;
+    THydraFacadePtr HydraFacade_;
+    TWorldInitializerPtr WorldInitializer_;
+    NObjectServer::TObjectManagerPtr ObjectManager_;
+    NChunkServer::TChunkManagerPtr ChunkManager_;
+    NSecurityServer::TSecurityManagerPtr SecurityManager_;
+    NTabletServer::TTabletManagerPtr TabletManager_;
+    NHive::THiveManagerPtr HiveManager_;
+    NHive::TCellDirectoryPtr CellDirectory_;
+    NConcurrency::TActionQueuePtr ControlQueue_;
 
+
+    void DoInitialize();
     void DoRun();
+    void DoLoadSnapshot(const Stroka& fileName);
 
 };
 

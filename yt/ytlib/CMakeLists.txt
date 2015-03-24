@@ -10,7 +10,6 @@ set( DIRS
   chunk_client
   cypress_client
   file_client
-  table_client
   new_table_client
   object_client
   security_client

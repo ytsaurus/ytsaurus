@@ -33,6 +33,7 @@ public:
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
     }
 
 private:
@@ -48,6 +49,20 @@ private:
 
         context->SetResponseInfo("ChunkIds: %v", JoinToString(chunkIds));
         ToProto(response->mutable_chunk_id(), chunkIds);
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Strace)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
+        auto trace = job->Strace();
+
+        context->SetResponseInfo("Trace: %Qv", trace.Data());
+
+        ToProto(response->mutable_trace(), trace.Data());
         context->Reply();
     }
 };

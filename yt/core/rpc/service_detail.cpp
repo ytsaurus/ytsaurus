@@ -266,7 +266,7 @@ private:
             Canceled_.Subscribe(GetCurrentFiberCanceler());
 
             if (timeout != TDuration::Max()) {
-                LOG_DEBUG("Setting up server-side request timeout (RequestId: %v, Timeout: %v)",
+                LOG_TRACE("Setting up server-side request timeout (RequestId: %v, Timeout: %v)",
                     RequestId_,
                     timeout);
                 TimeoutCookie_ = TDelayedExecutor::Submit(
@@ -386,6 +386,10 @@ private:
         }
 
         AppendInfo(&builder, "Retry: %v", IsRetry());
+
+        if (RequestHeader_->has_timeout()) {
+            AppendInfo(&builder, "Timeout: %v", TDuration(RequestHeader_->timeout()));
+        }
 
         if (!RequestInfo_.empty()) {
             AppendInfo(&builder, "%v", RequestInfo_);
@@ -655,8 +659,15 @@ void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeI
     --runtimeInfo->RunningRequestSemaphore;
 }
 
+static PER_THREAD bool ScheduleRequestsRunning = false;
+
 void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
+    // Prevent reeentarant invocations.
+    if (ScheduleRequestsRunning)
+        return;
+    ScheduleRequestsRunning = true;
+
     while (true) {
         if (runtimeInfo->RequestQueue.IsEmpty())
             break;
@@ -672,6 +683,8 @@ void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
 
         ReleaseRequestSemaphore(runtimeInfo);
     }
+
+    ScheduleRequestsRunning = false;
 }
 
 void TServiceBase::RunRequest(const TServiceContextPtr& context)
@@ -715,7 +728,7 @@ void TServiceBase::RegisterCancelableRequest(TServiceContext* context)
         replyBus->SubscribeTerminated(BIND(&TServiceBase::OnReplyBusTerminated, MakeWeak(this), replyBus));
     }
 
-    LOG_DEBUG("Cancelable request registered (RequestId: %v, ReplyBus: %p, Subscribe: %v, RequestsPerBus: %v)",
+    LOG_TRACE("Cancelable request registered (RequestId: %v, ReplyBus: %p, Subscribe: %v, RequestsPerBus: %v)",
         requestId,
         replyBus.Get(),
         subscribe,
@@ -743,7 +756,7 @@ void TServiceBase::UnregisterCancelableRequest(TServiceContext* context)
         }
     }
 
-    LOG_DEBUG("Cancelable request unregistered (RequestId: %v, ReplyBus: %p, RequestsPerBus: %v)",
+    LOG_TRACE("Cancelable request unregistered (RequestId: %v, ReplyBus: %p, RequestsPerBus: %v)",
         requestId,
         replyBus.Get(),
         requestsPerBus);

@@ -19,6 +19,8 @@
 
 #include <core/profiling/scoped_timer.h>
 
+#include <core/misc/farm_hash.h>
+
 #include <mutex>
 
 namespace NYT {
@@ -26,6 +28,8 @@ namespace NQueryClient {
 namespace NRoutines {
 
 using namespace NConcurrency;
+
+static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +61,7 @@ void WriteRow(TRow row, TExecutionContext* executionContext)
 {
     CHECK_STACK();
 
-    if (CountRow(&executionContext->Limit)) {
+    if (executionContext->StopFlag = CountRow(&executionContext->Limit)) {
         return;
     }
 
@@ -102,9 +106,11 @@ void ScanOpHelper(
     auto* reader = executionContext->Reader;
 
     {
+        LOG_DEBUG("Waiting for ready event in generated code while opening");
         NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
-        WaitFor(reader->Open(executionContext->Schema))
-            .ThrowOnError();
+        auto error = WaitFor(reader->Open(executionContext->Schema));
+        LOG_DEBUG(error, "Ready event in generated code while opening");
+        error.ThrowOnError();
     }
 
     std::vector<TRow> rows;
@@ -139,9 +145,11 @@ void ScanOpHelper(
         }
 
         if (shouldWait) {
+            LOG_DEBUG("Waiting for ready event in generated code while reading");
             NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
-            WaitFor(reader->GetReadyEvent())
-            	.ThrowOnError();
+            auto error = WaitFor(reader->GetReadyEvent());
+            LOG_DEBUG(error, "Ready event in generated code while reading");
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
     }
 }
@@ -304,6 +312,19 @@ char IsPrefix(
         std::mismatch(lhsData, lhsData + lhsLength, rhsData).first == lhsData + lhsLength;
 }
 
+char IsSubstr(
+    const char* patternData,
+    ui32 patternLength,
+    const char* stringData,
+    ui32 stringLength)
+{
+    return std::search(
+        stringData,
+        stringData + stringLength,
+        patternData,
+        patternData + patternLength) != stringData + stringLength;
+}
+
 char* ToLower(
     TExecutionContext* executionContext,
     const char* data,
@@ -352,7 +373,87 @@ size_t StringHash(
     const char* data,
     ui32 length)
 {
-    return TStringBuf(data, length).hash();
+    return FarmHash(data, length);
+}
+
+// FarmHash and MurmurHash hybrid to hash TRow.
+ui64 SimpleHash(TRow row)
+{
+    const ui64 MurmurHashConstant = 0xc6a4a7935bd1e995ULL;
+
+    // Append fingerprint to hash value. Like Murmurhash.
+    const auto hash64 = [&, MurmurHashConstant] (ui64 data, ui64 value) {
+        value ^= FarmFingerprint(data);
+        value *= MurmurHashConstant;
+        return value;
+    };
+
+    // Hash string. Like Murmurhash.
+    const auto hash = [&, MurmurHashConstant] (const void* voidData, int length, ui64 seed) {
+        ui64 result = seed;
+        const ui64* ui64Data = reinterpret_cast<const ui64*>(voidData);
+        const ui64* ui64End = ui64Data + (length / 8);
+
+        while (ui64Data < ui64End) {
+            auto data = *ui64Data++;
+            result = hash64(data, result);
+        }
+
+        const char* charData = reinterpret_cast<const char*>(ui64Data);
+
+        if (length & 4) {
+            result ^= (*reinterpret_cast<const ui32*>(charData) << (length & 3));
+            charData += 4;
+        }
+        if (length & 2) {
+            result ^= (*reinterpret_cast<const ui16*>(charData) << (length & 1));
+            charData += 2;
+        }
+        if (length & 1) {
+            result ^= *reinterpret_cast<const ui8*>(charData);
+        }
+
+        result *= MurmurHashConstant;
+        result ^= (result >> 47);
+        result *= MurmurHashConstant;
+        result ^= (result >> 47);
+        return result;
+    };
+
+    ui64 result = row.GetCount();
+
+    for (int index = 0; index < row.GetCount(); ++index) {
+        switch(row[index].Type) {
+            case EValueType::Int64:
+                result = hash64(row[index].Data.Int64, result);
+                break;
+            case EValueType::Uint64:
+                result = hash64(row[index].Data.Uint64, result);
+                break;
+            case EValueType::Boolean:
+                result = hash64(row[index].Data.Boolean, result);
+                break;
+            case EValueType::String:
+                result = hash(
+                    row[index].Data.String,
+                    row[index].Length,
+                    result);
+                break;
+            case EValueType::Null:
+                result = hash64(0, result);
+                break;
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    return result;
+}
+
+// Combined FarmHash for TRow.
+ui64 FarmHash(TRow row)
+{
+    return GetFarmFingerprint(row);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -381,8 +482,11 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);
     REGISTER_ROUTINE(IsPrefix);
+    REGISTER_ROUTINE(IsSubstr);
     REGISTER_ROUTINE(ToLower);
     REGISTER_ROUTINE(IsRowInArray);
+    REGISTER_ROUTINE(SimpleHash);
+    REGISTER_ROUTINE(FarmHash);
 #undef REGISTER_ROUTINE
 
     registry->RegisterRoutine("memcmp", std::memcmp);

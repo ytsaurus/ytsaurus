@@ -42,11 +42,6 @@ TCachedBlock::TCachedBlock(
     , Source_(source)
 { }
 
-TCachedBlock::~TCachedBlock()
-{
-    LOG_DEBUG("Cached block purged (BlockId: %v)", GetKey());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockStore::TStoreImpl
@@ -229,14 +224,14 @@ private:
 
     void LogCacheHit(TCachedBlockPtr block)
     {
-        LOG_DEBUG("Block cache hit (BlockId: %v)",
+        LOG_TRACE("Block cache hit (BlockId: %v)",
             block->GetKey());
     }
 
     void UpdatePendingReadSize(i64 delta)
     {
         i64 result = (PendingReadSize_ += delta);
-        LOG_DEBUG("Pending read size updated (PendingReadSize: %v, Delta: %v)",
+        LOG_TRACE("Pending read size updated (PendingReadSize: %v, Delta: %v)",
             result,
             delta);
     }

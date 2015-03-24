@@ -8,7 +8,7 @@
 #include "transaction_manager.h"
 #include "config.h"
 #include "store_manager.h"
-#include "tablet_slot_manager.h"
+#include "slot_manager.h"
 #include "dynamic_memory_store.h"
 #include "chunk_store.h"
 #include "store_flusher.h"
@@ -92,7 +92,6 @@ public:
             bootstrap)
         , Config_(config)
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
-        , OnStoreMemoryUsageUpdated_(BIND(&TImpl::OnStoreMemoryUsageUpdated, MakeWeak(this)))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -146,29 +145,23 @@ public:
         return tablet;
     }
 
-    void ValidateTabletMounted(TTablet* tablet)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        if (tablet->GetState() != ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION("Tablet %v is not in \"mounted\" state",
-                tablet->GetTabletId());
-        }
-    }
-
 
     void BackoffStore(IStorePtr store, EStoreState state)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        store->SetState(state);
+        store->SetStoreState(state);
 
         auto callback = BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
-            store->SetState(store->GetPersistentState());
-        }).Via(Slot_->GetEpochAutomatonInvoker());
+            store->SetStoreState(store->GetPersistentStoreState());
+        });
 
-        TDelayedExecutor::Submit(callback, Config_->ErrorBackoffTime);
+        if (IsLeader()) {
+            TDelayedExecutor::Submit(callback.Via(Slot_->GetEpochAutomatonInvoker()), Config_->ErrorBackoffTime);
+        } else {
+            callback.Run();
+        }
     }
 
 
@@ -180,10 +173,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        ValidateReadTimestamp(timestamp);
-
         auto securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(tabletSnapshot, EPermission::Read);
+
+        ValidateReadTimestamp(timestamp);
 
         while (!reader->IsFinished()) {
             ExecuteSingleRead(
@@ -201,21 +194,19 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ValidateTabletMounted(tablet);
-        if (transaction->GetState() != ETransactionState::Active) {
-            transaction->ThrowInvalidState();
-        }
-        ValidateMemoryLimit();
-
         auto securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(tablet->GetSnapshot(), EPermission::Write);
+
+        ValidateTabletMounted(tablet);
+        ValidateTransactionActive(transaction);
+        ValidateMemoryLimit();
 
         // Protect from tablet disposal.
         TCurrentInvokerGuard guard(tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
 
         int prelockedCountBefore = PrelockedTransactions_.size();
 
-        TNullable<TError> error;
+        TError error;
         TNullable<TRowBlockedException> rowBlockedEx;
 
         while (!reader->IsFinished()) {
@@ -264,43 +255,60 @@ public:
                 rowBlockedEx->GetTimestamp());
         }
 
-        if (error) {
-            THROW_ERROR *error;
+        if (!error.IsOK()) {
+            THROW_ERROR error;
         }
     }
 
 
+    TChunkStorePtr CreateChunkStore(
+        const TStoreId& storeId,
+        TTablet* tablet,
+        const TChunkMeta* chunkMeta)
+    {
+        auto store = New<TChunkStore>(
+            storeId,
+            tablet,
+            chunkMeta,
+            Bootstrap_);
+        store->SetInMemoryMode(tablet->GetConfig()->InMemoryMode);
+        StartMemoryUsageTracking(store);
+        return store;
+    }
+
+    TDynamicMemoryStorePtr CreateDynamicMemoryStore(
+        const TStoreId& storeId,
+        TTablet* tablet)
+    {
+        auto store = New<TDynamicMemoryStore>(
+            Config_,
+            storeId,
+            tablet);
+        store->SubscribeRowBlocked(BIND(
+            &TImpl::OnRowBlocked,
+            MakeWeak(this),
+            Unretained(store.Get()),
+            tablet->GetTabletId(),
+            Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read)));
+        StartMemoryUsageTracking(store);
+        return store;
+    }
+
     IStorePtr CreateStore(TTablet* tablet, const TStoreId& storeId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
         switch (TypeFromId(storeId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return New<TChunkStore>(
-                    storeId,
-                    tablet,
-                    nullptr,
-                    Bootstrap_);
+                return CreateChunkStore(storeId, tablet, nullptr);
 
-            case EObjectType::DynamicMemoryTabletStore: {
-                auto store = New<TDynamicMemoryStore>(
-                    Config_,
-                    storeId,
-                    tablet);
-                store->SubscribeRowBlocked(BIND(
-                    &TImpl::OnRowBlocked,
-                    MakeWeak(this),
-                    Unretained(store.Get()),
-                    tablet->GetTabletId(),
-                    Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read)));
-                return store;
-            }
+            case EObjectType::DynamicMemoryTabletStore:
+                return CreateDynamicMemoryStore(storeId, tablet);
 
             default:
                 YUNREACHABLE();
         }
     }
+
 
     void OnRowBlocked(
         IStore* store,
@@ -387,9 +395,9 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 
 private:
-    TTabletManagerConfigPtr Config_;
+    const TTabletManagerConfigPtr Config_;
 
-    ICodec* ChangelogCodec_;
+    ICodec* const ChangelogCodec_;
 
     TEntityMap<TTabletId, TTablet> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
@@ -397,8 +405,6 @@ private:
     TRingQueue<TTransaction*> PrelockedTransactions_;
 
     yhash_set<TDynamicMemoryStorePtr> OrphanedStores_;
-
-    TCallback<void(i64)> OnStoreMemoryUsageUpdated_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -562,8 +568,6 @@ private:
         auto storeManager = CreateStoreManager(tablet);
         storeManager->CreateActiveStore();
 
-        StartMemoryUsageTracking(tablet);
-
         TabletMap_.Insert(tabletId, tablet);
 
         std::vector<std::pair<TOwningKey, int>> chunkBoundaries;
@@ -595,11 +599,10 @@ private:
 
         for (const auto& descriptor : request.chunk_stores()) {
             auto chunkId = FromProto<TChunkId>(descriptor.store_id());
-            auto store = New<TChunkStore>(
+            auto store = CreateChunkStore(
                 chunkId,
                 tablet,
-                &descriptor.chunk_meta(),
-                Bootstrap_);
+                &descriptor.chunk_meta());
             storeManager->AddStore(store);
         }
 
@@ -690,10 +693,15 @@ private:
         auto mountConfig = ConvertTo<TTableMountConfigPtr>(TYsonString(request.mount_config()));
         auto writerOptions = ConvertTo<TTabletWriterOptionsPtr>(TYsonString(request.writer_options()));
 
+        int oldSamplesPerPartition = tablet->GetConfig()->SamplesPerPartition;
+        int newSamplesPerPartition = mountConfig->SamplesPerPartition;
+
         tablet->SetConfig(mountConfig);
         tablet->SetWriterOptions(writerOptions);
 
-        SchedulePartitionsSampling(tablet);
+        if (oldSamplesPerPartition != newSamplesPerPartition) {
+            SchedulePartitionsSampling(tablet);
+        }
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
             tabletId);
@@ -773,10 +781,16 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto transactionManager = Slot_->GetTransactionManager();
-        auto* transaction = transactionManager->GetTransaction(transactionId);
+        // COMPAT(babenko)
+        auto* transaction = transactionManager->FindTransaction(transactionId);
+        if (!transaction)
+            return;
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
-        auto* tablet = GetTablet(tabletId);
+        // COMPAT(babenko)
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet)
+            return;
 
         auto codecId = ECodec(request.codec());
         auto* codec = GetCodec(codecId);
@@ -805,7 +819,6 @@ private:
             return;
 
         RotateStores(tablet, true);
-        StartMemoryUsageTracking(tablet);
         UpdateTabletSnapshot(tablet);
     }
 
@@ -827,8 +840,8 @@ private:
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToRemove.push_back(storeId);
             auto store = tablet->GetStore(storeId);
-            YCHECK(store->GetState() != EStoreState::ActiveDynamic);
-            store->SetState(EStoreState::RemoveCommitting);
+            YCHECK(store->GetStoreState() != EStoreState::ActiveDynamic);
+            store->SetStoreState(EStoreState::RemoveCommitting);
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Committing tablet stores update (TabletId: %v, StoreIdsToAdd: [%v], StoreIdsToRemove: [%v])",
@@ -874,10 +887,8 @@ private:
             for (const auto& descriptor : response.stores_to_remove()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 auto store = tablet->GetStore(storeId);
-                YCHECK(store->GetState() == EStoreState::RemoveCommitting);
-                if (IsLeader()) {
-                    BackoffStore(store, EStoreState::RemoveFailed);
-                }
+                YCHECK(store->GetStoreState() == EStoreState::RemoveCommitting);
+                BackoffStore(store, EStoreState::RemoveFailed);
             }
         } else {
             const auto& storeManager = tablet->GetStoreManager();
@@ -886,11 +897,10 @@ private:
                 auto storeId = FromProto<TChunkId>(descriptor.store_id());
                 addedStoreIds.push_back(storeId);
                 YCHECK(descriptor.has_chunk_meta());
-                auto store = New<TChunkStore>(
+                auto store = CreateChunkStore(
                     storeId,
                     tablet,
-                    &descriptor.chunk_meta(),
-                    Bootstrap_);
+                    &descriptor.chunk_meta());
                 storeManager->AddStore(store);
                 SchedulePartitionSampling(store->GetPartition());
                 TStoreId backingStoreId;
@@ -1107,9 +1117,9 @@ private:
 
     void SetStoreOrphaned(TTablet* tablet, IStorePtr store)
     {
-        if (store->GetState() == EStoreState::Orphaned)
+        if (store->GetStoreState() == EStoreState::Orphaned)
             return;
-        store->SetState(EStoreState::Orphaned);
+        store->SetStoreState(EStoreState::Orphaned);
 
         if (store->GetType() != EStoreType::DynamicMemory)
             return;
@@ -1128,13 +1138,13 @@ private:
     bool ValidateRowRef(const TDynamicRowRef& rowRef)
     {
         auto* store = rowRef.Store;
-        return store->GetState() != EStoreState::Orphaned;
+        return store->GetStoreState() != EStoreState::Orphaned;
     }
 
     bool ValidateAndDiscardRowRef(const TDynamicRowRef& rowRef)
     {
         auto* store = rowRef.Store;
-        if (store->GetState() != EStoreState::Orphaned) {
+        if (store->GetStoreState() != EStoreState::Orphaned) {
             return true;
         }
 
@@ -1213,6 +1223,8 @@ private:
         }
 
         if (prelock) {
+            ValidateTabletMounted(tablet);
+            ValidateTransactionActive(transaction);
             PrelockedTransactions_.push(transaction);
             transaction->PrelockedRows().push(rowRef);
         }
@@ -1299,7 +1311,7 @@ private:
             BIND([=] () -> TDynamicMemoryStorePtr {
                 auto slot = tablet->GetSlot();
                 auto storeId = slot->GenerateId(EObjectType::DynamicMemoryTabletStore);
-                return CreateStore(tablet, storeId)->AsDynamicMemory();
+                return CreateDynamicMemoryStore(storeId, tablet);
             }));
         tablet->SetStoreManager(storeManager);
         return storeManager;
@@ -1312,8 +1324,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->StartEpoch(Slot_);
 
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->RegisterTabletSnapshot(tablet);
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        slotManager->RegisterTabletSnapshot(tablet);
     }
 
     void StopTabletEpoch(TTablet* tablet)
@@ -1327,14 +1339,14 @@ private:
 
         for (const auto& pair : tablet->Stores()) {
             const auto& store = pair.second;
-            store->SetState(store->GetPersistentState());
+            store->SetStoreState(store->GetPersistentStoreState());
         }
 
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->StopEpoch();
 
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->UnregisterTabletSnapshot(tablet);
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        slotManager->UnregisterTabletSnapshot(tablet);
     }
 
 
@@ -1406,27 +1418,39 @@ private:
                 .Item("opaque").Value(true)
             .EndAttributes()
             .BeginMap()
-                .Item("state").Value(store->GetState())
                 .Do(BIND(&IStore::BuildOrchidYson, store))
             .EndMap();
     }
 
 
-    void OnStoreMemoryUsageUpdated(i64 delta)
+    static EMemoryConsumer GetMemoryConsumerFromStore(IStorePtr store)
     {
-        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        if (delta >= 0) {
-            tracker->Acquire(EMemoryConsumer::Tablet, delta);
-        } else {
-            tracker->Release(EMemoryConsumer::Tablet, -delta);
+        switch (store->GetType()) {
+            case EStoreType::DynamicMemory:
+                return EMemoryConsumer::TabletDynamic;
+            case EStoreType::Chunk:
+                return EMemoryConsumer::TabletStatic;
+            default:
+                YUNREACHABLE();
         }
     }
 
-    void StartMemoryUsageTracking(TTablet* tablet)
+    static void OnStoreMemoryUsageUpdated(NCellNode::TBootstrap* bootstrap, EMemoryConsumer consumer, i64 delta)
     {
-        auto store = tablet->GetActiveStore();
-        store->SubscribeMemoryUsageUpdated(OnStoreMemoryUsageUpdated_);
-        OnStoreMemoryUsageUpdated(store->GetMemoryUsage());
+        auto* tracker = bootstrap->GetMemoryUsageTracker();
+        if (delta >= 0) {
+            tracker->Acquire(consumer, delta);
+        } else {
+            tracker->Release(consumer, -delta);
+        }
+    }
+
+    void StartMemoryUsageTracking(IStorePtr store)
+    {
+        store->SubscribeMemoryUsageUpdated(BIND(
+            &TImpl::OnStoreMemoryUsageUpdated,
+            Bootstrap_,
+            GetMemoryConsumerFromStore(store)));
     }
 
     void ValidateMemoryLimit()
@@ -1440,8 +1464,8 @@ private:
     void UpdateTabletSnapshot(TTablet* tablet)
     {
         if (!IsRecovery()) {
-            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            tabletSlotManager->UpdateTabletSnapshot(tablet);
+            auto slotManager = Bootstrap_->GetTabletSlotManager();
+            slotManager->UpdateTabletSnapshot(tablet);
         }
     }
 
@@ -1465,6 +1489,24 @@ private:
     void SchedulePartitionsSampling(TTablet* tablet)
     {
         SchedulePartitionsSampling(tablet, 0, tablet->Partitions().size());
+    }
+
+
+    void ValidateTabletMounted(TTablet* tablet)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (tablet->GetState() != ETabletState::Mounted) {
+            THROW_ERROR_EXCEPTION("Tablet %v is not in \"mounted\" state",
+                tablet->GetTabletId());
+        }
+    }
+
+    void ValidateTransactionActive(TTransaction* transaction)
+    {
+        if (transaction->GetState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
     }
 
 };
@@ -1494,11 +1536,6 @@ void TTabletManager::Initialize()
 TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 {
     return Impl_->GetTabletOrThrow(id);
-}
-
-void TTabletManager::ValidateTabletMounted(TTablet* tablet)
-{
-    Impl_->ValidateTabletMounted(tablet);
 }
 
 void TTabletManager::BackoffStore(IStorePtr store, EStoreState state)

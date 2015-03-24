@@ -79,8 +79,6 @@ struct TCheckPermissionRequest
     }
 };
 
-typedef TIntrusivePtr<TCheckPermissionRequest> TCheckPermissionRequestPtr;
-
 class TCheckPermissionCommand
     : public TTypedCommand<TCheckPermissionRequest>
 {

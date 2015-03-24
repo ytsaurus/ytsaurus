@@ -13,6 +13,8 @@
 
 #include <core/ypath/token.h>
 
+#include <core/profiling/profile_manager.h>
+
 #include <ytlib/chunk_client/format.h>
 
 #include <ytlib/election/public.h>
@@ -56,12 +58,10 @@ TLocation::TLocation(
     const Stroka& id,
     TLocationConfigPtr config,
     TBootstrap* bootstrap)
-    : Profiler_(DataNodeProfiler.GetPathPrefix() + "/" + ToYPathLiteral(id))
-    , Type_(type)
+    : Type_(type)
     , Id_(id)
     , Config_(config)
     , Bootstrap_(bootstrap)
-    , SessionCount_(0)
     , ReadQueue_(New<TFairShareActionQueue>(Format("Read:%v", Id_), TEnumTraits<ELocationQueue>::GetDomainNames()))
     , DataReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(static_cast<int>(ELocationQueue::Data))))
     , MetaReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(static_cast<int>(ELocationQueue::Meta))))
@@ -76,9 +76,15 @@ TLocation::TLocation(
         BIND(&TLocation::OnCheckTrash, MakeWeak(this)),
         TrashCheckPeriod,
         EPeriodicExecutorMode::Manual))
-    , Logger(DataNodeLogger)
 {
+    Logger = DataNodeLogger;
     Logger.AddTag("Path: %v", Config_->Path);
+
+    NProfiling::TTagIdList tagIds;
+    auto* profilingManager = TProfileManager::Get();
+    tagIds.push_back(profilingManager->RegisterTag("location_id", Id_));
+    tagIds.push_back(profilingManager->RegisterTag("location_type", Type_));
+    Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
 }
 
 TLocation::~TLocation()

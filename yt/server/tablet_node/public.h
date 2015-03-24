@@ -118,6 +118,12 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (Write)
 );
 
+DEFINE_ENUM(EInMemoryMode,
+    (Disabled)
+    (Compressed)
+    (Uncompressed)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManageConfig)
@@ -127,12 +133,13 @@ DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreFlusherConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreCompactorConfig)
+DECLARE_REFCOUNTED_CLASS(TStorePreloaderConfig)
 DECLARE_REFCOUNTED_CLASS(TPartitionBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletChunkReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletNodeConfig)
 
-DECLARE_REFCOUNTED_CLASS(TTabletSlotManager)
+DECLARE_REFCOUNTED_CLASS(TSlotManager)
 DECLARE_REFCOUNTED_CLASS(TTabletSlot)
 DECLARE_REFCOUNTED_CLASS(TTabletAutomaton)
 

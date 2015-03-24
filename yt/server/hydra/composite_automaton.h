@@ -3,6 +3,8 @@
 #include "public.h"
 #include "automaton.h"
 
+#include <core/misc/serialize.h>
+
 #include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
@@ -68,7 +70,7 @@ public:
 
     void Reset();
 
-    void RegisterEntity(TEntityBase* entity);
+    TEntitySerializationKey RegisterEntity(TEntityBase* entity);
 
     template <class T>
     T* GetEntity(TEntitySerializationKey key) const;
@@ -162,6 +164,14 @@ DEFINE_REFCOUNTED_TYPE(TCompositeAutomatonPart)
 class TCompositeAutomaton
     : public IAutomaton
 {
+public:
+    virtual void SaveSnapshot(TOutputStream* output) override;
+    virtual void LoadSnapshot(TInputStream* input) override;
+
+    virtual void ApplyMutation(TMutationContext* context) override;
+
+    virtual void Clear() override;
+
 protected:
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
@@ -216,14 +226,6 @@ private:
 
     yhash_map<Stroka, TLoaderInfo> Loaders_;
     yhash_map<Stroka, TSaverInfo> Savers_;
-
-
-    virtual void SaveSnapshot(TOutputStream* output) override;
-    virtual void LoadSnapshot(TInputStream* input) override;
-
-    virtual void ApplyMutation(TMutationContext* context) override;
-
-    virtual void Clear() override;
 
 
     void OnRecoveryStarted();

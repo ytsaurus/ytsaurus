@@ -48,6 +48,7 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: replace with lambdas
 class TRangeInferrer
 {
 private:
@@ -61,38 +62,35 @@ public:
     // Use Heavy if we need to enrich ranges with computed columns, otherwise Light.
     TRangeInferrer(
        const TConstExpressionPtr& predicate,
-       const TDataSplits& splits,
-       const TColumnEvaluatorCachePtr& evaluatorCache)
+       const TTableSchema& schema,
+       const TKeyColumns& keyColumns,
+       const TColumnEvaluatorCachePtr& evaluatorCache,
+       bool verboseLogging)
     {
-        if (splits.size() == 0 || !predicate) {
-            Impl_ = std::make_unique<TRangeInferrerLight>(predicate, TKeyColumns());
+        if (/*splits.size() == 0 ||*/ !predicate) {
+            Impl_ = std::make_unique<TRangeInferrerLight>(predicate, TKeyColumns(), verboseLogging);
             return;
         }
 
-        auto schema = GetTableSchemaFromDataSplit(splits[0]);
-        auto keyColumns = GetKeyColumnsFromDataSplit(splits[0]);
-
 #ifdef YT_USE_LLVM
         if (!schema.HasComputedColumns()) {
-            Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns);
+            Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, verboseLogging);
             return;
         }
 
         yhash_set<Stroka> references;
-        TFoldingProfiler()
-            .Set(references)
-            .Profile(predicate);
+        Profile(predicate, schema, nullptr, nullptr, &references);
 
         for (const auto& reference : references) {
             if (schema.GetColumnOrThrow(reference).Expression) {
-                Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns);
+                Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, verboseLogging);
                 return;
             }
         }
 
-        Impl_ = std::make_unique<TRangeInferrerHeavy>(predicate, schema, keyColumns, evaluatorCache);
+        Impl_ = std::make_unique<TRangeInferrerHeavy>(predicate, schema, keyColumns, evaluatorCache, verboseLogging);
 #else
-        Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns);
+        Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, verboseLogging);
 #endif
     }
 
@@ -119,11 +117,12 @@ private:
     public:
         TRangeInferrerLight(
            const TConstExpressionPtr& predicate,
-           const TKeyColumns& keyColumns)
+           const TKeyColumns& keyColumns,
+           bool verboseLogging)
         {
             KeyTrie_ = ExtractMultipleConstraints(predicate, keyColumns, &KeyTrieBuffer_);
 
-            LOG_DEBUG("Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
+            LOG_DEBUG_IF(verboseLogging, "Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
         }
 
         virtual std::vector<TKeyRange> GetRangesWithinRange(const TKeyRange& keyRange) override
@@ -145,9 +144,11 @@ private:
             const TConstExpressionPtr& predicate,
             const TTableSchema& schema,
             const TKeyColumns& keyColumns,
-            const TColumnEvaluatorCachePtr& evaluatorCache)
+            const TColumnEvaluatorCachePtr& evaluatorCache,
+            bool verboseLogging)
             : Schema_(schema)
             , KeySize_(keyColumns.size())
+            , VerboseLogging_(verboseLogging)
         {
             SchemaToDepletedMapping_.resize(KeySize_, -1);
             Evaluator_ = evaluatorCache->Find(Schema_, KeySize_);
@@ -165,7 +166,7 @@ private:
 
             KeyTrie_ = ExtractMultipleConstraints(predicate, depletedKeyColumns, &KeyTrieBuffer_);
 
-            LOG_DEBUG("Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
+            LOG_DEBUG_IF(verboseLogging, "Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
         }
 
         virtual std::vector<TKeyRange> GetRangesWithinRange(const TKeyRange& keyRange) override
@@ -185,7 +186,7 @@ private:
                     trie.Unite(TKeyTrieNode::FromRange(range));
                 }
 
-                LOG_DEBUG("Inferred key constraints %Qv", trie);
+                LOG_DEBUG_IF(VerboseLogging_, "Inferred key constraints %Qv", trie);
 
                 ranges = GetRangesFromTrieWithinRange(keyRange, trie);
             }
@@ -356,13 +357,14 @@ private:
         std::vector<int> SchemaToDepletedMapping_;
         TTableSchema Schema_;
         int KeySize_;
+        bool VerboseLogging_;
     };
 };
 
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     const TConstQueryPtr& query,
     const std::vector<TKeyRange>& ranges,
-    bool pushdownGroupClause)
+    bool refinePredicates)
 {
     auto Logger = BuildLogger(query);
 
@@ -372,9 +374,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         ? 0
         : 2 * std::min(query->InputRowLimit, std::numeric_limits<i64>::max() / 2) / ranges.size();
 
-    auto subqueryOutputRowLimit = pushdownGroupClause
-        ? query->OutputRowLimit
-        : std::numeric_limits<i64>::max();
+    auto subqueryOutputRowLimit = query->OutputRowLimit;
 
     for (const auto& keyRange : ranges) {
         // Set initial schema and key columns
@@ -398,14 +398,14 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
             }
         }
 
-        if (query->Predicate) {
-            subquery->Predicate = RefinePredicate(keyRange, commonPrefixSize, query->Predicate, subquery->KeyColumns);
+        if (query->WhereClause) {
+            subquery->WhereClause = refinePredicates
+                ? RefinePredicate(keyRange, commonPrefixSize, query->WhereClause, subquery->KeyColumns)
+                : query->WhereClause;
         }
 
         if (query->GroupClause) {
-            if (pushdownGroupClause) {
-                subquery->GroupClause = query->GroupClause; 
-            }
+            subquery->GroupClause = query->GroupClause;
         } else {
             subquery->ProjectClause = query->ProjectClause;
         }
@@ -420,35 +420,33 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     topQuery->Limit = query->Limit;
 
     if (query->GroupClause) {
-        if (pushdownGroupClause) {
-            topQuery->TableSchema = query->GroupClause->GetTableSchema();
-            if (subqueries.size() > 1) {
-                topQuery->GroupClause.Emplace();
+        topQuery->TableSchema = query->GroupClause->GetTableSchema();
+        if (subqueries.size() > 1) {
+            auto groupClause = New<TGroupClause>();
+            groupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
 
-                auto& finalGroupItems = topQuery->GroupClause->GroupItems;
-                for (const auto& groupItem : query->GroupClause->GroupItems) {
-                    auto referenceExpr = New<TReferenceExpression>(
-                        NullSourceLocation,
-                        groupItem.Expression->Type,
-                        groupItem.Name);
-                    finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
-                }
-
-                auto& finalAggregateItems = topQuery->GroupClause->AggregateItems;
-                for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
-                    auto referenceExpr = New<TReferenceExpression>(
-                        NullSourceLocation,
-                        aggregateItem.Expression->Type,
-                        aggregateItem.Name);
-                    finalAggregateItems.emplace_back(
-                        std::move(referenceExpr),
-                        aggregateItem.AggregateFunction,
-                        aggregateItem.Name);
-                }
+            auto& finalGroupItems = groupClause->GroupItems;
+            for (const auto& groupItem : query->GroupClause->GroupItems) {
+                auto referenceExpr = New<TReferenceExpression>(
+                    NullSourceLocation,
+                    groupItem.Expression->Type,
+                    groupItem.Name);
+                finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
             }
-        } else {
-            topQuery->TableSchema = query->TableSchema;
-            topQuery->GroupClause = query->GroupClause;
+
+            auto& finalAggregateItems = groupClause->AggregateItems;
+            for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
+                auto referenceExpr = New<TReferenceExpression>(
+                    NullSourceLocation,
+                    aggregateItem.Expression->Type,
+                    aggregateItem.Name);
+                finalAggregateItems.emplace_back(
+                    std::move(referenceExpr),
+                    aggregateItem.AggregateFunction,
+                    aggregateItem.Name);
+            }
+
+            topQuery->GroupClause = groupClause;
         }
 
         topQuery->ProjectClause = query->ProjectClause;
@@ -459,14 +457,15 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     return std::make_pair(topQuery, subqueries);
 }
 
-TDataSplits GetPrunedSplits(
-    const TConstQueryPtr& query,
-    const TDataSplits& splits,
-    const TColumnEvaluatorCachePtr& evaluatorCache)
+TDataSources GetPrunedSources(
+    const TConstExpressionPtr& predicate,
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns,
+    const TDataSources& sources,
+    const TColumnEvaluatorCachePtr& evaluatorCache,
+    bool verboseLogging)
 {
-    auto Logger = BuildLogger(query);
-
-    TRangeInferrer rangeInferrer(query->Predicate, splits, evaluatorCache);
+    TRangeInferrer rangeInferrer(predicate, tableSchema, keyColumns, evaluatorCache, verboseLogging);
 
     auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
         return Format("[%v .. %v]",
@@ -474,44 +473,59 @@ TDataSplits GetPrunedSplits(
             range.second);
     };
 
-    LOG_DEBUG("Splitting %v splits according to ranges", splits.size());
+    LOG_DEBUG("Splitting %v sources according to ranges", sources.size());
 
-    TDataSplits prunedSplits;
-    for (const auto& split : splits) {
-        auto originalRange = GetBothBoundsFromDataSplit(split);
-
+    TDataSources prunedSources;
+    for (const auto& source : sources) {
+        const auto& originalRange = source.Range;
         auto ranges = rangeInferrer.GetRangesWithinRange(originalRange);
 
         for (const auto& range : ranges) {
-            auto splitCopy = split;
+            auto sourceCopy = source;
 
-            LOG_DEBUG("Narrowing split %v key range from %v to %v",
-                    GetObjectIdFromDataSplit(splitCopy),
-                    keyRangeFormatter(originalRange),
-                    keyRangeFormatter(range));
-            SetBothBounds(&splitCopy, range);
+            LOG_DEBUG_IF(verboseLogging, "Narrowing source %v key range from %v to %v",
+                sourceCopy.Id,
+                keyRangeFormatter(originalRange),
+                keyRangeFormatter(range));
 
-            prunedSplits.push_back(std::move(splitCopy));
+            sourceCopy.Range = range;
+
+            prunedSources.push_back(std::move(sourceCopy));
         }
     }
 
-    return prunedSplits;
+    return prunedSources;
 }
 
-TKeyRange GetRange(const TDataSplits& splits)
+TDataSources GetPrunedSources(
+    const TConstQueryPtr& query,
+    const TDataSources& sources,
+    const TColumnEvaluatorCachePtr& evaluatorCache,
+    bool verboseLogging)
 {
-    if (splits.empty()) {
+    return GetPrunedSources(
+        query->WhereClause,
+        query->TableSchema,
+        query->KeyColumns,
+        sources,
+        evaluatorCache,
+        verboseLogging);
+}
+
+TKeyRange GetRange(const TDataSources& sources)
+{
+    if (sources.empty()) {
         return TKeyRange();
     }
 
-    auto keyRange = GetBothBoundsFromDataSplit(splits[0]);
-    for (int index = 1; index < splits.size(); ++index) {
-        keyRange = Unite(keyRange, GetBothBoundsFromDataSplit(splits[index]));
+    auto keyRange = sources[0].Range;
+    for (int index = 1; index < sources.size(); ++index) {
+        keyRange = Unite(keyRange, sources[index].Range);
     }
     return keyRange;
 }
 
-std::vector<TKeyRange> GetRanges(const TGroupedDataSplits& groupedSplits)
+std::vector<TKeyRange> GetRanges(const std::vector<TDataSources>& groupedSplits)
 {
     std::vector<TKeyRange> ranges(groupedSplits.size());
     for (int index = 0; index < groupedSplits.size(); ++index) {
@@ -525,17 +539,21 @@ TQueryStatistics CoordinateAndExecute(
     ISchemafulWriterPtr writer,
     bool isOrdered,
     const std::vector<TKeyRange>& ranges,
-    std::function<TEvaluateResult(const TConstQueryPtr&, size_t)> evaluateSubquery,
+    std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
-    bool pushdownGroupOp)
+    bool refinePredicates)
 {
     auto nodeDirectory = fragment->NodeDirectory;
     auto query = fragment->Query;
     auto Logger = BuildLogger(query);
 
+    LOG_DEBUG("Begin coordinating query");
+
     TConstQueryPtr topQuery;
     std::vector<TConstQueryPtr> subqueries;
-    std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, pushdownGroupOp);
+    std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, refinePredicates);
+
+    LOG_DEBUG("Finished coordinating query");
 
     std::vector<ISchemafulReaderPtr> splitReaders;
 
@@ -546,32 +564,29 @@ TQueryStatistics CoordinateAndExecute(
     if (isOrdered) {
         int index = 0;
 
-        topReader = CreateOrderedSchemafulReader([&, index ] () mutable -> ISchemafulReaderPtr {
+        topReader = CreateOrderedSchemafulReader([&, index] () mutable -> ISchemafulReaderPtr {
             if (index >= subqueries.size()) {
                 return nullptr;
             }
 
             const auto& subquery = subqueries[index];
-            LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
-                subquery->Id);
 
             ISchemafulReaderPtr reader;
-            TFuture <TQueryStatistics> asyncStatistics;
-            std::tie(reader, asyncStatistics) = evaluateSubquery(subquery, index);
+            TFuture <TQueryStatistics> statistics;
+            std::tie(reader, statistics) = evaluateSubquery(subquery, index);
 
-            subqueryHolders.push_back(MakeHolder(asyncStatistics, false));
+            subqueryHolders.push_back(MakeHolder(statistics, false));
 
             ++index;
 
             return reader;
         });
     } else {
-        for (size_t index = 0; index < subqueries.size(); ++index) {
+        for (int index = 0; index < subqueries.size(); ++index) {
             auto subquery = subqueries[index];
 
             ISchemafulReaderPtr reader;
             TFuture<TQueryStatistics> statistics;
-
             std::tie(reader, statistics) = evaluateSubquery(subquery, index);
 
             splitReaders.push_back(reader);

@@ -13,6 +13,7 @@
 #include <core/misc/nullable.h>
 #include <core/misc/enum.h>
 #include <core/misc/demangle.h>
+#include <core/misc/serialize.h>
 
 #include <core/ypath/token.h>
 
@@ -299,7 +300,7 @@ void TYsonSerializableLite::TParameter<T>::Validate(const NYPath::TYPath& path) 
             validator(Parameter);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Validation failed at %v",
-                path.empty() ? "/" : path)
+                path.empty() ? "root" : path)
                 << ex;
         }
     }

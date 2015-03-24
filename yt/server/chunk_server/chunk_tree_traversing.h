@@ -4,8 +4,6 @@
 
 #include <core/misc/error.h>
 
-#include <ytlib/table_client/table_chunk_meta.pb.h>
-
 #include <ytlib/chunk_client/read_limit.h>
 
 #include <server/cell_master/public.h>

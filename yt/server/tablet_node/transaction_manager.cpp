@@ -134,9 +134,9 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        auto state = transaction->GetState();
-        
+
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
+        auto state = persistent ? transaction->GetPersistentState() : transaction->GetState();
         if (state != ETransactionState::Active &&
             (!persistent || state != ETransactionState::TransientCommitPrepared))
         {
@@ -163,6 +163,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
+
         auto state = transaction->GetState();
         if (state != ETransactionState::Active && !force) {
             transaction->ThrowInvalidState();
@@ -181,10 +182,9 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        auto state = transaction->GetState();
 
+        auto state = transaction->GetPersistentState();
         if (state != ETransactionState::Active &&
-            state != ETransactionState::TransientCommitPrepared &&
             state != ETransactionState::PersistentCommitPrepared)
         {
             transaction->ThrowInvalidState();
@@ -211,8 +211,8 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        auto state = transaction->GetState();
-        
+
+        auto state = transaction->GetPersistentState();
         if (state == ETransactionState::PersistentCommitPrepared && !force) {
             transaction->ThrowInvalidState();
         }
@@ -237,10 +237,10 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
+
         if (transaction->GetState() != ETransactionState::Active) {
             transaction->ThrowInvalidState();
         }
-
 
         auto timeout = transaction->GetTimeout();
         TLeaseManager::RenewLease(transaction->GetLease(), timeout);
@@ -299,6 +299,7 @@ private:
         auto* transaction = FindTransaction(id);
         if (!transaction)
             return;
+
         if (transaction->GetState() != ETransactionState::Active)
             return;
 
@@ -319,6 +320,7 @@ private:
         auto* transaction = FindTransaction(id);
         if (!transaction)
             return;
+
         if (transaction->GetState() != ETransactionState::Active)
             return;
 

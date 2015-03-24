@@ -13,6 +13,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/concurrency/throughput_throttler.h>
+
 namespace NYT {
 namespace NFileClient {
 
@@ -58,7 +60,8 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     NChunkClient::TMultiChunkWriterOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
-    const NChunkClient::TChunkListId& parentChunkListId);
+    const NChunkClient::TChunkListId& parentChunkListId,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
 

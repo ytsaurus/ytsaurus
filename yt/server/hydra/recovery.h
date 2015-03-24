@@ -4,6 +4,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/misc/ref.h>
+
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/logging/log.h>

@@ -11,27 +11,50 @@ namespace NDriver {
 
 //////////////////////////////////////////////////////////////////////////////
 
-struct TDumpInputContextRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
+struct TDumpJobInputContextRequest
+    : public TRequest
 {
     NJobTrackerClient::TJobId JobId;
     NYPath::TYPath Path;
 
-    TDumpInputContextRequest()
+    TDumpJobInputContextRequest()
     {
         RegisterParameter("job_id", JobId);
         RegisterParameter("path", Path);
     }
 };
 
-//////////////////////////////////////////////////////////////////////////////
-
-class TDumpInputContextCommand
-    : public TTypedCommand<TDumpInputContextRequest>
+class TDumpJobInputContextCommand
+    : public TTypedCommand<TDumpJobInputContextRequest>
 {
 protected:
-    typedef TDumpInputContextCommand TThis;
+    typedef TDumpJobInputContextCommand TThis;
+
+private:
+    virtual void DoExecute() override;
+
+};
+
+//////////////////////////////////////////////////////////////////////////////
+
+struct TStraceJobRequest
+    : public TRequest
+{
+    NJobTrackerClient::TJobId JobId;
+
+    TStraceJobRequest()
+    {
+        RegisterParameter("job_id", JobId);
+    }
+};
+
+//////////////////////////////////////////////////////////////////////////////
+
+class TStraceJobCommand
+    : public TTypedCommand<TStraceJobRequest>
+{
+protected:
+    typedef TStraceJobCommand TThis;
 
 private:
     virtual void DoExecute() override;
@@ -54,83 +77,69 @@ struct TStartOperationRequest
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerCommandBase
+class TStartOperationCommandBase
     : public TTypedCommand<TStartOperationRequest>
 {
 protected:
-    typedef TSchedulerCommandBase TThis;
+    virtual void DoExecute() override;
 
-    void StartOperation(NScheduler::EOperationType type);
+    virtual NScheduler::EOperationType GetOperationType() const = 0;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TMapCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TMergeCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TSortCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TEraseCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TReduceCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TMapReduceCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TRemoteCopyCommand
-    : public TSchedulerCommandBase
+    : public TStartOperationCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 
 };
 

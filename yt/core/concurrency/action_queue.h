@@ -116,7 +116,8 @@ IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoke
 //! outstanding requests to the latter.
 IInvokerPtr CreateBoundedConcurrencyInvoker(
     IInvokerPtr underlyingInvoker,
-    int maxConcurrentInvocations);
+    int maxConcurrentInvocations,
+    const Stroka& invokerName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

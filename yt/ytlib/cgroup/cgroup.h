@@ -93,7 +93,7 @@ public:
     bool IsCreated() const;
 
 private:
-    bool Created_;
+    bool Created_ = false;
 
 };
 
@@ -110,6 +110,7 @@ public:
     };
 
     explicit TCpuAccounting(const Stroka& name);
+
     TStatistics GetStatistics() const;
 };
 

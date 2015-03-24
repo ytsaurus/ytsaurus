@@ -85,8 +85,10 @@ function YtDriverFacadeV2(driver)
     delete descriptors.insert_rows;
     delete descriptors.lookup_rows;
     delete descriptors.select_rows;
+    delete descriptors.select;
 
-    delete descriptors.dump_input_context
+    delete descriptors.dump_job_input_context;
+    delete descriptors.strace_job;
 
     this.driver = driver;
     this.mapping = mapping;
@@ -96,7 +98,7 @@ function YtDriverFacadeV2(driver)
 YtDriverFacadeV2.prototype.execute = function(name, user,
     input_stream, input_compression,
     output_stream, output_compression,
-    parameters, pause, response_parameters_consumer)
+    parameters, request_id, pause, response_parameters_consumer)
 {
     "use strict";
 
@@ -107,7 +109,11 @@ YtDriverFacadeV2.prototype.execute = function(name, user,
     parameters.GetByYPath("/input_format").SetAttribute("boolean_as_string", TRUE_NODE);
     parameters.GetByYPath("/output_format").SetAttribute("boolean_as_string", TRUE_NODE);
 
-    return this.driver.execute.apply(this.driver, arguments);
+    return this.driver.execute(
+        name, user,
+        input_stream, input_compression,
+        output_stream, output_compression,
+        parameters, request_id, pause, response_parameters_consumer);
 }
 
 YtDriverFacadeV2.prototype.find_command_descriptor = function(name)

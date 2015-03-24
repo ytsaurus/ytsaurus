@@ -60,8 +60,6 @@ message TUserJobSpec
 
     // Deprecated = 13.
 
-    // Depracate = 14.
-
     optional bool enable_accounting = 15 [default = false];
 
     optional bool check_input_fully_consumed = 16 [default = false];

@@ -15,19 +15,13 @@
 #include "user_job_io.h"
 #include "job_prober_service.h"
 
-#include <core/actions/invoker_util.h>
-
 #include <core/concurrency/action_queue.h>
-#include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/periodic_executor.h>
 
 #include <core/misc/proc.h>
 #include <core/misc/ref_counted_tracker.h>
 #include <core/misc/lfalloc_helpers.h>
 
-#include <core/ytree/convert.h>
-
-#include <core/logging/log.h>
 #include <core/logging/log_manager.h>
 
 #include <core/bus/tcp_client.h>
@@ -37,29 +31,21 @@
 #include <core/rpc/server.h>
 #include <core/rpc/helpers.h>
 
+#include <core/ytree/public.h>
+
 #include <ytlib/scheduler/public.h>
 
 #include <ytlib/cgroup/cgroup.h>
 
 #include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
-#include <ytlib/node_tracker_client/helpers.h>
 
 #include <ytlib/scheduler/statistics.h>
-
-#include <ytlib/hydra/peer_channel.h>
-
-#include <ytlib/security_client/public.h>
-
-#include <server/scheduler/job_resources.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -98,6 +84,18 @@ TJobProxy::TJobProxy(
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jobId)
 {
+    ValidateJobId(jobId);
+    return Job_->DumpInputContext();
+}
+
+NYTree::TYsonString TJobProxy::Strace(const TJobId& jobId)
+{
+    ValidateJobId(jobId);
+    return Job_->Strace();
+}
+
+void TJobProxy::ValidateJobId(const TJobId& jobId)
+{
     if (JobId_ != jobId) {
         THROW_ERROR_EXCEPTION("Job id mismatch: expected %v, got %v",
             JobId_,
@@ -107,8 +105,6 @@ std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jo
     if (!Job_) {
         THROW_ERROR_EXCEPTION("Job is not started yet");
     }
-
-    return Job_->DumpInputContext();
 }
 
 void TJobProxy::SendHeartbeat()
@@ -200,15 +196,15 @@ void TJobProxy::Run()
         if (Config_->ForceEnableAccounting) {
             TCpuAccounting cpuAccounting("");
             auto cpuStatistics = cpuAccounting.GetStatistics();
-            customStatistics.Add("/job_proxy/cpu", cpuStatistics);
+            customStatistics.AddComplex("/job_proxy/cpu", cpuStatistics);
 
             TBlockIO blockIO("");
             auto blockIOStatistics = blockIO.GetStatistics();
-            customStatistics.Add("/job_proxy/block_io", blockIOStatistics);
+            customStatistics.AddComplex("/job_proxy/block_io", blockIOStatistics);
         }
 
-        customStatistics.Add("/job_proxy/input", jobStatistics.input());
-        customStatistics.Add("/job_proxy/output", GetTotalOutputDataStatistics(jobStatistics));
+        customStatistics.AddComplex("/job_proxy/input", jobStatistics.input());
+        customStatistics.AddComplex("/job_proxy/output", GetTotalOutputDataStatistics(jobStatistics));
 
         ToProto(jobStatistics.mutable_statistics(), NYTree::ConvertToYsonString(customStatistics).Data());
         ToProto(result.mutable_statistics(), jobStatistics);

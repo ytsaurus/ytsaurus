@@ -1,4 +1,4 @@
-package NYT.NTableClient.NProto;
+package NYT.NVersionedTableClient.NProto;
 
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/schema.proto";
@@ -31,12 +31,6 @@ message TIndexRow
 message TIndexExt
 {
     repeated TIndexRow items = 2;
-}
-
-// Chunk meta extension.
-message TKeyColumnsExt
-{
-    repeated string names = 1;
 }
 
 // Chunk meta extension.

@@ -6,15 +6,9 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/chunk_client/chunk_spec.h>
-
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
 #include <ytlib/new_table_client/schemaless_partition_sort_reader.h>
-
-#include <ytlib/transaction_client/public.h>
-
-#include <core/ytree/yson_string.h>
 
 namespace NYT {
 namespace NJobProxy {

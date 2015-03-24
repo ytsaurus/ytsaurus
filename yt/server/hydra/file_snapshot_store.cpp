@@ -113,7 +113,7 @@ private:
             if (signature == TSnapshotHeader::ExpectedSignature) {
                 ReadPod(input, Header_);
 
-                if (Header_.SnapshotId != SnapshotId_) {
+                if (Header_.SnapshotId != SnapshotId_ && SnapshotId_ != InvalidSegmentId) {
                     THROW_ERROR_EXCEPTION(
                         "Invalid snapshot id in header of %v: expected %" PRIx64 ", got %" PRIx64,
                         FileName_,
@@ -511,7 +511,7 @@ public:
 
         auto it = SnapshotIds_.upper_bound(maxSnapshotId);
         if (it == SnapshotIds_.begin()) {
-            return NonexistingSegmentId;
+            return InvalidSegmentId;
         }
 
         int snapshotId = *(--it);

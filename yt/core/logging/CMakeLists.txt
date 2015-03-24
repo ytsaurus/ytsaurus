@@ -2,7 +2,6 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/core/logging )
 set( SRCS
   ${BASE}/config.cpp
-  ${BASE}/common.cpp
   ${BASE}/log.cpp
   ${BASE}/log_manager.cpp
   ${BASE}/pattern.cpp
@@ -10,9 +9,9 @@ set( SRCS
   ${BASE}/writer.cpp
 )
 set( HDRS
-  ${BASE}/common.h
   ${BASE}/config.h
   ${BASE}/log.h
+  ${BASE}/log-inl.h
   ${BASE}/log_manager.h
   ${BASE}/pattern.h
   ${BASE}/private.h

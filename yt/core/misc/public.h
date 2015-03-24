@@ -32,6 +32,10 @@ class TStreamLoadContext;
 template <class TSaveContext, class TLoadContext>
 class TCustomPersistenceContext;
 
+using TStreamPersistenceContext = TCustomPersistenceContext<
+    TStreamSaveContext,
+    TStreamLoadContext>;
+
 struct TValueBoundComparer;
 struct TValueBoundSerializer;
 
@@ -53,7 +57,10 @@ struct ICheckpointableOutputStream;
 DECLARE_REFCOUNTED_CLASS(TSlruCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TExpiringCacheConfig)
 
-typedef ui64 TChecksum;
+using TChecksum = ui64;
+
+template <class T, unsigned size>
+class SmallVector;
 
 ///////////////////////////////////////////////////////////////////////////////
 

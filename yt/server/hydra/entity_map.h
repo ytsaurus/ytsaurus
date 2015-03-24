@@ -7,6 +7,8 @@
 
 #include <core/misc/chunked_memory_pool.h>
 
+#include <type_traits>
+
 namespace NYT {
 namespace NHydra {
 
@@ -20,20 +22,46 @@ struct TDefaultEntityMapTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A typical common base for all entities within a Hydra replicated state.
+//! A common base for all structures representing a highly mutable data
+//! associated with entities within Hydra.
+struct TEntityDynamicDataBase
+{
+    TEntitySerializationKey SerializationKey;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A common base for all entities within Hydra.
 class TEntityBase
     : private TNonCopyable
 {
 public:
-    //! Return the pointer to key attached to the object during serialization.
-    TEntitySerializationKey* GetSerializationKeyPtr() const;
+    //! Returns the pointer to the highly mutable data associated with the entity.
+    /*
+     *  Inheritors may hide this one with another |GetDynamicData| method
+     *  returning the actual type derived from TEntityDynamicDataBase.
+     */
+    TEntityDynamicDataBase* GetDynamicData() const;
 
-    //! Sets the pointer to key attached to the object during serialization.
-    void SetSerializationKeyPtr(TEntitySerializationKey* ptr);
+    //! Sets the pointer to the highly mutable data associated with the entity.
+    void SetDynamicData(TEntityDynamicDataBase* data);
+
+protected:
+    //! A helper for implementing |GetDynamicData| in inheritors.
+    template <class T>
+    T* GetTypedDynamicData() const;
 
 private:
-    TEntitySerializationKey* SerializationKeyPtr_ = nullptr;
+    TEntityDynamicDataBase* DynamicData_ = nullptr;
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Overlayed with the spare entities of regular dynamic data.
+struct TSpareEntityDynamicData
+{
+    TSpareEntityDynamicData* Next;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,6 +136,8 @@ class TEntityMap
     : public TReadOnlyEntityMap<TKey, TValue, THash>
 {
 public:
+    using TDynamicData = typename std::decay<decltype(*static_cast<TValue*>(nullptr)->GetDynamicData())>::type;
+
     explicit TEntityMap(const TTraits& traits = TTraits());
     ~TEntityMap();
 
@@ -137,16 +167,18 @@ private:
 
     TTraits Traits_;
 
-    TChunkedMemoryPool SerializationKeysPool_;
-    std::vector<TEntitySerializationKey*> SpareSerializationKeyPtrs_;
+    TChunkedMemoryPool DynamicDataPool_;
+    TSpareEntityDynamicData* FirstSpareDynamicData_ = nullptr;
 
     std::vector<TKey> LoadKeys_;
     std::vector<TValue*> LoadValues_;
     mutable std::vector<typename TMap::const_iterator> SaveIterators_;
 
 
-    TEntitySerializationKey* AllocateSerializationKeyPtr();
-    void FreeSerializationKeyPtr(TEntitySerializationKey* ptr);
+    TDynamicData* AllocateDynamicData();
+    void FreeDynamicData(TDynamicData* data);
+
+    void DoClear();
 
 };
 

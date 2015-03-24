@@ -7,8 +7,6 @@
 
 #include <core/erasure/codec.h>
 
-#include <core/ytree/attribute_helpers.h>
-
 namespace NYT {
 namespace NChunkClient {
 
@@ -98,9 +96,18 @@ i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs)
     i64 result = 0;
     for (const auto& chunkSpec : chunkSpecs) {
         i64 dataSize;
-        i64 rowCount;
-        GetStatistics(chunkSpec, &dataSize, &rowCount);
-        result += rowCount;
+        i64 upperRowLimit;
+        GetStatistics(chunkSpec, &dataSize, &upperRowLimit);
+        i64 lowerRowLimit = 0;
+        if (chunkSpec.has_lower_limit() && chunkSpec.lower_limit().has_row_index()) {
+            lowerRowLimit = chunkSpec.lower_limit().row_index();
+        }
+
+        if (chunkSpec.has_upper_limit() && chunkSpec.upper_limit().has_row_index()) {
+            upperRowLimit = chunkSpec.upper_limit().row_index();
+        }
+
+        result += upperRowLimit - lowerRowLimit;
     }
     return result;
 }

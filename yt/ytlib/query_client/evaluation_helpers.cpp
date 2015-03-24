@@ -29,13 +29,13 @@ bool CountRow(i64* limit)
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,
     const TConstExpressionPtr& predicate,
+    const TTableSchema& selfTableSchema,
     TExecuteQuery executeCallback)
 {
     const auto& joinColumns = joinClause.JoinColumns;
     auto& foreignTableSchema = joinClause.ForeignTableSchema;
     auto& foreignKeyColumns = joinClause.ForeignKeyColumns;
     auto foreignPredicate = ExtractPredicateForColumnSubset(predicate, foreignTableSchema);
-    const auto& selfTableSchema = joinClause.SelfTableSchema;
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
     TQueryPtr subquery = New<TQuery>(std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
@@ -43,10 +43,10 @@ TJoinEvaluator GetJoinEvaluator(
     subquery->TableSchema = foreignTableSchema;
     subquery->KeyColumns = foreignKeyColumns;
 
-    TProjectClause projectClause;
+    auto projectClause = New<TProjectClause>();
     for (const auto& column : foreignTableSchema.Columns()) {
         if (std::find(joinColumns.begin(), joinColumns.end(), column.Name) != joinColumns.end()) {
-            projectClause.Projections.emplace_back(New<TReferenceExpression>(
+            projectClause->AddProjection(New<TReferenceExpression>(
                 NullSourceLocation,
                 column.Type,
                 column.Name),
@@ -56,7 +56,7 @@ TJoinEvaluator GetJoinEvaluator(
 
     for (const auto& column : foreignTableSchema.Columns()) {
         if (std::find(joinColumns.begin(), joinColumns.end(), column.Name) == joinColumns.end()) {
-            projectClause.Projections.emplace_back(New<TReferenceExpression>(
+            projectClause->AddProjection(New<TReferenceExpression>(
                 NullSourceLocation,
                 column.Type,
                 column.Name),
@@ -88,14 +88,14 @@ TJoinEvaluator GetJoinEvaluator(
             }
             std::sort(capturedKeys.begin(), capturedKeys.end());
 
-            subquery->Predicate = New<TInOpExpression>(
+            subquery->WhereClause = New<TInOpExpression>(
                 NullSourceLocation,
                 joinKeyExprs,
                 capturedKeys);
 
             if (foreignPredicate) {
-                subquery->Predicate = MakeAndExpression(
-                    subquery->Predicate,
+                subquery->WhereClause = MakeAndExpression(
+                    subquery->WhereClause,
                     foreignPredicate);
             }
 

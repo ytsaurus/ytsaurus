@@ -12,10 +12,6 @@
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
 
-#include <ytlib/transaction_client/public.h>
-
-#include <core/ytree/yson_string.h>
-
 namespace NYT {
 namespace NJobProxy {
 
@@ -28,7 +24,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Profiler = JobProxyProfiler;
 static const auto& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,7 +71,8 @@ public:
             host->GetNodeDirectory(),
             std::move(chunkSpecs),
             nameTable,
-            TKeyColumns());
+            TKeyColumns(),
+            NConcurrency::GetUnlimitedThrottler());
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);

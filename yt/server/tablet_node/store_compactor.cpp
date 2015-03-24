@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "store_compactor.h"
 #include "config.h"
-#include "tablet_slot_manager.h"
+#include "slot_manager.h"
 #include "tablet_slot.h"
 #include "tablet_manager.h"
 #include "tablet.h"
@@ -74,8 +74,8 @@ public:
 
     void Start()
     {
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->SubscribeScanSlot(BIND(&TStoreCompactor::ScanSlot, MakeStrong(this)));
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        slotManager->SubscribeScanSlot(BIND(&TStoreCompactor::ScanSlot, MakeStrong(this)));
     }
 
 private:
@@ -101,6 +101,9 @@ private:
 
     void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
     {
+        if (tablet->GetState() != ETabletState::Mounted)
+            return;
+
         ScanEden(slot, tablet->GetEden());
 
         for (auto& partition : tablet->Partitions()) {
@@ -142,7 +145,7 @@ private:
         }
 
         for (auto store : stores) {
-            store->SetState(EStoreState::Compacting);
+            store->SetStoreState(EStoreState::Compacting);
         }
 
         eden->SetState(EPartitionState::Compacting);
@@ -184,7 +187,7 @@ private:
         auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
 
         for (auto store : stores) {
-            store->SetState(EStoreState::Compacting);
+            store->SetStoreState(EStoreState::Compacting);
         }
 
         partition->SetState(EPartitionState::Compacting);
@@ -203,7 +206,7 @@ private:
     {
         std::vector<IStorePtr> stores;
         for (auto store : eden->Stores()) {
-            if (store->GetState() != EStoreState::Persistent)
+            if (store->GetStoreState() != EStoreState::Persistent)
                 continue;
             auto chunkStore = store->AsChunk();
 
@@ -222,7 +225,7 @@ private:
     {
         std::vector<TChunkStorePtr> candidates;
         for (auto store : partition->Stores()) {
-            if (store->GetState() != EStoreState::Persistent)
+            if (store->GetStoreState() != EStoreState::Persistent)
                 continue;
             auto chunkStore = store->AsChunk();
 
@@ -520,7 +523,7 @@ private:
             SwitchTo(automatonInvoker);
 
             for (auto store : stores) {
-                YCHECK(store->GetState() == EStoreState::Compacting);
+                YCHECK(store->GetStoreState() == EStoreState::Compacting);
                 tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
             }
         }
@@ -680,7 +683,7 @@ private:
             SwitchTo(automatonInvoker);
 
             for (auto store : stores) {
-                YCHECK(store->GetState() == EStoreState::Compacting);
+                YCHECK(store->GetStoreState() == EStoreState::Compacting);
                 tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
             }
         }

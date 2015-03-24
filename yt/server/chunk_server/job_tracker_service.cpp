@@ -54,29 +54,29 @@ private:
         ValidateActiveLeader();
 
         auto nodeId = request->node_id();
+
         const auto& resourceLimits = request->resource_limits();
         const auto& resourceUsage = request->resource_usage();
 
-        context->SetRequestInfo("NodeId: %v, ResourceUsage: {%v}",
-            nodeId,
-            ~FormatResourceUsage(resourceUsage, resourceLimits));
-
         auto nodeTracker = Bootstrap_->GetNodeTracker();
-        auto chunkManager = Bootstrap_->GetChunkManager();
-
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
+        context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: {%v}",
+            nodeId,
+            node->GetAddress(),
+            FormatResourceUsage(resourceUsage, resourceLimits));
+
         if (node->GetState() != ENodeState::Online) {
-            context->Reply(TError(
+            THROW_ERROR_EXCEPTION(
                 NNodeTrackerClient::EErrorCode::InvalidState,
                 "Cannot process a heartbeat in %v state",
-                node->GetState()));
-            return;
+                node->GetState());
         }
 
         node->ResourceLimits() = resourceLimits;
         node->ResourceUsage() = resourceUsage;
 
+        auto chunkManager = Bootstrap_->GetChunkManager();
         std::vector<TJobPtr> currentJobs;
         for (const auto& jobStatus : request->jobs()) {
             auto jobId = FromProto<TJobId>(jobStatus.job_id());

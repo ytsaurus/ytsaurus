@@ -8,28 +8,10 @@
 #include "serialize.h"
 #include "scheduler_strategy.h"
 
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/delayed_executor.h>
-
-#include <core/misc/address.h>
-
 #include <core/rpc/serialized_channel.h>
-#include <core/rpc/helpers.h>
 
-#include <core/yson/consumer.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/fluent.h>
-#include <core/ytree/node.h>
-
-#include <core/ypath/token.h>
-
-#include <ytlib/api/config.h>
-#include <ytlib/api/connection.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/helpers.h>
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
@@ -39,9 +21,6 @@
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/security_client/public.h>
-
-#include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
@@ -51,8 +30,6 @@
 
 #include <server/cell_scheduler/bootstrap.h>
 #include <server/cell_scheduler/config.h>
-
-#include <server/object_server/object_manager.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -303,7 +280,7 @@ public:
         list->WatcherHandlers.push_back(handler);
     }
 
-    void SaveInputContext(const TYPath& path, const std::vector<TChunkId>& inputContexts)
+    void AttachJobInputContext(const TYPath& path, const std::vector<TChunkId>& inputContexts)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -558,10 +535,10 @@ private:
                 const auto& rsp = rspOrError.Value();
                 auto transactionId = FromProto<TTransactionId>(rsp->object_ids(0));
 
-                TTransactionAttachOptions options(transactionId);
+                TTransactionAttachOptions options;
                 options.AutoAbort = true;
                 auto transactionManager = Owner->Bootstrap->GetMasterClient()->GetTransactionManager();
-                Owner->LockTransaction = transactionManager->Attach(options);
+                Owner->LockTransaction = transactionManager->Attach(transactionId, options);
 
                 LOG_INFO("Lock transaction is %v", transactionId);
             }
@@ -947,11 +924,10 @@ private:
             auto connection = clusterDirectory->GetConnection(CellTagFromId(id));
             auto client = connection->CreateClient(GetRootClientOptions());
             auto transactionManager = client->GetTransactionManager();
-            TTransactionAttachOptions options(id);
-            options.AutoAbort = false;
+            TTransactionAttachOptions options;
             options.Ping = ping;
             options.PingAncestors = false;
-            return transactionManager->Attach(options);
+            return transactionManager->Attach(id, options);
         };
 
         auto userTransaction = getTransaction(
@@ -1884,11 +1860,11 @@ void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatc
     Impl->AddOperationWatcherHandler(operation, handler);
 }
 
-void TMasterConnector::SaveInputContext(
+void TMasterConnector::AttachJobInputContext(
     const TYPath& path,
     const std::vector<TChunkId>& inputContexts)
 {
-    return Impl->SaveInputContext(path, inputContexts);
+    return Impl->AttachJobInputContext(path, inputContexts);
 }
 
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);

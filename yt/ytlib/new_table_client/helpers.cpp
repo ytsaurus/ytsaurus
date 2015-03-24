@@ -49,7 +49,8 @@ void TTableOutput::DoFinish()
 void PipeReaderToWriter(
     ISchemalessReaderPtr reader,
     ISchemalessWriterPtr writer,
-    int bufferRowCount)
+    int bufferRowCount,
+    bool validateValues)
 {
     std::vector<TUnversionedRow> rows;
     rows.reserve(bufferRowCount);
@@ -59,6 +60,14 @@ void PipeReaderToWriter(
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
             continue;
+        }
+
+        if (validateValues) {
+            for (const auto& row : rows) {
+                for (int i = 0; i < row.GetCount(); ++i) {
+                    ValidateDataValue(row[i]);
+                }
+            }
         }
 
         if (!writer->Write(rows)) {

@@ -20,7 +20,7 @@ private:
     TConsumer* Consumer;
 
 public:
-    TParser(const TBlockStream& blockStream, TConsumer* consumer, TNullable<i64> memoryLimit) 
+    TParser(const TBlockStream& blockStream, TConsumer* consumer, TNullable<i64> memoryLimit)
         : TBase(blockStream, memoryLimit)
         , Consumer(consumer)
     { }
@@ -67,11 +67,11 @@ public:
     void ParseMap()
     {
         Consumer->OnBeginMap();
-        ParseMapFragment(EndMapSymbol); 
+        ParseMapFragment(EndMapSymbol);
         TBase::SkipCharToken(EndMapSymbol);
         Consumer->OnEndMap();
     }
-    
+
     void ParseList()
     {
         Consumer->OnBeginList();
@@ -94,14 +94,14 @@ public:
             ParseAttributes();
             ch = TBase::SkipSpaceAndGetChar();
         }
-        
-        switch (ch) { 
-            case BeginMapSymbol: 
+
+        switch (ch) {
+            case BeginMapSymbol:
                 TBase::Advance(1);
-                ParseMap(); 
+                ParseMap();
                 break;
 
-            case BeginListSymbol: 
+            case BeginListSymbol:
                 TBase::Advance(1);
                 ParseList();
                 break;
@@ -181,8 +181,8 @@ public:
     }
 
     void ParseKey(char ch)
-    {        
-        switch (ch) { 
+    {
+        switch (ch) {
             case '"': {
                 TBase::Advance(1);
                 TStringBuf value;
@@ -210,7 +210,7 @@ public:
             }
         }
     }
-    
+
     template <bool AllowFinish>
     void ParseMapFragment(char endSymbol)
     {
@@ -238,7 +238,7 @@ public:
                     ch)
                     << *this;
             }
-            
+
         }
     }
 
@@ -316,7 +316,7 @@ public:
             }
             Consumer->OnUint64Scalar(value);
         }
-    } 
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -363,7 +363,7 @@ public:
     TStatelessYsonParserImpl(TConsumer* consumer, TNullable<i64> memoryLimit)
         : Parser(TStringReader(), consumer, memoryLimit)
     { }
-    
+
     void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) override
     {
         Parser.SetBuffer(data.begin(), data.end());

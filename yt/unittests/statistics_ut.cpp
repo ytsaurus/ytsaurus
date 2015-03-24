@@ -20,75 +20,84 @@ using namespace NFormats;
 
 TEST(TSummary, MergeBasic)
 {
-    TSummary sum1(10);
-    TSummary sum2(20);
+    TSummary sum;
 
-    sum1.Merge(sum2);
+    sum.AddSample(10);
+    sum.AddSample(20);
 
-    EXPECT_EQ(10, sum1.GetMin());
-    EXPECT_EQ(20, sum1.GetMax());
-    EXPECT_EQ(2, sum1.GetCount());
-    EXPECT_EQ(30, sum1.GetSum());
+    EXPECT_EQ(10, sum.GetMin());
+    EXPECT_EQ(20, sum.GetMax());
+    EXPECT_EQ(2, sum.GetCount());
+    EXPECT_EQ(30, sum.GetSum());
 }
 
-TEST(TStatistics, IsEmpty)
+////////////////////////////////////////////////////////////////////
+
+TStatistics CreateStatistics(std::initializer_list<std::pair<NYPath::TYPath, i64>> data)
 {
-    TStatistics statistics;
-    EXPECT_TRUE(statistics.IsEmpty());
+    TStatistics result;
+    for (const auto& item : data) {
+        result.Add(item.first, item.second);
+    }
+    return result;
 }
 
 TEST(TStatistics, Add)
 {
-    TStatistics statistics;
-    statistics.Add("key", TSummary(10));
+    auto statistics = CreateStatistics({{"key", 10}});
 
-    EXPECT_EQ(10, statistics.Get("key").GetSum());
+    EXPECT_EQ(10, statistics.Get("key"));
 }
 
-TEST(TStatistics, Clear)
+TEST(TStatistics, AddComplex)
 {
-    TStatistics statistics;
-    statistics.Add("key", TSummary(10));
-    statistics.Clear();
+    yhash_map<Stroka, int> raw;
+    raw["x"] = 5;
+    raw["y"] = 7;
 
-    EXPECT_TRUE(statistics.IsEmpty());
+    TStatistics statistics;
+    statistics.AddComplex(
+        "/key/subkey",
+        raw);
+
+    EXPECT_EQ(5, statistics.Get("/key/subkey/x"));
+    EXPECT_EQ(7, statistics.Get("/key/subkey/y"));
 }
 
 TEST(TStatistics, MergeDifferent)
 {
-    TStatistics statistics;
-    statistics.Add("key", TSummary(10));
-
-    TStatistics other;
-    other.Add("other_key", TSummary(40));
+    auto statistics = CreateStatistics({{"key", 10}});
+    auto other = CreateStatistics({{"other_key", 40}});
 
     statistics.Merge(other);
 
-    EXPECT_EQ(10, statistics.Get("key").GetSum());
-    EXPECT_EQ(40, statistics.Get("other_key").GetSum());
+    EXPECT_EQ(10, statistics.Get("key"));
+    EXPECT_EQ(40, statistics.Get("other_key"));
 }
 
 TEST(TStatistics, MergeTheSameKey)
 {
-    TStatistics statistics;
-    statistics.Add("key", TSummary(10));
-
-    TStatistics other;
-    other.Add("key", TSummary(40));
+    auto statistics = CreateStatistics({{"key", 10}});
+    auto other = CreateStatistics({{"key", 40}});
 
     statistics.Merge(other);
 
-    EXPECT_EQ(2, statistics.Get("key").GetCount());
+    EXPECT_EQ(40, statistics.Get("key"));
 }
 
 TEST(TStatistics, Serialization)
 {
-    TStatistics statistics;
-    statistics.Add("/key", TSummary(10));
-    statistics.Add("/other_key", TSummary(40));
+    auto statistics = CreateStatistics({
+        {"/key", 10},
+        {"/other_key", 40}});
 
     auto newStatistics = NYTree::ConvertTo<TStatistics>(NYTree::ConvertToYsonString(statistics));
+
+    EXPECT_EQ(10, statistics.Get("/key"));
+    EXPECT_EQ(40, statistics.Get("/other_key"));
 }
+
+////////////////////////////////////////////////////////////////////
 
 class TMergeStatisticsConsumer
 {
@@ -113,11 +122,24 @@ TEST(TStatisticsConsumer, Integration)
     auto consumer = std::make_unique<TStatisticsConsumer>(BIND(&TMergeStatisticsConsumer::Consume, &statisticsConsumer), "/something");
     auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
     NJobProxy::TTableOutput output(std::move(parser), std::move(consumer));
-    output.Write("{ k1=4}; {k2=-7}");
+    output.Write("{k1=4}; {k2=-7}; {key={subkey=42}}");
 
     const auto& stats = statisticsConsumer.GetStatistics();
-    EXPECT_EQ(4, stats.Get("/something/k1").GetSum());
-    EXPECT_EQ(-7, stats.Get("/something/k2").GetSum());
+    EXPECT_EQ(4, stats.Get("/something/k1"));
+    EXPECT_EQ(-7, stats.Get("/something/k2"));
+    EXPECT_EQ(42, stats.Get("/something/key/subkey"));
+}
+
+////////////////////////////////////////////////////////////////////
+
+TEST(TAggregatedStatistics, Integration)
+{
+    TAggregatedStatistics statistics;
+    statistics.AddSample(CreateStatistics({{"key", 10}}));
+    auto summary = statistics.Get("key");
+
+    EXPECT_EQ(1, summary.GetCount());
+    EXPECT_EQ(10, summary.GetSum());
 }
 
 ////////////////////////////////////////////////////////////////////

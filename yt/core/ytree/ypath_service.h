@@ -12,7 +12,7 @@
 
 #include <core/actions/public.h>
 
-#include <core/logging/common.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NYTree {

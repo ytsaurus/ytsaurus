@@ -38,7 +38,9 @@ public:
     //! Any operation with usage less than this cannot be preempted.
     double MinPreemptableRatio;
 
-    TNullable<Stroka> SchedulingTag;
+    //! Limit on number of running operations.
+    int MaxRunningOperations;
+    int MaxRunningOperationsPerPool;
 
     TFairShareStrategyConfig()
     {
@@ -52,16 +54,21 @@ public:
 
         RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
             .Default(TDuration::MilliSeconds(1000));
-        
+
         RegisterParameter("fair_share_log_period", FairShareLogPeriod)
             .Default(TDuration::MilliSeconds(1000));
 
         RegisterParameter("min_preemptable_ratio", MinPreemptableRatio)
             .InRange(0.0, 1.0)
             .Default(0.05);
-        
-        RegisterParameter("scheduling_tag", SchedulingTag)
-            .Default(Null);
+
+        RegisterParameter("max_running_operations", MaxRunningOperations)
+            .Default(200)
+            .GreaterThan(0);
+
+        RegisterParameter("max_running_operations_per_pool", MaxRunningOperationsPerPool)
+            .Default(50)
+            .GreaterThan(0);
     }
 };
 
@@ -101,6 +108,8 @@ public:
 
     TDuration OperationTransactionTimeout;
 
+    TDuration JobProberRpcTimeout;
+
     TDuration ChunkScratchPeriod;
 
     //! Number of chunks scratched per one LocateChunks.
@@ -132,6 +141,9 @@ public:
 
     //! Maximum number of chunks per single fetch.
     int MaxChunkCountPerFetch;
+
+    //! Maximum number of chunk stripes per job.
+    int MaxChunkStripesPerJob;
 
     //! Maximum number of chunk trees to attach per request.
     int MaxChildrenPerAttachRequest;
@@ -236,6 +248,8 @@ public:
             .Default(TDuration::Seconds(15));
         RegisterParameter("operation_transaction_timeout", OperationTransactionTimeout)
             .Default(TDuration::Minutes(60));
+        RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
+            .Default(TDuration::Seconds(300));
 
         RegisterParameter("chunk_scratch_period", ChunkScratchPeriod)
             .Default(TDuration::Seconds(10));
@@ -270,6 +284,10 @@ public:
 
         RegisterParameter("max_chunk_count_per_fetch", MaxChunkCountPerFetch)
             .Default(100000)
+            .GreaterThan(0);
+        
+        RegisterParameter("max_chunk_stripes_per_job", MaxChunkStripesPerJob)
+            .Default(50000)
             .GreaterThan(0);
 
         RegisterParameter("max_children_per_attach_request", MaxChildrenPerAttachRequest)
@@ -353,7 +371,7 @@ public:
             .Default(20000)
             .GreaterThan(0);
         RegisterParameter("max_operation_count", MaxOperationCount)
-            .Default(100)
+            .Default(1000)
             .GreaterThan(0);
 
         RegisterParameter("environment", Environment)

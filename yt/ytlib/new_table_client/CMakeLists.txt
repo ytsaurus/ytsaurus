@@ -7,6 +7,8 @@ set( SRCS
   ${BASE}/chunk_reader_base.cpp
   ${BASE}/chunk_writer_base.cpp
   ${BASE}/helpers.cpp
+  ${BASE}/legacy_channel_reader.cpp
+  ${BASE}/legacy_table_chunk_reader.cpp
   ${BASE}/name_table.cpp
   ${BASE}/partition_chunk_reader.cpp
   ${BASE}/partitioner.cpp
@@ -52,6 +54,8 @@ set( HDRS
   ${BASE}/chunk_writer_base.h
   ${BASE}/config.h
   ${BASE}/helpers.h
+  ${BASE}/legacy_channel_reader.h
+  ${BASE}/legacy_table_chunk_reader.h
   ${BASE}/name_table.h
   ${BASE}/partition_chunk_reader.h
   ${BASE}/partitioner.h
@@ -114,5 +118,8 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/chunk_meta.proto YT_SOURCE_FILES )
+
+protoc( ${BASE}/legacy_chunk_meta.proto YT_SOURCE_FILES )
+
 protoc( ${BASE}/table_ypath.proto YT_SOURCE_FILES )
 

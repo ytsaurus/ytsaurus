@@ -22,7 +22,7 @@ struct TChangelogInfo
 
 //! Looks for a changelog with a given id containing the desired number of records.
 /*!
- *  If none are found, then |NonexistingSegmentId| is returned in the info.
+ *  If none are found, then |InvalidSegmentId| is returned in the info.
  */
 TFuture<TChangelogInfo> DiscoverChangelog(
     TDistributedHydraManagerConfigPtr config,

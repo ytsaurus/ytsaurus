@@ -6,49 +6,24 @@
 #include "helpers.h"
 #include "master_connector.h"
 
-#include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/helpers.h>
 
 #include <ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
-#include <ytlib/object_client/helpers.h>
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/object_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
-
-#include <ytlib/new_table_client/table_ypath_proxy.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
-#include <ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/api/connection.h>
-
-#include <core/concurrency/scheduler.h>
-
-#include <core/rpc/helpers.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <core/erasure/codec.h>
-
-#include <core/ytree/fluent.h>
-#include <core/ytree/convert.h>
-#include <core/ytree/attribute_helpers.h>
-
-#include <util/string/cast.h>
-
-#include <cmath>
 
 namespace NYT {
 namespace NScheduler {
@@ -67,7 +42,6 @@ using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
-using namespace NTableClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
@@ -1042,7 +1016,7 @@ void TOperationControllerBase::Initialize()
         OutputTables.push_back(table);
     }
 
-    TotalOutputsDataStatistics.resize(OutputTables.size(), NChunkClient::NProto::ZeroDataStatistics());
+    OutputDataStatistics.resize(OutputTables.size(), NChunkClient::NProto::ZeroDataStatistics());
 
     if (InputTables.size() > Config->MaxInputTableCount) {
         THROW_ERROR_EXCEPTION(
@@ -1228,11 +1202,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_async_tx").Value();
         auto transactionId = FromProto<TObjectId>(rsp->object_ids(0));
         auto transactionManager = AuthenticatedMasterClient->GetTransactionManager();
-        TTransactionAttachOptions options(transactionId);
-        options.AutoAbort = false;
-        options.Ping = true;
-        options.PingAncestors = false;
-        Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(options));
+        Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(transactionId));
     }
 
     LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v, OperationId: %v)",
@@ -1281,12 +1251,9 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
 
     {
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_sync_tx").Value();
-        auto transactionid = FromProto<TObjectId>(rsp->object_ids(0));
-        TTransactionAttachOptions options(transactionid);
-        options.AutoAbort = false;
-        options.Ping = true;
-        options.PingAncestors = false;
-        Operation->SetSyncSchedulerTransaction(Host->GetMasterClient()->GetTransactionManager()->Attach(options));
+        auto transactionId = FromProto<TObjectId>(rsp->object_ids(0));
+        auto transactionManager = Host->GetMasterClient()->GetTransactionManager();
+        Operation->SetSyncSchedulerTransaction(transactionManager->Attach(transactionId));
     }
 
     LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %v, OperationId: %v)",
@@ -1335,10 +1302,7 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         const auto& rsp = rspOrError.Value();
         auto id = FromProto<TTransactionId>(rsp->object_ids(0));
         auto transactionManager = AuthenticatedInputMasterClient->GetTransactionManager();
-        TTransactionAttachOptions options(id);
-        options.AutoAbort = false;
-        options.Ping = true;
-        Operation->SetInputTransaction(transactionManager->Attach(options));
+        Operation->SetInputTransaction(transactionManager->Attach(id));
     }
 }
 
@@ -1384,10 +1348,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
         const auto& rsp = rspOrError.Value();
         auto id = FromProto<TTransactionId>(rsp->object_ids(0));
         auto transactionManager = AuthenticatedOutputMasterClient->GetTransactionManager();
-        TTransactionAttachOptions options(id);
-        options.AutoAbort = false;
-        options.Ping = true;
-        Operation->SetOutputTransaction(transactionManager->Attach(options));
+        Operation->SetOutputTransaction(transactionManager->Attach(id));
     }
 }
 
@@ -3397,9 +3358,9 @@ void TOperationControllerBase::RegisterOutput(
     const auto& jobResult = joblet->Job->Result();
     const auto& statistics = jobResult.statistics();
 
-    YCHECK(statistics.output_size() == TotalOutputsDataStatistics.size());
+    YCHECK(statistics.output_size() == OutputDataStatistics.size());
     for (auto i = 0; i < statistics.output_size(); ++i) {
-        TotalOutputsDataStatistics[i] += statistics.output(i);
+        OutputDataStatistics[i] += statistics.output(i);
     }
 
     const auto* userJobResult = FindUserJobResult(joblet);
@@ -3519,11 +3480,11 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
         .Item("intermediate_statistics").Value(TotalIntermediateDataStatistics)
         .Item("output_statistics").Value(
             std::accumulate(
-                TotalOutputsDataStatistics.begin(),
-                TotalOutputsDataStatistics.end(),
+                OutputDataStatistics.begin(),
+                OutputDataStatistics.end(),
                 NChunkClient::NProto::ZeroDataStatistics()))
         .Item("detailed_output_statistics").DoListFor(
-            TotalOutputsDataStatistics,
+            OutputDataStatistics,
             [] (TFluentList fluent, const NChunkClient::NProto::TDataStatistics& statistics) {
                 fluent.Item().Value(statistics);
             })
@@ -3737,6 +3698,13 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
     config->NewTableWriter->SyncOnClose = false;
 }
 
+void TOperationControllerBase::ValidateKey(const TOwningKey& key)
+{
+    for (int i = 0; i < key.GetCount(); ++i) {
+        ValidateKeyValue(key[i]);
+    }
+}
+
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)
 {
     UNUSED(config);
@@ -3801,7 +3769,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, TotalExactInputDataStatistics);
     Persist(context, TotalIntermediateDataStatistics);
-    Persist(context, TotalOutputsDataStatistics);
+    Persist(context, OutputDataStatistics);
 
     Persist(context, UnavailableInputChunkCount);
 

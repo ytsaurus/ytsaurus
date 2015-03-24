@@ -143,6 +143,31 @@ std::vector<TError>& TError::InnerErrors()
     return InnerErrors_;
 }
 
+TError TError::Sanitize() const
+{
+    TError result;
+    result.Code_ = Code_;
+    result.Message_ = Message_;
+    if (Attributes_) {
+        // Cf. CaptureOriginAttributes.
+        auto attributes = Attributes_->Clone();
+        attributes->Remove("host");
+        attributes->Remove("datetime");
+        attributes->Remove("pid");
+        attributes->Remove("tid");
+        attributes->Remove("fid");
+        attributes->Remove("trace_id");
+        attributes->Remove("span_id");
+        result.Attributes_ = std::move(attributes);
+    }
+
+    for (auto& innerError : InnerErrors_) {
+        result.InnerErrors_.push_back(innerError.Sanitize());
+    }
+
+    return result;
+}
+
 bool TError::IsOK() const
 {
     return Code_ == NYT::EErrorCode::OK;

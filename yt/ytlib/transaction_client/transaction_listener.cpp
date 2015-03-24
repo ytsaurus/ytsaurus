@@ -2,8 +2,6 @@
 #include "transaction_listener.h"
 #include "transaction_manager.h"
 
-#include <core/misc/error.h>
-
 namespace NYT {
 namespace NTransactionClient {
 

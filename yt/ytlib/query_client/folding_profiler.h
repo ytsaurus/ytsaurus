@@ -1,7 +1,7 @@
 #pragma once
 
-#include "cg_types.h"
 #include "plan_fragment.h"
+#include "evaluation_helpers.h"
 
 #include <util/generic/hash_set.h>
 #include <util/generic/noncopyable.h>
@@ -15,58 +15,26 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Folding profiler computes a strong structural hash used to cache query fragments.
+typedef std::function<TCGQueryCallback()> TCGQueryCallbackGenerator;
+typedef std::function<TCGExpressionCallback()> TCGExpressionCallbackGenerator;
 
-DEFINE_ENUM(EFoldingObjectType,
-    (ScanOp)
-    (JoinOp)
-    (FilterOp)
-    (GroupOp)
-    (ProjectOp)
+TCGQueryCallbackGenerator Profile(
+    const TConstQueryPtr& query,
+    llvm::FoldingSetNodeID* id,
+    TCGVariables* variables,
+    yhash_set<Stroka>* references);
 
-    (LiteralExpr)
-    (ReferenceExpr)
-    (FunctionExpr)
-    (UnaryOpExpr)
-    (BinaryOpExpr)
-    (InOpExpr)
+TCGExpressionCallbackGenerator Profile(
+    const TConstExpressionPtr& expr,
+    const TTableSchema& schema,
+    llvm::FoldingSetNodeID* id,
+    TCGVariables* variables,
+    yhash_set<Stroka>* references);
 
-    (NamedExpression)
-    (AggregateItem)
-
-    (TableSchema)
-);
-
-class TFoldingProfiler
-    : private TNonCopyable
-{
-public:
-    TFoldingProfiler();
-
-    void Profile(const TConstQueryPtr& query);
-    void Profile(const TConstExpressionPtr& expr);
-    void Profile(const TTableSchema& tableSchema, int keySize = std::numeric_limits<int>::max());
-
-    TFoldingProfiler& Set(llvm::FoldingSetNodeID& id);
-    TFoldingProfiler& Set(TCGBinding& binding);
-    TFoldingProfiler& Set(TCGVariables& variables);
-    TFoldingProfiler& Set(yhash_set<Stroka>& references);
-
-private:
-    void Profile(const TNamedItem& namedExpression);
-    void Profile(const TAggregateItem& aggregateItem);
-
-    void Fold(int numeric);
-    void Fold(const char* str);
-    void Refer(const TReferenceExpression* referenceExpr);
-    void Bind(const TLiteralExpression* literalExpr);
-    void Bind(const TInOpExpression* inOp);
-
-    llvm::FoldingSetNodeID* Id_ = nullptr;
-    TCGBinding* Binding_ = nullptr;
-    TCGVariables* Variables_ = nullptr;
-    yhash_set<Stroka>* References_ = nullptr;
-};
+void Profile(
+    const TTableSchema& tableSchema,
+    int keySize,
+    llvm::FoldingSetNodeID* id);
 
 ////////////////////////////////////////////////////////////////////////////////
 

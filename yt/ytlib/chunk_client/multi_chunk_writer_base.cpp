@@ -49,15 +49,15 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TMultiChunkWriterOptionsPtr options,
     IChannelPtr masterChannel,
     const TTransactionId& transactionId,
-    const TChunkListId& parentChunkListId)
+    const TChunkListId& parentChunkListId,
+    IThroughputThrottlerPtr throttler)
     : Logger(ChunkClientLogger)
     , Options_(options)
     , MasterChannel_(masterChannel)
     , TransactionId_(transactionId)
     , ParentChunkListId_(parentChunkListId)
+    , Throttler_(throttler)
     , NodeDirectory_(New<TNodeDirectory>())
-    , Progress_(0)
-    , Closing_(false)
     , ReadyEvent_(VoidFuture)
     , CompletionError_(NewPromise<void>())
     , CloseChunksAwaiter_(New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker()))
@@ -184,7 +184,9 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
                 NextSession_.ChunkId, 
                 TChunkReplicaList(),
                 NodeDirectory_,
-                MasterChannel_);
+                MasterChannel_,
+                EWriteSessionType::User,
+                Throttler_);
         } else {
             auto* erasureCodec = GetCodec(Options_->ErasureCodec);
             auto writers = CreateErasurePartWriters(
@@ -193,8 +195,8 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
                 erasureCodec, 
                 NodeDirectory_, 
                 MasterChannel_, 
-                EWriteSessionType::User);
-
+                EWriteSessionType::User,
+                Throttler_);
             NextSession_.UnderlyingWriter = CreateErasureWriter(Config_, erasureCodec, writers);
         }
 

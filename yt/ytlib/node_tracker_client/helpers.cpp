@@ -3,6 +3,8 @@
 
 #include <core/ytree/fluent.h>
 
+#include <limits>
+
 namespace NYT {
 namespace NNodeTrackerClient {
 
@@ -153,7 +155,7 @@ double GetMinResourceRatio(
     const TNodeResources& nominator,
     const TNodeResources& denominator)
 {
-    double result = 1.0;
+    double result = std::numeric_limits<double>::infinity();
     auto update = [&] (i64 a, i64 b) {
         if (b > 0) {
             result = std::min(result, (double) a / b);

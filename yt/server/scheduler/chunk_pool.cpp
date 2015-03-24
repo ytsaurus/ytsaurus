@@ -2,11 +2,6 @@
 #include "chunk_pool.h"
 #include "private.h"
 
-#include <core/misc/id_generator.h>
-#include <core/misc/property.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
-
 #include <ytlib/chunk_client/chunk_slice.h>
 
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
@@ -423,9 +418,9 @@ public:
     virtual bool IsCompleted() const override
     {
         return
-            Finished && 
+            Finished &&
             GetPendingJobCount() == 0 &&
-            SuspendedStripeCount == 0 && 
+            SuspendedStripeCount == 0 &&
             JobCounter.GetRunning() == 0;
     }
 
@@ -592,15 +587,18 @@ public:
         : FreePendingDataSize(-1)
         , SuspendedDataSize(-1)
         , UnavailableLostCookieCount(-1)
+        , MaxChunkStripesPerJob(-1)
     { }
 
     explicit TUnorderedChunkPool(
         TNodeDirectoryPtr nodeDirectory,
-        int jobCount)
+        int jobCount,
+        int maxChunkStripesPerJob)
         : TChunkPoolInputBase(nodeDirectory)
         , FreePendingDataSize(0)
         , SuspendedDataSize(0)
         , UnavailableLostCookieCount(0)
+        , MaxChunkStripesPerJob(maxChunkStripesPerJob)
     {
         JobCounter.Set(jobCount);
     }
@@ -907,6 +905,7 @@ public:
         Persist(context, FreePendingDataSize);
         Persist(context, SuspendedDataSize);
         Persist(context, UnavailableLostCookieCount);
+        Persist(context, MaxChunkStripesPerJob);
         Persist(context, PendingLocalChunks);
         Persist(context, OutputCookieGenerator);
         Persist(context, ExtractedLists);
@@ -925,6 +924,7 @@ private:
     i64 FreePendingDataSize;
     i64 SuspendedDataSize;
     int UnavailableLostCookieCount;
+    int MaxChunkStripesPerJob;
 
     struct TLocalityEntry
     {
@@ -1050,7 +1050,13 @@ private:
     {
         auto& list = extractedStripeList.StripeList;
         size_t oldSize = list->Stripes.size();
-        for (auto it = begin; it != end && list->TotalDataSize < idealDataSizePerJob; ++it) {
+        for (auto it = begin; it != end; ++it) {
+            if (list->TotalDataSize >= idealDataSizePerJob) {
+                break;
+            }
+            if (list->Stripes.size() > MaxChunkStripesPerJob) {
+                break;
+            }
             auto stripeIndex = *it;
             extractedStripeList.StripeIndexes.push_back(stripeIndex);
 
@@ -1101,11 +1107,13 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool);
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
     TNodeDirectoryPtr nodeDirectory,
-    int jobCount)
+    int jobCount,
+    int maxChunkStripesPerJob)
 {
     return std::unique_ptr<IChunkPool>(new TUnorderedChunkPool(
         nodeDirectory,
-        jobCount));
+        jobCount,
+        maxChunkStripesPerJob));
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1267,7 +1275,7 @@ public:
     virtual void Persist(TPersistenceContext& context) override
     {
         TChunkPoolInputBase::Persist(context);
-        
+
         using NYT::Persist;
         Persist(context, DataSizeThreshold);
         Persist(context, Outputs);

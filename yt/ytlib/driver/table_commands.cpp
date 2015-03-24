@@ -2,45 +2,19 @@
 #include "table_commands.h"
 #include "config.h"
 
-#include <core/concurrency/async_stream.h>
-#include <core/concurrency/scheduler.h>
-
-#include <core/yson/parser.h>
-#include <core/yson/consumer.h>
-
-#include <core/ytree/fluent.h>
-
-#include <ytlib/formats/parser.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/memory_reader.h>
-#include <ytlib/chunk_client/memory_writer.h>
-
-#include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/helpers.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/schemaful_chunk_reader.h>
-#include <ytlib/new_table_client/schemaful_chunk_writer.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/table_consumer.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
 #include <ytlib/query_client/query_statistics.h>
 
-#include <ytlib/hive/cell_directory.h>
-
-#include <ytlib/transaction_client/transaction_manager.h>
-
 #include <ytlib/api/transaction.h>
 #include <ytlib/api/rowset.h>
-
-#include <util/stream/buffered.h>
 
 namespace NYT {
 namespace NDriver {
@@ -77,7 +51,7 @@ void TReadTableCommand::DoExecute()
     auto reader = CreateSchemalessTableReader(
         config,
         Context_->GetClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
-        GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
+        AttachTransaction(false),
         Context_->GetClient()->GetConnection()->GetCompressedBlockCache(),
         Context_->GetClient()->GetConnection()->GetUncompressedBlockCache(),
         Request_->Path,
@@ -86,15 +60,10 @@ void TReadTableCommand::DoExecute()
     WaitFor(reader->Open())
         .ThrowOnError();
 
-	BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
+    BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
+        .Item("start_row_index").Value(reader->GetTableRowIndex())
         .Item("approximate_row_count").Value(reader->GetTotalRowCount());
 
-    if (reader->GetTotalRowCount() > 0) {
-        BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
-            .Item("start_row_index").Value(reader->GetTableRowIndex());
-    }
-
-    // ToDo(psushin): implement and use buffered output stream.
     auto output = CreateSyncAdapter(Context_->Request().OutputStream);
     TBufferedOutput bufferedOutput(output.get());
     auto format = Context_->GetOutputFormat();
@@ -125,7 +94,7 @@ void TWriteTableCommand::DoExecute()
         nameTable,
         keyColumns,
         Context_->GetClient()->GetMasterChannel(EMasterChannelKind::Leader),
-        GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
+        AttachTransaction(false),
         Context_->GetClient()->GetTransactionManager());
 
     WaitFor(writer->Open())
@@ -215,12 +184,12 @@ void TReshardTableCommand::DoExecute()
     if (Request_->LastTabletIndex) {
         options.LastTabletIndex = *Request_->LastTabletIndex;
     }
-    
+
     std::vector<TUnversionedRow> pivotKeys;
     for (const auto& key : Request_->PivotKeys) {
         pivotKeys.push_back(key.Get());
     }
-    
+
     auto asyncResult = Context_->GetClient()->ReshardTable(
         Request_->Path.GetPath(),
         pivotKeys,
@@ -237,6 +206,7 @@ void TSelectRowsCommand::DoExecute()
     options.Timestamp = Request_->Timestamp;
     options.InputRowLimit = Request_->InputRowLimit;
     options.OutputRowLimit = Request_->OutputRowLimit;
+    options.VerboseLogging = Request_->VerboseLogging;
 
     auto format = Context_->GetOutputFormat();
     auto output = Context_->Request().OutputStream;
@@ -249,9 +219,8 @@ void TSelectRowsCommand::DoExecute()
     auto statistics = WaitFor(asyncStatistics)
         .ValueOrThrow();
 
-    LOG_INFO(
-        "Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
-            "ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
+    LOG_INFO("Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
+        "ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
         statistics.RowsRead,
         statistics.RowsWritten,
         statistics.AsyncTime.MilliSeconds(),

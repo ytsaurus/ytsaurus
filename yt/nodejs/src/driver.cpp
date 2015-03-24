@@ -2,13 +2,13 @@
 #include "driver.h"
 #include "node.h"
 #include "error.h"
+#include "future.h"
 #include "input_stream.h"
 #include "input_stack.h"
 #include "output_stream.h"
 #include "output_stack.h"
 
 #include <core/misc/error.h>
-#include <core/misc/lazy_ptr.h>
 #include <core/misc/format.h>
 
 #include <core/concurrency/async_stream.h>
@@ -54,36 +54,6 @@ static Persistent<String> DescriptorOutputType;
 static Persistent<String> DescriptorOutputTypeAsInteger;
 static Persistent<String> DescriptorIsVolatile;
 static Persistent<String> DescriptorIsHeavy;
-
-// Assuming presence of outer HandleScope.
-void Invoke(
-    const Handle<Function>& callback,
-    const Handle<Value>& a1)
-{
-    Handle<Value> args[] = { a1 };
-    node::MakeCallback(Object::New(), callback, ARRAY_SIZE(args), args);
-}
-
-// Assuming presence of outer HandleScope.
-void Invoke(
-    const Handle<Function>& callback,
-    const Handle<Value>& a1,
-    const Handle<Value>& a2)
-{
-    Handle<Value> args[] = { a1, a2 };
-    node::MakeCallback(Object::New(), callback, ARRAY_SIZE(args), args);
-}
-
-// Assuming presence of outer HandleScope.
-void Invoke(
-    const Handle<Function>& callback,
-    const Handle<Value>& a1,
-    const Handle<Value>& a2,
-    const Handle<Value>& a3)
-{
-    Handle<Value> args[] = { a1, a2, a3 };
-    node::MakeCallback(Object::New(), callback, ARRAY_SIZE(args), args);
-}
 
 class TUVInvoker
     : public IInvoker
@@ -149,9 +119,15 @@ private:
 
 // uv_default_loop() is a static singleton object, so it is safe to call
 // function at the binding time.
-TLazyIntrusivePtr<TUVInvoker> DefaultUVInvoker(BIND(
-    &New<TUVInvoker, uv_loop_t* const&>,
-    uv_default_loop()));
+//
+static TLazyIntrusivePtr<IInvoker> DefaultUVInvoker(BIND([] () -> IInvokerPtr {
+    return New<TUVInvoker>(uv_default_loop());
+}));
+
+IInvokerPtr GetUVInvoker()
+{
+    return DefaultUVInvoker.Get();
+}
 
 class TResponseParametersConsumer
     : public TForwardingYsonConsumer
@@ -189,7 +165,7 @@ public:
             TGuard<TSpinLock> guard(Lock_);
             if (!FlushFuture_) {
                 FlushFuture_ = FlushClosure_
-                    .AsyncVia(DefaultUVInvoker.Get())
+                    .AsyncVia(GetUVInvoker())
                     .Run();
             }
             return FlushFuture_;
@@ -224,7 +200,7 @@ private:
         for (const auto& bit : bitsToFlush) {
             auto keyHandle = String::New(std::get<0>(bit).c_str());
             auto valueHandle = TNodeWrap::ConstructorTemplate->GetFunction()->NewInstance();
-            node::ObjectWrap::Unwrap<TNodeWrap>(valueHandle)->SetNode(std::get<1>(bit));
+            TNodeWrap::Unwrap(valueHandle)->SetNode(std::get<1>(bit));
             Invoke(Callback_, keyHandle, valueHandle);
         }
     }
@@ -238,7 +214,8 @@ private:
                 builder->EndTree()));
         }
 
-        Flush();
+        // Await for flush. See YT-1095.
+        WaitFor(Flush());
     }
 
 };
@@ -257,7 +234,7 @@ struct TExecuteRequest
     TResponseParametersConsumer ResponseParametersConsumer;
 
     TDriverRequest DriverRequest;
-    TError DriverResponse;
+    TPromise<void> DriverResponse = NewPromise<void>();
 
     NTracing::TTraceContext TraceContext;
 
@@ -351,6 +328,7 @@ struct TExecuteRequest
 
     void Await()
     {
+        DriverResponse.Get();
         ResponseParametersConsumer.Flush().Get();
     }
 };
@@ -657,29 +635,26 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
         executeCallback,
         parameterCallback));
 
-    try {
-        request->SetCommand(
-            Stroka(*commandName, commandName.length()),
-            Stroka(*authenticatedUser, authenticatedUser.length()),
-            std::move(parameters),
-            requestId);
+    request->SetCommand(
+        Stroka(*commandName, commandName.length()),
+        Stroka(*authenticatedUser, authenticatedUser.length()),
+        std::move(parameters),
+        requestId);
 
-        request->SetInputCompression(inputCompression);
-        request->SetOutputCompression(outputCompression);
+    request->SetInputCompression(inputCompression);
+    request->SetOutputCompression(outputCompression);
 
-        request->Prepare();
+    request->Prepare();
 
-        uv_queue_work(
-            uv_default_loop(), &request.release()->Request,
-            TDriverWrap::ExecuteWork, TDriverWrap::ExecuteAfter);
-    } catch (const std::exception& ex) {
-        TError error(ex);
-        LOG_DEBUG(error, "Unexpected exception while creating TExecuteRequest");
+    auto future = request->DriverResponse.ToFuture();
+    auto futureWrap = TFutureWrap::ConstructorTemplate->GetFunction()->NewInstance();
+    TFutureWrap::Unwrap(futureWrap)->SetFuture(std::move(future));
 
-        Invoke(request->ExecuteCallback, ConvertErrorToV8(error));
-    }
+    uv_queue_work(
+        uv_default_loop(), &request.release()->Request,
+        TDriverWrap::ExecuteWork, TDriverWrap::ExecuteAfter);
 
-    return Undefined();
+    return scope.Close(futureWrap);
 }
 
 void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
@@ -692,7 +667,9 @@ void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
 
         // Execute() method is guaranteed to be exception-safe,
         // so no try-catch here.
-        request->DriverResponse = request->Wrap->Driver->Execute(request->DriverRequest).Get();
+        auto response = request->Wrap->Driver->Execute(request->DriverRequest);
+
+        request->DriverResponse.TrySetFrom(response);
         request->Await();
     } else {
         TTempBuf buffer;
@@ -703,7 +680,7 @@ void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
             outputStream->Write(buffer.Data(), length);
         }
 
-        request->DriverResponse = TError();
+        request->DriverResponse.Set(TError());
     }
 }
 
@@ -736,7 +713,7 @@ void TDriverWrap::ExecuteAfter(uv_work_t* workRequest)
 
     Invoke(
         request->ExecuteCallback,
-        ConvertErrorToV8(request->DriverResponse),
+        ConvertErrorToV8(request->DriverResponse.Get()),
         Number::New(bytesIn),
         Number::New(bytesOut));
 }

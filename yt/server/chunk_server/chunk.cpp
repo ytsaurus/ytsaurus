@@ -40,16 +40,20 @@ bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs)
 
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
+    , Flags_{}
     , ReplicationFactor_(1)
     , ReadQuorum_(0)
     , WriteQuorum_(0)
     , ErasureCodec_(NErasure::ECodec::None)
 {
-    Zero(Flags_);
-
     ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
     ChunkMeta_.mutable_extensions();
+}
+
+TChunkDynamicData* TChunk::GetDynamicData() const
+{
+    return GetTypedDynamicData<TChunkDynamicData>();
 }
 
 TChunkTreeStatistics TChunk::GetStatistics() const
@@ -95,7 +99,9 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetMovable());
     Save(context, GetVital());
     Save(context, Parents_);
-    Save(context, StoredReplicas_);
+    // NB: RemoveReplica calls do not commute and their order is not
+    // deterministic (i.e. when unregistering a node we traverse certain hashtables).
+    TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, StoredReplicas_);
     Save(context, CachedReplicas_);
 }
 
@@ -246,32 +252,42 @@ void TChunk::SetVital(bool value)
 
 bool TChunk::GetRefreshScheduled() const
 {
-    return Flags_.RefreshScheduled;
+    return GetDynamicData()->Flags.RefreshScheduled;
 }
 
 void TChunk::SetRefreshScheduled(bool value)
 {
-    Flags_.RefreshScheduled = value;
+    GetDynamicData()->Flags.RefreshScheduled = value;
 }
 
 bool TChunk::GetPropertiesUpdateScheduled() const
 {
-    return Flags_.PropertiesUpdateScheduled;
+    return GetDynamicData()->Flags.PropertiesUpdateScheduled;
 }
 
 void TChunk::SetPropertiesUpdateScheduled(bool value)
 {
-    Flags_.PropertiesUpdateScheduled = value;
+    GetDynamicData()->Flags.PropertiesUpdateScheduled = value;
 }
 
 bool TChunk::GetSealScheduled() const
 {
-    return Flags_.SealScheduled;
+    return GetDynamicData()->Flags.SealScheduled;
 }
 
 void TChunk::SetSealScheduled(bool value)
 {
-    Flags_.SealScheduled = value;
+    GetDynamicData()->Flags.SealScheduled = value;
+}
+
+const TNullable<TChunkRepairQueueIterator>& TChunk::GetRepairQueueIterator() const
+{
+    return GetDynamicData()->RepairQueueIterator;
+}
+
+void TChunk::SetRepairQueueIterator(const TNullable<TChunkRepairQueueIterator>& value)
+{
+    GetDynamicData()->RepairQueueIterator = value;
 }
 
 int TChunk::GetReplicationFactor() const

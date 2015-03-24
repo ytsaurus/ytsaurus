@@ -24,8 +24,6 @@
 
 #ifdef YT_USE_LLVM
 #include <ytlib/query_client/folding_profiler.h>
-#include <ytlib/query_client/cg_types.h>
-#include <ytlib/query_client/cg_fragment_compiler.h>
 #endif
 
 #include <tuple>
@@ -444,7 +442,14 @@ protected:
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source);
 
-        auto prunedSplits = GetPrunedSplits(planFragment->Query, dataSplits, ColumnEvaluatorCache_);
+        TDataSources sources;
+        for (const auto& split : dataSplits) {
+            sources.push_back(TDataSource{
+                GetObjectIdFromDataSplit(split),
+                GetBothBoundsFromDataSplit(split)});
+        }
+
+        auto prunedSplits = GetPrunedSources(planFragment->Query, sources, ColumnEvaluatorCache_, true);
 
         EXPECT_EQ(prunedSplits.size(), subqueriesCount);
     }
@@ -578,6 +583,11 @@ static TConstExpressionPtr Make(TArgs&&... args)
 static TValue MakeInt64(i64 value)
 {
     return MakeUnversionedInt64Value(value);
+}
+
+static TValue MakeUint64(i64 value)
+{
+    return MakeUnversionedUint64Value(value);
 }
 
 static TValue MakeString(const TStringBuf& value)
@@ -1157,6 +1167,21 @@ TEST_F(TRefineKeyRangeTest, Range1)
     EXPECT_EQ(BuildKey("100"), result.second);
 }
 
+TEST_F(TRefineKeyRangeTest, NegativeRange1)
+{
+    auto expr = PrepareExpression("k > -100 and (k) <= -(-1)", GetSampleTableSchema());
+
+    TKeyColumns keyColumns;
+    keyColumns.push_back("k");
+    auto result = RefineKeyRange(
+        keyColumns,
+        std::make_pair(BuildKey(""), BuildKey("1000000000")),
+        expr);
+
+    EXPECT_EQ(BuildKey("-100;" _MAX_), result.first);
+    EXPECT_EQ(BuildKey("1;" _MAX_), result.second);
+}
+
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 {
     auto expr = PrepareExpression("k >= 10 and k < 90", GetSampleTableSchema());
@@ -1196,6 +1221,15 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 
     EXPECT_EQ(BuildKey("50"), result.first);
     EXPECT_EQ(BuildKey("50;" _MAX_), result.second);
+}
+
+TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
+{
+    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+        std::make_pair(BuildKey(_MIN_), BuildKey(_MAX_)),
+        TKeyTrieNode::Empty());
+
+    EXPECT_EQ(result.size(), 0);
 }
 
 TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
@@ -1525,7 +1559,13 @@ INSTANTIATE_TEST_CASE_P(
                 Make<TUnaryOpExpression>(EUnaryOp::Minus,
                     Make<TReferenceExpression>("a")),
                 Make<TLiteralExpression>(MakeInt64(-2))),
-            "-a > -2")
+            "-a > -2"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Minus,
+                Make<TUnaryOpExpression>(EUnaryOp::Minus,
+                    Make<TReferenceExpression>("a")),
+                Make<TLiteralExpression>(MakeInt64(2))),
+            "-a - 2")
     ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1566,14 +1606,15 @@ TOwningRow BuildRow(
 struct TQueryExecutor
     : public IExecutor
 {
-    TQueryExecutor(const std::vector<TOwningRow>& owningSource, IExecutorPtr executeCallback = nullptr)
-        : OwningSource(owningSource)
+    TQueryExecutor(const std::vector<Stroka>& source, IExecutorPtr executeCallback = nullptr)
+        : Source(source)
         , ExecuteCallback(std::move(executeCallback))
     {
         ReaderMock_ = New<StrictMock<TReaderMock>>();
     }
 
-    std::vector<TOwningRow> OwningSource;
+    
+    std::vector<Stroka> Source;
     IExecutorPtr ExecuteCallback;
     TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_;
 
@@ -1581,20 +1622,30 @@ struct TQueryExecutor
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer)
     {
-        std::vector<TRow> source(OwningSource.size());
-        typedef const TRow(TOwningRow::*TGetFunction)() const;
+        std::vector<TOwningRow> owningSource;
+        std::vector<TRow> sourceRows;
 
-        std::transform(
-            OwningSource.begin(),
-            OwningSource.end(),
-            source.begin(),
-            std::mem_fn(TGetFunction(&TOwningRow::Get)));
+        auto onOpened = [&] (const TTableSchema& targetSchema) {
+            TKeyColumns emptyKeyColumns;
+            for (const auto& row : Source) {
+                owningSource.push_back(NVersionedTableClient::BuildRow(row, emptyKeyColumns, targetSchema));
+            }
 
+            sourceRows.resize(owningSource.size());
+            typedef const TRow(TOwningRow::*TGetFunction)() const;
+
+            std::transform(
+                owningSource.begin(),
+                owningSource.end(),
+                sourceRows.begin(),
+                std::mem_fn(TGetFunction(&TOwningRow::Get)));
+
+            EXPECT_CALL(*ReaderMock_, Read(_))
+                .WillOnce(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
+        };
+        
         EXPECT_CALL(*ReaderMock_, Open(_))
-            .WillOnce(Return(WrapVoidInFuture()));
-
-        EXPECT_CALL(*ReaderMock_, Read(_))
-            .WillOnce(DoAll(SetArgPointee<0>(source), Return(false)));
+            .WillOnce(DoAll(Invoke(onOpened), Return(WrapVoidInFuture())));
 
         auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
         return MakeFuture(evaluator->RunWithExecutor(
@@ -1605,9 +1656,10 @@ struct TQueryExecutor
                 auto planFragment = New<TPlanFragment>();
 
                 planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+                planFragment->Timestamp = fragment->Timestamp;
+                planFragment->DataSources.push_back(fragment->ForeignDataSource);
                 planFragment->Query = subquery;
-                planFragment->DataSplits.push_back(fragment->ForeignDataSplit);
-
+                
                 auto subqueryResult = ExecuteCallback->Execute(planFragment, writer);
 
                 return WaitFor(subqueryResult)
@@ -1635,12 +1687,12 @@ protected:
     void Evaluate(
         const Stroka& query,
         const TDataSplit& dataSplit,
-        const std::vector<TOwningRow>& owningSource,
+        const std::vector<Stroka>& owningSource,
         const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
-        std::vector<std::vector<TOwningRow>> owningSources(1, owningSource);
+        std::vector<std::vector<Stroka>> owningSources(1, owningSource);
         std::map<Stroka, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
@@ -1660,7 +1712,7 @@ protected:
     void Evaluate(
         const Stroka& query,
         const std::map<Stroka, TDataSplit>& dataSplits,
-        const std::vector<std::vector<TOwningRow>>& owningSources,
+        const std::vector<std::vector<Stroka>>& owningSources,
         const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
@@ -1681,7 +1733,7 @@ protected:
     void DoEvaluate(
         const Stroka& query,
         const std::map<Stroka, TDataSplit>& dataSplits,
-        const std::vector<std::vector<TOwningRow>>& owningSources,
+        const std::vector<std::vector<Stroka>>& owningSources,
         const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit,
         i64 outputRowLimit)
@@ -1759,10 +1811,10 @@ TEST_F(TQueryEvaluateTest, Simple)
         {"b", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=4;b=5",
         "a=10;b=11"
-    }, split);
+    };
 
     auto result = BuildRows({
         "a=4;b=5",
@@ -1772,6 +1824,26 @@ TEST_F(TQueryEvaluateTest, Simple)
     Evaluate("a, b FROM [//t]", split, source, result);
 }
 
+TEST_F(TQueryEvaluateTest, SelectAll)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=4;b=5",
+        "a=10;b=11"
+    };
+
+    auto result = BuildRows({
+        "a=4;b=5",
+        "a=10;b=11"
+    }, split);
+
+    Evaluate("* FROM [//t]", split, source, result);
+}
+
 TEST_F(TQueryEvaluateTest, SimpleCmpInt)
 {
     auto split = MakeSplit({
@@ -1779,10 +1851,10 @@ TEST_F(TQueryEvaluateTest, SimpleCmpInt)
         {"b", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=4;b=5",
         "a=6;b=6"
-    }, split);
+    };
 
     auto resultSplit = MakeSplit({
         {"r1", EValueType::Boolean},
@@ -1807,10 +1879,10 @@ TEST_F(TQueryEvaluateTest, SimpleCmpString)
         {"b", EValueType::String}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=\"a\";b=\"aa\"",
         "a=\"aa\";b=\"aa\""
-    }, split);
+    };
 
     auto resultSplit = MakeSplit({
         {"r1", EValueType::Boolean},
@@ -1835,11 +1907,11 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
         {"b", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=4;b=5", 
         "a=10;b=11",
         "a=15;b=11"
-    }, split);
+    };
 
     auto result = BuildRows({
         "a=10;b=11"
@@ -1855,11 +1927,11 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
         {"b", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=4;b=5", 
         "a=10;b=11",
         "a=15;b=11"
-    }, split);
+    };
 
     auto result = BuildRows({
         "a=4;b=5",
@@ -1877,11 +1949,11 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull)
         {"c", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=4;b=5",
         "a=10;b=11;c=9",
         "a=16"
-    }, split);
+    };
 
     auto result = BuildRows({
         "a=4;b=5",
@@ -1900,14 +1972,14 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
         {"c", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=1;b=2;c=3",
         "a=4",
         "a=5;b=5",
         "a=7;c=8",
         "a=10;b=1",
         "a=10;c=1"
-    }, split);
+    };
 
     auto resultSplit = MakeSplit({
         {"a", EValueType::Int64},
@@ -1930,13 +2002,19 @@ TEST_F(TQueryEvaluateTest, SimpleStrings)
         {"s", EValueType::String}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
+        "s=foo",
+        "s=bar",
+        "s=baz"
+    };
+
+    auto result = BuildRows({
         "s=foo",
         "s=bar",
         "s=baz"
     }, split);
 
-    Evaluate("s FROM [//t]", split, source, source);
+    Evaluate("s FROM [//t]", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleStrings2)
@@ -1946,13 +2024,13 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
         {"u", EValueType::String}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "s=foo; u=x",
         "s=bar; u=y",
         "s=baz; u=x",
         "s=olala; u=z"
-    }, split);
-
+    };
+    
     auto result = BuildRows({
         "s=foo; u=x",
         "s=baz; u=x"
@@ -1961,23 +2039,49 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
     Evaluate("s, u FROM [//t] where u = \"x\"", split, source, result);
 }
 
-TEST_F(TQueryEvaluateTest, HasPrefixStrings)
+TEST_F(TQueryEvaluateTest, IsPrefixStrings)
 {
     auto split = MakeSplit({
         {"s", EValueType::String}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "s=foobar",
         "s=bar",
         "s=baz"
-    }, split);
+    };
 
     auto result = BuildRows({
         "s=foobar"
     }, split);
 
     Evaluate("s FROM [//t] where is_prefix(\"foo\", s)", split, source, result);
+}
+
+TEST_F(TQueryEvaluateTest, IsSubstrStrings)
+{
+    auto split = MakeSplit({
+        {"s", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "s=foobar",
+        "s=barfoo",
+        "s=abc",
+        "s=\"baz foo bar\"",
+        "s=\"baz fo bar\"",
+        "s=xyz",
+        "s=baz"
+    };
+
+    auto result = BuildRows({
+        "s=foobar",
+        "s=barfoo",
+        "s=\"baz foo bar\"",
+        "s=baz"
+    }, split);
+
+    Evaluate("s FROM [//t] where is_substr(\"foo\", s) or is_substr(s, \"XX baz YY\")", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, Complex)
@@ -1987,7 +2091,7 @@ TEST_F(TQueryEvaluateTest, Complex)
         {"b", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -1997,7 +2101,7 @@ TEST_F(TQueryEvaluateTest, Complex)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    }, split);
+    };
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::Int64},
@@ -2021,7 +2125,7 @@ TEST_F(TQueryEvaluateTest, Complex2)
         {"b", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2031,7 +2135,7 @@ TEST_F(TQueryEvaluateTest, Complex2)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    }, split);
+    };
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::Int64},
@@ -2056,9 +2160,9 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TOwningRow> source;
+    std::vector<Stroka> source;
     for (size_t i = 0; i < 10000; ++i) {
-        source.push_back(BuildRow(Stroka() + "a=" + ToString(i) + ";b=" + ToString(i * 10), split, false));
+        source.push_back(Stroka() + "a=" + ToString(i) + ";b=" + ToString(i * 10));
     }
 
     auto resultSplit = MakeSplit({
@@ -2082,7 +2186,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
         {"b", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2096,7 +2200,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
         "b=1",
         "b=2",
         "b=3"
-    }, split);
+    };
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::Int64},
@@ -2122,7 +2226,7 @@ TEST_F(TQueryEvaluateTest, IsNull)
         {"b", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=9;b=90",
@@ -2130,7 +2234,7 @@ TEST_F(TQueryEvaluateTest, IsNull)
         "b=1",
         "b=2",
         "b=3"
-    }, split);
+    };
 
     auto resultSplit = MakeSplit({
         {"b", EValueType::Int64}
@@ -2154,7 +2258,7 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
         {"s", EValueType::String}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=10;s=x",
         "a=20;s=y",
         "a=30;s=x",
@@ -2167,7 +2271,7 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
         "a=80;s=y",
         "a=85",
         "a=90;s=z"
-    }, split);
+    };
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::String},
@@ -2193,14 +2297,14 @@ TEST_F(TQueryEvaluateTest, ComplexStringsLower)
         {"s", EValueType::String}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=XyZ;s=one",
         "a=aB1C;s=two",
         "a=cs1dv;s=three",
         "a=HDs;s=four",
         "a=kIu;s=five",
         "a=trg1t;s=six"
-    }, split);
+    };
 
     auto resultSplit = MakeSplit({
         {"s", EValueType::String}
@@ -2225,7 +2329,7 @@ TEST_F(TQueryEvaluateTest, TestIf)
         {"b", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2235,7 +2339,7 @@ TEST_F(TQueryEvaluateTest, TestIf)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    }, split);
+    };
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::String},
@@ -2259,7 +2363,7 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
         {"b", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2269,7 +2373,7 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    }, split);
+    };
 
     auto result = BuildRows({
         "a=2;b=20",
@@ -2288,7 +2392,7 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
         {"b", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2298,7 +2402,7 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    }, split);
+    };
 
     auto result = BuildRows({
         "a=2;b=20",
@@ -2318,7 +2422,7 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
         {"b", EValueType::Int64}
     });
 
-    auto source = BuildRows({
+    std::vector<Stroka> source = {
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2328,7 +2432,7 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    }, split);
+    };
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::String},
@@ -2348,7 +2452,7 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
 TEST_F(TQueryEvaluateTest, TestJoinEmpty)
 {
     std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<TOwningRow>> sources;
+    std::vector<std::vector<Stroka>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64},
@@ -2356,13 +2460,13 @@ TEST_F(TQueryEvaluateTest, TestJoinEmpty)
     });
 
     splits["//left"] = leftSplit;
-    sources.push_back(BuildRows({
+    sources.push_back({
         "a=1;b=10",
         "a=3;b=30",
         "a=5;b=50",
         "a=7;b=70",
         "a=9;b=90"
-    }, leftSplit));
+    });
 
     auto rightSplit = MakeSplit({
         {"b", EValueType::Int64},
@@ -2370,12 +2474,12 @@ TEST_F(TQueryEvaluateTest, TestJoinEmpty)
     });
 
     splits["//right"] = rightSplit;
-    sources.push_back(BuildRows({
+    sources.push_back({
         "c=2;b=20",
         "c=4;b=40",
         "c=6;b=60",
         "c=8;b=80"
-    }, rightSplit));
+    });
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::Int64},
@@ -2393,27 +2497,27 @@ TEST_F(TQueryEvaluateTest, TestJoinEmpty)
 TEST_F(TQueryEvaluateTest, TestJoinSimple2)
 {
     std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<TOwningRow>> sources;
+    std::vector<std::vector<Stroka>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
     });
 
     splits["//left"] = leftSplit;
-    sources.push_back(BuildRows({
+    sources.push_back({
         "a=1",
         "a=2"
-    }, leftSplit));
+    });
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
     });
 
     splits["//right"] = rightSplit;
-    sources.push_back(BuildRows({
+    sources.push_back({
         "a=2",
         "a=1"
-    }, rightSplit));
+    });
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::Int64}
@@ -2432,27 +2536,27 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple2)
 TEST_F(TQueryEvaluateTest, TestJoinSimple3)
 {
     std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<TOwningRow>> sources;
+    std::vector<std::vector<Stroka>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
     });
 
     splits["//left"] = leftSplit;
-    sources.push_back(BuildRows({
+    sources.push_back({
         "a=1",
         "a=1"
-    }, leftSplit));
+    });
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
     });
 
     splits["//right"] = rightSplit;
-    sources.push_back(BuildRows({
+    sources.push_back({
         "a=2",
         "a=1"
-    }, rightSplit));
+    });
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::Int64}
@@ -2471,27 +2575,27 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple3)
 TEST_F(TQueryEvaluateTest, TestJoinSimple4)
 {
     std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<TOwningRow>> sources;
+    std::vector<std::vector<Stroka>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
     });
 
     splits["//left"] = leftSplit;
-    sources.push_back(BuildRows({
+    sources.push_back({
         "a=1",
         "a=2"
-    }, leftSplit));
+    });
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
     });
 
     splits["//right"] = rightSplit;
-    sources.push_back(BuildRows({
+    sources.push_back({
         "a=1",
         "a=1"
-    }, rightSplit));
+    });
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::Int64}
@@ -2510,27 +2614,27 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple4)
 TEST_F(TQueryEvaluateTest, TestJoinSimple5)
 {
     std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<TOwningRow>> sources;
+    std::vector<std::vector<Stroka>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
     });
 
     splits["//left"] = leftSplit;
-    sources.push_back(BuildRows({
+    sources.push_back({
         "a=1",
         "a=1"
-    }, leftSplit));
+    });
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
     });
 
     splits["//right"] = rightSplit;
-    sources.push_back(BuildRows({
+    sources.push_back({
         "a=1",
         "a=1"
-    }, rightSplit));
+    });
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::Int64}
@@ -2551,7 +2655,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
 TEST_F(TQueryEvaluateTest, TestJoin)
 {
     std::map<Stroka, TDataSplit> splits;
-    std::vector<std::vector<TOwningRow>> sources;
+    std::vector<std::vector<Stroka>> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64},
@@ -2559,7 +2663,7 @@ TEST_F(TQueryEvaluateTest, TestJoin)
     });
 
     splits["//left"] = leftSplit;
-    sources.push_back(BuildRows({
+    sources.push_back({
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2569,7 +2673,7 @@ TEST_F(TQueryEvaluateTest, TestJoin)
         "a=7;b=70",
         "a=8;b=80",
         "a=9;b=90"
-    }, leftSplit));
+    });
 
     auto rightSplit = MakeSplit({
         {"b", EValueType::Int64},
@@ -2577,7 +2681,7 @@ TEST_F(TQueryEvaluateTest, TestJoin)
     });
 
     splits["//right"] = rightSplit;
-    sources.push_back(BuildRows({
+    sources.push_back({
         "c=1;b=10",
         "c=2;b=20",
         "c=3;b=30",
@@ -2587,20 +2691,19 @@ TEST_F(TQueryEvaluateTest, TestJoin)
         "c=7;b=70",
         "c=8;b=80",
         "c=9;b=90"
-    }, rightSplit));
+    });
 
     auto resultSplit = MakeSplit({
         {"x", EValueType::Int64},
-        {"y", EValueType::Int64},
         {"z", EValueType::Int64}
     });
 
     auto result = BuildRows({
-        "x=25;y=250;z=1",
-        "x=20;y=200;z=0",
+        "x=25;z=1",
+        "x=20;z=0",
     }, resultSplit);
 
-    Evaluate("sum(a) as x, sum(b) as y, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, result);
+    Evaluate("sum(a) as x, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, result);
 
     SUCCEED();
 }
@@ -2620,19 +2723,17 @@ TEST_P(TEvaluateExpressionTest, Basic)
     const auto& expected = std::get<2>(param);
 
     TTableSchema schema;
-    schema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
-    schema.Columns().emplace_back(TColumnSchema("b", EValueType::Int64));
+    schema.Columns().emplace_back(TColumnSchema("i1", EValueType::Int64));
+    schema.Columns().emplace_back(TColumnSchema("i2", EValueType::Int64));
+    schema.Columns().emplace_back(TColumnSchema("u1", EValueType::Uint64));
+    schema.Columns().emplace_back(TColumnSchema("u2", EValueType::Uint64));
     TKeyColumns keyColumns;
 
     auto expr = PrepareExpression(exprString, schema);
 
     TCGVariables variables;
-    TCGBinding binding;
-    TFoldingProfiler()
-        .Set(binding)
-        .Set(variables)
-        .Profile(expr);
-    auto callback = CodegenExpression(expr, schema, binding);
+
+    auto callback = Profile(expr, schema, nullptr, &variables, nullptr)();
 
     auto row = NVersionedTableClient::BuildRow(rowString, keyColumns, schema, true);
     TUnversionedValue result;
@@ -2649,6 +2750,10 @@ TEST_P(TEvaluateExpressionTest, Basic)
     executionContext.OutputBuffer = &outputBuffer;
     executionContext.IntermediateBuffer = &intermediateBuffer;
     executionContext.Statistics = &statistics;
+#ifndef NDEBUG
+    volatile int dummy;
+    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
+#endif
 
     callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
 
@@ -2660,26 +2765,48 @@ INSTANTIATE_TEST_CASE_P(
     TEvaluateExpressionTest,
     ::testing::Values(
         std::tuple<const char*, const char*, TUnversionedValue>(
-            "a=33;b=22",
-            "a + b",
-            MakeUnversionedInt64Value(33 + 22)),
+            "i1=33;i2=22",
+            "i1 + i2",
+            MakeInt64(33 + 22)),
         std::tuple<const char*, const char*, TUnversionedValue>(
-            "a=33;b=22",
-            "-a",
-            MakeUnversionedInt64Value(-33))));
+            "i1=33",
+            "-i1",
+            MakeInt64(-33)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=0",
+            "uint64(i1)",
+            MakeUint64(0)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=0",
+            "int64(u1)",
+            MakeInt64(0)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=18446744073709551615u",
+            "int64(u1)",
+            MakeInt64(-1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=9223372036854775807",
+            "uint64(i1)",
+            MakeUint64(9223372036854775807ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-9223372036854775808",
+            "uint64(i1)",
+            MakeUint64(9223372036854775808ULL))
+));
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TComputedColumnTest
     : public ::testing::Test
+    , public ::testing::WithParamInterface<std::vector<const char*>>
 {
 protected:
     virtual void SetUp() override
     {
         SetUpSchema();
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
-            .WillOnce(Invoke(this, &TComputedColumnTest::MakeSimpleSplit));
+        EXPECT_CALL(PrepareMock_, GetInitialSplit(_, _))
+            .WillRepeatedly(Invoke(this, &TComputedColumnTest::MakeSimpleSplit));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
@@ -2688,25 +2815,44 @@ protected:
     std::vector<TKeyRange> Coordinate(const Stroka& source)
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source);
-        auto prunedSplits = GetPrunedSplits(
+        auto prunedSplits = GetPrunedSources(
             planFragment->Query,
-            planFragment->DataSplits,
-            ColumnEvaluatorCache_);
+            planFragment->DataSources,
+            ColumnEvaluatorCache_,
+            true);
 
-        std::vector<TKeyRange> ranges;
+        return GetRangesFromSources(prunedSplits);
+    }
 
-        for (const auto& split : prunedSplits) {
-            ranges.push_back(GetBothBoundsFromDataSplit(split));
-        }
+    std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
+    {
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source);
 
-        std::sort(ranges.begin(), ranges.end());
-        return ranges;
+        TDataSources foreignSplits{planFragment->ForeignDataSource};
+
+        const auto& query = planFragment->Query;
+
+        auto prunedSplits = GetPrunedSources(
+            query->WhereClause,
+            query->JoinClause->ForeignTableSchema,
+            query->JoinClause->ForeignKeyColumns,
+            foreignSplits,
+            ColumnEvaluatorCache_,
+            true);
+
+        return GetRangesFromSources(prunedSplits);
     }
 
     void SetSchema(const TTableSchema& schema, const TKeyColumns& keyColumns)
     {
         Schema_ = schema;
         KeyColumns_ = keyColumns;
+    }
+
+    void SetSecondarySchema(const TTableSchema& schema, const TKeyColumns& keyColumns)
+    {
+        SecondarySchema_ = schema;
+        SecondaryKeyColumns_ = keyColumns;
     }
 
 private:
@@ -2731,16 +2877,35 @@ private:
             dataSplit.mutable_chunk_id(),
             MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
 
-        SetKeyColumns(&dataSplit, KeyColumns_);
-        SetTableSchema(&dataSplit, Schema_);
+        if (path == "//t") {
+            SetKeyColumns(&dataSplit, KeyColumns_);
+            SetTableSchema(&dataSplit, Schema_);
+        } else {
+            SetKeyColumns(&dataSplit, SecondaryKeyColumns_);
+            SetTableSchema(&dataSplit, SecondarySchema_);
+        }
 
         return WrapInFuture(dataSplit);
+    }
+
+    std::vector<TKeyRange> GetRangesFromSources(const TDataSources& prunedSplits)
+    {
+        std::vector<TKeyRange> ranges;
+
+        for (const auto& split : prunedSplits) {
+            ranges.push_back(split.Range);
+        }
+
+        std::sort(ranges.begin(), ranges.end());
+        return ranges;
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     TTableSchema Schema_;
     TKeyColumns KeyColumns_;
+    TTableSchema SecondarySchema_;
+    TKeyColumns SecondaryKeyColumns_;
 };
 
 TEST_F(TComputedColumnTest, Simple)
@@ -2914,6 +3079,97 @@ TEST_F(TComputedColumnTest, NoComputedColumns)
     EXPECT_EQ(BuildKey(_MIN_), result[0].first);
     EXPECT_EQ(BuildKey(_MAX_), result[0].second);
 }
+
+TEST_P(TComputedColumnTest, Join)
+{
+    const auto& args = GetParam();
+    const auto& schemaString1 = args[0];
+    const auto& schemaString2 = args[2];
+    const auto& keyString1 = args[1];
+    const auto& keyString2 = args[3];
+
+    TTableSchema tableSchema1;
+    TTableSchema tableSchema2;
+    Deserialize(tableSchema1, ConvertToNode(TYsonString(schemaString1)));
+    Deserialize(tableSchema2, ConvertToNode(TYsonString(schemaString2)));
+
+    TKeyColumns keyColumns1;
+    TKeyColumns keyColumns2;
+    Deserialize(keyColumns1, ConvertToNode(TYsonString(keyString1)));
+    Deserialize(keyColumns2, ConvertToNode(TYsonString(keyString2)));
+
+    SetSchema(tableSchema1, keyColumns1);
+    SetSecondarySchema(tableSchema2, keyColumns2);
+
+    auto query = Stroka("l from [//t] join [//t1] using l where l in (0, 1)");
+    auto result = CoordinateForeign(query);
+
+    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(BuildKey(args[4]), result[0].first);
+    EXPECT_EQ(BuildKey(args[5]), result[0].second);
+    EXPECT_EQ(BuildKey(args[6]), result[1].first);
+    EXPECT_EQ(BuildKey(args[7]), result[1].second);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    TComputedColumnTest,
+    TComputedColumnTest,
+    ::testing::Values(
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "[{name=n;type=int64;expression=l}; {name=l;type=int64}; {name=b;type=int64}]",
+            "[n;l]",
+            "0;0;",
+            "0;0;" _MAX_,
+            "1;1;",
+            "1;1;" _MAX_},
+        std::vector<const char*>{
+            "[{name=l;type=int64}; {name=a;type=int64}]",
+            "[l]",
+            "[{name=l;type=int64}; {name=b;type=int64}]",
+            "[l]",
+            "0;",
+            "0;" _MAX_,
+            "1;",
+            "1;" _MAX_},
+        std::vector<const char*>{
+            "[{name=l;type=int64;expression=k}; {name=k;type=int64}; {name=a;type=int64}]",
+            "[l;k]",
+            "[{name=l;type=int64}; {name=b;type=int64}]",
+            "[l]",
+            "0;",
+            "0;" _MAX_,
+            "1;",
+            "1;" _MAX_},
+        std::vector<const char*>{
+            "[{name=l;type=int64}; {name=a;type=int64}]",
+            "[l]",
+            "[{name=n;type=int64;expression=l}; {name=l;type=int64}; {name=b;type=int64}]",
+            "[n;l]",
+            "0;0;",
+            "0;0;" _MAX_,
+            "1;1;",
+            "1;1;" _MAX_},
+        std::vector<const char*>{
+            "[{name=l;type=int64}; {name=a;type=int64}]",
+            "[l]",
+            "[{name=l;type=int64;expression=n}; {name=n;type=int64}; {name=b;type=int64}]",
+            "[l;n]",
+            "0;",
+            "0;" _MAX_,
+            "1;",
+            "1;" _MAX_},
+        std::vector<const char*>{
+            "[{name=l;type=int64}; {name=a;type=int64}]",
+            "[l]",
+            "[{name=l;type=int64}; {name=n;type=int64;expression=l}; {name=b;type=int64}]",
+            "[l;n]",
+            "0;0;",
+            "0;0;" _MAX_,
+            "1;1;",
+            "1;1;" _MAX_}
+));
 
 #endif
 

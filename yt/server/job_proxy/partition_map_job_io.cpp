@@ -7,14 +7,10 @@
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/partitioner.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <core/ytree/yson_string.h>
-
 #include <ytlib/scheduler/config.h>
-#include <ytlib/scheduler/job.pb.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -45,7 +41,7 @@ public:
         const auto& jobSpec = Host_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
         auto partitioner = CreateHashPartitioner(
-            jobSpecExt.partition_count(), 
+            jobSpecExt.partition_count(),
             jobSpecExt.reduce_key_column_count());
         auto keyColumns = FromProto<TKeyColumns>(jobSpecExt.sort_key_columns());
 

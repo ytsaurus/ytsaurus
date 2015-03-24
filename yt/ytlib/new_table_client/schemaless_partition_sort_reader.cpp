@@ -65,7 +65,7 @@ public:
         , TotalRowCount_(0)
         , ReadRowCount_(0)
         , KeyBuffer_(this)
-        , RowPtrBuffer_(this)
+        , RowDescriptorBuffer_(this)
         , Buckets_(this)
         , BucketStart_(this)
         , SortComparer_(this)
@@ -134,8 +134,9 @@ public:
 
         while (ReadRowCount_ < sortedRowCount && rows->size() < rows->capacity()) {
             auto sortedIndex = SortedIndexes_[ReadRowCount_];
-            const char* rowPtr = RowPtrBuffer_[sortedIndex];
-            rows->push_back(THorizontalSchemalessBlockReader::GetRow(rowPtr, &MemoryPool_));
+            auto& rowDescriptor = RowDescriptorBuffer_[sortedIndex];
+            YCHECK(rowDescriptor.BlockReader->JumpToRowIndex(rowDescriptor.RowIndex))   ;
+            rows->push_back(rowDescriptor.BlockReader->GetRow(&MemoryPool_));
 
             ++ReadRowCount_;
         }
@@ -159,7 +160,7 @@ public:
         return ReadRowCount_;
     }
 
-    virtual i64 GetSessionRowCount() const override
+    virtual i64 GetTotalRowCount() const override
     {
         return TotalRowCount_;
     }
@@ -314,7 +315,7 @@ private:
     int ReadRowCount_;
 
     TSafeVector<TUnversionedValue> KeyBuffer_;
-    TSafeVector<const char*> RowPtrBuffer_;
+    TSafeVector<TRowDescriptor> RowDescriptorBuffer_;
     TSafeVector<i32> Buckets_;
     TSafeVector<int> BucketStart_;
 
@@ -338,7 +339,7 @@ private:
                 EstimatedBucketCount_);
 
             KeyBuffer_.reserve(EstimatedRowCount_ * KeyColumnCount_);
-            RowPtrBuffer_.reserve(EstimatedRowCount_);
+            RowDescriptorBuffer_.reserve(EstimatedRowCount_);
             Buckets_.reserve(EstimatedRowCount_ + EstimatedBucketCount_);
         }
     }
@@ -367,9 +368,9 @@ private:
             while (true) {
                 i64 rowCount = 0;
                 auto keyInserter = std::back_inserter(KeyBuffer_);
-                auto rowPtrInserter = std::back_inserter(RowPtrBuffer_);
+                auto rowDescriptorInserter = std::back_inserter(RowDescriptorBuffer_);
 
-                auto result = UnderlyingReader_->Read(keyInserter, rowPtrInserter, &rowCount);
+                auto result = UnderlyingReader_->Read(keyInserter, rowDescriptorInserter, &rowCount);
                 if (!result)
                     break;
 
@@ -400,7 +401,10 @@ private:
                 flushBucket();
             }
 
-            YCHECK(isNetworkReleased);
+            if (!isNetworkReleased) {
+                YCHECK(UnderlyingReader_->IsFetchingCompleted());
+                OnNetworkReleased_.Run();
+            }
 
             TotalRowCount_ = rowIndex;
             int bucketCount = static_cast<int>(BucketStart_.size()) - 1;

@@ -2,6 +2,7 @@
 
 #include <core/misc/ref.h>
 #include <core/misc/serialize.h>
+
 #include <core/actions/callback.h>
 
 #include <contrib/libs/snappy/snappy.h>

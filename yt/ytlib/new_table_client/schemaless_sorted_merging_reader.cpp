@@ -5,12 +5,7 @@
 #include "private.h"
 #include "schemaless_chunk_reader.h"
 
-#include <ytlib/chunk_client/data_statistics.h>
 #include <ytlib/chunk_client/dispatcher.h>
-
-#include <core/concurrency/scheduler.h>
-
-#include <core/logging/log.h>
 
 #include <core/misc/heap.h>
 
@@ -52,7 +47,7 @@ public:
 
     virtual TNameTablePtr GetNameTable() const override;
 
-    virtual i64 GetSessionRowCount() const override;
+    virtual i64 GetTotalRowCount() const override;
 
     virtual i64 GetSessionRowIndex() const override;
 
@@ -121,7 +116,7 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         session.Rows.reserve(rowsPerSession);
         session.CurrentRowIndex = 0;
 
-        RowCount_ += reader->GetSessionRowCount();
+        RowCount_ += reader->GetTotalRowCount();
     }
 }
 
@@ -255,7 +250,7 @@ TNameTablePtr TSchemalessSortedMergingReader::GetNameTable() const
     return SessionHolder_.front().Reader->GetNameTable();
 }
 
-i64 TSchemalessSortedMergingReader::GetSessionRowCount() const
+i64 TSchemalessSortedMergingReader::GetTotalRowCount() const
 {
     return RowCount_;
 }

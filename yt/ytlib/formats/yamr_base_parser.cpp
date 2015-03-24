@@ -1,5 +1,7 @@
 #include "yamr_base_parser.h"
 
+#include <ytlib/new_table_client/public.h>
+
 #include <core/misc/error.h>
 #include <core/misc/string.h>
 #include <core/misc/format.h>
@@ -8,13 +10,12 @@
 
 #include <core/ytree/attribute_helpers.h>
 
-#include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NFormats {
 
 using namespace NYTree;
-using namespace NTableClient;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

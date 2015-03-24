@@ -2,7 +2,7 @@
 #include "partition_balancer.h"
 #include "config.h"
 #include "tablet_slot.h"
-#include "tablet_slot_manager.h"
+#include "slot_manager.h"
 #include "tablet_manager.h"
 #include "tablet.h"
 #include "partition.h"
@@ -56,12 +56,9 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Semaphore_(Config_->MaxConcurrentSamplings)
-    { }
-
-    void Start()
     {
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        tabletSlotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        slotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
     }
 
 private:
@@ -84,6 +81,9 @@ private:
 
     void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
     {
+        if (tablet->GetState() != ETabletState::Mounted)
+            return;
+        
         for (const auto& partition : tablet->Partitions()) {
             ScanPartition(slot, partition.get());
         }
@@ -140,7 +140,7 @@ private:
             return;
 
         for (auto store : partition->Stores()) {
-            if (store->GetState() != EStoreState::Persistent)
+            if (store->GetStoreState() != EStoreState::Persistent)
                 return;
         }
 
@@ -282,7 +282,7 @@ private:
             config->SamplesPerPartition);
 
         try {
-            auto samples = GetPartitionSamples(partition, config->SamplesPerPartition - 1);
+            auto samples = GetPartitionSamples(partition, config->SamplesPerPartition);
             samples.erase(
                 std::unique(samples.begin(), samples.end()),
                 samples.end());
@@ -421,7 +421,7 @@ void StartPartitionBalancer(
     TPartitionBalancerConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
 {
-    New<TPartitionBalancer>(config, bootstrap)->Start();
+    New<TPartitionBalancer>(config, bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

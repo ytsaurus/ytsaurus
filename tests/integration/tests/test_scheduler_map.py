@@ -158,6 +158,7 @@ class TestEventLog(YTEnvSetup):
             "force_enable_accounting" : True,
             "enable_cgroup_memory_hierarchy" : True,
             "slot_manager" : {
+                'enable_cgroups' : True,
                 "enforce_job_control" : True
             }
         }
@@ -186,10 +187,71 @@ class TestEventLog(YTEnvSetup):
             event_types.add(item["event_type"])
             if item["event_type"] == "job_completed":
                 stats = item["statistics"]
-                user_time = get_statistics(stats, "user_job.cpu.user.max")
+                user_time = get_statistics(stats, "user_job.cpu.user")
                 # our job should burn enough cpu
                 assert user_time > 0
         assert "operation_started" in event_types
+
+
+
+class TestJobProber(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent" : {
+            "force_enable_accounting" : True,
+            "slot_manager" : {
+                'enable_cgroups' : 'true',
+            }
+        }
+    }
+
+    def test_strace_job(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write("//tmp/t1", {"foo": "bar"})
+
+        tmpdir = tempfile.mkdtemp(prefix="strace_job")
+
+        command = "touch {0}/started || exit 1; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
+
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=command,
+            spec={
+                "mapper": {
+                    "format": "json"
+                }
+            })
+
+        try:
+            pin_filename = os.path.join(tmpdir, "started")
+            while not os.access(pin_filename, os.F_OK):
+                time.sleep(0.2)
+
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+            jobs = ls(jobs_path)
+            assert jobs
+
+            result = strace_job(jobs[0])
+        finally:
+            try:
+                os.unlink(pin_filename)
+            except OSError:
+                pass
+            try:
+                os.unlink(tmpdir)
+            except OSError:
+                pass
+
+        for pid, trace in result['traces'].iteritems():
+            if trace['trace'] != "attach: ptrace(PTRACE_ATTACH, ...): No such process\n":
+                assert trace['trace'].startswith("Process {0} attached - interrupt to quit".format(pid))
+        track_op(op_id)
 
 
 class TestBlockIO(YTEnvSetup):
@@ -229,8 +291,8 @@ class TestBlockIO(YTEnvSetup):
             if item["event_type"] == "job_completed" and item["operation_id"] == op_id:
                 job_completed_line_exist = True
                 stats = item["statistics"]
-                bytes_read = get_statistics(stats, "user_job.block_io.bytes_read.max")
-                io_read = get_statistics(stats, "user_job.block_io.io_read.max")
+                bytes_read = get_statistics(stats, "user_job.block_io.bytes_read")
+                io_read = get_statistics(stats, "user_job.block_io.io_read")
         assert job_completed_line_exist
         assert bytes_read == 160*1024*50
         assert io_read == 50
@@ -262,7 +324,7 @@ class TestUserStatistics(YTEnvSetup):
 
         statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
         assert get_statistics(statistics, "completed_jobs.custom.cpu.k1.max") == 4
-        assert get_statistics(statistics, "completed_jobs.custom.k2.count") == 2
+        assert get_statistics(statistics, "completed_jobs.custom.k2.count") == 1
 
     def test_multiple_job_statistics(self):
         create("table", "//tmp/t1")
@@ -622,14 +684,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for job_id in ls(jobs_path):
             assert len(read_file(jobs_path + "/" + job_id + "/fail_contexts/0")) > 0
 
-    def test_dump_input_context(self):
+    def test_dump_job_input_context(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
         set("//tmp/input_contexts", {})
 
-        tmpdir = tempfile.mkdtemp(prefix="dump_input_context_semaphore")
+        tmpdir = tempfile.mkdtemp(prefix="dump_job_input_context_semaphore")
 
         command="touch {0}/started; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
 
@@ -654,7 +716,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             jobs = ls(jobs_path)
             assert jobs
             for job_id in jobs:
-                dump_input_context(job_id, "//tmp/input_contexts")
+                dump_job_input_context(job_id, "//tmp/input_contexts")
 
         finally:
             os.unlink(pin_filename)

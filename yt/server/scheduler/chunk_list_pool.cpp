@@ -2,12 +2,7 @@
 #include "chunk_list_pool.h"
 #include "private.h"
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-
 #include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
-
-#include <server/chunk_server/chunk_list.h>
 
 namespace NYT {
 namespace NScheduler {

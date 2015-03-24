@@ -68,6 +68,34 @@ Stroka TrimLeadingWhitespaces(const Stroka& str)
     return "";
 }
 
+Stroka Trim(const Stroka& str, const Stroka& whitespaces)
+{
+    size_t end = str.size();
+    while (end > 0) {
+        size_t i = end - 1;
+        bool isWhitespace = false;
+        for (auto c : whitespaces) {
+            if (str[i] == c) {
+                isWhitespace = true;
+                break;
+            }
+        }
+        if (!isWhitespace) {
+            break;
+        }
+        --end;
+    }
+
+    if (end == 0) {
+        return "";
+    }
+
+    size_t begin = str.find_first_not_of(whitespaces);
+    YCHECK(begin != Stroka::npos);
+    YCHECK(begin < end);
+    return str.substr(begin, end - begin);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ParseBool(const Stroka& value)
