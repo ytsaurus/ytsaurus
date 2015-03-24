@@ -1,4 +1,8 @@
 #include "function_registry.h"
+#include "functions.h"
+#include "builtin_functions.h"
+
+#include <ytlib/api/public.h>
 
 #include <mutex>
 
