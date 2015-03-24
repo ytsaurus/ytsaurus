@@ -45,6 +45,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/folding_profiler.cpp
     ${BASE}/evaluation_helpers.cpp
     ${BASE}/functions.cpp
+    ${BASE}/builtin_functions.cpp
     ${BASE}/function_registry.cpp
   )
 
@@ -57,6 +58,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/folding_profiler.h
     ${BASE}/evaluation_helpers.h
     ${BASE}/functions.h
+    ${BASE}/builtin_functions.h
     ${BASE}/function_registry.h
   )
 endif()
