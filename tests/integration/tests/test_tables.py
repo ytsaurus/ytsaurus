@@ -122,15 +122,15 @@ class TestTables(YTEnvSetup):
     def test_chunk_index_selector(self):
         create("table", "//tmp/table")
 
-        write("<append=true>//tmp/table", [{"a": 0}])
-        write("<append=true>//tmp/table", [{"b": 1}])
-        write("<append=true>//tmp/table", [{"c": 2}])
+        write_table("<append=true>//tmp/table", [{"a": 0}])
+        write_table("<append=true>//tmp/table", [{"b": 1}])
+        write_table("<append=true>//tmp/table", [{"c": 2}])
 
         assert len(get("//tmp/table/@chunk_ids")) == 3
 
-        assert read("<upper_limit={chunk_index=1}>//tmp/table") == [{"a": 0}]
-        assert read("<lower_limit={chunk_index=2}>//tmp/table") == [{"c": 2}]
-        assert read("<lower_limit={chunk_index=1};upper_limit={chunk_index=2}>//tmp/table") == [{"b": 1}]
+        assert read_table("<upper_limit={chunk_index=1}>//tmp/table") == [{"a": 0}]
+        assert read_table("<lower_limit={chunk_index=2}>//tmp/table") == [{"c": 2}]
+        assert read_table("<lower_limit={chunk_index=1};upper_limit={chunk_index=2}>//tmp/table") == [{"b": 1}]
 
     def test_row_key_selector(self):
         create("table", "//tmp/table")
