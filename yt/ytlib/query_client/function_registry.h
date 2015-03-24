@@ -1,6 +1,7 @@
 #pragma once
 
 #include "functions.h"
+#include "public.h"
 
 #include <unordered_map>
 
@@ -12,13 +13,13 @@ namespace NQueryClient {
 class TFunctionRegistry
 {
 public:
-    void RegisterFunction(TIntrusivePtr<IFunctionDescriptor> descriptor);
+    void RegisterFunction(IFunctionDescriptorPtr descriptor);
     IFunctionDescriptor& GetFunction(const Stroka& functionName);
 
     bool IsRegistered(const Stroka& functionName);
 
 private:
-    std::unordered_map<Stroka, TIntrusivePtr<IFunctionDescriptor>> RegisteredFunctions_;
+    std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
 };
 
 TFunctionRegistry* GetFunctionRegistry();
