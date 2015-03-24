@@ -1182,11 +1182,11 @@ void TChunkReplicator::OnRefresh()
 
             auto* chunk = entry.Chunk;
             RefreshList_.pop_front();
-            chunk->SetRefreshScheduled(false);
             ++totalCount;
 
             if (IsObjectAlive(chunk)) {
                 ++aliveCount;
+                chunk->SetRefreshScheduled(false);
                 RefreshChunk(chunk);
             }
 
@@ -1368,6 +1368,7 @@ void TChunkReplicator::OnPropertiesUpdate()
     auto objectManager = Bootstrap_->GetObjectManager();
     TReqUpdateChunkProperties request;
 
+    int totalCount = 0;
     PROFILE_TIMING ("/properties_update_time") {
         for (int i = 0; i < Config_->MaxChunksPerPropertiesUpdate; ++i) {
             if (PropertiesUpdateList_.empty())
@@ -1375,9 +1376,10 @@ void TChunkReplicator::OnPropertiesUpdate()
 
             auto* chunk = PropertiesUpdateList_.front();
             PropertiesUpdateList_.pop_front();
-            chunk->SetPropertiesUpdateScheduled(false);
+            ++totalCount;
 
             if (IsObjectAlive(chunk)) {
+                chunk->SetPropertiesUpdateScheduled(false);
                 auto newProperties = ComputeChunkProperties(chunk);
                 auto oldProperties = chunk->GetChunkProperties();
                 if (newProperties != oldProperties) {
@@ -1399,13 +1401,14 @@ void TChunkReplicator::OnPropertiesUpdate()
         }
     }
 
+    LOG_DEBUG("Starting chunk properties update (TotalCount: %v, AliveCount: %v)",
+        totalCount,
+        request.updates_size());
+
     if (request.updates_size() == 0) {
         PropertiesUpdateExecutor_->ScheduleNext();
         return;
     }
-
-    LOG_DEBUG("Starting chunk properties update (Count: %v)",
-        request.updates_size());
 
     auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
     chunkManager
