@@ -27,7 +27,7 @@ bool TFunctionRegistry::IsRegistered(const Stroka& functionName) const
     return RegisteredFunctions_.count(to_lower(functionName)) != 0;
 }
 
-void RegisterFunctionsImpl(TFunctionRegistry* registry)
+void RegisterFunctionsImpl(TFunctionRegistryPtr registry)
 {
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
@@ -51,19 +51,11 @@ void RegisterFunctionsImpl(TFunctionRegistry* registry)
         "double"));
 }
 
-TFunctionRegistry CreateBuiltinFunctionRegistry()
+TFunctionRegistryPtr CreateBuiltinFunctionRegistry()
 {
-    TFunctionRegistry registry;
-    RegisterFunctionsImpl(&registry);
+    auto registry = New<TFunctionRegistry>();
+    RegisterFunctionsImpl(registry);
     return registry;
-}
-
-TFunctionRegistry* GetFunctionRegistry()
-{
-    static TFunctionRegistry registry;
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, &RegisterFunctionsImpl, &registry);
-    return &registry;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

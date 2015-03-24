@@ -65,8 +65,6 @@ DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCache)
 
 DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
 
-DECLARE_REFCOUNTED_CLASS(IFunctionDescriptor)
-
 // TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 typedef std::vector<TDataSplit> TDataSplits;

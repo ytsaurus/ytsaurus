@@ -10,6 +10,7 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFunctionRegistry
+    : public TRefCounted
 {
 public:
     void RegisterFunction(IFunctionDescriptorPtr descriptor);
@@ -21,8 +22,10 @@ private:
     std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
 };
 
-TFunctionRegistry CreateBuiltinFunctionRegistry();
-TFunctionRegistry* GetFunctionRegistry();
+DECLARE_REFCOUNTED_CLASS(TFunctionRegistry)
+DEFINE_REFCOUNTED_TYPE(TFunctionRegistry)
+
+TFunctionRegistryPtr CreateBuiltinFunctionRegistry();
 
 ////////////////////////////////////////////////////////////////////////////////
 

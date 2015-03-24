@@ -65,7 +65,7 @@ public:
        const TTableSchema& schema,
        const TKeyColumns& keyColumns,
        const TColumnEvaluatorCachePtr& evaluatorCache,
-       const TFunctionRegistry& functionRegistry,
+       const TFunctionRegistryPtr functionRegistry,
        bool verboseLogging)
     {
         if (/*splits.size() == 0 ||*/ !predicate) {
@@ -119,7 +119,7 @@ private:
         TRangeInferrerLight(
            const TConstExpressionPtr& predicate,
            const TKeyColumns& keyColumns,
-           const TFunctionRegistry& functionRegistry,
+           const TFunctionRegistryPtr functionRegistry,
            bool verboseLogging)
         {
             KeyTrie_ = ExtractMultipleConstraints(predicate, keyColumns, &KeyTrieBuffer_, functionRegistry);
@@ -147,7 +147,7 @@ private:
             const TTableSchema& schema,
             const TKeyColumns& keyColumns,
             const TColumnEvaluatorCachePtr& evaluatorCache,
-            const TFunctionRegistry& functionRegistry,
+            const TFunctionRegistryPtr functionRegistry,
             bool verboseLogging)
             : Schema_(schema)
             , KeySize_(keyColumns.size())
@@ -466,7 +466,7 @@ TDataSources GetPrunedSources(
     const TKeyColumns& keyColumns,
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const TFunctionRegistry& functionRegistry,
+    const TFunctionRegistryPtr functionRegistry,
     bool verboseLogging)
 {
     TRangeInferrer rangeInferrer(predicate, tableSchema, keyColumns, evaluatorCache, functionRegistry, verboseLogging);
@@ -505,7 +505,7 @@ TDataSources GetPrunedSources(
     const TConstQueryPtr& query,
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const TFunctionRegistry& functionRegistry,
+    const TFunctionRegistryPtr functionRegistry,
     bool verboseLogging)
 {
     return GetPrunedSources(

@@ -18,7 +18,7 @@ TKeyTrieNode ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer,
-    const TFunctionRegistry& functionRegistry);
+    const TFunctionRegistryPtr functionRegistry);
 
 ////////////////////////////////////////////////////////////////////////////////
 
