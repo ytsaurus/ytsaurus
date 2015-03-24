@@ -399,7 +399,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         }
 
         if (query->WhereClause) {
-            subquery->WhereClause = refinePredicates
+            subquery->WhereClause = refinePredicates && !query->TableSchema.HasComputedColumns()
                 ? RefinePredicate(keyRange, commonPrefixSize, query->WhereClause, subquery->KeyColumns)
                 : query->WhereClause;
         }
