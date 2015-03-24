@@ -366,7 +366,9 @@ class NativeModeTester(YtTestBase, YTEnv):
         if post_action is not None:
             post_action()
         for _ in xrange(5):
+            yt.config.RETRY = True
             assert result == run_command()
+            yt.config.RETRY = False
             if check_action is not None:
                 assert check_action()
 
@@ -482,7 +484,10 @@ class NativeModeTester(YtTestBase, YTEnv):
              "approximate_row_count": 1})
 
         rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]))._get_response()
-        assert rsp.headers["X-YT-Response-Parameters"] == {}
+        self.assertEqual(
+            rsp.headers["X-YT-Response-Parameters"],
+            {"start_row_index": 0,
+             "approximate_row_count": 0})
 
     def test_read_with_retries(self):
         old_value = yt.config.RETRY_READ
