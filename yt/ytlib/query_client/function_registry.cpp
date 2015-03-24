@@ -4,6 +4,8 @@
 
 #include <ytlib/api/public.h>
 
+#include <ytlib/api/public.h>
+
 #include <mutex>
 
 namespace NYT {
@@ -17,12 +19,12 @@ void TFunctionRegistry::RegisterFunction(TIntrusivePtr<IFunctionDescriptor> func
     YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(function))).second);
 }
 
-IFunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName) const
+IFunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName)
 {
     return *RegisteredFunctions_.at(to_lower(functionName));
 }
 
-bool TFunctionRegistry::IsRegistered(const Stroka& functionName) const
+bool TFunctionRegistry::IsRegistered(const Stroka& functionName)
 {
     return RegisteredFunctions_.count(to_lower(functionName)) != 0;
 }
@@ -56,6 +58,12 @@ TFunctionRegistryPtr CreateBuiltinFunctionRegistry()
     auto registry = New<TFunctionRegistry>();
     RegisterFunctionsImpl(registry);
     return registry;
+}
+
+TFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
+{
+    //TODO
+    return CreateBuiltinFunctionRegistry();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
