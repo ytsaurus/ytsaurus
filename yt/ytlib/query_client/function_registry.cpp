@@ -7,7 +7,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFunctionRegistry::RegisterFunction(std::unique_ptr<IFunctionDescriptor> function)
+void TFunctionRegistry::RegisterFunction(TIntrusivePtr<IFunctionDescriptor> function)
 {
     Stroka functionName = to_lower(function->GetName());
     YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(function))).second);
@@ -25,24 +25,24 @@ bool TFunctionRegistry::IsRegistered(const Stroka& functionName)
 
 void RegisterFunctionsImpl(TFunctionRegistry* registry)
 {
-    registry->RegisterFunction(std::make_unique<TIfFunction>());
-    registry->RegisterFunction(std::make_unique<TIsPrefixFunction>());
-    registry->RegisterFunction(std::make_unique<TIsSubstrFunction>());
-    registry->RegisterFunction(std::make_unique<TLowerFunction>());
-    registry->RegisterFunction(std::make_unique<THashFunction>(
+    registry->RegisterFunction(New<TIfFunction>());
+    registry->RegisterFunction(New<TIsPrefixFunction>());
+    registry->RegisterFunction(New<TIsSubstrFunction>());
+    registry->RegisterFunction(New<TLowerFunction>());
+    registry->RegisterFunction(New<THashFunction>(
         "simple_hash",
         "SimpleHash"));
-    registry->RegisterFunction(std::make_unique<THashFunction>(
+    registry->RegisterFunction(New<THashFunction>(
         "farm_hash",
         "FarmHash"));
-    registry->RegisterFunction(std::make_unique<TIsNullFunction>());
-    registry->RegisterFunction(std::make_unique<TCastFunction>(
+    registry->RegisterFunction(New<TIsNullFunction>());
+    registry->RegisterFunction(New<TCastFunction>(
         EValueType::Int64,
         "int64"));
-    registry->RegisterFunction(std::make_unique<TCastFunction>(
+    registry->RegisterFunction(New<TCastFunction>(
         EValueType::Uint64,
         "uint64"));
-    registry->RegisterFunction(std::make_unique<TCastFunction>(
+    registry->RegisterFunction(New<TCastFunction>(
         EValueType::Double,
         "double"));
 }
