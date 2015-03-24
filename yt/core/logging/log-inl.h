@@ -19,13 +19,13 @@ void TLogger::AddTag(const char* format, const TArgs&... args)
 namespace NDetail {
 
 template <class... TArgs>
-inline Stroka FormatLogMessage(const char* format, const TArgs&... args)
+Stroka FormatLogMessage(const char* format, const TArgs&... args)
 {
     return Format(format, args...);
 }
 
 template <class... TArgs>
-inline Stroka FormatLogMessage(const TError& error, const char* format, const TArgs&... args)
+Stroka FormatLogMessage(const TError& error, const char* format, const TArgs&... args)
 {
     TStringBuilder builder;
     Format(&builder, format, args...);
@@ -35,7 +35,7 @@ inline Stroka FormatLogMessage(const TError& error, const char* format, const TA
 }
 
 template <class T>
-inline Stroka FormatLogMessage(const T& obj)
+Stroka FormatLogMessage(const T& obj)
 {
     return ToString(obj);
 }
