@@ -24,7 +24,7 @@ class TYTEnvironment
 public:
     virtual void SetUp() override
     {
-        if (!getenv("YT_LOG_LEVEL") && !getenv("YT_LOG_CATEGORIES")) {
+        if (!getenv("YT_LOG_LEVEL") && !getenv("YT_LOG_EXCLUDE_CATEGORIES") && !getenv("YT_LOG_INCLUDE_CATEGORIES")) {
             return;
         }
 
@@ -37,13 +37,21 @@ public:
             logLevel = "fatal";
         }
 
-        const char* logCategoriesFromEnv = getenv("YT_LOG_CATEGORIES");
-        VectorStrok logCategories;
-        if (logCategoriesFromEnv) {
-            SplitStroku(&logCategories, logLevelFromEnv, ",");
+        const char* logExcludeCategoriesFromEnv = getenv("YT_LOG_EXCLUDE_CATEGORIES");
+        VectorStrok logExcludeCategories;
+        if (logExcludeCategoriesFromEnv) {
+            SplitStroku(&logExcludeCategories, logExcludeCategoriesFromEnv, ",");
         } else {
-            logCategories.push_back("*");
+            logExcludeCategories.push_back("*");
         }
+
+        const char* logIncludeCategoriesFromEnv = getenv("YT_LOG_INCLUDE_CATEGORIES");
+        VectorStrok logIncludeCategories;
+        if (logIncludeCategoriesFromEnv) {
+            SplitStroku(&logIncludeCategories, logIncludeCategoriesFromEnv, ",");
+        }
+
+        Cout << logIncludeCategories.size() << Endl;
 
         auto builder = CreateBuilderFromFactory(NYT::NYTree::GetEphemeralNodeFactory());
         NYT::NYTree::BuildYsonFluently(builder.get())
@@ -54,7 +62,10 @@ public:
                     .BeginMap()
                         .Item("min_level").Value(logLevel)
                         .Item("writers").BeginList().Item().Value("stderr").EndList()
-                        .Item("categories").List(logCategories)
+                        .Item("exclude_categories").List(logExcludeCategories)
+                        .DoIf(!logIncludeCategories.empty(), [&] (NYT::NYTree::TFluentMap fluent) {
+                            fluent.Item("include_categories").List(logIncludeCategories);
+                        })
                     .EndMap()
                 .EndList()
                 .Item("writers")
