@@ -109,7 +109,9 @@ private:
                 auto pickResult = PickPeer();
                 
                 if (auto* error = pickResult.TryAs<TError>()) {
-                    Promise_.TrySet(*error);
+                    Promise_.TrySet(
+                        *error
+                        << TErrorAttribute("endpoint", Owner_->GetEndpointDescription()));
                     return;
                 }
 
@@ -196,8 +198,7 @@ private:
             if (candidates.empty()) {
                 if (RequestedAddresses_.empty()) {
                     return TError(NRpc::EErrorCode::Unavailable, "No alive peers left")
-                         << InnerErrors_
-                         << TErrorAttribute("endpoint", Owner_->GetEndpointDescription());
+                         << InnerErrors_;
                 } else {
                     return TTooManyConcurrentRequests();
                 }
