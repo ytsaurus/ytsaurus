@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "key_trie.h"
+#include "function_registry.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/row_buffer.h>
@@ -16,7 +17,8 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
 TKeyTrieNode ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
-    TRowBuffer* rowBuffer);
+    TRowBuffer* rowBuffer,
+    const TFunctionRegistry& functionRegistry);
 
 ////////////////////////////////////////////////////////////////////////////////
 

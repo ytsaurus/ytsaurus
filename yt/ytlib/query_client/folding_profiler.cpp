@@ -2,6 +2,7 @@
 #include "folding_profiler.h"
 #include "plan_helpers.h"
 #include "function_registry.h"
+#include "functions.h"
 
 #include "cg_fragment_compiler.h"
 

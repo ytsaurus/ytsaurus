@@ -6,6 +6,7 @@
 
 #include "plan_fragment.h"
 #include "plan_helpers.h"
+#include "functions.h"
 
 #include "cg_routines.h"
 #include "cg_ir_builder.h"
@@ -1062,6 +1063,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
     Stroka name)
 {
     auto& function = GetFunctionRegistry()->GetFunction(functionName);
+    YUNREACHABLE();
     return function.MakeCodegenExpr(std::move(codegenArgs), type, name);
 }
 
