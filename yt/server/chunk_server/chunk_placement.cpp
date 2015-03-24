@@ -32,8 +32,7 @@ public:
     TTargetChecker(
         const TChunk* chunk,
         const TSortedNodeList* forbiddenNodes)
-        : Chunk_(chunk)
-        , ForbiddenNodes_(forbiddenNodes)
+        : ForbiddenNodes_(forbiddenNodes)
         , MaxReplicasPerRack_(chunk->GetMaxReplicasPerRack())
     {
         for (auto replica : chunk->StoredReplicas()) {
@@ -64,7 +63,6 @@ public:
     }
 
 private:
-    const TChunk* const Chunk_;
     const TSortedNodeList* const ForbiddenNodes_;
     const int MaxReplicasPerRack_;
     std::array<i8, MaxRackCount> PerRackCounters_{};
