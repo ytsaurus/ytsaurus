@@ -220,7 +220,7 @@ private:
 
         LOG_DEBUG("Got ranges for groups %v", rangesString);
 
-        auto functionRegistry = CreateBuiltinFunctionRegistry();
+        auto functionRegistry = CreateFunctionRegistry(Bootstrap_->GetMasterClient());
 
         return CoordinateAndExecute(
             fragment,

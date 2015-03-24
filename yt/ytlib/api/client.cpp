@@ -590,7 +590,7 @@ public:
         : Connection_(std::move(connection))
         , Options_(options)
         , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
-        , FunctionRegistry_(CreateBuiltinFunctionRegistry())
+        , FunctionRegistry_(CreateFunctionRegistry(this))
     {
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
             MasterChannels_[kind] = Connection_->GetMasterChannel(kind);
