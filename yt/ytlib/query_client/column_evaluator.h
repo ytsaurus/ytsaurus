@@ -8,6 +8,8 @@
 
 #include <ytlib/new_table_client/unversioned_row.h>
 
+#include <ytlib/query_client/function_registry.h>
+
 #include <util/generic/hash_set.h>
 
 namespace NYT {
@@ -19,7 +21,10 @@ class TColumnEvaluator
     : public TRefCounted
 {
 public:
-    TColumnEvaluator(const TTableSchema& schema, int keySize);
+    TColumnEvaluator(
+        const TTableSchema& schema,
+        int keySize,
+        const TFunctionRegistryPtr functionRegistry);
 
     void EvaluateKey(
         TRow fullRow,
@@ -43,6 +48,7 @@ private:
 
     const TTableSchema Schema_;
     const int KeySize_;
+    const TFunctionRegistryPtr FunctionRegistry_;
 
 #ifdef YT_USE_LLVM
     std::vector<TCGExpressionCallback> Evaluators_;
