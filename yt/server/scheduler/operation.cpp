@@ -28,7 +28,7 @@ TOperation::TOperation(
     , MutationId_(mutationId)
     , State_(state)
     , Suspended_(suspended)
-    , Enqueued_(false)
+    , Queued_(false)
     , UserTransaction_(userTransaction)
     , Spec_(spec)
     , AuthenticatedUser_(authenticatedUser)

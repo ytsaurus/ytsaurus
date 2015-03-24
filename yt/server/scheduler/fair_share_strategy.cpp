@@ -1280,15 +1280,18 @@ private:
         return params;
     }
 
-    bool CanAddOperationToPool(TPool* pool)
+    bool CanAddOperationToPool(TPoolPtr pool)
     {
-        TCompositeSchedulerElement* element = pool;
+        TCompositeSchedulerElement* element = pool.Get();
         while (element) {
             if (element->IsRoot()) {
                 break;
             }
             auto poolName = element->GetId();
-            if (RunningOperationCount[poolName] >= Config->MaxRunningOperationsPerPool) {
+            int MaxRunningOperations = pool->GetConfig()->MaxRunningOperations
+                ? *(pool->GetConfig()->MaxRunningOperations)
+                : Config->MaxRunningOperationsPerPool;
+            if (RunningOperationCount[poolName] >= MaxRunningOperations) {
                 return false;
             }
             element = element->GetParent();
@@ -1321,7 +1324,7 @@ private:
             AddOperationToTree(operation);
         } else {
             OperationQueue.push_back(operation);
-            operation->SetEnqueued(true);
+            operation->SetQueued(true);
         }
     }
 
@@ -1372,7 +1375,7 @@ private:
             if (CanAddOperationToPool(GetOperationElement(operation)->GetPool())) {
                 AddOperationToTree(operation);
                 operation->SetState(EOperationState::Running);
-                operation->SetEnqueued(false);
+                operation->SetQueued(false);
 
                 auto toRemove = it++;
                 OperationQueue.erase(toRemove);

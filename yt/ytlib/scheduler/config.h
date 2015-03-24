@@ -738,6 +738,7 @@ public:
     double Weight;
     double MinShareRatio;
     double MaxShareRatio;
+    TNullable<int> MaxRunningOperations;
 
     ESchedulingMode Mode;
 
@@ -756,6 +757,9 @@ public:
         RegisterParameter("max_share_ratio", MaxShareRatio)
             .Default(1.0)
             .InRange(0.0, 1.0);
+
+        RegisterParameter("max_running_operations", MaxRunningOperations)
+            .Default();
 
         RegisterParameter("mode", Mode)
             .Default(ESchedulingMode::FairShare);
