@@ -16,7 +16,7 @@ using namespace NNodeTrackerClient::NProto;
 ////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
-static auto& Profiler = SchedulerProfiler;
+static const auto& Profiler = SchedulerProfiler;
 
 static const double RatioComputationPrecision = 1e-12;
 static const double RatioComparisonPrecision = 1e-6;

@@ -10,7 +10,7 @@ const double ApproximateSizesBoostFactor = 1.3;
 
 const NLogging::TLogger SchedulerLogger("Scheduler");
 const NLogging::TLogger OperationLogger("Operation");
-NProfiling::TProfiler SchedulerProfiler("/scheduler");
+const NProfiling::TProfiler SchedulerProfiler("/scheduler");
 
 ////////////////////////////////////////////////////////////////////
 

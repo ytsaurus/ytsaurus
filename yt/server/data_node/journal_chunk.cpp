@@ -163,7 +163,7 @@ void TJournalChunk::DoReadBlocks(
             blocksRead,
             bytesRead);
 
-        auto& locationProfiler = Location_->Profiler();
+        auto& locationProfiler = Location_->GetProfiler();
         locationProfiler.Enqueue("/journal_read_size", bytesRead);
         locationProfiler.Enqueue("/journal_read_time", readTime.MicroSeconds());
         locationProfiler.Enqueue("/journal_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()));

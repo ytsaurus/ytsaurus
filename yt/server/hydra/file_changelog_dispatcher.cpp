@@ -22,7 +22,7 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Profiler = HydraProfiler;
+static const auto& Profiler = HydraProfiler;
 static const auto& Logger = HydraLogger;
 
 static const auto FlushThreadQuantum = TDuration::MilliSeconds(10);

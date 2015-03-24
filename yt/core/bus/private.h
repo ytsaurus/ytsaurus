@@ -14,7 +14,7 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger BusLogger;
-extern NProfiling::TProfiler BusProfiler;
+extern const NProfiling::TProfiler BusProfiler;
 
 struct TTcpInterfaceStatistics;
 

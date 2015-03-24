@@ -174,7 +174,7 @@ void TBlobChunkBase::DoReadBlocks(
             THROW_ERROR error;
         }
 
-        auto& locationProfiler = Location_->Profiler();
+        auto& locationProfiler = Location_->GetProfiler();
         i64 pendingSize = pendingReadSizeGuard.GetSize();
         locationProfiler.Enqueue("/blob_block_read_size", pendingSize);
         locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds());
@@ -211,7 +211,7 @@ void TBlobChunkBase::DoReadMeta(
     TChunkReadGuard /*readGuard*/,
     TPromise<void> promise)
 {
-    auto& Profiler = Location_->Profiler();
+    const auto& Profiler = Location_->GetProfiler();
     LOG_TRACE("Started reading chunk meta (ChunkId: %v, LocationId: %v)",
         Id_,
         Location_->GetId());

@@ -42,7 +42,7 @@ extern const double ApproximateSizesBoostFactor;
 
 extern const NLogging::TLogger SchedulerLogger;
 extern const NLogging::TLogger OperationLogger;
-extern NProfiling::TProfiler SchedulerProfiler;
+extern const NProfiling::TProfiler SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////
 
