@@ -62,7 +62,6 @@ public:
                     .Item("stderr")
                     .BeginMap()
                         .Item("type").Value("stderr")
-                        .Item("pattern").Value("$(datetime) $(level) $(category) $(message)")
                     .EndMap()
                 .EndMap()
             .EndMap();
