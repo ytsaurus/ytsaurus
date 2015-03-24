@@ -261,6 +261,14 @@ public:
         }
     }
 
+    void Configure(TLogConfigPtr&& config)
+    {
+        if (LoggingThread_->IsRunning()) {
+            LoggerQueue_.Enqueue(std::move(config));
+            EventCount_.NotifyOne();
+        }
+    }
+
     void Shutdown()
     {
         EventQueue_->Shutdown();
@@ -745,6 +753,11 @@ void TLogManager::Configure(INodePtr node)
 void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
 {
     Impl_->Configure(fileName, path);
+}
+
+void TLogManager::Configure(TLogConfigPtr&& config)
+{
+    Impl_->Configure(std::move(config));
 }
 
 void TLogManager::Shutdown()
