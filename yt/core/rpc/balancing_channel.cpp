@@ -75,7 +75,6 @@ private:
             IClientRequestPtr request)
             : Owner_(owner)
             , Request_(request)
-            , Promise_(NewPromise<IChannelPtr>())
             , Logger(Owner_->Logger)
         {
             Logger.AddTag("Service: %v", Request_->GetService());
@@ -89,12 +88,14 @@ private:
         }
 
     private:
-        TBalancingChannelProviderPtr Owner_;
-        IClientRequestPtr Request_;
+        const TBalancingChannelProviderPtr Owner_;
+        const IClientRequestPtr Request_;
+
+        TPromise<IChannelPtr> Promise_ = NewPromise<IChannelPtr>();
 
         TSpinLock SpinLock_;
-        TPromise<IChannelPtr> Promise_;
         yhash_set<Stroka> RequestedAddresses_;
+        std::vector<TError> InnerErrors_;
 
         NLogging::TLogger Logger;
 
@@ -107,8 +108,8 @@ private:
             while (true) {
                 auto pickResult = PickPeer();
                 
-                if (pickResult.Is<TNoAlivePeersLeft>()) {
-                    ReportError(TError(NRpc::EErrorCode::Unavailable, "No alive peers left"));
+                if (auto* error = pickResult.TryAs<TError>()) {
+                    Promise_.TrySet(*error);
                     return;
                 }
 
@@ -157,28 +158,24 @@ private:
 
                 if (up) {
                     Promise_.TrySet(channel);
-                } else {
-                    BanPeer(address, Owner_->Config_->SoftBackoffTime);
+                    return;
                 }
+
+                auto error = TError("Peer %v is down", address);
+                BanPeer(address, error, Owner_->Config_->SoftBackoffTime);
             } else {
-                LOG_WARNING(rspOrError, "Peer %v has failed to respond", address);
-                BanPeer(address, Owner_->Config_->HardBackoffTime);
+                auto error = TError("Discovery request failed for peer %v", address)
+                    << rspOrError;
+                LOG_WARNING(error);
+                BanPeer(address, error, Owner_->Config_->HardBackoffTime);
             }
 
             DoRun();
         }
 
-        void ReportError(const TError& error)
-        {
-            auto detailedError = error
-                << TErrorAttribute("endpoint", Owner_->GetEndpointDescription());
-            Promise_.TrySet(detailedError);
-        }
-
-        struct TNoAlivePeersLeft { };
         struct TTooManyConcurrentRequests { };
 
-        TVariant<Stroka, TNoAlivePeersLeft, TTooManyConcurrentRequests> PickPeer()
+        TVariant<Stroka, TError, TTooManyConcurrentRequests> PickPeer()
         {
             TGuard<TSpinLock> thisGuard(SpinLock_);
             TGuard<TSpinLock> ownerGuard(Owner_->SpinLock_);
@@ -198,7 +195,9 @@ private:
 
             if (candidates.empty()) {
                 if (RequestedAddresses_.empty()) {
-                    return TNoAlivePeersLeft();
+                    return TError(NRpc::EErrorCode::Unavailable, "No alive peers left")
+                         << InnerErrors_
+                         << TErrorAttribute("endpoint", Owner_->GetEndpointDescription());
                 } else {
                     return TTooManyConcurrentRequests();
                 }
@@ -209,12 +208,13 @@ private:
             return result;
         }
 
-       void BanPeer(const Stroka& address, TDuration backoffTime)
+       void BanPeer(const Stroka& address, const TError& error, TDuration backoffTime)
        {
             {
                 TGuard<TSpinLock> thisGuard(SpinLock_);
                 TGuard<TSpinLock> ownerGuard(Owner_->SpinLock_);
                 YCHECK(RequestedAddresses_.erase(address) == 1);
+                InnerErrors_.push_back(error);
                 if (Owner_->ActiveAddresses_.erase(address) != 1)
                     return;
                 Owner_->BannedAddresses_.insert(address);
@@ -255,7 +255,7 @@ private:
         }
     }
 
-    void OnPeerBanTimeout(const Stroka &address)
+    void OnPeerBanTimeout(const Stroka& address)
     {
         {
             TGuard<TSpinLock> guard(SpinLock_);
