@@ -1,6 +1,5 @@
 #pragma once
 
-#include "functions.h"
 #include "public.h"
 
 #include <unordered_map>
@@ -14,7 +13,7 @@ class TFunctionRegistry
 {
 public:
     void RegisterFunction(IFunctionDescriptorPtr descriptor);
-    IFunctionDescriptor& GetFunction(const Stroka& functionName);
+    IFunctionDescriptor& GetFunction(const Stroka& functionName) const;
 
     bool IsRegistered(const Stroka& functionName);
 
@@ -22,6 +21,7 @@ private:
     std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
 };
 
+TFunctionRegistry CreateBuiltinFunctionRegistry();
 TFunctionRegistry* GetFunctionRegistry();
 
 ////////////////////////////////////////////////////////////////////////////////

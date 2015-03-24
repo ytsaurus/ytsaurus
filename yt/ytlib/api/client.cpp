@@ -203,10 +203,12 @@ public:
     TQueryHelper(
         IConnectionPtr connection,
         IChannelPtr masterChannel,
-        IChannelFactoryPtr nodeChannelFactory)
+        IChannelFactoryPtr nodeChannelFactory,
+        const TFunctionRegistry& functionRegistry)
         : Connection_(std::move(connection))
         , MasterChannel_(std::move(masterChannel))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
+        , FunctionRegistry_(functionRegistry)
     { }
 
     // IPrepareCallbacks implementation.
@@ -239,6 +241,7 @@ private:
     const IConnectionPtr Connection_;
     const IChannelPtr MasterChannel_;
     const IChannelFactoryPtr NodeChannelFactory_;
+    const TFunctionRegistry& FunctionRegistry_;
 
 
     TDataSplit DoGetInitialSplit(
@@ -444,6 +447,7 @@ private:
             fragment->Query,
             fragment->DataSources,
             Connection_->GetColumnEvaluatorCache(),
+            FunctionRegistry_,
             fragment->VerboseLogging);
         auto splits = Split(prunedSources, nodeDirectory, Logger, fragment->VerboseLogging);
 
@@ -509,6 +513,7 @@ private:
             fragment->Query,
             fragment->DataSources,
             Connection_->GetColumnEvaluatorCache(),
+            FunctionRegistry_,
             fragment->VerboseLogging);
         auto splits = Split(prunedSplits, nodeDirectory, Logger, fragment->VerboseLogging);
 
@@ -585,6 +590,7 @@ public:
         : Connection_(std::move(connection))
         , Options_(options)
         , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
+        , FunctionRegistry_(CreateBuiltinFunctionRegistry())
     {
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
             MasterChannels_[kind] = Connection_->GetMasterChannel(kind);
@@ -620,7 +626,8 @@ public:
         QueryHelper_ = New<TQueryHelper>(
             Connection_,
             GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
-            NodeChannelFactory_);
+            NodeChannelFactory_,
+            FunctionRegistry_);
 
         Logger.AddTag("Client: %p", this);
     }
@@ -901,6 +908,8 @@ private:
     const TClientOptions Options_;
 
     const IInvokerPtr Invoker_;
+
+    const TFunctionRegistry FunctionRegistry_;
 
     TEnumIndexedVector<IChannelPtr, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;

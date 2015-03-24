@@ -17,7 +17,7 @@ void TFunctionRegistry::RegisterFunction(TIntrusivePtr<IFunctionDescriptor> func
     YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(function))).second);
 }
 
-IFunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName)
+IFunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName) const
 {
     return *RegisteredFunctions_.at(to_lower(functionName));
 }
@@ -49,6 +49,13 @@ void RegisterFunctionsImpl(TFunctionRegistry* registry)
     registry->RegisterFunction(New<TCastFunction>(
         EValueType::Double,
         "double"));
+}
+
+TFunctionRegistry CreateBuiltinFunctionRegistry()
+{
+    TFunctionRegistry registry;
+    RegisterFunctionsImpl(&registry);
+    return registry;
 }
 
 TFunctionRegistry* GetFunctionRegistry()

@@ -449,7 +449,7 @@ protected:
                 GetBothBoundsFromDataSplit(split)});
         }
 
-        auto prunedSplits = GetPrunedSources(planFragment->Query, sources, ColumnEvaluatorCache_, true);
+        auto prunedSplits = GetPrunedSources(planFragment->Query, sources, ColumnEvaluatorCache_, CreateBuiltinFunctionRegistry(), true);
 
         EXPECT_EQ(prunedSplits.size(), subqueriesCount);
     }
@@ -605,7 +605,8 @@ TKeyRange RefineKeyRange(
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         keyColumns,
-        &rowBuffer);
+        &rowBuffer,
+        CreateBuiltinFunctionRegistry());
 
     auto result = GetRangesFromTrieWithinRange(keyRange, keyTrie);
 
@@ -1245,7 +1246,8 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer);
+        &rowBuffer,
+        CreateBuiltinFunctionRegistry());
 
     std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -1273,7 +1275,8 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer);
+        &rowBuffer,
+        CreateBuiltinFunctionRegistry());
 
     std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -1301,7 +1304,8 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer);
+        &rowBuffer,
+        CreateBuiltinFunctionRegistry());
 
     std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -2819,6 +2823,7 @@ protected:
             planFragment->Query,
             planFragment->DataSources,
             ColumnEvaluatorCache_,
+            CreateBuiltinFunctionRegistry(),
             true);
 
         return GetRangesFromSources(prunedSplits);
@@ -2838,6 +2843,7 @@ protected:
             query->JoinClause->ForeignKeyColumns,
             foreignSplits,
             ColumnEvaluatorCache_,
+            CreateBuiltinFunctionRegistry(),
             true);
 
         return GetRangesFromSources(prunedSplits);

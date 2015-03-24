@@ -8,6 +8,7 @@
 #include "lexer.h"
 #include "parser.hpp"
 #include "callbacks.h"
+#include "functions.h"
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
