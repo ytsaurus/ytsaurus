@@ -211,7 +211,7 @@ class TestJobProber(YTEnvSetup):
     def test_strace_job(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write("//tmp/t1", {"foo": "bar"})
+        write_table("//tmp/t1", {"foo": "bar"})
 
         tmpdir = tempfile.mkdtemp(prefix="strace_job")
 
