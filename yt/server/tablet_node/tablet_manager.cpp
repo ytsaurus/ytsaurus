@@ -198,6 +198,7 @@ public:
         securityManager->ValidatePermission(tablet->GetSnapshot(), EPermission::Write);
 
         ValidateTabletMounted(tablet);
+        ValidateStoreLimit(tablet);
         ValidateTransactionActive(transaction);
         ValidateMemoryLimit();
 
