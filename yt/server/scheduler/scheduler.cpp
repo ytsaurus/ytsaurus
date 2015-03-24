@@ -1116,7 +1116,7 @@ private:
             throw TFiberCanceledException();
         }
 
-        if (operation->GetEnqueued()) {
+        if (operation->GetQueued()) {
             operation->SetState(EOperationState::Pending);
         } else {
             operation->SetState(EOperationState::Running);
@@ -1231,7 +1231,7 @@ private:
         // Discard the snapshot, if any.
         operation->Snapshot().Reset();
 
-        if (operation->GetEnqueued()) {
+        if (operation->GetQueued()) {
             operation->SetState(EOperationState::Pending);
         } else {
             operation->SetState(EOperationState::Running);
