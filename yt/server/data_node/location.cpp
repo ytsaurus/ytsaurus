@@ -100,6 +100,11 @@ const Stroka& TLocation::GetId() const
     return Id_;
 }
 
+const NProfiling::TProfiler& TLocation::GetProfiler()
+{
+    return Profiler_;
+}
+
 void TLocation::UpdateUsedSpace(i64 size)
 {
     if (!IsEnabled())

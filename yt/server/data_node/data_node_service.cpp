@@ -63,9 +63,9 @@ using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Profiler = DataNodeProfiler;
-static auto ProfilingPeriod = TDuration::MilliSeconds(100);
+static const auto& Profiler = DataNodeProfiler;
 
+static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 static const size_t MaxSampleSize = 4 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////

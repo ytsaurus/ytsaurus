@@ -47,6 +47,9 @@ public:
     //! Returns string id.
     const Stroka& GetId() const;
 
+    //! Returns the profiler tagged with location id.
+    const NProfiling::TProfiler& GetProfiler();
+
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     //! If the scan fails, the location becomes disabled, |Disabled| signal is raised, and an empty list is returned.
     std::vector<TChunkDescriptor> Initialize();
@@ -137,14 +140,13 @@ public:
      */
     DEFINE_SIGNAL(void(const TError&), Disabled);
 
-    //! The profiler tagged with location id.
-    DEFINE_BYREF_RW_PROPERTY(NProfiling::TProfiler, Profiler);
-
 private:
     const ELocationType Type_;
     const Stroka Id_;
     const TLocationConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
+
+    NProfiling::TProfiler Profiler_;
 
     std::atomic<bool> Enabled_ = {false};
 

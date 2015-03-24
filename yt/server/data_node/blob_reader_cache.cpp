@@ -58,7 +58,7 @@ public:
         YCHECK(chunk->IsReadLockAcquired());
 
         auto location = chunk->GetLocation();
-        auto& Profiler = location->Profiler();
+        const auto& Profiler = location->GetProfiler();
 
         auto chunkId = chunk->GetId();
         TInsertCookie cookie(chunkId);

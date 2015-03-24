@@ -63,7 +63,7 @@ using NNodeTrackerClient::TNodeDescriptor;
 ////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
-static auto& Profiler = SchedulerProfiler;
+static const auto& Profiler = SchedulerProfiler;
 static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////

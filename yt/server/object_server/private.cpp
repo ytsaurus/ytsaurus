@@ -7,7 +7,7 @@ namespace NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger ObjectServerLogger("ObjectServer");
-NProfiling::TProfiler ObjectServerProfiler("/object_server");
+const NProfiling::TProfiler ObjectServerProfiler("/object_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 

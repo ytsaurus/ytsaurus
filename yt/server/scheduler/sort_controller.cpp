@@ -35,7 +35,7 @@ using NVersionedTableClient::TOwningKey;
 
 ////////////////////////////////////////////////////////////////////
 
-static NProfiling::TProfiler Profiler("/operations/sort");
+static const NProfiling::TProfiler Profiler("/operations/sort");
 
 //! Maximum number of buckets for partition progress aggregation.
 static const int MaxProgressBuckets = 100;

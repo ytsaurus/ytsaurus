@@ -60,7 +60,6 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = NodeTrackerServerLogger;
-static auto& Profiler = NodeTrackerServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,7 +89,7 @@ public:
         TRspCreateObjects* response) override;
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
     virtual Stroka DoGetName(TRack* rack) override
     {
@@ -431,7 +430,9 @@ public:
 private:
     friend class TRackTypeHandler;
 
-    TNodeTrackerConfigPtr Config_;
+    const TNodeTrackerConfigPtr Config_;
+
+    NProfiling::TProfiler Profiler = NodeTrackerServerProfiler;
 
     TIdGenerator NodeIdGenerator_;
     NHydra::TEntityMap<TNodeId, TNode> NodeMap_;

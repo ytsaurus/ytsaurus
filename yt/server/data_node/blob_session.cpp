@@ -243,7 +243,7 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 
     LOG_DEBUG("Finished writing block %v", blockIndex);
 
-    auto& locationProfiler = Location_->Profiler();
+    auto& locationProfiler = Location_->GetProfiler();
     locationProfiler.Enqueue("/blob_block_write_size", block.Size());
     locationProfiler.Enqueue("/blob_block_write_time", writeTime.MicroSeconds());
     locationProfiler.Enqueue("/blob_block_write_throughput", block.Size() * 1000000 / (1 + writeTime.MicroSeconds()));

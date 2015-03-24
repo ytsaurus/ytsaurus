@@ -36,7 +36,7 @@ TSessionBase::TSessionBase(
     , Lease_(lease)
     , WriteInvoker_(CreateSerializedInvoker(Location_->GetWritePoolInvoker()))
     , Logger(DataNodeLogger)
-    , Profiler(location->Profiler())
+    , Profiler(location->GetProfiler())
 {
     YCHECK(bootstrap);
     YCHECK(location);

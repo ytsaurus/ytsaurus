@@ -1062,7 +1062,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
     GarbageCollector_->CheckEmpty();
 }
 
-NProfiling::TProfiler& TObjectManager::GetProfiler()
+const NProfiling::TProfiler& TObjectManager::GetProfiler()
 {
     return Profiler;
 }

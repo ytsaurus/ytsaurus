@@ -208,7 +208,7 @@ private:
 
         IChangelogPtr changelog;
 
-        auto& Profiler = location->Profiler();
+        const auto& Profiler = location->GetProfiler();
         PROFILE_TIMING("/journal_chunk_create_time") {
             try {
                 auto fileName = location->GetChunkPath(chunkId);
@@ -244,7 +244,7 @@ private:
             location->GetId(),
             chunkId);
 
-        auto& Profiler = location->Profiler();
+        const auto& Profiler = location->GetProfiler();
         PROFILE_TIMING("/journal_chunk_open_time") {
             try {
                 auto changelog = ChangelogDispatcher_->OpenChangelog(
@@ -279,7 +279,7 @@ private:
         TAsyncSlruCacheBase::TryRemove(chunkId);
 
         auto location = chunk->GetLocation();
-        auto& Profiler = location->Profiler();
+        const auto& Profiler = location->GetProfiler();
         PROFILE_TIMING("/journal_chunk_remove_time") {
             chunk->SyncRemove(false);
         }

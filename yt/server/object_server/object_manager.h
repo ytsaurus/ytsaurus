@@ -191,7 +191,7 @@ public:
     //! Validates prerequisites, throws on failure.
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
 
-    NProfiling::TProfiler& GetProfiler();
+    const NProfiling::TProfiler& GetProfiler();
     NProfiling::TTagId GetTypeTagId(EObjectType type);
     NProfiling::TTagId GetMethodTagId(const Stroka& method);
 
