@@ -255,8 +255,16 @@ class TestTablets(YTEnvSetup):
         self._sync_mount_table("//tmp/t1")
         self._sync_unmount_table("//tmp/t1")
 
+        table_id1 = get("//tmp/t1/@id")
+        tablet_id = get("//tmp/t1/@tablets/0/tablet_id")
+        assert get("#" + tablet_id + "/@table_id") == table_id1
+
         move("//tmp/t1", "//tmp/t2")
 
+        table_id2 = get("//tmp/t2/@id")
+        assert get("#" + tablet_id + "/@table_id") == table_id2
+
+        
     def test_any_value_type(self):
         self._sync_create_cells(1, 1)
         create("table", "//tmp/t1",
