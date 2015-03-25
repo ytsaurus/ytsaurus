@@ -12,12 +12,7 @@
 #include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/sequential_reader.h>
-
-#include <core/compression/public.h>
-
-#include <core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -33,12 +28,12 @@ using NChunkClient::TReadLimit;
 
 struct TVersionedChunkReaderPoolTag { };
 
-class TVersionedChunkReader
+class TVersionedChunkReaderBase
     : public IVersionedReader
     , public TChunkReaderBase
 {
 public:
-    TVersionedChunkReader(
+    TVersionedChunkReaderBase(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
@@ -48,9 +43,7 @@ public:
         const TColumnFilter& columnFilter,
         TTimestamp timestamp);
 
-    virtual bool Read(std::vector<TVersionedRow>* rows) override;
-
-private:
+protected:
     const TTimestamp Timestamp_;
 
     TCachedVersionedChunkMetaPtr CachedChunkMeta_;
@@ -60,22 +53,10 @@ private:
 
     TChunkedMemoryPool MemoryPool_;
 
-    int CurrentBlockIndex_ = 0;
-    i64 CurrentRowIndex_ = 0;
-
     i64 RowCount_ = 0;
-
-
-    virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
-
-    virtual void InitFirstBlock() override;
-    virtual void InitNextBlock() override;
-
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-TVersionedChunkReader::TVersionedChunkReader(
+TVersionedChunkReaderBase::TVersionedChunkReaderBase(
     TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
     IChunkReaderPtr underlyingReader,
@@ -114,7 +95,57 @@ TVersionedChunkReader::TVersionedChunkReader(
     }
 }
 
-bool TVersionedChunkReader::Read(std::vector<TVersionedRow>* rows)
+////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedRangeChunkReader
+    : public TVersionedChunkReaderBase
+{
+public:
+    TVersionedRangeChunkReader(
+        TChunkReaderConfigPtr config,
+        TCachedVersionedChunkMetaPtr chunkMeta,
+        IChunkReaderPtr underlyingReader,
+        IBlockCachePtr uncompressedBlockCache,
+        TReadLimit lowerLimit,
+        TReadLimit upperLimit,
+        const TColumnFilter& columnFilter,
+        TTimestamp timestamp);
+
+    virtual bool Read(std::vector<TVersionedRow>* rows) override;
+
+private:
+    int CurrentBlockIndex_ = 0;
+    i64 CurrentRowIndex_ = 0;
+
+    virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
+
+    virtual void InitFirstBlock() override;
+    virtual void InitNextBlock() override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TVersionedRangeChunkReader::TVersionedRangeChunkReader(
+    TChunkReaderConfigPtr config,
+    TCachedVersionedChunkMetaPtr chunkMeta,
+    IChunkReaderPtr underlyingReader,
+    IBlockCachePtr uncompressedBlockCache,
+    TReadLimit lowerLimit,
+    TReadLimit upperLimit,
+    const TColumnFilter& columnFilter,
+    TTimestamp timestamp)
+    : TVersionedChunkReaderBase(
+        std::move(config),
+        std::move(chunkMeta),
+        std::move(underlyingReader),
+        std::move(uncompressedBlockCache),
+        std::move(lowerLimit),
+        std::move(upperLimit),
+        columnFilter,
+        timestamp)
+{ }
+
+bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
 {
     YCHECK(rows->capacity() > 0);
 
@@ -166,7 +197,7 @@ bool TVersionedChunkReader::Read(std::vector<TVersionedRow>* rows)
     return true;
 }
 
-std::vector<TSequentialReader::TBlockInfo> TVersionedChunkReader::GetBlockSequence()
+std::vector<TSequentialReader::TBlockInfo> TVersionedRangeChunkReader::GetBlockSequence()
 {
     const auto& blockMetaExt = CachedChunkMeta_->BlockMeta();
     const auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
@@ -193,7 +224,7 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedChunkReader::GetBlockSequen
     return blocks;
 }
 
-void TVersionedChunkReader::InitFirstBlock()
+void TVersionedRangeChunkReader::InitFirstBlock()
 {
     BlockReader_.reset(new TSimpleVersionedBlockReader(
         SequentialReader_->GetCurrentBlock(),
@@ -215,7 +246,7 @@ void TVersionedChunkReader::InitFirstBlock()
     }
 }
 
-void TVersionedChunkReader::InitNextBlock()
+void TVersionedRangeChunkReader::InitNextBlock()
 {
     ++CurrentBlockIndex_;
     BlockReader_.reset(new TSimpleVersionedBlockReader(
@@ -242,7 +273,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
     switch (formatVersion) {
         case ETableChunkFormat::VersionedSimple:
-            return New<TVersionedChunkReader>(
+            return New<TVersionedRangeChunkReader>(
                 std::move(config),
                 std::move(chunkMeta),
                 std::move(chunkReader),
@@ -255,6 +286,186 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         default:
             YUNREACHABLE();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedLookupChunkReader
+    : public TVersionedChunkReaderBase
+{
+public:
+    TVersionedLookupChunkReader(
+        TChunkReaderConfigPtr config,
+        TCachedVersionedChunkMetaPtr chunkMeta,
+        IChunkReaderPtr underlyingReader,
+        IBlockCachePtr uncompressedBlockCache,
+        const std::vector<TKey>& keys,
+        const TColumnFilter& columnFilter,
+        TTimestamp timestamp);
+
+    virtual bool Read(std::vector<TVersionedRow>* rows) override;
+
+private:
+    std::vector<TKey> Keys_;
+    std::vector<int> BlockIndexes_;
+
+    int CurrentBlockIndex_ = -1;
+
+    virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
+
+    virtual void InitFirstBlock() override;
+    virtual void InitNextBlock() override;
+};
+
+TVersionedLookupChunkReader::TVersionedLookupChunkReader(
+    TChunkReaderConfigPtr config,
+    TCachedVersionedChunkMetaPtr chunkMeta,
+    IChunkReaderPtr underlyingReader,
+    IBlockCachePtr uncompressedBlockCache,
+    const std::vector<TKey>& keys,
+    const TColumnFilter& columnFilter,
+    TTimestamp timestamp)
+    : TVersionedChunkReaderBase(
+        std::move(config),
+        std::move(chunkMeta),
+        std::move(underlyingReader),
+        std::move(uncompressedBlockCache),
+        TReadLimit(),
+        TReadLimit(),
+        columnFilter,
+        timestamp)
+    , Keys_(keys)
+{ }
+
+std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlockSequence()
+{
+    const auto& blockMetaExt = CachedChunkMeta_->BlockMeta();
+    const auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
+
+    std::vector<TSequentialReader::TBlockInfo> blocks;
+    if (Keys_.empty()) {
+        return blocks;
+    }
+
+    for (const auto& key : Keys_) {
+        int blockIndex = GetBlockIndexByKey(
+            key, 
+            blockIndexKeys, 
+            BlockIndexes_.empty() ? 0 : BlockIndexes_.back());
+
+        if (blockIndex == blockIndexKeys.size()) {
+            break;
+        }
+        if (BlockIndexes_.empty() || BlockIndexes_.back() < blockIndex) {
+            BlockIndexes_.push_back(blockIndex);
+        }
+        YCHECK(blockIndex == BlockIndexes_.back());
+        YCHECK(blockIndex < blockIndexKeys.size());
+    }
+
+    for (int blockIndex : BlockIndexes_) {
+        auto& blockMeta = blockMetaExt.blocks(blockIndex);
+        TSequentialReader::TBlockInfo blockInfo;
+        blockInfo.Index = blockIndex;
+        blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
+        blocks.push_back(blockInfo);
+    }
+
+    return blocks;
+}
+
+void TVersionedLookupChunkReader::InitFirstBlock()
+{
+    InitNextBlock();
+}
+
+void TVersionedLookupChunkReader::InitNextBlock()
+{
+    ++CurrentBlockIndex_;
+    int chunkBlockIndex = BlockIndexes_ [CurrentBlockIndex_];
+    BlockReader_.reset(new TSimpleVersionedBlockReader(
+        SequentialReader_->GetCurrentBlock(),
+        CachedChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
+        CachedChunkMeta_->ChunkSchema(),
+        CachedChunkMeta_->KeyColumns(),
+        SchemaIdMapping_,
+        Timestamp_));
+}
+
+bool TVersionedLookupChunkReader::Read(std::vector<TVersionedRow>* rows)
+{
+    YCHECK(rows->capacity() > 0);
+
+    MemoryPool_.Clear();
+    rows->clear();
+
+    if (!ReadyEvent_.IsSet()) {
+        // Waiting for the next block.
+        return true;
+    }
+
+    if (!BlockReader_) {
+        // Nothing to read from chunk.
+        if (RowCount_ == Keys_.size()) {
+            return false;
+        }
+
+        while (rows->size() < rows->capacity() && RowCount_ < Keys_.size()) {
+            rows->push_back(TVersionedRow());
+            ++RowCount_;
+        }
+        return true;
+    }
+
+    if (BlockEnded_) {
+        BlockReader_.reset();
+        OnBlockEnded();
+        return true;
+    }
+
+    while (rows->size() < rows->capacity()) {
+        if (RowCount_ == Keys_.size()) {
+            BlockEnded_ = true;
+            return true;
+        }
+
+        const auto& key = Keys_[RowCount_];
+        if (!BlockReader_->SkipToKey(key)) {
+            BlockEnded_ = true;
+            return true;
+        }
+
+        if (key == BlockReader_->GetKey()) {
+            auto row = BlockReader_->GetRow(&MemoryPool_);
+            rows->push_back(row);
+        } else {
+            rows->push_back(TVersionedRow());
+        }
+        ++RowCount_;
+    }
+
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IVersionedReaderPtr CreateVersionedChunkReader(
+    TChunkReaderConfigPtr config,
+    NChunkClient::IChunkReaderPtr chunkReader,
+    NChunkClient::IBlockCachePtr uncompressedBlockCache,
+    TCachedVersionedChunkMetaPtr chunkMeta,
+    const std::vector<TKey>& keys,
+    const TColumnFilter& columnFilter,
+    TTimestamp timestamp)
+{
+    return New<TVersionedLookupChunkReader>(
+        std::move(config),
+        std::move(chunkMeta),
+        std::move(chunkReader),
+        std::move(uncompressedBlockCache),
+        keys,
+        columnFilter,
+        timestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
