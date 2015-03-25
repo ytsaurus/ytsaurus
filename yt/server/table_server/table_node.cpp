@@ -226,6 +226,7 @@ protected:
             for (auto* tablet : sourceNode->Tablets()) {
                 objectManager->RefObject(tablet);
                 clonedNode->Tablets().push_back(tablet);
+                tablet->SetTable(clonedNode);
             }
         }
     }
