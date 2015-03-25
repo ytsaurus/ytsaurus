@@ -159,7 +159,8 @@ private:
 
     TAccessTrackerPtr AccessTracker;
 
-    bool RecomputeKeyColumns;
+    bool RecomputeKeyColumns = false;
+    bool RecomputeTabletOwners = false;
     
     
     void RegisterNode(TCypressNodeBase* node);

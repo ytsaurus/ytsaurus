@@ -31,6 +31,7 @@
 
 // COMPAT(babenko): Reconstruct KeyColumns and Sorted flags for tables
 #include <server/table_server/table_node.h>
+#include <server/tablet_server/tablet.h>
 #include <server/chunk_server/chunk_list.h>
 
 namespace NYT {
@@ -442,7 +443,6 @@ TCypressManager::TCypressManager(
     , NodeMap(TNodeMapTraits(this))
     , RootNode(nullptr)
     , AccessTracker(New<TAccessTracker>(config, bootstrap))
-    , RecomputeKeyColumns(false)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(bootstrap->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
@@ -1263,6 +1263,8 @@ void TCypressManager::LoadValues(NCellMaster::TLoadContext& context)
 
     // COMPAT(babenko)
     RecomputeKeyColumns = (context.GetVersion() < 100);
+    // COMPAT(babenko)
+    RecomputeTabletOwners = (context.GetVersion() < 115);
 }
 
 void TCypressManager::OnAfterSnapshotLoaded()
@@ -1285,6 +1287,18 @@ void TCypressManager::OnAfterSnapshotLoaded()
                 tableNode->SetSorted(!chunkList->LegacySortedBy().empty());
                 tableNode->KeyColumns() = chunkList->LegacySortedBy();
                 chunkList->LegacySortedBy().clear();
+            }
+        }
+    }
+
+    // COMPAT(babenko)
+    if (RecomputeTabletOwners) {
+        for (const auto& pair : NodeMap) {
+            if (TypeFromId(pair.first.ObjectId) == EObjectType::Table) {
+                auto* table = dynamic_cast<NTableServer::TTableNode*>(pair.second);
+                for (auto* tablet : table->Tablets()) {
+                    tablet->SetTable(table);
+                }
             }
         }
     }
