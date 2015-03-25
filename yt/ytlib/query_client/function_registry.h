@@ -1,7 +1,8 @@
 #pragma once
 
-#include "functions.h"
 #include "public.h"
+
+#include <ytlib/api/public.h>
 
 #include <unordered_map>
 
@@ -11,6 +12,7 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFunctionRegistry
+    : public TRefCounted
 {
 public:
     void RegisterFunction(IFunctionDescriptorPtr descriptor);
@@ -22,7 +24,10 @@ private:
     std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
 };
 
-TFunctionRegistry* GetFunctionRegistry();
+DEFINE_REFCOUNTED_TYPE(TFunctionRegistry)
+
+TFunctionRegistryPtr CreateBuiltinFunctionRegistry();
+TFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client);
 
 ////////////////////////////////////////////////////////////////////////////////
 

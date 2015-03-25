@@ -303,7 +303,7 @@ protected:
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { PreparePlanFragment(&PrepareMock_, query); },
+            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry()); },
             matcher);
     }
 
@@ -316,7 +316,7 @@ TEST_F(TQueryPrepareTest, Simple)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3");
+    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3", CreateBuiltinFunctionRegistry());
 }
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -393,7 +393,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, query);
+    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry());
 }
 
 TEST_F(TQueryPrepareTest, ResultSchemaCollision)
@@ -435,12 +435,12 @@ protected:
             .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
     }
 
     void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source);
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
 
         TDataSources sources;
         for (const auto& split : dataSplits) {
@@ -449,7 +449,7 @@ protected:
                 GetBothBoundsFromDataSplit(split)});
         }
 
-        auto prunedSplits = GetPrunedSources(planFragment->Query, sources, ColumnEvaluatorCache_, true);
+        auto prunedSplits = GetPrunedSources(planFragment->Query, sources, ColumnEvaluatorCache_, CreateBuiltinFunctionRegistry(), true);
 
         EXPECT_EQ(prunedSplits.size(), subqueriesCount);
     }
@@ -605,7 +605,8 @@ TKeyRange RefineKeyRange(
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         keyColumns,
-        &rowBuffer);
+        &rowBuffer,
+        CreateBuiltinFunctionRegistry());
 
     auto result = GetRangesFromTrieWithinRange(keyRange, keyTrie);
 
@@ -1245,7 +1246,8 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer);
+        &rowBuffer,
+        CreateBuiltinFunctionRegistry());
 
     std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -1273,7 +1275,8 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer);
+        &rowBuffer,
+        CreateBuiltinFunctionRegistry());
 
     std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -1301,7 +1304,8 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer);
+        &rowBuffer,
+        CreateBuiltinFunctionRegistry());
 
     std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -1664,7 +1668,8 @@ struct TQueryExecutor
 
                 return WaitFor(subqueryResult)
                     .ValueOrThrow();
-            }));
+            },
+            CreateBuiltinFunctionRegistry()));
     }
 };
 
@@ -1784,7 +1789,7 @@ protected:
             executor = newExecutor;
         }
 
-        executor->Execute(PreparePlanFragment(&PrepareMock_, query, inputRowLimit, outputRowLimit), WriterMock_);
+        executor->Execute(PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry(), inputRowLimit, outputRowLimit), WriterMock_);
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
@@ -2733,7 +2738,7 @@ TEST_P(TEvaluateExpressionTest, Basic)
 
     TCGVariables variables;
 
-    auto callback = Profile(expr, schema, nullptr, &variables, nullptr)();
+    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
 
     auto row = NVersionedTableClient::BuildRow(rowString, keyColumns, schema, true);
     TUnversionedValue result;
@@ -2809,16 +2814,17 @@ protected:
             .WillRepeatedly(Invoke(this, &TComputedColumnTest::MakeSimpleSplit));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
     }
 
     std::vector<TKeyRange> Coordinate(const Stroka& source)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source);
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
         auto prunedSplits = GetPrunedSources(
             planFragment->Query,
             planFragment->DataSources,
             ColumnEvaluatorCache_,
+            CreateBuiltinFunctionRegistry(),
             true);
 
         return GetRangesFromSources(prunedSplits);
@@ -2826,7 +2832,7 @@ protected:
 
     std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source);
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
 
         TDataSources foreignSplits{planFragment->ForeignDataSource};
 
@@ -2838,6 +2844,7 @@ protected:
             query->JoinClause->ForeignKeyColumns,
             foreignSplits,
             ColumnEvaluatorCache_,
+            CreateBuiltinFunctionRegistry(),
             true);
 
         return GetRangesFromSources(prunedSplits);

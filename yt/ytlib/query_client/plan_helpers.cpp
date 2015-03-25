@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "plan_helpers.h"
 #include "key_trie.h"
+#include "functions.h"
 
 #include "private.h"
 #include "helpers.h"
@@ -36,7 +37,8 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
 TKeyTrieNode ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
-    TRowBuffer* rowBuffer)
+    TRowBuffer* rowBuffer,
+    const TFunctionRegistryPtr functionRegistry)
 {
     if (!expr) {
         return TKeyTrieNode::Universal();
@@ -49,12 +51,12 @@ TKeyTrieNode ExtractMultipleConstraints(
 
         if (opcode == EBinaryOp::And) {
             return IntersectKeyTrie(
-                ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer),
-                ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer));
+                ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer, functionRegistry),
+                ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer, functionRegistry));
         } if (opcode == EBinaryOp::Or) {
             return UniteKeyTrie(
-                ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer),
-                ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer));
+                ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer, functionRegistry),
+                ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer, functionRegistry));
         } else {
             if (rhsExpr->As<TReferenceExpression>()) {
                 // Ensure that references are on the left.
@@ -120,7 +122,7 @@ TKeyTrieNode ExtractMultipleConstraints(
         }
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         Stroka functionName = functionExpr->FunctionName;
-        auto& function = GetFunctionRegistry()->GetFunction(functionName);
+        auto& function = functionRegistry->GetFunction(functionName);
 
         return function.ExtractKeyRange(functionExpr, keyColumns, rowBuffer);
     } else if (auto inExpr = expr->As<TInOpExpression>()) {

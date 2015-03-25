@@ -350,7 +350,8 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
         if (columnSchema.Expression) {
             if (index < keyColumns.size()) {
 #ifdef YT_USE_LLVM
-                auto expr = PrepareExpression(columnSchema.Expression.Get(), schema);
+                auto functionRegistry = CreateBuiltinFunctionRegistry();
+                auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, functionRegistry);
                 if (expr->Type != columnSchema.Type) {
                     THROW_ERROR_EXCEPTION("Computed column %Qv type mismatch: declared type %v but expression type is %v",
                         columnSchema.Name,
@@ -359,7 +360,7 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
                 }
 
                 yhash_set<Stroka> references;
-                Profile(expr, schema, nullptr, nullptr, &references);
+                Profile(expr, schema, nullptr, nullptr, &references, functionRegistry);
                 for (const auto& ref : references) {
                     if (schema.GetColumnIndexOrThrow(ref) >= keyColumns.size()) {
                         THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",

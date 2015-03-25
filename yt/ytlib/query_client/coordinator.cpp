@@ -65,32 +65,33 @@ public:
        const TTableSchema& schema,
        const TKeyColumns& keyColumns,
        const TColumnEvaluatorCachePtr& evaluatorCache,
+       const TFunctionRegistryPtr functionRegistry,
        bool verboseLogging)
     {
         if (/*splits.size() == 0 ||*/ !predicate) {
-            Impl_ = std::make_unique<TRangeInferrerLight>(predicate, TKeyColumns(), verboseLogging);
+            Impl_ = std::make_unique<TRangeInferrerLight>(predicate, TKeyColumns(), functionRegistry, verboseLogging);
             return;
         }
 
 #ifdef YT_USE_LLVM
         if (!schema.HasComputedColumns()) {
-            Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, verboseLogging);
+            Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, functionRegistry, verboseLogging);
             return;
         }
 
         yhash_set<Stroka> references;
-        Profile(predicate, schema, nullptr, nullptr, &references);
+        Profile(predicate, schema, nullptr, nullptr, &references, functionRegistry);
 
         for (const auto& reference : references) {
             if (schema.GetColumnOrThrow(reference).Expression) {
-                Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, verboseLogging);
+                Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, functionRegistry, verboseLogging);
                 return;
             }
         }
 
-        Impl_ = std::make_unique<TRangeInferrerHeavy>(predicate, schema, keyColumns, evaluatorCache, verboseLogging);
+        Impl_ = std::make_unique<TRangeInferrerHeavy>(predicate, schema, keyColumns, evaluatorCache, functionRegistry, verboseLogging);
 #else
-        Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, verboseLogging);
+        Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, functionRegistry, verboseLogging);
 #endif
     }
 
@@ -118,9 +119,10 @@ private:
         TRangeInferrerLight(
            const TConstExpressionPtr& predicate,
            const TKeyColumns& keyColumns,
+           const TFunctionRegistryPtr functionRegistry,
            bool verboseLogging)
         {
-            KeyTrie_ = ExtractMultipleConstraints(predicate, keyColumns, &KeyTrieBuffer_);
+            KeyTrie_ = ExtractMultipleConstraints(predicate, keyColumns, &KeyTrieBuffer_, functionRegistry);
 
             LOG_DEBUG_IF(verboseLogging, "Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
         }
@@ -145,6 +147,7 @@ private:
             const TTableSchema& schema,
             const TKeyColumns& keyColumns,
             const TColumnEvaluatorCachePtr& evaluatorCache,
+            const TFunctionRegistryPtr functionRegistry,
             bool verboseLogging)
             : Schema_(schema)
             , KeySize_(keyColumns.size())
@@ -164,7 +167,7 @@ private:
                 }
             }
 
-            KeyTrie_ = ExtractMultipleConstraints(predicate, depletedKeyColumns, &KeyTrieBuffer_);
+            KeyTrie_ = ExtractMultipleConstraints(predicate, depletedKeyColumns, &KeyTrieBuffer_, functionRegistry);
 
             LOG_DEBUG_IF(verboseLogging, "Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
         }
@@ -463,9 +466,10 @@ TDataSources GetPrunedSources(
     const TKeyColumns& keyColumns,
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
+    const TFunctionRegistryPtr functionRegistry,
     bool verboseLogging)
 {
-    TRangeInferrer rangeInferrer(predicate, tableSchema, keyColumns, evaluatorCache, verboseLogging);
+    TRangeInferrer rangeInferrer(predicate, tableSchema, keyColumns, evaluatorCache, functionRegistry, verboseLogging);
 
     auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
         return Format("[%v .. %v]",
@@ -501,6 +505,7 @@ TDataSources GetPrunedSources(
     const TConstQueryPtr& query,
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
+    const TFunctionRegistryPtr functionRegistry,
     bool verboseLogging)
 {
     return GetPrunedSources(
@@ -509,6 +514,7 @@ TDataSources GetPrunedSources(
         query->KeyColumns,
         sources,
         evaluatorCache,
+        functionRegistry,
         verboseLogging);
 }
 
