@@ -39,8 +39,8 @@ def main():
     scripts, data_files = prepare_files(["yt/wrapper/mapreduce-yt", "yt/wrapper/yt2"])
     if "DEB" in os.environ:
         if not os.path.exists("docs"):
-            subprocess.check_call("sphinx-apidoc -F -o docs yt", shell=True)
-            subprocess.check_call("sphinx-build -b html docs docs/_build/", shell=True)
+            subprocess.check_call("PYTHONPATH=$(pwd) sphinx-apidoc -F -o docs yt", shell=True)
+            subprocess.check_call("PYTHONPATH=$(pwd) sphinx-build -b html docs docs/_build/", shell=True)
         data_files += build_documentation_files("docs/_build/", "/usr/share/doc/yandex-yt-python-docs")
     else:
         # We cannot create link in the egg, so we must put yt binary.
