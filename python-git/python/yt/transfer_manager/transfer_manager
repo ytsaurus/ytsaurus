@@ -112,7 +112,7 @@ def truncate_stderrs_attributes(error, limit):
         del error.attributes["stderrs"]
     if hasattr(error, "inner_errors"):
         for inner_error in error.inner_errors:
-            truncate_stderrs_attributes(inner_error)
+            truncate_stderrs_attributes(inner_error, limit)
 
 def now():
     return str(datetime.utcnow().isoformat() + "Z")
