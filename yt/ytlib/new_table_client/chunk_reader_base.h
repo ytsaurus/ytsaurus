@@ -56,6 +56,11 @@ protected:
     TChunkedMemoryPool MemoryPool_;
 
 
+    static int GetBlockIndexByKey(
+        const TKey& key, 
+        const std::vector<TOwningKey>& blockIndexKeys, 
+        int beginBlockIndex = 0);
+
     // These methods return min block index, satisfying the lower limit.
     int ApplyLowerRowLimit(const NProto::TBlockMetaExt& blockMeta) const;
     int ApplyLowerKeyLimit(const NProto::TBlockMetaExt& blockMeta) const;
