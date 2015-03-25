@@ -59,6 +59,46 @@ void RegisterBuiltinFunctionsImpl(IFunctionRegistryPtr registry)
         EValueType::Double,
         "double"));
 }
+////////////////////////////////////////////////////////////////////////////////
+
+TCypressFunctionRegistry::TCypressFunctionRegistry(
+    NApi::IClientPtr client,
+    IFunctionRegistryPtr builtinRegistry)
+    : TFunctionRegistry()
+    , Client_(std::move(client))
+    , BuiltinRegistry_(std::move(builtinRegistry))
+    , UDFRegistry_(New<TFunctionRegistry>())
+{ }
+
+void LookupInCypress(const Stroka& functionName)
+{
+    //TODO
+}
+
+IFunctionDescriptor& TCypressFunctionRegistry::GetFunction(const Stroka& functionName)
+{
+    if (BuiltinRegistry_->IsRegistered(functionName)) {
+        return BuiltinRegistry_->GetFunction(functionName);
+    } else if (UDFRegistry_->IsRegistered(functionName)) {
+        return UDFRegistry_->GetFunction(functionName);
+    } else {
+        LookupInCypress(functionName);
+        return UDFRegistry_->GetFunction(functionName);
+    }
+}
+
+bool TCypressFunctionRegistry::IsRegistered(const Stroka& functionName)
+{
+    if (BuiltinRegistry_->IsRegistered(functionName)
+        || UDFRegistry_->IsRegistered(functionName)) {
+        return true;
+    } else {
+        LookupInCypress(functionName);
+        return UDFRegistry_->IsRegistered(functionName);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
 {
@@ -69,8 +109,8 @@ IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
 
 IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
 {
-    //TODO
-    return CreateBuiltinFunctionRegistry();
+    auto builtinRegistry = CreateBuiltinFunctionRegistry();
+    return New<TCypressFunctionRegistry>(client, builtinRegistry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
