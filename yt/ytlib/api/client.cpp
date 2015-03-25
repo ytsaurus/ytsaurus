@@ -11,6 +11,8 @@
 #include "box.h"
 #include "private.h"
 
+#include <core/profiling/scoped_timer.h>
+
 #include <core/concurrency/scheduler.h>
 
 #include <core/ytree/attribute_helpers.h>
@@ -228,13 +230,16 @@ public:
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer) override
     {
-        auto execute = fragment->Ordered
-            ? &TQueryHelper::DoExecuteOrdered
-            : &TQueryHelper::DoExecute;
+        TRACE_CHILD("QueryClient", "Execute") {
 
-        return BIND(execute, MakeStrong(this))
-            .AsyncVia(NDriver::TDispatcher::Get()->GetHeavyInvoker())
-            .Run(fragment, std::move(writer));
+            auto execute = fragment->Ordered
+                ? &TQueryHelper::DoExecuteOrdered
+                : &TQueryHelper::DoExecute;
+
+            return BIND(execute, MakeStrong(this))
+                .AsyncVia(NDriver::TDispatcher::Get()->GetHeavyInvoker())
+                .Run(fragment, std::move(writer));
+        }
     }
 
 private:
@@ -559,19 +564,29 @@ private:
         const TPlanFragmentPtr& fragment,
         const Stroka& address)
     {
-        auto channel = NodeChannelFactory_->CreateChannel(address);
-        auto config = Connection_->GetConfig();
+        TRACE_CHILD("QueryClient", "Delegate") {
+            auto channel = NodeChannelFactory_->CreateChannel(address);
+            auto config = Connection_->GetConfig();
 
-        TQueryServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(config->QueryTimeout);
+            TQueryServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(config->QueryTimeout);
 
-        auto req = proxy.Execute();
-        fragment->NodeDirectory->DumpTo(req->mutable_node_directory());
-        ToProto(req->mutable_plan_fragment(), fragment);
-        req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
+            auto req = proxy.Execute();
+            fragment->NodeDirectory->DumpTo(req->mutable_node_directory());
 
-        auto resultReader = New<TQueryResponseReader>(req->Invoke());
-        return std::make_pair(resultReader, resultReader->GetQueryResult());
+            TDuration serializationTime;
+            {
+                NProfiling::TAggregatingTimingGuard timingGuard(&serializationTime);
+                ToProto(req->mutable_plan_fragment(), fragment);
+                req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
+            }
+
+            TRACE_ANNOTATION("serialization_time", serializationTime);
+            TRACE_ANNOTATION("request_size", req->ByteSize());
+
+            auto resultReader = New<TQueryResponseReader>(req->Invoke());
+            return std::make_pair(resultReader, resultReader->GetQueryResult());
+        }
     }
 
 };
