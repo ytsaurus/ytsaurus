@@ -60,6 +60,8 @@ private:
     const NApi::IClientPtr Client_;
     const IFunctionRegistryPtr BuiltinRegistry_;
     const IFunctionRegistryPtr UDFRegistry_;
+
+    void LookupInCypress(const Stroka& functionName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

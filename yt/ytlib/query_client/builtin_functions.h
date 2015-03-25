@@ -194,6 +194,29 @@ private:
     static const TUnionType CastTypes_;
 };
 
+class TUserDefinedFunction
+    : public TTypedFunction
+    , public TUniversalRangeFunction
+{
+public:
+    TUserDefinedFunction(
+        Stroka functionName,
+        std::vector<TType> argumentTypes,
+        TType resultType,
+        TSharedRef implementationFile);
+
+    virtual TCodegenExpression MakeCodegenExpr(
+        std::vector<TCodegenExpression> codgenArgs,
+        EValueType type,
+        Stroka name) const override;
+
+private:
+    Stroka FunctionName;
+    TSharedRef ImplementationFile;
+
+    Function* GetLLVMFunction(TCGContext& builder) const;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
