@@ -1276,23 +1276,6 @@ void TCypressManager::OnAfterSnapshotLoaded()
         }
     }
 
-    // COMPAT(babenko): Fix parent links
-    for (const auto& pair1 : NodeMap) {
-        auto* node = pair1.second;
-        if (TypeFromId(node->GetId()) == EObjectType::MapNode) {
-            auto* mapNode = static_cast<TMapNode*>(node);
-            for (const auto& pair2 : mapNode->KeyToChild()) {
-                auto* child = pair2.second;
-                if (child && !child->GetParent()) {
-                    LOG_WARNING("Parent link fixed (ChildId: %v, ParentId: %v)",
-                        child->GetId(),
-                        node->GetId());
-                    child->SetParent(node);
-                }
-            }
-        }
-    }
-
     // COMPAT(babenko): Reconstruct KeyColumns and Sorted flags for tables
     if (RecomputeKeyColumns) {
         for (const auto& pair : NodeMap) {
