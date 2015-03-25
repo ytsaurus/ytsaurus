@@ -259,31 +259,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkStore::TVersionedLookuperWrapper
-    : public IVersionedLookuper
-{
-public:
-    TVersionedLookuperWrapper(
-        IVersionedLookuperPtr underlyingReader,
-        TTabletPerformanceCountersPtr performanceCounters)
-        : UnderlyingLookuper_(std::move(underlyingReader))
-        , PerformanceCounters_(std::move(performanceCounters))
-    { }
-
-    virtual TFutureHolder<TVersionedRow> Lookup(TKey key) override
-    {
-        ++PerformanceCounters_->StaticChunkRowLookupCount;
-        return UnderlyingLookuper_->Lookup(key);
-    }
-
-private:
-    const IVersionedLookuperPtr UnderlyingLookuper_;
-    const TTabletPerformanceCountersPtr PerformanceCounters_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkStore::TBlockCache
     : public IBlockCache
 {
@@ -581,15 +556,14 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
     auto chunkReader = PrepareChunkReader(chunk);
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
 
-    auto versionedLookuper = CreateVersionedChunkLookuper(
+    return CreateVersionedChunkLookuper(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
         std::move(uncompressedBlockCache),
         std::move(cachedVersionedChunkMeta),
         columnFilter,
+        PerformanceCounters_,
         timestamp);
-
-    return New<TVersionedLookuperWrapper>(std::move(versionedLookuper), PerformanceCounters_);
 }
 
 void TChunkStore::CheckRowLocks(

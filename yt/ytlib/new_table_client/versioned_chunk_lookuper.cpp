@@ -35,11 +35,13 @@ public:
         IChunkReaderPtr chunkReader,
         IBlockCachePtr uncompressedBlockCache,
         const TColumnFilter& columnFilter,
+        TLookuperPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp)
         : Config_(std::move(config))
         , ChunkMeta_(std::move(chunkMeta))
         , ChunkReader_(std::move(chunkReader))
         , UncompressedBlockCache_(std::move(uncompressedBlockCache))
+        , PerformanceCounters_(std::move(performanceCounters))
         , Timestamp_(timestamp)
         , MemoryPool_(TVersionedChunkLookuperPoolTag())
     {
@@ -64,6 +66,8 @@ public:
 
     virtual TFutureHolder<TVersionedRow> Lookup(TKey key) override
     {
+        ++PerformanceCounters_->StaticChunkRowLookupCount;
+
         MemoryPool_.Clear();
         UncompressedBlock_.Reset();
 
@@ -72,7 +76,7 @@ public:
         }
 
         if (!ChunkMeta_->KeyFilter().Contains(key)) {
-            // TODO(savrus) report rates to performance counters.
+            ++PerformanceCounters_->StaticChunkRowLookupTrueNegativeCount;
             return NullRow_;
         }
 
@@ -102,6 +106,7 @@ private:
     TCachedVersionedChunkMetaPtr ChunkMeta_;
     IChunkReaderPtr ChunkReader_;
     IBlockCachePtr UncompressedBlockCache_;
+    TLookuperPerformanceCountersPtr PerformanceCounters_;
     TTimestamp Timestamp_;
 
     std::vector<TColumnIdMapping> SchemaIdMapping_;
@@ -171,11 +176,8 @@ private:
             SchemaIdMapping_,
             Timestamp_);
 
-        if (!blockReader.SkipToKey(key)) {
-            return TVersionedRow();
-        }
-
-        if (blockReader.GetKey() != key) {
+        if (!blockReader.SkipToKey(key) || blockReader.GetKey() != key) {
+            ++PerformanceCounters_->StaticChunkRowLookupFalsePositiveCount;
             return TVersionedRow();
         }
 
@@ -191,6 +193,7 @@ IVersionedLookuperPtr CreateVersionedChunkLookuper(
     IBlockCachePtr uncompressedBlockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TColumnFilter& columnFilter,
+    TLookuperPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
 {
     auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
@@ -202,6 +205,7 @@ IVersionedLookuperPtr CreateVersionedChunkLookuper(
                 std::move(chunkReader),
                 std::move(uncompressedBlockCache),
                 columnFilter,
+                std::move(performanceCounters),
                 timestamp);
 
         default:

@@ -393,3 +393,10 @@ class TestTablets(YTEnvSetup):
         rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000)]
         actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(0, 1000)])
         self.assertItemsEqual(rows, actual)
+
+        sleep(1)
+        for tablet in xrange(10):
+            path = "//tmp/t/@tablets/%s/performance_counters" % tablet
+            assert get(path + "/static_chunk_row_lookup_count") == 200
+            assert get(path + "/static_chunk_row_lookup_false_positive_count") < 4
+            assert get(path + "/static_chunk_row_lookup_true_negative_count") > 90

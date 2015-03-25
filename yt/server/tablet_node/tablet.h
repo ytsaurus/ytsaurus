@@ -11,6 +11,7 @@
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/versioned_lookuper.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -63,14 +64,13 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTabletPerformanceCounters
-    : public TIntrinsicRefCounted
+    : public TLookuperPerformanceCounters
 {
     std::atomic<i64> DynamicMemoryRowReadCount = {0};
     std::atomic<i64> DynamicMemoryRowLookupCount = {0};
     std::atomic<i64> DynamicMemoryRowWriteCount = {0};
     std::atomic<i64> DynamicMemoryRowDeleteCount = {0};
     std::atomic<i64> StaticChunkRowReadCount = {0};
-    std::atomic<i64> StaticChunkRowLookupCount = {0};
     std::atomic<i64> UnmergedRowReadCount = {0};
     std::atomic<i64> MergedRowReadCount = {0};
 };
