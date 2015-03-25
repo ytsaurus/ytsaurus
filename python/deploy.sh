@@ -1,5 +1,11 @@
 #!/bin/bash -eux
 
+clean() {
+    rm -rf docs/ yt/wrapper/tests/sandbox/*
+    python setup.py clean
+    sudo make -f debian/rules clean
+}
+
 PACKAGE=$1
 
 # Copy package files to the python root
@@ -9,12 +15,8 @@ if [ -f "$PACKAGE/MANIFEST.in" ]; then
     cp $PACKAGE/MANIFEST.in .
 fi
 
-
 # Initial cleanup
-rm -rf docs/ yt/wrapper/tests/sandbox/*
-python setup.py clean
-sudo make -f debian/rules clean
-
+clean
 
 # Build debian package
 DEB=1 python setup.py sdist --dist-dir=../
@@ -44,6 +46,5 @@ fi
 
 
 # Final cleanup
-python setup.py clean
-sudo make -f debian/rules clean
+clean
 rm -rf debian setup.py MANIFEST.in
