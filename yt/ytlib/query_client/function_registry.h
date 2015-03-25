@@ -32,12 +32,34 @@ class TFunctionRegistry
     : public IFunctionRegistry
 {
 public:
-    virtual void RegisterFunction(IFunctionDescriptorPtr descriptor) override;
-    virtual IFunctionDescriptor& GetFunction(const Stroka& functionName) override;
-    virtual bool IsRegistered(const Stroka& functionName) override;
+    virtual void RegisterFunction(IFunctionDescriptorPtr descriptor);
+
+    virtual IFunctionDescriptor& GetFunction(const Stroka& functionName);
+
+    virtual bool IsRegistered(const Stroka& functionName);
 
 private:
     std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressFunctionRegistry
+    : public TFunctionRegistry
+{
+public:
+    TCypressFunctionRegistry(
+        NApi::IClientPtr client,
+        IFunctionRegistryPtr builtinRegistry);
+
+    virtual IFunctionDescriptor& GetFunction(const Stroka& functionName);
+
+    virtual bool IsRegistered(const Stroka& functionName);
+
+private:
+    const NApi::IClientPtr Client_;
+    const IFunctionRegistryPtr BuiltinRegistry_;
+    const IFunctionRegistryPtr UDFRegistry_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
