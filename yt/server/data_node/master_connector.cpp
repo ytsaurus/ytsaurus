@@ -381,6 +381,8 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         protoPerformanceCounters->set_dynamic_memory_row_delete_count(performanceCounters->DynamicMemoryRowDeleteCount);
         protoPerformanceCounters->set_static_chunk_row_read_count(performanceCounters->StaticChunkRowReadCount);
         protoPerformanceCounters->set_static_chunk_row_lookup_count(performanceCounters->StaticChunkRowLookupCount);
+        protoPerformanceCounters->set_static_chunk_row_lookup_true_negative_count(performanceCounters->StaticChunkRowLookupTrueNegativeCount);
+        protoPerformanceCounters->set_static_chunk_row_lookup_false_positive_count(performanceCounters->StaticChunkRowLookupFalsePositiveCount);
         protoPerformanceCounters->set_unmerged_row_read_count(performanceCounters->UnmergedRowReadCount);
         protoPerformanceCounters->set_merged_row_read_count(performanceCounters->MergedRowReadCount);
     }

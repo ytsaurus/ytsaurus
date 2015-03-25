@@ -9,6 +9,18 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLookuperPerformanceCounters
+    : public virtual TIntrinsicRefCounted
+{
+    std::atomic<i64> StaticChunkRowLookupCount = {0};
+    std::atomic<i64> StaticChunkRowLookupTrueNegativeCount = {0};
+    std::atomic<i64> StaticChunkRowLookupFalsePositiveCount = {0};
+};
+
+DEFINE_REFCOUNTED_TYPE(TLookuperPerformanceCounters)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IVersionedLookuper
     : public virtual TRefCounted
 {
