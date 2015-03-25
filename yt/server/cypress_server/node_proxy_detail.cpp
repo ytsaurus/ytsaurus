@@ -700,10 +700,22 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     bool waitable = request->waitable();
 
     auto lockRequest = TLockRequest(mode);
+
     if (request->has_child_key()) {
+        if (mode != ELockMode::Shared) {
+            THROW_ERROR_EXCEPTION("Only %Qlv locks are allowed on child keys, got %Qlv",
+                ELockMode::Shared,
+                mode);
+        }
         lockRequest.ChildKey = request->child_key();
     }
+
     if (request->has_attribute_key()) {
+        if (mode != ELockMode::Shared) {
+            THROW_ERROR_EXCEPTION("Only %Qlv locks are allowed on attribute keys, got %Qlv",
+                ELockMode::Shared,
+                mode);
+        }
         lockRequest.AttributeKey = request->attribute_key();
     }
 
