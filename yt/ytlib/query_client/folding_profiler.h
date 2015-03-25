@@ -22,19 +22,22 @@ TCGQueryCallbackGenerator Profile(
     const TConstQueryPtr& query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    yhash_set<Stroka>* references);
+    yhash_set<Stroka>* references,
+    const TFunctionRegistryPtr functionRegistry);
 
 TCGExpressionCallbackGenerator Profile(
     const TConstExpressionPtr& expr,
     const TTableSchema& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    yhash_set<Stroka>* references);
+    yhash_set<Stroka>* references,
+    const TFunctionRegistryPtr functionRegistry);
 
 void Profile(
     const TTableSchema& tableSchema,
     int keySize,
-    llvm::FoldingSetNodeID* id);
+    llvm::FoldingSetNodeID* id,
+    const TFunctionRegistryPtr functionRegistry);
 
 ////////////////////////////////////////////////////////////////////////////////
 

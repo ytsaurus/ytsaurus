@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-
+#include "function_registry.h"
 #include "plan_fragment_common.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
@@ -418,17 +418,20 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized);
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
+    const TFunctionRegistryPtr functionRegistry,
     i64 inputRowLimit = std::numeric_limits<i64>::max(),
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
 
 TPlanFragmentPtr PrepareJobPlanFragment(
     const Stroka& source,
-    const TTableSchema& initialTableSchema);
+    const TTableSchema& initialTableSchema,
+    const TFunctionRegistryPtr functionRegistry);
 
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
-    TTableSchema initialTableSchema);
+    TTableSchema initialTableSchema,
+    const TFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry());
 
 Stroka InferName(TConstExpressionPtr expr);
 Stroka InferName(TConstQueryPtr query);

@@ -4,6 +4,8 @@
 
 #include <ytlib/api/public.h>
 
+#include <ytlib/api/public.h>
+
 #include <mutex>
 
 namespace NYT {
@@ -27,7 +29,7 @@ bool TFunctionRegistry::IsRegistered(const Stroka& functionName)
     return RegisteredFunctions_.count(to_lower(functionName)) != 0;
 }
 
-void RegisterFunctionsImpl(TFunctionRegistry* registry)
+void RegisterFunctionsImpl(TFunctionRegistryPtr registry)
 {
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
@@ -51,12 +53,17 @@ void RegisterFunctionsImpl(TFunctionRegistry* registry)
         "double"));
 }
 
-TFunctionRegistry* GetFunctionRegistry()
+TFunctionRegistryPtr CreateBuiltinFunctionRegistry()
 {
-    static TFunctionRegistry registry;
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, &RegisterFunctionsImpl, &registry);
-    return &registry;
+    auto registry = New<TFunctionRegistry>();
+    RegisterFunctionsImpl(registry);
+    return registry;
+}
+
+TFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
+{
+    //TODO
+    return CreateBuiltinFunctionRegistry();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

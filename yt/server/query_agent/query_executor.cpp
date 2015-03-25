@@ -32,6 +32,7 @@
 #include <ytlib/query_client/private.h>
 #include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/query_statistics.h>
+#include <ytlib/query_client/function_registry.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -219,6 +220,8 @@ private:
 
         LOG_DEBUG("Got ranges for groups %v", rangesString);
 
+        auto functionRegistry = CreateFunctionRegistry(Bootstrap_->GetMasterClient());
+
         return CoordinateAndExecute(
             fragment,
             writer,
@@ -251,7 +254,8 @@ private:
 
                         return WaitFor(subqueryResult)
                             .ValueOrThrow();
-                    });
+                    },
+                    functionRegistry);
 
                 asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
@@ -267,7 +271,7 @@ private:
 
                 auto asyncQueryStatisticsOrError = BIND(&TEvaluator::Run, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-                    .Run(topQuery, std::move(reader), std::move(writer));
+                    .Run(topQuery, std::move(reader), std::move(writer), functionRegistry);
 
                 auto result = WaitFor(asyncQueryStatisticsOrError);
                 LOG_DEBUG(result, "Finished evaluating topquery (TopqueryId: %v)", topQuery->Id);

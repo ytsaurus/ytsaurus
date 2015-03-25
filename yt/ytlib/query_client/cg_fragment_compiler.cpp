@@ -6,6 +6,7 @@
 
 #include "plan_fragment.h"
 #include "plan_helpers.h"
+#include "functions.h"
 
 #include "cg_routines.h"
 #include "cg_ir_builder.h"
@@ -1059,9 +1060,10 @@ TCodegenExpression MakeCodegenFunctionExpr(
     Stroka functionName,
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name)
+    Stroka name,
+    const TFunctionRegistryPtr functionRegistry)
 {
-    auto& function = GetFunctionRegistry()->GetFunction(functionName);
+    auto& function = functionRegistry->GetFunction(functionName);
     return function.MakeCodegenExpr(std::move(codegenArgs), type, name);
 }
 

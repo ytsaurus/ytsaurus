@@ -5,6 +5,7 @@
 #include "plan_fragment.h"
 #include "query_statistics.h"
 #include "key_trie.h"
+#include "function_registry.h"
 
 #include <core/logging/log.h>
 
@@ -24,12 +25,14 @@ TDataSources GetPrunedSources(
     const TKeyColumns& keyColumns,
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
+    const TFunctionRegistryPtr functionRegistry,
     bool verboseLogging);
 
 TDataSources GetPrunedSources(
     const TConstQueryPtr& query,
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
+    const TFunctionRegistryPtr functionRegistry,
     bool verboseLogging);
 
 TKeyRange GetRange(const TDataSources& sources);
