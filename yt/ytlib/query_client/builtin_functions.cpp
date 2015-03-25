@@ -5,6 +5,14 @@
 
 #include <new_table_client/row_base.h>
 
+#include <llvm/Object/ObjectFile.h>
+
+#include <llvm/Support/SourceMgr.h>
+
+#include <llvm/IRReader/IRReader.h>
+
+#include <llvm/Linker/Linker.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -499,6 +507,75 @@ TCGValue TCastFunction::CodegenValue(
 {
     YCHECK(codegenArgs.size() == 1);
     return codegenArgs[0](builder, row).Cast(builder, type);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace llvm;
+
+TUserDefinedFunction::TUserDefinedFunction(
+    Stroka functionName,
+    std::vector<TType> argumentTypes,
+    TType resultType,
+    TSharedRef ImplementationFile)
+    : TTypedFunction(
+        functionName,
+        argumentTypes,
+        resultType)
+    , FunctionName(functionName)
+    , ImplementationFile(ImplementationFile)
+{ }
+
+std::vector<std::unique_ptr<object::ObjectFile>> implementationObjects;
+
+Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
+{
+    auto module = builder.Module->GetModule();
+    auto callee = module->getFunction(StringRef(FunctionName));
+    if (!callee) {
+        auto diag = SMDiagnostic();
+        auto buffer = MemoryBufferRef(
+            StringRef(ImplementationFile.Begin(), ImplementationFile.Size()),
+            StringRef("impl"));
+        auto implModule = parseIR(buffer, diag, builder.getContext());
+        Linker::LinkModules(module, implModule.get());
+        callee = module->getFunction(StringRef(FunctionName));
+    }
+    return callee;
+}
+
+TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    Stroka name) const
+{
+    return [
+        this_ = MakeStrong(this),
+        codegenArgs,
+        type
+    ] (TCGContext& builder, Value* row) {
+        auto callee = this_->GetLLVMFunction(builder);
+        std::vector<Value*> arguments;
+
+        for (
+            auto arg = codegenArgs.begin();
+            arg != codegenArgs.end();
+            arg++) {
+            auto argValue = (*arg)(builder, row);
+            arguments.push_back(argValue.GetData());
+        }
+
+        auto result = builder.CreateCall(callee, arguments);
+
+        auto val = TCGValue::CreateFromValue(
+            builder,
+            builder.getFalse(),
+            nullptr,
+            result,
+            type);
+        
+        return val;
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
