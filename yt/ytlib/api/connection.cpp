@@ -173,7 +173,7 @@ public:
         return CellDirectory_;
     }
 
-    virtual TFunctionRegistryPtr GetFunctionRegistry() override
+    virtual IFunctionRegistryPtr GetFunctionRegistry() override
     {
         return FunctionRegistry_;
     }
@@ -215,7 +215,7 @@ private:
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
-    TFunctionRegistryPtr FunctionRegistry_;
+    IFunctionRegistryPtr FunctionRegistry_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 

@@ -418,7 +418,7 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized);
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
-    const TFunctionRegistryPtr functionRegistry,
+    const IFunctionRegistryPtr functionRegistry,
     i64 inputRowLimit = std::numeric_limits<i64>::max(),
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
@@ -426,12 +426,12 @@ TPlanFragmentPtr PreparePlanFragment(
 TPlanFragmentPtr PrepareJobPlanFragment(
     const Stroka& source,
     const TTableSchema& initialTableSchema,
-    const TFunctionRegistryPtr functionRegistry);
+    const IFunctionRegistryPtr functionRegistry);
 
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     TTableSchema initialTableSchema,
-    const TFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry());
+    const IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry());
 
 Stroka InferName(TConstExpressionPtr expr);
 Stroka InferName(TConstQueryPtr query);

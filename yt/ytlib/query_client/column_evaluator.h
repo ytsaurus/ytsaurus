@@ -24,7 +24,7 @@ public:
     TColumnEvaluator(
         const TTableSchema& schema,
         int keySize,
-        const TFunctionRegistryPtr functionRegistry);
+        const IFunctionRegistryPtr functionRegistry);
 
     void EvaluateKey(
         TRow fullRow,
@@ -48,7 +48,7 @@ private:
 
     const TTableSchema Schema_;
     const int KeySize_;
-    const TFunctionRegistryPtr FunctionRegistry_;
+    const IFunctionRegistryPtr FunctionRegistry_;
 
 #ifdef YT_USE_LLVM
     std::vector<TCGExpressionCallback> Evaluators_;
@@ -67,7 +67,7 @@ class TColumnEvaluatorCache
 public:
     explicit TColumnEvaluatorCache(
         TColumnEvaluatorCacheConfigPtr config,
-        const TFunctionRegistryPtr functionRegistry);
+        const IFunctionRegistryPtr functionRegistry);
     ~TColumnEvaluatorCache();
 
     TColumnEvaluatorPtr Find(const TTableSchema& schema, int keySize);

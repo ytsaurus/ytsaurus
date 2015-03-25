@@ -232,7 +232,7 @@ EValueType InferFunctionExprType(
     Stroka functionName,
     const std::vector<EValueType>& argTypes,
     const TStringBuf& source,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
     if (!functionRegistry->IsRegistered(functionName)) {
         THROW_ERROR_EXCEPTION(
@@ -286,7 +286,7 @@ struct ISchemaProxy
         const NAst::TExpression* arguments,
         Stroka subexprName,
         Stroka source,
-        const TFunctionRegistryPtr functionRegistry)
+        const IFunctionRegistryPtr functionRegistry)
     {
         THROW_ERROR_EXCEPTION(
             "Misuse of aggregate function %v",
@@ -339,7 +339,7 @@ struct ISchemaProxy
     std::vector<TConstExpressionPtr> BuildTypedExpression(
         const NAst::TExpression* expr,
         const Stroka& source,
-        const TFunctionRegistryPtr functionRegistry)
+        const IFunctionRegistryPtr functionRegistry)
     {
         std::vector<TConstExpressionPtr> result;
         if (auto commaExpr = expr->As<NAst::TCommaExpression>()) {
@@ -657,7 +657,7 @@ struct TGroupSchemaProxy
         const NAst::TExpression* arguments,
         Stroka subexprName,
         Stroka source,
-        const TFunctionRegistryPtr functionRegistry)
+        const IFunctionRegistryPtr functionRegistry)
     {
         const TColumnSchema* aggregateColumn = TableSchema->FindColumn(subexprName);
 
@@ -691,7 +691,7 @@ TConstExpressionPtr BuildWhereClause(
     NAst::TExpressionPtr& expressionAst,
     const Stroka& source,
     const ISchemaProxyPtr& schemaProxy,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
     auto typedPredicate = schemaProxy->BuildTypedExpression(
         expressionAst.Get(),
@@ -722,7 +722,7 @@ TConstGroupClausePtr BuildGroupClause(
     NAst::TNullableNamedExprs& expressionsAst,
     const Stroka& source,
     ISchemaProxyPtr& schemaProxy,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
     auto groupClause = New<TGroupClause>();
     TTableSchema& tableSchema = groupClause->GroupedTableSchema;
@@ -753,7 +753,7 @@ TConstProjectClausePtr BuildProjectClause(
     NAst::TNullableNamedExprs& expressionsAst,
     const Stroka& source,
     ISchemaProxyPtr& schemaProxy,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
     auto projectClause = New<TProjectClause>();
 
@@ -786,7 +786,7 @@ TQueryPtr PrepareQuery(
     i64 inputRowLimit,
     i64 outputRowLimit,
     const TTableSchema& tableSchema,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
     auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
     ISchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
@@ -828,7 +828,7 @@ void ParseYqlString(
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
-    const TFunctionRegistryPtr functionRegistry,
+    const IFunctionRegistryPtr functionRegistry,
     i64 inputRowLimit,
     i64 outputRowLimit,
     TTimestamp timestamp)
@@ -951,7 +951,7 @@ TPlanFragmentPtr PreparePlanFragment(
 TPlanFragmentPtr PrepareJobPlanFragment(
     const Stroka& source,
     const TTableSchema& tableSchema,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
     NAst::TRowBuffer rowBuffer;
@@ -980,7 +980,7 @@ TPlanFragmentPtr PrepareJobPlanFragment(
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     TTableSchema tableSchema,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TNamedExpression>()};
     NAst::TRowBuffer rowBuffer;
