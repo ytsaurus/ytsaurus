@@ -204,11 +204,11 @@ public:
         IConnectionPtr connection,
         IChannelPtr masterChannel,
         IChannelFactoryPtr nodeChannelFactory,
-        const TFunctionRegistryPtr functionRegistry)
+        TFunctionRegistryPtr functionRegistry)
         : Connection_(std::move(connection))
         , MasterChannel_(std::move(masterChannel))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
-        , FunctionRegistry_(functionRegistry)
+        , FunctionRegistry_(std::move(functionRegistry))
     { }
 
     // IPrepareCallbacks implementation.
