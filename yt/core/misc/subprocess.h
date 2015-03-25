@@ -32,6 +32,8 @@ public:
     TSubprocessResult Execute();
     void Kill(int signal);
 
+    Stroka GetCommandLine() const;
+
 private:
     TProcess Process_;
 };

@@ -146,6 +146,11 @@ void TSubprocess::Kill(int signal)
     Process_.Kill(signal);
 }
 
+Stroka TSubprocess::GetCommandLine() const
+{
+    return Process_.GetCommandLine();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NExecAgent

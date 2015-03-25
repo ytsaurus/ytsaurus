@@ -40,6 +40,8 @@ public:
     bool Started() const;
     bool Finished() const;
 
+    Stroka GetCommandLine() const;
+
 private:
     struct TSpawnAction
     {

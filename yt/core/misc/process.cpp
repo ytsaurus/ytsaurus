@@ -441,6 +441,32 @@ bool TProcess::Finished() const
     return Finished_;
 }
 
+Stroka TProcess::GetCommandLine() const
+{
+    TStringBuilder builder;
+    builder.AppendString(Path_);
+
+    bool first = true;
+    for (auto arg : Args_) {
+        if (first) {
+            first = false;
+        } else {
+            if (arg) {
+                builder.AppendChar(' ');
+                bool needQuote = (TStringBuf(arg).find(' ') != Stroka::npos);
+                if (needQuote) {
+                    builder.AppendChar('"');
+                }
+                builder.AppendString(arg);
+                if (needQuote) {
+                    builder.AppendChar('"');
+                }
+            }
+        }
+    }
+    return builder.Flush();
+}
+
 char* TProcess::Capture(TStringBuf arg)
 {
     StringHolder_.push_back(Stroka(arg));
