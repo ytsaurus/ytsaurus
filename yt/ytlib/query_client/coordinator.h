@@ -25,14 +25,14 @@ TDataSources GetPrunedSources(
     const TKeyColumns& keyColumns,
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const TFunctionRegistryPtr functionRegistry,
+    const IFunctionRegistryPtr functionRegistry,
     bool verboseLogging);
 
 TDataSources GetPrunedSources(
     const TConstQueryPtr& query,
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const TFunctionRegistryPtr functionRegistry,
+    const IFunctionRegistryPtr functionRegistry,
     bool verboseLogging);
 
 TKeyRange GetRange(const TDataSources& sources);

@@ -1061,7 +1061,7 @@ TCodegenExpression MakeCodegenFunctionExpr(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     Stroka name,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
     auto& function = functionRegistry->GetFunction(functionName);
     return function.MakeCodegenExpr(std::move(codegenArgs), type, name);
