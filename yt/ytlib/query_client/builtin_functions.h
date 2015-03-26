@@ -201,8 +201,8 @@ class TUserDefinedFunction
 public:
     TUserDefinedFunction(
         Stroka functionName,
-        std::vector<TType> argumentTypes,
-        TType resultType,
+        std::vector<EValueType> argumentTypes,
+        EValueType resultType,
         TSharedRef implementationFile);
 
     virtual TCodegenExpression MakeCodegenExpr(

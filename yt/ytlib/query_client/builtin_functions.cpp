@@ -515,12 +515,12 @@ using namespace llvm;
 
 TUserDefinedFunction::TUserDefinedFunction(
     Stroka functionName,
-    std::vector<TType> argumentTypes,
-    TType resultType,
+    std::vector<EValueType> argumentTypes,
+    EValueType resultType,
     TSharedRef ImplementationFile)
     : TTypedFunction(
         functionName,
-        argumentTypes,
+        std::vector<TType>(argumentTypes.begin(), argumentTypes.end()),
         resultType)
     , FunctionName(functionName)
     , ImplementationFile(ImplementationFile)
