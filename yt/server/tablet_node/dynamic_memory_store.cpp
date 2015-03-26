@@ -430,12 +430,12 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicMemoryStore::TReader
+class TDynamicMemoryStore::TRangeReader
     : public TFetcherBase
     , public IVersionedReader
 {
 public:
-    TReader(
+    TRangeReader(
         TDynamicMemoryStorePtr store,
         TOwningKey lowerKey,
         TOwningKey upperKey,
@@ -511,6 +511,79 @@ private:
             ? ProduceAllRowVersions(dynamicRow)
             : ProduceSingleRowVersion(dynamicRow);
     }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicMemoryStore::TLookupReader
+    : public TFetcherBase
+    , public IVersionedReader
+{
+public:
+    TLookupReader(
+        TDynamicMemoryStorePtr store,
+        const std::vector<TKey>& keys,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter)
+        : TFetcherBase(
+            std::move(store),
+            timestamp,
+            columnFilter)
+        , Keys_(keys)
+    { }
+
+    virtual TFuture<void> Open() override
+    {
+        return VoidFuture;
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return VoidFuture;
+    }
+
+    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    {
+        YASSERT(rows->capacity() > 0);
+        rows->clear();
+        Pool_.Clear();
+
+        if (Finished_) {
+            return false;
+        }
+
+        auto keyComparer = Store_->GetTablet()->GetRowKeyComparer();
+
+        while (rows->size() < rows->capacity()) {
+            if (RowCount_ == Keys_.size())
+                break;
+
+            auto iterator = Store_->Rows_->FindEqualTo(TKeyWrapper{Keys_[RowCount_]});
+            if (iterator.IsValid()) {
+                auto row = ProduceSingleRowVersion(iterator.GetCurrent());
+                rows->push_back(row);
+            } else {
+                rows->push_back(TVersionedRow());
+            }
+
+            ++RowCount_;
+        }
+
+        if (rows->empty()) {
+            Finished_ = true;
+            return false;
+        }
+
+        Store_->PerformanceCounters_->DynamicMemoryRowLookupCount += rows->size();
+
+        return true;
+    }
+
+private:
+    std::vector<TKey> Keys_;
+    i64 RowCount_  = 0;
+    bool Finished_ = false;
 
 };
 
@@ -1191,12 +1264,20 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
-    return New<TReader>(
+    return New<TRangeReader>(
         this,
         std::move(lowerKey),
         std::move(upperKey),
         timestamp,
         columnFilter);
+}
+
+IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
+    const std::vector<TKey>& keys,
+    TTimestamp timestamp,
+    const TColumnFilter& columnFilter)
+{
+    return New<TLookupReader>(this, keys, timestamp, columnFilter);
 }
 
 IVersionedLookuperPtr TDynamicMemoryStore::CreateLookuper(

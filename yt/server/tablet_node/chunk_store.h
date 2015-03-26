@@ -82,6 +82,11 @@ public:
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
+    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+        const std::vector<TKey>& keys,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter) override;
+
     virtual NVersionedTableClient::IVersionedLookuperPtr CreateLookuper(
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;

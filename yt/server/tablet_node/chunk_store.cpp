@@ -540,6 +540,38 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     return New<TVersionedReaderWrapper>(std::move(versionedReader), PerformanceCounters_);
 }
 
+IVersionedReaderPtr TChunkStore::CreateReader(
+    const std::vector<TKey>& keys,
+    TTimestamp timestamp,
+    const TColumnFilter& columnFilter)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto backingStore = GetBackingStore();
+    if (backingStore) {
+        return backingStore->CreateReader(
+            keys,
+            timestamp,
+            columnFilter);
+    }
+
+    auto uncompressedBlockCache = GetUncompressedBlockCache();
+    auto chunk = PrepareChunk();
+    auto chunkReader = PrepareChunkReader(chunk);
+    auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
+
+    auto versionedReader = CreateVersionedChunkReader(
+        Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+        std::move(chunkReader),
+        std::move(uncompressedBlockCache),
+        std::move(cachedVersionedChunkMeta),
+        keys,
+        columnFilter,
+        timestamp);
+
+    return New<TVersionedReaderWrapper>(std::move(versionedReader), PerformanceCounters_);
+}
+
 IVersionedLookuperPtr TChunkStore::CreateLookuper(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)

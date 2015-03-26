@@ -65,6 +65,22 @@ struct IStore
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) = 0;
 
+    //! Creates a reader for the set of |keys|.
+    /*!
+    *  If no matching row is found then |nullptr| might be returned.
+    *
+    *  The reader will be providing values filtered by |timestamp| and columns
+    *  filtered by |columnFilter|.
+    *
+    *  This call is typically synchronous and fast but may occasionally yield.
+    *
+    *  Thread affinity: any
+    */
+    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+        const std::vector<TKey>& keys,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter) = 0;
+
     //! Creates a lookuper instance.
     /*!
      *  This call is typically synchronous and fast but may occasionally yield.
