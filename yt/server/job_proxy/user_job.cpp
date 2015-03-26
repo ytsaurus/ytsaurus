@@ -33,6 +33,7 @@
 #include <core/misc/fs.h>
 #include <core/misc/proc.h>
 #include <core/misc/process.h>
+#include <core/misc/subprocess.h>
 #include <core/misc/pattern_formatter.h>
 #include <core/misc/finally.h>
 
