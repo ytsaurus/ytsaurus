@@ -111,10 +111,31 @@ TSharedRef ReadFile(NApi::IClientPtr client, const Stroka& fileName)
     return file;
 }
 
+class TCypressFunctionDescriptor
+    : public TYsonSerializable
+{
+public:
+    Stroka Name;
+    std::vector<EValueType> ArgumentTypes;
+    EValueType ResultType;
+    Stroka ImplementationPath;
+
+    TCypressFunctionDescriptor()
+    {
+        RegisterParameter("name", Name)
+            .NonEmpty();
+        RegisterParameter("argument_types", ArgumentTypes);
+        RegisterParameter("result_type", ResultType);
+        RegisterParameter("implementation_path", ImplementationPath)
+            .NonEmpty();
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TCypressFunctionDescriptor)
+DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
+
 void TCypressFunctionRegistry::LookupInCypress(const Stroka& functionName)
 {
-    //TODO: lowercase name
-    auto typeEnumTraits = GetEnumTraitsImpl(EValueType::Min);
     Stroka registryPath = "//tmp/udfs";
     auto functionPath = registryPath + "/" + to_lower(functionName);
 
@@ -123,30 +144,16 @@ void TCypressFunctionRegistry::LookupInCypress(const Stroka& functionName)
         return;
     }
 
-    auto function = ConvertToNode(cypressFunctionOrError.Value())->AsMap();
+    auto function = ConvertTo<TCypressFunctionDescriptorPtr>(
+        cypressFunctionOrError.Value());
 
-    std::vector<TType> argumentTypes;
-    auto argumentNodes = function->FindChild("argument_types")->AsList()->GetChildren();
-    for (
-        auto node = argumentNodes.begin();
-        node != argumentNodes.end();
-        node++) {
-        argumentTypes.push_back(
-            typeEnumTraits.FromString((*node)->AsString()->GetValue()));
-    }
+    auto implementationFile = ReadFile(Client_, function->ImplementationPath);
 
-    auto name = function->FindChild("name")->AsString();
-    auto resultType = function->FindChild("result_type")->AsString();
-    auto implementationPath = function->FindChild("implementation_path")->AsString()->GetValue();
-    auto implementationFile = ReadFile(Client_, implementationPath);
-
-    auto functionDescriptor = New<TUserDefinedFunction>(
-        name->GetValue(),
-        argumentTypes,
-        typeEnumTraits.FromString(resultType->GetValue()),
-        implementationFile);
-
-    UDFRegistry_->RegisterFunction(functionDescriptor);
+    UDFRegistry_->RegisterFunction(New<TUserDefinedFunction>(
+        function->Name,
+        function->ArgumentTypes,
+        function->ResultType,
+        implementationFile));
 }
 
 IFunctionDescriptor& TCypressFunctionRegistry::GetFunction(const Stroka& functionName)
