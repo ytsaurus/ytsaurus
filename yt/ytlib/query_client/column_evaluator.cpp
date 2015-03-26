@@ -21,7 +21,7 @@ using namespace NVersionedTableClient;
 TColumnEvaluator::TColumnEvaluator(
     const TTableSchema& schema,
     int keySize,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
     : Schema_(schema)
     , KeySize_(keySize)
     , FunctionRegistry_(functionRegistry)
@@ -175,7 +175,7 @@ class TColumnEvaluatorCache::TImpl
 public:
     explicit TImpl(
         TColumnEvaluatorCacheConfigPtr config,
-        const TFunctionRegistryPtr functionRegistry)
+        const IFunctionRegistryPtr functionRegistry)
         : TSyncSlruCacheBase(config->CGCache)
         , FunctionRegistry_(functionRegistry)
     { }
@@ -196,7 +196,7 @@ public:
     }
 
 private:
-    const TFunctionRegistryPtr FunctionRegistry_;
+    const IFunctionRegistryPtr FunctionRegistry_;
 };
 
 #endif
@@ -205,7 +205,7 @@ private:
 
 TColumnEvaluatorCache::TColumnEvaluatorCache(
     TColumnEvaluatorCacheConfigPtr config,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 #ifdef YT_USE_LLVM
     : Impl_(New<TImpl>(std::move(config), functionRegistry))
 #endif

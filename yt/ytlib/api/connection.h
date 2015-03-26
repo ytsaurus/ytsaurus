@@ -60,7 +60,7 @@ struct IConnection
     virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
     virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
-    virtual NQueryClient::TFunctionRegistryPtr GetFunctionRegistry() = 0;
+    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;
     virtual NQueryClient::TEvaluatorPtr GetQueryEvaluator() = 0;
     virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
 

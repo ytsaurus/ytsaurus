@@ -38,7 +38,7 @@ TKeyTrieNode ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
     if (!expr) {
         return TKeyTrieNode::Universal();

@@ -13,6 +13,11 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IFunctionRegistry::~IFunctionRegistry()
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TFunctionRegistry::RegisterFunction(TIntrusivePtr<IFunctionDescriptor> function)
 {
     Stroka functionName = to_lower(function->GetName());
@@ -29,7 +34,9 @@ bool TFunctionRegistry::IsRegistered(const Stroka& functionName)
     return RegisteredFunctions_.count(to_lower(functionName)) != 0;
 }
 
-void RegisterFunctionsImpl(TFunctionRegistryPtr registry)
+////////////////////////////////////////////////////////////////////////////////
+
+void RegisterBuiltinFunctionsImpl(IFunctionRegistryPtr registry)
 {
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
@@ -53,14 +60,14 @@ void RegisterFunctionsImpl(TFunctionRegistryPtr registry)
         "double"));
 }
 
-TFunctionRegistryPtr CreateBuiltinFunctionRegistry()
+IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
 {
     auto registry = New<TFunctionRegistry>();
-    RegisterFunctionsImpl(registry);
+    RegisterBuiltinFunctionsImpl(registry);
     return registry;
 }
 
-TFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
+IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
 {
     //TODO
     return CreateBuiltinFunctionRegistry();
