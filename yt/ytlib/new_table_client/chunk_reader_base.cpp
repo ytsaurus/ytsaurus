@@ -150,7 +150,7 @@ int TChunkReaderBase::GetBlockIndexByKey(const TKey& pivotKey, const std::vector
             return pivot > key.Get();
         });
 
-    return beginBlockIndex + (it != rend) ? std::distance(it, rend) : 0;
+    return beginBlockIndex + ((it != rend) ? std::distance(it, rend) : 0);
 }
 
 int TChunkReaderBase::ApplyLowerKeyLimit(const std::vector<TOwningKey>& blockIndexKeys) const
