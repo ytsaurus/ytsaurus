@@ -323,12 +323,20 @@ struct ISchemaProxy
         return result;
     };
 
-    static std::vector<TOwningRow> CaptureRows(const NAst::TValueTupleList& literalTuples, size_t keySize)
+    static std::vector<TOwningRow> CaptureRows(
+        const NAst::TValueTupleList& literalTuples,
+        size_t keySize,
+        const TStringBuf& source)
     {
         TUnversionedOwningRowBuilder rowBuilder;
 
         std::vector<TOwningRow> result;
         for (const auto & tuple : literalTuples) {
+            if (tuple.size() != keySize) {
+                THROW_ERROR_EXCEPTION("IN operator arguments size mismatch")
+                    << TErrorAttribute("source", source);
+            }
+
             for (auto literal : tuple) {
                 rowBuilder.AddValue(literal);
             }
@@ -518,7 +526,7 @@ struct ISchemaProxy
 
             size_t keySize = inExprOperands.size();
 
-            auto caturedRows = CaptureRows(inExpr->Values, keySize);
+            auto caturedRows = CaptureRows(inExpr->Values, keySize, inExpr->GetSource(source));
 
             result.push_back(New<TInOpExpression>(
                 inExpr->SourceLocation,
