@@ -84,14 +84,17 @@ Stroka InferName(TConstExpressionPtr expr)
             " " + GetBinaryOpcodeLexeme(binaryOp->Opcode) + " " +
             rhsName;
     } else if (auto inOp = expr->As<TInOpExpression>()) {
-        auto str = Stroka("(");
+        Stroka str;
         for (const auto& argument : inOp->Arguments) {
             str += comma() + InferName(argument);
         }
-        str += ") IN (";
+        if (inOp->Arguments.size() > 1) {
+            str = "(" + str + ")";
+        }
+        str += " IN (";
         newTuple = true;
         for (const auto& row: inOp->Values) {
-            str += comma() + "(" + ToString(row) + ")";
+            str += comma() + ToString(row);
         }
         return str + ")";
     } else {
