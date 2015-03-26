@@ -165,6 +165,8 @@ class TCompositeAutomaton
     : public IAutomaton
 {
 public:
+    void SetSerializationDumpEnabled(bool value);
+
     virtual void SaveSnapshot(TOutputStream* output) override;
     virtual void LoadSnapshot(TInputStream* input) override;
 
@@ -173,6 +175,8 @@ public:
     virtual void Clear() override;
 
 protected:
+    bool SerializationDumpEnabled_ = false;
+
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 

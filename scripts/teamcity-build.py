@@ -60,7 +60,6 @@ def prepare(options):
     options.build_enable_python = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON", "YES"))
     options.build_enable_perl = checked_yes_no(os.environ.get("BUILD_ENABLE_PERL", "YES"))
     options.build_enable_llvm = checked_yes_no(os.environ.get("BUILD_ENABLE_LLVM", "YES"))
-    options.build_enable_serialization_dump = checked_yes_no(os.environ.get("BUILD_ENABLE_SERIALIZATION_DUMP", "NO"))
 
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = re.sub(r"/0.\d\d$", "", options.branch)
@@ -118,7 +117,6 @@ def configure(options):
         "-DYT_BUILD_ENABLE_PYTHON={0}".format(options.build_enable_python),
         "-DYT_BUILD_ENABLE_PERL={0}".format(options.build_enable_perl),
         "-DYT_BUILD_ENABLE_LLVM={0}".format(options.build_enable_llvm),
-        "-DYT_BUILD_ENABLE_SERIALIZATION_DUMP={0}".format(options.build_enable_serialization_dump),
         "-DYT_USE_LTO={0}".format(options.use_lto),
         "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
         "-DCMAKE_C_COMPILER={0}".format(options.cc),

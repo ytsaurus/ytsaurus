@@ -42,7 +42,7 @@ public:
     ~THydraFacade();
 
     void Start();
-    void LoadSnapshot(NHydra::ISnapshotReaderPtr reader);
+    void DumpSnapshot(NHydra::ISnapshotReaderPtr reader);
 
     TMasterAutomatonPtr GetAutomaton() const;
     NHydra::IHydraManagerPtr GetHydraManager() const;

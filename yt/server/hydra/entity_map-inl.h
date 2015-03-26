@@ -313,9 +313,6 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadKeys(TContext& context)
 
             auto serializationKey = context.RegisterEntity(value.get());
 
-            // Silent warning when serialization dump is off.
-            UNUSED(serializationKey);
-
             value->SetDynamicData(AllocateDynamicData());
 
             YCHECK(this->Map_.insert(std::make_pair(key, value.release())).second);

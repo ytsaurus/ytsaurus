@@ -220,6 +220,12 @@ void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPart* part)
     }
 }
 
+
+void TCompositeAutomaton::SetSerializationDumpEnabled(bool value)
+{
+    SerializationDumpEnabled_ = value;
+}
+
 void TCompositeAutomaton::SaveSnapshot(TOutputStream* output)
 {
     using NYT::Save;
@@ -266,6 +272,7 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
     auto& context = LoadContext();
     context.Reset();
     context.SetInput(checkpointableInput.get());
+    context.Dumper().SetEnabled(SerializationDumpEnabled_);
 
     LOG_INFO("Started loading composite automaton");
 
