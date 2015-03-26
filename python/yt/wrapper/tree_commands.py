@@ -287,7 +287,8 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
         if path in exclude or (depth_bound is not None and depth > depth_bound):
             return
         if object.attributes.get("opaque", False) and not ignore_opaque:
-            walk(path, safe_get(path), depth, True)
+            for obj in walk(path, safe_get(path), depth, True):
+                yield obj
             return
         if subtree_filter is not None and not subtree_filter(path, object):
             return
