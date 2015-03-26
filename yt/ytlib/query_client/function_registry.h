@@ -42,6 +42,9 @@ private:
     std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
 };
 
+DECLARE_REFCOUNTED_CLASS(TFunctionRegistry)
+DEFINE_REFCOUNTED_TYPE(TFunctionRegistry)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressFunctionRegistry
@@ -50,7 +53,7 @@ class TCypressFunctionRegistry
 public:
     TCypressFunctionRegistry(
         NApi::IClientPtr client,
-        IFunctionRegistryPtr builtinRegistry);
+        TFunctionRegistryPtr builtinRegistry);
 
     virtual IFunctionDescriptor& GetFunction(const Stroka& functionName);
 
@@ -58,8 +61,8 @@ public:
 
 private:
     const NApi::IClientPtr Client_;
-    const IFunctionRegistryPtr BuiltinRegistry_;
-    const IFunctionRegistryPtr UDFRegistry_;
+    const TFunctionRegistryPtr BuiltinRegistry_;
+    const TFunctionRegistryPtr UDFRegistry_;
 
     void LookupInCypress(const Stroka& functionName);
 };

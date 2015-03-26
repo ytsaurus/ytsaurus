@@ -72,7 +72,7 @@ void RegisterBuiltinFunctionsImpl(IFunctionRegistryPtr registry)
 
 TCypressFunctionRegistry::TCypressFunctionRegistry(
     NApi::IClientPtr client,
-    IFunctionRegistryPtr builtinRegistry)
+    TFunctionRegistryPtr builtinRegistry)
     : TFunctionRegistry()
     , Client_(std::move(client))
     , BuiltinRegistry_(std::move(builtinRegistry))
@@ -181,16 +181,21 @@ bool TCypressFunctionRegistry::IsRegistered(const Stroka& functionName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
+TFunctionRegistryPtr CreateBuiltinFunctionRegistryImpl()
 {
     auto registry = New<TFunctionRegistry>();
     RegisterBuiltinFunctionsImpl(registry);
     return registry;
 }
 
+IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
+{
+    return CreateBuiltinFunctionRegistryImpl();
+}
+
 IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
 {
-    auto builtinRegistry = CreateBuiltinFunctionRegistry();
+    auto builtinRegistry = CreateBuiltinFunctionRegistryImpl();
     return New<TCypressFunctionRegistry>(client, builtinRegistry);
 }
 
