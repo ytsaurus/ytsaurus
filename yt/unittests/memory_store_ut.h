@@ -200,8 +200,15 @@ protected:
 
     TUnversionedOwningRow LookupRow(IStorePtr store, const TOwningKey& key, TTimestamp timestamp)
     {
-        auto lookuper = store->CreateLookuper(timestamp, TColumnFilter());
-        auto row = lookuper->Lookup(key.Get()).Get().Get().ValueOrThrow();
+        std::vector<TKey> lookupKeys(1, key.Get());
+        auto lookupReader = store->CreateReader(lookupKeys, timestamp, TColumnFilter());
+
+        std::vector<TVersionedRow> rows;
+        rows.reserve(1);
+
+        EXPECT_TRUE(lookupReader->Read(&rows));
+        EXPECT_EQ(1, rows.size());
+        auto row = rows.front();
         if (!row) {
             return TUnversionedOwningRow();
         }

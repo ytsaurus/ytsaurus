@@ -124,6 +124,11 @@ public:
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
+    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+        const std::vector<TKey>& keys,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter) override;
+
     virtual NVersionedTableClient::IVersionedLookuperPtr CreateLookuper(
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
@@ -142,7 +147,8 @@ public:
 
 private:
     class TFetcherBase;
-    class TReader;
+    class TRangeReader;
+    class TLookupReader;
     class TLookuper;
 
     const TTabletManagerConfigPtr Config_;
