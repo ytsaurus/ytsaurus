@@ -454,7 +454,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         if (isMaster) {
             bootstrap->Run();
         } else if (isMasterSnapshotDump) {
-            bootstrap->LoadSnapshot(parser.DumpMasterSnapshot.getValue());
+            bootstrap->DumpSnapshot(parser.DumpMasterSnapshot.getValue());
         } else {
             YUNREACHABLE();
         }

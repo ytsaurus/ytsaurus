@@ -142,8 +142,6 @@ void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::p
 
 namespace {
 
-#ifdef YT_ENABLE_SERIALIZATION_DUMP
-
 Stroka DumpProto(::google::protobuf::Message& message)
 {
     ::google::protobuf::TextFormat::Printer printer;
@@ -152,8 +150,6 @@ Stroka DumpProto(::google::protobuf::Message& message)
     YCHECK(printer.PrintToString(message, &result));
     return result;
 }
-
-#endif
 
 } // namespace
 

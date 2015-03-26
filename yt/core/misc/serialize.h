@@ -214,10 +214,7 @@ class TStreamLoadContext
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TInputStream*, Input);
-
-#ifdef YT_ENABLE_SERIALIZATION_DUMP
     DEFINE_BYREF_RW_PROPERTY(TSerializationDumper, Dumper);
-#endif
 
 public:
     TStreamLoadContext();
@@ -460,9 +457,7 @@ struct TPodSerializer
         SERIALIZATION_DUMP_SUSPEND(context) {
             TRangeSerializer::Load(context, TRef::FromPod(value));
         }
-#ifdef YT_ENABLE_SERIALIZATION_DUMP
         TSerializationDumpPodWriter<T>::Do(context, value);
-#endif
     }
 };
 
