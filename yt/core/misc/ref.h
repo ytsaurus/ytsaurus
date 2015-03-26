@@ -229,11 +229,6 @@ public:
         return Ref_.Begin();
     }
 
-    FORCED_INLINE const char* operator ~ () const
-    {
-        return Begin();
-    }
-
     FORCED_INLINE const char* End() const
     {
         return Ref_.End();
