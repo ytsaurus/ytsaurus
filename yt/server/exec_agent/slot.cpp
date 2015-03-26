@@ -2,7 +2,8 @@
 #include "slot.h"
 #include "private.h"
 #include "config.h"
-#include "subprocess.h"
+
+#include <core/misc/subprocess.h>
 
 #include <core/logging/log_manager.h>
 
