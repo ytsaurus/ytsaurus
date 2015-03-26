@@ -70,7 +70,8 @@ private:
             THROW_ERROR_EXCEPTION(
                 "Provision lock is found, which indicates a fresh instance of masters being run. "
                 "If this is not intended then please check snapshot/changelog directories location. "
-                "Ignoring this warning and removing the lock may cause UNRECOVERABLE DATA LOSS!");
+                "Ignoring this warning and removing the lock may cause UNRECOVERABLE DATA LOSS! "
+                "If you are sure and wish to continue then run 'yt remove //sys/@provision_lock'");
         }
 
         auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
