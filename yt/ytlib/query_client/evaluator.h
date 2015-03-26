@@ -21,13 +21,13 @@ public:
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
         TExecuteQuery executeCallback,
-        const TFunctionRegistryPtr functionRegistry);
+        const IFunctionRegistryPtr functionRegistry);
 
     TQueryStatistics Run(
         const TConstQueryPtr& fragment,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
-        const TFunctionRegistryPtr functionRegistry);
+        const IFunctionRegistryPtr functionRegistry);
 
 private:
     class TImpl;

@@ -71,7 +71,7 @@ public:
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
         TExecuteQuery executeCallback,
-        const TFunctionRegistryPtr functionRegistry)
+        const IFunctionRegistryPtr functionRegistry)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
             TRACE_ANNOTATION("fragment_id", query->Id);
@@ -185,7 +185,7 @@ private:
     TCGQueryCallback Codegen(
         const TConstQueryPtr& query,
         TCGVariables& variables,
-        const TFunctionRegistryPtr functionRegistry)
+        const IFunctionRegistryPtr functionRegistry)
     {
         llvm::FoldingSetNodeID id;
 
@@ -251,7 +251,7 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
     TExecuteQuery executeCallback,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
 #ifdef YT_USE_LLVM
     return Impl_->Run(query, std::move(reader), std::move(writer), executeCallback, functionRegistry);
@@ -264,7 +264,7 @@ TQueryStatistics TEvaluator::Run(
     const TConstQueryPtr& query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
     return RunWithExecutor(query, std::move(reader), std::move(writer), nullptr, functionRegistry);
 }

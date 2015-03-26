@@ -35,7 +35,7 @@ class TFoldingProfiler
     : private TNonCopyable
 {
 public:
-    TFoldingProfiler(const TFunctionRegistryPtr functionRegistry);
+    TFoldingProfiler(const IFunctionRegistryPtr functionRegistry);
 
     TCodegenSource Profile(const TConstQueryPtr& query);
     TCodegenExpression Profile(const TConstExpressionPtr& expr, const TTableSchema& tableSchema);
@@ -56,13 +56,13 @@ private:
     llvm::FoldingSetNodeID* Id_ = nullptr;
     TCGVariables* Variables_ = nullptr;
     yhash_set<Stroka>* References_ = nullptr;
-    const TFunctionRegistryPtr FunctionRegistry_;
+    const IFunctionRegistryPtr FunctionRegistry_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFoldingProfiler::TFoldingProfiler(
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
     : FunctionRegistry_(functionRegistry)
 { }
 
@@ -295,7 +295,7 @@ TCGQueryCallbackGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     yhash_set<Stroka>* references,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
     TFoldingProfiler profiler(functionRegistry);
     profiler.Set(id);
@@ -315,7 +315,7 @@ TCGExpressionCallbackGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     yhash_set<Stroka>* references,
-    const TFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry)
 {
     TFoldingProfiler profiler(functionRegistry);
     profiler.Set(variables);
@@ -328,7 +328,7 @@ TCGExpressionCallbackGenerator Profile(
         };
 }
 
-void Profile(const TTableSchema& tableSchema, int keySize, llvm::FoldingSetNodeID* id, const TFunctionRegistryPtr functionRegistry)
+void Profile(const TTableSchema& tableSchema, int keySize, llvm::FoldingSetNodeID* id, const IFunctionRegistryPtr functionRegistry)
 {
     TFoldingProfiler profiler(functionRegistry);
     profiler.Set(id);
