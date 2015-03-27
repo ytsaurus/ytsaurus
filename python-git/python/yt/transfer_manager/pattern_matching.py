@@ -85,7 +85,7 @@ def match_copy_pattern(client, source_pattern, destination_pattern):
         for table_info in client.list(prefix):
             _match(table_info["name"], source_tokens, destination_tokens, result)
     else:
-        raise yt.YtError("Incorrect client type " + client._type)
+        raise yt.YtError("Listing tables for client {} is not supported".format(client._type))
 
     return result
 
