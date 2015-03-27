@@ -114,7 +114,7 @@ TVersionedChunkWriter::TVersionedChunkWriter(
     , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_))
     , MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
-#ifdef 0
+#if 0
     , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
 #endif
 { }
