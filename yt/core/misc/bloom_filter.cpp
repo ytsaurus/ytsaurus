@@ -128,7 +128,7 @@ int TBloomFilter::Log2(int size)
 
 bool TBloomFilter::IsValid() const
 {
-    return Data_.Size() > 0 && InsertionCount_ * BitsPerItem_ <= Size() * 8;
+    return Data_.Size() > 0 && InsertionCount_ * HashCount_ <= Size() * 8;
 }
 
 int TBloomFilter::EstimateLogSize() const
