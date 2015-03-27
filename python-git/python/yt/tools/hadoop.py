@@ -6,10 +6,10 @@ class HiveError(Exception):
     pass
 
 class Hive(object):
-    def __init__(self, hcatalog_host, hdfs_host, hive_exporter_library, java_path=""):
+    def __init__(self, hcatalog_host, hdfs_host, hive_importer_library, java_path=""):
         self.hcatalog_host = hcatalog_host
         self.hdfs_host = hdfs_host
-        self.hive_exporter_library = hive_exporter_library
+        self.hive_importer_library = hive_importer_library
         self.java_path = java_path
 
     def get_table_config_and_files(self, database, table):
@@ -39,13 +39,13 @@ while true; do
     set -e
     if [ "$result" != "0" ]; then break; fi;
 
-    {jar} -J-Xmx1024m xf ./{hive_exporter_library} libhadoop.so libsnappy.so.1 >&2;
+    {jar} -J-Xmx1024m xf ./{hive_importer_library} libhadoop.so libsnappy.so.1 >&2;
     curl --silent --show-error "http://{hdfs_host}/webhdfs/v1/${{table}}?op=OPEN&user.name=none" >output;
-    LANG=en_US.UTF-8 {java} -Xmx1024m -Dhadoop.root.logger=INFO -Djava.library.path=./ -jar ./{hive_exporter_library} -file output -config '{read_config}';
+    LANG=en_US.UTF-8 {java} -Xmx1024m -Dhadoop.root.logger=INFO -Djava.library.path=./ -jar ./{hive_importer_library} -file output -config '{read_config}';
 done
 """\
             .format(java=os.path.join(self.java_path, "java"),
                     jar=os.path.join(self.java_path, "jar"),
-                    hive_exporter_library=os.path.basename(self.hive_exporter_library),
+                    hive_importer_library=os.path.basename(self.hive_importer_library),
                     hdfs_host=self.hdfs_host,
                     read_config=read_config)
