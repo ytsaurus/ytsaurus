@@ -94,6 +94,8 @@ set( SRCS
 
 protoc( ${BASE}/rpc_ut.proto SRCS )
 
+udf( ${BASE}/udfs/absolute.c SRCS )
+
 add_msvc_precompiled_header(
   "stdafx.h"
   "stdafx.cpp"
