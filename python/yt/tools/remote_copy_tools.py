@@ -520,7 +520,7 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, spe
     read_command = hive_client.get_read_command(read_config)
 
     temp_table = yt_client.create_temp_table()
-    yt_client.write_table(temp_table, [{"file": file} for file in files], raw=False)
+    yt_client.write_table(temp_table, [{"file": file} for file in files], raw=False, format=yt.JsonFormat())
 
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
