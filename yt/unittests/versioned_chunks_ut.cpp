@@ -256,7 +256,8 @@ TEST_F(TVersionedChunksTest, ReadEmptyWiderSchema)
         chunkMeta,
         std::move(lowerLimit),
         TReadLimit(),
-        TColumnFilter());
+        TColumnFilter(),
+        New<TChunkReaderPerformanceCounters>());
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
@@ -315,7 +316,8 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
         chunkMeta,
         TReadLimit(),
         TReadLimit(),
-        TColumnFilter());
+        TColumnFilter(),
+        New<TChunkReaderPerformanceCounters>());
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
@@ -364,6 +366,7 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
         TReadLimit(),
         TReadLimit(),
         TColumnFilter(),
+        New<TChunkReaderPerformanceCounters>(),
         2); // timestamp
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
@@ -427,7 +430,8 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
         chunkMeta,
         std::move(lowerLimit),
         TReadLimit(),
-        TColumnFilter());
+        TColumnFilter(),
+        New<TChunkReaderPerformanceCounters>());
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
@@ -466,7 +470,8 @@ TEST_F(TVersionedChunksTest, ReadEmpty)
         chunkMeta,
         std::move(lowerLimit),
         TReadLimit(),
-        TColumnFilter());
+        TColumnFilter(),
+        New<TChunkReaderPerformanceCounters>());
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
@@ -504,6 +509,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
             TReadLimit(),
             TReadLimit(),
             TColumnFilter(),
+            New<TChunkReaderPerformanceCounters>(),
             AsyncAllCommittedTimestamp);
 
         EXPECT_TRUE(chunkReader->Open().Get().IsOK());
@@ -527,6 +533,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
             lowerLimit,
             TReadLimit(),
             TColumnFilter(),
+            New<TChunkReaderPerformanceCounters>(),
             AsyncAllCommittedTimestamp);
 
         EXPECT_TRUE(chunkReader->Open().Get().IsOK());
@@ -588,7 +595,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
             chunkMeta,
             keys,
             TColumnFilter(),
-            New<TLookuperPerformanceCounters>(),
+            New<TChunkReaderPerformanceCounters>(),
             AsyncAllCommittedTimestamp);
 
         EXPECT_TRUE(chunkReader->Open().Get().IsOK());

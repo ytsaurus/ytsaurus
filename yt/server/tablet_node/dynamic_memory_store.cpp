@@ -580,7 +580,7 @@ public:
     }
 
 private:
-    std::vector<TKey> Keys_;
+    const std::vector<TKey> Keys_;
     i64 RowCount_  = 0;
     bool Finished_ = false;
 
@@ -1239,11 +1239,16 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
         columnFilter);
 }
 
-IVersionedLookuperPtr TDynamicMemoryStore::CreateLookuper(
+IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
+    const std::vector<TKey>& keys,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
-    return New<TLookupReader>(this, keys, timestamp, columnFilter);
+    return New<TLookupReader>(
+        this,
+        keys,
+        timestamp,
+        columnFilter);
 }
 
 void TDynamicMemoryStore::CheckRowLocks(

@@ -64,13 +64,12 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTabletPerformanceCounters
-    : public TLookuperPerformanceCounters
+    : public TChunkReaderPerformanceCounters
 {
     std::atomic<i64> DynamicMemoryRowReadCount = {0};
     std::atomic<i64> DynamicMemoryRowLookupCount = {0};
     std::atomic<i64> DynamicMemoryRowWriteCount = {0};
     std::atomic<i64> DynamicMemoryRowDeleteCount = {0};
-    std::atomic<i64> StaticChunkRowReadCount = {0};
     std::atomic<i64> UnmergedRowReadCount = {0};
     std::atomic<i64> MergedRowReadCount = {0};
 };

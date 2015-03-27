@@ -60,7 +60,7 @@ using NVersionedTableClient::TVersionedOwningRow;
 using NVersionedTableClient::TColumnFilter;
 using NVersionedTableClient::TTableSchema;
 using NVersionedTableClient::TColumnSchema;
-using NVersionedTableClient::TLookuperPerformanceCounters;
+using NVersionedTableClient::TChunkReaderPerformanceCounters;
 
 using NHive::ETransactionState;
 
