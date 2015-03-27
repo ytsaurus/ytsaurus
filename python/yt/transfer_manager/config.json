@@ -5,7 +5,8 @@
             "options": {
                 "proxy": "smith.yt.yandex.net"
             },
-            "fastbone": true
+            "fastbone": true,
+            "table_url_pattern": "http://yt.yandex.net/smith/#page=navigation&path=%table%"
         },
         "plato": {
             "type": "yt",
@@ -13,7 +14,8 @@
                 "proxy": "plato.yt.yandex.net"
             },
             "fastbone": true,
-            "dc_name": "sas"
+            "dc_name": "sas",
+            "table_url_pattern": "http://yt.yandex.net/plato/#page=navigation&path=%table%"
         },
         "aristotle": {
             "type": "yt",
@@ -21,14 +23,16 @@
                 "proxy": "aristotle.yt.yandex.net"
             },
             "fastbone": true,
-            "dc_name": "sas"
+            "dc_name": "sas",
+            "table_url_pattern": "http://yt.yandex.net/aristotle/#page=navigation&path=%table%"
         },
         "marx": {
             "type": "yt",
             "options": {
                 "proxy": "marx.yt.yandex.net"
             },
-            "fastbone": false
+            "fastbone": false,
+            "table_url_pattern": "http://yt.yandex.net/marx/#page=navigation&path=%table%"
         },
         "cedar": {
             "type": "yamr",
@@ -70,7 +74,8 @@
             "options": {
                 "proxy": "flux.yt.yandex.net",
                 "token": "93b4cacc08aa4538a79a76c21e99c0fb"
-            }
+            },
+            "table_url_pattern": "http://yt.yandex.net/flux/#page=navigation&path=%table%"
         },
         "kiwi_apteryx": {
             "type": "kiwi",
@@ -143,7 +148,8 @@
                 "hdfs_host": "v009h.hdp.yandex.net:14000",
                 "hive_exporter_library": "/home/ignat/hive_import/hiveExporter.jar",
                 "java_path": "/usr/local/java8/bin"
-            }
+            },
+            "table_url_pattern": "https://tasmania.hdp.yandex.net/metastore/table/%db%/%table%"
         }
     },
     "kiwi_transmitter": "flux",
