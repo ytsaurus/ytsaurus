@@ -219,44 +219,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkStore::TVersionedReaderWrapper
-    : public IVersionedReader
-{
-public:
-    TVersionedReaderWrapper(
-        IVersionedReaderPtr underlyingReader,
-        TTabletPerformanceCountersPtr performanceCounters)
-        : UnderlyingReader_(std::move(underlyingReader))
-        , PerformanceCounters_(std::move(performanceCounters))
-    { }
-
-    virtual TFuture<void> Open() override
-    {
-        return UnderlyingReader_->Open();
-    }
-
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
-    {
-        auto result = UnderlyingReader_->Read(rows);
-        if (result) {
-            PerformanceCounters_->StaticChunkRowReadCount += rows->size();
-        }
-        return result;
-    }
-
-    virtual TFuture <void> GetReadyEvent() override
-    {
-        return UnderlyingReader_->GetReadyEvent();
-    }
-
-private:
-    const IVersionedReaderPtr UnderlyingReader_;
-    const TTabletPerformanceCountersPtr PerformanceCounters_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkStore::TBlockCache
     : public IBlockCache
 {
@@ -543,7 +505,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     TReadLimit upperLimit;
     upperLimit.SetKey(std::move(upperKey));
 
-    auto versionedReader = CreateVersionedChunkReader(
+    return CreateVersionedChunkReader(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
         std::move(blockCache),
@@ -551,9 +513,8 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         lowerLimit,
         upperLimit,
         columnFilter,
+        PerformanceCounters_,
         timestamp);
-
-    return New<TVersionedReaderWrapper>(std::move(versionedReader), PerformanceCounters_);
 }
 
 IVersionedReaderPtr TChunkStore::CreateReader(

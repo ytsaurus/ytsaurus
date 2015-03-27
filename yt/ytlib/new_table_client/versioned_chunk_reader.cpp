@@ -41,6 +41,7 @@ public:
         TReadLimit lowerLimit,
         TReadLimit upperLimit,
         const TColumnFilter& columnFilter,
+        TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp);
 
 protected:
@@ -54,6 +55,8 @@ protected:
     TChunkedMemoryPool MemoryPool_;
 
     i64 RowCount_ = 0;
+
+    TChunkReaderPerformanceCountersPtr PerformanceCounters_;
 };
 
 TVersionedChunkReaderBase::TVersionedChunkReaderBase(
@@ -64,6 +67,7 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
     const TColumnFilter& columnFilter,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
     : TChunkReaderBase(
         std::move(config),
@@ -75,11 +79,13 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
     , Timestamp_(timestamp)
     , CachedChunkMeta_(std::move(chunkMeta))
     , MemoryPool_(TVersionedChunkReaderPoolTag())
+    , PerformanceCounters_(std::move(performanceCounters))
 {
     YCHECK(CachedChunkMeta_->Misc().sorted());
     YCHECK(EChunkType(CachedChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
     YCHECK(ETableChunkFormat(CachedChunkMeta_->ChunkMeta().version()) == ETableChunkFormat::VersionedSimple);
     YCHECK(Timestamp_ != AsyncAllCommittedTimestamp || columnFilter.All);
+    YCHECK(PerformanceCounters_);
 
     if (columnFilter.All) {
         SchemaIdMapping_ = CachedChunkMeta_->SchemaIdMapping();
@@ -109,6 +115,7 @@ public:
         TReadLimit lowerLimit,
         TReadLimit upperLimit,
         const TColumnFilter& columnFilter,
+        TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp);
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override;
@@ -133,6 +140,7 @@ TVersionedRangeChunkReader::TVersionedRangeChunkReader(
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
     const TColumnFilter& columnFilter,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
     : TVersionedChunkReaderBase(
         std::move(config),
@@ -142,6 +150,7 @@ TVersionedRangeChunkReader::TVersionedRangeChunkReader(
         std::move(lowerLimit),
         std::move(upperLimit),
         columnFilter,
+        std::move(performanceCounters),
         timestamp)
 { }
 
@@ -169,10 +178,12 @@ bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
 
     while (rows->size() < rows->capacity()) {
         if (UpperLimit_.HasRowIndex() && CurrentRowIndex_ == UpperLimit_.GetRowIndex()) {
+            PerformanceCounters_->StaticChunkRowReadCount += rows->size();
             return !rows->empty();
         }
 
         if (UpperLimit_.HasKey() && CompareRows(BlockReader_->GetKey(), UpperLimit_.GetKey().Get()) >= 0) {
+            PerformanceCounters_->StaticChunkRowReadCount += rows->size();
             return !rows->empty();
         }
 
@@ -190,10 +201,12 @@ bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
         ++CurrentRowIndex_;
         if (!BlockReader_->NextRow()) {
             BlockEnded_ = true;
+            PerformanceCounters_->StaticChunkRowReadCount += rows->size();
             return true;
         }
     }
 
+    PerformanceCounters_->StaticChunkRowReadCount += rows->size();
     return true;
 }
 
@@ -268,6 +281,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
     const TColumnFilter& columnFilter,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
 {
     auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
@@ -281,6 +295,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 std::move(lowerLimit),
                 std::move(upperLimit),
                 columnFilter,
+                std::move(performanceCounters),
                 timestamp);
 
         default:
@@ -301,19 +316,17 @@ public:
         IBlockCachePtr blockCache,
         const std::vector<TKey>& keys,
         const TColumnFilter& columnFilter,
-        TLookuperPerformanceCountersPtr performanceCounters,
+        TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp);
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override;
 
 private:
-    std::vector<TKey> Keys_;
+    const std::vector<TKey> Keys_;
     std::vector<bool> KeyFilterTest_;
     std::vector<int> BlockIndexes_;
 
     int CurrentBlockIndex_ = -1;
-
-    TLookuperPerformanceCountersPtr PerformanceCounters_;
 
     virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
 
@@ -328,7 +341,7 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
     IBlockCachePtr blockCache,
     const std::vector<TKey>& keys,
     const TColumnFilter& columnFilter,
-    TLookuperPerformanceCountersPtr performanceCounters,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
     : TVersionedChunkReaderBase(
         std::move(config),
@@ -338,13 +351,11 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
         TReadLimit(),
         TReadLimit(),
         columnFilter,
+        std::move(performanceCounters),
         timestamp)
     , Keys_(keys)
     , KeyFilterTest_(Keys_.size(), true)
-    , PerformanceCounters_(std::move(performanceCounters))
-{ 
-    YCHECK(PerformanceCounters_);
-}
+{ }
 
 std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlockSequence()
 {
@@ -480,7 +491,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TCachedVersionedChunkMetaPtr chunkMeta,
     const std::vector<TKey>& keys,
     const TColumnFilter& columnFilter,
-    TLookuperPerformanceCountersPtr performanceCounters,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
 {
     return New<TVersionedLookupChunkReader>(

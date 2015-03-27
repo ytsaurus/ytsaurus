@@ -174,7 +174,7 @@ DECLARE_REFCOUNTED_STRUCT(IVersionedMultiChunkWriter)
 
 DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
 
-DECLARE_REFCOUNTED_STRUCT(TLookuperPerformanceCounters)
+DECLARE_REFCOUNTED_STRUCT(TChunkReaderPerformanceCounters)
 
 DECLARE_REFCOUNTED_STRUCT(IValueConsumer)
 DECLARE_REFCOUNTED_CLASS(TBuildingValueConsumer)

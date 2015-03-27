@@ -11,15 +11,16 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLookuperPerformanceCounters
+struct TChunkReaderPerformanceCounters
     : public virtual TIntrinsicRefCounted
 {
     std::atomic<i64> StaticChunkRowLookupCount = {0};
     std::atomic<i64> StaticChunkRowLookupTrueNegativeCount = {0};
     std::atomic<i64> StaticChunkRowLookupFalsePositiveCount = {0};
+    std::atomic<i64> StaticChunkRowReadCount = {0};
 };
 
-DEFINE_REFCOUNTED_TYPE(TLookuperPerformanceCounters)
+DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +32,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     NChunkClient::TReadLimit lowerLimit,
     NChunkClient::TReadLimit upperLimit,
     const TColumnFilter& columnFilter,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp = SyncLastCommittedTimestamp);
 
 //! Creates a versioned chunk reader for a given set of keys.
@@ -47,7 +49,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TCachedVersionedChunkMetaPtr chunkMeta,
     const std::vector<TKey>& keys,
     const TColumnFilter& columnFilter,
-    TLookuperPerformanceCountersPtr performanceCounters,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp = SyncLastCommittedTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////

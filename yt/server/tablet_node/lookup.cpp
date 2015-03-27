@@ -103,42 +103,42 @@ private:
     class TReadSession
     {
     public:
-        TReadSession(IVersionedReaderPtr reader)
-            : Reader(std::move(reader))
+        explicit TReadSession(IVersionedReaderPtr reader)
+            : Reader_(std::move(reader))
         {
-            Rows.reserve(BufferCapacity);
+            Rows_.reserve(BufferCapacity);
         }
 
         bool NextRow()
         {
-            ++RowIndex;
-            return RowIndex < Rows.size();
+            ++RowIndex_;
+            return RowIndex_ < Rows_.size();
         }
 
         TVersionedRow GetRow() const
         {
-            return Rows[RowIndex];
+            return Rows_[RowIndex_];
         }
 
         void Refill() 
         {
-            RowIndex = 0;
+            RowIndex_ = 0;
             while (true) {
-                YCHECK(Reader->Read(&Rows));
-                if (!Rows.empty()) {
+                YCHECK(Reader_->Read(&Rows_));
+                if (!Rows_.empty()) {
                     break;
                 }
 
-                WaitFor(Reader->GetReadyEvent())
+                WaitFor(Reader_->GetReadyEvent())
                     .ThrowOnError();
             }
         }
 
     private:
         static const int BufferCapacity = 1000;
-        IVersionedReaderPtr Reader;
-        std::vector<TVersionedRow> Rows;
-        int RowIndex = -1;
+        IVersionedReaderPtr Reader_;
+        std::vector<TVersionedRow> Rows_;
+        int RowIndex_ = -1;
     };
 
     TChunkedMemoryPool MemoryPool_;
@@ -155,11 +155,11 @@ private:
 
 
     void CreateReadSessions(
-        std::vector<TReadSession>* readers,
+        std::vector<TReadSession>* sessions,
         const TPartitionSnapshotPtr partitionSnapshot,
         const std::vector<TKey>& keys)
     {
-        readers->clear();
+        sessions->clear();
         if (!partitionSnapshot) {
             return;
         }
@@ -174,7 +174,7 @@ private:
             } else {
                 asyncFutures.emplace_back(std::move(future));
             }
-            readers->emplace_back(std::move(reader));
+            sessions->emplace_back(std::move(reader));
         }
 
         if (!asyncFutures.empty()) {
