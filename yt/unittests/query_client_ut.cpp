@@ -16,14 +16,12 @@
 #include <ytlib/query_client/plan_helpers.h>
 #include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/plan_fragment.pb.h>
+#include <ytlib/query_client/builtin_functions.h>
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
-
-#include <ytlib/api/client.h>
-#include <ytlib/api/file_reader.h>
 
 #ifdef YT_USE_LLVM
 #include <udfs/absolute.h>
@@ -1847,59 +1845,13 @@ public:
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
 };
 
-class TFileReaderMock
-    : public IFileReader
+class TFunctionDescriptorFetcherMock
+    : public IFunctionDescriptorFetcher
 {
 public:
-    MOCK_METHOD0(Open, TFuture<void>());
-    MOCK_METHOD0(Read, TFuture<TSharedRef>());
+    MOCK_METHOD1(LookupFunction, IFunctionDescriptorPtr(const Stroka&));
 };
 
-class TClientMock
-    : public IClient
-{
-public:
-    MOCK_METHOD0(GetConnection, IConnectionPtr());
-    MOCK_METHOD2(StartTransaction, TFuture<ITransactionPtr>(NTransactionClient::ETransactionType type, const TTransactionStartOptions& options));
-    MOCK_METHOD4(LookupRow, TFuture<IRowsetPtr>(const NYPath::TYPath& path, NVersionedTableClient::TNameTablePtr nameTable, NVersionedTableClient::TKey key, const TLookupRowsOptions& options));
-    MOCK_METHOD4(LookupRows, TFuture<IRowsetPtr>(const NYPath::TYPath& path, NVersionedTableClient::TNameTablePtr nameTable, const std::vector<NVersionedTableClient::TKey>& keys, const TLookupRowsOptions& options));
-    MOCK_METHOD3(SelectRows, TFuture<NQueryClient::TQueryStatistics>(const Stroka& query, NVersionedTableClient::ISchemafulWriterPtr writer, const TSelectRowsOptions& options));
-    MOCK_METHOD2(SelectRows, TFuture<std::pair<IRowsetPtr, NQueryClient::TQueryStatistics>>(const Stroka& query, const TSelectRowsOptions& options));
-    MOCK_METHOD2(GetNode, TFuture<NYTree::TYsonString>(const NYPath::TYPath& path, const TGetNodeOptions& options));
-    MOCK_METHOD3(SetNode, TFuture<void>(const NYPath::TYPath& path, const NYTree::TYsonString& value, const TSetNodeOptions& options));
-    MOCK_METHOD2(RemoveNode, TFuture<void>(const NYPath::TYPath& path, const TRemoveNodeOptions& options));
-    MOCK_METHOD2(ListNode, TFuture<NYTree::TYsonString>(const NYPath::TYPath& path, const TListNodeOptions& options));
-    MOCK_METHOD3(CreateNode, TFuture<NCypressClient::TNodeId>(const NYPath::TYPath& path, NObjectClient::EObjectType type, const TCreateNodeOptions& options));
-    MOCK_METHOD3(LockNode, TFuture<NCypressClient::TLockId>(const NYPath::TYPath& path, NCypressClient::ELockMode mode, const TLockNodeOptions& options));
-    MOCK_METHOD3(CopyNode, TFuture<NCypressClient::TNodeId>(const NYPath::TYPath& srcPath, const NYPath::TYPath& dstPath, const TCopyNodeOptions& options));
-    MOCK_METHOD3(MoveNode, TFuture<NCypressClient::TNodeId>(const NYPath::TYPath& srcPath, const NYPath::TYPath& dstPath, const TMoveNodeOptions& options));
-    MOCK_METHOD3(LinkNode, TFuture<NCypressClient::TNodeId>(const NYPath::TYPath& srcPath, const NYPath::TYPath& dstPath, const TLinkNodeOptions& options));
-    MOCK_METHOD2(NodeExists, TFuture<bool>(const NYPath::TYPath& path, const TNodeExistsOptions& options));
-    MOCK_METHOD2(CreateObject, TFuture<NObjectClient::TObjectId>(NObjectClient::EObjectType type, const TCreateObjectOptions& options));
-    MOCK_METHOD2(CreateFileReader, IFileReaderPtr(const NYPath::TYPath& path, const TFileReaderOptions& options));
-    MOCK_METHOD2(CreateFileWriter, IFileWriterPtr(const NYPath::TYPath& path, const TFileWriterOptions& options));
-    MOCK_METHOD2(CreateJournalReader, IJournalReaderPtr(const NYPath::TYPath& path, const TJournalReaderOptions& options));
-    MOCK_METHOD2(CreateJournalWriter, IJournalWriterPtr(const NYPath::TYPath& path, const TJournalWriterOptions& options));
-    MOCK_METHOD1(GetMasterChannel, NRpc::IChannelPtr(EMasterChannelKind kind));
-    MOCK_METHOD0(GetSchedulerChannel, NRpc::IChannelPtr());
-    MOCK_METHOD0(GetNodeChannelFactory, NRpc::IChannelFactoryPtr());
-    MOCK_METHOD0(GetTransactionManager, NTransactionClient::TTransactionManagerPtr());
-    MOCK_METHOD0(GetQueryExecutor, NQueryClient::IExecutorPtr());
-    MOCK_METHOD0(Terminate, TFuture<void>());
-    MOCK_METHOD2(MountTable, TFuture<void>(const NYPath::TYPath& path, const TMountTableOptions& options));
-    MOCK_METHOD2(UnmountTable, TFuture<void>(const NYPath::TYPath& path, const TUnmountTableOptions& options));
-    MOCK_METHOD2(RemountTable, TFuture<void>(const NYPath::TYPath& path, const TRemountTableOptions& options));
-    MOCK_METHOD3(ReshardTable, TFuture<void>(const NYPath::TYPath& path, const std::vector<NVersionedTableClient::TKey>& pivotKeys, const TReshardTableOptions& options));
-    MOCK_METHOD3(AddMember, TFuture<void>(const Stroka& group, const Stroka& member, const TAddMemberOptions& options));
-    MOCK_METHOD3(RemoveMember, TFuture<void>(const Stroka& group, const Stroka& member, const TRemoveMemberOptions& options));
-    MOCK_METHOD4(CheckPermission, TFuture<TCheckPermissionResult>(const Stroka& user, const NYPath::TYPath& path, NYTree::EPermission permission, const TCheckPermissionOptions& options));
-    MOCK_METHOD3(StartOperation, TFuture<NScheduler::TOperationId>(NScheduler::EOperationType type, const NYTree::TYsonString& spec, const TStartOperationOptions& options));
-    MOCK_METHOD2(AbortOperation, TFuture<void>(const NScheduler::TOperationId& operationId, const TAbortOperationOptions& options));
-    MOCK_METHOD2(SuspendOperation, TFuture<void>(const NScheduler::TOperationId& operationId, const TSuspendOperationOptions& options));
-    MOCK_METHOD2(ResumeOperation, TFuture<void>(const NScheduler::TOperationId& operationId, const TResumeOperationOptions& options));
-    MOCK_METHOD3(DumpJobInputContext, TFuture<void>(const NJobTrackerClient::TJobId& jobId, const NYPath::TYPath& path, const TDumpJobInputContextOptions& options));
-    MOCK_METHOD2(StraceJob, TFuture<NYTree::TYsonString>(const NJobTrackerClient::TJobId& jobId, const TStraceJobOptions& options));
-};
 
 TOwningRow BuildRow(
     const Stroka& yson,
@@ -1991,8 +1943,6 @@ protected:
     virtual void SetUp() override
     {
         WriterMock_ = New<StrictMock<TWriterMock>>();
-        FileReaderMock_ = New<StrictMock<TFileReaderMock>>();
-        ClientMock_ = New<StrictMock<TClientMock>>();
 
         ActionQueue_ = New<TActionQueue>("Test");
     }
@@ -2112,8 +2062,6 @@ protected:
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
-    TIntrusivePtr<StrictMock<TFileReaderMock>> FileReaderMock_;
-    TIntrusivePtr<StrictMock<TClientMock>> ClientMock_;
     TActionQueuePtr ActionQueue_;
 
 };
@@ -3082,29 +3030,23 @@ TEST_F(TQueryEvaluateTest, TestUdf)
         "x=10"
     }, resultSplit);
 
-    Stroka implementationPath = "//tmp/abs.bc";
-    EXPECT_CALL(*ClientMock_, CreateFileReader(implementationPath, _))
-        .WillOnce(Return(FileReaderMock_));
+    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
+        absolute_bc,
+        absolute_bc_len));
 
-    EXPECT_CALL(*FileReaderMock_, Open())
-        .WillOnce(Return(WrapVoidInFuture()));
+    auto absoluteDescriptor = New<TUserDefinedFunction>(
+        "absolute",
+        std::vector<EValueType>{EValueType::Int64},
+        EValueType::Int64,
+        fileRef);
 
-    auto fileRef = WrapInFuture(TSharedRef::FromRefNonOwning(
-        TRef(absolute_bc, absolute_bc_len)));
-    EXPECT_CALL(*FileReaderMock_, Read())
-        .WillOnce(Return(fileRef))
-        .WillRepeatedly(Return(WrapInFuture(TSharedRef())));
+    auto fetcher = std::make_unique<StrictMock<TFunctionDescriptorFetcherMock>>();
+    EXPECT_CALL(*fetcher, LookupFunction("absolute"))
+        .WillOnce(Return(absoluteDescriptor));
 
-    auto absString = WrapInFuture(TYsonString("{\
-        name = absolute;\
-        argument_types = [int64];\
-        result_type = int64;\
-        implementation_path = \"" + implementationPath + "\" }"));
-
-    EXPECT_CALL(*ClientMock_, GetNode("//tmp/udfs/absolute", _))
-        .WillOnce(Return(absString));
-
-    auto registry = CreateFunctionRegistry(ClientMock_);
+    auto registry = New<TCypressFunctionRegistry>(
+        std::move(fetcher),
+        New<TFunctionRegistry>());
 
     Evaluate("absolute(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 

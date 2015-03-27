@@ -47,12 +47,20 @@ DEFINE_REFCOUNTED_TYPE(TFunctionRegistry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class IFunctionDescriptorFetcher
+{
+public:
+    virtual ~IFunctionDescriptorFetcher();
+
+    virtual IFunctionDescriptorPtr LookupFunction(const Stroka& functionName) = 0;
+};
+
 class TCypressFunctionRegistry
     : public TFunctionRegistry
 {
 public:
     TCypressFunctionRegistry(
-        NApi::IClientPtr client,
+        std::unique_ptr<IFunctionDescriptorFetcher> functionFetcher,
         TFunctionRegistryPtr builtinRegistry);
 
     virtual IFunctionDescriptor& GetFunction(const Stroka& functionName);
@@ -60,11 +68,11 @@ public:
     virtual bool IsRegistered(const Stroka& functionName);
 
 private:
-    const NApi::IClientPtr Client_;
+    const std::unique_ptr<IFunctionDescriptorFetcher> FunctionFetcher_;
     const TFunctionRegistryPtr BuiltinRegistry_;
     const TFunctionRegistryPtr UDFRegistry_;
 
-    void LookupInCypress(const Stroka& functionName);
+    void LookupAndRegister(const Stroka& functionName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
