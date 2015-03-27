@@ -19,7 +19,6 @@
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/versioned_row.h>
 #include <ytlib/new_table_client/versioned_reader.h>
-#include <ytlib/new_table_client/versioned_lookuper.h>
 
 #include <ytlib/tablet_client/config.h>
 
@@ -584,39 +583,6 @@ private:
     std::vector<TKey> Keys_;
     i64 RowCount_  = 0;
     bool Finished_ = false;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDynamicMemoryStore::TLookuper
-    : public TFetcherBase
-    , public IVersionedLookuper
-{
-public:
-    TLookuper(
-        TDynamicMemoryStorePtr store,
-        TTimestamp timestamp,
-        const TColumnFilter& columnFilter)
-        : TFetcherBase(
-            std::move(store),
-            timestamp,
-            columnFilter)
-    { }
-
-    virtual TFutureHolder<TVersionedRow> Lookup(TKey key) override
-    {
-        ++Store_->PerformanceCounters_->DynamicMemoryRowLookupCount;
-
-        auto iterator = Store_->Rows_->FindEqualTo(TRowWrapper{key});
-        if (!iterator.IsValid()) {
-            return NullRowFuture;
-        }
-
-        auto dynamicRow = iterator.GetCurrent();
-        auto versionedRow = ProduceSingleRowVersion(dynamicRow);
-        return MakeFuture(versionedRow);
-    }
 
 };
 
@@ -1273,19 +1239,11 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
         columnFilter);
 }
 
-IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
-    const std::vector<TKey>& keys,
-    TTimestamp timestamp,
-    const TColumnFilter& columnFilter)
-{
-    return New<TLookupReader>(this, keys, timestamp, columnFilter);
-}
-
 IVersionedLookuperPtr TDynamicMemoryStore::CreateLookuper(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
-    return New<TLookuper>(this, timestamp, columnFilter);
+    return New<TLookupReader>(this, keys, timestamp, columnFilter);
 }
 
 void TDynamicMemoryStore::CheckRowLocks(

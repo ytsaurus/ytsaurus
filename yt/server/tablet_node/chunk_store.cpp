@@ -19,8 +19,6 @@
 
 #include <ytlib/new_table_client/versioned_reader.h>
 #include <ytlib/new_table_client/versioned_chunk_reader.h>
-#include <ytlib/new_table_client/versioned_lookuper.h>
-#include <ytlib/new_table_client/versioned_chunk_lookuper.h>
 #include <ytlib/new_table_client/cached_versioned_chunk_meta.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
@@ -578,39 +576,12 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     auto chunkReader = PrepareChunkReader(chunk);
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
 
-    auto versionedReader = CreateVersionedChunkReader(
+    return CreateVersionedChunkReader(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
         std::move(blockCache),
         std::move(cachedVersionedChunkMeta),
         keys,
-        columnFilter,
-        timestamp);
-
-    return New<TVersionedReaderWrapper>(std::move(versionedReader), PerformanceCounters_);
-}
-
-IVersionedLookuperPtr TChunkStore::CreateLookuper(
-    TTimestamp timestamp,
-    const TColumnFilter& columnFilter)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto backingStore = GetBackingStore();
-    if (backingStore) {
-        return backingStore->CreateLookuper(timestamp, columnFilter);
-    }
-
-    auto blockCache = GetBlockCache();
-    auto chunk = PrepareChunk();
-    auto chunkReader = PrepareChunkReader(chunk);
-    auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
-
-    return CreateVersionedChunkLookuper(
-        Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-        std::move(chunkReader),
-        std::move(blockCache),
-        std::move(cachedVersionedChunkMeta),
         columnFilter,
         PerformanceCounters_,
         timestamp);
