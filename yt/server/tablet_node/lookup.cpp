@@ -16,7 +16,7 @@
 #include <ytlib/tablet_client/wire_protocol.h>
 #include <ytlib/tablet_client/wire_protocol.pb.h>
 
-#include <ytlib/new_table_client/versioned_lookuper.h>
+#include <ytlib/new_table_client/versioned_reader.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,20 +92,58 @@ public:
         return LookupKeys_;
     }
 
-
     void Clean()
     {
         MemoryPool_.Clear();
         LookupKeys_.clear();
-        EdenLookupers_.clear();
-        PartitionLookupers_.clear();
+        EdenSessions_.clear();
     }
 
 private:
+    class TReadSession
+    {
+    public:
+        TReadSession(IVersionedReaderPtr reader)
+            : Reader(std::move(reader))
+        {
+            Rows.reserve(BufferCapacity);
+        }
+
+        bool NextRow()
+        {
+            ++RowIndex;
+            return RowIndex < Rows.size();
+        }
+
+        TVersionedRow GetRow() const
+        {
+            return Rows[RowIndex];
+        }
+
+        void Refill() 
+        {
+            RowIndex = 0;
+            while (true) {
+                YCHECK(Reader->Read(&Rows));
+                if (!Rows.empty()) {
+                    break;
+                }
+
+                WaitFor(Reader->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+
+    private:
+        static const int BufferCapacity = 1000;
+        IVersionedReaderPtr Reader;
+        std::vector<TVersionedRow> Rows;
+        int RowIndex = -1;
+    };
+
     TChunkedMemoryPool MemoryPool_;
     std::vector<TUnversionedRow> LookupKeys_;
-    std::vector<IVersionedLookuperPtr> EdenLookupers_;
-    std::vector<IVersionedLookuperPtr> PartitionLookupers_;
+    std::vector<TReadSession> EdenSessions_;
 
     TTabletSnapshotPtr TabletSnapshot_;
     TTimestamp Timestamp_;
@@ -116,39 +154,42 @@ private:
     TCallback<void(TWireProtocolWriter* writer)> RunCallback_;
 
 
-    void CreateLookupers(
-        std::vector<IVersionedLookuperPtr>* lookupers,
-        const TPartitionSnapshotPtr partitionSnapshot)
+    void CreateReadSessions(
+        std::vector<TReadSession>* readers,
+        const TPartitionSnapshotPtr partitionSnapshot,
+        const std::vector<TKey>& keys)
     {
-        lookupers->clear();
-        if (partitionSnapshot) {
-            for (const auto& store : partitionSnapshot->Stores) {
-                auto lookuper = store->CreateLookuper(Timestamp_, ColumnFilter_);
-                lookupers->push_back(std::move(lookuper));
-            }
+        readers->clear();
+        if (!partitionSnapshot) {
+            return;
         }
-    }
 
-    void InvokeLookupers(
-        const std::vector<IVersionedLookuperPtr>& lookupers,
-        TUnversionedRowMerger* merger,
-        std::vector<TFutureHolder<TVersionedRow>>* rowHolders,
-        TKey key)
-    {
-        for (const auto& lookuper : lookupers) {
-            auto rowHolder = lookuper->Lookup(key);
-            auto maybeRowOrError = rowHolder.Get().TryGet();
-            if (maybeRowOrError) {
-                merger->AddPartialRow(maybeRowOrError->ValueOrThrow());
+        std::vector<TFuture<void>> asyncFutures;
+        for (const auto& store : partitionSnapshot->Stores) {
+            auto reader = store->CreateReader(keys, Timestamp_, ColumnFilter_);
+            auto future = reader->Open();
+            auto maybeError = future.TryGet();
+            if (maybeError) {
+                maybeError->ThrowOnError();
             } else {
-                rowHolders->push_back(std::move(rowHolder));
+                asyncFutures.emplace_back(std::move(future));
             }
+            readers->emplace_back(std::move(reader));
+        }
+
+        if (!asyncFutures.empty()) {
+            WaitFor(Combine(asyncFutures)).ThrowOnError();
         }
     }
 
-    void DoRun(TWireProtocolWriter* writer)
+    void LookupInPartition(
+        const TPartitionSnapshotPtr partitionSnapshot,
+        const std::vector<TKey>& keys,
+        TWireProtocolWriter* writer)
     {
-        CreateLookupers(&EdenLookupers_, TabletSnapshot_->Eden);
+        if (keys.empty()) {
+            return;
+        }
 
         TUnversionedRowMerger merger(
             &MemoryPool_,
@@ -156,39 +197,49 @@ private:
             KeyColumnCount_,
             ColumnFilter_);
 
-        // Assuming that lookup keys are sorted, we cache the lookupers for the last
-        // examined partition.
-        TPartitionSnapshotPtr currentPartitionSnapshot;
-
-        for (auto key : LookupKeys_) {
-            ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
-
-            auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
-            if (partitionSnapshot != currentPartitionSnapshot) {
-                currentPartitionSnapshot = std::move(partitionSnapshot);
-                CreateLookupers(&PartitionLookupers_, currentPartitionSnapshot);
-            }
-
-            // Send requests, collect sync responses.
-            std::vector<TFutureHolder<TVersionedRow>> rowHolders;
-            InvokeLookupers(EdenLookupers_, &merger, &rowHolders, key);
-            InvokeLookupers(PartitionLookupers_, &merger, &rowHolders, key);
-
-            // Wait for async responses.
-            if (!rowHolders.empty()) {
-                auto rows = WaitFor(Combine(rowHolders))
-                    .ValueOrThrow();
-                for (auto row : rows) {
-                    merger.AddPartialRow(row);
+        auto processSessions = [&] (std::vector<TReadSession>& sessions) {
+            for (auto& session : sessions) {
+                if (!session.NextRow()) {
+                    session.Refill();
                 }
-            }
 
-            // Merge partial rows.
+                merger.AddPartialRow(session.GetRow());
+            }
+        };
+
+        std::vector<TReadSession> sessions;
+        CreateReadSessions(&sessions, partitionSnapshot, keys);
+
+        for (int index = 0; index < keys.size(); ++index) {
+            processSessions(sessions);
+            processSessions(EdenSessions_);
+
             auto mergedRow = merger.BuildMergedRow();
             writer->WriteUnversionedRow(mergedRow);
         }
     }
 
+    void DoRun(TWireProtocolWriter* writer)
+    {
+        CreateReadSessions(&EdenSessions_, TabletSnapshot_->Eden, LookupKeys_);
+
+        TPartitionSnapshotPtr currentPartitionSnapshot;
+        std::vector<TUnversionedRow> partitionKeys;
+
+        for (auto key : LookupKeys_) {
+            ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
+            auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
+            if (partitionSnapshot != currentPartitionSnapshot) {
+                LookupInPartition(currentPartitionSnapshot, partitionKeys, writer);
+
+                currentPartitionSnapshot = std::move(partitionSnapshot);
+                partitionKeys.clear();
+            }
+            partitionKeys.push_back(key);
+        }
+
+        LookupInPartition(currentPartitionSnapshot, partitionKeys, writer);
+    }
 };
 
 } // namespace NTabletNode

@@ -132,10 +132,6 @@ public:
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
-    virtual NVersionedTableClient::IVersionedLookuperPtr CreateLookuper(
-        TTimestamp timestamp,
-        const TColumnFilter& columnFilter) override;
-
     virtual void CheckRowLocks(
         TKey key,
         TTransaction* transaction,
@@ -152,7 +148,6 @@ private:
     class TFetcherBase;
     class TRangeReader;
     class TLookupReader;
-    class TLookuper;
 
     const TTabletManagerConfigPtr Config_;
 

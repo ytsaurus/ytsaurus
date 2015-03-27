@@ -20,7 +20,6 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/versioned_reader.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/versioned_lookuper.h>
 
 #include <ytlib/tablet_client/config.h>
 

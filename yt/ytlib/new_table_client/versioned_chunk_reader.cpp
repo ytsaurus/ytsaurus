@@ -301,15 +301,19 @@ public:
         IBlockCachePtr blockCache,
         const std::vector<TKey>& keys,
         const TColumnFilter& columnFilter,
+        TLookuperPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp);
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override;
 
 private:
     std::vector<TKey> Keys_;
+    std::vector<bool> KeyFilterTest_;
     std::vector<int> BlockIndexes_;
 
     int CurrentBlockIndex_ = -1;
+
+    TLookuperPerformanceCountersPtr PerformanceCounters_;
 
     virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
 
@@ -324,6 +328,7 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
     IBlockCachePtr blockCache,
     const std::vector<TKey>& keys,
     const TColumnFilter& columnFilter,
+    TLookuperPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
     : TVersionedChunkReaderBase(
         std::move(config),
@@ -335,7 +340,11 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
         columnFilter,
         timestamp)
     , Keys_(keys)
-{ }
+    , KeyFilterTest_(Keys_.size(), true)
+    , PerformanceCounters_(std::move(performanceCounters))
+{ 
+    YCHECK(PerformanceCounters_);
+}
 
 std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlockSequence()
 {
@@ -347,7 +356,12 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlock
         return blocks;
     }
 
-    for (const auto& key : Keys_) {
+    for (int keyIndex = 0; keyIndex < Keys_.size(); ++keyIndex) {
+        auto& key = Keys_[keyIndex];
+        if (!CachedChunkMeta_->KeyFilter().Contains(key)) {
+            KeyFilterTest_[keyIndex] = false;
+            continue;
+        }
         int blockIndex = GetBlockIndexByKey(
             key, 
             blockIndexKeys, 
@@ -414,6 +428,7 @@ bool TVersionedLookupChunkReader::Read(std::vector<TVersionedRow>* rows)
             rows->push_back(TVersionedRow());
             ++RowCount_;
         }
+        PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
         return true;
     }
 
@@ -426,24 +441,33 @@ bool TVersionedLookupChunkReader::Read(std::vector<TVersionedRow>* rows)
     while (rows->size() < rows->capacity()) {
         if (RowCount_ == Keys_.size()) {
             BlockEnded_ = true;
+            PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
             return true;
         }
 
-        const auto& key = Keys_[RowCount_];
-        if (!BlockReader_->SkipToKey(key)) {
-            BlockEnded_ = true;
-            return true;
-        }
-
-        if (key == BlockReader_->GetKey()) {
-            auto row = BlockReader_->GetRow(&MemoryPool_);
-            rows->push_back(row);
-        } else {
+        if (!KeyFilterTest_[RowCount_]) {
             rows->push_back(TVersionedRow());
+            ++PerformanceCounters_->StaticChunkRowLookupTrueNegativeCount;
+        } else {
+            const auto& key = Keys_[RowCount_];
+            if (!BlockReader_->SkipToKey(key)) {
+                BlockEnded_ = true;
+                PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+                return true;
+            }
+
+            if (key == BlockReader_->GetKey()) {
+                auto row = BlockReader_->GetRow(&MemoryPool_);
+                rows->push_back(row);
+            } else {
+                rows->push_back(TVersionedRow());
+                ++PerformanceCounters_->StaticChunkRowLookupFalsePositiveCount;
+            }
         }
         ++RowCount_;
     }
 
+    PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
     return true;
 }
 
@@ -456,6 +480,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TCachedVersionedChunkMetaPtr chunkMeta,
     const std::vector<TKey>& keys,
     const TColumnFilter& columnFilter,
+    TLookuperPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
 {
     return New<TVersionedLookupChunkReader>(
@@ -465,6 +490,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(blockCache),
         keys,
         columnFilter,
+        std::move(performanceCounters),
         timestamp);
 }
 

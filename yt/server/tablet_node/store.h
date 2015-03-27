@@ -81,14 +81,6 @@ struct IStore
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) = 0;
 
-    //! Creates a lookuper instance.
-    /*!
-     *  This call is typically synchronous and fast but may occasionally yield.
-     */
-    virtual NVersionedTableClient::IVersionedLookuperPtr CreateLookuper(
-        TTimestamp timestamp,
-        const TColumnFilter& columnFilter) = 0;
-
     //! Checks that #transaction attempting to take locks indicated by #lockMask
     //! has no conflicts within the store. Throws on failure.
     /*!

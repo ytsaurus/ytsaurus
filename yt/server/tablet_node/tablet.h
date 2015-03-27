@@ -11,7 +11,7 @@
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/versioned_lookuper.h>
+#include <ytlib/new_table_client/versioned_chunk_reader.h>
 
 #include <ytlib/tablet_client/public.h>
 

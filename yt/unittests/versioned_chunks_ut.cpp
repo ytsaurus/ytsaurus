@@ -588,6 +588,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
             chunkMeta,
             keys,
             TColumnFilter(),
+            New<TLookuperPerformanceCounters>(),
             AsyncAllCommittedTimestamp);
 
         EXPECT_TRUE(chunkReader->Open().Get().IsOK());
