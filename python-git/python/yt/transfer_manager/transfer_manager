@@ -1139,7 +1139,7 @@ DEFAULT_CONFIG = {
             "options": {
                 "hcatalog_host": "v013h.hdp.yandex.net:50111",
                 "hdfs_host": "v009h.hdp.yandex.net:14000",
-                "hive_exporter_library": "/home/ignat/hive_import/hiveExporter.jar"
+                "hive_importer_library": "/home/ignat/hive_import/hiveExporter.jar"
             }
         }
     },
