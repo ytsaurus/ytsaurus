@@ -13,13 +13,23 @@ function(UDF udf output)
 
   set(${output} ${${output}} ${_dirname}/${_filename}.h PARENT_SCOPE)
 
+  find_program(CLANG_EXECUTABLE
+    NAMES clang-3.6 clang
+    PATHS $ENV{LLVM_ROOT}/bin ENV PATH
+  )
+
+  find_program(LLVM_AS_EXECUTABLE
+    NAMES llvm-as-3.6 llvm-as
+    PATHS $ENV{LLVM_ROOT}/bin ENV PATH
+  )
+
   add_custom_command(
     OUTPUT
       ${_dirname}/${_filename}.h
     COMMAND
-      clang-3.5 -S -emit-llvm ${_realpath}
+      ${CLANG_EXECUTABLE} -S -emit-llvm ${_realpath}
     COMMAND
-      llvm-as-3.5 ${_filename}.ll
+      ${LLVM_AS_EXECUTABLE} ${_filename}.ll
     COMMAND
       xxd -i ${_filename}.bc > ${_filename}.h
     COMMAND
