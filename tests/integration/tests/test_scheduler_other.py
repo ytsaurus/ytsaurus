@@ -150,10 +150,10 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         create("table", "//tmp/out2")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
-        op1 = map(dont_track=True, command="sleep 1.0; cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
+        op1 = map(dont_track=True, command="sleep 1.7; cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
         op2 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out2")
 
-        time.sleep(0.8)
+        time.sleep(1.5)
         assert get("//sys/operations/{0}/@state".format(op1)) == "running"
         assert get("//sys/operations/{0}/@state".format(op2)) == "pending"
 
