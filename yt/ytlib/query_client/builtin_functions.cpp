@@ -557,10 +557,7 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
         auto callee = this_->GetLLVMFunction(builder);
         std::vector<Value*> arguments;
 
-        for (
-            auto arg = codegenArgs.begin();
-            arg != codegenArgs.end();
-            arg++) {
+        for (auto arg = codegenArgs.begin(); arg != codegenArgs.end(); arg++) {
             auto argValue = (*arg)(builder, row);
             arguments.push_back(argValue.GetData());
         }
