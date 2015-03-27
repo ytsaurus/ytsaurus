@@ -6,6 +6,8 @@
 #include <ytlib/api/client.h>
 #include <ytlib/api/file_reader.h>
 
+#include <core/logging/log.h>
+
 #include <core/ytree/convert.h>
 
 #include <core/concurrency/scheduler.h>
@@ -19,6 +21,8 @@ namespace NQueryClient {
 
 using namespace NConcurrency;
 using namespace NYTree;
+
+static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,6 +140,7 @@ DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
 
 void TCypressFunctionRegistry::LookupInCypress(const Stroka& functionName)
 {
+    LOG_DEBUG("Looking for implementation of function \"" + functionName + "\" in Cypress");
     Stroka registryPath = "//tmp/udfs";
     auto functionPath = registryPath + "/" + to_lower(functionName);
 
@@ -161,6 +166,7 @@ IFunctionDescriptor& TCypressFunctionRegistry::GetFunction(const Stroka& functio
     if (BuiltinRegistry_->IsRegistered(functionName)) {
         return BuiltinRegistry_->GetFunction(functionName);
     } else if (UDFRegistry_->IsRegistered(functionName)) {
+        LOG_DEBUG("Found a cached implementation of function \"" + functionName + "\"");
         return UDFRegistry_->GetFunction(functionName);
     } else {
         LookupInCypress(functionName);
