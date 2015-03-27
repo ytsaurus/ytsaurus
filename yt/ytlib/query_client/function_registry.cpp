@@ -74,47 +74,6 @@ void RegisterBuiltinFunctionsImpl(IFunctionRegistryPtr registry)
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressFunctionRegistry::TCypressFunctionRegistry(
-    NApi::IClientPtr client,
-    TFunctionRegistryPtr builtinRegistry)
-    : TFunctionRegistry()
-    , Client_(std::move(client))
-    , BuiltinRegistry_(std::move(builtinRegistry))
-    , UDFRegistry_(New<TFunctionRegistry>())
-{ }
-
-TSharedRef ReadFile(NApi::IClientPtr client, const Stroka& fileName)
-{
-    auto reader = client->CreateFileReader(fileName);
-    WaitFor(reader->Open());
-
-    int size = 0;
-    std::vector<TSharedRef> blocks;
-    while (true) {
-        auto blockOrError = reader->Read().Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
-        auto block = blockOrError.Value();
-
-        if (!block) {
-            break;
-        }
-
-        blocks.push_back(block);
-        size += block.Size();
-    }
-    
-    auto file = TSharedRef::Allocate(size);
-    auto memoryOutput = TMemoryOutput(
-        file.Begin(),
-        size);
-    
-    for (const auto& block : blocks) {
-        memoryOutput.Write(block.Begin(), block.Size());
-    }
-
-    return file;
-}
-
 class TCypressFunctionDescriptor
     : public TYsonSerializable
 {
@@ -138,28 +97,85 @@ public:
 DECLARE_REFCOUNTED_CLASS(TCypressFunctionDescriptor)
 DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
 
-void TCypressFunctionRegistry::LookupInCypress(const Stroka& functionName)
-{
-    LOG_DEBUG("Looking for implementation of function \"" + functionName + "\" in Cypress");
-    Stroka registryPath = "//tmp/udfs";
-    auto functionPath = registryPath + "/" + to_lower(functionName);
+IFunctionDescriptorFetcher::~IFunctionDescriptorFetcher()
+{ }
 
-    auto cypressFunctionOrError = WaitFor(Client_->GetNode(functionPath));
-    if (!cypressFunctionOrError.IsOK()) {
-        return;
+class TCypressFunctionDescriptorFetcher
+    : public IFunctionDescriptorFetcher
+{
+public:
+    TCypressFunctionDescriptorFetcher(
+        NApi::IClientPtr client)
+        : Client_(std::move(client))
+    { }
+
+    TSharedRef ReadFile(const Stroka& fileName) const
+    {
+        auto reader = Client_->CreateFileReader(fileName);
+        WaitFor(reader->Open());
+
+        int size = 0;
+        std::vector<TSharedRef> blocks;
+        while (true) {
+            auto blockOrError = reader->Read().Get();
+            THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
+            auto block = blockOrError.Value();
+
+            if (!block) {
+                break;
+            }
+
+            blocks.push_back(block);
+            size += block.Size();
+        }
+        
+        auto file = TSharedRef::Allocate(size);
+        auto memoryOutput = TMemoryOutput(
+            file.Begin(),
+            size);
+        
+        for (const auto& block : blocks) {
+            memoryOutput.Write(block.Begin(), block.Size());
+        }
+
+        return file;
     }
 
-    auto function = ConvertTo<TCypressFunctionDescriptorPtr>(
-        cypressFunctionOrError.Value());
+    virtual IFunctionDescriptorPtr LookupFunction(const Stroka& functionName) override
+    {
+        LOG_DEBUG("Looking for implementation of function \"" + functionName + "\" in Cypress");
+        Stroka registryPath = "//tmp/udfs";
+        auto functionPath = registryPath + "/" + to_lower(functionName);
 
-    auto implementationFile = ReadFile(Client_, function->ImplementationPath);
+        auto cypressFunctionOrError = WaitFor(Client_->GetNode(functionPath));
+        if (!cypressFunctionOrError.IsOK()) {
+            return nullptr;
+        }
 
-    UDFRegistry_->RegisterFunction(New<TUserDefinedFunction>(
-        function->Name,
-        function->ArgumentTypes,
-        function->ResultType,
-        implementationFile));
-}
+        auto function = ConvertTo<TCypressFunctionDescriptorPtr>(
+            cypressFunctionOrError.Value());
+
+        auto implementationFile = ReadFile(function->ImplementationPath);
+
+        return New<TUserDefinedFunction>(
+            function->Name,
+            function->ArgumentTypes,
+            function->ResultType,
+            implementationFile);
+    }
+
+private:
+    NApi::IClientPtr Client_;
+};
+
+TCypressFunctionRegistry::TCypressFunctionRegistry(
+    std::unique_ptr<IFunctionDescriptorFetcher> functionFetcher,
+    TFunctionRegistryPtr builtinRegistry)
+    : TFunctionRegistry()
+    , FunctionFetcher_(std::move(functionFetcher))
+    , BuiltinRegistry_(std::move(builtinRegistry))
+    , UDFRegistry_(New<TFunctionRegistry>())
+{ }
 
 IFunctionDescriptor& TCypressFunctionRegistry::GetFunction(const Stroka& functionName)
 {
@@ -169,7 +185,7 @@ IFunctionDescriptor& TCypressFunctionRegistry::GetFunction(const Stroka& functio
         LOG_DEBUG("Found a cached implementation of function \"" + functionName + "\"");
         return UDFRegistry_->GetFunction(functionName);
     } else {
-        LookupInCypress(functionName);
+        LookupAndRegister(functionName);
         return UDFRegistry_->GetFunction(functionName);
     }
 }
@@ -181,8 +197,16 @@ bool TCypressFunctionRegistry::IsRegistered(const Stroka& functionName)
     {
         return true;
     } else {
-        LookupInCypress(functionName);
+        LookupAndRegister(functionName);
         return UDFRegistry_->IsRegistered(functionName);
+    }
+}
+
+void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
+{
+    auto function = FunctionFetcher_->LookupFunction(functionName);
+    if (function) {
+        UDFRegistry_->RegisterFunction(function);
     }
 }
 
@@ -203,7 +227,8 @@ IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
 IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
 {
     auto builtinRegistry = CreateBuiltinFunctionRegistryImpl();
-    return New<TCypressFunctionRegistry>(client, builtinRegistry);
+    auto fetcher = std::make_unique<TCypressFunctionDescriptorFetcher>(client);
+    return New<TCypressFunctionRegistry>(std::move(fetcher), builtinRegistry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
