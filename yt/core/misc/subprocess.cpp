@@ -14,7 +14,6 @@
 #include <array>
 
 namespace NYT {
-namespace NExecAgent {
 
 using namespace NConcurrency;
 using namespace NPipes;
@@ -153,5 +152,4 @@ Stroka TSubprocess::GetCommandLine() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExecAgent
 } // namespace NYT

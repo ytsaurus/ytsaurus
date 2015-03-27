@@ -9,7 +9,6 @@
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NExecAgent;
 using namespace NYTree;
 using namespace NConcurrency;
 
