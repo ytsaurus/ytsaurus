@@ -6,6 +6,7 @@
 #include "tablet_slot.h"
 #include "tablet_manager.h"
 #include "slot_manager.h"
+#include "store_manager.h"
 #include "private.h"
 
 #include <core/concurrency/scheduler.h>
@@ -75,8 +76,9 @@ private:
         if (tablet->GetState() != ETabletState::Mounted)
             return;
 
+        auto storeManager = tablet->GetStoreManager();
         while (true) {
-            auto store = tablet->PeekStoreForPreload();
+            auto store = storeManager->PeekStoreForPreload();
             if (!store)
                 break;
             if (!ScanStore(tablet, store))
@@ -100,7 +102,9 @@ private:
                 store)
             .AsyncVia(tablet->GetEpochAutomatonInvoker())
             .Run();
-        tablet->BeginStorePreload(store, future);
+
+        auto storeManager = tablet->GetStoreManager();
+        storeManager->BeginStorePreload(store, future);
         return true;
     }
 
@@ -114,12 +118,14 @@ private:
             tablet->GetTabletId(),
             store->GetId());
 
+        auto storeManager = tablet->GetStoreManager();
+
         try {
             GuardedPreloadStore(tablet, store, Logger);
-            tablet->EndStorePreload(store);
+            storeManager->EndStorePreload(store);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error preloading tablet store, backing off");
-            tablet->BackoffStorePreload(store, Config_->TabletManager->ErrorBackoffTime);
+            storeManager->BackoffStorePreload(store);
         }
     }
 
