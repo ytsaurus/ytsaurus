@@ -451,7 +451,7 @@ void TTablet::AddStore(IStorePtr store)
     store->SetPartition(partition);
     YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
     YCHECK(partition->Stores().insert(store).second);
-    if (Config_->InMemoryMode != EInMemoryMode::Disabled && store->GetType() == EStoreType::Chunk) {
+    if (Config_->InMemoryMode != EInMemoryMode::None && store->GetType() == EStoreType::Chunk) {
         ScheduleStorePreload(store->AsChunk());
     }
 }
@@ -684,7 +684,7 @@ void TTablet::UpdateInMemoryMode()
         if (store->GetType() == EStoreType::Chunk) {
             auto chunkStore = store->AsChunk();
             chunkStore->SetInMemoryMode(Config_->InMemoryMode);
-            if (Config_->InMemoryMode != EInMemoryMode::Disabled) {
+            if (Config_->InMemoryMode != EInMemoryMode::None) {
                 ScheduleStorePreload(chunkStore);
             }
         }

@@ -120,7 +120,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
 );
 
 DEFINE_ENUM(EInMemoryMode,
-    (Disabled)
+    (None)
     (Compressed)
     (Uncompressed)
 );

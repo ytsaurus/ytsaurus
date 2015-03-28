@@ -181,7 +181,7 @@ public:
             .Default(20);
 
         RegisterParameter("in_memory_mode", InMemoryMode)
-            .Default(EInMemoryMode::Disabled);
+            .Default(EInMemoryMode::None);
 
         RegisterParameter("max_stores_per_tablet", MaxStoresPerTablet)
             .Default(10000)

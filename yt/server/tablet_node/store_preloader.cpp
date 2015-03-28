@@ -129,7 +129,7 @@ private:
         const NLogging::TLogger& Logger)
     {
         auto mode = tablet->GetConfig()->InMemoryMode;
-        if (mode == EInMemoryMode::Disabled)
+        if (mode == EInMemoryMode::None)
             return;
 
         auto reader = store->GetChunkReader();

@@ -136,7 +136,7 @@ private:
     NChunkClient::IBlockCachePtr CompressedPreloadedBlockCache_;
     NChunkClient::IBlockCachePtr UncompressedPreloadedBlockCache_;
 
-    EInMemoryMode InMemoryMode_ = EInMemoryMode::Disabled;
+    EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
 
 
     NDataNode::IChunkPtr PrepareChunk();
