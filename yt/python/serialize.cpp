@@ -61,7 +61,6 @@ void SerializeMapFragment(const Py::Mapping& map, IYsonConsumer* consumer, bool 
     }
 }
 
-
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerAttributes, int depth)
 {
     const char* attributesStr = "attributes";
@@ -99,7 +98,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
         {
             throw Py::RuntimeError(
                 "Value " + std::string(obj.repr()) +
-                " cannot be represented in YSON since it is out of range [-2^63, 2^64 - 1])");
+                " cannot be serialized to YSON since it is out of range [-2^63, 2^64 - 1]");
         }
 
         auto longObj = Py::Long(obj);
@@ -114,8 +113,8 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
         consumer->OnEntity();
     } else {
         throw Py::RuntimeError(
-            "Unsupported python object in tree builder: " +
-            std::string(obj.repr()));
+            "Value " + std::string(obj.repr()) +
+            " cannot be serialized to YSON since it has unsupported type");
     }
 }
 
