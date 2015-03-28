@@ -550,8 +550,24 @@ private:
         auto keyColumns = FromProto<TKeyColumns>(request.key_columns());
         auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
         auto nextPivotKey = FromProto<TOwningKey>(request.next_pivot_key());
-        auto mountConfig = ConvertTo<TTableMountConfigPtr>(TYsonString(request.mount_config()));
-        auto writerOptions = ConvertTo<TTabletWriterOptionsPtr>(TYsonString(request.writer_options()));
+
+        TTableMountConfigPtr mountConfig;
+        try {
+            mountConfig = ConvertTo<TTableMountConfigPtr>(TYsonString(request.mount_config()));
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error deserializing tablet mount config (TabletId: %v)",
+                tabletId);
+            mountConfig = New<TTableMountConfig>();
+        }
+
+        TTabletWriterOptionsPtr writerOptions;
+        try {
+            writerOptions = ConvertTo<TTabletWriterOptionsPtr>(TYsonString(request.writer_options()));
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error deserializing writer options (TabletId: %v)",
+                tabletId);
+            writerOptions = New<TTabletWriterOptions>();
+        }
 
         auto* tablet = new TTablet(
             mountConfig,
