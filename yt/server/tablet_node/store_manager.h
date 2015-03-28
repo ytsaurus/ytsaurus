@@ -78,10 +78,14 @@ public:
     bool IsStoreLocked(TDynamicMemoryStorePtr store) const;
     const yhash_set<TDynamicMemoryStorePtr>& GetLockedStores() const;
 
+    void BeginStoreFlush(TDynamicMemoryStorePtr store);
+    void EndStoreFlush(TDynamicMemoryStorePtr store);
+    void BackoffStoreFlush(TDynamicMemoryStorePtr store, TDuration delay);
+
 private:
-    TTabletManagerConfigPtr Config_;
-    TTablet* Tablet_;
-    TCallback<TDynamicMemoryStorePtr()> DynamicMemoryStoreFactory_;
+    const TTabletManagerConfigPtr Config_;
+    TTablet* const Tablet_;
+    const TCallback<TDynamicMemoryStorePtr()> DynamicMemoryStoreFactory_;
 
     int KeyColumnCount_;
 

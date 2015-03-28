@@ -7,6 +7,8 @@
 
 #include <core/logging/log.h>
 
+#include <ytlib/new_table_client/schema.h>
+
 namespace NYT {
 namespace NTabletNode {
 

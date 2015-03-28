@@ -629,6 +629,7 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     : TStoreBase(
         id,
         tablet)
+    , FlushState_(EStoreFlushState::None)
     , Config_(config)
     , RowBuffer_(
         Config_->AlignedPoolChunkSize,

@@ -30,15 +30,6 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EStorePreloadState,
-    (Disabled)
-    (None)
-    (Scheduled)
-    (Running)
-    (Complete)
-    (Failed)
-)
-
 class TChunkStore
     : public TStoreBase
 {

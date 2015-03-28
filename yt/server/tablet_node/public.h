@@ -15,7 +15,6 @@
 #include <server/hydra/public.h>
 
 #include <server/hive/public.h>
-#include <ytlib/new_table_client/schema.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -100,9 +99,6 @@ DEFINE_ENUM(EStoreState,
 
     (Persistent)            // stored in a chunk
 
-    (Flushing)              // transient, flush is in progress
-    (FlushFailed)           // transient, waiting for back off to complete
-
     (Compacting)            // transient, compaction is in progress
     (CompactionFailed)      // transient, waiting for back off to complete
 
@@ -111,6 +107,22 @@ DEFINE_ENUM(EStoreState,
 
     (Orphaned)              // belongs to a forcefully removed tablet
     (Removed)               // removed by rotation but still locked
+);
+
+DEFINE_ENUM(EStoreFlushState,
+    (None)
+    (Running)
+    (Complete)
+    (Failed)
+);
+
+DEFINE_ENUM(EStorePreloadState,
+    (Disabled)
+    (None)
+    (Scheduled)
+    (Running)
+    (Complete)
+    (Failed)
 );
 
 DEFINE_ENUM(EAutomatonThreadQueue,
