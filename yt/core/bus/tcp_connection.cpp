@@ -454,13 +454,13 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
             do {
                 result = connect(Socket_, netAddress.GetSockAddr(), netAddress.GetLength());
             } while (result < 0 && errno == EINTR);
-        }
 
-        if (result != 0) {
-            int error = LastSystemError();
-            if (IsSocketError(error)) {
-                THROW_ERROR_EXCEPTION("Error connecting to %v", Address_)
-                    << TError::FromSystem(error);
+            if (result != 0) {
+                int error = LastSystemError();
+                if (IsSocketError(error)) {
+                    THROW_ERROR_EXCEPTION("Error connecting to %v", Address_)
+                        << TError::FromSystem(error);
+                }
             }
         }
     }
@@ -613,11 +613,11 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
         do {
             result = recv(Socket_, buffer, size, 0);
         } while (result < 0 && errno == EINTR);
-    }
-
-    if (!CheckReadError(result)) {
-        *bytesRead = 0;
-        return false;
+    
+        if (!CheckReadError(result)) {
+            *bytesRead = 0;
+            return false;
+        }
     }
 
     *bytesRead = result;
@@ -840,27 +840,29 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     }
 
     ssize_t result;
+
+    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->SendTimeCounter) {
 #ifdef _win_
-    DWORD bytesWritten_ = 0;
-    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->SendTimeCounter) {
+        DWORD bytesWritten_ = 0;
         result = WSASend(Socket_, SendVector_.data(), SendVector_.size(), &bytesWritten_, 0, NULL, NULL);
-    }
-    *bytesWritten = static_cast<size_t>(bytesWritten_);
+        *bytesWritten = static_cast<size_t>(bytesWritten_);
 #else
-    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->SendTimeCounter) {
         do {
             result = writev(Socket_, SendVector_.data(), SendVector_.size());
         } while (result < 0 && errno == EINTR);
-    }
-    *bytesWritten = result >= 0 ? result : 0;
+        *bytesWritten = result >= 0 ? result : 0;
 #endif
+        bool noErrorHappend = CheckWriteError(result);
 
-    Profiler.Increment(InterfaceStatistics_->OutBytesCounter, *bytesWritten);
-    Profiler.Update(InterfaceStatistics_->SendSizeCounter, *bytesWritten);
+        if (!noErrorHappend) {
+            Profiler.Increment(InterfaceStatistics_->OutBytesCounter, *bytesWritten);
+            Profiler.Update(InterfaceStatistics_->SendSizeCounter, *bytesWritten);
 
-    LOG_TRACE("%v bytes written", *bytesWritten);
+            LOG_TRACE("%v bytes written", *bytesWritten);
+        }
 
-    return CheckWriteError(result);
+        return noErrorHappend;
+    }
 }
 
 void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
@@ -1156,8 +1158,7 @@ bool TTcpConnection::IsSocketError(ssize_t result)
 #ifdef _win_
     return
         result != WSAEWOULDBLOCK &&
-        result != WSAEINPROGRESS &&
-        result != 0;
+        result != WSAEINPROGRESS;
 #else
     return
         result != EWOULDBLOCK &&
