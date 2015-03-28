@@ -26,6 +26,10 @@ set( DIRS
   journal_server
 )
 
+include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 foreach( _d_ ${DIRS} )
   include( ${_d_}/CMakeLists.txt )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
@@ -47,13 +51,6 @@ endif()
 
 add_library( ytserver_lib
   ${YT_SOURCE_FILES}
-)
-
-include_directories(
-  ${CMAKE_SOURCE_DIR}/contrib/tclap
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_BINARY_DIR}/include
-  .
 )
 
 target_link_libraries( ytserver

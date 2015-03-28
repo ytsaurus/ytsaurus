@@ -60,7 +60,3 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/chunk_manager.proto YT_SOURCE_FILES )
-
-include_directories(
-  ${CMAKE_BINARY_DIR}/yt/ytlib/table_client
-)
