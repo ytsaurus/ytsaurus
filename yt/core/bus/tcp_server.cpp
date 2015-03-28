@@ -208,19 +208,20 @@ protected:
                     clientAddress.GetSockAddr(),
                     &clientAddressLen);
 #endif
-            }
-
-            if (clientSocket == INVALID_SOCKET) {
-                auto error = LastSystemError();
-                if (IsSocketError(error)) {
-                    auto wrappedError = TError(
-                        NRpc::EErrorCode::TransportError,
-                        "Error accepting connection")
-                        << TErrorAttribute("address", ToString(clientAddress, false))
-                        << TError::FromSystem(error);
-                    LOG_WARNING(wrappedError);
+            
+                if (clientSocket == INVALID_SOCKET) {
+                    auto error = LastSystemError();
+                    if (IsSocketError(error)) {
+                        auto wrappedError = TError(
+                            NRpc::EErrorCode::TransportError,
+                            "Error accepting connection")
+                            << TErrorAttribute("address", ToString(clientAddress, false))
+                            << TError::FromSystem(error);
+                        LOG_WARNING(wrappedError);
+                    }
+                    break;
                 }
-                break;
+
             }
 
             LOG_DEBUG("Connection accepted");
@@ -260,7 +261,9 @@ protected:
     bool IsSocketError(ssize_t result)
     {
 #ifdef _WIN32
-        return result != WSAEINPROGRESS && result != WSAEWOULDBLOCK;
+        return
+        result != WSAEWOULDBLOCK &&
+        result != WSAEINPROGRESS;
 #else
         YCHECK(result != EINTR);
         return result != EINPROGRESS && result != EWOULDBLOCK;
@@ -321,15 +324,22 @@ private:
         ServerFD = ServerSocket;
 #endif
 
-        // TODO(babenko): check for errors
         {
             int flag = 0;
-            setsockopt(ServerSocket, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &flag, sizeof(flag));
+
+            if (setsockopt(ServerSocket, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &flag, sizeof(flag)) != 0) {
+                THROW_ERROR_EXCEPTION("Failed to configure IPv6 protocol")
+                    << TError::FromSystem();
+            }
         }
 
         {
             int flag = 1;
-            setsockopt(ServerSocket, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag, sizeof(flag));
+
+            if (setsockopt(ServerSocket, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag, sizeof(flag)) != 0) {
+                THROW_ERROR_EXCEPTION("Failed to configure socket address reuse")
+                    << TError::FromSystem();
+            }
         }
 
         {
