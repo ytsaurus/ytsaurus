@@ -393,7 +393,7 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
             PreloadFuture_.Reset();
         }
 
-        if  (mode == EInMemoryMode::Disabled) {
+        if  (mode == EInMemoryMode::None) {
             PreloadState_ = EStorePreloadState::Disabled;
         } else {
             switch (mode) {
