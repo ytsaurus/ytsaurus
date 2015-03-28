@@ -410,6 +410,30 @@ const yhash_set<TDynamicMemoryStorePtr>& TStoreManager::GetLockedStores() const
     return LockedStores_;
 }
 
+void TStoreManager::BeginStoreFlush(TDynamicMemoryStorePtr store)
+{
+    store->SetFlushState(EStoreFlushState::Running);
+}
+
+void TStoreManager::EndStoreFlush(TDynamicMemoryStorePtr store)
+{
+    store->SetFlushState(EStoreFlushState::Complete);
+}
+
+void TStoreManager::BackoffStoreFlush(TDynamicMemoryStorePtr store, TDuration delay)
+{
+    YCHECK(store->GetFlushState() == EStoreFlushState::Running);
+
+    store->SetFlushState(EStoreFlushState::Failed);
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND([=] () {
+            if (store->GetFlushState() == EStoreFlushState::Failed) {
+                store->SetFlushState(EStoreFlushState::None);
+            }
+        }).Via(store->GetTablet()->GetEpochAutomatonInvoker()),
+        delay);
+}
+
 bool TStoreManager::IsRecovery() const
 {
     auto slot = Tablet_->GetSlot();

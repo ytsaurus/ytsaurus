@@ -49,6 +49,9 @@ class TDynamicMemoryStore
     : public TStoreBase
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(EStoreFlushState, FlushState);
+
+public:
     TDynamicMemoryStore(
         TTabletManagerConfigPtr config,
         const TStoreId& id,

@@ -231,34 +231,40 @@ private:
         if (!guard)
             return;
 
-        store->SetStoreState(EStoreState::Flushing);
+        auto dynamicStore = store->AsDynamicMemory();
+        if (dynamicStore->GetFlushState() != EStoreFlushState::None)
+            return;
+
+        auto storeManager = tablet->GetStoreManager();
+        storeManager->BeginStoreFlush(dynamicStore);
 
         tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TStoreFlusher::FlushStore,
             MakeStrong(this),
             Passed(std::move(guard)),
             tablet,
-            store));
+            dynamicStore));
     }
 
 
     void FlushStore(
         TAsyncSemaphoreGuard /*guard*/,
         TTablet* tablet,
-        IStorePtr store)
+        TDynamicMemoryStorePtr store)
     {
         // Capture everything needed below.
         // NB: Avoid accessing tablet from pool invoker.
         auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
         auto tabletManager = slot->GetTabletManager();
+        auto storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetTabletId();
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
         writerOptions->ChunksEden = true;
 
-        YCHECK(store->GetStoreState() == EStoreState::Flushing);
+        YCHECK(store->GetFlushState() == EStoreFlushState::Running);
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v",
@@ -357,6 +363,8 @@ private:
 
             SwitchTo(automatonInvoker);
 
+            storeManager->EndStoreFlush(store);
+
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit()
                 .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
@@ -374,8 +382,7 @@ private:
         
             SwitchTo(automatonInvoker);
 
-            YCHECK(store->GetStoreState() == EStoreState::Flushing);
-            tabletManager->BackoffStore(store, EStoreState::FlushFailed);
+            storeManager->BackoffStoreFlush(store, Config_->TabletManager->ErrorBackoffTime);
         }
     }
 

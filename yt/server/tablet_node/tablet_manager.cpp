@@ -1357,6 +1357,17 @@ private:
         for (const auto& pair : tablet->Stores()) {
             const auto& store = pair.second;
             store->SetStoreState(store->GetPersistentStoreState());
+            switch (store->GetType()) {
+                case EStoreType::DynamicMemory: {
+                    auto dynamicStore = store->AsDynamicMemory();
+                    dynamicStore->SetFlushState(EStoreFlushState::None);
+                    break;
+                }
+                case EStoreType::Chunk:
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
         }
 
         const auto& storeManager = tablet->GetStoreManager();
