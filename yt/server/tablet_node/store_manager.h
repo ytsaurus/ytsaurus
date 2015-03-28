@@ -80,7 +80,17 @@ public:
 
     void BeginStoreFlush(TDynamicMemoryStorePtr store);
     void EndStoreFlush(TDynamicMemoryStorePtr store);
-    void BackoffStoreFlush(TDynamicMemoryStorePtr store, TDuration delay);
+    void BackoffStoreFlush(TDynamicMemoryStorePtr store);
+
+    void ScheduleStorePreload(TChunkStorePtr store);
+    TChunkStorePtr PeekStoreForPreload();
+    void BeginStorePreload(TChunkStorePtr store, TFuture<void> future);
+    void EndStorePreload(TChunkStorePtr store);
+    void BackoffStorePreload(TChunkStorePtr store);
+
+    void Remount(
+        TTableMountConfigPtr mountConfig,
+        TTabletWriterOptionsPtr writerOptions);
 
 private:
     const TTabletManagerConfigPtr Config_;
@@ -108,6 +118,8 @@ private:
     void CheckForUnlockedStore(TDynamicMemoryStore* store);
 
     bool IsRecovery() const;
+
+    void UpdateInMemoryMode();
 
 };
 

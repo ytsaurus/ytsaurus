@@ -382,7 +382,7 @@ private:
         
             SwitchTo(automatonInvoker);
 
-            storeManager->BackoffStoreFlush(store, Config_->TabletManager->ErrorBackoffTime);
+            storeManager->BackoffStoreFlush(store);
         }
     }
 

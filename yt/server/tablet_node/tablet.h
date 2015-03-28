@@ -105,6 +105,9 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastPartitioningTime);
 
+    // NB: Avoid keeping IStorePtr to simplify store removal.
+    DEFINE_BYREF_RW_PROPERTY(std::deque<TStoreId>, PreloadStoreIds);
+
 public:
     explicit TTablet(const TTabletId& tabletId);
     TTablet(
@@ -156,12 +159,6 @@ public:
     IStorePtr FindStore(const TStoreId& id);
     IStorePtr GetStore(const TStoreId& id);
 
-    void ScheduleStorePreload(TChunkStorePtr store);
-    TChunkStorePtr PeekStoreForPreload();
-    void BeginStorePreload(TChunkStorePtr store, TFuture<void> future);
-    void EndStorePreload(TChunkStorePtr store);
-    void BackoffStorePreload(TChunkStorePtr store, TDuration delay);
-
     const TDynamicMemoryStorePtr& GetActiveStore() const;
     void SetActiveStore(TDynamicMemoryStorePtr store);
 
@@ -202,12 +199,8 @@ private:
 
     int ColumnLockCount_ = -1;
 
-    // NB: Avoid keeping IStorePtr to simplify store removal.
-    std::deque<TStoreId> PreloadQueue_;
-
 
     void Initialize();
-    void UpdateInMemoryMode();
 
     TPartition* GetContainingPartition(IStorePtr store);
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);

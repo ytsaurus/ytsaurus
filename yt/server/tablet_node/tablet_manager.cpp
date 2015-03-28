@@ -550,24 +550,8 @@ private:
         auto keyColumns = FromProto<TKeyColumns>(request.key_columns());
         auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
         auto nextPivotKey = FromProto<TOwningKey>(request.next_pivot_key());
-
-        TTableMountConfigPtr mountConfig;
-        try {
-            mountConfig = ConvertTo<TTableMountConfigPtr>(TYsonString(request.mount_config()));
-        } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error deserializing tablet mount config (TabletId: %v)",
-                tabletId);
-            mountConfig = New<TTableMountConfig>();
-        }
-
-        TTabletWriterOptionsPtr writerOptions;
-        try {
-            writerOptions = ConvertTo<TTabletWriterOptionsPtr>(TYsonString(request.writer_options()));
-        } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error deserializing writer options (TabletId: %v)",
-                tabletId);
-            writerOptions = New<TTabletWriterOptions>();
-        }
+        auto mountConfig = DeserializeTableMountConfig((TYsonString(request.mount_config())), tabletId);
+        auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request.writer_options()), tabletId);
 
         auto* tablet = new TTablet(
             mountConfig,
@@ -707,14 +691,14 @@ private:
         if (!tablet)
             return;
 
-        auto mountConfig = ConvertTo<TTableMountConfigPtr>(TYsonString(request.mount_config()));
-        auto writerOptions = ConvertTo<TTabletWriterOptionsPtr>(TYsonString(request.writer_options()));
+        auto mountConfig = DeserializeTableMountConfig((TYsonString(request.mount_config())), tabletId);
+        auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request.writer_options()), tabletId);
 
         int oldSamplesPerPartition = tablet->GetConfig()->SamplesPerPartition;
         int newSamplesPerPartition = mountConfig->SamplesPerPartition;
 
-        tablet->SetConfig(mountConfig);
-        tablet->SetWriterOptions(writerOptions);
+        auto storeManager = tablet->GetStoreManager();
+        storeManager->Remount(mountConfig, writerOptions);
 
         if (oldSamplesPerPartition != newSamplesPerPartition) {
             SchedulePartitionsSampling(tablet);
@@ -1546,6 +1530,28 @@ private:
         }
     }
 
+
+    TTableMountConfigPtr DeserializeTableMountConfig(const TYsonString& str, const TTabletId& tabletId)
+    {
+        try {
+            return ConvertTo<TTableMountConfigPtr>(str);
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error deserializing tablet mount config (TabletId: %v)",
+                 tabletId);
+            return New<TTableMountConfig>();
+        }
+    }
+
+    TTabletWriterOptionsPtr DeserializeTabletWriterOptions(const TYsonString& str, const TTabletId& tabletId)
+    {
+        try {
+            return ConvertTo<TTabletWriterOptionsPtr>(str);
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error deserializing writer options (TabletId: %v)",
+                 tabletId);
+            return New<TTabletWriterOptions>();
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, TabletMap_)
