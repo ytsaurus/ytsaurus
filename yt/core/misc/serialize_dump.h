@@ -182,8 +182,15 @@ struct TSerializationDumpPodWriter
     }
 };
 
+// Workaround for Visual C++!
 template <class T>
-struct TSerializationDumpPodWriter<T, decltype(ToString(T()), void())>
+struct TIdentityHelper
+{
+    typedef T TType;
+};
+
+template <class T>
+struct TSerializationDumpPodWriter<T, decltype(ToString(typename TIdentityHelper<T>::TType()), void())>
 {
     template <class C>
     static void Do(C& context, const T& value)
