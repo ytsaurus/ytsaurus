@@ -345,7 +345,7 @@ struct ISchemaProxy
         std::sort(result.begin(), result.end());
 
         return result;
-    };
+    }
 
     std::vector<TConstExpressionPtr> BuildTypedExpression(
         const NAst::TExpression* expr,
@@ -950,7 +950,7 @@ TPlanFragmentPtr PreparePlanFragment(
         GetObjectIdFromDataSplit(selfDataSplit),
         GetBothBoundsFromDataSplit(selfDataSplit)});
 
-    if (auto joinClause = query->JoinClause.Get()) {
+    if (query->JoinClause) {
         planFragment->ForeignDataSource = {
             GetObjectIdFromDataSplit(foreignDataSplit),
             GetBothBoundsFromDataSplit(foreignDataSplit)};
