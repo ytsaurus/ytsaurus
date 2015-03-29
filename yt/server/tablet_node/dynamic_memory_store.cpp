@@ -1419,6 +1419,7 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
     TStoreBase::BuildOrchidYson(consumer);
 
     BuildYsonMapFluently(consumer)
+        .Item("flush_state").Value(FlushState_)
         .Item("key_count").Value(GetKeyCount())
         .Item("lock_count").Value(GetLockCount())
         .Item("value_count").Value(GetValueCount())
