@@ -95,8 +95,8 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
     } else if (obj.isBoolean() || IsInstance(obj, GetYsonType("YsonBoolean"))) {
         consumer->OnBooleanScalar(Py::Boolean(obj));
     } else if (obj.isInteger() or PyLong_Check(obj.ptr())) {
-        if (PyObject_Compare(Py::Long(std::numeric_limits<ui64>::max()).ptr(), obj.ptr()) < 0 ||
-            PyObject_Compare(obj.ptr(), Py::Long(std::numeric_limits<i64>::min()).ptr()) < 0)
+        if (PyObject_Compare(Py::LongLong(std::numeric_limits<ui64>::max()).ptr(), obj.ptr()) < 0 ||
+            PyObject_Compare(obj.ptr(), Py::LongLong(std::numeric_limits<i64>::min()).ptr()) < 0)
         {
             throw Py::RuntimeError(
                 "Integer " + std::string(obj.repr()) +
@@ -116,7 +116,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
             throw Py::RuntimeError("Can not dump integer greater than 2^63-1 as YSON int64");
         }
 
-        auto longObj = Py::Long(obj);
+        auto longObj = Py::LongLong(obj);
         if (isUint64 || greaterThanInt64) {
             consumer->OnUint64Scalar(PyLong_AsUnsignedLongLong(longObj.ptr()));
         } else {
@@ -317,7 +317,7 @@ void Deserialize(Py::Object& obj, INodePtr node)
     } else if (type == ENodeType::Int64) {
         obj = CreateYsonObject("YsonInt64", Py::Int(node->AsInt64()->GetValue()), attributes);
     } else if (type == ENodeType::Uint64) {
-        obj = CreateYsonObject("YsonUint64", Py::Long(node->AsUint64()->GetValue()), attributes);
+        obj = CreateYsonObject("YsonUint64", Py::LongLong(node->AsUint64()->GetValue()), attributes);
     } else if (type == ENodeType::Double) {
         obj = CreateYsonObject("YsonDouble", Py::Float(node->AsDouble()->GetValue()), attributes);
     } else if (type == ENodeType::String) {
