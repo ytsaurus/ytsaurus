@@ -37,6 +37,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(EStorePreloadState, PreloadState);
     DEFINE_BYVAL_RW_PROPERTY(TFuture<void>, PreloadFuture);
 
+    DEFINE_BYVAL_RW_PROPERTY(EStoreCompactionState, CompactionState);
+
 public:
     TChunkStore(
         const TStoreId& id,

@@ -1307,8 +1307,6 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
 
     using NYT::Save;
 
-    Save(context, GetPersistentStoreState());
-
     SmallVector<TValueList, TypicalEditListCount> valueLists;
     SmallVector<TTimestampList, TypicalEditListCount> timestampLists;
 
@@ -1371,8 +1369,6 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
     TStoreBase::Load(context);
 
     using NYT::Load;
-
-    Load(context, StoreState_);
 
     auto* slot = context.GetSlot();
     auto transactionManager = slot->GetTransactionManager();

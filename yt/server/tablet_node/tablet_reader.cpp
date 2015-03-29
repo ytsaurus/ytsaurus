@@ -31,6 +31,7 @@ using namespace NTransactionClient;
 
 static const auto& Logger = TabletNodeLogger;
 static const size_t MaxRowsPerRead = 1024;
+static const int TypicalStoresPerSession = 64;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,15 +73,15 @@ protected:
         std::vector<TVersionedRow>::iterator CurrentRow;
     };
 
-    SmallVector<TSession, TypicalStoreCount> Sessions_;
+    SmallVector<TSession, TypicalStoresPerSession> Sessions_;
 
-    typedef SmallVector<TSession*, TypicalStoreCount> TSessionHeap; 
+    typedef SmallVector<TSession*, TypicalStoresPerSession> TSessionHeap;
     TSessionHeap SessionHeap_;
     TSessionHeap::iterator SessionHeapBegin_;
     TSessionHeap::iterator SessionHeapEnd_;
 
-    SmallVector<TSession*, TypicalStoreCount> ExhaustedSessions_;
-    SmallVector<TSession*, TypicalStoreCount> RefillingSessions_;
+    SmallVector<TSession*, TypicalStoresPerSession> ExhaustedSessions_;
+    SmallVector<TSession*, TypicalStoresPerSession> RefillingSessions_;
 
     TFuture<void> ReadyEvent_ = VoidFuture;
 

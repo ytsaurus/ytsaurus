@@ -78,9 +78,14 @@ public:
     bool IsStoreLocked(TDynamicMemoryStorePtr store) const;
     const yhash_set<TDynamicMemoryStorePtr>& GetLockedStores() const;
 
+    static bool IsStoreFlushable(IStorePtr store);
     void BeginStoreFlush(TDynamicMemoryStorePtr store);
     void EndStoreFlush(TDynamicMemoryStorePtr store);
     void BackoffStoreFlush(TDynamicMemoryStorePtr store);
+
+    static bool IsStoreCompactable(IStorePtr store);
+    void BeginStoreCompaction(TChunkStorePtr store);
+    void BackoffStoreCompaction(TChunkStorePtr store);
 
     void ScheduleStorePreload(TChunkStorePtr store);
     TChunkStorePtr PeekStoreForPreload();

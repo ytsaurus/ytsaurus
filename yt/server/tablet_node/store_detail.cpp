@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "store_detail.h"
 #include "tablet.h"
+#include "automaton.h"
 #include "private.h"
 
 #include <core/ytree/fluent.h>
@@ -99,11 +100,17 @@ void TStoreBase::SetMemoryUsage(i64 value)
     }
 }
 
-void TStoreBase::Save(TSaveContext& /*context*/) const
-{ }
+void TStoreBase::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, GetPersistentStoreState());
+}
 
-void TStoreBase::Load(TLoadContext& /*context*/)
-{ }
+void TStoreBase::Load(TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, StoreState_);
+}
 
 void TStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
 {

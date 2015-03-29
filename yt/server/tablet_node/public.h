@@ -66,8 +66,6 @@ using NHive::ETransactionState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int TypicalStoreCount = 64;
-
 DEFINE_ENUM(EPartitionState,
     (Normal)             // nothing special is happening
     (Splitting)          // split mutation is submitted
@@ -78,14 +76,14 @@ DEFINE_ENUM(EPartitionState,
 
 DEFINE_ENUM(ETabletState,
     // The only good state admitting read and write requests.
-    (Mounted)
+    ((Mounted)           (0))
 
     // NB: All states below are for unmounting workflow only!
-    (WaitingForLocks)
-    (FlushPending)     // transient, transition to Flushing is pending
-    (Flushing)
-    (UnmountPending)   // transient, transition to Unmounted is pending
-    (Unmounted)
+    ((WaitingForLocks)   (1))
+    ((FlushPending)      (2)) // transient, transition to Flushing is pending
+    ((Flushing)          (3))
+    ((UnmountPending)    (4)) // transient, transition to Unmounted is pending
+    ((Unmounted)         (5))
 );
 
 DEFINE_ENUM(EStoreType,
@@ -94,25 +92,28 @@ DEFINE_ENUM(EStoreType,
 );
 
 DEFINE_ENUM(EStoreState,
-    (ActiveDynamic)         // dynamic, can receive updates
-    (PassiveDynamic)        // dynamic, rotated and cannot receive more updates
+    ((ActiveDynamic)        (0)) // dynamic, can receive updates
+    ((PassiveDynamic)       (1)) // dynamic, rotated and cannot receive more updates
 
-    (Persistent)            // stored in a chunk
+    ((Persistent)           (2)) // stored in a chunk
 
-    (Compacting)            // transient, compaction is in progress
-    (CompactionFailed)      // transient, waiting for back off to complete
+    ((RemoveCommitting)     (7)) // UpdateTabletStores request sent
+    ((RemoveFailed)         (8)) // transient, waiting for back off to complete
 
-    (RemoveCommitting)      // UpdateTabletStores request sent
-    (RemoveFailed)          // transient, waiting for back off to complete
-
-    (Orphaned)              // belongs to a forcefully removed tablet
-    (Removed)               // removed by rotation but still locked
+    ((Orphaned)             (9)) // belongs to a forcefully removed tablet
+    ((Removed)             (10)) // removed by rotation but still locked
 );
 
 DEFINE_ENUM(EStoreFlushState,
     (None)
     (Running)
     (Complete)
+    (Failed)
+);
+
+DEFINE_ENUM(EStoreCompactionState,
+    (None)
+    (Running)
     (Failed)
 );
 

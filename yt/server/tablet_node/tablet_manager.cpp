@@ -146,25 +146,6 @@ public:
     }
 
 
-    void BackoffStore(IStorePtr store, EStoreState state)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        store->SetStoreState(state);
-
-        auto callback = BIND([=, this_ = MakeStrong(this)] () {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-            store->SetStoreState(store->GetPersistentStoreState());
-        });
-
-        if (IsLeader()) {
-            TDelayedExecutor::Submit(callback.Via(Slot_->GetEpochAutomatonInvoker()), Config_->ErrorBackoffTime);
-        } else {
-            callback.Run();
-        }
-    }
-
-
     void Read(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
@@ -1331,27 +1312,10 @@ private:
 
     void StopTabletEpoch(TTablet* tablet)
     {
-        tablet->SetState(tablet->GetPersistentState());
-
+        // TODO(babenko): consider moving
         tablet->GetEden()->SetState(EPartitionState::Normal);
         for (const auto& partition : tablet->Partitions()) {
             partition->SetState(EPartitionState::Normal);
-        }
-
-        for (const auto& pair : tablet->Stores()) {
-            const auto& store = pair.second;
-            store->SetStoreState(store->GetPersistentStoreState());
-            switch (store->GetType()) {
-                case EStoreType::DynamicMemory: {
-                    auto dynamicStore = store->AsDynamicMemory();
-                    dynamicStore->SetFlushState(EStoreFlushState::None);
-                    break;
-                }
-                case EStoreType::Chunk:
-                    break;
-                default:
-                    YUNREACHABLE();
-            }
         }
 
         const auto& storeManager = tablet->GetStoreManager();
@@ -1359,6 +1323,25 @@ private:
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshot(tablet);
+    }
+
+
+    void BackoffStore(IStorePtr store, EStoreState state)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        store->SetStoreState(state);
+
+        auto callback = BIND([=, this_ = MakeStrong(this)] () {
+            VERIFY_THREAD_AFFINITY(AutomatonThread);
+            store->SetStoreState(store->GetPersistentStoreState());
+        });
+
+        if (IsLeader()) {
+            TDelayedExecutor::Submit(callback.Via(Slot_->GetEpochAutomatonInvoker()), Config_->ErrorBackoffTime);
+        } else {
+            callback.Run();
+        }
     }
 
 
@@ -1579,11 +1562,6 @@ void TTabletManager::Initialize()
 TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 {
     return Impl_->GetTabletOrThrow(id);
-}
-
-void TTabletManager::BackoffStore(IStorePtr store, EStoreState state)
-{
-    Impl_->BackoffStore(store, state);
 }
 
 void TTabletManager::Read(
