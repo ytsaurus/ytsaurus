@@ -14,7 +14,7 @@ namespace NVersionedTableClient {
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    NChunkClient::IBlockCachePtr uncompressedBlockCache,
+    NChunkClient::IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     NChunkClient::TReadLimit lowerLimit,
     NChunkClient::TReadLimit upperLimit,
@@ -31,7 +31,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    NChunkClient::IBlockCachePtr uncompressedBlockCache,
+    NChunkClient::IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const std::vector<TKey>& keys,
     const TColumnFilter& columnFilter,

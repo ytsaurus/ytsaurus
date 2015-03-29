@@ -46,8 +46,7 @@ public:
         auto reader = CreateSchemalessPartitionSortReader(
             JobIOConfig_->NewTableReader,
             Host_->GetMasterChannel(),
-            Host_->GetCompressedBlockCache(),
-            Host_->GetUncompressedBlockCache(),
+            Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             keyColumns,
             nameTable,

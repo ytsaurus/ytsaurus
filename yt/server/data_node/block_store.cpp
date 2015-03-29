@@ -44,27 +44,22 @@ TCachedBlock::TCachedBlock(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockStore::TStoreImpl
+class TBlockStore::TImpl
     : public TAsyncSlruCacheBase<TBlockId, TCachedBlock>
 {
 public:
-    TStoreImpl(
+    TImpl(
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
-            config->CompressedBlockCache,
-            NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/compressed_block_cache"))
+            config->BlockCache->CompressedData,
+            NProfiling::TProfiler(
+                DataNodeProfiler.GetPathPrefix() +
+                "/block_cache/" +
+                FormatEnum(EBlockType::CompressedData)))
         , Config_(config)
         , Bootstrap_(bootstrap)
     { }
-
-    void Initialize()
-    {
-        auto result = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(
-            NCellNode::EMemoryConsumer::BlockCache,
-            Config_->CompressedBlockCache->Capacity + Config_->UncompressedBlockCache->Capacity);
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving memory for block cache");
-    }
 
     void PutBlock(
         const TBlockId& blockId,
@@ -108,7 +103,16 @@ public:
         }
     }
 
-    TFuture<TSharedRef> FindBlock(
+    TCachedBlockPtr FindBlock(const TBlockId& blockId)
+    {
+        auto cachedBlock = TAsyncSlruCacheBase::Find(blockId);
+        if (cachedBlock) {
+            LogCacheHit(cachedBlock);
+        }
+        return cachedBlock;
+    }
+
+    TFuture<TSharedRef> ReadBlock(
         const TChunkId& chunkId,
         int blockIndex,
         i64 priority,
@@ -124,13 +128,13 @@ public:
             LogCacheHit(cachedBlock);
             return MakeFuture(cachedBlock->GetData());
         }
-        
+
         TInsertCookie cookie(blockId);
         if (enableCaching) {
             if (!BeginInsert(&cookie)) {
                 return cookie
                     .GetValue()
-                    .Apply(BIND(&TStoreImpl::OnCachedBlockReady, MakeStrong(this)));
+                    .Apply(BIND(&TImpl::OnCachedBlockReady, MakeStrong(this)));
             }
         }
 
@@ -148,14 +152,14 @@ public:
         return chunk
             ->ReadBlocks(blockIndex, 1, priority)
             .Apply(BIND(
-                &TStoreImpl::OnBlockRead,
+                &TImpl::OnBlockRead,
                 chunk,
                 blockIndex,
                 Passed(std::move(cookie)),
                 Passed(std::move(readGuard))));
     }
 
-    TFuture<std::vector<TSharedRef>> FindBlocks(
+    TFuture<std::vector<TSharedRef>> ReadBlocks(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
@@ -180,17 +184,8 @@ public:
         return chunk
             ->ReadBlocks(firstBlockIndex, blockCount, priority)
              .Apply(BIND(
-                &TStoreImpl::OnBlocksRead,
+                &TImpl::OnBlocksRead,
                 Passed(std::move(readGuard))));
-    }
-
-    TCachedBlockPtr FindBlock(const TBlockId& id)
-    {
-        auto block = TAsyncSlruCacheBase::Find(id);
-        if (block) {
-            LogCacheHit(block);
-        }
-        return block;
     }
 
     i64 GetPendingReadSize() const
@@ -277,70 +272,40 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockStore::TCacheImpl
-    : public IBlockCache
-{
-public:
-    explicit TCacheImpl(TIntrusivePtr<TStoreImpl> storeImpl)
-        : StoreImpl_(storeImpl)
-    { }
-
-    virtual void Put(
-        const TBlockId& id,
-        const TSharedRef& data,
-        const TNullable<TNodeDescriptor>& source) override
-    {
-        StoreImpl_->PutBlock(id, data, source);
-    }
-
-    virtual TSharedRef Find(const TBlockId& id) override
-    {
-        auto block = StoreImpl_->Find(id);
-        return block ? block->GetData() : TSharedRef();
-    }
-
-private:
-    const TIntrusivePtr<TStoreImpl> StoreImpl_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TBlockStore::TBlockStore(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
-    : StoreImpl_(New<TStoreImpl>(config, bootstrap))
-    , CacheImpl_(New<TCacheImpl>(StoreImpl_))
+    : Impl_(New<TImpl>(config, bootstrap))
 { }
-
-void TBlockStore::Initialize()
-{
-    StoreImpl_->Initialize();
-}
 
 TBlockStore::~TBlockStore()
 { }
 
-TFuture<TSharedRef> TBlockStore::FindBlock(
+TCachedBlockPtr TBlockStore::FindBlock(const TBlockId& blockId)
+{
+    return Impl_->FindBlock(blockId);
+}
+
+TFuture<TSharedRef> TBlockStore::ReadBlock(
     const TChunkId& chunkId,
     int blockIndex,
     i64 priority,
     bool enableCaching)
 {
-    return StoreImpl_->FindBlock(
+    return Impl_->ReadBlock(
         chunkId,
         blockIndex,
         priority,
         enableCaching);
 }
 
-TFuture<std::vector<TSharedRef>> TBlockStore::FindBlocks(
+TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlocks(
     const TChunkId& chunkId,
     int firstBlockIndex,
     int blockCount,
     i64 priority)
 {
-    return StoreImpl_->FindBlocks(
+    return Impl_->ReadBlocks(
         chunkId,
         firstBlockIndex,
         blockCount,
@@ -352,27 +317,22 @@ void TBlockStore::PutBlock(
     const TSharedRef& data,
     const TNullable<TNodeDescriptor>& source)
 {
-    StoreImpl_->PutBlock(blockId, data, source);
+    Impl_->PutBlock(blockId, data, source);
 }
 
 i64 TBlockStore::GetPendingReadSize() const
 {
-    return StoreImpl_->GetPendingReadSize();
+    return Impl_->GetPendingReadSize();
 }
 
 TPendingReadSizeGuard TBlockStore::IncreasePendingReadSize(i64 delta)
 {
-    return StoreImpl_->IncreasePendingReadSize(delta);
-}
-
-IBlockCachePtr TBlockStore::GetCompressedBlockCache()
-{
-    return CacheImpl_;
+    return Impl_->IncreasePendingReadSize(delta);
 }
 
 std::vector<TCachedBlockPtr> TBlockStore::GetAllBlocks() const
 {
-    return StoreImpl_->GetAll();
+    return Impl_->GetAll();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -393,7 +353,7 @@ TPendingReadSizeGuard& TPendingReadSizeGuard::operator=(TPendingReadSizeGuard&& 
 TPendingReadSizeGuard::~TPendingReadSizeGuard()
 {
     if (Owner_) {
-        Owner_->StoreImpl_->DecreasePendingReadSize(Size_);
+        Owner_->Impl_->DecreasePendingReadSize(Size_);
     }
 }
 

@@ -46,8 +46,7 @@ public:
             config->JobIO->NewTableReader,
             New<TMultiChunkReaderOptions>(),
             host->GetMasterChannel(),
-            host->GetCompressedBlockCache(),
-            host->GetUncompressedBlockCache(),
+            host->GetBlockCache(),
             host->GetNodeDirectory(),
             chunkSpecs,
             nameTable);

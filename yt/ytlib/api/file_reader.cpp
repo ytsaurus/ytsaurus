@@ -157,8 +157,7 @@ private:
                 Config_,
                 New<TMultiChunkReaderOptions>(),
                 masterChannel,
-                Client_->GetConnection()->GetCompressedBlockCache(),
-                Client_->GetConnection()->GetUncompressedBlockCache(),
+                Client_->GetConnection()->GetBlockCache(),
                 nodeDirectory,
                 std::move(chunks));
         }

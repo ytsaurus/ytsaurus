@@ -138,22 +138,21 @@ private:
         if (mode == EInMemoryMode::None)
             return;
 
-        auto reader = store->GetChunkReader();
-
-        IBlockCachePtr blockCache;
+        EBlockType blockType;
         switch (mode) {
             case EInMemoryMode::Compressed:
-                blockCache = store->GetCompressedPreloadedBlockCache();
+                blockType = EBlockType::CompressedData;
                 break;
-
             case EInMemoryMode::Uncompressed:
-                blockCache = store->GetUncompressedPreloadedBlockCache();
+                blockType = EBlockType::UncompressedData;
                 break;
-
             default:
                 YUNREACHABLE();
         }
 
+        auto reader = store->GetChunkReader();
+
+        auto blockCache = store->GetPreloadedBlockCache();
         if (!blockCache)
             return;
 
@@ -221,7 +220,7 @@ private:
 
             for (int blockIndex = firstBlockIndex; blockIndex < lastBlockIndex; ++blockIndex) {
                 auto blockId = TBlockId(reader->GetChunkId(), blockIndex);
-                blockCache->Put(blockId, cachedBlocks[blockIndex - firstBlockIndex], Null);
+                blockCache->Put(blockId, blockType, cachedBlocks[blockIndex - firstBlockIndex], Null);
             }
 
             firstBlockIndex = lastBlockIndex;

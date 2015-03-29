@@ -31,12 +31,12 @@ TChunkReaderBase::TChunkReaderBase(
     const NChunkClient::TReadLimit& upperLimit,
     NChunkClient::IChunkReaderPtr underlyingReader,
     const NChunkClient::NProto::TMiscExt& misc,
-    IBlockCachePtr uncompressedBlockCache)
+    IBlockCachePtr blockCache)
     : Logger(TableClientLogger)
     , Config_(config)
     , LowerLimit_(lowerLimit)
     , UpperLimit_(upperLimit)
-    , UncompressedBlockCache_(uncompressedBlockCache)
+    , BlockCache_(blockCache)
     , UnderlyingReader_(underlyingReader)
     , Misc_(misc)
 {
@@ -68,7 +68,7 @@ void TChunkReaderBase::DoOpen()
         Config_,
         std::move(blocks),
         UnderlyingReader_,
-        UncompressedBlockCache_,
+        BlockCache_,
         ECodec(Misc_.compression_codec()));
 
     YCHECK(SequentialReader_->HasMoreBlocks());

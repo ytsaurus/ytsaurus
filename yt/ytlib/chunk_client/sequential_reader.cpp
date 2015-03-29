@@ -22,14 +22,14 @@ TSequentialReader::TSequentialReader(
     TSequentialReaderConfigPtr config,
     std::vector<TBlockInfo> blockInfos,
     IChunkReaderPtr chunkReader,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     NCompression::ECodec codecId)
     : UncompressedDataSize_(0)
     , CompressedDataSize_(0)
     , Config_(std::move(config))
     , BlockInfos_(std::move(blockInfos))
     , ChunkReader_(std::move(chunkReader))
-    , UncompressedBlockCache_(std::move(uncompressedBlockCache))
+    , BlockCache_(std::move(blockCache))
     , AsyncSemaphore_(Config_->WindowSize)
     , Codec_(NCompression::GetCodec(codecId))
     , Logger(ChunkClientLogger)
@@ -155,7 +155,7 @@ void TSequentialReader::DecompressBlocks(
             uncompressedBlock.Size());
 
         if (Codec_->GetId() != NCompression::ECodec::None) {
-            UncompressedBlockCache_->Put(blockId, uncompressedBlock, Null);
+            BlockCache_->Put(blockId, EBlockType::UncompressedData, uncompressedBlock, Null);
         }
     }
 }
@@ -170,7 +170,7 @@ void TSequentialReader::FetchNextGroup()
     while (FirstUnfetchedWindowIndex_ < BlockInfos_.size()) {
         const auto& blockInfo = BlockInfos_[FirstUnfetchedWindowIndex_];
         TBlockId blockId(ChunkReader_->GetChunkId(), blockInfo.Index);
-        auto uncompressedBlock = UncompressedBlockCache_->Find(blockId);
+        auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
         if (uncompressedBlock) {
             auto& slot = Window_[FirstUnfetchedWindowIndex_];
             slot.Block.Set(uncompressedBlock);

@@ -30,7 +30,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TChunkMeta& masterMeta,
     int partitionTag)
@@ -40,7 +40,7 @@ TPartitionChunkReader::TPartitionChunkReader(
         TReadLimit(),
         underlyingReader,
         GetProtoExtension<TMiscExt>(masterMeta.extensions()),
-        uncompressedBlockCache)
+        blockCache)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , ChunkMeta_(masterMeta)
@@ -127,8 +127,7 @@ TPartitionMultiChunkReader::TPartitionMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     IChannelPtr masterChannel,
-    IBlockCachePtr compressedBlockCache,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec> &chunkSpecs,
     TNameTablePtr nameTable,
@@ -138,11 +137,10 @@ TPartitionMultiChunkReader::TPartitionMultiChunkReader(
           config,
           options,
           masterChannel,
-          compressedBlockCache,
+          blockCache,
           nodeDirectory,
           chunkSpecs,
           throttler)
-    , UncompressedBlockCache_(uncompressedBlockCache)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
 { }
@@ -162,7 +160,7 @@ IChunkReaderBasePtr TPartitionMultiChunkReader::CreateTemplateReader(
         config,
         asyncReader,
         NameTable_,
-        UncompressedBlockCache_,
+        BlockCache_,
         KeyColumns_,
         chunkSpec.chunk_meta(),
         chunkSpec.partition_tag());

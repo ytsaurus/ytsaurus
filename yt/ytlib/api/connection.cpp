@@ -106,11 +106,9 @@ public:
             GetBusChannelFactory());
         CellDirectory_->RegisterCell(config->Master);
 
-        CompressedBlockCache_ = CreateClientBlockCache(
-            Config_->CompressedBlockCache);
-
-        UncompressedBlockCache_ = CreateClientBlockCache(
-            Config_->UncompressedBlockCache);
+        BlockCache_ = CreateClientBlockCache(
+            Config_->BlockCache,
+            {EBlockType::CompressedData, EBlockType::UncompressedData});
 
         TableMountCache_ = New<TTableMountCache>(
             Config_->TableMountCache,
@@ -148,14 +146,9 @@ public:
         return NodeChannelFactory_;
     }
 
-    virtual IBlockCachePtr GetCompressedBlockCache() override
+    virtual IBlockCachePtr GetBlockCache() override
     {
-        return CompressedBlockCache_;
-    }
-
-    virtual IBlockCachePtr GetUncompressedBlockCache() override
-    {
-        return UncompressedBlockCache_;
+        return BlockCache_;
     }
 
     virtual TTableMountCachePtr GetTableMountCache() override
@@ -210,8 +203,7 @@ private:
     TEnumIndexedVector<IChannelPtr, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     IChannelFactoryPtr NodeChannelFactory_;
-    IBlockCachePtr CompressedBlockCache_;
-    IBlockCachePtr UncompressedBlockCache_;
+    IBlockCachePtr BlockCache_;
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;

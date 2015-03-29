@@ -577,7 +577,7 @@ private:
             // TODO(babenko): throttler?
             chunkReader = CreateReplicationReader(
                 Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-                Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
+                Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Bootstrap_->GetLocalDescriptor(),
@@ -595,7 +595,7 @@ private:
         return CreateSchemafulChunkReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             std::move(chunkReader),
-            Bootstrap_->GetUncompressedBlockCache(),
+            Bootstrap_->GetBlockCache(),
             chunkMeta,
             lowerReadLimit,
             upperReadLimit,

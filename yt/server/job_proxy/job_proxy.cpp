@@ -393,12 +393,7 @@ IChannelPtr TJobProxy::GetMasterChannel() const
     return MasterChannel_;
 }
 
-IBlockCachePtr TJobProxy::GetCompressedBlockCache() const
-{
-    return GetNullBlockCache();
-}
-
-IBlockCachePtr TJobProxy::GetUncompressedBlockCache() const
+IBlockCachePtr TJobProxy::GetBlockCache() const
 {
     return GetNullBlockCache();
 }

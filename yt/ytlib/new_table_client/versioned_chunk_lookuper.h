@@ -10,7 +10,7 @@ namespace NVersionedTableClient {
 IVersionedLookuperPtr CreateVersionedChunkLookuper(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    NChunkClient::IBlockCachePtr uncompressedBlockCache,
+    NChunkClient::IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TColumnFilter& columnFilter,
     TLookuperPerformanceCountersPtr performanceCounters,

@@ -52,8 +52,7 @@ void TReadTableCommand::DoExecute()
         config,
         Context_->GetClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
         AttachTransaction(false),
-        Context_->GetClient()->GetConnection()->GetCompressedBlockCache(),
-        Context_->GetClient()->GetConnection()->GetUncompressedBlockCache(),
+        Context_->GetClient()->GetConnection()->GetBlockCache(),
         Request_->Path,
         nameTable);
 

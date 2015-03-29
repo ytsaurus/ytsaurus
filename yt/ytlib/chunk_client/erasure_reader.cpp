@@ -750,7 +750,7 @@ namespace {
 
 std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     TReplicationReaderConfigPtr config,
-    IBlockCachePtr compressedBlockCache,
+    IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
@@ -784,7 +784,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
             auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
             auto reader = CreateReplicationReader(
                 config,
-                compressedBlockCache,
+                blockCache,
                 masterChannel,
                 nodeDirectory,
                 Null,
@@ -805,7 +805,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
 
 std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
-    IBlockCachePtr compressedBlockCache,
+    IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
@@ -815,7 +815,7 @@ std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
 {
     return CreateErasurePartsReaders(
         config,
-        compressedBlockCache,
+        blockCache,
         masterChannel,
         nodeDirectory,
         chunkId,
@@ -827,7 +827,7 @@ std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
 
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
-    IBlockCachePtr compressedBlockCache,
+    IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
@@ -837,7 +837,7 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
 {
     return CreateErasurePartsReaders(
         config,
-        compressedBlockCache,
+        blockCache,
         masterChannel,
         nodeDirectory,
         chunkId,

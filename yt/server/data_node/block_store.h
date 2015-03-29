@@ -46,11 +46,12 @@ public:
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
-    void Initialize();
-
     ~TBlockStore();
 
-    //! Asynchronously retrieves a single block from the store.
+    //! Synchronously looks up a single block in the store's cache.
+    TCachedBlockPtr FindBlock(const TBlockId& blockId);
+
+    //! Asynchronously reads a single block from the store.
     /*!
      *  Fetching an already-cached block is cheap (i.e. requires no context switch).
      *  Fetching an uncached block enqueues a disk-read action to the appropriate IO queue.
@@ -58,20 +59,20 @@ public:
      *  If some unrecoverable IO error happens during retrieval then the latter error is returned.
      *  If the whole chunk or its particular block does not exist then null TSharedRef is returned.
      */
-    TFuture<TSharedRef> FindBlock(
+    TFuture<TSharedRef> ReadBlock(
         const TChunkId& chunkId,
         int blockIndex,
         i64 priority,
         bool enableCaching);
 
-    //! Asynchronously retrieves a range of blocks from the store.
+    //! Asynchronously reads a range of blocks from the store.
     /*!
      *  If some unrecoverable IO error happens during retrieval then the latter error is returned.
      *
      *  The resulting list may contain less blocks than requested.
      *  An empty list indicates that the requested blocks are all out of range.
      */
-    TFuture<std::vector<TSharedRef>> FindBlocks(
+    TFuture<std::vector<TSharedRef>> ReadBlocks(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
@@ -96,18 +97,13 @@ public:
     //! Acquires a lock for the given number of bytes to be read.
     TPendingReadSizeGuard IncreasePendingReadSize(i64 delta);
 
-    //! Returns a caching adapter.
-    NChunkClient::IBlockCachePtr GetCompressedBlockCache();
-
 private:
-    class TStoreImpl;
-    class TCacheImpl;
+    class TImpl;
     class TGetBlocksSession;
 
     friend class TPendingReadSizeGuard;
 
-    const TIntrusivePtr<TStoreImpl> StoreImpl_;
-    const TIntrusivePtr<TCacheImpl> CacheImpl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

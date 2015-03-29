@@ -231,7 +231,7 @@ private:
         try {
             auto chunkReader = CreateReplicationReader(
                 Config_->CacheRemoteReader,
-                Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
+                Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Bootstrap_->GetLocalDescriptor(),
@@ -243,11 +243,10 @@ private:
 
             try {
                 NFS::ForcePath(NFS::GetDirectoryName(fileName));
-                auto result = chunkWriter->Open();
-
                 // File writer opens synchronously.
-                YCHECK(result.IsSet());
-                YCHECK(result.Get().IsOK());
+                chunkWriter->Open()
+                    .Get()
+                    .ThrowOnError();
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Error opening cached chunk for writing");
             }

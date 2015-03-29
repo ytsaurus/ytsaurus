@@ -106,14 +106,14 @@ public:
         TSequentialReaderConfigPtr config,
         TLegacyTableChunkReader* tableChunkReader,
         IChunkReaderPtr chunkReader,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         TChannel channel,
         const TKeyColumns& keyColumns,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit)
         : SequentialConfig_(std::move(config))
         , UnderlyingReader_(std::move(chunkReader))
-        , UncompressedBlockCache_(std::move(uncompressedBlockCache))
+        , BlockCache_(std::move(blockCache))
         , TableChunkReader_(std::move(tableChunkReader))
         , Channel_(channel)
         , LowerLimit_(lowerLimit)
@@ -201,7 +201,7 @@ public:
                 SequentialConfig_,
                 std::move(blockSequence),
                 UnderlyingReader_,
-                UncompressedBlockCache_,
+                BlockCache_,
                 NCompression::ECodec(miscExt.compression_codec()));
 
             tableChunkReader->ChannelReaders_.reserve(SelectedChannels_.size());
@@ -445,7 +445,7 @@ private:
 
     TSequentialReaderConfigPtr SequentialConfig_;
     IChunkReaderPtr UnderlyingReader_;
-    IBlockCachePtr UncompressedBlockCache_;
+    IBlockCachePtr BlockCache_;
     TWeakPtr<TLegacyTableChunkReader> TableChunkReader_;
 
     TChannel Channel_;
@@ -473,7 +473,7 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     IChunkReaderPtr underlyingReader,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
     i64 tableRowIndex)
@@ -512,7 +512,7 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
         config,
         this,
         underlyingReader,
-        uncompressedBlockCache,
+        blockCache,
         channel,
         keyColumns,
         lowerLimit,

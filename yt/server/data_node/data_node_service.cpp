@@ -398,7 +398,7 @@ private:
                         blockIndex);
 
                     Awaiter_->Await(
-                        blockStore->FindBlock(
+                        blockStore->ReadBlock(
                             chunkId,
                             blockIndex,
                             priority,
@@ -525,7 +525,7 @@ private:
                 OnComplete();
             } else {
                 blockStore
-                    ->FindBlocks(
+                    ->ReadBlocks(
                         chunkId,
                         firstBlockIndex,
                         blockCount,

@@ -36,7 +36,7 @@ public:
         TChunkReaderConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        NChunkClient::IBlockCachePtr uncompressedBlockCache,
+        NChunkClient::IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         const NChunkClient::NProto::TChunkMeta& masterMeta,
         int partitionTag);
@@ -134,8 +134,7 @@ public:
         NChunkClient::TMultiChunkReaderConfigPtr config,
         NChunkClient::TMultiChunkReaderOptionsPtr options,
         NRpc::IChannelPtr masterChannel,
-        NChunkClient::IBlockCachePtr compressedBlockCache,
-        NChunkClient::IBlockCachePtr uncompressedBlockCache,
+        NChunkClient::IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
         TNameTablePtr nameTable,
@@ -151,8 +150,6 @@ public:
     TNameTablePtr GetNameTable() const;
 
 private:
-    const NChunkClient::IBlockCachePtr UncompressedBlockCache_;
-
     const TNameTablePtr NameTable_;
     const TKeyColumns KeyColumns_;
 
@@ -171,6 +168,7 @@ DEFINE_REFCOUNTED_TYPE(TPartitionMultiChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): move to inl
 template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
 bool TPartitionMultiChunkReader::Read(
     TValueInsertIterator& valueInserter,
