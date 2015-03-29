@@ -221,7 +221,6 @@ protected:
                     }
                     break;
                 }
-
             }
 
             LOG_DEBUG("Connection accepted");
@@ -326,7 +325,6 @@ private:
 
         {
             int flag = 0;
-
             if (setsockopt(ServerSocket, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &flag, sizeof(flag)) != 0) {
                 THROW_ERROR_EXCEPTION("Failed to configure IPv6 protocol")
                     << TError::FromSystem();
@@ -335,7 +333,6 @@ private:
 
         {
             int flag = 1;
-
             if (setsockopt(ServerSocket, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag, sizeof(flag)) != 0) {
                 THROW_ERROR_EXCEPTION("Failed to configure socket address reuse")
                     << TError::FromSystem();
