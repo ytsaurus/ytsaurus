@@ -505,6 +505,12 @@ void TStoreManager::BeginStoreCompaction(TChunkStorePtr store)
     store->SetCompactionState(EStoreCompactionState::Running);
 }
 
+void TStoreManager::EndStoreCompaction(TChunkStorePtr store)
+{
+    YCHECK(store->GetCompactionState() == EStoreCompactionState::Running);
+    store->SetCompactionState(EStoreCompactionState::None);
+}
+
 void TStoreManager::BackoffStoreCompaction(TChunkStorePtr store)
 {
     YCHECK(store->GetCompactionState() == EStoreCompactionState::Running);

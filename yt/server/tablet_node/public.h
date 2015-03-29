@@ -97,7 +97,8 @@ DEFINE_ENUM(EStoreState,
 
     ((Persistent)           (2)) // stored in a chunk
 
-    ((RemoveCommitting)     (7)) // UpdateTabletStores request sent
+    ((Removing)             (6)) // transient, UpdateTabletStores mutation is being committed by node
+    ((RemoveCommitting)     (7)) // UpdateTabletStores request sent to master
     ((RemoveFailed)         (8)) // transient, waiting for back off to complete
 
     ((Orphaned)             (9)) // belongs to a forcefully removed tablet
