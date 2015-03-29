@@ -659,6 +659,11 @@ private:
             LOG_INFO("Partition compaction completed (RowCount: %v)",
                 readRowCount);
 
+            for (auto store : stores) {
+                storeManager->EndStoreCompaction(store);
+                store->SetStoreState(EStoreState::Removing);
+            }
+
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit()
                 .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {

@@ -12,6 +12,7 @@ EStoreState IStore::GetPersistentStoreState() const
 {
     auto state = GetStoreState();
     switch (state) {
+        case EStoreState::Removing:
         case EStoreState::RemoveFailed:
             switch (GetType()) {
                 case EStoreType::DynamicMemory:

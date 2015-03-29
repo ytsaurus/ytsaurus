@@ -85,6 +85,7 @@ public:
 
     static bool IsStoreCompactable(IStorePtr store);
     void BeginStoreCompaction(TChunkStorePtr store);
+    void EndStoreCompaction(TChunkStorePtr store);
     void BackoffStoreCompaction(TChunkStorePtr store);
 
     void ScheduleStorePreload(TChunkStorePtr store);

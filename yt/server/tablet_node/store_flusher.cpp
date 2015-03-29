@@ -359,6 +359,7 @@ private:
             SwitchTo(automatonInvoker);
 
             storeManager->EndStoreFlush(store);
+            store->SetStoreState(EStoreState::Removing);
 
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit()
