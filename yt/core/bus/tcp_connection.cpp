@@ -448,19 +448,17 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         }
     }
 
-    {
+    PROFILE_TIMING ("/connect_time") {
         int result;
-        PROFILE_TIMING ("/connect_time") {
-            do {
-                result = connect(Socket_, netAddress.GetSockAddr(), netAddress.GetLength());
-            } while (result < 0 && errno == EINTR);
+        do {
+            result = connect(Socket_, netAddress.GetSockAddr(), netAddress.GetLength());
+        } while (result < 0 && errno == EINTR);
 
-            if (result != 0) {
-                int error = LastSystemError();
-                if (IsSocketError(error)) {
-                    THROW_ERROR_EXCEPTION("Error connecting to %v", Address_)
-                        << TError::FromSystem(error);
-                }
+        if (result != 0) {
+            int error = LastSystemError();
+            if (IsSocketError(error)) {
+                THROW_ERROR_EXCEPTION("Error connecting to %v", Address_)
+                    << TError::FromSystem(error);
             }
         }
     }
@@ -839,9 +837,8 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
         bytesAvailable -= size;
     }
 
-    ssize_t result;
-
     PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->SendTimeCounter) {
+        ssize_t result;
 #ifdef _win_
         DWORD bytesWritten_ = 0;
         result = WSASend(Socket_, SendVector_.data(), SendVector_.size(), &bytesWritten_, 0, NULL, NULL);
@@ -852,16 +849,15 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
         } while (result < 0 && errno == EINTR);
         *bytesWritten = result >= 0 ? result : 0;
 #endif
-        bool noErrorHappend = CheckWriteError(result);
+        bool isOK = CheckWriteError(result);
 
-        if (!noErrorHappend) {
+        if (!isOK) {
             Profiler.Increment(InterfaceStatistics_->OutBytesCounter, *bytesWritten);
             Profiler.Update(InterfaceStatistics_->SendSizeCounter, *bytesWritten);
-
             LOG_TRACE("%v bytes written", *bytesWritten);
         }
 
-        return noErrorHappend;
+        return isOK;
     }
 }
 
