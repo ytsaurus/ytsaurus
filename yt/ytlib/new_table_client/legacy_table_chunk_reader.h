@@ -24,7 +24,7 @@ public:
         TNameTablePtr nameTable,
         const TKeyColumns& keyColumns,
         NChunkClient::IChunkReaderPtr underlyingReader,
-        NChunkClient::IBlockCachePtr uncompressedBlockCache,
+        NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TReadLimit& lowerLimit,
         const NChunkClient::TReadLimit& upperLimit,
         i64 tableRowIndex);
@@ -102,8 +102,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TLegacyTableChunkReader)
-
-DECLARE_REFCOUNTED_CLASS(TLegacyTableChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 

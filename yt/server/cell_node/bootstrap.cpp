@@ -51,6 +51,7 @@
 #include <server/data_node/chunk_cache.h>
 #include <server/data_node/chunk_registry.h>
 #include <server/data_node/block_store.h>
+#include <server/data_node/block_cache.h>
 #include <server/data_node/blob_reader_cache.h>
 #include <server/data_node/journal_dispatcher.h>
 #include <server/data_node/location.h>
@@ -214,9 +215,7 @@ void TBootstrap::DoRun()
 
     BlockStore = New<TBlockStore>(Config->DataNode, this);
 
-    UncompressedBlockCache = CreateClientBlockCache(
-        Config->DataNode->UncompressedBlockCache,
-        NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/uncompressed_block_cache"));
+    BlockCache = CreateServerBlockCache(Config->DataNode, this);
 
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
 
@@ -390,7 +389,6 @@ void TBootstrap::DoRun()
 
     // Do not start subsystems until everything is initialized.
     TabletSlotManager->Initialize();
-    BlockStore->Initialize();
     ChunkStore->Initialize();
     ChunkCache->Initialize();
     JournalDispatcher->Initialize();
@@ -513,9 +511,9 @@ TBlockStorePtr TBootstrap::GetBlockStore() const
     return BlockStore;
 }
 
-IBlockCachePtr TBootstrap::GetUncompressedBlockCache() const
+IBlockCachePtr TBootstrap::GetBlockCache() const
 {
-    return UncompressedBlockCache;
+    return BlockCache;
 }
 
 TPeerBlockTablePtr TBootstrap::GetPeerBlockTable() const

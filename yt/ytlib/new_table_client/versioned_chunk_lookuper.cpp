@@ -33,14 +33,14 @@ public:
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr chunkReader,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         const TColumnFilter& columnFilter,
         TLookuperPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp)
         : Config_(std::move(config))
         , ChunkMeta_(std::move(chunkMeta))
         , ChunkReader_(std::move(chunkReader))
-        , UncompressedBlockCache_(std::move(uncompressedBlockCache))
+        , BlockCache_(std::move(blockCache))
         , PerformanceCounters_(std::move(performanceCounters))
         , Timestamp_(timestamp)
         , MemoryPool_(TVersionedChunkLookuperPoolTag())
@@ -83,7 +83,7 @@ public:
         int blockIndex = GetBlockIndex(key);
         TBlockId blockId(ChunkReader_->GetChunkId(), blockIndex);
 
-        auto uncompressedBlock = UncompressedBlockCache_->Find(blockId);
+        auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
         if (uncompressedBlock) {
             return MakeFuture<TVersionedRow>(DoLookup(
                 uncompressedBlock,
@@ -105,7 +105,7 @@ private:
     TChunkReaderConfigPtr Config_;
     TCachedVersionedChunkMetaPtr ChunkMeta_;
     IChunkReaderPtr ChunkReader_;
-    IBlockCachePtr UncompressedBlockCache_;
+    IBlockCachePtr BlockCache_;
     TLookuperPerformanceCountersPtr PerformanceCounters_;
     TTimestamp Timestamp_;
 
@@ -157,7 +157,7 @@ private:
         auto uncompressedBlock = codec->Decompress(compressedBlock);
 
         if (codecId != ECodec::None) {
-            UncompressedBlockCache_->Put(blockId, uncompressedBlock, Null);
+            BlockCache_->Put(blockId, EBlockType::UncompressedData, uncompressedBlock, Null);
         }
 
         return DoLookup(uncompressedBlock, key, blockId);
@@ -190,7 +190,7 @@ private:
 IVersionedLookuperPtr CreateVersionedChunkLookuper(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr chunkReader,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TColumnFilter& columnFilter,
     TLookuperPerformanceCountersPtr performanceCounters,
@@ -203,7 +203,7 @@ IVersionedLookuperPtr CreateVersionedChunkLookuper(
                 std::move(config),
                 std::move(chunkMeta),
                 std::move(chunkReader),
-                std::move(uncompressedBlockCache),
+                std::move(blockCache),
                 columnFilter,
                 std::move(performanceCounters),
                 timestamp);

@@ -53,8 +53,7 @@ public:
     bool HasBackingStore() const;
 
     void SetInMemoryMode(EInMemoryMode mode);
-    NChunkClient::IBlockCachePtr GetCompressedPreloadedBlockCache();
-    NChunkClient::IBlockCachePtr GetUncompressedPreloadedBlockCache();
+    NChunkClient::IBlockCachePtr GetPreloadedBlockCache();
     NChunkClient::IChunkReaderPtr GetChunkReader();
 
     // IStore implementation.
@@ -126,8 +125,7 @@ private:
     IStorePtr BackingStore_;
 
     NConcurrency::TReaderWriterSpinLock PreloadedBlockCacheLock_;
-    NChunkClient::IBlockCachePtr CompressedPreloadedBlockCache_;
-    NChunkClient::IBlockCachePtr UncompressedPreloadedBlockCache_;
+    NChunkClient::IBlockCachePtr PreloadedBlockCache_;
 
     EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
 
@@ -139,8 +137,7 @@ private:
     NVersionedTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
         NChunkClient::IChunkReaderPtr chunkReader);
     IStorePtr GetBackingStore();
-    NChunkClient::IBlockCachePtr GetCompressedBlockCache();
-    NChunkClient::IBlockCachePtr GetUncompressedBlockCache();
+    NChunkClient::IBlockCachePtr GetBlockCache();
 
     void PrecacheProperties();
 

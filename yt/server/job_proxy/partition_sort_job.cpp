@@ -48,8 +48,7 @@ public:
         Reader_ = CreateSchemalessPartitionSortReader(
             config->JobIO->NewTableReader,
             host->GetMasterChannel(),
-            host->GetCompressedBlockCache(),
-            host->GetUncompressedBlockCache(),
+            host->GetBlockCache(),
             host->GetNodeDirectory(),
             keyColumns,
             nameTable,

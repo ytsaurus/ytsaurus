@@ -58,6 +58,11 @@ typedef i64 TBlockOffset;
 //! A |(chunkId, blockIndex)| pair.
 struct TBlockId;
 
+DEFINE_ENUM(EBlockType,
+    (CompressedData)
+    (UncompressedData)
+);
+
 DEFINE_ENUM(EChunkType,
     ((Unknown) (0))
     ((File)    (1))
@@ -108,6 +113,7 @@ DECLARE_REFCOUNTED_CLASS(TReplicationWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TErasureWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TEncodingWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TFetcherConfig)
+DECLARE_REFCOUNTED_CLASS(TBlockCacheConfig)
 
 DECLARE_REFCOUNTED_CLASS(TEncodingWriter)
 DECLARE_REFCOUNTED_CLASS(TEncodingChunkWriter)

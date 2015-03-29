@@ -28,6 +28,7 @@ struct IBlockCache
      */
     virtual void Put(
         const TBlockId& id,
+        EBlockType type,
         const TSharedRef& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) = 0;
 
@@ -35,7 +36,9 @@ struct IBlockCache
     /*!
      *  If no such block is present, then null is returned.
      */
-    virtual TSharedRef Find(const TBlockId& id) = 0;
+    virtual TSharedRef Find(
+        const TBlockId& id,
+        EBlockType type) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockCache)

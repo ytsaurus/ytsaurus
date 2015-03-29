@@ -28,7 +28,7 @@ TFuture<void> RepairErasedParts(
 
 std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
-    IBlockCachePtr compressedBlockCache,
+    IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
@@ -38,7 +38,7 @@ std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
 
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
-    IBlockCachePtr compressedBlockCache,
+    IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,

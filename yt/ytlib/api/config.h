@@ -60,8 +60,7 @@ public:
     NHive::TCellDirectoryConfigPtr CellDirectory;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
-    TSlruCacheConfigPtr CompressedBlockCache;
-    TSlruCacheConfigPtr UncompressedBlockCache;
+    NChunkClient::TBlockCacheConfigPtr BlockCache;
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
 
     NQueryClient::TExecutorConfigPtr QueryEvaluator;

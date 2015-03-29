@@ -94,7 +94,7 @@ protected:
 
     void RegisterFailedChunk(int chunkIndex);
 
-private:
+protected:
     const IBlockCachePtr BlockCache_;
     const NRpc::IChannelPtr MasterChannel_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;

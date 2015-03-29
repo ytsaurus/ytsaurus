@@ -7,6 +7,7 @@
 #include <core/erasure/public.h>
 
 #include <core/misc/error.h>
+#include <core/misc/config.h>
 
 #include <core/rpc/config.h>
 
@@ -397,6 +398,33 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TFetcherConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TBlockCacheConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TSlruCacheConfigPtr CompressedData;
+    TSlruCacheConfigPtr UncompressedData;
+
+    i64 GetTotalCapacity() const
+    {
+        return
+            CompressedData->Capacity +
+            UncompressedData->Capacity;
+    }
+
+    TBlockCacheConfig()
+    {
+        RegisterParameter("compressed_data", CompressedData)
+            .DefaultNew();
+        RegisterParameter("uncompressed_data", UncompressedData)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBlockCacheConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 

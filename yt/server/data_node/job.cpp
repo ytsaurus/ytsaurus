@@ -403,7 +403,7 @@ private:
 
         while (blockIndex < blockCount) {
             auto getResult = WaitFor(
-                blockStore->FindBlocks(
+                blockStore->ReadBlocks(
                     ChunkId_,
                     blockIndex,
                     blockCount - blockIndex,
@@ -525,7 +525,7 @@ private:
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
             auto reader = CreateReplicationReader(
                 Config_->RepairReader,
-                Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
+                Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Bootstrap_->GetLocalDescriptor(),
@@ -644,7 +644,7 @@ private:
 
             auto reader = CreateReplicationReader(
                 Config_->SealReader,
-                Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
+                Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Null,

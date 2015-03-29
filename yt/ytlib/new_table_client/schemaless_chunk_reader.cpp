@@ -62,7 +62,7 @@ public:
         TChunkReaderConfigPtr config,
         IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         const TChunkMeta& masterMeta,
         const TReadLimit& lowerLimit,
@@ -126,7 +126,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TChunkMeta& masterMeta,
     const TReadLimit& lowerLimit,
@@ -140,7 +140,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
         upperLimit,
         underlyingReader, 
         GetProtoExtension<TMiscExt>(masterMeta.extensions()),
-        uncompressedBlockCache)
+        blockCache)
     , NameTable_(nameTable)
     , ChunkNameTable_(New<TNameTable>())
     , ColumnFilter_(columnFilter)
@@ -372,7 +372,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TChunkMeta& masterMeta,
     const TReadLimit& lowerLimit,
@@ -392,7 +392,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 config, 
                 underlyingReader, 
                 nameTable,
-                uncompressedBlockCache,
+                blockCache,
                 keyColumns, 
                 masterMeta, 
                 lowerLimit, 
@@ -409,7 +409,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 nameTable,
                 keyColumns,
                 underlyingReader,
-                uncompressedBlockCache,
+                blockCache,
                 lowerLimit,
                 upperLimit,
                 tableRowIndex);
@@ -431,8 +431,7 @@ public:
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
         IChannelPtr masterChannel,
-        IBlockCachePtr compressedBlockCache,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
         const std::vector<TChunkSpec>& chunkSpecs,
         TNameTablePtr nameTable,
@@ -452,11 +451,10 @@ public:
     i64 GetTableRowIndex() const;
 
 private:
-    TMultiChunkReaderConfigPtr Config_;
-    TNameTablePtr NameTable_;
-    TKeyColumns KeyColumns_;
-
-    IBlockCachePtr UncompressedBlockCache_;
+    const TMultiChunkReaderConfigPtr Config_;
+    const TNameTablePtr NameTable_;
+    const TKeyColumns KeyColumns_;
+    const IBlockCachePtr BlockCache_;
 
     ISchemalessChunkReaderPtr CurrentReader_;
     std::atomic<i64> RowIndex_ = {0};
@@ -478,8 +476,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     IChannelPtr masterChannel,
-    IBlockCachePtr compressedBlockCache,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
@@ -489,14 +486,14 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
         config,
         options,
         masterChannel,
-        compressedBlockCache,
+        blockCache,
         nodeDirectory,
         chunkSpecs,
         throttler)
     , Config_(config)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
-    , UncompressedBlockCache_(uncompressedBlockCache)
+    , BlockCache_(blockCache)
     , RowCount_(GetCumulativeRowCount(chunkSpecs))
 { }
 
@@ -541,7 +538,7 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
         Config_, 
         asyncReader, 
         NameTable_,
-        UncompressedBlockCache_,
+        BlockCache_,
         KeyColumns_, 
         chunkSpec.chunk_meta(),
         chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
@@ -594,8 +591,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     IChannelPtr masterChannel,
-    IBlockCachePtr compressedBlockCache,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
@@ -606,8 +602,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
         config,
         options,
         masterChannel,
-        compressedBlockCache,
-        uncompressedBlockCache,
+        blockCache,
         nodeDirectory,
         chunkSpecs,
         nameTable,
@@ -621,8 +616,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     IChannelPtr masterChannel,
-    IBlockCachePtr compressedBlockCache,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
@@ -633,8 +627,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
         config,
         options,
         masterChannel,
-        compressedBlockCache,
-        uncompressedBlockCache,
+        blockCache,
         nodeDirectory,
         chunkSpecs,
         nameTable,
@@ -653,8 +646,7 @@ public:
         TTableReaderConfigPtr config,
         IChannelPtr masterChannel,
         TTransactionPtr transaction,
-        IBlockCachePtr compressedBlockCache,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
         IThroughputThrottlerPtr throttler);
@@ -676,8 +668,7 @@ private:
     const TTableReaderConfigPtr Config_;
     const IChannelPtr MasterChannel_;
     const TTransactionPtr Transaction_;
-    const IBlockCachePtr CompressedBlockCache_;
-    const IBlockCachePtr UncompressedBlockCache_;
+    const IBlockCachePtr BlockCache_;
     const TRichYPath RichPath_;
     const TNameTablePtr NameTable_;
     const IThroughputThrottlerPtr Throttler_;
@@ -696,8 +687,7 @@ TSchemalessTableReader::TSchemalessTableReader(
     TTableReaderConfigPtr config,
     IChannelPtr masterChannel,
     TTransactionPtr transaction,
-    IBlockCachePtr compressedBlockCache,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
     IThroughputThrottlerPtr throttler)
@@ -705,8 +695,7 @@ TSchemalessTableReader::TSchemalessTableReader(
     , Config_(config)
     , MasterChannel_(masterChannel)
     , Transaction_(transaction)
-    , CompressedBlockCache_(compressedBlockCache)
-    , UncompressedBlockCache_(uncompressedBlockCache)
+    , BlockCache_(blockCache)
     , RichPath_(richPath)
     , NameTable_(nameTable)
     , Throttler_(throttler)
@@ -714,8 +703,7 @@ TSchemalessTableReader::TSchemalessTableReader(
 {
     YCHECK(Config_);
     YCHECK(MasterChannel_);
-    YCHECK(CompressedBlockCache_);
-    YCHECK(UncompressedBlockCache_);
+    YCHECK(BlockCache_);
     YCHECK(NameTable_);
 
     Logger.AddTag("Path: %v, TransactionId: %v",
@@ -802,8 +790,7 @@ void TSchemalessTableReader::DoOpen()
             Config_,
             New<TMultiChunkReaderOptions>(),
             MasterChannel_,
-            CompressedBlockCache_,
-            UncompressedBlockCache_,
+            BlockCache_,
             nodeDirectory,
             chunkSpecs,
             NameTable_,
@@ -865,8 +852,7 @@ ISchemalessTableReaderPtr CreateSchemalessTableReader(
     TTableReaderConfigPtr config,
     IChannelPtr masterChannel,
     TTransactionPtr transaction,
-    IBlockCachePtr compressedBlockCache,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     const NYPath::TRichYPath& richPath,
     TNameTablePtr nameTable,
     IThroughputThrottlerPtr throttler)
@@ -875,8 +861,7 @@ ISchemalessTableReaderPtr CreateSchemalessTableReader(
         config,
         masterChannel,
         transaction,
-        compressedBlockCache,
-        uncompressedBlockCache,
+        blockCache,
         richPath,
         nameTable,
         throttler);

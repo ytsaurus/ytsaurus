@@ -101,7 +101,7 @@ public:
         i64 priority = 0;
         for (int blockIndex : blockIndexes) {
             auto blockId = TBlockId(Chunk_->GetId(), blockIndex);
-            auto cachedBlock = BlockCache_->Find(blockId);
+            auto cachedBlock = BlockCache_->Find(blockId, EBlockType::CompressedData);
             if (cachedBlock) {
                 asyncBlocks.push_back(MakeFuture(cachedBlock));
                 continue;
@@ -109,7 +109,7 @@ public:
 
             auto asyncBlock =
                 BIND(
-                    &TBlockStore::FindBlock,
+                    &TBlockStore::ReadBlock,
                     blockStore,
                     Chunk_->GetId(),
                     blockIndex,
@@ -266,18 +266,26 @@ public:
     TBlockCache(
         TChunkStorePtr owner,
         const TChunkId& chunkId,
+        EBlockType type,
         IBlockCachePtr underlyingCache)
         : Owner_(owner)
         , ChunkId_(chunkId)
+        , Type_(type)
         , UnderlyingCache_(std::move(underlyingCache))
     { }
 
     virtual void Put(
         const TBlockId& id,
+        EBlockType type,
         const TSharedRef& data,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) override
     {
         YASSERT(id.ChunkId == ChunkId_);
+
+        if (type != Type_) {
+            UnderlyingCache_->Put(id, type, data, source);
+            return;
+        }
 
         auto owner = Owner_.Lock();
         if (!owner)
@@ -301,9 +309,15 @@ public:
         }
     }
 
-    virtual TSharedRef Find(const TBlockId& id) override
+    virtual TSharedRef Find(
+        const TBlockId& id,
+        EBlockType type) override
     {
         YASSERT(id.ChunkId == ChunkId_);
+
+        if (type != Type_) {
+            return UnderlyingCache_->Find(id, type);
+        }
 
         TReaderGuard guard(SpinLock_);
         if (id.BlockIndex < Blocks_.size()) {
@@ -313,12 +327,13 @@ public:
             }
         }
 
-        return UnderlyingCache_->Find(id);
+        return UnderlyingCache_->Find(id, type);
     }
 
 private:
     const TWeakPtr<TChunkStore> Owner_;
     const TChunkId ChunkId_;
+    const EBlockType Type_;
     const IBlockCachePtr UnderlyingCache_;
 
     TReaderWriterSpinLock SpinLock_;
@@ -386,8 +401,7 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
     {
         TWriterGuard guard(PreloadedBlockCacheLock_);
 
-        CompressedPreloadedBlockCache_.Reset();
-        UncompressedPreloadedBlockCache_.Reset();
+        PreloadedBlockCache_.Reset();
 
         if (PreloadFuture_) {
             PreloadFuture_.Cancel();
@@ -399,16 +413,18 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
         } else {
             switch (mode) {
                 case EInMemoryMode::Compressed:
-                    CompressedPreloadedBlockCache_ = New<TBlockCache>(
+                    PreloadedBlockCache_ = New<TBlockCache>(
                         this,
                         StoreId_,
-                        Bootstrap_->GetBlockStore()->GetCompressedBlockCache());
+                        EBlockType::CompressedData,
+                        Bootstrap_->GetBlockCache());
                     break;
                 case EInMemoryMode::Uncompressed:
-                    UncompressedPreloadedBlockCache_ = New<TBlockCache>(
+                    PreloadedBlockCache_ = New<TBlockCache>(
                         this,
                         StoreId_,
-                        Bootstrap_->GetUncompressedBlockCache());
+                        EBlockType::UncompressedData,
+                        Bootstrap_->GetBlockCache());
                     break;
                 default:
                     YUNREACHABLE();
@@ -437,20 +453,12 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
     InMemoryMode_ = mode;
 }
 
-IBlockCachePtr TChunkStore::GetCompressedPreloadedBlockCache()
+IBlockCachePtr TChunkStore::GetPreloadedBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TReaderGuard guard(PreloadedBlockCacheLock_);
-    return CompressedPreloadedBlockCache_;
-}
-
-IBlockCachePtr TChunkStore::GetUncompressedPreloadedBlockCache()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TReaderGuard guard(PreloadedBlockCacheLock_);
-    return UncompressedPreloadedBlockCache_;
+    return PreloadedBlockCache_;
 }
 
 NChunkClient::IChunkReaderPtr TChunkStore::GetChunkReader()
@@ -517,7 +525,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
             columnFilter);
     }
 
-    auto uncompressedBlockCache = GetUncompressedBlockCache();
+    auto blockCache = GetBlockCache();
     auto chunk = PrepareChunk();
     auto chunkReader = PrepareChunkReader(chunk);
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
@@ -531,7 +539,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     auto versionedReader = CreateVersionedChunkReader(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
-        std::move(uncompressedBlockCache),
+        std::move(blockCache),
         std::move(cachedVersionedChunkMeta),
         lowerLimit,
         upperLimit,
@@ -556,7 +564,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
             columnFilter);
     }
 
-    auto uncompressedBlockCache = GetUncompressedBlockCache();
+    auto blockCache = GetBlockCache();
     auto chunk = PrepareChunk();
     auto chunkReader = PrepareChunkReader(chunk);
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
@@ -564,7 +572,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     auto versionedReader = CreateVersionedChunkReader(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
-        std::move(uncompressedBlockCache),
+        std::move(blockCache),
         std::move(cachedVersionedChunkMeta),
         keys,
         columnFilter,
@@ -584,7 +592,7 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
         return backingStore->CreateLookuper(timestamp, columnFilter);
     }
 
-    auto uncompressedBlockCache = GetUncompressedBlockCache();
+    auto blockCache = GetBlockCache();
     auto chunk = PrepareChunk();
     auto chunkReader = PrepareChunkReader(chunk);
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
@@ -592,7 +600,7 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
     return CreateVersionedChunkLookuper(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
-        std::move(uncompressedBlockCache),
+        std::move(blockCache),
         std::move(cachedVersionedChunkMeta),
         columnFilter,
         PerformanceCounters_,
@@ -722,12 +730,12 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
         chunkReader = New<TLocalChunkReader>(
             this,
             chunk,
-            GetCompressedBlockCache());
+            GetBlockCache());
     } else {
         // TODO(babenko): provide seed replicas
         chunkReader = CreateReplicationReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-            GetCompressedBlockCache(),
+            GetBlockCache(),
             Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
             New<TNodeDirectory>(),
             Bootstrap_->GetLocalDescriptor(),
@@ -783,24 +791,14 @@ IStorePtr TChunkStore::GetBackingStore()
     return BackingStore_;
 }
 
-IBlockCachePtr TChunkStore::GetCompressedBlockCache()
+IBlockCachePtr TChunkStore::GetBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TReaderGuard guard(PreloadedBlockCacheLock_);
-    return CompressedPreloadedBlockCache_
-        ? CompressedPreloadedBlockCache_
-        : Bootstrap_->GetBlockStore()->GetCompressedBlockCache();
-}
-
-IBlockCachePtr TChunkStore::GetUncompressedBlockCache()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TReaderGuard guard(PreloadedBlockCacheLock_);
-    return UncompressedPreloadedBlockCache_
-        ? UncompressedPreloadedBlockCache_
-        : Bootstrap_->GetUncompressedBlockCache();
+    return PreloadedBlockCache_
+        ? PreloadedBlockCache_
+        : Bootstrap_->GetBlockCache();
 }
 
 void TChunkStore::PrecacheProperties()

@@ -56,7 +56,7 @@ public:
         for (int blockIndex : blockIndexes) {
             auto asyncBlock =
                 BIND(
-                    &TBlockStore::FindBlock,
+                    &TBlockStore::ReadBlock,
                     blockStore,
                     Chunk_->GetId(),
                     blockIndex,

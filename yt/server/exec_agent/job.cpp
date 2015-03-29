@@ -650,8 +650,7 @@ private:
             New<TFileReaderConfig>(),
             New<TMultiChunkReaderOptions>(),
             Bootstrap->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
-            Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
-            Bootstrap->GetUncompressedBlockCache(),
+            Bootstrap->GetBlockCache(),
             NodeDirectory,
             std::move(chunks));
 
@@ -704,8 +703,7 @@ private:
             config,
             options,
             Bootstrap->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
-            Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
-            Bootstrap->GetUncompressedBlockCache(),
+            Bootstrap->GetBlockCache(),
             NodeDirectory,
             chunks,
             nameTable);

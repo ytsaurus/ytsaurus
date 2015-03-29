@@ -43,7 +43,7 @@ public:
     TFileChunkReader(
         TSequentialReaderConfigPtr sequentialConfig,
         IChunkReaderPtr chunkReader,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
         i64 startOffset,
         i64 endOffset);
@@ -58,11 +58,11 @@ public:
     virtual TFuture<void> GetFetchingCompletedEvent() override;
 
 private:
+    const TSequentialReaderConfigPtr SequentialConfig_;
+    const IChunkReaderPtr ChunkReader_;
+    const IBlockCachePtr BlockCache_;
+    const NCompression::ECodec CodecId_;
 
-    TSequentialReaderConfigPtr SequentialConfig_;
-    IChunkReaderPtr ChunkReader_;
-    IBlockCachePtr UncompressedBlockCache_;
-    NCompression::ECodec CodecId_;
     i64 StartOffset_;
     i64 EndOffset_;
 
@@ -85,13 +85,13 @@ DEFINE_REFCOUNTED_TYPE(TFileChunkReader)
 TFileChunkReader::TFileChunkReader(
     TSequentialReaderConfigPtr sequentialConfig,
     IChunkReaderPtr chunkReader,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
     i64 startOffset,
     i64 endOffset)
     : SequentialConfig_(std::move(sequentialConfig))
     , ChunkReader_(std::move(chunkReader))
-    , UncompressedBlockCache_(std::move(uncompressedBlockCache))
+    , BlockCache_(std::move(blockCache))
     , CodecId_(codecId)
     , StartOffset_(startOffset)
     , EndOffset_(endOffset)
@@ -186,7 +186,7 @@ void TFileChunkReader::DoOpen()
         SequentialConfig_,
         std::move(blockSequence),
         ChunkReader_,
-        UncompressedBlockCache_,
+        BlockCache_,
         CodecId_);
 
     LOG_INFO("File reader opened");
@@ -265,15 +265,15 @@ TDataStatistics TFileChunkReader::GetDataStatistics() const
 IFileChunkReaderPtr CreateFileChunkReader(
     TSequentialReaderConfigPtr sequentialConfig,
     IChunkReaderPtr chunkReader,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
     i64 startOffset,
     i64 endOffset)
 {
     return New<TFileChunkReader>(
         sequentialConfig, 
-        chunkReader, 
-        uncompressedBlockCache, 
+        chunkReader,
+        blockCache,
         codecId, 
         startOffset, 
         endOffset);
@@ -290,20 +290,18 @@ public:
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
         IChannelPtr masterChannel,
-        IBlockCachePtr compressedBlockCache,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
         const std::vector<TChunkSpec>& chunkSpecs,
         NConcurrency::IThroughputThrottlerPtr throttler);
 
     virtual bool ReadBlock(TSharedRef* block) override;
 
-
 private:
-    TMultiChunkReaderConfigPtr Config_;
-    IBlockCachePtr UncompressedBlockCache_;
+    const TMultiChunkReaderConfigPtr Config_;
 
-    IFileChunkReaderPtr CurrentReader_ = nullptr;
+    IFileChunkReaderPtr CurrentReader_;
+
 
     virtual IChunkReaderBasePtr CreateTemplateReader(const TChunkSpec& chunkSpec, IChunkReaderPtr asyncReader) override;
     virtual void OnReaderSwitched() override;
@@ -315,8 +313,7 @@ TFileMultiChunkReader::TFileMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     IChannelPtr masterChannel,
-    IBlockCachePtr compressedBlockCache,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     IThroughputThrottlerPtr throttler)
@@ -324,12 +321,11 @@ TFileMultiChunkReader::TFileMultiChunkReader(
         config, 
         options, 
         masterChannel, 
-        compressedBlockCache, 
-        nodeDirectory, 
+        blockCache,
+        nodeDirectory,
         chunkSpecs,
         throttler)
     , Config_(config)
-    , UncompressedBlockCache_(uncompressedBlockCache) 
 { }
 
 bool TFileMultiChunkReader::ReadBlock(TSharedRef* block)
@@ -380,7 +376,7 @@ IChunkReaderBasePtr TFileMultiChunkReader::CreateTemplateReader(
     return CreateFileChunkReader(
         Config_,
         std::move(chunkReader),
-        UncompressedBlockCache_,
+        BlockCache_,
         NCompression::ECodec(miscExt.compression_codec()),
         startOffset,
         endOffset);
@@ -398,8 +394,7 @@ IFileMultiChunkReaderPtr CreateFileMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     IChannelPtr masterChannel,
-    IBlockCachePtr compressedBlockCache,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     IThroughputThrottlerPtr throttler)
@@ -408,8 +403,7 @@ IFileMultiChunkReaderPtr CreateFileMultiChunkReader(
         config, 
         options, 
         masterChannel, 
-        compressedBlockCache, 
-        uncompressedBlockCache, 
+        blockCache,
         nodeDirectory, 
         chunkSpecs,
         throttler);

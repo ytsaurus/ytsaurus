@@ -55,7 +55,7 @@ public:
         TSequentialReaderConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
         IChunkReaderPtr chunkReader,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         NCompression::ECodec codecId);
 
     //! Returns |true| if the current block is not the last one.
@@ -100,7 +100,7 @@ private:
     TSequentialReaderConfigPtr Config_;
     std::vector<TBlockInfo> BlockInfos_;
     IChunkReaderPtr ChunkReader_;
-    IBlockCachePtr UncompressedBlockCache_;
+    IBlockCachePtr BlockCache_;
 
     struct TWindowSlot
     {

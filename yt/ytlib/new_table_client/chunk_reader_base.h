@@ -25,7 +25,7 @@ public:
         const NChunkClient::TReadLimit& upperLimit,
         NChunkClient::IChunkReaderPtr underlyingReader,
         const NChunkClient::NProto::TMiscExt& misc,
-        NChunkClient::IBlockCachePtr uncompressedBlockCache);
+        NChunkClient::IBlockCachePtr blockCache);
 
     virtual TFuture<void> Open() override;
 
@@ -38,14 +38,12 @@ public:
 protected:
     mutable NLogging::TLogger Logger;
 
-    TChunkReaderConfigPtr Config_;
+    const TChunkReaderConfigPtr Config_;
+    const NChunkClient::TReadLimit LowerLimit_;
+    const NChunkClient::TReadLimit UpperLimit_;
+    const NChunkClient::IBlockCachePtr BlockCache_;
+    const NChunkClient::IChunkReaderPtr UnderlyingReader_;
 
-    NChunkClient::TReadLimit LowerLimit_;
-    NChunkClient::TReadLimit UpperLimit_;
-
-    NChunkClient::IBlockCachePtr UncompressedBlockCache_;
-
-    NChunkClient::IChunkReaderPtr UnderlyingReader_;
     NChunkClient::TSequentialReaderPtr SequentialReader_;
 
     NChunkClient::NProto::TMiscExt Misc_;

@@ -53,7 +53,7 @@ class TReplicationReader
 public:
     TReplicationReader(
         TReplicationReaderConfigPtr config,
-        IBlockCachePtr compressedBlockCache,
+        IBlockCachePtr blockCache,
         IChannelPtr masterChannel,
         TNodeDirectoryPtr nodeDirectory,
         const TNullable<TNodeDescriptor>& localDescriptor,
@@ -63,7 +63,7 @@ public:
         EReadSessionType sessionType,
         IThroughputThrottlerPtr throttler)
         : Config_(config)
-        , CompressedBlockCache_(compressedBlockCache)
+        , BlockCache_(blockCache)
         , NodeDirectory_(nodeDirectory)
         , LocalDescriptor_(localDescriptor)
         , ChunkId_(chunkId)
@@ -119,7 +119,7 @@ private:
     class TGetMetaSession;
 
     TReplicationReaderConfigPtr Config_;
-    IBlockCachePtr CompressedBlockCache_;
+    IBlockCachePtr BlockCache_;
     TNodeDirectoryPtr NodeDirectory_;
     TNullable<TNodeDescriptor> LocalDescriptor_;
     TChunkId ChunkId_;
@@ -635,7 +635,7 @@ private:
         for (int blockIndex : BlockIndexes_) {
             if (Blocks_.find(blockIndex) == Blocks_.end()) {
                 TBlockId blockId(reader->ChunkId_, blockIndex);
-                auto block = reader->CompressedBlockCache_->Find(blockId);
+                auto block = reader->BlockCache_->Find(blockId, EBlockType::CompressedData);
                 if (block) {
                     LOG_INFO("Block is fetched from cache (Block: %v)", blockIndex);
                     YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
@@ -768,7 +768,7 @@ private:
             auto sourceDescriptor = reader->LocalDescriptor_
                 ? TNullable<TNodeDescriptor>(GetPeerDescriptor(adddress))
                 : TNullable<TNodeDescriptor>(Null);
-            reader->CompressedBlockCache_->Put(blockId, block, sourceDescriptor);
+            reader->BlockCache_->Put(blockId, EBlockType::CompressedData, block, sourceDescriptor);
 
             YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
             blocksReceived += 1;
@@ -1237,7 +1237,7 @@ TFuture<TChunkMeta> TReplicationReader::GetMeta(
 
 IChunkReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
-    IBlockCachePtr compressedBlockCache,
+    IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     TNodeDirectoryPtr nodeDirectory,
     const TNullable<TNodeDescriptor>& localDescriptor,
@@ -1248,13 +1248,13 @@ IChunkReaderPtr CreateReplicationReader(
     IThroughputThrottlerPtr throttler)
 {
     YCHECK(config);
-    YCHECK(compressedBlockCache);
+    YCHECK(blockCache);
     YCHECK(masterChannel);
     YCHECK(nodeDirectory);
 
     auto reader = New<TReplicationReader>(
         config,
-        compressedBlockCache,
+        blockCache,
         masterChannel,
         nodeDirectory,
         localDescriptor,

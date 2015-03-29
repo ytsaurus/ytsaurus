@@ -148,8 +148,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             JobIOConfig_->NewTableReader,
             options,
             Host_->GetMasterChannel(),
-            Host_->GetCompressedBlockCache(),
-            Host_->GetUncompressedBlockCache(),
+            Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             chunkSpecs,
             nameTable);
@@ -158,8 +157,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             JobIOConfig_->NewTableReader,
             options,
             Host_->GetMasterChannel(),
-            Host_->GetCompressedBlockCache(),
-            Host_->GetUncompressedBlockCache(),
+            Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             chunkSpecs,
             nameTable);

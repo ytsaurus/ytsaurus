@@ -210,7 +210,7 @@ private:
 
             auto readers = CreateErasureAllPartsReaders(
                 ReaderConfig_,
-                host->GetCompressedBlockCache(),
+                host->GetBlockCache(),
                 RemoteMasterChannel_,
                 RemoteNodeDirectory_,
                 inputChunkId,
@@ -257,7 +257,7 @@ private:
         } else {
             auto reader = CreateReplicationReader(
                 ReaderConfig_,
-                host->GetCompressedBlockCache(),
+                host->GetBlockCache(),
                 RemoteMasterChannel_,
                 RemoteNodeDirectory_,
                 Null,

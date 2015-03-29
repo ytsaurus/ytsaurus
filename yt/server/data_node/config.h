@@ -190,11 +190,8 @@ public:
      */
     TDuration FullHeartbeatTimeout;
 
-    //! Cache for raw (compressed) blocks.
-    TSlruCacheConfigPtr CompressedBlockCache;
-
-    //! Cache for uncompressed blocks.
-    TSlruCacheConfigPtr UncompressedBlockCache;
+    //! Cache for all types of blocks.
+    NChunkClient::TBlockCacheConfigPtr BlockCache;
 
     //! Opened blob chunks cache.
     TSlruCacheConfigPtr BlobReaderCache;
@@ -295,9 +292,7 @@ public:
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         
-        RegisterParameter("compressed_block_cache", CompressedBlockCache)
-            .DefaultNew();
-        RegisterParameter("uncompressed_block_cache", UncompressedBlockCache)
+        RegisterParameter("block_cache", BlockCache)
             .DefaultNew();
 
         RegisterParameter("blob_reader_cache", BlobReaderCache)
@@ -377,9 +372,8 @@ public:
             .Default((i64) 64 * 1024 * 1024);
 
         RegisterInitializer([&] () {
-            CompressedBlockCache->Capacity = (i64) 1024 * 1024 * 1024;
-
-            UncompressedBlockCache->Capacity = (i64) 1024 * 1024 * 1024;
+            BlockCache->CompressedData->Capacity = (i64) 1024 * 1024 * 1024;
+            BlockCache->UncompressedData->Capacity = (i64) 1024 * 1024 * 1024;
 
             BlobReaderCache->Capacity = 256;
 

@@ -37,7 +37,7 @@ public:
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         TReadLimit lowerLimit,
         TReadLimit upperLimit,
         const TColumnFilter& columnFilter,
@@ -60,7 +60,7 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
     TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
     IChunkReaderPtr underlyingReader,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
     const TColumnFilter& columnFilter,
@@ -71,7 +71,7 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
         std::move(upperLimit),
         std::move(underlyingReader),
         chunkMeta->Misc(),
-        std::move(uncompressedBlockCache))
+        std::move(blockCache))
     , Timestamp_(timestamp)
     , CachedChunkMeta_(std::move(chunkMeta))
     , MemoryPool_(TVersionedChunkReaderPoolTag())
@@ -105,7 +105,7 @@ public:
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         TReadLimit lowerLimit,
         TReadLimit upperLimit,
         const TColumnFilter& columnFilter,
@@ -129,7 +129,7 @@ TVersionedRangeChunkReader::TVersionedRangeChunkReader(
     TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
     IChunkReaderPtr underlyingReader,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
     const TColumnFilter& columnFilter,
@@ -138,7 +138,7 @@ TVersionedRangeChunkReader::TVersionedRangeChunkReader(
         std::move(config),
         std::move(chunkMeta),
         std::move(underlyingReader),
-        std::move(uncompressedBlockCache),
+        std::move(blockCache),
         std::move(lowerLimit),
         std::move(upperLimit),
         columnFilter,
@@ -263,7 +263,7 @@ void TVersionedRangeChunkReader::InitNextBlock()
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr chunkReader,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
@@ -277,7 +277,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 std::move(config),
                 std::move(chunkMeta),
                 std::move(chunkReader),
-                std::move(uncompressedBlockCache),
+                std::move(blockCache),
                 std::move(lowerLimit),
                 std::move(upperLimit),
                 columnFilter,
@@ -298,7 +298,7 @@ public:
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         const std::vector<TKey>& keys,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp);
@@ -321,7 +321,7 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
     TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
     IChunkReaderPtr underlyingReader,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     const std::vector<TKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
@@ -329,7 +329,7 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
         std::move(config),
         std::move(chunkMeta),
         std::move(underlyingReader),
-        std::move(uncompressedBlockCache),
+        std::move(blockCache),
         TReadLimit(),
         TReadLimit(),
         columnFilter,
@@ -452,7 +452,7 @@ bool TVersionedLookupChunkReader::Read(std::vector<TVersionedRow>* rows)
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    NChunkClient::IBlockCachePtr uncompressedBlockCache,
+    NChunkClient::IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const std::vector<TKey>& keys,
     const TColumnFilter& columnFilter,
@@ -462,7 +462,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(config),
         std::move(chunkMeta),
         std::move(chunkReader),
-        std::move(uncompressedBlockCache),
+        std::move(blockCache),
         keys,
         columnFilter,
         timestamp);
