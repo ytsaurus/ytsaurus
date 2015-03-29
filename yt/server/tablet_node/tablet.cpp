@@ -515,6 +515,8 @@ void TTablet::StopEpoch()
     }
 
     std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
+
+    SetState(GetPersistentState());
 }
 
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)

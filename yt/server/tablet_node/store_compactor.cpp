@@ -2,6 +2,7 @@
 #include "store_compactor.h"
 #include "config.h"
 #include "slot_manager.h"
+#include "store_manager.h"
 #include "tablet_slot.h"
 #include "tablet_manager.h"
 #include "tablet.h"
@@ -126,6 +127,7 @@ private:
 
         // Check if partitioning is needed.
         auto* tablet = eden->GetTablet();
+        auto storeManager = tablet->GetStoreManager();
         auto config = tablet->GetConfig();
         if (dataSize <= config->MaxEdenDataSize &&
             stores.size() <= config->MaxEdenChunkCount &&
@@ -144,7 +146,7 @@ private:
         }
 
         for (auto store : stores) {
-            store->SetStoreState(EStoreState::Compacting);
+            storeManager->BeginStoreCompaction(store);
         }
 
         eden->SetState(EPartitionState::Compacting);
@@ -171,6 +173,7 @@ private:
         // Don't compact partitions whose data size exceeds the limit.
         // Let Partition Balancer do its job.
         auto* tablet = partition->GetTablet();
+        auto storeManager = tablet->GetStoreManager();
         auto config = tablet->GetConfig();
         if (partition->GetUncompressedDataSize() > config->MaxPartitionDataSize)
             return;
@@ -186,7 +189,7 @@ private:
         auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
 
         for (auto store : stores) {
-            store->SetStoreState(EStoreState::Compacting);
+            storeManager->BeginStoreCompaction(store);
         }
 
         partition->SetState(EPartitionState::Compacting);
@@ -201,38 +204,26 @@ private:
     }
 
 
-    std::vector<IStorePtr> PickStoresForPartitioning(TPartition* eden)
+    std::vector<TChunkStorePtr> PickStoresForPartitioning(TPartition* eden)
     {
-        std::vector<IStorePtr> stores;
+        std::vector<TChunkStorePtr> stores;
         for (auto store : eden->Stores()) {
-            if (store->GetStoreState() != EStoreState::Persistent)
-                continue;
-            auto chunkStore = store->AsChunk();
-
-            // NB: Partitioning chunk stores with backing ones may interfere with conflict checking.
-            if (chunkStore->HasBackingStore())
-                continue;
-
-            stores.push_back(std::move(store));
+            if (TStoreManager::IsStoreCompactable(store)) {
+                stores.push_back(store->AsChunk());
+            }
         }
         return stores;
     }
 
-    std::vector<IStorePtr> PickStoresForCompaction(
+    std::vector<TChunkStorePtr> PickStoresForCompaction(
         TTableMountConfigPtr config,
         TPartition* partition)
     {
         std::vector<TChunkStorePtr> candidates;
         for (auto store : partition->Stores()) {
-            if (store->GetStoreState() != EStoreState::Persistent)
-                continue;
-            auto chunkStore = store->AsChunk();
-
-            // NB: Compacting chunk stores with backing ones may interfere with conflict checking.
-            if (chunkStore->HasBackingStore())
-                continue;
-
-            candidates.push_back(store->AsChunk());
+            if (TStoreManager::IsStoreCompactable(store)) {
+                candidates.push_back(store->AsChunk());
+            }
         }
 
         std::sort(
@@ -254,16 +245,16 @@ private:
             }
 
             if (j - i >= config->MinCompactionChunkCount) {
-                return std::vector<IStorePtr>(candidates.begin() + i, candidates.begin() + j);
+                return std::vector<TChunkStorePtr>(candidates.begin() + i, candidates.begin() + j);
             }
         }
 
-        return std::vector<IStorePtr>();
+        return std::vector<TChunkStorePtr>();
     }
 
     TTimestamp ComputeMajorTimestamp(
         TPartition* partition,
-        const std::vector<IStorePtr>& stores)
+        const std::vector<TChunkStorePtr>& stores)
     {
         auto result = MaxTimestamp;
         auto handleStore = [&] (const IStorePtr& store) {
@@ -277,8 +268,10 @@ private:
         }
 
         for (const auto& store : partition->Stores()) {
-            if (std::find(stores.begin(), stores.end(), store) == stores.end()) {
-                handleStore(store);
+            if (store->GetType() == EStoreType::Chunk) {
+                if (std::find(stores.begin(), stores.end(), store->AsChunk()) == stores.end()) {
+                    handleStore(store);
+                }
             }
         }
 
@@ -290,13 +283,13 @@ private:
         TAsyncSemaphoreGuard /*guard*/,
         TPartition* eden,
         const std::vector<TOwningKey>& pivotKeys,
-        const std::vector<IStorePtr>& stores)
+        const std::vector<TChunkStorePtr>& stores)
     {
         // Capture everything needed below.
         // NB: Avoid accessing tablet from pool invoker.
         auto* tablet = eden->GetTablet();
+        auto storeManager = tablet->GetStoreManager();
         auto slot = tablet->GetSlot();
-        auto tabletManager = slot->GetTabletManager();
         auto tabletId = tablet->GetTabletId();
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
@@ -331,7 +324,7 @@ private:
             auto reader = CreateVersionedTabletReader(
                 Bootstrap_->GetQueryPoolInvoker(),
                 tablet->GetSnapshot(),
-                stores,
+                std::vector<IStorePtr>(stores.begin(), stores.end()),
                 tabletPivotKey,
                 nextTabletPivotKey,
                 currentTimestamp,
@@ -522,8 +515,7 @@ private:
             SwitchTo(automatonInvoker);
 
             for (auto store : stores) {
-                YCHECK(store->GetStoreState() == EStoreState::Compacting);
-                tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
+                storeManager->BackoffStoreCompaction(store);
             }
         }
 
@@ -536,14 +528,14 @@ private:
     void CompactPartition(
         TAsyncSemaphoreGuard /*guard*/,
         TPartition* partition,
-        const std::vector<IStorePtr>& stores,
+        const std::vector<TChunkStorePtr>& stores,
         TTimestamp majorTimestamp)
     {
         // Capture everything needed below.
         // NB: Avoid accessing tablet from pool invoker.
         auto* tablet = partition->GetTablet();
+        auto storeManager = tablet->GetStoreManager();
         auto slot = tablet->GetSlot();
-        auto tabletManager = slot->GetTabletManager();
         auto tabletId = tablet->GetTabletId();
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
@@ -579,7 +571,7 @@ private:
             auto reader = CreateVersionedTabletReader(
                 Bootstrap_->GetQueryPoolInvoker(),
                 tablet->GetSnapshot(),
-                stores,
+                std::vector<IStorePtr>(stores.begin(), stores.end()),
                 tabletPivotKey,
                 nextTabletPivotKey,
                 currentTimestamp,
@@ -682,8 +674,7 @@ private:
             SwitchTo(automatonInvoker);
 
             for (auto store : stores) {
-                YCHECK(store->GetStoreState() == EStoreState::Compacting);
-                tabletManager->BackoffStore(store, EStoreState::CompactionFailed);
+                storeManager->BackoffStoreCompaction(store);
             }
         }
 

@@ -39,8 +39,6 @@ public:
 
     TTablet* GetTabletOrThrow(const TTabletId& id);
 
-    void BackoffStore(IStorePtr store, EStoreState state);
-
 
     void Read(
         TTabletSnapshotPtr tabletSnapshot,

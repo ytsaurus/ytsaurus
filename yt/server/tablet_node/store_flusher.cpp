@@ -224,7 +224,7 @@ private:
 
     void ScanStore(TTablet* tablet, const IStorePtr& store)
     {
-        if (store->GetStoreState() != EStoreState::PassiveDynamic)
+        if (!TStoreManager::IsStoreFlushable(store))
             return;
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
@@ -232,9 +232,6 @@ private:
             return;
 
         auto dynamicStore = store->AsDynamicMemory();
-        if (dynamicStore->GetFlushState() != EStoreFlushState::None)
-            return;
-
         auto storeManager = tablet->GetStoreManager();
         storeManager->BeginStoreFlush(dynamicStore);
 
@@ -263,8 +260,6 @@ private:
         auto schema = tablet->Schema();
         auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
         writerOptions->ChunksEden = true;
-
-        YCHECK(store->GetFlushState() == EStoreFlushState::Running);
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v",

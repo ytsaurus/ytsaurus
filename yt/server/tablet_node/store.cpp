@@ -12,10 +12,6 @@ EStoreState IStore::GetPersistentStoreState() const
 {
     auto state = GetStoreState();
     switch (state) {
-        case EStoreState::Compacting:
-        case EStoreState::CompactionFailed:
-            return EStoreState::Persistent;
-
         case EStoreState::RemoveFailed:
             switch (GetType()) {
                 case EStoreType::DynamicMemory:

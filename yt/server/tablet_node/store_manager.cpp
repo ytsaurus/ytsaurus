@@ -115,6 +115,27 @@ void TStoreManager::StartEpoch(TTabletSlotPtr slot)
 void TStoreManager::StopEpoch()
 {
     Tablet_->StopEpoch();
+
+    for (const auto& pair : Tablet_->Stores()) {
+        const auto& store = pair.second;
+        store->SetStoreState(store->GetPersistentStoreState());
+        switch (store->GetType()) {
+            case EStoreType::DynamicMemory: {
+                auto dynamicStore = store->AsDynamicMemory();
+                dynamicStore->SetFlushState(EStoreFlushState::None);
+                break;
+            }
+
+            case EStoreType::Chunk: {
+                auto chunkStore = store->AsChunk();
+                chunkStore->SetCompactionState(EStoreCompactionState::None);
+                break;
+            }
+
+            default:
+                YUNREACHABLE();
+        }
+    }
 }
 
 TDynamicRowRef TStoreManager::WriteRow(
@@ -417,25 +438,81 @@ const yhash_set<TDynamicMemoryStorePtr>& TStoreManager::GetLockedStores() const
     return LockedStores_;
 }
 
+bool TStoreManager::IsStoreFlushable(IStorePtr store)
+{
+    if (store->GetStoreState() != EStoreState::PassiveDynamic) {
+        return false;
+    }
+
+    auto dynamicStore = store->AsDynamicMemory();
+
+    if (dynamicStore->GetFlushState() != EStoreFlushState::None) {
+        return false;
+    }
+
+    return true;
+}
+
 void TStoreManager::BeginStoreFlush(TDynamicMemoryStorePtr store)
 {
+    YCHECK(store->GetFlushState() == EStoreFlushState::None);
     store->SetFlushState(EStoreFlushState::Running);
 }
 
 void TStoreManager::EndStoreFlush(TDynamicMemoryStorePtr store)
 {
+    YCHECK(store->GetFlushState() == EStoreFlushState::Running);
     store->SetFlushState(EStoreFlushState::Complete);
 }
 
 void TStoreManager::BackoffStoreFlush(TDynamicMemoryStorePtr store)
 {
     YCHECK(store->GetFlushState() == EStoreFlushState::Running);
-
     store->SetFlushState(EStoreFlushState::Failed);
     NConcurrency::TDelayedExecutor::Submit(
         BIND([=] () {
             if (store->GetFlushState() == EStoreFlushState::Failed) {
                 store->SetFlushState(EStoreFlushState::None);
+            }
+        }).Via(store->GetTablet()->GetEpochAutomatonInvoker()),
+        Config_->ErrorBackoffTime);
+}
+
+
+bool TStoreManager::IsStoreCompactable(IStorePtr store)
+{
+    if (store->GetStoreState() != EStoreState::Persistent) {
+        return false;
+    }
+
+    auto chunkStore = store->AsChunk();
+
+    // NB: Partitioning chunk stores with backing ones may interfere with conflict checking.
+    if (chunkStore->HasBackingStore()) {
+        return false;
+    }
+
+    if (chunkStore->GetCompactionState() != EStoreCompactionState::None) {
+        return false;
+    }
+
+    return true;
+}
+
+void TStoreManager::BeginStoreCompaction(TChunkStorePtr store)
+{
+    YCHECK(store->GetCompactionState() == EStoreCompactionState::None);
+    store->SetCompactionState(EStoreCompactionState::Running);
+}
+
+void TStoreManager::BackoffStoreCompaction(TChunkStorePtr store)
+{
+    YCHECK(store->GetCompactionState() == EStoreCompactionState::Running);
+    store->SetCompactionState(EStoreCompactionState::Failed);
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND([=] () {
+            if (store->GetCompactionState() == EStoreCompactionState::Failed) {
+                store->SetCompactionState(EStoreCompactionState::None);
             }
         }).Via(store->GetTablet()->GetEpochAutomatonInvoker()),
         Config_->ErrorBackoffTime);

@@ -338,6 +338,7 @@ TChunkStore::TChunkStore(
         id,
         tablet)
     , PreloadState_(EStorePreloadState::Disabled)
+    , CompactionState_(EStoreCompactionState::None)
     , Bootstrap_(boostrap)
 {
     YCHECK(
@@ -624,8 +625,6 @@ void TChunkStore::Save(TSaveContext& context) const
     TStoreBase::Save(context);
 
     using NYT::Save;
-
-    Save(context, GetPersistentStoreState());
     Save(context, ChunkMeta_);
 }
 
@@ -634,8 +633,6 @@ void TChunkStore::Load(TLoadContext& context)
     TStoreBase::Load(context);
 
     using NYT::Load;
-
-    Load(context, StoreState_);
     Load(context, ChunkMeta_);
 
     PrecacheProperties();
@@ -649,6 +646,7 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
     auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     BuildYsonMapFluently(consumer)
         .Item("preload_state").Value(PreloadState_)
+        .Item("compaction_state").Value(CompactionState_)
         .Item("compressed_data_size").Value(miscExt.compressed_data_size())
         .Item("uncompressed_data_size").Value(miscExt.uncompressed_data_size())
         .Item("key_count").Value(miscExt.row_count())
