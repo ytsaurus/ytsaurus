@@ -4,27 +4,27 @@ set( SRCS
   ${BASE}/callback_internal.cpp
   ${BASE}/cancelable_context.cpp
   ${BASE}/future.cpp
-  ${BASE}/invoker_util.cpp
   ${BASE}/invoker_detail.cpp
+  ${BASE}/invoker_util.cpp
 )
 set( HDRS
-  ${BASE}/bind_helpers.h
-  ${BASE}/bind_mpl.h
-  ${BASE}/bind_internal.h
   ${BASE}/bind.h
+  ${BASE}/bind_helpers.h
+  ${BASE}/bind_internal.h
+  ${BASE}/bind_mpl.h
   ${BASE}/callback.h
   ${BASE}/callback_internal.h
-  ${BASE}/cancelable_context.h
   ${BASE}/cancelable_context-inl.h
+  ${BASE}/cancelable_context.h
   ${BASE}/future-inl.h
   ${BASE}/future.h
-  ${BASE}/invoker.h
   ${BASE}/invoker-inl.h
-  ${BASE}/invoker_util.h
+  ${BASE}/invoker.h
   ${BASE}/invoker_detail.h
-  ${BASE}/signal.h
-  ${BASE}/signal-inl.h
+  ${BASE}/invoker_util.h
   ${BASE}/public.h
+  ${BASE}/signal-inl.h
+  ${BASE}/signal.h
 )
 
 list(APPEND YT_SOURCE_FILES
