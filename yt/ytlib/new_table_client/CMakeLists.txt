@@ -40,7 +40,6 @@ set( SRCS
   ${BASE}/unversioned_row.cpp
   ${BASE}/versioned_block_reader.cpp
   ${BASE}/versioned_block_writer.cpp
-  ${BASE}/versioned_chunk_lookuper.cpp
   ${BASE}/versioned_chunk_reader.cpp
   ${BASE}/versioned_chunk_writer.cpp
   ${BASE}/versioned_row.cpp
@@ -96,7 +95,6 @@ set( HDRS
   ${BASE}/unversioned_writer.h
   ${BASE}/versioned_block_reader.h
   ${BASE}/versioned_block_writer.h
-  ${BASE}/versioned_chunk_lookuper.h
   ${BASE}/versioned_chunk_reader.h
   ${BASE}/versioned_chunk_writer.h
   ${BASE}/versioned_lookuper.h
