@@ -21,7 +21,7 @@ using namespace NVersionedTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTypedFunction::TTypedFunction(
-    Stroka functionName,
+    const Stroka& functionName,
     std::vector<TType> argumentTypes,
     TType repeatedArgumentType,
     TType resultType)
@@ -32,7 +32,7 @@ TTypedFunction::TTypedFunction(
 { }
 
 TTypedFunction::TTypedFunction(
-    Stroka functionName,
+    const Stroka& functionName,
     std::vector<TType> argumentTypes,
     TType resultType)
     : FunctionName_(functionName)
@@ -101,7 +101,7 @@ EValueType TTypedFunction::TypingFunction(
     const std::vector<TType>& expectedArgTypes,
     TType repeatedArgType,
     TType resultType,
-    Stroka functionName,
+    const Stroka& functionName,
     const std::vector<EValueType>& argTypes,
     const TStringBuf& source) const
 {
@@ -208,7 +208,7 @@ TKeyTrieNode TUniversalRangeFunction::ExtractKeyRange(
 TCodegenExpression TCodegenFunction::MakeCodegenExpr(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name) const
+    const Stroka& name) const
 {
     return [
         this,
@@ -236,7 +236,7 @@ TIfFunction::TIfFunction() : TTypedFunction(
 TCGValue TIfFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -280,7 +280,7 @@ TIsPrefixFunction::TIsPrefixFunction()
 TCGValue TIsPrefixFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -343,7 +343,7 @@ TIsSubstrFunction::TIsSubstrFunction()
 TCGValue TIsSubstrFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -362,7 +362,7 @@ TLowerFunction::TLowerFunction()
 TCGValue TLowerFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -401,8 +401,8 @@ TCGValue TLowerFunction::CodegenValue(
 ////////////////////////////////////////////////////////////////////////////////
 
 THashFunction::THashFunction(
-    Stroka functionName,
-    Stroka routineName)
+    const Stroka& functionName,
+    const Stroka& routineName)
     : TTypedFunction(
         functionName,
         std::vector<TType>{ HashTypes_ },
@@ -421,7 +421,7 @@ const TUnionType THashFunction::HashTypes_ =
 TCGValue THashFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -467,7 +467,7 @@ TIsNullFunction::TIsNullFunction()
 TCGValue TIsNullFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -486,7 +486,9 @@ TCGValue TIsNullFunction::CodegenValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCastFunction::TCastFunction(EValueType resultType, Stroka functionName)
+TCastFunction::TCastFunction(
+    EValueType resultType,
+    const Stroka& functionName)
     : TTypedFunction(
         functionName,
         std::vector<TType>{ CastTypes_ },
@@ -501,7 +503,7 @@ const TUnionType TCastFunction::CastTypes_ = TUnionType{
 TCGValue TCastFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -514,32 +516,30 @@ TCGValue TCastFunction::CodegenValue(
 using namespace llvm;
 
 TUserDefinedFunction::TUserDefinedFunction(
-    Stroka functionName,
+    const Stroka& functionName,
     std::vector<EValueType> argumentTypes,
     EValueType resultType,
-    TSharedRef ImplementationFile)
+    TSharedRef implementationFile)
     : TTypedFunction(
         functionName,
         std::vector<TType>(argumentTypes.begin(), argumentTypes.end()),
         resultType)
-    , FunctionName(functionName)
-    , ImplementationFile(ImplementationFile)
+    , FunctionName_(functionName)
+    , ImplementationFile_(implementationFile)
 { }
-
-std::vector<std::unique_ptr<object::ObjectFile>> implementationObjects;
 
 Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
 {
     auto module = builder.Module->GetModule();
-    auto callee = module->getFunction(StringRef(FunctionName));
+    auto callee = module->getFunction(StringRef(FunctionName_));
     if (!callee) {
         auto diag = SMDiagnostic();
         auto buffer = MemoryBufferRef(
-            StringRef(ImplementationFile.Begin(), ImplementationFile.Size()),
+            StringRef(ImplementationFile_.Begin(), ImplementationFile_.Size()),
             StringRef("impl"));
         auto implModule = parseIR(buffer, diag, builder.getContext());
         Linker::LinkModules(module, implModule.get());
-        callee = module->getFunction(StringRef(FunctionName));
+        callee = module->getFunction(StringRef(FunctionName_));
     }
     return callee;
 }
@@ -547,7 +547,7 @@ Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
 TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name) const
+    const Stroka& name) const
 {
     return [
         this_ = MakeStrong(this),

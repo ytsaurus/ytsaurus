@@ -1,4 +1,5 @@
-long absolute(long n) {
+long absolute(long n)
+{
   if (n < 0) {
     return -n;
   } else {

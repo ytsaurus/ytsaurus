@@ -192,8 +192,8 @@ IFunctionDescriptor& TCypressFunctionRegistry::GetFunction(const Stroka& functio
 
 bool TCypressFunctionRegistry::IsRegistered(const Stroka& functionName)
 {
-    if (BuiltinRegistry_->IsRegistered(functionName)
-        || UDFRegistry_->IsRegistered(functionName))
+    if (BuiltinRegistry_->IsRegistered(functionName) ||
+        UDFRegistry_->IsRegistered(functionName))
     {
         return true;
     } else {
