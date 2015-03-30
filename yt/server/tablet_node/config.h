@@ -273,6 +273,7 @@ class TStoreFlusherConfig
 public:
     int ThreadPoolSize;
     int MaxConcurrentFlushes;
+    i64 MinForcedFlushDataSize;
 
     TStoreFlusherConfig()
     {
@@ -282,6 +283,9 @@ public:
         RegisterParameter("max_concurrent_flushes", MaxConcurrentFlushes)
             .GreaterThan(0)
             .Default(1);
+        RegisterParameter("min_forced_flush_data_size", MinForcedFlushDataSize)
+            .GreaterThan(0)
+            .Default((i64) 1024 * 1024);
     }
 };
 

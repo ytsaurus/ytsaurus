@@ -212,7 +212,7 @@ private:
                 i64 memoryUsage = store->GetMemoryUsage();
                 if (storeManager->IsRotationScheduled()) {
                     PassiveMemoryUsage_ += memoryUsage;
-                } else {
+                } else if (store->GetUncompressedDataSize() >= Config_->StoreFlusher->MinForcedFlushDataSize) {
                     TForcedRotationCandidate candidate;
                     candidate.TabletId = tablet->GetTabletId();
                     candidate.MemoryUsage = memoryUsage;
