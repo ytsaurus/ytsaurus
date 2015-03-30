@@ -1,4 +1,3 @@
-#:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client )
 set( SRCS
   ${BASE}/plan_helpers.cpp
