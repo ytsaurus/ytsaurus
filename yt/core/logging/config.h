@@ -91,11 +91,11 @@ public:
     TLogConfig()
     {
         RegisterParameter("flush_period", FlushPeriod)
-            .Default(Null);
+            .Default();
         RegisterParameter("watch_period", WatchPeriod)
-            .Default(Null);
+            .Default();
         RegisterParameter("check_space_period", CheckSpacePeriod)
-            .Default(Null);
+            .Default();
         RegisterParameter("min_disk_space", MinDiskSpace)
             .GreaterThanOrEqual((i64) 1024 * 1024 * 1024)
             .Default((i64) 5 * 1024 * 1024 * 1024);

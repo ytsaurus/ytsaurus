@@ -1817,6 +1817,21 @@ void TOperationControllerBase::Abort()
     LOG_INFO("Operation aborted");
 }
 
+void TOperationControllerBase::CheckTimeLimit()
+{
+    auto timeLimit = Config->OperationTimeLimit;
+    if (Spec->TimeLimit) {
+        timeLimit = Spec->TimeLimit;
+    }
+
+    if (timeLimit) {
+        if (TInstant::Now() - Operation->GetStartTime() > timeLimit.Get()) {
+            OnOperationFailed(TError("Operation is running for too long, aborted")
+                << TErrorAttribute("time_limit", timeLimit.Get()));
+        }
+    }
+}
+
 TJobPtr TOperationControllerBase::ScheduleJob(
     ISchedulingContext* context,
     const TNodeResources& jobLimits)

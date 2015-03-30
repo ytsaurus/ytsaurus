@@ -22,9 +22,9 @@ struct TReadFileRequest
     {
         RegisterParameter("path", Path);
         RegisterParameter("offset", Offset)
-            .Default(Null);
+            .Default();
         RegisterParameter("length", Length)
-            .Default(Null);
+            .Default();
         RegisterParameter("file_reader", FileReader)
             .Default(nullptr);
     }

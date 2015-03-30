@@ -538,6 +538,10 @@ public:
                 }
             }
 
+            for (auto operation : GetOperations()) {
+                operation->GetController()->CheckTimeLimit();
+            }
+
             auto schedulingContext = CreateSchedulingContext(node, runningJobs);
 
             if (hasWaitingJobs) {

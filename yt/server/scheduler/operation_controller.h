@@ -206,6 +206,9 @@ struct IOperationController
     //! Called during preemption to notify the controller that a job has been aborted.
     virtual void OnJobAborted(TJobPtr job) = 0;
 
+    //! Called during heartbeat to abort operation if it has reached it's time limit.
+    virtual void CheckTimeLimit() = 0;
+
     //! Called during heartbeat processing to request actions the node must perform.
     virtual TJobPtr ScheduleJob(
         ISchedulingContext* context,

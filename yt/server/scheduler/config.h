@@ -118,6 +118,8 @@ public:
 
     TDuration ChunkScratchPeriod;
 
+    TNullable<TDuration> OperationTimeLimit;
+
     //! Number of chunks scratched per one LocateChunks.
     int MaxChunksPerScratch;
 
@@ -259,6 +261,9 @@ public:
 
         RegisterParameter("chunk_scratch_period", ChunkScratchPeriod)
             .Default(TDuration::Seconds(10));
+
+        RegisterParameter("operation_time_limit", OperationTimeLimit)
+            .Default();
 
         RegisterParameter("max_chunks_per_scratch", MaxChunksPerScratch)
             .Default(1000)

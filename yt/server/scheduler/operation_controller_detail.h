@@ -91,6 +91,8 @@ public:
 
     virtual void Abort() override;
 
+    virtual void CheckTimeLimit() override;
+
     virtual TJobPtr ScheduleJob(
         ISchedulingContext* context,
         const NNodeTrackerClient::NProto::TNodeResources& jobLimits) override;

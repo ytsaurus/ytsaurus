@@ -89,6 +89,9 @@ public:
 
     TNullable<Stroka> SchedulingTag;
 
+    //! Limit on operation execution time.
+    TNullable<TDuration> TimeLimit;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -115,9 +118,9 @@ public:
             .Default(EUnavailableChunkAction::Wait);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
-            .Default(Null);
+            .Default();
         RegisterParameter("max_stderr_count", MaxStderrCount)
-            .Default(Null);
+            .Default();
 
         RegisterParameter("enable_job_proxy_memory_control", EnableJobProxyMemoryControl)
             .Default(true);
@@ -126,12 +129,15 @@ public:
             .Default(true);
 
         RegisterParameter("title", Title)
-            .Default(Null);
+            .Default();
 
         RegisterParameter("scheduling_tag", SchedulingTag)
-            .Default(Null);
+            .Default();
 
         SetKeepOptions(true);
+
+        RegisterParameter("time_limit", TimeLimit)
+            .Default();
 
         RegisterValidator([&] () {
             if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -673,7 +679,7 @@ public:
         RegisterParameter("job_io", JobIO)
             .DefaultNew();
         RegisterParameter("network_name", NetworkName)
-            .Default(Null);
+            .Default();
         RegisterParameter("max_chunk_count_per_job", MaxChunkCountPerJob)
             .Default(100);
     }
@@ -705,13 +711,13 @@ public:
     TResourceLimitsConfig()
     {
         RegisterParameter("user_slots", UserSlots)
-            .Default(Null)
+            .Default()
             .GreaterThanOrEqual(0);
         RegisterParameter("cpu", Cpu)
-            .Default(Null)
+            .Default()
             .GreaterThanOrEqual(0);
         RegisterParameter("memory", Memory)
-            .Default(Null)
+            .Default()
             .GreaterThanOrEqual(0);
     }
 
