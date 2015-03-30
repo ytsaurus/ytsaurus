@@ -29,7 +29,7 @@ public:
     TTraceManagerConfig()
     {
         RegisterParameter("address", Address)
-            .Default(Null);
+            .Default();
         RegisterParameter("max_batch_size", MaxBatchSize)
             .Default(100);
         RegisterParameter("send_period", SendPeriod)

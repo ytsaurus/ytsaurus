@@ -113,7 +113,7 @@ public:
         RegisterParameter("encode_utf8", EncodeUtf8)
             .Default(true);
         RegisterParameter("string_length_limit", StringLengthLimit)
-            .Default(Null);
+            .Default();
         RegisterParameter("boolean_as_string", BooleanAsString)
             .Default(false);
 

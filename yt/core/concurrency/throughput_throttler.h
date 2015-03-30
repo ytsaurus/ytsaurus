@@ -26,7 +26,7 @@ public:
         RegisterParameter("period", Period)
             .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("limit", Limit)
-            .Default(Null)
+            .Default()
             .GreaterThanOrEqual(0);
     }
 

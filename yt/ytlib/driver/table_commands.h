@@ -86,9 +86,9 @@ struct TTabletRequest
     {
         RegisterParameter("path", Path);
         RegisterParameter("first_tablet_index", FirstTabletIndex)
-            .Default(Null);
+            .Default();
         RegisterParameter("last_tablet_index", LastTabletIndex)
-            .Default(Null);
+            .Default();
     }
 };
 
@@ -162,9 +162,9 @@ struct TReshardTableRequest
     {
         RegisterParameter("path", Path);
         RegisterParameter("first_tablet_index", FirstTabletIndex)
-            .Default(Null);
+            .Default();
         RegisterParameter("last_tablet_index", LastTabletIndex)
-            .Default(Null);
+            .Default();
         RegisterParameter("pivot_keys", PivotKeys);
     }
 };
@@ -256,7 +256,7 @@ struct TLookupRowsRequest
         RegisterParameter("timestamp", Timestamp)
             .Default(NTransactionClient::SyncLastCommittedTimestamp);
         RegisterParameter("column_names", ColumnNames)
-            .Default(Null);
+            .Default();
     }
 };
 

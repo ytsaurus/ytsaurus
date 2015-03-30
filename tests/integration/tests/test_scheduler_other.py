@@ -107,6 +107,37 @@ class TestSchedulerOther(YTEnvSetup):
 
         assert "aborted" == get("//sys/operations/" + op_id + "/@state")
 
+    def test_operation_time_limit(self):
+        create("table", "//tmp/in")
+        set("//tmp/in/@replication_factor", 1)
+
+        create("table", "//tmp/out1")
+        set("//tmp/out1/@replication_factor", 1)
+
+        create("table", "//tmp/out2")
+        set("//tmp/out2/@replication_factor", 1)
+
+        write("//tmp/in", [{"foo": i} for i in xrange(5)])
+
+        # Default infinite time limit.
+        op1 = map(dont_track=True,
+            command="sleep 1.0; cat >/dev/null",
+            in_=["//tmp/in"],
+            out="//tmp/out1")
+
+        # Operation specific time limit.
+        op2 = map(dont_track=True,
+            command="sleep 1.0; cat >/dev/null",
+            in_=["//tmp/in"],
+            out="//tmp/out2",
+            spec={'time_limit': 800})
+
+        time.sleep(0.9)
+        assert get("//sys/operations/{0}/@state".format(op1)) != "failed"
+        assert get("//sys/operations/{0}/@state".format(op2)) == "failed"
+
+        track_op(op1)
+
 
 class TestSchedulerMaxChunkPerJob(YTEnvSetup):
     NUM_MASTERS = 3
@@ -136,6 +167,7 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
             merge(mode="sorted", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
         with pytest.raises(YtError):
             reduce(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", reduce_by=["foo"])
+
 
 class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
     NUM_MASTERS = 3

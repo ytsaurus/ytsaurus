@@ -137,7 +137,7 @@ struct TCreateRequest
     TCreateRequest()
     {
         RegisterParameter("path", Path)
-            .Default(Null);
+            .Default();
         RegisterParameter("type", Type);
         RegisterParameter("attributes", Attributes)
             .Default(nullptr);
@@ -177,9 +177,9 @@ struct TLockRequest
         RegisterParameter("waitable", Waitable)
             .Default(false);
         RegisterParameter("child_key", ChildKey)
-            .Default(Null);
+            .Default();
         RegisterParameter("attribute_key", AttributeKey)
-            .Default(Null);
+            .Default();
 
         RegisterValidator([&] () {
             if (Mode != NCypressClient::ELockMode::Shared) {

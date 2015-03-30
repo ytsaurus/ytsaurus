@@ -298,7 +298,7 @@ public:
         RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("full_heartbeat_period", FullHeartbeatPeriod)
-            .Default(Null);
+            .Default();
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         
