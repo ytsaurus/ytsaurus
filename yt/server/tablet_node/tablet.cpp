@@ -202,6 +202,7 @@ void TTablet::Load(TLoadContext& context)
 
     Slot_ = context.GetSlot();
 
+    // COMPAT(babenko)
     if (context.GetVersion() >= 5) {
         Load(context, TableId_);
     }
