@@ -10,8 +10,8 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/config.h
-  ${BASE}/log-inl.h
   ${BASE}/log.h
+  ${BASE}/log-inl.h
   ${BASE}/log_manager.h
   ${BASE}/pattern.h
   ${BASE}/private.h
