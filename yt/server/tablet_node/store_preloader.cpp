@@ -135,7 +135,7 @@ private:
         const NLogging::TLogger& Logger)
     {
         auto mode = tablet->GetConfig()->InMemoryMode;
-        if (mode == EInMemoryMode::None)
+        if (mode == EInMemoryMode::None || mode == EInMemoryMode::Disabled)
             return;
 
         EBlockType blockType;
