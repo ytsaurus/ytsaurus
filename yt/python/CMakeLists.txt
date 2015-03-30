@@ -1,19 +1,23 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/python )
 set( SRCS
-  ${BASE}/common.cpp
   ${BASE}/buffered_stream.cpp
+  ${BASE}/common.cpp
   ${BASE}/descriptor.cpp
+  ${BASE}/driver.cpp
   ${BASE}/response.cpp
   ${BASE}/serialize.cpp
   ${BASE}/shutdown.cpp
   ${BASE}/stream.cpp
+  ${BASE}/yson.cpp
 )
 
 set( HDRS
-  ${BASE}/common.h
   ${BASE}/buffered_stream.h
+  ${BASE}/common.h
   ${BASE}/descriptor.h
+  ${BASE}/gil.h
+  ${BASE}/public.h
   ${BASE}/response.h
   ${BASE}/serialize.h
   ${BASE}/shutdown.h

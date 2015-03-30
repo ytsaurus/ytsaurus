@@ -3,19 +3,20 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/new_table_client )
 set( SRCS
   ${BASE}/cached_versioned_chunk_meta.cpp
   ${BASE}/chunk_meta_extensions.cpp
-  ${BASE}/chunk_splits_fetcher.cpp
   ${BASE}/chunk_reader_base.cpp
+  ${BASE}/chunk_splits_fetcher.cpp
   ${BASE}/chunk_writer_base.cpp
   ${BASE}/helpers.cpp
   ${BASE}/key_filter.cpp
   ${BASE}/legacy_channel_reader.cpp
   ${BASE}/legacy_table_chunk_reader.cpp
   ${BASE}/name_table.cpp
+  ${BASE}/ordered_schemaful_reader.cpp
   ${BASE}/partition_chunk_reader.cpp
   ${BASE}/partitioner.cpp
   ${BASE}/pipe.cpp
-  ${BASE}/public.cpp
   ${BASE}/private.cpp
+  ${BASE}/public.cpp
   ${BASE}/row_base.cpp
   ${BASE}/row_buffer.cpp
   ${BASE}/samples_fetcher.cpp
@@ -34,16 +35,15 @@ set( SRCS
   ${BASE}/schemaless_row_reorderer.cpp
   ${BASE}/schemaless_sorted_merging_reader.cpp
   ${BASE}/schemaless_sorting_reader.cpp
-  ${BASE}/unordered_schemaful_reader.cpp
-  ${BASE}/ordered_schemaful_reader.cpp
   ${BASE}/table_consumer.cpp
+  ${BASE}/unordered_schemaful_reader.cpp
   ${BASE}/unversioned_row.cpp
   ${BASE}/versioned_block_reader.cpp
   ${BASE}/versioned_block_writer.cpp
+  ${BASE}/versioned_chunk_lookuper.cpp
   ${BASE}/versioned_chunk_reader.cpp
   ${BASE}/versioned_chunk_writer.cpp
   ${BASE}/versioned_row.cpp
-  ${BASE}/versioned_chunk_lookuper.cpp
 )
 
 set( HDRS
@@ -58,12 +58,15 @@ set( HDRS
   ${BASE}/key_filter.h
   ${BASE}/legacy_channel_reader.h
   ${BASE}/legacy_table_chunk_reader.h
+  ${BASE}/llvm_types.h
   ${BASE}/name_table.h
+  ${BASE}/ordered_schemaful_reader.h
   ${BASE}/partition_chunk_reader.h
   ${BASE}/partitioner.h
   ${BASE}/pipe.h
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/reader.h
   ${BASE}/row_base.h
   ${BASE}/row_buffer.h
   ${BASE}/samples_fetcher.h
@@ -72,8 +75,8 @@ set( HDRS
   ${BASE}/schemaful_block_writer.h
   ${BASE}/schemaful_chunk_reader.h
   ${BASE}/schemaful_chunk_writer.h
-  ${BASE}/schemaful_reader_adapter.h
   ${BASE}/schemaful_reader.h
+  ${BASE}/schemaful_reader_adapter.h
   ${BASE}/schemaful_writer.h
   ${BASE}/schemaless_block_reader.h
   ${BASE}/schemaless_block_writer.h
@@ -86,22 +89,21 @@ set( HDRS
   ${BASE}/schemaless_sorted_merging_reader.h
   ${BASE}/schemaless_sorting_reader.h
   ${BASE}/schemaless_writer.h
-  ${BASE}/unordered_schemaful_reader.h
-  ${BASE}/ordered_schemaful_reader.h
   ${BASE}/table_consumer.h
   ${BASE}/table_ypath_proxy.h
+  ${BASE}/unordered_schemaful_reader.h
   ${BASE}/unversioned_row.h
   ${BASE}/unversioned_writer.h
-  ${BASE}/versioned_block_writer.h
   ${BASE}/versioned_block_reader.h
+  ${BASE}/versioned_block_writer.h
+  ${BASE}/versioned_chunk_lookuper.h
   ${BASE}/versioned_chunk_reader.h
   ${BASE}/versioned_chunk_writer.h
+  ${BASE}/versioned_lookuper.h
   ${BASE}/versioned_reader.h
   ${BASE}/versioned_row.h
   ${BASE}/versioned_writer.h
   ${BASE}/writer.h
-  ${BASE}/versioned_lookuper.h
-  ${BASE}/versioned_chunk_lookuper.h
 )
 
 if (YT_BUILD_ENABLE_LLVM)
