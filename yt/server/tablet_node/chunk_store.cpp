@@ -274,6 +274,15 @@ public:
         , UnderlyingCache_(std::move(underlyingCache))
     { }
 
+    ~TBlockCache()
+    {
+        auto owner = Owner_.Lock();
+        if (!owner)
+            return;
+
+        owner->SetMemoryUsage(0);
+    }
+
     virtual void Put(
         const TBlockId& id,
         EBlockType type,
