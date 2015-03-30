@@ -18,22 +18,13 @@ function(UDF udf output)
     PATHS $ENV{LLVM_ROOT}/bin ENV PATH
   )
 
-  find_program(LLVM_AS_EXECUTABLE
-    NAMES llvm-as-3.6 llvm-as
-    PATHS $ENV{LLVM_ROOT}/bin ENV PATH
-  )
-
   add_custom_command(
     OUTPUT
       ${_dirname}/${_filename}.h
     COMMAND
-      ${CLANG_EXECUTABLE} -S -emit-llvm ${_realpath}
-    COMMAND
-      ${LLVM_AS_EXECUTABLE} ${_filename}.ll
+      ${CLANG_EXECUTABLE} -c -emit-llvm ${_realpath}
     COMMAND
       xxd -i ${_filename}.bc > ${_filename}.h
-    COMMAND
-      rm ${_filename}.ll
     MAIN_DEPENDENCY
       ${_realpath}
     WORKING_DIRECTORY
