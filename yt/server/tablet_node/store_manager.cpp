@@ -396,7 +396,7 @@ void TStoreManager::AddStore(IStorePtr store)
     Tablet_->AddStore(store);
     MaxTimestampToStore_.insert(std::make_pair(store->GetMaxTimestamp(), store));
 
-    if (Tablet_->GetConfig()->InMemoryMode != EInMemoryMode::None) {
+    if (Tablet_->GetConfig()->InMemoryMode != EInMemoryMode::None && Tablet_->GetConfig()->InMemoryMode != EInMemoryMode::Disabled) {
         ScheduleStorePreload(chunkStore);
     }
 }
@@ -605,7 +605,7 @@ void TStoreManager::UpdateInMemoryMode()
         if (store->GetType() == EStoreType::Chunk) {
             auto chunkStore = store->AsChunk();
             chunkStore->SetInMemoryMode(mode);
-            if (mode != EInMemoryMode::None) {
+            if (mode != EInMemoryMode::None && mode != EInMemoryMode::Disabled) {
                 ScheduleStorePreload(chunkStore);
             }
         }
