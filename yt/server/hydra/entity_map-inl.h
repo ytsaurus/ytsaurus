@@ -239,8 +239,6 @@ void TEntityMap<TKey, TValue, TTraits, THash>::Clear()
 template <class TKey, class TValue, class TTraits, class THash>
 void TEntityMap<TKey, TValue, TTraits, THash>::DoClear()
 {
-    VERIFY_THREAD_AFFINITY(this->UserThread);
-
     for (const auto& pair : this->Map_) {
         auto* entity = pair.second;
         FreeDynamicData(entity->GetDynamicData());
