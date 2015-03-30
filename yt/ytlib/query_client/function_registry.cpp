@@ -37,9 +37,9 @@ void TFunctionRegistry::RegisterFunction(TIntrusivePtr<IFunctionDescriptor> func
     YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(function))).second);
 }
 
-IFunctionDescriptor& TFunctionRegistry::GetFunction(const Stroka& functionName)
+IFunctionDescriptorPtr TFunctionRegistry::GetFunction(const Stroka& functionName)
 {
-    return *RegisteredFunctions_.at(to_lower(functionName));
+    return RegisteredFunctions_.at(to_lower(functionName));
 }
 
 bool TFunctionRegistry::IsRegistered(const Stroka& functionName)
@@ -177,7 +177,7 @@ TCypressFunctionRegistry::TCypressFunctionRegistry(
     , UDFRegistry_(New<TFunctionRegistry>())
 { }
 
-IFunctionDescriptor& TCypressFunctionRegistry::GetFunction(const Stroka& functionName)
+IFunctionDescriptorPtr TCypressFunctionRegistry::GetFunction(const Stroka& functionName)
 {
     if (BuiltinRegistry_->IsRegistered(functionName)) {
         return BuiltinRegistry_->GetFunction(functionName);

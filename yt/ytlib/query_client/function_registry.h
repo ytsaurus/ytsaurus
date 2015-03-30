@@ -19,7 +19,7 @@ public:
 
     virtual void RegisterFunction(IFunctionDescriptorPtr descriptor) = 0;
 
-    virtual IFunctionDescriptor& GetFunction(const Stroka& functionName) = 0;
+    virtual IFunctionDescriptorPtr GetFunction(const Stroka& functionName) = 0;
 
     virtual bool IsRegistered(const Stroka& functionName) = 0;
 };
@@ -34,7 +34,7 @@ class TFunctionRegistry
 public:
     virtual void RegisterFunction(IFunctionDescriptorPtr descriptor);
 
-    virtual IFunctionDescriptor& GetFunction(const Stroka& functionName);
+    virtual IFunctionDescriptorPtr GetFunction(const Stroka& functionName);
 
     virtual bool IsRegistered(const Stroka& functionName);
 
@@ -62,7 +62,7 @@ public:
         std::unique_ptr<IFunctionDescriptorFetcher> functionFetcher,
         TFunctionRegistryPtr builtinRegistry);
 
-    virtual IFunctionDescriptor& GetFunction(const Stroka& functionName);
+    virtual IFunctionDescriptorPtr GetFunction(const Stroka& functionName);
 
     virtual bool IsRegistered(const Stroka& functionName);
 
