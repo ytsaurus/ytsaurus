@@ -35,8 +35,7 @@ public:
         TRow fullRow,
         NVersionedTableClient::TRowBuffer& buffer);
 
-    void EvaluateKeys(
-        TRow fullRow,
+    TRow EvaluateKeys(
         NVersionedTableClient::TRowBuffer& buffer,
         const TRow partialRow,
         const NVersionedTableClient::TNameTableToSchemaIdMapping& idMapping);
