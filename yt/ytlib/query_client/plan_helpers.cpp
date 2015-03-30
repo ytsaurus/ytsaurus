@@ -123,9 +123,9 @@ TKeyTrieNode ExtractMultipleConstraints(
         }
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         Stroka functionName = functionExpr->FunctionName;
-        auto& function = functionRegistry->GetFunction(functionName);
+        auto function = functionRegistry->GetFunction(functionName);
 
-        return function.ExtractKeyRange(functionExpr, keyColumns, rowBuffer);
+        return function->ExtractKeyRange(functionExpr, keyColumns, rowBuffer);
     } else if (auto inExpr = expr->As<TInOpExpression>()) {
         int keySize = inExpr->Arguments.size();
         auto emitConstraint = [&] (int index, const TRow& literalTuple) {
