@@ -6,12 +6,12 @@ set( SRCS
   ${BASE}/executor.cpp
   ${BASE}/file_executors.cpp
   ${BASE}/io_helpers.cpp
+  ${BASE}/journal_executors.cpp
   ${BASE}/main.cpp
   ${BASE}/operation_tracker.cpp
   ${BASE}/preprocess.cpp
   ${BASE}/scheduler_executors.cpp
   ${BASE}/table_executors.cpp
-  ${BASE}/journal_executors.cpp
   ${BASE}/transaction_executors.cpp
 )
 
@@ -22,11 +22,11 @@ set( HDRS
   ${BASE}/executor.h
   ${BASE}/file_executors.h
   ${BASE}/io_helpers.h
+  ${BASE}/journal_executors.h
   ${BASE}/operation_tracker.h
   ${BASE}/preprocess.h
   ${BASE}/scheduler_executors.h
   ${BASE}/table_executors.h
-  ${BASE}/journal_executors.h
   ${BASE}/transaction_executors.h
 )
 

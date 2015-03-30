@@ -2,7 +2,6 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_client )
 set( SRCS
   ${BASE}/block_id.cpp
-  ${BASE}/helpers.cpp
   ${BASE}/chunk_meta_extensions.cpp
   ${BASE}/chunk_replica.cpp
   ${BASE}/chunk_slice.cpp
@@ -14,10 +13,11 @@ set( SRCS
   ${BASE}/encoding_writer.cpp
   ${BASE}/erasure_reader.cpp
   ${BASE}/erasure_writer.cpp
-  ${BASE}/format.cpp
   ${BASE}/fetcher_base.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
+  ${BASE}/format.cpp
+  ${BASE}/helpers.cpp
   ${BASE}/memory_reader.cpp
   ${BASE}/memory_writer.cpp
   ${BASE}/multi_chunk_reader_base.cpp
@@ -31,19 +31,18 @@ set( SRCS
   ${BASE}/sequential_reader.cpp
 )
 set( HDRS
-  ${BASE}/chunk_reader.h
-  ${BASE}/chunk_writer.h
   ${BASE}/block_cache.h
   ${BASE}/block_id.h
-  ${BASE}/helpers.h
   ${BASE}/chunk_list_ypath_proxy.h
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_owner_ypath_proxy.h
+  ${BASE}/chunk_reader.h
   ${BASE}/chunk_reader_base.h
   ${BASE}/chunk_replica.h
   ${BASE}/chunk_service_proxy.h
   ${BASE}/chunk_slice.h
   ${BASE}/chunk_spec.h
+  ${BASE}/chunk_writer.h
   ${BASE}/chunk_writer_base.h
   ${BASE}/chunk_ypath_proxy.h
   ${BASE}/client_block_cache.h
@@ -59,6 +58,7 @@ set( HDRS
   ${BASE}/file_reader.h
   ${BASE}/file_writer.h
   ${BASE}/format.h
+  ${BASE}/helpers.h
   ${BASE}/memory_reader.h
   ${BASE}/memory_writer.h
   ${BASE}/multi_chunk_reader.h
@@ -67,8 +67,8 @@ set( HDRS
   ${BASE}/multi_chunk_writer_base.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/reader_base.h
   ${BASE}/read_limit.h
+  ${BASE}/reader_base.h
   ${BASE}/replication_reader.h
   ${BASE}/replication_writer.h
   ${BASE}/schema.h
