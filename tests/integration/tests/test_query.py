@@ -65,13 +65,13 @@ class TestQuery(YTEnvSetup):
         self._sample_data(path="//tmp/g1")
         expected = [{"s": 450}]
         actual = select_rows("sum(b) as s from [//tmp/g1] group by 1 as k")
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
 
     def test_group_by2(self):
         self._sample_data(path="//tmp/g2")
         expected = [{"k": 0, "s": 200}, {"k": 1, "s": 250}]
         actual = select_rows("k, sum(b) as s from [//tmp/g2] group by a % 2 as k")
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
 
     def test_limit(self):
         self._sample_data(path="//tmp/l1")
@@ -214,13 +214,13 @@ class TestQuery(YTEnvSetup):
 
         expected = [{"hash": 42 * 33, "key": 42, "value": 42 * 2}]
         actual = select_rows("* from [//tmp/tc] where key = 42")
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
 
         expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in xrange(10,80)]
         actual = sorted(select_rows("* from [//tmp/tc] where key >= 10 and key < 80"))
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
 
         expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in [10, 20, 30]]
         actual = sorted(select_rows("* from [//tmp/tc] where key in (10, 20, 30)"))
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
         
