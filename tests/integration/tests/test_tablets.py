@@ -235,6 +235,36 @@ class TestTablets(YTEnvSetup):
         actual = select_rows("* from [//tmp/t]")
         self.assertItemsEqual(actual, expected)
 
+    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
+    def test_computed_column_write_consistency(self):
+        self._sync_create_cells(1, 1)
+
+        create("table", "//tmp/t",
+            attributes = {
+                "schema": [
+                    {"name": "key1", "type": "int64", "expression": "key2"},
+                    {"name": "key2", "type": "int64"},
+                    {"name": "value1", "type": "string"},
+                    {"name": "value2", "type": "string"}],
+                "key_columns": ["key1", "key2"]
+            })
+        self._sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key2": 1, "value1": "2"}])
+        expected = [{"key1": 1, "key2": 1, "value1": "2"}]
+        actual = lookup_rows("//tmp/t", [{"key2" : 1}])
+        self.assertItemsEqual(actual, expected)
+
+        insert_rows("//tmp/t", [{"key2": 1, "value2": "3"}], update=True)
+        expected = [{"key1": 1, "key2": 1, "value1": "2", "value2": "3"}]
+        actual = lookup_rows("//tmp/t", [{"key2" : 1}])
+        self.assertItemsEqual(actual, expected)
+
+        insert_rows("//tmp/t", [{"key2": 1, "value1": "4"}], update=True)
+        expected = [{"key1": 1, "key2": 1, "value1": "4", "value2": "3"}]
+        actual = lookup_rows("//tmp/t", [{"key2" : 1}])
+        self.assertItemsEqual(actual, expected)
+
     def test_no_copy(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t1")

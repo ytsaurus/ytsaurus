@@ -80,18 +80,13 @@ void TColumnEvaluator::EvaluateKeys(TRow fullRow, TRowBuffer& buffer)
     }
 }
 
-void TColumnEvaluator::EvaluateKeys(
-    TRow fullRow,
+TRow TColumnEvaluator::EvaluateKeys(
     TRowBuffer& buffer,
     const TRow partialRow,
     const TNameTableToSchemaIdMapping& idMapping)
 {
-    int columnCount = fullRow.GetCount();
     bool keyColumnSeen[MaxKeyColumnCount] {};
-
-    for (int index = 0; index < columnCount; ++index) {
-        fullRow[index].Type = EValueType::Null;
-    }
+    int columnCount = 0;
 
     for (int index = 0; index < partialRow.GetCount(); ++index) {
         int id = partialRow[index].Id;
@@ -106,10 +101,6 @@ void TColumnEvaluator::EvaluateKeys(
         YCHECK(schemaId < Schema_.Columns().size());
         const auto& column = Schema_.Columns()[schemaId];
 
-        if (schemaId >= columnCount) {
-            THROW_ERROR_EXCEPTION("Unexpected column %Qv", column.Name);
-        }
-
         if (column.Expression) {
             THROW_ERROR_EXCEPTION(
                 "Column %Qv is computed automatically and should not be provided by user",
@@ -123,16 +114,39 @@ void TColumnEvaluator::EvaluateKeys(
             }
 
             keyColumnSeen[schemaId] = true;
+        } else {
+            ++columnCount;
         }
+    }
 
-        fullRow[schemaId] = partialRow[index];
+    columnCount += KeySize_;
+    auto fullRow = TUnversionedRow::Allocate(buffer.GetAlignedPool(), columnCount);
+
+    for (int index = 0; index < KeySize_; ++index) {
+        fullRow[index].Type = EValueType::Null;
+    }
+
+    int dataColumnId = KeySize_;
+    for (int index = 0; index < partialRow.GetCount(); ++index) {
+        int id = partialRow[index].Id;
+        int schemaId = idMapping[id];
+
+        if (schemaId < KeySize_) {
+            fullRow[schemaId] = partialRow[index];
+        } else {
+            fullRow[dataColumnId] = partialRow[index];
+            fullRow[dataColumnId].Id = schemaId;
+            ++dataColumnId;
+        }
     }
 
     EvaluateKeys(fullRow, buffer);
 
-    for (int index = 0; index < columnCount; ++index) {
+    for (int index = 0; index < KeySize_; ++index) {
         fullRow[index].Id = index;
     }
+
+    return fullRow;
 }
 
 const yhash_set<Stroka>& TColumnEvaluator::GetReferences(int index)

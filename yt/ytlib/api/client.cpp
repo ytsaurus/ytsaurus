@@ -1219,8 +1219,7 @@ private:
 
             for (int keyIndex = 0; keyIndex < keys.size(); ++keyIndex) {
                 const auto& key = keys[keyIndex];
-                auto tempKey = TUnversionedRow::Allocate(buffer.GetAlignedPool(), keyColumnCount);
-                evaluator->EvaluateKeys(tempKey, buffer, key, idMapping);
+                auto tempKey = evaluator->EvaluateKeys(buffer, key, idMapping);
                 sortedKeys.push_back(std::make_pair(keyIndex, tempKey));
             }
 
@@ -2143,12 +2142,9 @@ private:
                 }
 
                 for (auto row : rows) {
-                    auto tempRow = TUnversionedRow::Allocate(buffer.GetAlignedPool(), columnCount);
-                    evaluator->EvaluateKeys(tempRow, buffer, row, idMapping);
-
+                    auto tempRow = evaluator->EvaluateKeys(buffer, row, idMapping);
                     validateRow(tempRow, keyColumnCount, trivialIdMapping, TableInfo_->Schema);
-                    writeRequest(tempRow, nullptr);
-
+                    writeRequest(tempRow, &trivialIdMapping);
                     buffer.Clear();
                 }
             } else {
