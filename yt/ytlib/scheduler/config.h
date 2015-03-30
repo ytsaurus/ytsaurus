@@ -738,7 +738,6 @@ public:
     double Weight;
     double MinShareRatio;
     double MaxShareRatio;
-    TNullable<int> MaxRunningOperations;
 
     TResourceLimitsConfigPtr ResourceLimits;
 
@@ -762,9 +761,6 @@ public:
             .Default(1.0)
             .InRange(0.0, 1.0);
 
-        RegisterParameter("max_running_operations", MaxRunningOperations)
-            .Default();
-
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
 
@@ -787,10 +783,15 @@ class TPoolConfig
 public:
     ESchedulingMode Mode;
 
+    TNullable<int> MaxRunningOperations;
+
     TPoolConfig()
     {
         RegisterParameter("mode", Mode)
             .Default(ESchedulingMode::FairShare);
+
+        RegisterParameter("max_running_operations", MaxRunningOperations)
+            .Default();
     }
 };
 
