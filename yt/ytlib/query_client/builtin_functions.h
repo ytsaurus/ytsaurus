@@ -14,13 +14,13 @@ class TTypedFunction
 {
 public:
     TTypedFunction(
-        Stroka functionName,
+        const Stroka& functionName,
         std::vector<TType> argumentTypes,
         TType repeatedArgumentType,
         TType resultType);
 
     TTypedFunction(
-        Stroka functionName,
+        const Stroka& functionName,
         std::vector<TType> argumentTypes,
         TType resultType);
 
@@ -35,7 +35,7 @@ private:
         const std::vector<TType>& expectedArgTypes,
         TType repeatedArgType,
         TType resultType,
-        Stroka functionName,
+        const Stroka& functionName,
         const std::vector<EValueType>& argTypes,
         const TStringBuf& source) const;
 
@@ -51,14 +51,14 @@ class TCodegenFunction
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name,
+        const Stroka& name,
         TCGContext& builder,
         Value* row) const = 0;
 
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name) const override;
+        const Stroka& name) const override;
 };
 
 class TUniversalRangeFunction
@@ -81,7 +81,7 @@ public:
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name,
+        const Stroka& name,
         TCGContext& builder,
         Value* row) const override;
 };
@@ -96,7 +96,7 @@ public:
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name,
+        const Stroka& name,
         TCGContext& builder,
         Value* row) const override;
 
@@ -117,7 +117,7 @@ public:
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name,
+        const Stroka& name,
         TCGContext& builder,
         Value* row) const override;
 };
@@ -133,7 +133,7 @@ public:
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name,
+        const Stroka& name,
         TCGContext& builder,
         Value* row) const override;
 };
@@ -144,12 +144,14 @@ class THashFunction
     , public TUniversalRangeFunction
 {
 public:
-    THashFunction(Stroka routineName, Stroka functionName);
+    THashFunction(
+        const Stroka& routineName,
+        const Stroka& functionName);
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name,
+        const Stroka& name,
         TCGContext& builder,
         Value* row) const override;
 
@@ -170,7 +172,7 @@ public:
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name,
+        const Stroka& name,
         TCGContext& builder,
         Value* row) const override;
 };
@@ -181,12 +183,14 @@ class TCastFunction
     , public TUniversalRangeFunction
 {
 public:
-    TCastFunction(EValueType resultType, Stroka functionName);
+    TCastFunction(
+        EValueType resultType,
+        const Stroka& functionName);
 
     virtual TCGValue CodegenValue(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name,
+        const Stroka& name,
         TCGContext& builder,
         Value* row) const override;
 
@@ -200,7 +204,7 @@ class TUserDefinedFunction
 {
 public:
     TUserDefinedFunction(
-        Stroka functionName,
+        const Stroka& functionName,
         std::vector<EValueType> argumentTypes,
         EValueType resultType,
         TSharedRef implementationFile);
@@ -208,11 +212,11 @@ public:
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codgenArgs,
         EValueType type,
-        Stroka name) const override;
+        const Stroka& name) const override;
 
 private:
-    Stroka FunctionName;
-    TSharedRef ImplementationFile;
+    Stroka FunctionName_;
+    TSharedRef ImplementationFile_;
 
     Function* GetLLVMFunction(TCGContext& builder) const;
 };
