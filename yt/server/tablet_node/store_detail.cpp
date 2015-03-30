@@ -39,8 +39,9 @@ TStoreBase::TStoreBase(
 
 TStoreBase::~TStoreBase()
 {
-    MemoryUsageUpdated_.Fire(-MemoryUsage_);
+    i64 delta = -MemoryUsage_;
     MemoryUsage_ = 0;
+    MemoryUsageUpdated_.Fire(delta);
 }
 
 TStoreId TStoreBase::GetId() const
@@ -92,8 +93,7 @@ void TStoreBase::UnsubscribeMemoryUsageUpdated(const TCallback<void(i64 delta)>&
 
 void TStoreBase::SetMemoryUsage(i64 value)
 {
-    YASSERT(value >= MemoryUsage_);
-    if (value > MemoryUsage_ + MemoryUsageGranularity) {
+    if (std::abs(value - MemoryUsage_) > MemoryUsageGranularity) {
         i64 delta = value - MemoryUsage_;
         MemoryUsage_ = value;
         MemoryUsageUpdated_.Fire(delta);
