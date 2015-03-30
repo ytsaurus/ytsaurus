@@ -18,10 +18,10 @@ set( SRCS
   ${BASE}/chunk_tree_statistics.cpp
   ${BASE}/chunk_tree_traversing.cpp
   ${BASE}/cypress_integration.cpp
+  ${BASE}/helpers.cpp
   ${BASE}/job.cpp
   ${BASE}/job_tracker_service.cpp
   ${BASE}/private.cpp
-  ${BASE}/helpers.cpp
 )
 
 set( HDRS
@@ -31,8 +31,8 @@ set( HDRS
   ${BASE}/chunk_manager.h
   ${BASE}/chunk_owner_base.h
   ${BASE}/chunk_owner_node_proxy.h
-  ${BASE}/chunk_owner_type_handler.h
   ${BASE}/chunk_owner_type_handler-inl.h
+  ${BASE}/chunk_owner_type_handler.h
   ${BASE}/chunk_placement.h
   ${BASE}/chunk_proxy.h
   ${BASE}/chunk_replica-inl.h
@@ -46,12 +46,12 @@ set( HDRS
   ${BASE}/chunk_tree_traversing.h
   ${BASE}/config.h
   ${BASE}/cypress_integration.h
+  ${BASE}/helpers-inl.h
+  ${BASE}/helpers.h
   ${BASE}/job.h
   ${BASE}/job_tracker_service.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/helpers.h
-  ${BASE}/helpers-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES
