@@ -74,7 +74,7 @@ class TestTablets(YTEnvSetup):
         return [tablet["pivot_key"] for tablet in tablets]
            
 
-    def test_mount1(self):
+    def test_mount(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t")
 
@@ -87,8 +87,7 @@ class TestTablets(YTEnvSetup):
         tablet_ids = get("//sys/tablet_cells/" + cell_id + "/@tablet_ids")
         assert tablet_ids == [tablet_id]
 
-
-    def test_unmount1(self):
+    def test_unmount(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t")
 
@@ -100,14 +99,9 @@ class TestTablets(YTEnvSetup):
         tablet = tablets[0]
         assert tablet["pivot_key"] == []
 
-        print "Waiting for table to become mounted..."
-        self._wait(lambda: get("//tmp/t/@tablets/0/state") == "mounted")
-
-        unmount_table("//tmp/t")
-
-        print "Waiting for table to become unmounted..."
-        self._wait(lambda: get("//tmp/t/@tablets/0/state") == "unmounted")
-
+        self._sync_mount_table("//tmp/t")
+        self._sync_unmount_table("//tmp/t")
+        
     def test_mount_unmount(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t")
@@ -430,3 +424,72 @@ class TestTablets(YTEnvSetup):
             assert get(path + "/static_chunk_row_lookup_count") == 200
             #assert get(path + "/static_chunk_row_lookup_false_positive_count") < 4
             #assert get(path + "/static_chunk_row_lookup_true_negative_count") > 90
+
+    def test_store_rotation(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+
+        set("//tmp/t/@max_memory_store_key_count", 10)
+        self._sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = self._get_tablet_leader_address(tablet_id)
+        
+        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+
+        sleep(3.0)
+
+        tablet_data = self._find_tablet_orchid(address, tablet_id)
+        assert len(tablet_data["eden"]["stores"]) == 1
+        assert len(tablet_data["partitions"]) == 1
+        assert len(tablet_data["partitions"][0]["stores"]) == 1
+
+    def _test_in_memory(self, mode):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+
+        set("//tmp/t/@in_memory_mode", mode)
+        set("//tmp/t/@max_memory_store_key_count", 10)
+        self._sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = self._get_tablet_leader_address(tablet_id)
+        
+        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+
+        sleep(3.0)
+
+        def _get_store_orchid():
+            tablet_data = self._find_tablet_orchid(address, tablet_id)
+            assert len(tablet_data["eden"]["stores"]) == 1
+            assert len(tablet_data["partitions"]) == 1
+            assert len(tablet_data["partitions"][0]["stores"]) == 1
+            store_id = tablet_data["partitions"][0]["stores"].keys()[0]
+            return tablet_data["partitions"][0]["stores"][store_id]
+
+        store_data = _get_store_orchid()
+        assert store_data["preload_state"] == "complete"
+
+        set("//tmp/t/@in_memory_mode", "none")
+        remount_table("//tmp/t")
+
+        sleep(3.0)
+        
+        store_data = _get_store_orchid()
+        assert store_data["preload_state"] == "disabled"
+
+        set("//tmp/t/@in_memory_mode", mode)
+        remount_table("//tmp/t")
+
+        sleep(3.0)
+        
+        store_data = _get_store_orchid()
+        assert store_data["preload_state"] == "complete"
+
+    def test_in_memory_compressed(self):
+        self._test_in_memory("compressed")
+
+    def test_in_memory_uncompressed(self):
+        self._test_in_memory("uncompressed")
