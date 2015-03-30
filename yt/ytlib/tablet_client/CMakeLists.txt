@@ -1,18 +1,18 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/tablet_client )
 set( SRCS
-  ${BASE}/private.cpp
   ${BASE}/public.cpp
-  ${BASE}/table_mount_cache.cpp
+  ${BASE}/private.cpp
   ${BASE}/wire_protocol.cpp
+  ${BASE}/table_mount_cache.cpp
 )
 set( HDRS
-  ${BASE}/config.h
-  ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/table_mount_cache.h
-  ${BASE}/tablet_service_proxy.h
+  ${BASE}/private.h
   ${BASE}/wire_protocol.h
+  ${BASE}/config.h
+  ${BASE}/tablet_service_proxy.h
+  ${BASE}/table_mount_cache.h
 )
 
 list(APPEND YT_SOURCE_FILES

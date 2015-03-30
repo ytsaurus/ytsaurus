@@ -1,19 +1,19 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/core/tracing )
 set( SRCS
-  ${BASE}/private.cpp
   ${BASE}/public.cpp
-  ${BASE}/trace_context.cpp
+  ${BASE}/private.cpp
   ${BASE}/trace_manager.cpp
+  ${BASE}/trace_context.cpp
 )
 set( HDRS
-  ${BASE}/config.h
-  ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/trace_context-inl.h
-  ${BASE}/trace_context.h
+  ${BASE}/private.h
+  ${BASE}/config.h
   ${BASE}/trace_manager.h
   ${BASE}/trace_service_proxy.h
+  ${BASE}/trace_context.h
+  ${BASE}/trace_context-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES

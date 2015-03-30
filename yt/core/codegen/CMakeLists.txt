@@ -1,3 +1,4 @@
+#:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/core/codegen )
 set( SRCS
 )
