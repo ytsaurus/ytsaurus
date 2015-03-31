@@ -32,6 +32,13 @@ static const auto& Logger = QueryClientLogger;
 IFunctionRegistry::~IFunctionRegistry()
 { }
 
+IFunctionDescriptorPtr IFunctionRegistry::GetFunction(const Stroka& functionName)
+{
+    auto function = FindFunction(functionName);
+    YCHECK(function != nullptr);
+    return function;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TFunctionRegistry::RegisterFunction(TIntrusivePtr<IFunctionDescriptor> function)
@@ -40,7 +47,7 @@ void TFunctionRegistry::RegisterFunction(TIntrusivePtr<IFunctionDescriptor> func
     YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(function))).second);
 }
 
-IFunctionDescriptorPtr TFunctionRegistry::GetFunction(const Stroka& functionName)
+IFunctionDescriptorPtr TFunctionRegistry::FindFunction(const Stroka& functionName)
 {
     auto name = to_lower(functionName);
     if (RegisteredFunctions_.count(name) == 0) {
@@ -181,16 +188,16 @@ TCypressFunctionRegistry::TCypressFunctionRegistry(
     , UDFRegistry_(New<TFunctionRegistry>())
 { }
 
-IFunctionDescriptorPtr TCypressFunctionRegistry::GetFunction(const Stroka& functionName)
+IFunctionDescriptorPtr TCypressFunctionRegistry::FindFunction(const Stroka& functionName)
 {
-    if (auto function = BuiltinRegistry_->GetFunction(functionName)) {
+    if (auto function = BuiltinRegistry_->FindFunction(functionName)) {
         return function;
-    } else if (auto function = UDFRegistry_->GetFunction(functionName)) {
+    } else if (auto function = UDFRegistry_->FindFunction(functionName)) {
         LOG_DEBUG("Found a cached implementation of function \"%Qv\"", functionName);
         return function;
     } else {
         LookupAndRegister(functionName);
-        return UDFRegistry_->GetFunction(functionName);
+        return UDFRegistry_->FindFunction(functionName);
     }
 }
 
