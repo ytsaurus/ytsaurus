@@ -25,6 +25,7 @@
 
 #ifdef YT_USE_LLVM
 #include <udfs/absolute.h>
+#include <udfs/invalid_ir.h>
 
 #include <ytlib/query_client/folding_profiler.h>
 #endif
@@ -1871,9 +1872,11 @@ struct TQueryExecutor
     TQueryExecutor(
         const std::vector<Stroka>& source,
         IFunctionRegistryPtr functionRegistry,
+        bool shouldFail,
         IExecutorPtr executeCallback = nullptr)
         : Source(source)
         , FunctionRegistry(functionRegistry)
+        , ShouldFail_(shouldFail)
         , ExecuteCallback(std::move(executeCallback))
     {
         ReaderMock_ = New<StrictMock<TReaderMock>>();
@@ -1882,6 +1885,7 @@ struct TQueryExecutor
     
     std::vector<Stroka> Source;
     IFunctionRegistryPtr FunctionRegistry;
+    bool ShouldFail_;
     IExecutorPtr ExecuteCallback;
     TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_;
 
@@ -1907,12 +1911,19 @@ struct TQueryExecutor
                 sourceRows.begin(),
                 std::mem_fn(TGetFunction(&TOwningRow::Get)));
 
-            EXPECT_CALL(*ReaderMock_, Read(_))
-                .WillOnce(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
+            ON_CALL(*ReaderMock_, Read(_))
+                .WillByDefault(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
+            if (!ShouldFail_) {
+                EXPECT_CALL(*ReaderMock_, Read(_));
+            }
         };
         
-        EXPECT_CALL(*ReaderMock_, Open(_))
-            .WillOnce(DoAll(Invoke(onOpened), Return(WrapVoidInFuture())));
+        ON_CALL(*ReaderMock_, Open(_))
+            .WillByDefault(DoAll(Invoke(onOpened), Return(WrapVoidInFuture())));
+
+        if (!ShouldFail_) {
+            EXPECT_CALL(*ReaderMock_, Open(_));
+        }
 
         auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
         return MakeFuture(evaluator->RunWithExecutor(
@@ -1974,6 +1985,7 @@ protected:
                 owningResult,
                 inputRowLimit,
                 outputRowLimit,
+                false,
                 functionRegistry)
             .Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
@@ -1997,6 +2009,34 @@ protected:
             owningResult,
             inputRowLimit,
             outputRowLimit,
+            false,
+            functionRegistry)
+            .Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
+    void EvaluateExpectingError(
+        const Stroka& query,
+        const TDataSplit& dataSplit,
+        const std::vector<Stroka>& owningSource,
+        i64 inputRowLimit = std::numeric_limits<i64>::max(),
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
+    {
+        std::vector<std::vector<Stroka>> owningSources(1, owningSource);
+        std::map<Stroka, TDataSplit> dataSplits;
+        dataSplits["//t"] = dataSplit;
+
+        auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run(
+            query,
+            dataSplits,
+            owningSources,
+            std::vector<TOwningRow>(),
+            inputRowLimit,
+            outputRowLimit,
+            true,
             functionRegistry)
             .Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
@@ -2009,6 +2049,7 @@ protected:
         const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit,
         i64 outputRowLimit,
+        bool shouldFail,
         IFunctionRegistryPtr functionRegistry)
     {
         std::vector<std::vector<TRow>> results;
@@ -2037,15 +2078,22 @@ protected:
         {
             testing::InSequence s;
 
-            EXPECT_CALL(*WriterMock_, Open(_, _))
-                .WillOnce(Return(WrapVoidInFuture()));
+            ON_CALL(*WriterMock_, Open(_, _))
+                .WillByDefault(Return(WrapVoidInFuture()));
+            if (!shouldFail) {
+                EXPECT_CALL(*WriterMock_, Open(_, _));
+            }
+
             for (auto& result : results) {
                 EXPECT_CALL(*WriterMock_, Write(result))
                     .WillOnce(Return(true));
             }
-            
-            EXPECT_CALL(*WriterMock_, Close())
-                .WillOnce(Return(WrapVoidInFuture()));
+
+            ON_CALL(*WriterMock_, Close())
+                .WillByDefault(Return(WrapVoidInFuture()));
+            if (!shouldFail) {
+                EXPECT_CALL(*WriterMock_, Close());
+            }
         }
 
         IExecutorPtr executor;
@@ -2053,11 +2101,17 @@ protected:
         size_t index = owningSources.size();
         while (index > 0) {
             const auto& owningSource = owningSources[--index];
-            auto newExecutor = New<TQueryExecutor>(owningSource, functionRegistry, executor);
+            auto newExecutor = New<TQueryExecutor>(owningSource, functionRegistry, shouldFail, executor);
             executor = newExecutor;
         }
 
-        executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit), WriterMock_);
+        if (shouldFail) {
+            EXPECT_THROW(
+                executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit), WriterMock_),
+                TErrorException);
+        } else {
+            executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit), WriterMock_);
+        }
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
@@ -3051,6 +3105,70 @@ TEST_F(TQueryEvaluateTest, TestUdf)
     Evaluate("absolute(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+    };
+
+    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
+        invalid_ir_bc,
+        invalid_ir_bc_len));
+
+    auto invalidUdfDescriptor = New<TUserDefinedFunction>(
+        "invalid_ir",
+        std::vector<EValueType>{EValueType::Int64},
+        EValueType::Int64,
+        fileRef);
+
+    auto fetcher = std::make_unique<StrictMock<TFunctionDescriptorFetcherMock>>();
+    EXPECT_CALL(*fetcher, LookupFunction("invalid_ir"))
+        .WillOnce(Return(invalidUdfDescriptor));
+
+    auto registry = New<TCypressFunctionRegistry>(
+        std::move(fetcher),
+        New<TFunctionRegistry>());
+
+    EvaluateExpectingError("invalid_ir(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+    };
+
+    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
+        absolute_bc,
+        absolute_bc_len));
+
+    auto twoArgumentUdf = New<TUserDefinedFunction>(
+        "absolute",
+        std::vector<EValueType>{EValueType::Int64, EValueType::Int64},
+        EValueType::Int64,
+        fileRef);
+
+    auto fetcher = std::make_unique<StrictMock<TFunctionDescriptorFetcherMock>>();
+    EXPECT_CALL(*fetcher, LookupFunction("absolute"))
+        .WillOnce(Return(twoArgumentUdf));
+
+    auto registry = New<TCypressFunctionRegistry>(
+        std::move(fetcher),
+        New<TFunctionRegistry>());
+
+    EvaluateExpectingError("absolute(a, b) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
