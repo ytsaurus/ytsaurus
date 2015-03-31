@@ -230,7 +230,7 @@ class TestTablets(YTEnvSetup):
         self.assertItemsEqual(actual, expected)
 
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
-    def test_computed_column_write_consistency(self):
+    def test_computed_column_update_consistency(self):
         self._sync_create_cells(1, 1)
 
         create("table", "//tmp/t",
