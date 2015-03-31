@@ -553,6 +553,13 @@ Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
             StringRef(ImplementationFile_.Begin(), ImplementationFile_.Size()),
             StringRef("impl"));
         auto implModule = parseIR(buffer, diag, builder.getContext());
+
+        if (!implModule) {
+            THROW_ERROR_EXCEPTION(
+                "Error parsing LLVM bitcode. %Qv",
+                diag.getMessage().str());
+        }
+
         Linker::LinkModules(module, implModule.get());
         callee = module->getFunction(StringRef(FunctionName_));
     }
