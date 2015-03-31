@@ -8,6 +8,7 @@
 
 #include "plan_fragment.h"
 #include "function_registry.h"
+#include "column_evaluator.h"
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
@@ -217,9 +218,10 @@ TConstExpressionPtr MakeOrExpression(const TConstExpressionPtr& lhs, const TCons
 
 TConstExpressionPtr RefinePredicate(
     const TKeyRange& keyRange,
-    int commonPrefixSize,
     const TConstExpressionPtr& expr,
-    const TKeyColumns& keyColumns)
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns,
+    TColumnEvaluatorPtr columnEvaluator)
 {
     auto trueLiteral = New<TLiteralExpression>(
         NullSourceLocation,
@@ -230,132 +232,223 @@ TConstExpressionPtr RefinePredicate(
         EValueType::Boolean,
         MakeUnversionedBooleanValue(false));
 
-    if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
-        auto opcode = binaryOpExpr->Opcode;
-        auto lhsExpr = binaryOpExpr->Lhs;
-        auto rhsExpr = binaryOpExpr->Rhs;
+    int rangeSize = std::min(keyRange.first.GetCount(), keyRange.second.GetCount());
+    int commonPrefixSize = 0;
+    while (commonPrefixSize < rangeSize) {
+        commonPrefixSize++;
+        if (keyRange.first[commonPrefixSize - 1] != keyRange.second[commonPrefixSize - 1]) {
+            break;
+        }
+    }
 
-        if (opcode == EBinaryOp::And) {
-            return MakeAndExpression( // eliminate constants
-                RefinePredicate(keyRange, commonPrefixSize, lhsExpr, keyColumns),
-                RefinePredicate(keyRange, commonPrefixSize, rhsExpr, keyColumns));
-        } if (opcode == EBinaryOp::Or) {
-            return MakeOrExpression(
-                RefinePredicate(keyRange, commonPrefixSize, lhsExpr, keyColumns),
-                RefinePredicate(keyRange, commonPrefixSize, rhsExpr, keyColumns));
-        } else {
-            if (rhsExpr->As<TReferenceExpression>()) {
-                // Ensure that references are on the left.
-                std::swap(lhsExpr, rhsExpr);
-                opcode = GetReversedBinaryOpcode(opcode);
-            }
+    std::function<TConstExpressionPtr(const TConstExpressionPtr& expr)> refinePredicate =
+        [&] (const TConstExpressionPtr& expr)->TConstExpressionPtr
+    {
+        if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
+            auto opcode = binaryOpExpr->Opcode;
+            auto lhsExpr = binaryOpExpr->Lhs;
+            auto rhsExpr = binaryOpExpr->Rhs;
 
-            auto referenceExpr = lhsExpr->As<TReferenceExpression>();
-            auto constantExpr = rhsExpr->As<TLiteralExpression>();
+            if (opcode == EBinaryOp::And) {
+                return MakeAndExpression( // eliminate constants
+                    refinePredicate(lhsExpr),
+                    refinePredicate(rhsExpr));
+            } if (opcode == EBinaryOp::Or) {
+                return MakeOrExpression(
+                    refinePredicate(lhsExpr),
+                    refinePredicate(rhsExpr));
+            } else {
+                if (rhsExpr->As<TReferenceExpression>()) {
+                    // Ensure that references are on the left.
+                    std::swap(lhsExpr, rhsExpr);
+                    opcode = GetReversedBinaryOpcode(opcode);
+                }
 
-            if (referenceExpr && constantExpr) {
-                int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
-                if (keyPartIndex >= 0 && keyPartIndex < commonPrefixSize) {
-                    auto value = TValue(constantExpr->Value);
+                auto referenceExpr = lhsExpr->As<TReferenceExpression>();
+                auto constantExpr = rhsExpr->As<TLiteralExpression>();
 
-                    std::vector<TBound> bounds;
+                if (referenceExpr && constantExpr) {
+                    int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+                    if (keyPartIndex >= 0 && keyPartIndex < commonPrefixSize) {
+                        auto value = TValue(constantExpr->Value);
 
-                    switch (opcode) {
-                        case EBinaryOp::Equal:
-                            bounds.emplace_back(value, true);
-                            bounds.emplace_back(value, true);
-                            break;
+                        std::vector<TBound> bounds;
 
-                        case EBinaryOp::NotEqual:
-                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-                            bounds.emplace_back(value, false);
-                            bounds.emplace_back(value, false);
-                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
-                            break;
+                        switch (opcode) {
+                            case EBinaryOp::Equal:
+                                bounds.emplace_back(value, true);
+                                bounds.emplace_back(value, true);
+                                break;
 
-                        case EBinaryOp::Less:
-                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-                            bounds.emplace_back(value, false);
-                            break;
+                            case EBinaryOp::NotEqual:
+                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+                                bounds.emplace_back(value, false);
+                                bounds.emplace_back(value, false);
+                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+                                break;
 
-                        case EBinaryOp::LessOrEqual:
-                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-                            bounds.emplace_back(value, true);
-                            break;
+                            case EBinaryOp::Less:
+                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+                                bounds.emplace_back(value, false);
+                                break;
 
-                        case EBinaryOp::Greater:
-                            bounds.emplace_back(value, false);
-                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
-                            break;
+                            case EBinaryOp::LessOrEqual:
+                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+                                bounds.emplace_back(value, true);
+                                break;
 
-                        case EBinaryOp::GreaterOrEqual:
-                            bounds.emplace_back(value, true);
-                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
-                            break;
+                            case EBinaryOp::Greater:
+                                bounds.emplace_back(value, false);
+                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+                                break;
 
-                        default:
-                            break;
-                    }
+                            case EBinaryOp::GreaterOrEqual:
+                                bounds.emplace_back(value, true);
+                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+                                break;
 
-                    if (!bounds.empty()) {
-                        auto lowerBound = keyRange.first[keyPartIndex];
-                        auto upperBound = keyRange.second[keyPartIndex];
-                        bool upperIncluded = keyPartIndex != keyRange.second.GetCount();
+                            default:
+                                break;
+                        }
 
-                        std::vector<TBound> dataBounds;
+                        if (!bounds.empty()) {
+                            auto lowerBound = keyRange.first[keyPartIndex];
+                            auto upperBound = keyRange.second[keyPartIndex];
+                            bool upperIncluded = keyPartIndex != keyRange.second.GetCount();
 
-                        dataBounds.emplace_back(lowerBound, true);
-                        dataBounds.emplace_back(upperBound, upperIncluded);
+                            std::vector<TBound> dataBounds;
 
-                        auto resultBounds = IntersectBounds(bounds, dataBounds);
+                            dataBounds.emplace_back(lowerBound, true);
+                            dataBounds.emplace_back(upperBound, upperIncluded);
 
-                        if (resultBounds.empty()) {
-                            return falseLiteral;
-                        } else if (resultBounds == dataBounds) {
-                            return trueLiteral;
+                            auto resultBounds = IntersectBounds(bounds, dataBounds);
+
+                            if (resultBounds.empty()) {
+                                return falseLiteral;
+                            } else if (resultBounds == dataBounds) {
+                                return trueLiteral;
+                            }
                         }
                     }
                 }
             }
-        }
-    } else if (auto inExpr = expr->As<TInOpExpression>()) {
-        int keySize = inExpr->Arguments.size();
+        } else if (auto inExpr = expr->As<TInOpExpression>()) {
+            TNameTableToSchemaIdMapping idMapping;
 
-        std::vector<TOwningRow> filteredValues;
+            for (const auto& argument : inExpr->Arguments) {
+                auto referenceExpr = argument->As<TReferenceExpression>();
+                int index = referenceExpr
+                    ? ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName)
+                    : -1;
+                idMapping.push_back(index);
+            }
 
-        auto emitConstraint = [&] (int index, const TRow& literalTuple) {
-            auto referenceExpr = inExpr->Arguments[index]->As<TReferenceExpression>();
-
-            auto result = TKeyTrieNode::Universal();
-            if (referenceExpr) {
-                int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
-
-                if (keyPartIndex >= 0) {
-                    result.Offset = keyPartIndex;
-                    result.Next.emplace(literalTuple[index], TKeyTrieNode::Universal());
+            TNameTableToSchemaIdMapping reverseIdMapping(keyColumns.size(), -1);
+            for (int index = 0; index < idMapping.size(); ++index) {
+                if (idMapping[index] != -1) {
+                    reverseIdMapping[idMapping[index]] = index;
                 }
             }
 
-            return result;
-        };
-
-        for (int rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
-            auto rowConstraint = TKeyTrieNode::Universal();
-            for (int keyIndex = 0; keyIndex < keySize; ++keyIndex) {
-                rowConstraint = IntersectKeyTrie(rowConstraint, emitConstraint(keyIndex, inExpr->Values[rowIndex].Get()));
+            int rowSize = keyColumns.size();
+            for (int index = 0; index < rowSize; ++index) {
+                if (reverseIdMapping[index] == -1 && !tableSchema.Columns()[index].Expression) {
+                    rowSize = index;
+                }
             }
 
-            auto ranges = GetRangesFromTrieWithinRange(keyRange, rowConstraint);
+            const auto areValidReferences = [&] (int index) {
+                for (const auto& reference : columnEvaluator->GetReferences(index)) {
+                    if (tableSchema.GetColumnIndexOrThrow(reference) >= rowSize) {
+                        return false;
+                    }
+                }
+                return true;
+            };
 
-            if (!ranges.empty()) {
-                filteredValues.push_back(inExpr->Values[rowIndex]);
+            for (int index = 0; index < rowSize; ++index) {
+                if (tableSchema.Columns()[index].Expression && !areValidReferences(index)) {
+                    rowSize = index;
+                }
+            }
+
+            TRowBuffer buffer;
+            auto tempRow = TUnversionedRow::Allocate(buffer.GetAlignedPool(), keyColumns.size());
+
+            auto inRange = [&] (const TOwningRow& literalTuple) {
+                if (tableSchema.HasComputedColumns()) {
+                    for (int tupleIndex = 0; tupleIndex < idMapping.size(); ++tupleIndex) {
+                        int schemaIndex = idMapping[tupleIndex];
+
+                        if (schemaIndex >= 0 && schemaIndex < rowSize) {
+                            tempRow[schemaIndex] = literalTuple[tupleIndex];
+                        }
+                    }
+
+                    for (int index = 0; index < rowSize; ++index) {
+                        if (reverseIdMapping[index] == -1) {
+                            columnEvaluator->EvaluateKey(tempRow, buffer, index);
+                        }
+                    }
+
+                    auto cmpLower = CompareRows(
+                        keyRange.first.Get(),
+                        tempRow,
+                        std::min(keyRange.first.GetCount(), rowSize));
+                    auto cmpUpper = CompareRows(
+                        keyRange.second.Get(),
+                        tempRow,
+                        std::min(keyRange.second.GetCount(), rowSize));
+                    return cmpLower <= 0 && cmpUpper >= 0;
+                } else {
+                    auto compareRows = [&] (const TUnversionedRow& lhs, const TUnversionedRow& rhs) {
+                        for (int index = 0; index < lhs.GetCount(); ++index) {
+                            if (index >= reverseIdMapping.size() || reverseIdMapping[index] == -1) {
+                                return 0;
+                            }
+
+                            int result = CompareRowValues(
+                                lhs.Begin()[index],
+                                rhs.Begin()[reverseIdMapping[index]]);
+
+                            if (result != 0) {
+                                return result;
+                            }
+                        }
+
+                        return 0;
+                    };
+                    auto cmpLower = compareRows(
+                        keyRange.first.Get(),
+                        literalTuple.Get());
+                    auto cmpUpper = compareRows(
+                        keyRange.second.Get(),
+                        literalTuple.Get());
+                    return cmpLower <= 0 && cmpUpper >= 0;
+                }
+            };
+
+            std::vector<TOwningRow> filteredValues;
+            for (const auto& value : inExpr->Values) {
+                if (inRange(value)) {
+                    filteredValues.emplace_back(std::move(value));
+                }
+            }
+
+            if (filteredValues.size() > 0) {
+                return New<TInOpExpression>(
+                    NullSourceLocation,
+                    inExpr->Arguments,
+                    std::move(filteredValues));
+            } else {
+                return falseLiteral;
             }
         }
 
-        return New<TInOpExpression>(NullSourceLocation, inExpr->Arguments, filteredValues);
-    }
+        return expr;
+    };
 
-    return expr;
+    return refinePredicate(expr);
 }
 
 TKeyRange Unite(const TKeyRange& first, const TKeyRange& second)

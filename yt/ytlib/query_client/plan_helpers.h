@@ -36,9 +36,10 @@ TConstExpressionPtr MakeOrExpression(const TConstExpressionPtr& lhs, const TCons
 
 TConstExpressionPtr RefinePredicate(
     const TKeyRange& keyRange,
-    int commonPrefixSize,
     const TConstExpressionPtr& expr,
-    const TKeyColumns& keyColumns);
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns,
+    TColumnEvaluatorPtr columnEvaluator);
 
 TConstExpressionPtr ExtractPredicateForColumnSubset(
     const TConstExpressionPtr& expr,

@@ -1403,14 +1403,9 @@ TEST_F(TRefineKeyRangeTest, RangeToPointCollapsing)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPrepareExpressionTest
-    : public ::testing::Test
-    , public ::testing::WithParamInterface<std::tuple<TConstExpressionPtr, const char*>>
+class TCompareExpressionTest
 {
 protected:
-    virtual void SetUp() override
-    { }
-
     bool Equal(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
     {
         if (auto literalLhs = lhs->As<TLiteralExpression>()) {
@@ -1474,6 +1469,17 @@ protected:
 
         return true;
     }
+};
+
+class TPrepareExpressionTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<TConstExpressionPtr, const char*>>
+    , public TCompareExpressionTest
+{
+protected:
+    virtual void SetUp() override
+    { }
+
 };
 
 TEST_F(TPrepareExpressionTest, Basic)
@@ -3210,6 +3216,200 @@ INSTANTIATE_TEST_CASE_P(
             "0;0;" _MAX_,
             "1;1;",
             "1;1;" _MAX_}
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRefinePredicateTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::vector<const char*>>
+    , public TCompareExpressionTest
+{
+protected:
+    virtual void SetUp() override
+    {
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
+            New<TColumnEvaluatorCacheConfig>(),
+            CreateBuiltinFunctionRegistry());
+    }
+
+    TConstExpressionPtr Refine(
+        const TKeyRange& keyRange,
+        const TConstExpressionPtr& expr,
+        const TTableSchema& tableSchema,
+        const TKeyColumns& keyColumns)
+    {
+        return RefinePredicate(
+            keyRange,
+            expr,
+            tableSchema,
+            keyColumns,
+            ColumnEvaluatorCache_->Find(tableSchema, keyColumns.size()));
+    }
+
+private:
+    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+};
+
+TEST_P(TRefinePredicateTest, Simple)
+{
+    const auto& args = GetParam();
+    const auto& schemaString = args[0];
+    const auto& keyString = args[1];
+    const auto& predicateString = args[2];
+    const auto& refinedString = args[3];
+    const auto& lowerString = args[4];
+    const auto& upperString = args[5];
+
+    TTableSchema tableSchema;
+    TKeyColumns keyColumns;
+    Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
+    Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
+
+    auto predicate = PrepareExpression(predicateString, tableSchema);
+    auto expected = PrepareExpression(refinedString, tableSchema);
+    auto range = TKeyRange{BuildKey(lowerString), BuildKey(upperString)};
+    auto refined = Refine(range, predicate, tableSchema, keyColumns);
+
+    EXPECT_TRUE(Equal(refined, expected))
+        << "schema: " << schemaString << std::endl
+        << "key_columns: " << keyString << std::endl
+        << "range: [" << lowerString << ", " << upperString << "]" << std::endl
+        << "predicate: " << predicateString << std::endl
+        << "refined: " << ::testing::PrintToString(refined) << std::endl
+        << "expected: " << ::testing::PrintToString(expected);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    TRefinePredicateTest,
+    TRefinePredicateTest,
+    ::testing::Values(
+        std::vector<const char*>{
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ((1,2),(3,4))",
+            "(k,l) in ((1,2),(3,4))",
+            _MIN_,
+            _MAX_},
+        std::vector<const char*>{
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ((1,2),(3,4))",
+            "(k,l) in ((1,2))",
+            "1",
+            "2"},
+        std::vector<const char*>{
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k) in ((2),(4))",
+            "(k) in ((2),(4))",
+            _MIN_,
+            _MAX_},
+        std::vector<const char*>{
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(l) in ((2),(4))",
+            "(l) in ((2),(4))",
+            _MIN_,
+            _MAX_},
+        std::vector<const char*>{
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k) in ((2),(4))",
+            "(k) in ((2))",
+            "2;1",
+            "2;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((2),(4))",
+            "l in ((2),(4))",
+            _MIN_,
+            _MAX_},
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((2),(4))",
+            "l in ((4))",
+            "3;3",
+            _MAX_},
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((2),(4))",
+            "l in ((2))",
+            _MIN_,
+            "3;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((0),(2),(4))",
+            "l in ((2))",
+            "1;1",
+            "3;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((0),(2),(4))",
+            "l in ((2))",
+            "1",
+            "3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64;}; {name=m;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((0),(2),(4))",
+            "l in ((2))",
+            "2;2;2",
+            "3;3;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4))",
+            "k in ((2))",
+            "2;1",
+            "2;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4))",
+            "k in ((2))",
+            "2;1",
+            "2;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4),(6))",
+            "k in ((2),(4))",
+            "2;1",
+            "4;5"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4),(6))",
+            "k in ((4))",
+            "2;3",
+            "4;5"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4),(6))",
+            "k in ((2))",
+            "2;1",
+            "4;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4),(6))",
+            "k in ((2))",
+            "2",
+            "3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=m;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4))",
+            "k in ((2))",
+            "2;2;2",
+            "3;3;3"}
 ));
 
 #endif

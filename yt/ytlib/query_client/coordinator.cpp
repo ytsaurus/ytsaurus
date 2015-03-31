@@ -367,7 +367,8 @@ private:
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     const TConstQueryPtr& query,
     const std::vector<TKeyRange>& ranges,
-    bool refinePredicates)
+    bool refinePredicates,
+    TColumnEvaluatorPtr columnEvaluator)
 {
     auto Logger = BuildLogger(query);
 
@@ -389,20 +390,14 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         subquery->KeyColumns = query->KeyColumns;
         subquery->JoinClause = query->JoinClause;
 
-        // Set predicate
-        int rangeSize = std::min(keyRange.first.GetCount(), keyRange.second.GetCount());
-
-        int commonPrefixSize = 0;
-        while (commonPrefixSize < rangeSize) {
-            commonPrefixSize++;
-            if (keyRange.first[commonPrefixSize - 1] != keyRange.second[commonPrefixSize - 1]) {
-                break;
-            }
-        }
-
         if (query->WhereClause) {
-            subquery->WhereClause = refinePredicates && !query->TableSchema.HasComputedColumns()
-                ? RefinePredicate(keyRange, commonPrefixSize, query->WhereClause, subquery->KeyColumns)
+            subquery->WhereClause = refinePredicates
+                ? RefinePredicate(
+                    keyRange,
+                    query->WhereClause,
+                    subquery->TableSchema,
+                    subquery->KeyColumns,
+                    columnEvaluator)
                 : query->WhereClause;
         }
 
@@ -554,6 +549,7 @@ TQueryStatistics CoordinateAndExecute(
     ISchemafulWriterPtr writer,
     bool isOrdered,
     const std::vector<TKeyRange>& ranges,
+    TColumnEvaluatorPtr columnEvaluator,
     std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
     bool refinePredicates)
@@ -566,7 +562,7 @@ TQueryStatistics CoordinateAndExecute(
 
     TConstQueryPtr topQuery;
     std::vector<TConstQueryPtr> subqueries;
-    std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, refinePredicates);
+    std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, refinePredicates, columnEvaluator);
 
     LOG_DEBUG("Finished coordinating query");
 

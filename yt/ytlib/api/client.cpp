@@ -482,6 +482,9 @@ private:
             writer,
             false,
             ranges,
+            Connection_->GetColumnEvaluatorCache()->Find(
+                fragment->Query->TableSchema,
+                fragment->Query->KeyColumns.size()),
             [&] (const TConstQueryPtr& subquery, int index) {
                 auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = nodeDirectory;
@@ -538,6 +541,9 @@ private:
             writer,
             true,
             ranges,
+            Connection_->GetColumnEvaluatorCache()->Find(
+                fragment->Query->TableSchema,
+                fragment->Query->KeyColumns.size()),
             [&] (const TConstQueryPtr& subquery, int index) {
                 auto descriptor = nodeDirectory->GetDescriptor(splits[index].second);
                 const auto& address = descriptor.GetInterconnectAddress();
