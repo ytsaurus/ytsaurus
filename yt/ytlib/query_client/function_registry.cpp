@@ -49,7 +49,7 @@ IFunctionDescriptorPtr TFunctionRegistry::GetFunction(const Stroka& functionName
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterBuiltinFunctionsImpl(IFunctionRegistryPtr registry)
+void RegisterBuiltinFunctionsImpl(TFunctionRegistryPtr registry)
 {
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
@@ -171,8 +171,7 @@ private:
 TCypressFunctionRegistry::TCypressFunctionRegistry(
     std::unique_ptr<IFunctionDescriptorFetcher> functionFetcher,
     TFunctionRegistryPtr builtinRegistry)
-    : TFunctionRegistry()
-    , FunctionFetcher_(std::move(functionFetcher))
+    : FunctionFetcher_(std::move(functionFetcher))
     , BuiltinRegistry_(std::move(builtinRegistry))
     , UDFRegistry_(New<TFunctionRegistry>())
 { }
