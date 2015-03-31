@@ -17,8 +17,6 @@ class IFunctionRegistry
 public:
     virtual ~IFunctionRegistry();
 
-    virtual void RegisterFunction(IFunctionDescriptorPtr descriptor) = 0;
-
     virtual IFunctionDescriptorPtr GetFunction(const Stroka& functionName) = 0;
 };
 
@@ -30,7 +28,7 @@ class TFunctionRegistry
     : public IFunctionRegistry
 {
 public:
-    virtual void RegisterFunction(IFunctionDescriptorPtr descriptor);
+    void RegisterFunction(IFunctionDescriptorPtr descriptor);
 
     virtual IFunctionDescriptorPtr GetFunction(const Stroka& functionName);
 
@@ -51,7 +49,7 @@ public:
 };
 
 class TCypressFunctionRegistry
-    : public TFunctionRegistry
+    : public IFunctionRegistry
 {
 public:
     TCypressFunctionRegistry(
