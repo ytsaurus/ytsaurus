@@ -143,6 +143,10 @@ public:
      */
     i64 MaxDataSize;
 
+    //! Interval between automatic changelog rotation (to avoid keeping too many non-clean records
+    //! and speed up starup).
+    TDuration AutoRotationPeriod;
+
     //! Maximum bytes of multiplexed changelog to read during
     //! a single iteration of replay.
     i64 ReplayBufferSize;
@@ -159,6 +163,8 @@ public:
         RegisterParameter("max_data_size", MaxDataSize)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
+        RegisterParameter("auto_rotation_period", AutoRotationPeriod)
+            .Default(TDuration::Minutes(15));
         RegisterParameter("replay_buffer_size", ReplayBufferSize)
             .GreaterThan(0)
             .Default((i64) 256 * 1024 * 1024);

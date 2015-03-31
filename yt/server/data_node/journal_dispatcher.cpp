@@ -15,6 +15,8 @@
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/periodic_executor.h>
 
+#include <core/profiling/timing.h>
+
 #include <server/hydra/changelog.h>
 #include <server/hydra/file_changelog_dispatcher.h>
 #include <server/hydra/lazy_changelog.h>
@@ -153,6 +155,9 @@ private:
 
     //! The current multiplexed changelog.
     IChangelogPtr MultiplexedChangelog_;
+
+    //! The moment when the multiplexed changelog was last rotated.
+    NProfiling::TCpuInstant MultiplexedChangelogRotationDeadline_;
 
     //! The id of #MultiplexedChangelog.
     int MultiplexedChangelogId_;
@@ -305,6 +310,15 @@ private:
         return MultiplexedChangelog_->Append(multiplexedData);
     }
 
+
+    void SetMultiplexedChangelog(IChangelogPtr changelog, int id)
+    {
+        MultiplexedChangelog_ = changelog;
+        MultiplexedChangelogId_ = id;
+        MultiplexedChangelogRotationDeadline_ =
+            NProfiling::GetCpuInstant() +
+            NProfiling::DurationToCpuDuration(Config_->MultiplexedChangelog->AutoRotationPeriod);
+    }
 
     IChangelogPtr CreateNewMultiplexedChangelog(
         TFuture<void> flushResult,
@@ -766,8 +780,7 @@ void TJournalDispatcher::TImpl::Initialize()
             int newId = replay.Run();
 
             // Create new multiplexed changelog.
-            MultiplexedChangelog_ = CreateMultiplexedChangelog(newId);
-            MultiplexedChangelogId_ = newId;
+            SetMultiplexedChangelog(CreateMultiplexedChangelog(newId), newId);
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error starting journal dispatcher")
@@ -895,7 +908,8 @@ TFuture<void> TJournalDispatcher::TImpl::AppendMultiplexedRecord(
     // Check if it is time to rotate.
     const auto& config = Config_->MultiplexedChangelog;
     if (MultiplexedChangelog_->GetRecordCount() >= config->MaxRecordCount ||
-        MultiplexedChangelog_->GetDataSize() >= config->MaxDataSize)
+        MultiplexedChangelog_->GetDataSize() >= config->MaxDataSize ||
+        NProfiling::GetCpuInstant() > MultiplexedChangelogRotationDeadline_)
     {
         LOG_INFO("Started rotating multiplexed changelog %v",
             MultiplexedChangelogId_);
@@ -935,9 +949,8 @@ TFuture<void> TJournalDispatcher::TImpl::AppendMultiplexedRecord(
             oldId)
         .AsyncVia(ChangelogDispatcher_->GetInvoker())
         .Run();
-        
-        MultiplexedChangelog_ = CreateLazyChangelog(futureMultiplexedChangelog);
-        MultiplexedChangelogId_ = newId;
+
+        SetMultiplexedChangelog(CreateLazyChangelog(futureMultiplexedChangelog), newId);
     }
 
     return appendResult;
