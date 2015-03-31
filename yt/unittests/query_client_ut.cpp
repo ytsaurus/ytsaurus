@@ -3171,6 +3171,38 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
     EvaluateExpectingError("absolute(a, b) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
 
+TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+    };
+
+    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
+        absolute_bc,
+        absolute_bc_len));
+
+    auto twoArgumentUdf = New<TUserDefinedFunction>(
+        "absolute",
+        std::vector<EValueType>{EValueType::Double},
+        EValueType::Int64,
+        fileRef);
+
+    auto fetcher = std::make_unique<StrictMock<TFunctionDescriptorFetcherMock>>();
+    EXPECT_CALL(*fetcher, LookupFunction("absolute"))
+        .WillOnce(Return(twoArgumentUdf));
+
+    auto registry = New<TCypressFunctionRegistry>(
+        std::move(fetcher),
+        New<TFunctionRegistry>());
+
+    EvaluateExpectingError("absolute(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEvaluateExpressionTest
