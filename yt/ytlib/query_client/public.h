@@ -38,9 +38,6 @@ typedef TIntrusivePtr<const TJoinClause> TConstJoinClausePtr;
 DECLARE_REFCOUNTED_STRUCT(TGroupClause)
 typedef TIntrusivePtr<const TGroupClause> TConstGroupClausePtr;
 
-DECLARE_REFCOUNTED_STRUCT(TOrderClause)
-typedef TIntrusivePtr<const TOrderClause> TConstOrderClausePtr;
-
 DECLARE_REFCOUNTED_STRUCT(TProjectClause)
 typedef TIntrusivePtr<const TProjectClause> TConstProjectClausePtr;
 

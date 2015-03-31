@@ -88,28 +88,23 @@ message TAggregateItem
     required string name = 3;
 }
 
-message TJoinClause
-{
-    repeated string join_columns = 1;
-    required NYT.NVersionedTableClient.NProto.TTableSchemaExt joined_table_schema = 2;
-    required NYT.NVersionedTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
-    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
-}
-
 message TGroupClause
 {
     repeated TNamedItem group_items = 1;
     repeated TAggregateItem aggregate_items = 2;
 }
 
-message TOrderClause
-{
-    repeated string order_columns = 1;
-}
-
 message TProjectClause
 {
     repeated TNamedItem projections = 1;
+}
+
+message TJoinClause
+{
+    repeated string join_columns = 1;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt joined_table_schema = 2;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
+    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
 }
 
 message TQuery
@@ -126,7 +121,6 @@ message TQuery
     optional TJoinClause join_clause = 7;
     optional TExpression predicate = 8;
     optional TGroupClause group_clause = 9;
-    optional TOrderClause order_clause = 11;
     optional TProjectClause project_clause = 10;
 }
 

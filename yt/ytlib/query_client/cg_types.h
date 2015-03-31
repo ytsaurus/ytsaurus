@@ -16,7 +16,6 @@ using NYT::NQueryClient::TValueData;
 using NYT::NQueryClient::TLookupRows;
 using NYT::NQueryClient::TJoinLookupRows;
 using NYT::NQueryClient::TExecutionContext;
-using NYT::NQueryClient::TTopN;
 
 // Opaque types
 
@@ -42,11 +41,6 @@ class TypeBuilder<TJoinLookupRows*, Cross>
 
 template <bool Cross>
 class TypeBuilder<TExecutionContext*, Cross>
-    : public TypeBuilder<void*, Cross>
-{ };
-
-template <bool Cross>
-class TypeBuilder<TTopN*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 

@@ -113,52 +113,6 @@ typedef std::unordered_multiset<
     NDetail::TGroupHasher,
     NDetail::TGroupComparer> TJoinLookupRows;
 
-class TTopN
-{
-    static const size_t PoolChunkSize = 32 * 1024;
-    static const size_t BufferLimit = 32 * PoolChunkSize;
-    
-    // garbageMemorySize <= allocatedMemorySize <= totalMemorySize
-
-    size_t TotalMemorySize = 0;
-    size_t AllocatedMemorySize = 0;
-    size_t GarbageMemorySize = 0;
-
-    std::vector<std::unique_ptr<TRowBuffer>> Buffers;
-    std::vector<size_t> EmptyBufferIds;
-
-    typedef char (*TComparerFunc)(TRow, TRow);
-    struct TComparer
-    {
-        TComparerFunc RowComparer;
-
-        bool operator() (const std::pair<TRow, size_t>& lhs, const std::pair<TRow, size_t>& rhs) const
-        {
-            return RowComparer(lhs.first, rhs.first);
-        }
-
-        bool operator() (TRow lhs, TRow rhs) const
-        {
-            return RowComparer(lhs, rhs);
-        }
-    };
-
-    TComparer Comparer;
-
-    std::pair<TRow, size_t> Capture(TRow row);
-
-    void AccountGarbage(TRow row);
-
-    void AddRowImpl(TRow row);
-
-public:
-    std::vector<std::pair<TRow, size_t>> Rows;
-
-    TTopN(size_t limit, TComparerFunc comparer);
-
-    static void AddRow(TTopN* nTop, TRow row);
-};
-
 struct TCGVariables
 {
     TRowBuilder ConstantsRowBuilder;
