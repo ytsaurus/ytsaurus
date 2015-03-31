@@ -271,19 +271,28 @@ void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
     YUNREACHABLE();
 };
 
-DECLARE_REFCOUNTED_STRUCT(ISchemaProxy)
+DECLARE_REFCOUNTED_CLASS(TSchemaProxy)
 
-struct ISchemaProxy
+class TSchemaProxy
     : public TIntrinsicRefCounted
 {
-    TTableSchema* TableSchema;
+public:
+    TTableSchema* const TableSchema;
 
-    explicit ISchemaProxy(TTableSchema* tableSchema)
+    explicit TSchemaProxy(TTableSchema* tableSchema)
         : TableSchema(tableSchema)
     { }
 
     // NOTE: result must be used before next call
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) = 0;
+
+    virtual void Finish()
+    { }
+
+protected:
+    
+
+    // NOTE: result must be used before next call
     virtual const TColumnSchema* GetAggregateColumnPtr(
         EAggregateFunction aggregateFunction,
         const NAst::TExpression* arguments,
@@ -295,9 +304,6 @@ struct ISchemaProxy
             "Misuse of aggregate function %v",
             aggregateFunction);
     }
-
-    virtual void Finish()
-    { }
 
     static const TColumnSchema* AddColumn(TTableSchema* tableSchema, const TColumnSchema& column)
     {
@@ -347,6 +353,7 @@ struct ISchemaProxy
         return result;
     }
 
+public:
     std::vector<TConstExpressionPtr> BuildTypedExpression(
         const NAst::TExpression* expr,
         const Stroka& source,
@@ -539,23 +546,22 @@ struct ISchemaProxy
 
 };
 
-DEFINE_REFCOUNTED_TYPE(ISchemaProxy)
+DEFINE_REFCOUNTED_TYPE(TSchemaProxy)
 
-struct TSimpleSchemaProxy
-    : public ISchemaProxy
+class TSimpleSchemaProxy
+    : public TSchemaProxy
 {
-    TNullable<TTableSchema> SourceTableSchema;
-
+public:
     explicit TSimpleSchemaProxy(
         TTableSchema* tableSchema)
-        : ISchemaProxy(tableSchema)
+        : TSchemaProxy(tableSchema)
     { }
     
     TSimpleSchemaProxy(
         TTableSchema* tableSchema,
         const TTableSchema& sourceTableSchema,
         size_t keyColumnCount = 0)
-        : ISchemaProxy(tableSchema)
+        : TSchemaProxy(tableSchema)
         , SourceTableSchema(sourceTableSchema)
     {
         const auto& columns = sourceTableSchema.Columns();
@@ -564,6 +570,9 @@ struct TSimpleSchemaProxy
             AddColumn(TableSchema, columns[i]);
         }
     }
+
+private:
+    TNullable<TTableSchema> SourceTableSchema;
 
     virtual void Finish()
     {
@@ -589,20 +598,22 @@ struct TSimpleSchemaProxy
     }
 };
 
-struct TJoinSchemaProxy
-    : public ISchemaProxy
+class TJoinSchemaProxy
+    : public TSchemaProxy
 {
-    ISchemaProxyPtr Self;
-    ISchemaProxyPtr Foreign;
-
+public:
     TJoinSchemaProxy(
         TTableSchema* tableSchema,
-        ISchemaProxyPtr self,
-        ISchemaProxyPtr foreign)
-        : ISchemaProxy(tableSchema)
+        TSchemaProxyPtr self,
+        TSchemaProxyPtr foreign)
+        : TSchemaProxy(tableSchema)
         , Self(self)
         , Foreign(foreign)
     { }
+
+private:
+    TSchemaProxyPtr Self;
+    TSchemaProxyPtr Foreign;
 
     virtual void Finish()
     {
@@ -643,20 +654,22 @@ struct TJoinSchemaProxy
 
 };
 
-struct TGroupSchemaProxy
-    : public ISchemaProxy
+class TGroupSchemaProxy
+    : public TSchemaProxy
 {
-    ISchemaProxyPtr Base;
-    TAggregateItemList* AggregateItems;
-
+public:
     TGroupSchemaProxy(
         TTableSchema* tableSchema,
-        ISchemaProxyPtr base,
+        TSchemaProxyPtr base,
         TAggregateItemList* aggregateItems)
-        : ISchemaProxy(tableSchema)
+        : TSchemaProxy(tableSchema)
         , Base(base)
         , AggregateItems(aggregateItems)
     { }
+
+private:
+    TSchemaProxyPtr Base;
+    TAggregateItemList* AggregateItems;
 
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
     {
@@ -701,7 +714,7 @@ struct TGroupSchemaProxy
 TConstExpressionPtr BuildWhereClause(
     NAst::TExpressionPtr& expressionAst,
     const Stroka& source,
-    const ISchemaProxyPtr& schemaProxy,
+    const TSchemaProxyPtr& schemaProxy,
     const IFunctionRegistryPtr functionRegistry)
 {
     auto typedPredicate = schemaProxy->BuildTypedExpression(
@@ -732,7 +745,7 @@ TConstExpressionPtr BuildWhereClause(
 TConstGroupClausePtr BuildGroupClause(
     NAst::TNullableNamedExprs& expressionsAst,
     const Stroka& source,
-    ISchemaProxyPtr& schemaProxy,
+    TSchemaProxyPtr& schemaProxy,
     const IFunctionRegistryPtr functionRegistry)
 {
     auto groupClause = New<TGroupClause>();
@@ -763,7 +776,7 @@ TConstGroupClausePtr BuildGroupClause(
 TConstProjectClausePtr BuildProjectClause(
     NAst::TNullableNamedExprs& expressionsAst,
     const Stroka& source,
-    ISchemaProxyPtr& schemaProxy,
+    TSchemaProxyPtr& schemaProxy,
     const IFunctionRegistryPtr functionRegistry)
 {
     auto projectClause = New<TProjectClause>();
@@ -795,7 +808,7 @@ void PrepareQuery(
     const TQueryPtr& query,
     NAst::TQuery& ast,
     const Stroka& source,
-    ISchemaProxyPtr& schemaProxy,
+    TSchemaProxyPtr& schemaProxy,
     const IFunctionRegistryPtr functionRegistry)
 {
     if (ast.WherePredicate) {
@@ -854,7 +867,7 @@ TPlanFragmentPtr PreparePlanFragment(
     TDataSplit foreignDataSplit;
 
     auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
-    ISchemaProxyPtr schemaProxy;
+    TSchemaProxyPtr schemaProxy;
     
     if (auto simpleSource = ast.Source->As<NAst::TSimpleSource>()) {
         LOG_DEBUG("Getting initial data split for %v", simpleSource->Path);
@@ -888,8 +901,8 @@ TPlanFragmentPtr PreparePlanFragment(
         const auto& joinFields = joinSource->Fields;
         joinClause->JoinColumns = joinFields;
 
-        auto selfSourceProxy = New<TSimpleSchemaProxy>(&query->TableSchema, selfTableSchema, selfKeyColumns.size());
-        auto foreignSourceProxy = New<TSimpleSchemaProxy>(&joinClause->ForeignTableSchema, foreignTableSchema, foreignKeyColumns.size());
+        TSchemaProxyPtr selfSourceProxy = New<TSimpleSchemaProxy>(&query->TableSchema, selfTableSchema, selfKeyColumns.size());
+        TSchemaProxyPtr foreignSourceProxy = New<TSimpleSchemaProxy>(&joinClause->ForeignTableSchema, foreignTableSchema, foreignKeyColumns.size());
         // Merge columns.
         for (const auto& name : joinFields) {
             const auto* selfColumn = selfSourceProxy->GetColumnPtr(name);
@@ -972,7 +985,7 @@ TPlanFragmentPtr PrepareJobPlanFragment(
     auto unlimited = std::numeric_limits<i64>::max();
 
     auto query = New<TQuery>(unlimited, unlimited, TGuid::Create());
-    ISchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
+    TSchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
 
     PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
 
