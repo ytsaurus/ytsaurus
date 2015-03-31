@@ -325,7 +325,7 @@ struct ISchemaProxy
 
     static std::vector<TOwningRow> CaptureRows(
         const NAst::TValueTupleList& literalTuples,
-        std::vector<EValueType> argTypes,
+        const std::vector<EValueType>& argTypes,
         const TStringBuf& source)
     {
         TUnversionedOwningRowBuilder rowBuilder;
@@ -532,7 +532,6 @@ struct ISchemaProxy
             auto inExprOperands = BuildTypedExpression(inExpr->Expr.Get(), source, functionRegistry);
 
             std::vector<EValueType> argTypes;
-
             for (const auto& arg : inExprOperands) {
                 argTypes.push_back(arg->Type);
             }
@@ -576,17 +575,6 @@ struct TSimpleSchemaProxy
         }
     }
 
-    virtual void Finish()
-    {
-        if (SourceTableSchema) {
-            for (const auto& column : SourceTableSchema->Columns()) {
-                if (!TableSchema->FindColumn(column.Name)) {
-                    AddColumn(TableSchema, column);
-                }
-            }
-        }
-    }
-
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
     {
         const auto* column = TableSchema->FindColumn(name);
@@ -597,6 +585,17 @@ struct TSimpleSchemaProxy
             && (column = AddColumn(TableSchema, *column));       
 
         return column;
+    }
+
+    virtual void Finish()
+    {
+        if (SourceTableSchema) {
+            for (const auto& column : SourceTableSchema->Columns()) {
+                if (!TableSchema->FindColumn(column.Name)) {
+                    AddColumn(TableSchema, column);
+                }
+            }
+        }
     }
 };
 
@@ -802,17 +801,13 @@ TConstProjectClausePtr BuildProjectClause(
     return projectClause;
 }
 
-TQueryPtr PrepareQuery(
+void PrepareQuery(
+    const TQueryPtr& query,
     NAst::TQuery& ast,
     const Stroka& source,
-    i64 inputRowLimit,
-    i64 outputRowLimit,
-    const TTableSchema& tableSchema,
+    ISchemaProxyPtr& schemaProxy,
     const IFunctionRegistryPtr functionRegistry)
 {
-    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
-    ISchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
-
     if (ast.WherePredicate) {
         query->WhereClause = BuildWhereClause(ast.WherePredicate, source, schemaProxy, functionRegistry);
     }
@@ -826,8 +821,6 @@ TQueryPtr PrepareQuery(
     }
 
     schemaProxy->Finish();
-
-    return query;
 }
 
 void ParseYqlString(
@@ -931,19 +924,7 @@ TPlanFragmentPtr PreparePlanFragment(
         YUNREACHABLE();
     }
     
-    if (ast.WherePredicate) {
-        query->WhereClause = BuildWhereClause(ast.WherePredicate, source, schemaProxy, functionRegistry);
-    }
-
-    if (ast.GroupExprs) {
-        query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy, functionRegistry);
-    }
-
-    if (ast.SelectExprs) {
-        query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy, functionRegistry);
-    }
-
-    schemaProxy->Finish();
+    PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
 
     auto planFragment = New<TPlanFragment>(source);
     planFragment->NodeDirectory = New<TNodeDirectory>();
@@ -992,8 +973,10 @@ TPlanFragmentPtr PrepareJobPlanFragment(
     auto planFragment = New<TPlanFragment>(source);
     auto unlimited = std::numeric_limits<i64>::max();
 
-    auto query = PrepareQuery(ast, source, unlimited, unlimited, tableSchema, functionRegistry);
+    auto query = New<TQuery>(unlimited, unlimited, TGuid::Create());
+    ISchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
 
+    PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
     planFragment->Query = query;
 
     return planFragment;
