@@ -16,7 +16,6 @@ DEFINE_ENUM(EFoldingObjectType,
     (JoinOp)
     (FilterOp)
     (GroupOp)
-    (OrderOp)
     (ProjectOp)
 
     (LiteralExpr)
@@ -137,15 +136,6 @@ TCodegenSource TFoldingProfiler::Profile(const TConstQueryPtr& query)
             std::move(codegenSource));
 
         schema = groupClause->GetTableSchema();
-    }
-
-    if (auto orderClause = query->OrderClause.Get()) {
-        Fold(static_cast<int>(EFoldingObjectType::OrderOp));
-        for (const auto& column : orderClause->OrderColumns) {
-            Fold(column.c_str());
-        }
-
-        codegenSource = MakeCodegenOrderOp(orderClause->OrderColumns, schema, std::move(codegenSource));
     }
 
     if (auto projectClause = query->ProjectClause.Get()) {

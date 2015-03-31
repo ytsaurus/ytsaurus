@@ -314,15 +314,6 @@ struct TGroupClause
 
 DEFINE_REFCOUNTED_TYPE(TGroupClause)
 
-struct TOrderClause
-    : public TIntrinsicRefCounted
-{
-    std::vector<Stroka> OrderColumns;
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TOrderClause)
-
 struct TProjectClause
     : public TIntrinsicRefCounted
 {
@@ -374,7 +365,6 @@ struct TQuery
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
     TConstProjectClausePtr ProjectClause;
-    TConstOrderClausePtr OrderClause;
 
     i64 Limit = std::numeric_limits<i64>::max();
 

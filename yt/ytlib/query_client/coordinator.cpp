@@ -388,6 +388,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
         subquery->TableSchema = query->TableSchema;
         subquery->KeyColumns = query->KeyColumns;
+        subquery->Limit = query->Limit;
         subquery->JoinClause = query->JoinClause;
 
         if (query->WhereClause) {
@@ -404,12 +405,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         if (query->GroupClause) {
             subquery->GroupClause = query->GroupClause;
         } else {
-            if (query->OrderClause) {
-                subquery->OrderClause = query->OrderClause;            
-            } else {            
-                subquery->ProjectClause = query->ProjectClause;
-            }
-            subquery->Limit = query->Limit;
+            subquery->ProjectClause = query->ProjectClause;
         }
 
         subqueries.push_back(subquery);
@@ -419,9 +415,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         query->InputRowLimit,
         query->OutputRowLimit);
 
-    topQuery->OrderClause = query->OrderClause;
     topQuery->Limit = query->Limit;
-    
+
     if (query->GroupClause) {
         topQuery->TableSchema = query->GroupClause->GetTableSchema();
         if (subqueries.size() > 1) {
@@ -455,10 +450,6 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         topQuery->ProjectClause = query->ProjectClause;
     } else {
         topQuery->TableSchema = query->GetTableSchema();
-
-        if (query->OrderClause) {
-            topQuery->ProjectClause = query->ProjectClause;
-        }
     }
 
     return std::make_pair(topQuery, subqueries);
