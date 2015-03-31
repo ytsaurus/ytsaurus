@@ -77,15 +77,17 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AllocateWriteTargets)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        int targetCount = request->target_count();
+        int desiredTargetCount = request->desired_target_count();
+        int minTargetCount = request->min_target_count();
         auto preferredHostName = request->has_preferred_host_name()
             ? TNullable<Stroka>(request->preferred_host_name())
             : Null;
         const auto& forbiddenAddresses = request->forbidden_addresses();
 
-        context->SetRequestInfo("ChunkId: %v, TargetCount: %v, PeferredHostName: %v, ForbiddenAddresses: [%v]",
+        context->SetRequestInfo("ChunkId: %v, DesirdTargetCount: %v, MinTargetCount: %v, PeferredHostName: %v, ForbiddenAddresses: [%v]",
             chunkId,
-            targetCount,
+            desiredTargetCount,
+            minTargetCount,
             preferredHostName,
             JoinToString(forbiddenAddresses));
         
@@ -105,7 +107,8 @@ private:
 
         auto targets = chunkManager->AllocateWriteTargets(
             chunk,
-            targetCount,
+            desiredTargetCount,
+            minTargetCount,
             &forbiddenNodes,
             preferredHostName);
 

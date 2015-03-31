@@ -390,13 +390,15 @@ public:
 
     TNodeList AllocateWriteTargets(
         TChunk* chunk,
-        int replicaCount,
+        int desiredCount,
+        int minCount,
         const TSortedNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName)
     {
         return ChunkPlacement_->AllocateWriteTargets(
             chunk,
-            replicaCount,
+            desiredCount,
+            minCount,
             forbiddenNodes,
             preferredHostName,
             EWriteSessionType::User);
@@ -1655,13 +1657,15 @@ TChunkTree* TChunkManager::GetChunkTreeOrThrow(const TChunkTreeId& id)
 
 TNodeList TChunkManager::AllocateWriteTargets(
     TChunk* chunk,
-    int replicaCount,
+    int desiredCount,
+    int minCount,
     const TSortedNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
 {
     return Impl_->AllocateWriteTargets(
         chunk,
-        replicaCount,
+        desiredCount,
+        minCount,
         forbiddenNodes,
         preferredHostName);
 }

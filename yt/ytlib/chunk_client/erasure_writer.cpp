@@ -456,17 +456,17 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     IThroughputThrottlerPtr throttler)
 {
     // Patch writer configs to ignore upload replication factor for erasure chunk parts.
-    auto config_ = NYTree::CloneYsonSerializable(config);
-    config_->UploadReplicationFactor = 1;
+    auto partConfig = NYTree::CloneYsonSerializable(config);
+    partConfig->UploadReplicationFactor = 1;
 
     TChunkServiceProxy proxy(masterChannel);
-    auto req = proxy.AllocateWriteTargets();
 
-    req->set_target_count(codec->GetTotalPartCount());
-    if (config_->PreferLocalHost) {
+    auto req = proxy.AllocateWriteTargets();
+    req->set_desired_target_count(codec->GetTotalPartCount());
+    req->set_min_target_count(codec->GetTotalPartCount());
+    if (partConfig->PreferLocalHost) {
         req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
     }
-
     ToProto(req->mutable_chunk_id(), chunkId);
 
     auto rspOrError = WaitFor(req->Invoke());
@@ -486,7 +486,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
         auto partId = ErasurePartIdFromChunkId(chunkId, index);
         writers.push_back(CreateReplicationWriter(
-            config_,
+            partConfig,
             partId,
             TChunkReplicaList(1, replicas[index]),
             nodeDirectory,

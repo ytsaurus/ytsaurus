@@ -281,3 +281,15 @@ class TestRacks(YTEnvSetup):
         
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 1
 
+    def test_journals_with_degraded_racks(self):
+        map = {}
+        nodes = get_nodes()
+        for i in xrange(len(nodes)):
+            map[nodes[i]] = "r" + str(i % 2)
+        self._set_rack_map(map)
+
+        create("journal", "//tmp/j")
+        write_journal("//tmp/j", self.JOURNAL_DATA)
+        assert get("//tmp/j/@sealed")
+
+        assert read_journal("//tmp/j") == self.JOURNAL_DATA

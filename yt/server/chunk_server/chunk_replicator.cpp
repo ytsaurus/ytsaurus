@@ -599,6 +599,7 @@ bool TChunkReplicator::CreateReplicationJob(
     auto targets = ChunkPlacement_->AllocateWriteTargets(
         chunk,
         replicasNeeded,
+        1,
         EWriteSessionType::Replication);
     if (targets.empty()) {
         return false;
@@ -730,6 +731,7 @@ bool TChunkReplicator::CreateRepairJob(
 
     auto targets = ChunkPlacement_->AllocateWriteTargets(
         chunk,
+        erasedIndexCount,
         erasedIndexCount,
         EWriteSessionType::Repair);
     if (targets.empty()) {
