@@ -4,6 +4,8 @@
 
 #include <contrib/libs/farmhash/farmhash.h>
 
+namespace NYT {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static inline TFingerprint FarmHash(ui64 value)
@@ -37,3 +39,5 @@ static inline TFingerprint FarmFingerprint(ui64 first, ui64 second)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
