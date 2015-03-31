@@ -124,10 +124,9 @@ public:
         , ChangelogStore_(changelogStore)
         , SnapshotStore_(snapshotStore)
         , ResponseKeeper_(responseKeeper)
-        , Profiler(HydraProfiler)
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(controlInvoker, ControlThread);
-        VERIFY_INVOKER_THREAD_AFFINITY(automatonInvoker, AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
 
         Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 
@@ -415,7 +414,7 @@ private:
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
 
-    NProfiling::TProfiler Profiler;
+    NProfiling::TProfiler Profiler = HydraProfiler;
 
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
