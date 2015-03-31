@@ -156,7 +156,8 @@ public:
 
     TMultiplexedChangelogConfig()
     {
-        RegisterParameter("path", Path);
+        RegisterParameter("path", Path)
+            .NonEmpty();
         RegisterParameter("max_record_count", MaxRecordCount)
             .Default(1000000)
             .GreaterThan(0);
@@ -305,7 +306,7 @@ public:
             .DefaultNew();
 
         RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
-            .Default(nullptr);
+            .DefaultNew();
         RegisterParameter("split_changelog", SplitChangelog)
             .DefaultNew();
         RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
