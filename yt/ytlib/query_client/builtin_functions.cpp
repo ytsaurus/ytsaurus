@@ -526,10 +526,29 @@ TUserDefinedFunction::TUserDefinedFunction(
         resultType)
     , FunctionName_(functionName)
     , ImplementationFile_(implementationFile)
+    , ResultType_(resultType)
     , ArgumentTypes_(argumentTypes)
 { }
 
-void TUserDefinedFunction::CheckCallee(llvm::Function* callee) const
+llvm::Type* ConvertToLLVMType(EValueType type, TCGContext& builder)
+{
+    auto& context = builder.getContext();
+    switch (type) {
+        case EValueType::Int64:
+        case EValueType::Uint64:
+            return Type::getInt64Ty(context);
+        case EValueType::Double:
+            return Type::getDoubleTy(context);
+        case EValueType::Boolean:
+            return Type::getInt1Ty(context);
+        case EValueType::String:
+            return Type::getInt8PtrTy(context);
+        default:
+            return nullptr;
+    }
+}
+
+void TUserDefinedFunction::CheckCallee(llvm::Function* callee, TCGContext& builder) const
 {
     if (callee == nullptr) {
         THROW_ERROR_EXCEPTION(
@@ -540,6 +559,27 @@ void TUserDefinedFunction::CheckCallee(llvm::Function* callee) const
             "Wrong number of arguments in LLVM bitcode. Expected %Qv, actually %Qv",
             ArgumentTypes_.size(),
             callee->arg_size());
+    } else if (callee->getReturnType() != ConvertToLLVMType(ResultType_, builder)) {
+        THROW_ERROR_EXCEPTION(
+            "Wrong result type in LLVM bitcode. Expected %Qv, actually %Qv",
+            ConvertToLLVMType(ResultType_, builder),
+            callee->getReturnType());
+    }
+
+    auto i = 0;
+    auto expected = ArgumentTypes_.begin();
+    for (
+        auto actual = callee->arg_begin();
+        expected != ArgumentTypes_.end();
+        expected++, actual++, i++)
+    {
+        if (actual->getType() != ConvertToLLVMType(*expected, builder)) {
+            THROW_ERROR_EXCEPTION(
+                "Wrong type for argument %Qv in LLVM bitcode. Expected %Qv, actually %Qv",
+                i,
+                ConvertToLLVMType(*expected, builder),
+                actual->getType());
+        }
     }
 }
 
@@ -563,7 +603,7 @@ Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
         Linker::LinkModules(module, implModule.get());
         callee = module->getFunction(StringRef(FunctionName_));
     }
-    CheckCallee(callee);
+    CheckCallee(callee, builder);
     return callee;
 }
 
