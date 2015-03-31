@@ -90,6 +90,7 @@ set( SRCS
   ${BASE}/ytree_fluent_ut.cpp
   ${BASE}/yverify_ut.cpp
   ${BASE}/zigzag_ut.cpp
+  ${BASE}/udfs/invalid_ir.h
 )
 
 protoc( ${BASE}/rpc_ut.proto SRCS )
