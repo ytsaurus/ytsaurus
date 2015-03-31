@@ -37,11 +37,12 @@ struct TExtractValueHelper<void>
 
 template <
   typename TTool,
-  typename TArg = typename TFunctionTraits<TTool>::TArg,
-  typename TResult = typename TFunctionTraits<TTool>::TResult>
+  typename TArg,
+  typename TResult
+>
 TResult RunTool(
     const TArg& arg,
-    std::function<NYTree::TYsonString(const Stroka&, const NYTree::TYsonString&)> invoker = DoRunTool)
+    std::function<NYTree::TYsonString(const Stroka&, const NYTree::TYsonString&)> invoker)
 {
     auto name = typeid(TTool).name();
 
