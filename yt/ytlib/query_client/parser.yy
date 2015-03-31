@@ -69,7 +69,6 @@
 %token KwJoin "keyword `JOIN`"
 %token KwUsing "keyword `USING`"
 %token KwGroupBy "keyword `GROUP BY`"
-%token KwOrderBy "keyword `ORDER BY`"
 %token KwAs "keyword `AS`"
 
 %token KwAnd "keyword `AND`"
@@ -105,7 +104,6 @@
 %type <TNullableNamedExprs> select-clause
 %type <TExpressionPtr> where-clause
 %type <TNamedExpressionList> group-by-clause
-%type <TIdentifierList> order-by-clause
 %type <i64> limit-clause
 
 %type <TIdentifierList> identifier-list
@@ -138,7 +136,7 @@
 
 head
     : StrayWillParseQuery head-clause
-    | StrayWillParseJobQuery head-clause
+    | StrayWillParseJobQuery head-job-clause
     | StrayWillParseExpression named-expression[expression]
         {
             head->As<TNamedExpression>() = $expression;
@@ -146,9 +144,50 @@ head
 ;
 
 head-clause
-    : select-clause[select] tail-clause-from
+    : select-clause[select] from-clause
         {
             head->As<TQuery>().SelectExprs = $select;
+        }
+    | select-clause[select] from-clause head-clause-tail
+        {
+            head->As<TQuery>().SelectExprs = $select;
+        }
+;
+
+head-job-clause
+    : select-clause[select]
+        {
+            head->As<TQuery>().SelectExprs = $select;
+        }
+    | select-clause[select] head-clause-tail
+        {
+            head->As<TQuery>().SelectExprs = $select;
+        }
+;
+
+
+head-clause-tail
+    : where-clause[where]
+        {
+            head->As<TQuery>().WherePredicate = $where;
+        }
+    | group-by-clause[group]
+        {
+            head->As<TQuery>().GroupExprs = $group;
+        }
+    | limit-clause[limit]
+        {
+            head->As<TQuery>().Limit = $limit;
+        }
+    | where-clause[where] group-by-clause[group]
+        {
+            head->As<TQuery>().WherePredicate = $where;
+            head->As<TQuery>().GroupExprs = $group;
+        }
+    | where-clause[where] limit-clause[limit]
+        {
+            head->As<TQuery>().WherePredicate = $where;
+            head->As<TQuery>().Limit = $limit;
         }
 ;
 
@@ -171,53 +210,6 @@ from-clause
     | KwFrom Identifier[left_path] KwJoin Identifier[right_path] KwUsing identifier-list[fields]
         {
             head->As<TQuery>().Source = New<TJoinSource>(Stroka($left_path), Stroka($right_path), $fields);
-        }
-;
-
-tail-clause-from
-    : from-clause
-    | from-clause tail-clause-where
-
-tail-clause-where
-    : where-clause[where]
-        {
-            head->As<TQuery>().WherePredicate = $where;
-        }
-    | where-clause[where] tail-clause-group-by
-        {
-            head->As<TQuery>().WherePredicate = $where;
-        }
-    | tail-clause-group-by
-;
-
-tail-clause-group-by
-    : group-by-clause[group]
-        {
-            head->As<TQuery>().GroupExprs = $group;
-        }
-    | group-by-clause[group] tail-clause-order-by
-        {
-            head->As<TQuery>().GroupExprs = $group;
-        }
-    | tail-clause-order-by
-;
-
-tail-clause-order-by
-    : order-by-clause[order]
-        {
-            head->As<TQuery>().OrderFields = $order;
-        }
-    | order-by-clause[order] tail-clause-limit
-        {
-            head->As<TQuery>().OrderFields = $order;
-        }
-    | tail-clause-limit
-;
-
-tail-clause-limit
-    : limit-clause[limit]
-        {
-            head->As<TQuery>().Limit = $limit;
         }
 ;
 
@@ -244,13 +236,6 @@ group-by-clause
     : KwGroupBy named-expression-list[exprs]
         {
             $$ = $exprs;
-        }
-;
-
-order-by-clause
-    : KwOrderBy identifier-list[fields]
-        {
-            $$ = $fields;
         }
 ;
 
