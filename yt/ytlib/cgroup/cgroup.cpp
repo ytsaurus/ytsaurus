@@ -61,7 +61,7 @@ std::vector<Stroka> ReadAllValues(const Stroka& fileName)
     return std::vector<Stroka>(values.begin(), values.end());
 }
 
-TDuration FromJiffies(i64 jiffies)
+TDuration FromJiffies(ui64 jiffies)
 {
     static long ticksPerSecond = sysconf(_SC_CLK_TCK);
     return TDuration::MicroSeconds(1000 * 1000 * jiffies / ticksPerSecond);
@@ -453,11 +453,11 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
         YCHECK(values.size() == 4);
 
         Stroka type[2];
-        i64 jiffies[2];
+        ui64 jiffies[2];
 
         for (int i = 0; i < 2; ++i) {
             type[i] = values[2 * i];
-            jiffies[i] = FromString<i64>(values[2 * i + 1]);
+            jiffies[i] = FromString<ui64>(values[2 * i + 1]);
         }
 
         for (int i = 0; i < 2; ++i) {
@@ -481,8 +481,8 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("user").Value(static_cast<i64>(statistics.UserTime.MilliSeconds()))
-            .Item("system").Value(static_cast<i64>(statistics.SystemTime.MilliSeconds()))
+            .Item("user").Value(static_cast<ui64>(statistics.UserTime.MilliSeconds()))
+            .Item("system").Value(static_cast<ui64>(statistics.SystemTime.MilliSeconds()))
         .EndMap();
 }
 
@@ -543,7 +543,7 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
             TStatisticsItem item;
             item.DeviceId = values[3 * lineNumber];
             item.Type = values[3 * lineNumber + 1];
-            item.Value = FromString<i64>(values[3 * lineNumber + 2]);
+            item.Value = FromString<ui64>(values[3 * lineNumber + 2]);
 
             YCHECK(item.DeviceId.has_prefix("8:"));
 
@@ -597,10 +597,10 @@ TMemory::TStatistics TMemory::GetStatistics() const
             const auto& type = values[2 * lineNumber];
             const auto& unparsedValue = values[2 * lineNumber + 1];
             if (type == "rss") {
-                result.Rss = FromString<i64>(unparsedValue);
+                result.Rss = FromString<ui64>(unparsedValue);
             }
             if (type == "mapped_file") {
-                result.MappedFile = FromString<i64>(unparsedValue);
+                result.MappedFile = FromString<ui64>(unparsedValue);
             }
             ++lineNumber;
         }
