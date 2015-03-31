@@ -85,13 +85,11 @@ void TSummary::AddSample(i64 value)
 
 void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("sum").Value(summary.GetSum())
-            .Item("count").Value(summary.GetCount())
-            .Item("min").Value(summary.GetMin())
-            .Item("max").Value(summary.GetMax())
-        .EndMap();
+    BuildYsonMapFluently(consumer)
+        .Item("sum").Value(summary.GetSum())
+        .Item("count").Value(summary.GetCount())
+        .Item("min").Value(summary.GetMin())
+        .Item("max").Value(summary.GetMax());
 }
 
 void Deserialize(TSummary& value, INodePtr node)

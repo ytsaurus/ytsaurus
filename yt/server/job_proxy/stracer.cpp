@@ -35,12 +35,10 @@ REGISTER_TOOL(TStraceTool);
 
 void Serialize(const TStrace& trace, NYson::IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("trace").Value(trace.Trace)
-            .Item("process_name").Value(trace.ProcessName)
-            .Item("process_command_line").List(trace.ProcessCommandLine)
-        .EndMap();
+    BuildYsonMapFluently(consumer)
+        .Item("trace").Value(trace.Trace)
+        .Item("process_name").Value(trace.ProcessName)
+        .Item("process_command_line").List(trace.ProcessCommandLine);
 }
 
 void Deserialize(TStrace& value, INodePtr node)
@@ -56,13 +54,11 @@ void Deserialize(TStrace& value, INodePtr node)
 
 void Serialize(const TStracerResult& stracerResult, NYson::IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .DoFor(stracerResult.Traces, [] (TFluentMap fluent, const yhash_map<int, TStrace>::value_type& pair) {
-                fluent
-                    .Item(ToString(pair.first)).Value(pair.second);
-            })
-        .EndMap();
+    BuildYsonMapFluently(consumer)
+        .DoFor(stracerResult.Traces, [] (TFluentMap fluent, const yhash_map<int, TStrace>::value_type& pair) {
+            fluent
+                .Item(ToString(pair.first)).Value(pair.second);
+        });
 }
 
 template <class T>
