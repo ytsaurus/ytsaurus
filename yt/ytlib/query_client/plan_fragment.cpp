@@ -331,20 +331,27 @@ protected:
 
     static std::vector<TOwningRow> CaptureRows(
         const NAst::TValueTupleList& literalTuples,
-        size_t keySize,
+        std::vector<EValueType> argTypes,
         const TStringBuf& source)
     {
         TUnversionedOwningRowBuilder rowBuilder;
 
         std::vector<TOwningRow> result;
         for (const auto & tuple : literalTuples) {
-            if (tuple.size() != keySize) {
+            if (tuple.size() != argTypes.size()) {
                 THROW_ERROR_EXCEPTION("IN operator arguments size mismatch")
                     << TErrorAttribute("source", source);
             }
 
-            for (auto literal : tuple) {
-                rowBuilder.AddValue(literal);
+            for (size_t i = 0; i < tuple.size(); ++i) {
+                if (tuple[i].Type != argTypes[i]) {
+                    THROW_ERROR_EXCEPTION("IN operator types mismatch")
+                        << TErrorAttribute("source", source)
+                        << TErrorAttribute("expected", argTypes[i])
+                        << TErrorAttribute("actual", tuple[i].Type);
+                }
+
+                rowBuilder.AddValue(tuple[i]);
             }
             result.push_back(rowBuilder.FinishRow());
         }
@@ -531,9 +538,13 @@ public:
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
             auto inExprOperands = BuildTypedExpression(inExpr->Expr.Get(), source, functionRegistry);
 
-            size_t keySize = inExprOperands.size();
+            std::vector<EValueType> argTypes;
 
-            auto caturedRows = CaptureRows(inExpr->Values, keySize, inExpr->GetSource(source));
+            for (const auto& arg : inExprOperands) {
+                argTypes.push_back(arg->Type);
+            }
+
+            auto caturedRows = CaptureRows(inExpr->Values, argTypes, inExpr->GetSource(source));
 
             result.push_back(New<TInOpExpression>(
                 inExpr->SourceLocation,
