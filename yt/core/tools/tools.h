@@ -33,3 +33,4 @@ NYTree::TYsonString ExecuteTool(const Stroka& toolName, const NYTree::TYsonStrin
 
 #define TOOLS_INL_H_
 #include "tools-inl.h"
+#undef TOOLS_INL_H_
