@@ -155,7 +155,7 @@ public:
 
     virtual IFunctionDescriptorPtr LookupFunction(const Stroka& functionName) override
     {
-        LOG_DEBUG("Looking for implementation of function \"%Qv\" in Cypress", functionName);
+        LOG_DEBUG("Looking for implementation of function %Qv in Cypress", functionName);
         auto functionPath = CypressRegistryPath_ + "/" + ToYPathLiteral(to_lower(functionName));
 
         auto cypressFunctionOrError = WaitFor(Client_->GetNode(functionPath));
@@ -193,7 +193,7 @@ IFunctionDescriptorPtr TCypressFunctionRegistry::FindFunction(const Stroka& func
     if (auto function = BuiltinRegistry_->FindFunction(functionName)) {
         return function;
     } else if (auto function = UDFRegistry_->FindFunction(functionName)) {
-        LOG_DEBUG("Found a cached implementation of function \"%Qv\"", functionName);
+        LOG_DEBUG("Found a cached implementation of function %Qv", functionName);
         return function;
     } else {
         LookupAndRegister(functionName);
