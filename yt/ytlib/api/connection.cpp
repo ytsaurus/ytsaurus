@@ -121,7 +121,7 @@ public:
         QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
             Config_->ColumnEvaluatorCache,
-            GetFunctionRegistry());
+            FunctionRegistry_);
     }
 
     // IConnection implementation.

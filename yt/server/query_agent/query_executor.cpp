@@ -33,6 +33,7 @@
 #include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/query_statistics.h>
 #include <ytlib/query_client/function_registry.h>
+#include <ytlib/query_client/column_evaluator.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -158,6 +159,8 @@ public:
         , Bootstrap_(bootstrap)
         , Evaluator_(New<TEvaluator>(Config_))
         , RemoteExecutor_(New<TRemoteExecutor>(bootstrap))
+        , FunctionRegistry_(Bootstrap_->GetMasterClient()->GetConnection()->GetFunctionRegistry())
+        , ColumnEvaluatorCache_(Bootstrap_->GetMasterClient()->GetConnection()->GetColumnEvaluatorCache())
     { }
 
     // IExecutor implementation.
@@ -178,7 +181,8 @@ private:
     TBootstrap* const Bootstrap_;
     const TEvaluatorPtr Evaluator_;
     const IExecutorPtr RemoteExecutor_;
-
+    const IFunctionRegistryPtr FunctionRegistry_;
+    const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
     TQueryStatistics DoExecute(
         const TPlanFragmentPtr& fragment,
@@ -220,13 +224,14 @@ private:
 
         LOG_DEBUG("Got ranges for groups %v", rangesString);
 
-        auto functionRegistry = CreateFunctionRegistry(Bootstrap_->GetMasterClient());
-
         return CoordinateAndExecute(
             fragment,
             writer,
             false,
             ranges,
+            ColumnEvaluatorCache_->Find(
+                fragment->Query->TableSchema,
+                fragment->Query->KeyColumns.size()),
             [&] (const TConstQueryPtr& subquery, int index) {
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
                 for (const auto& dataSplit : groupedSplits[index]) {
@@ -255,7 +260,7 @@ private:
                         return WaitFor(subqueryResult)
                             .ValueOrThrow();
                     },
-                    functionRegistry);
+                    FunctionRegistry_);
 
                 asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
@@ -271,7 +276,7 @@ private:
 
                 auto asyncQueryStatisticsOrError = BIND(&TEvaluator::Run, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-                    .Run(topQuery, std::move(reader), std::move(writer), functionRegistry);
+                    .Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
 
                 auto result = WaitFor(asyncQueryStatisticsOrError);
                 LOG_DEBUG(result, "Finished evaluating topquery (TopqueryId: %v)", topQuery->Id);

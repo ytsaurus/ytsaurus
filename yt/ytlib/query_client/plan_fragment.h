@@ -205,6 +205,15 @@ struct TInOpExpression
         , Values(values)
     { }
 
+    TInOpExpression(
+        const TSourceLocation& sourceLocation,
+        const TArguments& arguments,
+        std::vector<TOwningRow>&& values)
+        : TExpression(sourceLocation, EValueType::Boolean)
+        , Arguments(arguments)
+        , Values(std::move(values))
+    { }
+
     TArguments Arguments;
     std::vector<TOwningRow> Values;
 

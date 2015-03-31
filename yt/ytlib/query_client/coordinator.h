@@ -46,6 +46,7 @@ TQueryStatistics CoordinateAndExecute(
     ISchemafulWriterPtr writer,
     bool isOrdered,
     const std::vector<TKeyRange>& ranges,
+    TColumnEvaluatorPtr columnEvaluator,
     std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
     bool refinePredicates = true);
