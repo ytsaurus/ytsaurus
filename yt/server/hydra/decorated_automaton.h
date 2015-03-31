@@ -19,7 +19,7 @@
 #include <ytlib/hydra/version.h>
 #include <ytlib/hydra/hydra_manager.pb.h>
 
-#include <server/election/election_manager.h>
+#include <server/election/public.h>
 
 #include <atomic>
 
@@ -29,13 +29,16 @@ namespace NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TEpochContext
-    : public NElection::TEpochContext
+    : public TRefCounted
 {
     TEpochContext()
     {
         Restarted.clear();
     }
 
+    TPeerId LeaderId = InvalidPeerId;
+    TEpochId EpochId;
+    TCancelableContextPtr CancelableContext;
     IInvokerPtr EpochSystemAutomatonInvoker;
     IInvokerPtr EpochUserAutomatonInvoker;
     IInvokerPtr EpochControlInvoker;

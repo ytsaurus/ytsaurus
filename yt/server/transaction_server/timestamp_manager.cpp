@@ -260,8 +260,7 @@ private:
 
         auto persistentTimestamp = PersistentTimestamp_;
         auto invoker = HydraManager_
-            ->GetAutomatonEpochContext()
-            ->CancelableContext
+            ->GetAutomatonCancelableContext()
             ->CreateInvoker(TimestampInvoker_);
 
         auto callback = BIND([=, this_ = MakeStrong(this)] () {
