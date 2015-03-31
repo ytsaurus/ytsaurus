@@ -10,6 +10,8 @@
 
 #include <core/ytree/convert.h>
 
+#include <core/ypath/token.h>
+
 #include <core/concurrency/scheduler.h>
 
 #include <core/misc/error.h>
@@ -21,6 +23,7 @@ namespace NQueryClient {
 
 using namespace NConcurrency;
 using namespace NYTree;
+using namespace NYPath;
 
 static const auto& Logger = QueryClientLogger;
 
@@ -105,8 +108,10 @@ class TCypressFunctionDescriptorFetcher
 {
 public:
     TCypressFunctionDescriptorFetcher(
-        NApi::IClientPtr client)
+        NApi::IClientPtr client,
+        const Stroka& cypressRegistryPath)
         : Client_(std::move(client))
+        , CypressRegistryPath_(cypressRegistryPath)
     { }
 
     TSharedRef ReadFile(const Stroka& fileName) const
@@ -144,8 +149,7 @@ public:
     virtual IFunctionDescriptorPtr LookupFunction(const Stroka& functionName) override
     {
         LOG_DEBUG("Looking for implementation of function \"" + functionName + "\" in Cypress");
-        Stroka registryPath = "//tmp/udfs";
-        auto functionPath = registryPath + "/" + to_lower(functionName);
+        auto functionPath = CypressRegistryPath_ + "/" + ToYPathLiteral(to_lower(functionName));
 
         auto cypressFunctionOrError = WaitFor(Client_->GetNode(functionPath));
         if (!cypressFunctionOrError.IsOK()) {
@@ -166,6 +170,7 @@ public:
 
 private:
     NApi::IClientPtr Client_;
+    const Stroka CypressRegistryPath_;
 };
 
 TCypressFunctionRegistry::TCypressFunctionRegistry(
@@ -214,8 +219,12 @@ IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
 IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
 {
     auto builtinRegistry = CreateBuiltinFunctionRegistryImpl();
-    auto fetcher = std::make_unique<TCypressFunctionDescriptorFetcher>(client);
-    return New<TCypressFunctionRegistry>(std::move(fetcher), builtinRegistry);
+    auto fetcher = std::make_unique<TCypressFunctionDescriptorFetcher>(
+        client,
+        "//tmp/udfs");
+    return New<TCypressFunctionRegistry>(
+        std::move(fetcher),
+        builtinRegistry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
