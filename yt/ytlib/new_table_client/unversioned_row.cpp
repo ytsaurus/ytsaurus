@@ -509,7 +509,7 @@ ui64 GetHash(TUnversionedRow row, int keyColumnCount)
 }
 
 // Forever-fixed Google FarmHash fingerprint.
-ui64 GetFarmFingerprint(const TUnversionedValue& value)
+TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::String:
@@ -534,7 +534,7 @@ ui64 GetFarmFingerprint(const TUnversionedValue& value)
 }
 
 // Forever-fixed Google FarmHash fingerprint.
-ui64 GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
+TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     ui64 result = 0xdeadc0de;
     for (const auto* value = begin; value < end; ++value) {
@@ -543,7 +543,7 @@ ui64 GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue*
     return result ^ (end - begin);
 }
 
-ui64 GetFarmFingerprint(TUnversionedRow row, int keyColumnCount)
+TFingerprint GetFarmFingerprint(TUnversionedRow row, int keyColumnCount)
 {
     int partCount = std::min(row.GetCount(), keyColumnCount);
     const auto* begin = row.Begin();
