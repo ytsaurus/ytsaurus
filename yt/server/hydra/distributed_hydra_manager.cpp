@@ -33,6 +33,8 @@
 
 #include <ytlib/hydra/hydra_service_proxy.h>
 
+#include <server/election/election_manager.h>
+
 #include <atomic>
 
 namespace NYT {
@@ -269,18 +271,18 @@ public:
         return ActiveFollower_;
     }
 
-    virtual NElection::TEpochContextPtr GetControlEpochContext() const override
+    virtual TCancelableContextPtr GetControlCancelableContext() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return ControlEpochContext_;
+        return ControlEpochContext_ ? ControlEpochContext_->CancelableContext : nullptr;
     }
 
-    virtual NElection::TEpochContextPtr GetAutomatonEpochContext() const override
+    virtual TCancelableContextPtr GetAutomatonCancelableContext() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return AutomatonEpochContext_;
+        return AutomatonEpochContext_ ? AutomatonEpochContext_->CancelableContext : nullptr;
     }
 
     virtual bool GetReadOnly() const
@@ -1177,7 +1179,6 @@ public:
         auto epochContext = New<TEpochContext>();
         epochContext->LeaderId = electionEpochContext->LeaderId;
         epochContext->EpochId = electionEpochContext->EpochId;
-        epochContext->StartTime = electionEpochContext->StartTime;
         epochContext->CancelableContext = electionEpochContext->CancelableContext;
         epochContext->EpochControlInvoker = epochContext->CancelableContext->CreateInvoker(CancelableControlInvoker_);
         epochContext->EpochSystemAutomatonInvoker = epochContext->CancelableContext->CreateInvoker(DecoratedAutomaton_->GetSystemInvoker());

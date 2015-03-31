@@ -199,10 +199,7 @@ private:
 
     void OnStartEpoch()
     {
-        auto cancelableContext = HydraManager_
-            ->GetAutomatonEpochContext()
-            ->CancelableContext;
-
+        auto cancelableContext = HydraManager_->GetAutomatonCancelableContext();
         for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
             auto unguardedInvoker = GetAutomatonInvoker(queue);
             EpochInvokers_[queue] = cancelableContext->CreateInvoker(unguardedInvoker);

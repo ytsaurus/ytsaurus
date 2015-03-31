@@ -467,8 +467,7 @@ private:
         TGuard<TSpinLock> guard(InvokersSpinLock_);
         for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
             EpochAutomatonInvokers_[queue] = HydraManager_
-                ->GetAutomatonEpochContext()
-                ->CancelableContext
+                ->GetAutomatonCancelableContext()
                 ->CreateInvoker(GetAutomatonInvoker(queue));
         }
     }
@@ -549,11 +548,10 @@ private:
         if (!HydraManager_)
             return;
         
-        auto epochContext = HydraManager_->GetControlEpochContext();
-        if (!epochContext)
+        auto cancelableContext = HydraManager_->GetControlCancelableContext();
+        if (!cancelableContext)
             return;
 
-        auto cancelableContext = epochContext->CancelableContext;
         WaitFor(BIND(&TImpl::DoBuildOrchidYsonAutomaton, MakeStrong(this))
             .AsyncVia(GetGuardedAutomatonInvoker())
             .Run(cancelableContext, consumer));
