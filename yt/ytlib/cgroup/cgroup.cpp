@@ -479,11 +479,9 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
 
 void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("user").Value(static_cast<ui64>(statistics.UserTime.MilliSeconds()))
-            .Item("system").Value(static_cast<ui64>(statistics.SystemTime.MilliSeconds()))
-        .EndMap();
+    NYTree::BuildYsonMapFluently(consumer)
+        .Item("user").Value(static_cast<ui64>(statistics.UserTime.MilliSeconds()))
+        .Item("system").Value(static_cast<ui64>(statistics.SystemTime.MilliSeconds()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -571,13 +569,11 @@ void TBlockIO::ThrottleOperations(const Stroka& deviceId, i64 operations) const
 
 void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("bytes_read").Value(statistics.BytesRead)
-            .Item("bytes_written").Value(statistics.BytesWritten)
-            .Item("io_read").Value(statistics.IORead)
-            .Item("io_write").Value(statistics.IOWrite)
-        .EndMap();
+    NYTree::BuildYsonMapFluently(consumer)
+        .Item("bytes_read").Value(statistics.BytesRead)
+        .Item("bytes_written").Value(statistics.BytesWritten)
+        .Item("io_read").Value(statistics.IORead)
+        .Item("io_write").Value(statistics.IOWrite);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -626,11 +622,9 @@ void TMemory::ForceEmpty() const
 
 void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("rss").Value(statistics.Rss)
-            .Item("mapped_file").Value(statistics.MappedFile)
-        .EndMap();
+    NYTree::BuildYsonMapFluently(consumer)
+        .Item("rss").Value(statistics.Rss)
+        .Item("mapped_file").Value(statistics.MappedFile);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
