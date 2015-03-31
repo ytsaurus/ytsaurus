@@ -217,8 +217,10 @@ public:
 private:
     Stroka FunctionName_;
     TSharedRef ImplementationFile_;
+    std::vector<EValueType> ArgumentTypes_;
 
     Function* GetLLVMFunction(TCGContext& builder) const;
+    void CheckCallee(Function* callee) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
