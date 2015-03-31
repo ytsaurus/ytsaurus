@@ -129,17 +129,17 @@ class TBlockIO
 public:
     struct TStatistics
     {
-        i64 BytesRead = 0;
-        i64 BytesWritten = 0;
-        i64 IORead = 0;
-        i64 IOWrite = 0;
+        ui64 BytesRead = 0;
+        ui64 BytesWritten = 0;
+        ui64 IORead = 0;
+        ui64 IOWrite = 0;
     };
 
     struct TStatisticsItem
     {
         Stroka DeviceId;
         Stroka Type;
-        i64 Value = 0;
+        ui64 Value = 0;
     };
 
     explicit TBlockIO(const Stroka& name);
@@ -165,8 +165,8 @@ class TMemory
 public:
     struct TStatistics
     {
-        i64 Rss = 0;
-        i64 MappedFile = 0;
+        ui64 Rss = 0;
+        ui64 MappedFile = 0;
     };
 
     explicit TMemory(const Stroka& name);
