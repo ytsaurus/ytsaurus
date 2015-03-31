@@ -153,7 +153,7 @@ class TestRacks(YTEnvSetup):
 
 
     def test_journal_not_enough_racks(self):
-        self._init_n_racks(2)
+        self._init_n_racks(1)
         create("journal", "//tmp/j")
         with pytest.raises(YtError): write_journal("//tmp/j", self.JOURNAL_DATA)
 
