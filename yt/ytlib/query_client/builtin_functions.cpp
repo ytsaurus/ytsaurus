@@ -526,7 +526,22 @@ TUserDefinedFunction::TUserDefinedFunction(
         resultType)
     , FunctionName_(functionName)
     , ImplementationFile_(implementationFile)
+    , ArgumentTypes_(argumentTypes)
 { }
+
+void TUserDefinedFunction::CheckCallee(llvm::Function* callee) const
+{
+    if (callee == nullptr) {
+        THROW_ERROR_EXCEPTION(
+            "Could not find LLVM bitcode for %Qv",
+            FunctionName_);
+    } else if (callee->arg_size() != ArgumentTypes_.size()) {
+        THROW_ERROR_EXCEPTION(
+            "Wrong number of arguments in LLVM bitcode. Expected %Qv, actually %Qv",
+            ArgumentTypes_.size(),
+            callee->arg_size());
+    }
+}
 
 Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
 {
@@ -541,6 +556,7 @@ Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
         Linker::LinkModules(module, implModule.get());
         callee = module->getFunction(StringRef(FunctionName_));
     }
+    CheckCallee(callee);
     return callee;
 }
 
