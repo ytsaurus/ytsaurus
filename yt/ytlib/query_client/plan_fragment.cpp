@@ -239,14 +239,14 @@ EValueType InferFunctionExprType(
     const TStringBuf& source,
     const IFunctionRegistryPtr functionRegistry)
 {
-    if (!functionRegistry->IsRegistered(functionName)) {
+    if (auto function = functionRegistry->GetFunction(functionName)) {
+        return function->InferResultType(argTypes, source);
+    } else {
         THROW_ERROR_EXCEPTION(
             "Unknown function in expression %Qv",
             source)
             << TErrorAttribute("function_name", functionName);
     }
-
-    return functionRegistry->GetFunction(functionName)->InferResultType(argTypes, source);
 }
 
 void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)

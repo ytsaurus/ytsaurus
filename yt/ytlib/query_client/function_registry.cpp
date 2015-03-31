@@ -39,12 +39,12 @@ void TFunctionRegistry::RegisterFunction(TIntrusivePtr<IFunctionDescriptor> func
 
 IFunctionDescriptorPtr TFunctionRegistry::GetFunction(const Stroka& functionName)
 {
-    return RegisteredFunctions_.at(to_lower(functionName));
-}
-
-bool TFunctionRegistry::IsRegistered(const Stroka& functionName)
-{
-    return RegisteredFunctions_.count(to_lower(functionName)) != 0;
+    auto name = to_lower(functionName);
+    if (RegisteredFunctions_.count(name) == 0) {
+        return nullptr;
+    } else {
+        return RegisteredFunctions_.at(name);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,26 +179,14 @@ TCypressFunctionRegistry::TCypressFunctionRegistry(
 
 IFunctionDescriptorPtr TCypressFunctionRegistry::GetFunction(const Stroka& functionName)
 {
-    if (BuiltinRegistry_->IsRegistered(functionName)) {
-        return BuiltinRegistry_->GetFunction(functionName);
-    } else if (UDFRegistry_->IsRegistered(functionName)) {
+    if (auto function = BuiltinRegistry_->GetFunction(functionName)) {
+        return function;
+    } else if (auto function = UDFRegistry_->GetFunction(functionName)) {
         LOG_DEBUG("Found a cached implementation of function \"" + functionName + "\"");
-        return UDFRegistry_->GetFunction(functionName);
+        return function;
     } else {
         LookupAndRegister(functionName);
         return UDFRegistry_->GetFunction(functionName);
-    }
-}
-
-bool TCypressFunctionRegistry::IsRegistered(const Stroka& functionName)
-{
-    if (BuiltinRegistry_->IsRegistered(functionName) ||
-        UDFRegistry_->IsRegistered(functionName))
-    {
-        return true;
-    } else {
-        LookupAndRegister(functionName);
-        return UDFRegistry_->IsRegistered(functionName);
     }
 }
 
