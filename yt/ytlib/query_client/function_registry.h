@@ -17,7 +17,9 @@ class IFunctionRegistry
 public:
     virtual ~IFunctionRegistry();
 
-    virtual IFunctionDescriptorPtr GetFunction(const Stroka& functionName) = 0;
+    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) = 0;
+
+    IFunctionDescriptorPtr GetFunction(const Stroka& functionName);
 };
 
 DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
@@ -30,7 +32,7 @@ class TFunctionRegistry
 public:
     void RegisterFunction(IFunctionDescriptorPtr descriptor);
 
-    virtual IFunctionDescriptorPtr GetFunction(const Stroka& functionName);
+    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName);
 
 private:
     std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
@@ -56,7 +58,7 @@ public:
         std::unique_ptr<IFunctionDescriptorFetcher> functionFetcher,
         TFunctionRegistryPtr builtinRegistry);
 
-    virtual IFunctionDescriptorPtr GetFunction(const Stroka& functionName);
+    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName);
 
 private:
     const std::unique_ptr<IFunctionDescriptorFetcher> FunctionFetcher_;

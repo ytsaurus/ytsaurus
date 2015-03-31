@@ -239,7 +239,7 @@ EValueType InferFunctionExprType(
     const TStringBuf& source,
     const IFunctionRegistryPtr functionRegistry)
 {
-    if (auto function = functionRegistry->GetFunction(functionName)) {
+    if (auto function = functionRegistry->FindFunction(functionName)) {
         return function->InferResultType(argTypes, source);
     } else {
         THROW_ERROR_EXCEPTION(
