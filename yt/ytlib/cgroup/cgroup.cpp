@@ -595,12 +595,12 @@ TMemory::TStatistics TMemory::GetStatistics() const
         int lineNumber = 0;
         while (2 * lineNumber + 1 < values.size()) {
             const auto& type = values[2 * lineNumber];
-            const auto value = FromString<i64>(values[2 * lineNumber + 1]);
+            const auto& unparsedValue = values[2 * lineNumber + 1];
             if (type == "rss") {
-                result.Rss = value;
+                result.Rss = FromString<i64>(unparsedValue);
             }
             if (type == "mapped_file") {
-                result.MappedFile = value;
+                result.MappedFile = FromString<i64>(unparsedValue);
             }
             ++lineNumber;
         }
