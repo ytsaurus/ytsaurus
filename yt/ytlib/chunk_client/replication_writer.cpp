@@ -469,21 +469,19 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
     }
 
     TChunkServiceProxy proxy(MasterChannel_);
+
     auto req = proxy.AllocateWriteTargets();
-    req->set_target_count(Config_->UploadReplicationFactor - Nodes_.size());
-    
+    req->set_desired_target_count(Config_->UploadReplicationFactor - Nodes_.size());
+    req->set_min_target_count(Config_->UploadReplicationFactor - Nodes_.size());
     if (Config_->PreferLocalHost) {
         req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
     }
-
     for (auto node : Nodes_) {
         req->add_forbidden_addresses(node->Descriptor.GetDefaultAddress());
     }
-    
     ToProto(req->mutable_chunk_id(), ChunkId_);
 
     auto rspOrError = WaitFor(req->Invoke());
-
     THROW_ERROR_EXCEPTION_IF_FAILED(
         rspOrError,
         EErrorCode::MasterCommunicationFailed, 

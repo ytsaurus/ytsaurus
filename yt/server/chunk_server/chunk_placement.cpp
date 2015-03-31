@@ -155,14 +155,16 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
     TChunk* chunk,
-    int targetCount,
+    int desiredCount,
+    int minCount,
     const TSortedNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName,
     EWriteSessionType sessionType)
 {
     auto targets = GetWriteTargets(
         chunk,
-        targetCount,
+        desiredCount,
+        minCount,
         forbiddenNodes,
         preferredHostName,
         EWriteSessionType::User);
@@ -181,7 +183,8 @@ int TChunkPlacement::GetLoadFactor(TNode* node)
 
 TNodeList TChunkPlacement::GetWriteTargets(
     TChunk* chunk,
-    int targetCount,
+    int desiredCount,
+    int minCount,
     const TSortedNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName,
     EWriteSessionType sessionType)
@@ -213,7 +216,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     }
 
     for (auto* node : LoadRankToNode_) {
-        if (targets.size() == targetCount)
+        if (targets.size() == desiredCount)
             break;
         if (!targets.empty() && targets[0] == node)
             continue; // skip preferred node
@@ -222,7 +225,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
         addTarget(node);
     }
 
-    if (targets.size() != targetCount) {
+    if (targets.size()< minCount) {
         targets.clear();
     }
 
@@ -231,12 +234,14 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
     TChunk* chunk,
-    int targetCount,
+    int desiredCount,
+    int minCount,
     EWriteSessionType sessionType)
 {
     auto targets = GetWriteTargets(
         chunk,
-        targetCount,
+        desiredCount,
+        minCount,
         sessionType);
 
     for (auto* target : targets) {
@@ -248,7 +253,8 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
 
 TNodeList TChunkPlacement::GetWriteTargets(
     TChunk* chunk,
-    int targetCount,
+    int desiredCount,
+    int minCount,
     EWriteSessionType sessionType)
 {
     auto nodeTracker = Bootstrap_->GetNodeTracker();
@@ -279,7 +285,8 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
     return GetWriteTargets(
         chunk,
-        targetCount,
+        desiredCount,
+        minCount,
         &forbiddenNodes,
         Null,
         sessionType);

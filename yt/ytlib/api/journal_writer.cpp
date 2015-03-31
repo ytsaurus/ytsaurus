@@ -458,7 +458,8 @@ private:
                 if (Config_->PreferLocalHost) {
                     req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
                 }
-                req->set_target_count(ReplicationFactor_);
+                req->set_desired_target_count(ReplicationFactor_);
+                req->set_min_target_count(WriteQuorum_);
 
                 auto rspOrError = WaitFor(req->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error allocating write targets");
@@ -476,8 +477,8 @@ private:
             LOG_INFO("Write targets allocated (Targets: [%v])",
                 JoinToString(targets));
 
-            for (int index = 0; index < ReplicationFactor_; ++index) {
-                auto node = New<TNode>(targets[index]);
+            for (const auto& target : targets) {
+                auto node = New<TNode>(target);
                 node->LightProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
                 node->HeavyProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
                 CurrentSession_->Nodes.push_back(node);

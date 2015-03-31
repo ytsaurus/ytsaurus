@@ -35,14 +35,16 @@ public:
 
     TNodeList AllocateWriteTargets(
         TChunk* chunk,
-        int replicaCount,
+        int desiredCount,
+        int minCount,
         const TSortedNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName,
         NChunkClient::EWriteSessionType sessionType);
 
     TNodeList AllocateWriteTargets(
         TChunk* chunk,
-        int targetCount,
+        int desiredCount,
+        int minCount,
         NChunkClient::EWriteSessionType sessionType);
 
     TNode* GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex);
@@ -73,14 +75,16 @@ private:
 
     TNodeList GetWriteTargets(
         TChunk* chunk,
-        int targetCount,
+        int desiredCount,
+        int minCount,
         const TSortedNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName,
         NChunkClient::EWriteSessionType sessionType);
 
     TNodeList GetWriteTargets(
         TChunk* chunk,
-        int targetCount,
+        int desiredCount,
+        int minCount,
         NChunkClient::EWriteSessionType sessionType);
 
     TNode* GetBalancingTarget(
