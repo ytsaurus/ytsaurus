@@ -378,7 +378,7 @@ TConstExpressionPtr RefinePredicate(
             if (tableSchema.HasComputedColumns()) {
                 auto tempRow = TUnversionedRow::Allocate(buffer.GetAlignedPool(), keyColumns.size());
 
-                inRange = [&, tempRow] (const TOwningRow& literalTuple) {
+                inRange = [&, tempRow] (const TOwningRow& literalTuple) mutable {
                     for (int tupleIndex = 0; tupleIndex < idMapping.size(); ++tupleIndex) {
                         int schemaIndex = idMapping[tupleIndex];
 
