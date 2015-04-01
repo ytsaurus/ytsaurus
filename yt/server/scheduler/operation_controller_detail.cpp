@@ -2583,27 +2583,28 @@ void TOperationControllerBase::FetchInputTables()
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
 
-        for (auto range : table.Path.GetRanges()) {
+        for (const auto& range : table.Path.GetRanges()) {
             for (i64 index = 0; index * Config->MaxChunkCountPerFetch < table.ChunkCount; ++index) {
+                auto adjustedRange = range;
                 auto chunkCountLowerLimit = index * Config->MaxChunkCountPerFetch;
-                if (range.LowerLimit().HasChunkIndex()) {
-                    chunkCountLowerLimit = std::max(chunkCountLowerLimit, range.LowerLimit().GetChunkIndex());
+                if (adjustedRange.LowerLimit().HasChunkIndex()) {
+                    chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
                 }
-                range.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
+                adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
 
                 auto chunkCountUpperLimit = (index + 1) * Config->MaxChunkCountPerFetch;
-                if (range.UpperLimit().HasChunkIndex()) {
-                    chunkCountUpperLimit = std::min(chunkCountUpperLimit, range.UpperLimit().GetChunkIndex());
+                if (adjustedRange.UpperLimit().HasChunkIndex()) {
+                    chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
                 }
-                range.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
+                adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
 
                 auto req = TTableYPathProxy::Fetch(FromObjectId(table.ObjectId));
                 InitializeFetchRequest(req.Get(), table.Path);
-                ToProto(req->mutable_ranges(), std::vector<TReadRange>({range}));
+                ToProto(req->mutable_ranges(), std::vector<TReadRange>({adjustedRange}));
                 req->set_fetch_all_meta_extensions(true);
                 req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
                 SetTransactionId(req, Operation->GetInputTransaction());
-                batchReq->AddRequest(req, "fetch_input_table_" + ::ToString(tableIndex));
+                batchReq->AddRequest(req, Format("fetch_input_table_%v", tableIndex));
             }
         }
     }
@@ -2619,7 +2620,7 @@ void TOperationControllerBase::FetchInputTables()
             continue;
         }
 
-        auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_input_table_" + ::ToString(tableIndex));
+        auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>(Format("fetch_input_table_%v", tableIndex));
         for (const auto& rspOrError : rspsOrError) {
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching input table %v", table.Path.GetPath());
             const auto& rsp = rspOrError.Value();
