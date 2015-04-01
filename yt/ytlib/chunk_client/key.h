@@ -100,7 +100,7 @@ public:
 
     void SetValue(double value)
     {
-        if (!IsValidFloat(value)) {
+        if (IsNan(value)) {
             THROW_ERROR_EXCEPTION(EErrorCode::InvalidDoubleValue, "Invalid double value in table data");
         }
         Type_ = EKeyPartType::Double;

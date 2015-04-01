@@ -3629,7 +3629,7 @@ bool TOperationControllerBase::ValidateKey(const NChunkClient::NProto::TKey& key
             continue;
         }
 
-        if (!IsValidFloat(keyPart.double_value())) {
+        if (IsNan(keyPart.double_value())) {
             return false;
         }
     }

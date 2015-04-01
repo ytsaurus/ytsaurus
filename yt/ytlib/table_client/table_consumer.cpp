@@ -80,7 +80,7 @@ void TTableConsumer::OnDoubleScalar(double value)
     if (Depth == 0) {
         ThrowMapExpected();
     } else {
-        if (!IsValidFloat(value)) {
+        if (IsNan(value)) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::InvalidDoubleValue, 
                 "Failed to parse double value: \"%f\" is not a valid double",
