@@ -30,6 +30,8 @@
 #include <ytlib/new_table_client/schemaful_writer.h>
 
 #ifdef YT_USE_LLVM
+#include <udfs/exponentiate.h>
+
 #include <ytlib/query_client/folding_profiler.h>
 #endif
 
@@ -1983,6 +1985,21 @@ protected:
         WriterMock_ = New<StrictMock<TWriterMock>>();
 
         ActionQueue_ = New<TActionQueue>("Test");
+
+        AbsoluteUDF_ = New<TUserDefinedFunction>(
+            "absolute",
+            std::vector<EValueType>{EValueType::Int64},
+            EValueType::Int64,
+            TSharedRef::FromRefNonOwning(TRef(
+                absolute_bc,
+                absolute_bc_len)));
+        ExponentiateUDF_ = New<TUserDefinedFunction>(
+            "exponentiate",
+            std::vector<EValueType>{EValueType::Int64, EValueType::Int64},
+            EValueType::Int64,
+            TSharedRef::FromRefNonOwning(TRef(
+                exponentiate_bc,
+                exponentiate_bc_len)));
     }
 
     virtual void TearDown() override
@@ -2145,6 +2162,8 @@ protected:
     TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
     TActionQueuePtr ActionQueue_;
 
+    IFunctionDescriptorPtr AbsoluteUDF_;
+    IFunctionDescriptorPtr ExponentiateUDF_;
 };
 
 std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
@@ -3145,19 +3164,9 @@ TEST_F(TQueryEvaluateTest, TestUdf)
         "x=10"
     }, resultSplit);
 
-    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
-        absolute_bc,
-        absolute_bc_len));
-
-    auto absoluteDescriptor = New<TUserDefinedFunction>(
-        "absolute",
-        std::vector<EValueType>{EValueType::Int64},
-        EValueType::Int64,
-        fileRef);
-
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     EXPECT_CALL(*registry, FindFunction("absolute"))
-        .WillRepeatedly(Return(absoluteDescriptor));
+        .WillRepeatedly(Return(AbsoluteUDF_));
 
     Evaluate("absolute(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
@@ -3246,6 +3255,74 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
         .WillOnce(Return(invalidArgumentUdf));
 
     EvaluateExpectingError("absolute(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestUdfNullPropagation)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;",
+        "a=-2;b=-20",
+        "a=9;",
+        "b=-10"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "",
+        "x=20",
+        "",
+        "x=10"
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("absolute"))
+        .WillRepeatedly(Return(AbsoluteUDF_));
+
+    Evaluate("absolute(b) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUdfNullPropagation2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;",
+        "a=2;b=10",
+        "b=9",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "",
+        "x=1024",
+        "",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("exponentiate"))
+        .WillRepeatedly(Return(ExponentiateUDF_));
+
+    Evaluate("exponentiate(a, b) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
