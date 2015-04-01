@@ -214,6 +214,12 @@ public:
         return TSharedRef(Holder_, sliceRef);
     }
 
+    //! Creates a reference to the prefix of currently held data.
+    TSharedRef Trim(size_t size) const
+    {
+        return Slice(TRef(const_cast<char*>(Begin()), size));
+    }
+
     FORCED_INLINE operator const TRef&() const
     {
         return Ref_;

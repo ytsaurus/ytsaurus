@@ -210,7 +210,7 @@ private:
 
         auto bytes = result.Value();
         if (bytes == 0) {
-            promise.Set(offset == 0 ? TSharedRef() : block.Slice(TRef(block.Begin(), offset)));
+            promise.Set(offset == 0 ? TSharedRef() : block.Trim(offset));
             return;
         }
 
