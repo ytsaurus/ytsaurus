@@ -7,7 +7,7 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <util/generic/ymath.h>
+#include <cmath>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -237,7 +237,7 @@ void TTableConsumer::OnDoubleScalar(double value)
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else if (Depth_ == 1) {
-        if (!IsValidFloat(value)) {
+        if (std::isnan(value)) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::InvalidDoubleValue, 
                "Failed to parse double value: %Qv is not a valid double",

@@ -593,8 +593,8 @@ void ValidateValue(const TUnversionedValue& value)
             break;
 
         case EValueType::Double:
-            if (!std::isfinite(value.Data.Double)) {
-                THROW_ERROR_EXCEPTION("Value of type \"double\" is not finite");
+            if (std::isnan(value.Data.Double)) {
+                THROW_ERROR_EXCEPTION("Value of type \"double\" is not a number");
             }
             break;
 
