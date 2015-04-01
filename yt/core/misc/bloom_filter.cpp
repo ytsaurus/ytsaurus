@@ -56,7 +56,7 @@ int TBloomFilter::GetVersion()
 
 TSharedRef TBloomFilter::Bitmap() const
 {
-    return Data_.Slice(TRef(const_cast<char*>(Data_.Begin()), Size()));
+    return Data_.Trim(Size());
 }
 
 bool TBloomFilter::Contains(TFingerprint fingerprint) const
