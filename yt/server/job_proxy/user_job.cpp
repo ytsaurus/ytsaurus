@@ -66,11 +66,6 @@ using namespace NPipes;
 using NJobTrackerClient::NProto::TJobResult;
 using NScheduler::NProto::TUserJobSpec;
 
-using NPipes::TAsyncReader;
-using NPipes::TAsyncReaderPtr;
-using NPipes::TAsyncWriter;
-using NPipes::TAsyncWriterPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
@@ -208,7 +203,7 @@ private:
 
     TPromise<void> JobErrorPromise_;
 
-    std::atomic<bool> Prepared_ = {false};
+    std::atomic<bool> Prepared_ = { false };
 
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
