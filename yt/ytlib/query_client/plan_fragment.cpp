@@ -273,20 +273,19 @@ void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
     YUNREACHABLE();
 };
 
-DECLARE_REFCOUNTED_CLASS(TSchemaProxy)
+DECLARE_REFCOUNTED_STRUCT(ISchemaProxy)
 
-class TSchemaProxy
+struct ISchemaProxy
     : public TIntrinsicRefCounted
 {
-public:
-    explicit TSchemaProxy(TTableSchema* tableSchema)
-        : TableSchema_(tableSchema)
+    TTableSchema* TableSchema;
+
+    explicit ISchemaProxy(TTableSchema* tableSchema)
+        : TableSchema(tableSchema)
     { }
 
     // NOTE: result must be used before next call
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) = 0;
-
-    // NOTE: result must be used before next call
     virtual const TColumnSchema* GetAggregateColumnPtr(
         EAggregateFunction aggregateFunction,
         const NAst::TExpression* arguments,
@@ -375,8 +374,11 @@ public:
             auto typedOperandExpr = BuildTypedExpression(unaryExpr->Operand.Get(), source, functionRegistry);
 
             for (const auto& operand : typedOperandExpr) {
-                if (auto foldedExpr = FoldConstants(unaryExpr, operand)) {
-                    result.push_back(foldedExpr);
+                if (auto foldedValue = FoldConstants(unaryExpr->Opcode, operand)) {
+                    result.push_back(New<TLiteralExpression>(
+                        unaryExpr->SourceLocation,
+                        EValueType(foldedValue->Type),
+                        *foldedValue));
                 } else {
                     result.push_back(New<TUnaryOpExpression>(
                         unaryExpr->SourceLocation,
@@ -394,8 +396,11 @@ public:
 
             auto makeBinaryExpr = [&] (EBinaryOp op, const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs) -> TConstExpressionPtr {
                 auto type = InferBinaryExprType(op, lhs->Type, rhs->Type, binaryExpr->GetSource(source));
-                if (auto foldedExpr = FoldConstants(binaryExpr, lhs, rhs)) {
-                    return foldedExpr;
+                if (auto foldedValue = FoldConstants(op, lhs, rhs)) {
+                    return New<TLiteralExpression>(
+                        binaryExpr->SourceLocation,
+                        EValueType(foldedValue->Type),
+                        *foldedValue);
                 } else {
                     return New<TBinaryOpExpression>(binaryExpr->SourceLocation, type, op, lhs, rhs);
                 }
@@ -455,6 +460,7 @@ public:
 
             std::unordered_set<Stroka> references;
             std::vector<EValueType> argTypes;
+
             for (const auto& arg : inExprOperands) {
                 argTypes.push_back(arg->Type);
                 if (auto reference = arg->As<TReferenceExpression>()) {
@@ -537,389 +543,301 @@ protected:
         return result;
     }
 
-    TConstExpressionPtr FoldConstants(
-        const NAst::TUnaryOpExpression* unaryExpr,
+    TNullable<TUnversionedValue> FoldConstants(
+        EUnaryOp opcode,
         const TConstExpressionPtr& operand)
     {
-        auto foldConstants = [] (EUnaryOp opcode, const TConstExpressionPtr& operand) -> TNullable<TUnversionedValue> {
-            if (auto literalExpr = operand->As<TLiteralExpression>()) {
-                if (opcode == EUnaryOp::Plus) {
-                    return static_cast<TUnversionedValue>(literalExpr->Value);
-                } else if (opcode == EUnaryOp::Minus) {
-                    TUnversionedValue value = literalExpr->Value;
-                    switch (value.Type) {
-                        case EValueType::Int64:
-                            value.Data.Int64 = -value.Data.Int64;
-                            break;
-                        case EValueType::Uint64:
-                            value.Data.Uint64 = -value.Data.Uint64;
-                            break;
-                        case EValueType::Double:
-                            value.Data.Double = -value.Data.Double;
-                            break;
-                        default:
-                            YUNREACHABLE();
-                    }
-                    return value;
+        if (auto literalExpr = operand->As<TLiteralExpression>()) {
+            if (opcode == EUnaryOp::Plus) {
+                return static_cast<TUnversionedValue>(literalExpr->Value);
+            } else if (opcode == EUnaryOp::Minus) {
+                auto value = static_cast<TUnversionedValue>(literalExpr->Value);
+                switch (value.Type) {
+                    case EValueType::Int64:
+                        value.Data.Int64 = -value.Data.Int64;
+                        break;
+                    case EValueType::Uint64:
+                        value.Data.Uint64 = -value.Data.Uint64;
+                        break;
+                    case EValueType::Double:
+                        value.Data.Double = -value.Data.Double;
+                        break;
+                    default:
+                        YUNREACHABLE();
                 }
+                return value;
             }
-            return TNullable<TUnversionedValue>();
-        };
-
-        if (auto value = foldConstants(unaryExpr->Opcode, operand)) {
-            return New<TLiteralExpression>(
-                unaryExpr->SourceLocation,
-                EValueType(value->Type),
-                *value);
         }
-
-        return TConstExpressionPtr();
+        return TNullable<TUnversionedValue>();
     }
 
-    TConstExpressionPtr FoldConstants(
-        const NAst::TBinaryOpExpression* binaryExpr,
+    TNullable<TUnversionedValue> FoldConstants(
+        EBinaryOp opcode,
         const TConstExpressionPtr& lhsExpr,
         const TConstExpressionPtr& rhsExpr)
     {
-        auto foldConstants = [] (
-            EBinaryOp opcode,
-            const TConstExpressionPtr& lhsExpr,
-            const TConstExpressionPtr& rhsExpr)
-            -> TNullable<TUnversionedValue>
-        {
-            auto lhsLiteral = lhsExpr->As<TLiteralExpression>();
-            auto rhsLiteral = rhsExpr->As<TLiteralExpression>();
-            if (lhsLiteral && rhsLiteral) {
-                auto lhs = static_cast<TUnversionedValue>(lhsLiteral->Value);
-                auto rhs = static_cast<TUnversionedValue>(rhsLiteral->Value);
-                YCHECK(lhs.Type == rhs.Type);
+        auto lhsLiteral = lhsExpr->As<TLiteralExpression>();
+        auto rhsLiteral = rhsExpr->As<TLiteralExpression>();
+        if (lhsLiteral && rhsLiteral) {
+            auto lhs = static_cast<TUnversionedValue>(lhsLiteral->Value);
+            auto rhs = static_cast<TUnversionedValue>(rhsLiteral->Value);
+            YCHECK(lhs.Type == rhs.Type);
 
-                switch (opcode) {
-                    case EBinaryOp::Plus:
-                        switch (lhs.Type) {
-                            case EValueType::Int64:
-                                lhs.Data.Int64 += rhs.Data.Int64;
-                                return lhs;
-                            case EValueType::Uint64:
-                                lhs.Data.Uint64 += rhs.Data.Uint64;
-                                return lhs;
-                            case EValueType::Double:
-                                lhs.Data.Double += rhs.Data.Double;
-                                return lhs;
-                            default:
-                                break;
-                        }
-                        break;
-                    case EBinaryOp::Minus:
-                        switch (lhs.Type) {
-                            case EValueType::Int64:
-                                lhs.Data.Int64 -= rhs.Data.Int64;
-                                return lhs;
-                            case EValueType::Uint64:
-                                lhs.Data.Uint64 -= rhs.Data.Uint64;
-                                return lhs;
-                            case EValueType::Double:
-                                lhs.Data.Double -= rhs.Data.Double;
-                                return lhs;
-                            default:
-                                break;
-                        }
-                        break;
-                    case EBinaryOp::Multiply:
-                        switch (lhs.Type) {
-                            case EValueType::Int64:
-                                lhs.Data.Int64 *= rhs.Data.Int64;
-                                return lhs;
-                            case EValueType::Uint64:
-                                lhs.Data.Uint64 *= rhs.Data.Uint64;
-                                return lhs;
-                            case EValueType::Double:
-                                lhs.Data.Double *= rhs.Data.Double;
-                                return lhs;
-                            default:
-                                break;
-                        }
-                        break;
-                    case EBinaryOp::Divide:
-                        switch (lhs.Type) {
-                            case EValueType::Int64:
-                                if (rhs.Data.Int64 == 0) {
-                                    THROW_ERROR_EXCEPTION("Division by zero");
-                                }
-                                lhs.Data.Int64 /= rhs.Data.Int64;
-                                return lhs;
-                            case EValueType::Uint64:
-                                if (rhs.Data.Uint64 == 0) {
-                                    THROW_ERROR_EXCEPTION("Division by zero");
-                                }
-                                lhs.Data.Uint64 /= rhs.Data.Uint64;
-                                return lhs;
-                            case EValueType::Double:
-                                if (std::abs(rhs.Data.Double) <= std::numeric_limits<double>::epsilon()) {
-                                    THROW_ERROR_EXCEPTION("Division by zero");
-                                }
-                                lhs.Data.Double /= rhs.Data.Double;
-                                return lhs;
-                            default:
-                                break;
-                        }
-                        break;
-                    case EBinaryOp::Modulo:
-                        switch (lhs.Type) {
-                            case EValueType::Int64:
-                                if (rhs.Data.Int64 == 0) {
-                                    THROW_ERROR_EXCEPTION("Division by zero");
-                                }
-                                lhs.Data.Int64 %= rhs.Data.Int64;
-                                return lhs;
-                            case EValueType::Uint64:
-                                if (rhs.Data.Uint64 == 0) {
-                                    THROW_ERROR_EXCEPTION("Division by zero");
-                                }
-                                lhs.Data.Uint64 %= rhs.Data.Uint64;
-                                return lhs;
-                            default:
-                                break;
-                        }
-                        break;
-                    case EBinaryOp::And:
-                        switch (lhs.Type) {
-                            case EValueType::Boolean:
-                                lhs.Data.Boolean = lhs.Data.Boolean && rhs.Data.Boolean;
-                                return lhs;
-                            default:
-                                break;
-                        }
-                        break;
-                    case EBinaryOp::Or:
-                        switch (lhs.Type) {
-                            case EValueType::Boolean:
-                                lhs.Data.Boolean = lhs.Data.Boolean || rhs.Data.Boolean;
-                                return lhs;
-                            default:
-                                break;
-                        }
-                        break;
-                    case EBinaryOp::Equal:
-                        return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) == 0);
-                        break;
-                    case EBinaryOp::NotEqual:
-                        return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) != 0);
-                        break;
-                    case EBinaryOp::Less:
-                        return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) < 0);
-                        break;
-                    case EBinaryOp::Greater:
-                        return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) > 0);
-                        break;
-                    case EBinaryOp::LessOrEqual:
-                        return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) <= 0);
-                        break;
-                    case EBinaryOp::GreaterOrEqual:
-                        return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) >= 0);
-                        break;
-                    default:
-                        break;
-                }
-            }
-            return TNullable<TUnversionedValue>();
-        };
-
-        if (auto value = foldConstants(binaryExpr->Opcode, lhsExpr, rhsExpr)) {
-            return New<TLiteralExpression>(
-                binaryExpr->SourceLocation,
-                EValueType(value->Type),
-                *value);
-        }
-
-        if (binaryExpr->Opcode == EBinaryOp::Divide) {
-            auto lhsBinaryExpr = lhsExpr->As<TBinaryOpExpression>();
-            auto rhsLiteralExpr = rhsExpr->As<TLiteralExpression>();
-            if (lhsBinaryExpr && rhsLiteralExpr && lhsBinaryExpr->Opcode == EBinaryOp::Divide) {
-                auto lhsLiteralExpr = lhsBinaryExpr->Rhs->As<TLiteralExpression>();
-                if (lhsLiteralExpr) {
-                    TUnversionedValue lhs = lhsLiteralExpr->Value;
-                    TUnversionedValue rhs = rhsLiteralExpr->Value;
-                    YCHECK(lhs.Type == rhs.Type);
-
-                    auto overflow = [] (ui64 a, ui64 b, bool isSigned) {
-                        auto rsh = [] (ui64 base, int amount) {return base >> amount;};
-                        auto lower = [] (ui64 base) {return base & 0xffffffff;};
-                        ui64 a1 = lower(a);
-                        ui64 a2 = rsh(a, 32);
-                        ui64 b1 = lower(b);
-                        ui64 b2 = rsh(b, 32);
-                        int shift = isSigned ? 31 : 32;
-                        return (a2 * b2 != 0 ||
-                            rsh(a1 * b2, shift) != 0 ||
-                            rsh(a2 * b1, shift) != 0 ||
-                            rsh(lower(a1 * b2) + lower(a2 * b1) + rsh(a1 * b1, 32), shift) != 0);
-                    };
-
-                    auto makeBinaryExpr = [&] (TUnversionedValue divisor) {
-                        return New<TBinaryOpExpression>(
-                            binaryExpr->SourceLocation,
-                            divisor.Type,
-                            EBinaryOp::Divide,
-                            lhsBinaryExpr->Lhs,
-                            New<TLiteralExpression>(
-                                rhsLiteralExpr->SourceLocation,
-                                divisor.Type,
-                                divisor));
-                    };
-
+            switch (opcode) {
+                case EBinaryOp::Plus:
                     switch (lhs.Type) {
                         case EValueType::Int64:
-                            if (!overflow(lhs.Data.Int64, rhs.Data.Int64, true)) {
-                                lhs.Data.Int64 *= rhs.Data.Int64;
-                                return makeBinaryExpr(lhs);
-                            }
-                            break;
+                            lhs.Data.Int64 += rhs.Data.Int64;
+                            return lhs;
                         case EValueType::Uint64:
-                            if (!overflow(lhs.Data.Uint64, rhs.Data.Uint64, false)) {
-                                lhs.Data.Uint64 *= rhs.Data.Uint64;
-                                return makeBinaryExpr(lhs);
-                            }
-                            break;
+                            lhs.Data.Uint64 += rhs.Data.Uint64;
+                            return lhs;
+                        case EValueType::Double:
+                            lhs.Data.Double += rhs.Data.Double;
+                            return lhs;
                         default:
                             break;
                     }
-                }
+                    break;
+                case EBinaryOp::Minus:
+                    switch (lhs.Type) {
+                        case EValueType::Int64:
+                            lhs.Data.Int64 -= rhs.Data.Int64;
+                            return lhs;
+                        case EValueType::Uint64:
+                            lhs.Data.Uint64 -= rhs.Data.Uint64;
+                            return lhs;
+                        case EValueType::Double:
+                            lhs.Data.Double -= rhs.Data.Double;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::Multiply:
+                    switch (lhs.Type) {
+                        case EValueType::Int64:
+                            lhs.Data.Int64 *= rhs.Data.Int64;
+                            return lhs;
+                        case EValueType::Uint64:
+                            lhs.Data.Uint64 *= rhs.Data.Uint64;
+                            return lhs;
+                        case EValueType::Double:
+                            lhs.Data.Double *= rhs.Data.Double;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::Divide:
+                    switch (lhs.Type) {
+                        case EValueType::Int64:
+                            if (rhs.Data.Int64 == 0) {
+                                THROW_ERROR_EXCEPTION("Division by zero");
+                            }
+                            lhs.Data.Int64 /= rhs.Data.Int64;
+                            return lhs;
+                        case EValueType::Uint64:
+                            if (rhs.Data.Uint64 == 0) {
+                                THROW_ERROR_EXCEPTION("Division by zero");
+                            }
+                            lhs.Data.Uint64 /= rhs.Data.Uint64;
+                            return lhs;
+                        case EValueType::Double:
+                            if (std::abs(rhs.Data.Double) <= std::numeric_limits<double>::epsilon()) {
+                                THROW_ERROR_EXCEPTION("Division by zero");
+                            }
+                            lhs.Data.Double /= rhs.Data.Double;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::Modulo:
+                    switch (lhs.Type) {
+                        case EValueType::Int64:
+                            if (rhs.Data.Int64 == 0) {
+                                THROW_ERROR_EXCEPTION("Division by zero");
+                            }
+                            lhs.Data.Int64 %= rhs.Data.Int64;
+                            return lhs;
+                        case EValueType::Uint64:
+                            if (rhs.Data.Uint64 == 0) {
+                                THROW_ERROR_EXCEPTION("Division by zero");
+                            }
+                            lhs.Data.Uint64 %= rhs.Data.Uint64;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::And:
+                    switch (lhs.Type) {
+                        case EValueType::Boolean:
+                            lhs.Data.Boolean = lhs.Data.Boolean && rhs.Data.Boolean;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::Or:
+                    switch (lhs.Type) {
+                        case EValueType::Boolean:
+                            lhs.Data.Boolean = lhs.Data.Boolean || rhs.Data.Boolean;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::Equal:
+                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) == 0);
+                    break;
+                case EBinaryOp::NotEqual:
+                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) != 0);
+                    break;
+                case EBinaryOp::Less:
+                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) < 0);
+                    break;
+                case EBinaryOp::Greater:
+                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) > 0);
+                    break;
+                case EBinaryOp::LessOrEqual:
+                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) <= 0);
+                    break;
+                case EBinaryOp::GreaterOrEqual:
+                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) >= 0);
+                    break;
+                default:
+                    break;
             }
         }
 
-        return TConstExpressionPtr();
+        return TNullable<TUnversionedValue>();
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TSchemaProxy)
+DEFINE_REFCOUNTED_TYPE(ISchemaProxy)
 
-class TSimpleSchemaProxy
-    : public TSchemaProxy
+struct TSimpleSchemaProxy
+    : public ISchemaProxy
 {
-public:
+    TNullable<TTableSchema> SourceTableSchema;
+
     explicit TSimpleSchemaProxy(
         TTableSchema* tableSchema)
-        : TSchemaProxy(tableSchema)
+        : ISchemaProxy(tableSchema)
     { }
     
     TSimpleSchemaProxy(
         TTableSchema* tableSchema,
         const TTableSchema& sourceTableSchema,
         size_t keyColumnCount = 0)
-        : TSchemaProxy(tableSchema)
-        , SourceTableSchema_(sourceTableSchema)
+        : ISchemaProxy(tableSchema)
+        , SourceTableSchema(sourceTableSchema)
     {
         const auto& columns = sourceTableSchema.Columns();
         size_t count = std::min(sourceTableSchema.HasComputedColumns() ? keyColumnCount : 0, columns.size());
         for (size_t i = 0; i < count; ++i) {
-            AddColumn(GetTableSchema(), columns[i]);
+            AddColumn(TableSchema, columns[i]);
+        }
+    }
+
+    virtual void Finish()
+    {
+        if (SourceTableSchema) {
+            for (const auto& column : SourceTableSchema->Columns()) {
+                if (!TableSchema->FindColumn(column.Name)) {
+                    AddColumn(TableSchema, column);
+                }
+            }
         }
     }
 
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
     {
-        const auto* column = GetTableSchema()->FindColumn(name);
+        const auto* column = TableSchema->FindColumn(name);
 
         !column
-            && SourceTableSchema_
-            && (column = SourceTableSchema_->FindColumn(name))
-            && (column = AddColumn(GetTableSchema(), *column));       
+            && SourceTableSchema
+            && (column = SourceTableSchema->FindColumn(name))
+            && (column = AddColumn(TableSchema, *column));       
 
         return column;
     }
-
-    virtual void Finish()
-    {
-        if (SourceTableSchema_) {
-            for (const auto& column : SourceTableSchema_->Columns()) {
-                if (!GetTableSchema()->FindColumn(column.Name)) {
-                    AddColumn(GetTableSchema(), column);
-                }
-            }
-        }
-    }
-
-private:
-    TNullable<TTableSchema> SourceTableSchema_;
-
 };
 
-class TJoinSchemaProxy
-    : public TSchemaProxy
+struct TJoinSchemaProxy
+    : public ISchemaProxy
 {
-public:
+    ISchemaProxyPtr Self;
+    ISchemaProxyPtr Foreign;
+
     TJoinSchemaProxy(
         TTableSchema* tableSchema,
-        TSchemaProxyPtr self,
-        TSchemaProxyPtr foreign)
-        : TSchemaProxy(tableSchema)
-        , Self_(self)
-        , Foreign_(foreign)
+        ISchemaProxyPtr self,
+        ISchemaProxyPtr foreign)
+        : ISchemaProxy(tableSchema)
+        , Self(self)
+        , Foreign(foreign)
     { }
+
+    virtual void Finish()
+    {
+        Self->Finish();
+        Foreign->Finish();
+
+        for (const auto& column : Self->TableSchema->Columns()) {
+            if (!TableSchema->FindColumn(column.Name)) {
+                AddColumn(TableSchema, column);
+            }
+        }
+
+        for (const auto& column : Foreign->TableSchema->Columns()) {
+            if (!TableSchema->FindColumn(column.Name)) {
+                AddColumn(TableSchema, column);
+            }
+        }
+    }
 
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
     {
-        auto tableSchema = GetTableSchema();
-        const TColumnSchema* column = tableSchema->FindColumn(name);
+        const TColumnSchema* column = TableSchema->FindColumn(name);
 
         if (!column) {
-            if (column = Self_->GetColumnPtr(name)) {
-                if (Foreign_->GetColumnPtr(name)) {
+            if (column = Self->GetColumnPtr(name)) {
+                if (Foreign->GetColumnPtr(name)) {
                     THROW_ERROR_EXCEPTION("Column %Qv collision", name);
                 } else {
-                    column = AddColumn(tableSchema, *column);
+                    column = AddColumn(TableSchema, *column);
                 }
-            } else if (column = Foreign_->GetColumnPtr(name)) {
-                column = AddColumn(tableSchema, *column);
+            } else if (column = Foreign->GetColumnPtr(name)) {
+                column = AddColumn(TableSchema, *column);
             }
         }
 
         return column;
     }
 
-    virtual void Finish()
-    {
-        Self_->Finish();
-        Foreign_->Finish();
-
-        auto tableSchema = GetTableSchema();
-
-        for (const auto& column : Self_->GetTableSchema()->Columns()) {
-            if (!tableSchema->FindColumn(column.Name)) {
-                AddColumn(tableSchema, column);
-            }
-        }
-
-        for (const auto& column : Foreign_->GetTableSchema()->Columns()) {
-            if (!tableSchema->FindColumn(column.Name)) {
-                AddColumn(tableSchema, column);
-            }
-        }
-    }
-
-private:
-    TSchemaProxyPtr Self_;
-    TSchemaProxyPtr Foreign_;
-
 };
 
-class TGroupSchemaProxy
-    : public TSchemaProxy
+struct TGroupSchemaProxy
+    : public ISchemaProxy
 {
-public:
+    ISchemaProxyPtr Base;
+    TAggregateItemList* AggregateItems;
+
     TGroupSchemaProxy(
         TTableSchema* tableSchema,
-        TSchemaProxyPtr base,
+        ISchemaProxyPtr base,
         TAggregateItemList* aggregateItems)
-        : TSchemaProxy(tableSchema)
-        , Base_(base)
-        , AggregateItems_(aggregateItems)
+        : ISchemaProxy(tableSchema)
+        , Base(base)
+        , AggregateItems(aggregateItems)
     { }
 
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
     {
-        return GetTableSchema()->FindColumn(name);
+        return TableSchema->FindColumn(name);
     }
 
     virtual const TColumnSchema* GetAggregateColumnPtr(
@@ -929,10 +847,10 @@ public:
         Stroka source,
         IFunctionRegistry* functionRegistry)
     {
-        const TColumnSchema* aggregateColumn = GetTableSchema()->FindColumn(subexprName);
+        const TColumnSchema* aggregateColumn = TableSchema->FindColumn(subexprName);
 
         if (!aggregateColumn) {
-            auto typedOperands = Base_->BuildTypedExpression(
+            auto typedOperands = Base->BuildTypedExpression(
                 arguments,
                 source,
                 functionRegistry);
@@ -945,27 +863,22 @@ public:
 
             CheckExpressionDepth(typedOperands.front());
 
-            AggregateItems_->emplace_back(
+            AggregateItems->emplace_back(
                 typedOperands.front(),
                 aggregateFunction,
                 subexprName);
 
-            aggregateColumn = AddColumn(GetTableSchema(), TColumnSchema(subexprName, typedOperands.front()->Type));
+            aggregateColumn = AddColumn(TableSchema, TColumnSchema(subexprName, typedOperands.front()->Type));
         }
 
         return aggregateColumn;
     }
-
-private:
-    TSchemaProxyPtr Base_;
-    TAggregateItemList* AggregateItems_;
-
 };
 
 TConstExpressionPtr BuildWhereClause(
     NAst::TExpressionPtr& expressionAst,
     const Stroka& source,
-    const TSchemaProxyPtr& schemaProxy,
+    const ISchemaProxyPtr& schemaProxy,
     IFunctionRegistry* functionRegistry)
 {
     auto typedPredicate = schemaProxy->BuildTypedExpression(
@@ -996,7 +909,7 @@ TConstExpressionPtr BuildWhereClause(
 TConstGroupClausePtr BuildGroupClause(
     NAst::TNullableNamedExprs& expressionsAst,
     const Stroka& source,
-    TSchemaProxyPtr& schemaProxy,
+    ISchemaProxyPtr& schemaProxy,
     IFunctionRegistry* functionRegistry)
 {
     auto groupClause = New<TGroupClause>();
@@ -1027,7 +940,7 @@ TConstGroupClausePtr BuildGroupClause(
 TConstProjectClausePtr BuildProjectClause(
     NAst::TNullableNamedExprs& expressionsAst,
     const Stroka& source,
-    TSchemaProxyPtr& schemaProxy,
+    ISchemaProxyPtr& schemaProxy,
     IFunctionRegistry* functionRegistry)
 {
     auto projectClause = New<TProjectClause>();
@@ -1055,13 +968,17 @@ TConstProjectClausePtr BuildProjectClause(
     return projectClause;
 }
 
-void PrepareQuery(
-    const TQueryPtr& query,
+TQueryPtr PrepareQuery(
     NAst::TQuery& ast,
     const Stroka& source,
-    TSchemaProxyPtr& schemaProxy,
+    i64 inputRowLimit,
+    i64 outputRowLimit,
+    const TTableSchema& tableSchema,
     IFunctionRegistry* functionRegistry)
 {
+    auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
+    ISchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
+
     if (ast.WherePredicate) {
         query->WhereClause = BuildWhereClause(ast.WherePredicate, source, schemaProxy, functionRegistry);
     }
@@ -1070,17 +987,13 @@ void PrepareQuery(
         query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy, functionRegistry);
     }
 
-    if (ast.OrderFields) {
-        auto orderClause = New<TOrderClause>();
-        orderClause->OrderColumns = ast.OrderFields.Get();
-        query->OrderClause = std::move(orderClause);
-    }
-
     if (ast.SelectExprs) {
         query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy, functionRegistry);
     }
 
     schemaProxy->Finish();
+
+    return query;
 }
 
 void ParseYqlString(
@@ -1118,7 +1031,7 @@ TPlanFragmentPtr PreparePlanFragment(
     TDataSplit foreignDataSplit;
 
     auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
-    TSchemaProxyPtr schemaProxy;
+    ISchemaProxyPtr schemaProxy;
     
     if (auto simpleSource = ast.Source->As<NAst::TSimpleSource>()) {
         LOG_DEBUG("Getting initial data split for %v", simpleSource->Path);
@@ -1183,17 +1096,27 @@ TPlanFragmentPtr PreparePlanFragment(
     } else {
         YUNREACHABLE();
     }
+    
+    if (ast.WherePredicate) {
+        query->WhereClause = BuildWhereClause(ast.WherePredicate, source, schemaProxy, functionRegistry);
+    }
 
-    PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
+    if (ast.GroupExprs) {
+        query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy, functionRegistry);
+    }
+
+    if (ast.SelectExprs) {
+        query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy, functionRegistry);
+    }
+
+    schemaProxy->Finish();
 
     auto planFragment = New<TPlanFragment>(source);
     planFragment->NodeDirectory = New<TNodeDirectory>();
     
     if (ast.Limit) {
         query->Limit = ast.Limit;
-        if (!query->OrderClause) {
-            planFragment->Ordered = true;
-        }
+        planFragment->Ordered = true;
     }
 
     planFragment->Query = query;
@@ -1235,10 +1158,8 @@ TPlanFragmentPtr PrepareJobPlanFragment(
     auto planFragment = New<TPlanFragment>(source);
     auto unlimited = std::numeric_limits<i64>::max();
 
-    auto query = New<TQuery>(unlimited, unlimited, TGuid::Create());
-    TSchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
+    auto query = PrepareQuery(ast, source, unlimited, unlimited, tableSchema, functionRegistry);
 
-    PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
     planFragment->Query = query;
 
     return planFragment;
@@ -1452,14 +1373,6 @@ void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
     ToProto(serialized->mutable_name(), original.Name);
 }
 
-void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
-{
-    ToProto(proto->mutable_join_columns(), original->JoinColumns);
-    ToProto(proto->mutable_joined_table_schema(), original->JoinedTableSchema);
-    ToProto(proto->mutable_foreign_table_schema(), original->ForeignTableSchema);
-    ToProto(proto->mutable_foreign_key_columns(), original->ForeignKeyColumns);
-}
-
 void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
 {
     ToProto(proto->mutable_group_items(), original->GroupItems);
@@ -1471,9 +1384,12 @@ void ToProto(NProto::TProjectClause* proto, const TConstProjectClausePtr& origin
     ToProto(proto->mutable_projections(), original->Projections);
 }
 
-void ToProto(NProto::TOrderClause* proto, const TConstOrderClausePtr& original)
+void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
 {
-    ToProto(proto->mutable_order_columns(), original->OrderColumns);
+    ToProto(proto->mutable_join_columns(), original->JoinColumns);
+    ToProto(proto->mutable_joined_table_schema(), original->JoinedTableSchema);
+    ToProto(proto->mutable_foreign_table_schema(), original->ForeignTableSchema);
+    ToProto(proto->mutable_foreign_key_columns(), original->ForeignKeyColumns);
 }
 
 void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
@@ -1498,10 +1414,6 @@ void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
     if (original->GroupClause) {
         ToProto(proto->mutable_group_clause(), original->GroupClause);
     }
-
-    if (original->OrderClause) {
-        ToProto(proto->mutable_order_clause(), original->OrderClause);
-    }
     
     if (original->ProjectClause) {
         ToProto(proto->mutable_project_clause(), original->ProjectClause);
@@ -1521,22 +1433,6 @@ TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
         FromProto(serialized.expression()),
         EAggregateFunction(serialized.aggregate_function()),
         serialized.name());
-}
-
-TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
-{
-    auto result = New<TJoinClause>();
-
-    result->JoinColumns.reserve(serialized.join_columns_size());
-    for (int i = 0; i < serialized.join_columns_size(); ++i) {
-        result->JoinColumns.push_back(serialized.join_columns(i));
-    }
-
-    FromProto(&result->JoinedTableSchema, serialized.joined_table_schema());
-    FromProto(&result->ForeignTableSchema, serialized.foreign_table_schema());
-    FromProto(&result->ForeignKeyColumns, serialized.foreign_key_columns());
-
-    return result;
 }
 
 TGroupClausePtr FromProto(const NProto::TGroupClause& serialized)
@@ -1566,14 +1462,18 @@ TProjectClausePtr FromProto(const NProto::TProjectClause& serialized)
     return result;
 }
 
-TOrderClausePtr FromProto(const NProto::TOrderClause& serialized)
+TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
 {
-    auto result = New<TOrderClause>();
+    auto result = New<TJoinClause>();
 
-    result->OrderColumns.reserve(serialized.order_columns_size());
-    for (int i = 0; i < serialized.order_columns_size(); ++i) {
-        result->OrderColumns.push_back(serialized.order_columns(i));
+    result->JoinColumns.reserve(serialized.join_columns_size());
+    for (int i = 0; i < serialized.join_columns_size(); ++i) {
+        result->JoinColumns.push_back(serialized.join_columns(i));
     }
+
+    FromProto(&result->JoinedTableSchema, serialized.joined_table_schema());
+    FromProto(&result->ForeignTableSchema, serialized.foreign_table_schema());
+    FromProto(&result->ForeignKeyColumns, serialized.foreign_key_columns());
 
     return result;
 }
@@ -1600,10 +1500,6 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
 
     if (serialized.has_group_clause()) {
         query->GroupClause = FromProto(serialized.group_clause());       
-    }
-
-    if (serialized.has_order_clause()) {
-        query->OrderClause = FromProto(serialized.order_clause());       
     }
 
     if (serialized.has_project_clause()) {
