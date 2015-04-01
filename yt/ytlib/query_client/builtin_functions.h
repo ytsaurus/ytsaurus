@@ -1,3 +1,5 @@
+#pragma once
+
 #include "functions.h"
 
 #include <core/misc/variant.h>
@@ -198,32 +200,6 @@ public:
 
 private:
     static const TUnionType CastTypes_;
-};
-
-class TUserDefinedFunction
-    : public TTypedFunction
-    , public TUniversalRangeFunction
-{
-public:
-    TUserDefinedFunction(
-        const Stroka& functionName,
-        std::vector<EValueType> argumentTypes,
-        EValueType resultType,
-        TSharedRef implementationFile);
-
-    virtual TCodegenExpression MakeCodegenExpr(
-        std::vector<TCodegenExpression> codgenArgs,
-        EValueType type,
-        const Stroka& name) const override;
-
-private:
-    Stroka FunctionName_;
-    TSharedRef ImplementationFile_;
-    EValueType ResultType_;
-    std::vector<EValueType> ArgumentTypes_;
-
-    Function* GetLLVMFunction(TCGContext& builder) const;
-    void CheckCallee(Function* callee, TCGContext& builder) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
