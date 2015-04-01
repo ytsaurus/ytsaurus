@@ -271,19 +271,20 @@ void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
     YUNREACHABLE();
 };
 
-DECLARE_REFCOUNTED_STRUCT(ISchemaProxy)
+DECLARE_REFCOUNTED_CLASS(TSchemaProxy)
 
-struct ISchemaProxy
+class TSchemaProxy
     : public TIntrinsicRefCounted
 {
-    TTableSchema* TableSchema;
-
-    explicit ISchemaProxy(TTableSchema* tableSchema)
-        : TableSchema(tableSchema)
+public:
+    explicit TSchemaProxy(TTableSchema* tableSchema)
+        : TableSchema_(tableSchema)
     { }
 
     // NOTE: result must be used before next call
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) = 0;
+
+    // NOTE: result must be used before next call
     virtual const TColumnSchema* GetAggregateColumnPtr(
         EAggregateFunction aggregateFunction,
         const NAst::TExpression* arguments,
@@ -298,61 +299,6 @@ struct ISchemaProxy
 
     virtual void Finish()
     { }
-
-    static const TColumnSchema* AddColumn(TTableSchema* tableSchema, const TColumnSchema& column)
-    {
-        tableSchema->Columns().push_back(column);
-        return &tableSchema->Columns().back();
-    }
-
-    static TNullable<EAggregateFunction> GetAggregate(TStringBuf functionName)
-    {
-        Stroka name(functionName);
-        name.to_lower();
-
-        TNullable<EAggregateFunction> result;
-
-        if (name == "sum") {
-            result.Assign(EAggregateFunction::Sum);
-        } else if (name == "min") {
-            result.Assign(EAggregateFunction::Min);
-        } else if (name == "max") {
-            result.Assign(EAggregateFunction::Max);
-        }
-
-        return result;
-    };
-
-    static std::vector<TOwningRow> CaptureRows(
-        const NAst::TValueTupleList& literalTuples,
-        const std::vector<EValueType>& argTypes,
-        const TStringBuf& source)
-    {
-        TUnversionedOwningRowBuilder rowBuilder;
-
-        std::vector<TOwningRow> result;
-        for (const auto & tuple : literalTuples) {
-            if (tuple.size() != argTypes.size()) {
-                THROW_ERROR_EXCEPTION("IN operator arguments size mismatch")
-                    << TErrorAttribute("source", source);
-            }
-
-            for (size_t i = 0; i < tuple.size(); ++i) {
-                if (tuple[i].Type != argTypes[i]) {
-                    THROW_ERROR_EXCEPTION("IN operator types mismatch")
-                        << TErrorAttribute("source", source)
-                        << TErrorAttribute("expected", argTypes[i])
-                        << TErrorAttribute("actual", tuple[i].Type);
-                }
-
-                rowBuilder.AddValue(tuple[i]);
-            }
-            result.push_back(rowBuilder.FinishRow());
-        }
-        std::sort(result.begin(), result.end());
-
-        return result;
-    }
 
     std::vector<TConstExpressionPtr> BuildTypedExpression(
         const NAst::TExpression* expr,
@@ -547,42 +493,99 @@ struct ISchemaProxy
         return result;
     }
 
+private:
+    DEFINE_BYVAL_RO_PROPERTY(TTableSchema*, TableSchema);
+
+protected:
+    static const TColumnSchema* AddColumn(TTableSchema* tableSchema, const TColumnSchema& column)
+    {
+        tableSchema->Columns().push_back(column);
+        return &tableSchema->Columns().back();
+    }
+
+    static TNullable<EAggregateFunction> GetAggregate(TStringBuf functionName)
+    {
+        Stroka name(functionName);
+        name.to_lower();
+
+        TNullable<EAggregateFunction> result;
+
+        if (name == "sum") {
+            result.Assign(EAggregateFunction::Sum);
+        } else if (name == "min") {
+            result.Assign(EAggregateFunction::Min);
+        } else if (name == "max") {
+            result.Assign(EAggregateFunction::Max);
+        }
+
+        return result;
+    };
+
+    static std::vector<TOwningRow> CaptureRows(
+        const NAst::TValueTupleList& literalTuples,
+        const std::vector<EValueType>& argTypes,
+        const TStringBuf& source)
+    {
+        TUnversionedOwningRowBuilder rowBuilder;
+
+        std::vector<TOwningRow> result;
+        for (const auto & tuple : literalTuples) {
+            if (tuple.size() != argTypes.size()) {
+                THROW_ERROR_EXCEPTION("IN operator arguments size mismatch")
+                    << TErrorAttribute("source", source);
+            }
+
+            for (size_t i = 0; i < tuple.size(); ++i) {
+                if (tuple[i].Type != argTypes[i]) {
+                    THROW_ERROR_EXCEPTION("IN operator types mismatch")
+                        << TErrorAttribute("source", source)
+                        << TErrorAttribute("expected", argTypes[i])
+                        << TErrorAttribute("actual", tuple[i].Type);
+                }
+
+                rowBuilder.AddValue(tuple[i]);
+            }
+            result.push_back(rowBuilder.FinishRow());
+        }
+        std::sort(result.begin(), result.end());
+
+        return result;
+    }
 };
 
-DEFINE_REFCOUNTED_TYPE(ISchemaProxy)
+DEFINE_REFCOUNTED_TYPE(TSchemaProxy)
 
-struct TSimpleSchemaProxy
-    : public ISchemaProxy
+class TSimpleSchemaProxy
+    : public TSchemaProxy
 {
-    TNullable<TTableSchema> SourceTableSchema;
-
+public:
     explicit TSimpleSchemaProxy(
         TTableSchema* tableSchema)
-        : ISchemaProxy(tableSchema)
+        : TSchemaProxy(tableSchema)
     { }
     
     TSimpleSchemaProxy(
         TTableSchema* tableSchema,
         const TTableSchema& sourceTableSchema,
         size_t keyColumnCount = 0)
-        : ISchemaProxy(tableSchema)
+        : TSchemaProxy(tableSchema)
         , SourceTableSchema(sourceTableSchema)
     {
         const auto& columns = sourceTableSchema.Columns();
         size_t count = std::min(sourceTableSchema.HasComputedColumns() ? keyColumnCount : 0, columns.size());
         for (size_t i = 0; i < count; ++i) {
-            AddColumn(TableSchema, columns[i]);
+            AddColumn(GetTableSchema(), columns[i]);
         }
     }
 
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
     {
-        const auto* column = TableSchema->FindColumn(name);
+        const auto* column = GetTableSchema()->FindColumn(name);
 
         !column
             && SourceTableSchema
             && (column = SourceTableSchema->FindColumn(name))
-            && (column = AddColumn(TableSchema, *column));       
+            && (column = AddColumn(GetTableSchema(), *column));       
 
         return column;
     }
@@ -591,86 +594,93 @@ struct TSimpleSchemaProxy
     {
         if (SourceTableSchema) {
             for (const auto& column : SourceTableSchema->Columns()) {
-                if (!TableSchema->FindColumn(column.Name)) {
-                    AddColumn(TableSchema, column);
+                if (!GetTableSchema()->FindColumn(column.Name)) {
+                    AddColumn(GetTableSchema(), column);
                 }
             }
         }
     }
+
+private:
+    TNullable<TTableSchema> SourceTableSchema;
+
 };
 
-struct TJoinSchemaProxy
-    : public ISchemaProxy
+class TJoinSchemaProxy
+    : public TSchemaProxy
 {
-    ISchemaProxyPtr Self;
-    ISchemaProxyPtr Foreign;
-
+public:
     TJoinSchemaProxy(
         TTableSchema* tableSchema,
-        ISchemaProxyPtr self,
-        ISchemaProxyPtr foreign)
-        : ISchemaProxy(tableSchema)
+        TSchemaProxyPtr self,
+        TSchemaProxyPtr foreign)
+        : TSchemaProxy(tableSchema)
         , Self(self)
         , Foreign(foreign)
     { }
 
-    virtual void Finish()
-    {
-        Self->Finish();
-        Foreign->Finish();
-
-        for (const auto& column : Self->TableSchema->Columns()) {
-            if (!TableSchema->FindColumn(column.Name)) {
-                AddColumn(TableSchema, column);
-            }
-        }
-
-        for (const auto& column : Foreign->TableSchema->Columns()) {
-            if (!TableSchema->FindColumn(column.Name)) {
-                AddColumn(TableSchema, column);
-            }
-        }
-    }
-
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
     {
-        const TColumnSchema* column = TableSchema->FindColumn(name);
+        auto tableSchema = GetTableSchema();
+        const TColumnSchema* column = tableSchema->FindColumn(name);
 
         if (!column) {
             if (column = Self->GetColumnPtr(name)) {
                 if (Foreign->GetColumnPtr(name)) {
                     THROW_ERROR_EXCEPTION("Column %Qv collision", name);
                 } else {
-                    column = AddColumn(TableSchema, *column);
+                    column = AddColumn(tableSchema, *column);
                 }
             } else if (column = Foreign->GetColumnPtr(name)) {
-                column = AddColumn(TableSchema, *column);
+                column = AddColumn(tableSchema, *column);
             }
         }
 
         return column;
     }
 
+    virtual void Finish()
+    {
+        Self->Finish();
+        Foreign->Finish();
+
+        auto tableSchema = GetTableSchema();
+
+        for (const auto& column : Self->GetTableSchema()->Columns()) {
+            if (!tableSchema->FindColumn(column.Name)) {
+                AddColumn(tableSchema, column);
+            }
+        }
+
+        for (const auto& column : Foreign->GetTableSchema()->Columns()) {
+            if (!tableSchema->FindColumn(column.Name)) {
+                AddColumn(tableSchema, column);
+            }
+        }
+    }
+
+private:
+    TSchemaProxyPtr Self;
+    TSchemaProxyPtr Foreign;
+
 };
 
-struct TGroupSchemaProxy
-    : public ISchemaProxy
+class TGroupSchemaProxy
+    : public TSchemaProxy
 {
-    ISchemaProxyPtr Base;
-    TAggregateItemList* AggregateItems;
-
+public:
     TGroupSchemaProxy(
         TTableSchema* tableSchema,
-        ISchemaProxyPtr base,
+        TSchemaProxyPtr base,
         TAggregateItemList* aggregateItems)
-        : ISchemaProxy(tableSchema)
+        : TSchemaProxy(tableSchema)
         , Base(base)
         , AggregateItems(aggregateItems)
     { }
 
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
     {
-        return TableSchema->FindColumn(name);
+        return GetTableSchema()->FindColumn(name);
     }
 
     virtual const TColumnSchema* GetAggregateColumnPtr(
@@ -680,7 +690,7 @@ struct TGroupSchemaProxy
         Stroka source,
         const IFunctionRegistryPtr functionRegistry)
     {
-        const TColumnSchema* aggregateColumn = TableSchema->FindColumn(subexprName);
+        const TColumnSchema* aggregateColumn = GetTableSchema()->FindColumn(subexprName);
 
         if (!aggregateColumn) {
             auto typedOperands = Base->BuildTypedExpression(
@@ -701,17 +711,22 @@ struct TGroupSchemaProxy
                 aggregateFunction,
                 subexprName);
 
-            aggregateColumn = AddColumn(TableSchema, TColumnSchema(subexprName, typedOperands.front()->Type));
+            aggregateColumn = AddColumn(GetTableSchema(), TColumnSchema(subexprName, typedOperands.front()->Type));
         }
 
         return aggregateColumn;
     }
+
+private:
+    TSchemaProxyPtr Base;
+    TAggregateItemList* AggregateItems;
+
 };
 
 TConstExpressionPtr BuildWhereClause(
     NAst::TExpressionPtr& expressionAst,
     const Stroka& source,
-    const ISchemaProxyPtr& schemaProxy,
+    const TSchemaProxyPtr& schemaProxy,
     const IFunctionRegistryPtr functionRegistry)
 {
     auto typedPredicate = schemaProxy->BuildTypedExpression(
@@ -742,7 +757,7 @@ TConstExpressionPtr BuildWhereClause(
 TConstGroupClausePtr BuildGroupClause(
     NAst::TNullableNamedExprs& expressionsAst,
     const Stroka& source,
-    ISchemaProxyPtr& schemaProxy,
+    TSchemaProxyPtr& schemaProxy,
     const IFunctionRegistryPtr functionRegistry)
 {
     auto groupClause = New<TGroupClause>();
@@ -773,7 +788,7 @@ TConstGroupClausePtr BuildGroupClause(
 TConstProjectClausePtr BuildProjectClause(
     NAst::TNullableNamedExprs& expressionsAst,
     const Stroka& source,
-    ISchemaProxyPtr& schemaProxy,
+    TSchemaProxyPtr& schemaProxy,
     const IFunctionRegistryPtr functionRegistry)
 {
     auto projectClause = New<TProjectClause>();
@@ -805,7 +820,7 @@ void PrepareQuery(
     const TQueryPtr& query,
     NAst::TQuery& ast,
     const Stroka& source,
-    ISchemaProxyPtr& schemaProxy,
+    TSchemaProxyPtr& schemaProxy,
     const IFunctionRegistryPtr functionRegistry)
 {
     if (ast.WherePredicate) {
@@ -858,7 +873,7 @@ TPlanFragmentPtr PreparePlanFragment(
     TDataSplit foreignDataSplit;
 
     auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
-    ISchemaProxyPtr schemaProxy;
+    TSchemaProxyPtr schemaProxy;
     
     if (auto simpleSource = ast.Source->As<NAst::TSimpleSource>()) {
         LOG_DEBUG("Getting initial data split for %v", simpleSource->Path);
@@ -892,8 +907,8 @@ TPlanFragmentPtr PreparePlanFragment(
         const auto& joinFields = joinSource->Fields;
         joinClause->JoinColumns = joinFields;
 
-        auto selfSourceProxy = New<TSimpleSchemaProxy>(&query->TableSchema, selfTableSchema, selfKeyColumns.size());
-        auto foreignSourceProxy = New<TSimpleSchemaProxy>(&joinClause->ForeignTableSchema, foreignTableSchema, foreignKeyColumns.size());
+        TSchemaProxyPtr selfSourceProxy = New<TSimpleSchemaProxy>(&query->TableSchema, selfTableSchema, selfKeyColumns.size());
+        TSchemaProxyPtr foreignSourceProxy = New<TSimpleSchemaProxy>(&joinClause->ForeignTableSchema, foreignTableSchema, foreignKeyColumns.size());
         // Merge columns.
         for (const auto& name : joinFields) {
             const auto* selfColumn = selfSourceProxy->GetColumnPtr(name);
@@ -974,7 +989,7 @@ TPlanFragmentPtr PrepareJobPlanFragment(
     auto unlimited = std::numeric_limits<i64>::max();
 
     auto query = New<TQuery>(unlimited, unlimited, TGuid::Create());
-    ISchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
+    TSchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
 
     PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
     planFragment->Query = query;
