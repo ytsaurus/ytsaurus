@@ -44,8 +44,8 @@ typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResul
 TQueryStatistics CoordinateAndExecute(
     const TPlanFragmentPtr& fragment,
     ISchemafulWriterPtr writer,
-    bool isOrdered,
     const std::vector<TKeyRange>& ranges,
+    bool isOrdered,    
     TColumnEvaluatorPtr columnEvaluator,
     std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
     std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
