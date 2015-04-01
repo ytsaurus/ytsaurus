@@ -111,12 +111,14 @@ DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
 TSharedRef ReadFile(const Stroka& fileName, NApi::IClientPtr client)
 {
     auto reader = client->CreateFileReader(fileName);
-    WaitFor(reader->Open());
+
+    auto result = WaitFor(reader->Open());
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
 
     int size = 0;
     std::vector<TSharedRef> blocks;
     while (true) {
-        auto blockOrError = reader->Read().Get();
+        auto blockOrError = WaitFor(reader->Read());
         THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
         auto block = blockOrError.Value();
 
