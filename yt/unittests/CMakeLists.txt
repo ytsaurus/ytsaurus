@@ -62,7 +62,6 @@ set( SRCS
   ${BASE}/small_vector_ut.cpp
 #  ${BASE}/static_memory_store_ut.cpp
   ${BASE}/statistics_ut.cpp
-  ${BASE}/stdafx.cpp
   ${BASE}/store_manager_ut.cpp
   ${BASE}/stracer_ut.cpp
   ${BASE}/string_ut.cpp
