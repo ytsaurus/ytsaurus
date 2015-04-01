@@ -340,10 +340,10 @@ public:
         : Data_(data)
         , Current_(Data_.Begin())
         , AlignedPool_(
-        	TAlignedWireProtocolReaderPoolTag(),
-        	ReaderAlignedChunkSize)
+            TAlignedWireProtocolReaderPoolTag(),
+            ReaderAlignedChunkSize)
         , UnalignedPool_(
-        	TUnalignedWireProtocolReaderPoolTag(),
+            TUnalignedWireProtocolReaderPoolTag(),
             ReaderUnalignedChunkSize)
     { }
 
