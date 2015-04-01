@@ -171,7 +171,11 @@ public:
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto maybeUser = securityManager->GetAuthenticatedUser();
 
-        return BIND(&TQueryExecutor::DoExecute, MakeStrong(this))
+        auto execute = fragment->Ordered
+            ? &TQueryExecutor::DoExecuteOrdered
+            : &TQueryExecutor::DoExecute;
+
+        return BIND(execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
             .Run(fragment, std::move(writer), maybeUser);
     }
@@ -184,38 +188,15 @@ private:
     const IFunctionRegistryPtr FunctionRegistry_;
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
-    TQueryStatistics DoExecute(
+
+    TQueryStatistics DoCoordinateAndExecute(
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer,
-        const TNullable<Stroka>& maybeUser)
+        const std::vector<TKeyRange>& ranges,
+        bool isOrdered,
+        std::function<ISchemafulReaderPtr(int)> createSubreader)
     {
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
-
-        auto timestamp = fragment->Timestamp;
-
-        auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
-
-        LOG_DEBUG("Splitting %v sources", fragment->DataSources.size());
-
-        auto splits = Split(fragment->DataSources, nodeDirectory, Logger, fragment->VerboseLogging);
-        int splitCount = splits.size();
-        int splitOffset = 0;
-        std::vector<TDataSources> groupedSplits;
-
-        LOG_DEBUG("Grouping %v splits", splits.size());
-
-        for (int queryIndex = 1; queryIndex <= Config_->MaxSubqueries; ++queryIndex) {
-            int nextSplitOffset = queryIndex * splitCount / Config_->MaxSubqueries;
-            if (splitOffset != nextSplitOffset) {
-                groupedSplits.emplace_back(splits.begin() + splitOffset, splits.begin() + nextSplitOffset);
-                splitOffset = nextSplitOffset;
-            }
-        }
-
-        LOG_DEBUG("Grouped into %v groups", groupedSplits.size());
-        auto ranges = GetRanges(groupedSplits);
 
         Stroka rangesString;
         for (const auto& range : ranges) {
@@ -227,17 +208,13 @@ private:
         return CoordinateAndExecute(
             fragment,
             writer,
-            false,
             ranges,
+            false,            
             ColumnEvaluatorCache_->Find(
                 fragment->Query->TableSchema,
                 fragment->Query->KeyColumns.size()),
             [&] (const TConstQueryPtr& subquery, int index) {
-                std::vector<ISchemafulReaderPtr> bottomSplitReaders;
-                for (const auto& dataSplit : groupedSplits[index]) {
-                    bottomSplitReaders.push_back(GetReader(dataSplit, timestamp, nodeDirectory));
-                }
-                auto mergingReader = CreateUnorderedSchemafulReader(bottomSplitReaders);
+                auto mergingReader = createSubreader(index);
 
                 auto pipe = New<TSchemafulPipe>();
 
@@ -283,6 +260,96 @@ private:
                 return result.ValueOrThrow();
             });
     }
+
+    TQueryStatistics DoExecute(
+        const TPlanFragmentPtr& fragment,
+        ISchemafulWriterPtr writer,
+        const TNullable<Stroka>& maybeUser)
+    {
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
+
+        auto timestamp = fragment->Timestamp;
+
+        auto nodeDirectory = fragment->NodeDirectory;
+        auto Logger = BuildLogger(fragment->Query);
+
+        LOG_DEBUG("Splitting %v sources", fragment->DataSources.size());
+
+        auto splits = Split(fragment->DataSources, nodeDirectory, Logger, fragment->VerboseLogging);
+        int splitCount = splits.size();
+        int splitOffset = 0;
+        std::vector<TDataSources> groupedSplits;
+
+        LOG_DEBUG("Grouping %v splits", splits.size());
+
+        for (int queryIndex = 1; queryIndex <= Config_->MaxSubqueries; ++queryIndex) {
+            int nextSplitOffset = queryIndex * splitCount / Config_->MaxSubqueries;
+            if (splitOffset != nextSplitOffset) {
+                groupedSplits.emplace_back(splits.begin() + splitOffset, splits.begin() + nextSplitOffset);
+                splitOffset = nextSplitOffset;
+            }
+        }
+
+        LOG_DEBUG("Grouped into %v groups", groupedSplits.size());
+        auto ranges = GetRanges(groupedSplits);
+
+        Stroka rangesString;
+        for (const auto& range : ranges) {
+            rangesString += Format("[%v .. %v]", range.first, range.second);
+        }
+
+        LOG_DEBUG("Got ranges for groups %v", rangesString);
+
+        return DoCoordinateAndExecute(fragment, std::move(writer), ranges, false, [&] (int index) {
+            std::vector<ISchemafulReaderPtr> bottomSplitReaders;
+            for (const auto& dataSplit : groupedSplits[index]) {
+                bottomSplitReaders.push_back(GetReader(dataSplit, timestamp, nodeDirectory));
+            }
+            return CreateUnorderedSchemafulReader(bottomSplitReaders);
+        });
+    }
+
+    TQueryStatistics DoExecuteOrdered(
+        const TPlanFragmentPtr& fragment,
+        ISchemafulWriterPtr writer,
+        const TNullable<Stroka>& maybeUser)
+    {
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
+
+        auto timestamp = fragment->Timestamp;
+
+        auto nodeDirectory = fragment->NodeDirectory;
+        auto Logger = BuildLogger(fragment->Query);
+
+        auto splits = fragment->DataSources;
+
+        LOG_DEBUG("Sorting %v splits", splits.size());
+
+        std::sort(splits.begin(), splits.end(), [] (const TDataSource& lhs, const TDataSource& rhs) {
+            return lhs.Range.first < rhs.Range.first;
+        });
+        
+        std::vector<TKeyRange> ranges;
+        for (auto const& split : splits) {
+            ranges.push_back(split.Range);
+        }
+
+        Stroka rangesString;
+        for (const auto& range : ranges) {
+            rangesString += Format("[%v .. %v]", range.first, range.second);
+        }
+
+        LOG_DEBUG("Got ranges for groups %v", rangesString);
+
+        return DoCoordinateAndExecute(fragment, std::move(writer), ranges, true, [&] (int index) {
+            std::vector<ISchemafulReaderPtr> bottomSplitReaders;
+            bottomSplitReaders.push_back(GetReader(splits[index], timestamp, nodeDirectory));
+            return CreateUnorderedSchemafulReader(bottomSplitReaders);
+        });
+    }
+
 
     TDataSources Split(
         const TDataSources& splits,

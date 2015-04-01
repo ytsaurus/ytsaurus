@@ -441,6 +441,46 @@ private:
     }
 
 
+    TQueryStatistics DoCoordinateAndExecute(
+        const TPlanFragmentPtr& fragment,
+        ISchemafulWriterPtr writer,
+        const std::vector<TKeyRange>& ranges,
+        bool isOrdered,
+        std::function<std::pair<TDataSources, Stroka>(int)> getSubsources)
+    {
+        auto Logger = BuildLogger(fragment->Query);
+
+        return CoordinateAndExecute(
+            fragment,
+            writer,
+            ranges,
+            isOrdered,
+            Connection_->GetColumnEvaluatorCache()->Find(
+                fragment->Query->TableSchema,
+                fragment->Query->KeyColumns.size()),
+            [&] (const TConstQueryPtr& subquery, int index) {
+                auto subfragment = New<TPlanFragment>(fragment->Source);
+                subfragment->NodeDirectory = fragment->NodeDirectory;
+                subfragment->Timestamp = fragment->Timestamp;
+                subfragment->ForeignDataSource = fragment->ForeignDataSource;
+                subfragment->Query = subquery;
+                subfragment->VerboseLogging = fragment->VerboseLogging;
+                subfragment->Ordered = fragment->Ordered;
+
+                Stroka address;
+                std::tie(subfragment->DataSources, address) = getSubsources(index);
+                
+                LOG_DEBUG("Delegating subquery (SubqueryId: %v) to %v", subquery->Id, address);
+                return Delegate(subfragment, address);
+            },
+            [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+                LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
+                auto evaluator = Connection_->GetQueryEvaluator();
+                return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
+            },
+            false);
+    }
+
     TQueryStatistics DoExecute(
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer)
@@ -477,37 +517,9 @@ private:
 
         LOG_DEBUG("Regrouped into %v groups", groups.size());
 
-        return CoordinateAndExecute(
-            fragment,
-            writer,
-            false,
-            ranges,
-            Connection_->GetColumnEvaluatorCache()->Find(
-                fragment->Query->TableSchema,
-                fragment->Query->KeyColumns.size()),
-            [&] (const TConstQueryPtr& subquery, int index) {
-                auto subfragment = New<TPlanFragment>(fragment->Source);
-                subfragment->NodeDirectory = nodeDirectory;
-                subfragment->Timestamp = fragment->Timestamp;
-                subfragment->DataSources = groupedSplits[index].first;
-                subfragment->ForeignDataSource = fragment->ForeignDataSource;
-                subfragment->Query = subquery;
-                subfragment->VerboseLogging = fragment->VerboseLogging;
-
-                const auto& address = groupedSplits[index].second;
-
-                LOG_DEBUG("Delegating subfragment (SubfragmentId: %v, Address: %v)",
-                    subquery->Id,
-                    address);
-
-                return Delegate(subfragment, address);
-            },
-            [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
-                LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
-                auto evaluator = Connection_->GetQueryEvaluator();
-                return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
-            },
-            false);
+        return DoCoordinateAndExecute(fragment, writer, ranges, false, [&] (int index) {
+            return groupedSplits[index];
+        });
     }
 
     TQueryStatistics DoExecuteOrdered(
@@ -536,34 +548,12 @@ private:
             ranges.push_back(split.first.Range);
         }
 
-        return CoordinateAndExecute(
-            fragment,
-            writer,
-            true,
-            ranges,
-            Connection_->GetColumnEvaluatorCache()->Find(
-                fragment->Query->TableSchema,
-                fragment->Query->KeyColumns.size()),
-            [&] (const TConstQueryPtr& subquery, int index) {
-                auto descriptor = nodeDirectory->GetDescriptor(splits[index].second);
-                const auto& address = descriptor.GetInterconnectAddress();
+        return DoCoordinateAndExecute(fragment, writer, ranges, true, [&] (int index) {
+            auto descriptor = nodeDirectory->GetDescriptor(splits[index].second);
+            const auto& address = descriptor.GetInterconnectAddress();
 
-                LOG_DEBUG("Delegating subquery (SubqueryId: %v) to %v", subquery->Id, address);
-
-                auto subfragment = New<TPlanFragment>(fragment->Source);
-                subfragment->NodeDirectory = nodeDirectory;
-                subfragment->DataSources.push_back(splits[index].first);
-                subfragment->ForeignDataSource = fragment->ForeignDataSource;
-                subfragment->Query = subquery;
-                subfragment->VerboseLogging = fragment->VerboseLogging;
-
-                return Delegate(subfragment, address);
-            },
-            [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
-                LOG_DEBUG("Evaluating topquery (TopqueryId: %v)", topQuery->Id);
-                auto evaluator = Connection_->GetQueryEvaluator();
-                return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
-            });
+            return std::make_pair(TDataSources(1, splits[index].first), address);
+        });
     }
 
    std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
