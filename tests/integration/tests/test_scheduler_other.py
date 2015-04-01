@@ -115,18 +115,22 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "max_chunk_stripes_per_job" : 1
+            "max_chunk_stripes_per_job" : 1,
+            "max_chunk_count_per_fetch" : 1
         }
     }
 
     def test_max_chunk_stripes_per_job(self):
+        data = [{"foo": i} for i in xrange(5)]
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")
         create("table", "//tmp/out")
-        write("//tmp/in1", [{"foo": i} for i in xrange(5)], sorted_by="foo")
-        write("//tmp/in2", [{"foo": i} for i in xrange(5)], sorted_by="foo")
+        write("//tmp/in1", data, sorted_by="foo")
+        write("//tmp/in2", data, sorted_by="foo")
 
-        merge(mode="unordered", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", spec={"force_transform": True})
+        merge(mode="ordered", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", spec={"force_transform": True})
+        assert data + data == read("//tmp/out")
+
         map(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
         with pytest.raises(YtError):
             merge(mode="sorted", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
