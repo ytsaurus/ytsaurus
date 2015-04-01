@@ -39,7 +39,7 @@ void TColumnEvaluator::PrepareEvaluator(int index)
     YCHECK(Schema_.Columns()[index].Expression);
 
     if (!Evaluators_[index]) {
-        auto expr = PrepareExpression(Schema_.Columns()[index].Expression.Get(), Schema_, FunctionRegistry_);
+        auto expr = PrepareExpression(Schema_.Columns()[index].Expression.Get(), Schema_, FunctionRegistry_.Get());
         Evaluators_[index] = Profile(expr, Schema_, nullptr, &Variables_[index], &References_[index], FunctionRegistry_)();
     }
 #else
