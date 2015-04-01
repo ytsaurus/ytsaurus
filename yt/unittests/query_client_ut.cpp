@@ -308,7 +308,7 @@ protected:
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry()); },
+            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry().Get()); },
             matcher);
     }
 
@@ -321,7 +321,7 @@ TEST_F(TQueryPrepareTest, Simple)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3", CreateBuiltinFunctionRegistry());
+    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3", CreateBuiltinFunctionRegistry().Get());
 }
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -398,7 +398,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry());
+    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry().Get());
 }
 
 TEST_F(TQueryPrepareTest, ResultSchemaCollision)
@@ -445,7 +445,7 @@ protected:
 
     void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
 
         TDataSources sources;
         for (const auto& split : dataSplits) {
@@ -2107,10 +2107,10 @@ protected:
 
         if (shouldFail) {
             EXPECT_THROW(
-                executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit), WriterMock_),
+                executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit), WriterMock_),
                 TErrorException);
         } else {
-            executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit), WriterMock_);
+            executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit), WriterMock_);
         }
     }
 
@@ -3293,12 +3293,12 @@ protected:
 
     std::vector<TKeyRange> Coordinate(const Stroka& source)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
         auto prunedSplits = GetPrunedSources(
             planFragment->Query,
             planFragment->DataSources,
             ColumnEvaluatorCache_,
-            CreateBuiltinFunctionRegistry(),
+            CreateBuiltinFunctionRegistry().Get(),
             true);
 
         return GetRangesFromSources(prunedSplits);
@@ -3306,7 +3306,7 @@ protected:
 
     std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
 
         TDataSources foreignSplits{planFragment->ForeignDataSource};
 
