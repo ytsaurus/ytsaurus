@@ -108,83 +108,44 @@ public:
 DECLARE_REFCOUNTED_CLASS(TCypressFunctionDescriptor)
 DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
 
-IFunctionDescriptorFetcher::~IFunctionDescriptorFetcher()
-{ }
-
-class TCypressFunctionDescriptorFetcher
-    : public IFunctionDescriptorFetcher
+TSharedRef ReadFile(const Stroka& fileName, NApi::IClientPtr client)
 {
-public:
-    TCypressFunctionDescriptorFetcher(
-        NApi::IClientPtr client,
-        const Stroka& cypressRegistryPath)
-        : Client_(std::move(client))
-        , CypressRegistryPath_(cypressRegistryPath)
-    { }
+    auto reader = client->CreateFileReader(fileName);
+    WaitFor(reader->Open());
 
-    TSharedRef ReadFile(const Stroka& fileName) const
-    {
-        auto reader = Client_->CreateFileReader(fileName);
-        WaitFor(reader->Open());
+    int size = 0;
+    std::vector<TSharedRef> blocks;
+    while (true) {
+        auto blockOrError = reader->Read().Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
+        auto block = blockOrError.Value();
 
-        int size = 0;
-        std::vector<TSharedRef> blocks;
-        while (true) {
-            auto blockOrError = reader->Read().Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
-            auto block = blockOrError.Value();
-
-            if (!block) {
-                break;
-            }
-
-            blocks.push_back(block);
-            size += block.Size();
-        }
-        
-        auto file = TSharedRef::Allocate(size);
-        auto memoryOutput = TMemoryOutput(
-            file.Begin(),
-            size);
-        
-        for (const auto& block : blocks) {
-            memoryOutput.Write(block.Begin(), block.Size());
+        if (!block) {
+            break;
         }
 
-        return file;
+        blocks.push_back(block);
+        size += block.Size();
+    }
+    
+    auto file = TSharedRef::Allocate(size);
+    auto memoryOutput = TMemoryOutput(
+        file.Begin(),
+        size);
+    
+    for (const auto& block : blocks) {
+        memoryOutput.Write(block.Begin(), block.Size());
     }
 
-    virtual IFunctionDescriptorPtr LookupFunction(const Stroka& functionName) override
-    {
-        LOG_DEBUG("Looking for implementation of function %Qv in Cypress", functionName);
-        auto functionPath = CypressRegistryPath_ + "/" + ToYPathLiteral(to_lower(functionName));
-
-        auto cypressFunctionOrError = WaitFor(Client_->GetNode(functionPath));
-        if (!cypressFunctionOrError.IsOK()) {
-            return nullptr;
-        }
-
-        auto function = ConvertTo<TCypressFunctionDescriptorPtr>(
-            cypressFunctionOrError.Value());
-
-        auto implementationFile = ReadFile(function->ImplementationPath);
-
-        return New<TUserDefinedFunction>(
-            function->Name,
-            function->ArgumentTypes,
-            function->ResultType,
-            implementationFile);
-    }
-
-private:
-    NApi::IClientPtr Client_;
-    const Stroka CypressRegistryPath_;
-};
+    return file;
+}
 
 TCypressFunctionRegistry::TCypressFunctionRegistry(
-    std::unique_ptr<IFunctionDescriptorFetcher> functionFetcher,
+    NApi::IClientPtr client,
+    const Stroka& registryPath,
     TFunctionRegistryPtr builtinRegistry)
-    : FunctionFetcher_(std::move(functionFetcher))
+    : Client_(client)
+    , RegistryPath_(registryPath)
     , BuiltinRegistry_(std::move(builtinRegistry))
     , UDFRegistry_(New<TFunctionRegistry>())
 { }
@@ -204,10 +165,26 @@ IFunctionDescriptorPtr TCypressFunctionRegistry::FindFunction(const Stroka& func
 
 void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
 {
-    auto function = FunctionFetcher_->LookupFunction(functionName);
-    if (function) {
-        UDFRegistry_->RegisterFunction(function);
+    LOG_DEBUG("Looking for implementation of function %Qv in Cypress", functionName);
+    auto functionPath = RegistryPath_ + "/" + ToYPathLiteral(to_lower(functionName));
+
+    auto cypressFunctionOrError = WaitFor(Client_->GetNode(functionPath));
+    if (!cypressFunctionOrError.IsOK()) {
+        return;
     }
+
+    auto cypressFunction = ConvertTo<TCypressFunctionDescriptorPtr>(
+        cypressFunctionOrError.Value());
+
+    auto implementationFile = ReadFile(
+        cypressFunction->ImplementationPath,
+        Client_);
+
+    UDFRegistry_->RegisterFunction(New<TUserDefinedFunction>(
+        cypressFunction->Name,
+        cypressFunction->ArgumentTypes,
+        cypressFunction->ResultType,
+        implementationFile));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,11 +207,9 @@ IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
     auto builtinRegistry = CreateBuiltinFunctionRegistryImpl();
 
     if (config->EnableUDFs) {
-        auto fetcher = std::make_unique<TCypressFunctionDescriptorFetcher>(
-            client,
-            config->UDFRegistryPath);
         return New<TCypressFunctionRegistry>(
-            std::move(fetcher),
+            client,
+            config->UDFRegistryPath,
             builtinRegistry);
     } else {
         return builtinRegistry;
