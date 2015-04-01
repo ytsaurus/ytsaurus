@@ -2426,6 +2426,30 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestOutputRowLimit2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source;
+    for (size_t i = 0; i < 10000; ++i) {
+        source.push_back(Stroka() + "a=" + ToString(i) + ";b=" + ToString(i * 10));
+    }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    std::vector<TOwningRow> result;
+    result.push_back(BuildRow(Stroka() + "x=" + ToString(10000), resultSplit, false));
+
+    Evaluate("sum(1) as x FROM [//t] group by 0 as x", split, source, result, std::numeric_limits<i64>::max(), 100);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestTypeInference)
 {
     auto split = MakeSplit({
