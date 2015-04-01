@@ -20,6 +20,7 @@
 #include <ytlib/query_client/plan_fragment.pb.h>
 
 #include <limits>
+#include <unordered_set>
 
 namespace NYT {
 namespace NQueryClient {
@@ -477,9 +478,18 @@ public:
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
             auto inExprOperands = BuildTypedExpression(inExpr->Expr.Get(), source, functionRegistry);
 
+            std::unordered_set<Stroka> references;
             std::vector<EValueType> argTypes;
             for (const auto& arg : inExprOperands) {
                 argTypes.push_back(arg->Type);
+                if (auto reference = arg->As<TReferenceExpression>()) {
+                    if (references.find(reference->ColumnName) != references.end()) {
+                        THROW_ERROR_EXCEPTION("IN operator has multiple references to column %Qv", reference->ColumnName)
+                            << TErrorAttribute("source", source);
+                    } else {
+                        references.insert(reference->ColumnName);
+                    }
+                }
             }
 
             auto caturedRows = CaptureRows(inExpr->Values, argTypes, inExpr->GetSource(source));
