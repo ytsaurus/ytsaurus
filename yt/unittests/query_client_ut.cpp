@@ -22,6 +22,7 @@
 #include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/plan_fragment.pb.h>
 #include <ytlib/query_client/builtin_functions.h>
+#include <ytlib/query_client/user_defined_functions.h>
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
