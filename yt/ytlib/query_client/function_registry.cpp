@@ -5,6 +5,7 @@
 #include <ytlib/api/public.h>
 #include <ytlib/api/client.h>
 #include <ytlib/api/file_reader.h>
+#include <ytlib/api/config.h>
 
 #include <core/logging/log.h>
 
@@ -225,13 +226,19 @@ IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
 
 IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
 {
+    auto config = client->GetConnection()->GetConfig();
     auto builtinRegistry = CreateBuiltinFunctionRegistryImpl();
-    auto fetcher = std::make_unique<TCypressFunctionDescriptorFetcher>(
-        client,
-        "//tmp/udfs");
-    return New<TCypressFunctionRegistry>(
-        std::move(fetcher),
-        builtinRegistry);
+
+    if (config->EnableUDFs) {
+        auto fetcher = std::make_unique<TCypressFunctionDescriptorFetcher>(
+            client,
+            config->UDFRegistryPath);
+        return New<TCypressFunctionRegistry>(
+            std::move(fetcher),
+            builtinRegistry);
+    } else {
+        return builtinRegistry;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -79,6 +79,11 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("max_rows_per_read_request", MaxRowsPerReadRequest)
         .GreaterThan(0)
         .Default(1000);
+
+    RegisterParameter("enable_udfs", EnableUDFs)
+        .Default(false);
+    RegisterParameter("udf_registry_path", UDFRegistryPath)
+        .Default("//tmp/udfs");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
