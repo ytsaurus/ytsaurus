@@ -153,8 +153,8 @@ TEST(TTableConsumerTest, InvalidDoubleValue)
 
     consumer.OnListItem();
     consumer.OnBeginMap();
-        consumer.OnKeyedItem(nan(""));
-        EXPECT_THROW(consumer.OnDoubleScalar(1.0 / 0), std::exception);
+        consumer.OnKeyedItem("value");
+        EXPECT_THROW(consumer.OnDoubleScalar(nan("")), std::exception);
 }
 
 TEST(TTableConsumerTest, EmptyAttribute)
