@@ -195,6 +195,8 @@ def get_node_config():
         scheduler = {
             retry_backoff_time = 100;
         };
+
+        enable_udfs = true;
     };
 
     data_node = {
@@ -325,6 +327,8 @@ def get_driver_config():
             format = text;
         > yson
     };
+
+    enable_udfs = true;
 }
 """)
 
