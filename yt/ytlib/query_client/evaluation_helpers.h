@@ -72,13 +72,11 @@ struct TExecutionContext
 
 namespace NDetail {
 
-typedef ui64 (*TGroupHasherFunc)(TRow);
-typedef char (*TGroupComparerFunc)(TRow, TRow);
-
+typedef ui64 (*THasherFunc)(TRow);
 struct TGroupHasher
 {
-    TGroupHasherFunc Ptr_;
-    TGroupHasher(TGroupHasherFunc ptr)
+    THasherFunc Ptr_;
+    TGroupHasher(THasherFunc ptr)
         : Ptr_(ptr)
     { }
 
@@ -88,30 +86,92 @@ struct TGroupHasher
     }
 };
 
-struct TGroupComparer
+typedef char (*TComparerFunc)(TRow, TRow);
+struct TRowComparer
 {
-    TGroupComparerFunc Ptr_;
-    TGroupComparer(TGroupComparerFunc ptr)
+public:
+    TRowComparer(TComparerFunc ptr)
         : Ptr_(ptr)
     { }
 
-    char operator () (TRow a, TRow b) const
+    bool operator () (TRow a, TRow b) const
     {
         return a.GetHeader() == b.GetHeader() || a.GetHeader() && b.GetHeader() && Ptr_(a, b);
     }
+
+private:
+    NDetail::TComparerFunc Ptr_;
 };
 
 } // namespace NDetail
 
 typedef
     google::sparsehash::dense_hash_set
-    <TRow, NDetail::TGroupHasher, NDetail::TGroupComparer>
+    <TRow, NDetail::TGroupHasher, NDetail::TRowComparer>
     TLookupRows;
 
 typedef std::unordered_multiset<
     TRow,
     NDetail::TGroupHasher,
-    NDetail::TGroupComparer> TJoinLookupRows;
+    NDetail::TRowComparer> TJoinLookupRows;
+
+class TTopCollector
+{
+    class TComparer
+    {
+    public:
+        TComparer(NDetail::TComparerFunc ptr)
+            : Ptr_(ptr)
+        { }
+
+        bool operator() (const std::pair<TRow, int>& lhs, const std::pair<TRow, int>& rhs) const
+        {
+            return (*this)(lhs.first, rhs.first);
+        }
+
+        bool operator () (TRow a, TRow b) const
+        {
+            return Ptr_(a, b);
+        }
+
+    private:
+        NDetail::TComparerFunc Ptr_;
+    };
+
+public:
+    TTopCollector(i64 limit, NDetail::TComparerFunc comparer);
+
+    std::vector<TRow> GetRows() const
+    {
+        std::vector<TRow> result;
+        std::transform(Rows_.begin(), Rows_.end(), std::back_inserter(result), [] (const std::pair<TRow, int>& value) {
+            return value.first;
+        });
+
+        std::sort(result.begin(), result.end(), Comparer_);
+
+        return result;
+    }
+
+    void AddRow(TRow row);
+
+private:
+    // GarbageMemorySize <= AllocatedMemorySize <= TotalMemorySize
+    int TotalMemorySize_ = 0;
+    int AllocatedMemorySize_ = 0;
+    int GarbageMemorySize_ = 0;
+
+    TComparer Comparer_;
+
+    std::vector<std::unique_ptr<TRowBuffer>> Buffers_;
+    std::vector<int> EmptyBufferIds_;
+    std::vector<std::pair<TRow, int>> Rows_;
+    
+    std::pair<TRow, int> Capture(TRow row);
+
+    void AccountGarbage(TRow row);
+
+};
 
 struct TCGVariables
 {

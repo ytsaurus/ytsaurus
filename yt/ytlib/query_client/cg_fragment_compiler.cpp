@@ -525,8 +525,8 @@ Function* CodegenGroupHasherFunction(
     return function;
 }
 
-Function* CodegenRowComparerFunction(
-    const std::vector<EValueType>& types,
+Function* CodegenTupleComparerFunction(
+    const std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>>& codegenArgs,
     const TCGModule& module)
 {
     auto llvmModule = module.GetModule();
@@ -552,18 +552,14 @@ Function* CodegenRowComparerFunction(
         builder.SetInsertPoint(elseBB);
     };
 
-    auto codegenEqualOrLessOp = [&] (size_t index) {
-        auto lhsValue = TCGValue::CreateFromRow(
-            builder,
-            lhsRow,
-            index,
-            types[index]);
+    auto codegenEqualOrLessOp = [&] (int index) {
+        const auto& codegenArg = codegenArgs[index];
+        auto lhsValue = codegenArg(builder, lhsRow);
+        auto rhsValue = codegenArg(builder, rhsRow);
 
-        auto rhsValue = TCGValue::CreateFromRow(
-            builder,
-            rhsRow,
-            index,
-            types[index]);
+        auto type = lhsValue.GetStaticType();
+
+        YCHECK(type == rhsValue.GetStaticType());
 
         CodegenIf<TCGIRBuilder>(
             builder,
@@ -579,7 +575,7 @@ Function* CodegenRowComparerFunction(
                 auto* lhsData = lhsValue.GetData();
                 auto* rhsData = rhsValue.GetData();
 
-                switch (types[index]) {
+                switch (type) {
                     case EValueType::Boolean:
                     case EValueType::Int64:
                         returnIf(
@@ -641,15 +637,33 @@ Function* CodegenRowComparerFunction(
             });
     };
 
-    YCHECK(!types.empty());
+    YCHECK(!codegenArgs.empty());
 
-    for (size_t index = 0; index < types.size(); ++index) {
+    for (int index = 0; index < codegenArgs.size(); ++index) {
         codegenEqualOrLessOp(index);
     }
 
     builder.CreateRet(builder.getInt8(0));
 
     return function;
+}
+
+Function* CodegenRowComparerFunction(
+    const std::vector<EValueType>& types,
+    const TCGModule& module)
+{
+    std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>> compareArgs;
+    for (int index = 0; index < types.size(); ++index) {
+        compareArgs.push_back([index, type = types[index]] (TCGIRBuilder& builder, Value* row) {
+            return TCGValue::CreateFromRow(
+                builder,
+                row,
+                index,
+                type);
+        });
+    }
+
+    return CodegenTupleComparerFunction(compareArgs, module);
 }
 
 TCodegenExpression MakeCodegenLiteralExpr(
@@ -751,7 +765,6 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
         MOVE(type),
         MOVE(name)
     ] (TCGContext& builder, Value* row) {
-
         auto operandValue = codegenOperand(builder, row);
 
         return CodegenIf<TCGContext, TCGValue>(
@@ -1184,7 +1197,7 @@ TCodegenSource MakeCodegenJoinOp(
         Function* consumeJoinedRows = Function::Create(
             TypeBuilder<void(void**, void*, char*), false>::get(builder.getContext()),
             Function::ExternalLinkage,
-            "JoinOpInner",
+            "ConsumeJoinedRows",
             module);
 
         auto consumeJoinedRowsArgs = consumeJoinedRows->arg_begin();
@@ -1431,6 +1444,104 @@ TCodegenSource MakeCodegenGroupOp(
                 consume,
             });
 
+    };
+}
+
+TCodegenSource MakeCodegenOrderOp(
+    std::vector<Stroka> orderColumns,
+    TTableSchema sourceSchema,
+    TCodegenSource codegenSource)
+{
+    return [
+        MOVE(orderColumns),
+        MOVE(sourceSchema),
+        codegenSource = std::move(codegenSource)
+    ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
+        auto module = builder.Module->GetModule();
+
+        // See OrderOpHelper.
+        Function* collectRows = Function::Create(
+            TypeBuilder<void(void**, void*), false>::get(builder.getContext()),
+            Function::ExternalLinkage,
+            "CollectRows",
+            module);
+
+        auto collectRowsArgs = collectRows->arg_begin();
+        Value* closure = collectRowsArgs; closure->setName("closure");
+        Value* topN = ++collectRowsArgs; topN->setName("topN");
+        YCHECK(++collectRowsArgs == collectRows->arg_end());
+
+        TCGContext collectBuilder(
+            collectRows,
+            &builder,
+            closure);
+
+        codegenSource(
+            collectBuilder,
+            [&] (TCGContext& builder, Value* row) {
+                Value* topNRef = builder.ViaClosure(topN);
+
+                builder.CreateCall2(
+                    builder.Module->GetRoutine("AddRow"),
+                    topNRef,
+                    row);
+            });
+
+        collectBuilder.CreateRetVoid();
+
+        // See OrderOpHelper.
+        Function* consumeOrderedRows = Function::Create(
+            TypeBuilder<void(void**, void*, char*), false>::get(builder.getContext()),
+            Function::ExternalLinkage,
+            "ConsumeOrderedRows",
+            module);
+
+        auto consumeOrderedRowsArgs = consumeOrderedRows->arg_begin();
+        Value* consumeClosure = consumeOrderedRowsArgs; consumeClosure->setName("consumeClosure");
+        Value* orderedRows = ++consumeOrderedRowsArgs; orderedRows->setName("orderedRows");
+        Value* stopFlag = ++consumeOrderedRowsArgs; stopFlag->setName("stopFlag");
+        YCHECK(++consumeOrderedRowsArgs == consumeOrderedRows->arg_end());
+
+        TCGContext consumeBuilder(
+            consumeOrderedRows,
+            &builder,
+            consumeClosure);
+
+        CodegenForEachRow(
+            consumeBuilder,
+            consumeBuilder.CreateCall(builder.Module->GetRoutine("GetRowsData"), orderedRows),
+            consumeBuilder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), orderedRows),
+            stopFlag,
+            codegenConsumer);
+
+        consumeBuilder.CreateRetVoid();
+
+        std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>> compareArgs;
+        for (int index = 0; index < orderColumns.size(); ++index) {
+            auto columnIndex = sourceSchema.GetColumnIndexOrThrow(orderColumns[index]);
+            auto type = sourceSchema.FindColumn(orderColumns[index])->Type;
+
+            compareArgs.push_back([columnIndex, type] (TCGIRBuilder& builder, Value* row) {
+                return TCGValue::CreateFromRow(
+                    builder,
+                    row,
+                    columnIndex,
+                    type);
+            });
+        }
+
+        builder.CreateCallWithArgs(
+            builder.Module->GetRoutine("OrderOpHelper"),
+            {
+                builder.GetExecutionContextPtr(),
+                CodegenTupleComparerFunction(compareArgs, *builder.Module),
+
+                collectBuilder.GetClosure(),
+                collectRows,
+
+                consumeBuilder.GetClosure(),
+                consumeOrderedRows
+            });
     };
 }
 

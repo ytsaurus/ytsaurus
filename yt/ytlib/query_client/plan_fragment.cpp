@@ -1070,6 +1070,12 @@ void PrepareQuery(
         query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy, functionRegistry);
     }
 
+    if (ast.OrderFields) {
+        auto orderClause = New<TOrderClause>();
+        orderClause->OrderColumns = ast.OrderFields.Get();
+        query->OrderClause = std::move(orderClause);
+    }
+
     if (ast.SelectExprs) {
         query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy, functionRegistry);
     }
@@ -1146,8 +1152,8 @@ TPlanFragmentPtr PreparePlanFragment(
         const auto& joinFields = joinSource->Fields;
         joinClause->JoinColumns = joinFields;
 
-        TSchemaProxyPtr selfSourceProxy = New<TSimpleSchemaProxy>(&query->TableSchema, selfTableSchema, selfKeyColumns.size());
-        TSchemaProxyPtr foreignSourceProxy = New<TSimpleSchemaProxy>(&joinClause->ForeignTableSchema, foreignTableSchema, foreignKeyColumns.size());
+        auto selfSourceProxy = New<TSimpleSchemaProxy>(&query->TableSchema, selfTableSchema, selfKeyColumns.size());
+        auto foreignSourceProxy = New<TSimpleSchemaProxy>(&joinClause->ForeignTableSchema, foreignTableSchema, foreignKeyColumns.size());
         // Merge columns.
         for (const auto& name : joinFields) {
             const auto* selfColumn = selfSourceProxy->GetColumnPtr(name);
@@ -1177,7 +1183,7 @@ TPlanFragmentPtr PreparePlanFragment(
     } else {
         YUNREACHABLE();
     }
-    
+
     PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
 
     auto planFragment = New<TPlanFragment>(source);
@@ -1185,7 +1191,9 @@ TPlanFragmentPtr PreparePlanFragment(
     
     if (ast.Limit) {
         query->Limit = ast.Limit;
-        planFragment->Ordered = true;
+        if (!query->OrderClause) {
+            planFragment->Ordered = true;
+        }
     }
 
     planFragment->Query = query;
@@ -1444,6 +1452,14 @@ void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
     ToProto(serialized->mutable_name(), original.Name);
 }
 
+void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
+{
+    ToProto(proto->mutable_join_columns(), original->JoinColumns);
+    ToProto(proto->mutable_joined_table_schema(), original->JoinedTableSchema);
+    ToProto(proto->mutable_foreign_table_schema(), original->ForeignTableSchema);
+    ToProto(proto->mutable_foreign_key_columns(), original->ForeignKeyColumns);
+}
+
 void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
 {
     ToProto(proto->mutable_group_items(), original->GroupItems);
@@ -1455,12 +1471,9 @@ void ToProto(NProto::TProjectClause* proto, const TConstProjectClausePtr& origin
     ToProto(proto->mutable_projections(), original->Projections);
 }
 
-void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
+void ToProto(NProto::TOrderClause* proto, const TConstOrderClausePtr& original)
 {
-    ToProto(proto->mutable_join_columns(), original->JoinColumns);
-    ToProto(proto->mutable_joined_table_schema(), original->JoinedTableSchema);
-    ToProto(proto->mutable_foreign_table_schema(), original->ForeignTableSchema);
-    ToProto(proto->mutable_foreign_key_columns(), original->ForeignKeyColumns);
+    ToProto(proto->mutable_order_columns(), original->OrderColumns);
 }
 
 void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
@@ -1485,6 +1498,10 @@ void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
     if (original->GroupClause) {
         ToProto(proto->mutable_group_clause(), original->GroupClause);
     }
+
+    if (original->OrderClause) {
+        ToProto(proto->mutable_order_clause(), original->OrderClause);
+    }
     
     if (original->ProjectClause) {
         ToProto(proto->mutable_project_clause(), original->ProjectClause);
@@ -1504,6 +1521,22 @@ TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
         FromProto(serialized.expression()),
         EAggregateFunction(serialized.aggregate_function()),
         serialized.name());
+}
+
+TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
+{
+    auto result = New<TJoinClause>();
+
+    result->JoinColumns.reserve(serialized.join_columns_size());
+    for (int i = 0; i < serialized.join_columns_size(); ++i) {
+        result->JoinColumns.push_back(serialized.join_columns(i));
+    }
+
+    FromProto(&result->JoinedTableSchema, serialized.joined_table_schema());
+    FromProto(&result->ForeignTableSchema, serialized.foreign_table_schema());
+    FromProto(&result->ForeignKeyColumns, serialized.foreign_key_columns());
+
+    return result;
 }
 
 TGroupClausePtr FromProto(const NProto::TGroupClause& serialized)
@@ -1533,18 +1566,14 @@ TProjectClausePtr FromProto(const NProto::TProjectClause& serialized)
     return result;
 }
 
-TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
+TOrderClausePtr FromProto(const NProto::TOrderClause& serialized)
 {
-    auto result = New<TJoinClause>();
+    auto result = New<TOrderClause>();
 
-    result->JoinColumns.reserve(serialized.join_columns_size());
-    for (int i = 0; i < serialized.join_columns_size(); ++i) {
-        result->JoinColumns.push_back(serialized.join_columns(i));
+    result->OrderColumns.reserve(serialized.order_columns_size());
+    for (int i = 0; i < serialized.order_columns_size(); ++i) {
+        result->OrderColumns.push_back(serialized.order_columns(i));
     }
-
-    FromProto(&result->JoinedTableSchema, serialized.joined_table_schema());
-    FromProto(&result->ForeignTableSchema, serialized.foreign_table_schema());
-    FromProto(&result->ForeignKeyColumns, serialized.foreign_key_columns());
 
     return result;
 }
@@ -1571,6 +1600,10 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
 
     if (serialized.has_group_clause()) {
         query->GroupClause = FromProto(serialized.group_clause());       
+    }
+
+    if (serialized.has_order_clause()) {
+        query->OrderClause = FromProto(serialized.order_clause());       
     }
 
     if (serialized.has_project_clause()) {

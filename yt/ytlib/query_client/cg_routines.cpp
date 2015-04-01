@@ -33,6 +33,29 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRowComparer
+{
+public:
+    TRowComparer(NDetail::TComparerFunc ptr)
+        : Ptr_(ptr)
+    { }
+
+    bool operator () (const TRow& key, const TOwningRow& current) const
+    {
+        return Ptr_(key, current.Get());
+    }
+
+    bool operator () (const TOwningRow& current, const TRow& key) const
+    {
+        return Ptr_(current.Get(), key);
+    }
+
+private:
+    NDetail::TComparerFunc Ptr_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 void CaptureValue(TValue* value, TChunkedMemoryPool* pool)
 {
     if (IsStringLikeType(EValueType(value->Type))) {
@@ -299,6 +322,30 @@ int GetRowsSize(std::vector<TRow>* groupedRows)
     return groupedRows->size();
 }
 
+void AddRow(TTopCollector* topN, TRow row)
+{
+    topN->AddRow(row);
+}
+
+void OrderOpHelper(
+    TExecutionContext* executionContext,
+    char (*comparer)(TRow, TRow),
+    void** collectRowsClosure,
+    void (*collectRows)(void** closure, TTopCollector* topN),
+    void** consumeRowsClosure,
+    void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag))
+{
+    auto limit = executionContext->Limit;
+
+    TTopCollector topN(limit, comparer);
+    collectRows(collectRowsClosure, &topN);
+    auto rows = topN.GetRows();
+
+    // Consume joined rows.
+    executionContext->StopFlag = false;
+    consumeRows(consumeRowsClosure, &rows, &executionContext->StopFlag);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 char IsPrefix(
@@ -338,25 +385,6 @@ char* ToLower(
     return result;
 }
 
-struct TRowComparer
-{
-    typedef char (*TComparerFunc)(TRow, TRow);
-    TComparerFunc Ptr_;
-    TRowComparer(TComparerFunc ptr)
-        : Ptr_(ptr)
-    { }
-
-    bool operator () (const TRow& key, const TOwningRow& current) const
-    {
-        return Ptr_(key, current.Get());
-    }
-
-    bool operator () (const TOwningRow& current, const TRow& key) const
-    {
-        return Ptr_(current.Get(), key);
-    }
-};
-
 char IsRowInArray(
     TExecutionContext* executionContext,
     char (*comparer)(TRow, TRow),
@@ -365,7 +393,7 @@ char IsRowInArray(
 {
     // TODO(lukyan): check null
     const auto& rows = (*executionContext->LiteralRows)[index];
-    return std::binary_search(rows.begin(), rows.end(), row, TRowComparer(comparer));
+    return std::binary_search(rows.begin(), rows.end(), row, TRowComparer{comparer});
 }
 
 size_t StringHash(
@@ -486,6 +514,8 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(IsRowInArray);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHash);
+    REGISTER_ROUTINE(AddRow);
+    REGISTER_ROUTINE(OrderOpHelper);
 #undef REGISTER_ROUTINE
 
     registry->RegisterRoutine("memcmp", std::memcmp);
