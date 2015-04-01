@@ -1846,11 +1846,11 @@ public:
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
 };
 
-class TFunctionDescriptorFetcherMock
-    : public IFunctionDescriptorFetcher
+class TFunctionRegistryMock
+    : public IFunctionRegistry
 {
 public:
-    MOCK_METHOD1(LookupFunction, IFunctionDescriptorPtr(const Stroka&));
+    MOCK_METHOD1(FindFunction, IFunctionDescriptorPtr(const Stroka&));
 };
 
 
@@ -3094,13 +3094,9 @@ TEST_F(TQueryEvaluateTest, TestUdf)
         EValueType::Int64,
         fileRef);
 
-    auto fetcher = std::make_unique<StrictMock<TFunctionDescriptorFetcherMock>>();
-    EXPECT_CALL(*fetcher, LookupFunction("absolute"))
-        .WillOnce(Return(absoluteDescriptor));
-
-    auto registry = New<TCypressFunctionRegistry>(
-        std::move(fetcher),
-        New<TFunctionRegistry>());
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("absolute"))
+        .WillRepeatedly(Return(absoluteDescriptor));
 
     Evaluate("absolute(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
@@ -3128,13 +3124,9 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
         EValueType::Int64,
         fileRef);
 
-    auto fetcher = std::make_unique<StrictMock<TFunctionDescriptorFetcherMock>>();
-    EXPECT_CALL(*fetcher, LookupFunction("invalid_ir"))
-        .WillOnce(Return(invalidUdfDescriptor));
-
-    auto registry = New<TCypressFunctionRegistry>(
-        std::move(fetcher),
-        New<TFunctionRegistry>());
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("invalid_ir"))
+        .WillRepeatedly(Return(invalidUdfDescriptor));
 
     EvaluateExpectingError("invalid_ir(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
@@ -3160,13 +3152,9 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
         EValueType::Int64,
         fileRef);
 
-    auto fetcher = std::make_unique<StrictMock<TFunctionDescriptorFetcherMock>>();
-    EXPECT_CALL(*fetcher, LookupFunction("absolute"))
-        .WillOnce(Return(twoArgumentUdf));
-
-    auto registry = New<TCypressFunctionRegistry>(
-        std::move(fetcher),
-        New<TFunctionRegistry>());
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("absolute"))
+        .WillRepeatedly(Return(twoArgumentUdf));
 
     EvaluateExpectingError("absolute(a, b) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
@@ -3192,13 +3180,9 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
         EValueType::Int64,
         fileRef);
 
-    auto fetcher = std::make_unique<StrictMock<TFunctionDescriptorFetcherMock>>();
-    EXPECT_CALL(*fetcher, LookupFunction("absolute"))
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("absolute"))
         .WillOnce(Return(twoArgumentUdf));
-
-    auto registry = New<TCypressFunctionRegistry>(
-        std::move(fetcher),
-        New<TFunctionRegistry>());
 
     EvaluateExpectingError("absolute(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
