@@ -21,6 +21,69 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCodegenExpression PropagateNullArguments(
+    std::vector<TCodegenExpression> codegenArgs,
+    std::vector<TCGValue> argumentValues,
+    std::function<TCodegenExpression(std::vector<TCGValue>)> codegenNonNull,
+    EValueType type,
+    const Stroka& name)
+{
+    return [=] (TCGContext& builder, Value* row) {
+        if (codegenArgs.empty()) {
+            return codegenNonNull(argumentValues)(builder, row);
+        } else {
+            auto codegenArg = codegenArgs.front();
+            auto argumentValue = codegenArg(builder, row);
+
+            auto newCodegenArgs = std::vector<TCodegenExpression>(
+                codegenArgs.rbegin(),
+                codegenArgs.rend());
+            newCodegenArgs.pop_back();
+            auto newArgumentValues = argumentValues;
+            newArgumentValues.push_back(argumentValue);
+
+            return CodegenIf<TCGContext, TCGValue>(
+                builder,
+                argumentValue.IsNull(),
+                [&] (TCGContext& builder) {
+                    return TCGValue::CreateNull(builder, type);
+                },
+                [&] (TCGContext& builder) {
+                    return PropagateNullArguments(
+                        newCodegenArgs,
+                        newArgumentValues,
+                        codegenNonNull,
+                        type,
+                        name)(builder, row);
+                },
+                Twine(name.c_str()));
+        }
+    };
+}
+
+TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    const Stroka& name) const
+{
+    auto callUdf = [
+        this_ = MakeStrong(this),
+        type,
+        name
+    ] (std::vector<TCGValue> argValues) {
+        return this_->MakeSimpleCodegenExpr(argValues, type, name);
+    };
+
+    return PropagateNullArguments(
+        codegenArgs,
+        std::vector<TCGValue>(),
+        callUdf,
+        type,
+        name);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TUserDefinedFunction::TUserDefinedFunction(
     const Stroka& functionName,
     std::vector<EValueType> argumentTypes,
@@ -121,22 +184,22 @@ Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
     return callee;
 }
 
-TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
-    std::vector<TCodegenExpression> codegenArgs,
+TCodegenExpression TUserDefinedFunction::MakeSimpleCodegenExpr(
+    std::vector<TCGValue> argumentValues,
     EValueType type,
     const Stroka& name) const
 {
     return [
         this_ = MakeStrong(this),
-        codegenArgs,
+        argumentValues,
         type
     ] (TCGContext& builder, Value* row) {
         auto callee = this_->GetLLVMFunction(builder);
-        std::vector<Value*> arguments;
 
-        for (auto arg = codegenArgs.begin(); arg != codegenArgs.end(); arg++) {
-            auto argValue = (*arg)(builder, row);
-            arguments.push_back(argValue.GetData());
+        auto arguments = std::vector<llvm::Value*>();
+        for (auto arg = argumentValues.begin(); arg != argumentValues.end(); arg++) {
+            auto argumentValue = *arg;
+            arguments.push_back(argumentValue.GetData());
         }
 
         auto result = builder.CreateCall(callee, arguments);

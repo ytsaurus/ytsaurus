@@ -8,9 +8,24 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSimpleCallingConvention
+    : public virtual IFunctionDescriptor
+{
+    virtual TCodegenExpression MakeCodegenExpr(
+        std::vector<TCodegenExpression> codegenArgs,
+        EValueType type,
+        const Stroka& name) const override;
+
+    virtual TCodegenExpression MakeSimpleCodegenExpr(
+        std::vector<TCGValue> argValues,
+        EValueType type,
+        const Stroka& name) const = 0;
+};
+
 class TUserDefinedFunction
     : public TTypedFunction
     , public TUniversalRangeFunction
+    , public TSimpleCallingConvention
 {
 public:
     TUserDefinedFunction(
@@ -19,8 +34,8 @@ public:
         EValueType resultType,
         TSharedRef implementationFile);
 
-    virtual TCodegenExpression MakeCodegenExpr(
-        std::vector<TCodegenExpression> codgenArgs,
+    virtual TCodegenExpression MakeSimpleCodegenExpr(
+        std::vector<TCGValue> codegenArgs,
         EValueType type,
         const Stroka& name) const override;
 
