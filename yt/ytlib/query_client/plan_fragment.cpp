@@ -569,7 +569,7 @@ public:
         const TTableSchema& sourceTableSchema,
         size_t keyColumnCount = 0)
         : TSchemaProxy(tableSchema)
-        , SourceTableSchema(sourceTableSchema)
+        , SourceTableSchema_(sourceTableSchema)
     {
         const auto& columns = sourceTableSchema.Columns();
         size_t count = std::min(sourceTableSchema.HasComputedColumns() ? keyColumnCount : 0, columns.size());
@@ -583,8 +583,8 @@ public:
         const auto* column = GetTableSchema()->FindColumn(name);
 
         !column
-            && SourceTableSchema
-            && (column = SourceTableSchema->FindColumn(name))
+            && SourceTableSchema_
+            && (column = SourceTableSchema_->FindColumn(name))
             && (column = AddColumn(GetTableSchema(), *column));       
 
         return column;
@@ -592,8 +592,8 @@ public:
 
     virtual void Finish()
     {
-        if (SourceTableSchema) {
-            for (const auto& column : SourceTableSchema->Columns()) {
+        if (SourceTableSchema_) {
+            for (const auto& column : SourceTableSchema_->Columns()) {
                 if (!GetTableSchema()->FindColumn(column.Name)) {
                     AddColumn(GetTableSchema(), column);
                 }
@@ -602,7 +602,7 @@ public:
     }
 
 private:
-    TNullable<TTableSchema> SourceTableSchema;
+    TNullable<TTableSchema> SourceTableSchema_;
 
 };
 
@@ -615,8 +615,8 @@ public:
         TSchemaProxyPtr self,
         TSchemaProxyPtr foreign)
         : TSchemaProxy(tableSchema)
-        , Self(self)
-        , Foreign(foreign)
+        , Self_(self)
+        , Foreign_(foreign)
     { }
 
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
@@ -625,13 +625,13 @@ public:
         const TColumnSchema* column = tableSchema->FindColumn(name);
 
         if (!column) {
-            if (column = Self->GetColumnPtr(name)) {
-                if (Foreign->GetColumnPtr(name)) {
+            if (column = Self_->GetColumnPtr(name)) {
+                if (Foreign_->GetColumnPtr(name)) {
                     THROW_ERROR_EXCEPTION("Column %Qv collision", name);
                 } else {
                     column = AddColumn(tableSchema, *column);
                 }
-            } else if (column = Foreign->GetColumnPtr(name)) {
+            } else if (column = Foreign_->GetColumnPtr(name)) {
                 column = AddColumn(tableSchema, *column);
             }
         }
@@ -641,18 +641,18 @@ public:
 
     virtual void Finish()
     {
-        Self->Finish();
-        Foreign->Finish();
+        Self_->Finish();
+        Foreign_->Finish();
 
         auto tableSchema = GetTableSchema();
 
-        for (const auto& column : Self->GetTableSchema()->Columns()) {
+        for (const auto& column : Self_->GetTableSchema()->Columns()) {
             if (!tableSchema->FindColumn(column.Name)) {
                 AddColumn(tableSchema, column);
             }
         }
 
-        for (const auto& column : Foreign->GetTableSchema()->Columns()) {
+        for (const auto& column : Foreign_->GetTableSchema()->Columns()) {
             if (!tableSchema->FindColumn(column.Name)) {
                 AddColumn(tableSchema, column);
             }
@@ -660,8 +660,8 @@ public:
     }
 
 private:
-    TSchemaProxyPtr Self;
-    TSchemaProxyPtr Foreign;
+    TSchemaProxyPtr Self_;
+    TSchemaProxyPtr Foreign_;
 
 };
 
@@ -674,8 +674,8 @@ public:
         TSchemaProxyPtr base,
         TAggregateItemList* aggregateItems)
         : TSchemaProxy(tableSchema)
-        , Base(base)
-        , AggregateItems(aggregateItems)
+        , Base_(base)
+        , AggregateItems_(aggregateItems)
     { }
 
     virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
@@ -693,7 +693,7 @@ public:
         const TColumnSchema* aggregateColumn = GetTableSchema()->FindColumn(subexprName);
 
         if (!aggregateColumn) {
-            auto typedOperands = Base->BuildTypedExpression(
+            auto typedOperands = Base_->BuildTypedExpression(
                 arguments,
                 source,
                 functionRegistry);
@@ -706,7 +706,7 @@ public:
 
             CheckExpressionDepth(typedOperands.front());
 
-            AggregateItems->emplace_back(
+            AggregateItems_->emplace_back(
                 typedOperands.front(),
                 aggregateFunction,
                 subexprName);
@@ -718,8 +718,8 @@ public:
     }
 
 private:
-    TSchemaProxyPtr Base;
-    TAggregateItemList* AggregateItems;
+    TSchemaProxyPtr Base_;
+    TAggregateItemList* AggregateItems_;
 
 };
 
