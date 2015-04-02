@@ -2003,14 +2003,14 @@ protected:
         auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
-            query,
-            dataSplits,
-            owningSources,
-            owningResult,
-            inputRowLimit,
-            outputRowLimit,
-            false,
-            functionRegistry)
+                query,
+                dataSplits,
+                owningSources,
+                owningResult,
+                inputRowLimit,
+                outputRowLimit,
+                false,
+                functionRegistry)
             .Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
@@ -2030,14 +2030,14 @@ protected:
         auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
-            query,
-            dataSplits,
-            owningSources,
-            std::vector<TOwningRow>(),
-            inputRowLimit,
-            outputRowLimit,
-            true,
-            functionRegistry)
+                query,
+                dataSplits,
+                owningSources,
+                std::vector<TOwningRow>(),
+                inputRowLimit,
+                outputRowLimit,
+                true,
+                functionRegistry)
             .Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
