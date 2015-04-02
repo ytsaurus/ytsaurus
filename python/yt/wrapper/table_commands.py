@@ -548,31 +548,36 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             for key in parameters:
                 response_parameters[key] = parameters[key]
 
+    def execute_with_retries(func):
+        for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
+            try:
+                return func()
+            except RETRIABLE_ERRORS as err:
+                if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
+                    raise
+                logger.warning(format_error(err))
+                logger.warning("New retry (%d) ...", attempt + 2)
+
+
     if not config.RETRY_READ:
-        response = _make_transactional_request(
-            command_name,
-            params,
-            return_content=False,
-            use_heavy_proxy=True,
-            client=client)
-        set_response_parameters(response.headers["X-YT-Response-Parameters"])
-        return read_content(ResponseStream.from_response(response))
+        def simple_read():
+            response = _make_transactional_request(
+                command_name,
+                params,
+                return_content=False,
+                use_heavy_proxy=True,
+                client=client)
+            if "X-YT-Response-Parameters" not in response.headers:
+                raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
+            set_response_parameters(response.headers["X-YT-Response-Parameters"])
+            return read_content(ResponseStream.from_response(response))
+        return execute_with_retries(simple_read)
     else:
         title = "Python wrapper: read {0}".format(to_name(table, client=client))
         tx = PingableTransaction(timeout=config.http.get_timeout(),
                                  attributes={"title": title},
                                  client=client)
         tx.__enter__()
-
-        def execute_with_retries(func):
-            for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
-                try:
-                    return func()
-                except RETRIABLE_ERRORS as err:
-                    if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
-                        raise
-                    logger.warning(format_error(err))
-                    logger.warning("New retry (%d) ...", attempt + 2)
 
         def iter_with_retries(iter):
             try:
