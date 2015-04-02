@@ -21,6 +21,7 @@
 
 #include <limits>
 #include <unordered_set>
+#include <cmath>
 
 namespace NYT {
 namespace NQueryClient {
@@ -374,56 +375,36 @@ public:
             auto typedOperandExpr = BuildTypedExpression(unaryExpr->Operand.Get(), source, functionRegistry);
 
             for (const auto& operand : typedOperandExpr) {
-                if (auto literalExpr = operand->As<TLiteralExpression>()) {
-                    if (unaryExpr->Opcode == EUnaryOp::Plus) {
-                        result.push_back(literalExpr);
-                        continue;
-                    } else if (unaryExpr->Opcode == EUnaryOp::Minus) {
-                        TUnversionedValue value = literalExpr->Value;
-                        switch (value.Type) {
-                            case EValueType::Int64:
-                                value.Data.Int64 = -value.Data.Int64;
-                                break;
-                            case EValueType::Uint64:
-                                value.Data.Uint64 = -value.Data.Uint64;
-                                break;
-                            case EValueType::Double:
-                                value.Data.Double = -value.Data.Double;
-                                break;
-                            default:
-                                YUNREACHABLE();
-                        }
-                        result.push_back(New<TLiteralExpression>(
-                            literalExpr->SourceLocation,
-                            EValueType(value.Type),
-                            value));
-                        continue;
-                    }
-                }
-                result.push_back(New<TUnaryOpExpression>(
-                    unaryExpr->SourceLocation,
-                    InferUnaryExprType(
+                if (auto foldedValue = FoldConstants(unaryExpr->Opcode, operand)) {
+                    result.push_back(New<TLiteralExpression>(
+                        unaryExpr->SourceLocation,
+                        EValueType(foldedValue->Type),
+                        *foldedValue));
+                } else {
+                    result.push_back(New<TUnaryOpExpression>(
+                        unaryExpr->SourceLocation,
+                        InferUnaryExprType(
+                            unaryExpr->Opcode,
+                            operand->Type,
+                            unaryExpr->GetSource(source)),
                         unaryExpr->Opcode,
-                        operand->Type,
-                        unaryExpr->GetSource(source)),
-                    unaryExpr->Opcode,
-                    operand));
+                        operand));
+                }
             }
         } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
             auto typedLhsExpr = BuildTypedExpression(binaryExpr->Lhs.Get(), source, functionRegistry);
             auto typedRhsExpr = BuildTypedExpression(binaryExpr->Rhs.Get(), source, functionRegistry);
 
-            auto makeBinaryExpr = [&] (EBinaryOp op, const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs) {
-                return New<TBinaryOpExpression>(
-                    binaryExpr->SourceLocation,
-                    InferBinaryExprType(
-                        op,
-                        lhs->Type,
-                        rhs->Type,
-                        binaryExpr->GetSource(source)),
-                    op,
-                    lhs,
-                    rhs);
+            auto makeBinaryExpr = [&] (EBinaryOp op, const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs) -> TConstExpressionPtr {
+                auto type = InferBinaryExprType(op, lhs->Type, rhs->Type, binaryExpr->GetSource(source));
+                if (auto foldedValue = FoldConstants(op, lhs, rhs)) {
+                    return New<TLiteralExpression>(
+                        binaryExpr->SourceLocation,
+                        EValueType(foldedValue->Type),
+                        *foldedValue);
+                } else {
+                    return New<TBinaryOpExpression>(binaryExpr->SourceLocation, type, op, lhs, rhs);
+                }
             };
 
             std::function<TConstExpressionPtr(size_t, size_t, EBinaryOp)> gen = [&] (size_t offset, size_t keySize, EBinaryOp op) -> TConstExpressionPtr {
@@ -560,6 +541,178 @@ protected:
         std::sort(result.begin(), result.end());
 
         return result;
+    }
+
+    TNullable<TUnversionedValue> FoldConstants(
+        EUnaryOp opcode,
+        const TConstExpressionPtr& operand)
+    {
+        if (auto literalExpr = operand->As<TLiteralExpression>()) {
+            if (opcode == EUnaryOp::Plus) {
+                return static_cast<TUnversionedValue>(literalExpr->Value);
+            } else if (opcode == EUnaryOp::Minus) {
+                auto value = static_cast<TUnversionedValue>(literalExpr->Value);
+                switch (value.Type) {
+                    case EValueType::Int64:
+                        value.Data.Int64 = -value.Data.Int64;
+                        break;
+                    case EValueType::Uint64:
+                        value.Data.Uint64 = -value.Data.Uint64;
+                        break;
+                    case EValueType::Double:
+                        value.Data.Double = -value.Data.Double;
+                        break;
+                    default:
+                        YUNREACHABLE();
+                }
+                return value;
+            }
+        }
+        return TNullable<TUnversionedValue>();
+    }
+
+    TNullable<TUnversionedValue> FoldConstants(
+        EBinaryOp opcode,
+        const TConstExpressionPtr& lhsExpr,
+        const TConstExpressionPtr& rhsExpr)
+    {
+        auto lhsLiteral = lhsExpr->As<TLiteralExpression>();
+        auto rhsLiteral = rhsExpr->As<TLiteralExpression>();
+        if (lhsLiteral && rhsLiteral) {
+            auto lhs = static_cast<TUnversionedValue>(lhsLiteral->Value);
+            auto rhs = static_cast<TUnversionedValue>(rhsLiteral->Value);
+            YCHECK(lhs.Type == rhs.Type);
+
+            switch (opcode) {
+                case EBinaryOp::Plus:
+                    switch (lhs.Type) {
+                        case EValueType::Int64:
+                            lhs.Data.Int64 += rhs.Data.Int64;
+                            return lhs;
+                        case EValueType::Uint64:
+                            lhs.Data.Uint64 += rhs.Data.Uint64;
+                            return lhs;
+                        case EValueType::Double:
+                            lhs.Data.Double += rhs.Data.Double;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::Minus:
+                    switch (lhs.Type) {
+                        case EValueType::Int64:
+                            lhs.Data.Int64 -= rhs.Data.Int64;
+                            return lhs;
+                        case EValueType::Uint64:
+                            lhs.Data.Uint64 -= rhs.Data.Uint64;
+                            return lhs;
+                        case EValueType::Double:
+                            lhs.Data.Double -= rhs.Data.Double;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::Multiply:
+                    switch (lhs.Type) {
+                        case EValueType::Int64:
+                            lhs.Data.Int64 *= rhs.Data.Int64;
+                            return lhs;
+                        case EValueType::Uint64:
+                            lhs.Data.Uint64 *= rhs.Data.Uint64;
+                            return lhs;
+                        case EValueType::Double:
+                            lhs.Data.Double *= rhs.Data.Double;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::Divide:
+                    switch (lhs.Type) {
+                        case EValueType::Int64:
+                            if (rhs.Data.Int64 == 0) {
+                                THROW_ERROR_EXCEPTION("Division by zero");
+                            }
+                            lhs.Data.Int64 /= rhs.Data.Int64;
+                            return lhs;
+                        case EValueType::Uint64:
+                            if (rhs.Data.Uint64 == 0) {
+                                THROW_ERROR_EXCEPTION("Division by zero");
+                            }
+                            lhs.Data.Uint64 /= rhs.Data.Uint64;
+                            return lhs;
+                        case EValueType::Double:
+                            if (std::abs(rhs.Data.Double) <= std::numeric_limits<double>::epsilon()) {
+                                THROW_ERROR_EXCEPTION("Division by zero");
+                            }
+                            lhs.Data.Double /= rhs.Data.Double;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::Modulo:
+                    switch (lhs.Type) {
+                        case EValueType::Int64:
+                            if (rhs.Data.Int64 == 0) {
+                                THROW_ERROR_EXCEPTION("Division by zero");
+                            }
+                            lhs.Data.Int64 %= rhs.Data.Int64;
+                            return lhs;
+                        case EValueType::Uint64:
+                            if (rhs.Data.Uint64 == 0) {
+                                THROW_ERROR_EXCEPTION("Division by zero");
+                            }
+                            lhs.Data.Uint64 %= rhs.Data.Uint64;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::And:
+                    switch (lhs.Type) {
+                        case EValueType::Boolean:
+                            lhs.Data.Boolean &&= rhs.Data.Boolean;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::Or:
+                    switch (lhs.Type) {
+                        case EValueType::Boolean:
+                            lhs.Data.Boolean ||= rhs.Data.Boolean;
+                            return lhs;
+                        default:
+                            break;
+                    }
+                    break;
+                case EBinaryOp::Equal:
+                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) == 0);
+                    break;
+                case EBinaryOp::NotEqual:
+                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) != 0);
+                    break;
+                case EBinaryOp::Less:
+                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) < 0);
+                    break;
+                case EBinaryOp::Greater:
+                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) > 0);
+                    break;
+                case EBinaryOp::LessOrEqual:
+                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) <= 0);
+                    break;
+                case EBinaryOp::GreaterOrEqual:
+                    return MakeUnversionedBooleanValue(CompareRowValues(lhs, rhs) >= 0);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        return TNullable<TUnversionedValue>();
     }
 };
 
