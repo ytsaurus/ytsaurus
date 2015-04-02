@@ -36,7 +36,7 @@ public:
         auto keyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
 
         std::vector<ISchemalessMultiChunkReaderPtr> readers;
-        auto nameTable = New<TNameTable>();
+        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
         auto options = New<TMultiChunkReaderOptions>();
 
         for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
