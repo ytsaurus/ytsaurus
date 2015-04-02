@@ -41,6 +41,11 @@ TConstExpressionPtr RefinePredicate(
     const TKeyColumns& keyColumns,
     TColumnEvaluatorPtr columnEvaluator);
 
+TConstExpressionPtr RefinePredicate(
+    const std::vector<TKey>& lookupKeys,
+    const TConstExpressionPtr& expr,
+    const TKeyColumns& keyColumns);
+
 TConstExpressionPtr ExtractPredicateForColumnSubset(
     const TConstExpressionPtr& expr,
     const TTableSchema& tableSchema);

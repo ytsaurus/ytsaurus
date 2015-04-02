@@ -1580,6 +1580,128 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRefineLookupPredicateTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*,
+        const char*,
+        const char*,
+        const char*,
+        std::vector<const char*>>>
+    , public TCompareExpressionTest
+{
+protected:
+    virtual void SetUp() override
+    { }
+
+    TConstExpressionPtr Refine(
+        std::vector<TKey>& keys,
+        const TConstExpressionPtr& expr,
+        const TKeyColumns& keyColumns)
+    {
+        return RefinePredicate(
+            keys,
+            expr,
+            keyColumns);
+    }
+};
+
+TEST_P(TRefineLookupPredicateTest, Simple)
+{
+    const auto& args = GetParam();
+    const auto& schemaString = std::get<0>(args);
+    const auto& keyString = std::get<1>(args);
+    const auto& predicateString = std::get<2>(args);
+    const auto& refinedString = std::get<3>(args);
+    const auto& keyStrings = std::get<4>(args);
+
+    TTableSchema tableSchema;
+    TKeyColumns keyColumns;
+    Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
+    Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
+
+    std::vector<TKey> keys;
+    Stroka keysString;
+    for (const auto& keyString : keyStrings) {
+        keys.push_back(BuildKey(keyString));
+        keysString += Stroka(keysString.size() > 0 ? ", " : "") + "[" + keyString + "]";
+    }
+
+    auto predicate = PrepareExpression(predicateString, tableSchema);
+    auto expected = PrepareExpression(refinedString, tableSchema);
+    auto refined = Refine(keys, predicate, keyColumns);
+
+    EXPECT_TRUE(Equal(refined, expected))
+        << "schema: " << schemaString << std::endl
+        << "key_columns: " << keyString << std::endl
+        << "keys: " << keysString << std::endl
+        << "predicate: " << predicateString << std::endl
+        << "refined: " << ::testing::PrintToString(refined) << std::endl
+        << "expected: " << ::testing::PrintToString(expected);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    TRefineLookupPredicateTest,
+    TRefineLookupPredicateTest,
+    ::testing::Values(
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ((1,2),(3,4))",
+            "(k,l) in ((1,2),(3,4))",
+            std::vector<const char*>{"1;3"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ((1,2),(3,4)) and k > 3",
+            "k > 3",
+            std::vector<const char*>{"1;2"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ((1,2),(3,4)) and k > 3",
+            "k > 3",
+            std::vector<const char*>{"1;2", "3;4"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(l,k) in ((1,2),(3,4))",
+            "(l,k) in ((1,2),(3,4))",
+            std::vector<const char*>{"3;1"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(l,k) in ((1,2),(3,4)) and k > 3",
+            "k > 3",
+            std::vector<const char*>{"2;1"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(l,k) in ((1,2),(3,4)) and k > 3",
+            "k > 3",
+            std::vector<const char*>{"2;1", "4;3"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((1),(3)) and k > 3",
+            "k > 3",
+            std::vector<const char*>{"1;2", "3;4"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((1),(3)) and k > 3",
+            "k > 3",
+            std::vector<const char*>{"1", "3"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((2),(4)) and k > 3",
+            "k > 3",
+            std::vector<const char*>{"1;2", "3;4"})
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
 #ifdef YT_USE_LLVM
 
 class TReaderMock
