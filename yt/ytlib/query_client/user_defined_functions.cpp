@@ -133,7 +133,7 @@ void TUserDefinedFunction::CheckCallee(llvm::Function* callee, TCGContext& build
             FunctionName_);
     } else if (callee->arg_size() != ArgumentTypes_.size()) {
         THROW_ERROR_EXCEPTION(
-            "Wrong number of arguments in LLVM bitcode: expected %Qv, got %Qv",
+            "Wrong number of arguments in LLVM bitcode: expected %v, got %v",
             ArgumentTypes_.size(),
             callee->arg_size());
     } else if (callee->getReturnType() != ConvertToLLVMType(ResultType_, builder)) {
