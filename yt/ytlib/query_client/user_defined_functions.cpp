@@ -38,17 +38,14 @@ TCodegenExpression PropagateNullArguments(
     std::vector<TCodegenExpression> codegenArgs,
     std::vector<Value*> argumentValues,
     std::function<Value*(std::vector<Value*>, TCGContext& builder)> codegenNonNull,
+    std::function<TCGValue(Value*, TCGContext& builder)> codegenReturn,
     EValueType type,
     const Stroka& name)
 {
     return [=] (TCGContext& builder, Value* row) {
         if (codegenArgs.empty()) {
-            return TCGValue::CreateFromValue(
-                builder,
-                builder.getFalse(),
-                nullptr,
-                codegenNonNull(argumentValues, builder),
-                type);
+            auto llvmResult = codegenNonNull(argumentValues, builder);
+            return codegenReturn(llvmResult, builder);
         } else {
             auto currentCodegenArg = codegenArgs.front();
             auto currentArgValue = currentCodegenArg(builder, row);
@@ -76,6 +73,7 @@ TCodegenExpression PropagateNullArguments(
                         newCodegenArgs,
                         newArgumentValues,
                         codegenNonNull,
+                        codegenReturn,
                         type,
                         name)(builder, row);
                 },
@@ -90,19 +88,54 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
     const Stroka& name) const
 {
     auto callUdf = [
-        this_ = MakeStrong(this),
-        type,
-        name
+        this_ = MakeStrong(this)
     ] (std::vector<Value*> argValues, TCGContext& builder) {
         return this_->LLVMValue(argValues, builder);
     };
 
-    return PropagateNullArguments(
-        codegenArgs,
-        std::vector<Value*>(),
-        callUdf,
-        type,
-        name);
+
+    return [=] (TCGContext& builder, Value* row) {
+        auto llvmArgs = std::vector<Value*>();
+
+        auto resultPointer = builder.CreateAlloca(
+            TDataTypeBuilder::get(
+                builder.getContext(),
+                EValueType::String));
+        auto resultLength = builder.CreateAlloca(
+            TTypeBuilder::TLength::get(builder.getContext()));
+
+        if (type == EValueType::String) {
+            llvmArgs.push_back(resultPointer);
+            llvmArgs.push_back(resultLength);
+        }
+
+        auto codegenReturn = [=] (Value* llvmResult, TCGContext& builder) {
+            if (type == EValueType::String) {
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder.getFalse(),
+                    builder.CreateLoad(resultLength),
+                    builder.CreateLoad(resultPointer),
+                    type,
+                    Twine(name.c_str()));
+            } else {
+                return TCGValue::CreateFromValue(
+                    builder,
+                    builder.getFalse(),
+                    nullptr,
+                    llvmResult,
+                    type);
+            }
+        };
+
+        return PropagateNullArguments(
+            codegenArgs,
+            llvmArgs,
+            callUdf,
+            codegenReturn,
+            type,
+            name)(builder, row);
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,12 +195,13 @@ void TUserDefinedFunction::CheckCallee(
             "Wrong number of arguments in LLVM bitcode: expected %v, got %v",
             argumentValues.size(),
             callee->arg_size());
-    } else if (callee->getReturnType() != ConvertToLLVMType(ResultType_, builder)) {
-        THROW_ERROR_EXCEPTION(
-            "Wrong result type in LLVM bitcode: expected %Qv, got %Qv",
-            LLVMTypeToString(ConvertToLLVMType(ResultType_, builder)),
-            LLVMTypeToString(callee->getReturnType()));
     }
+    //} else if (callee->getReturnType() != ConvertToLLVMType(ResultType_, builder)) {
+    //    THROW_ERROR_EXCEPTION(
+    //        "Wrong result type in LLVM bitcode: expected %Qv, got %Qv",
+    //        LLVMTypeToString(ConvertToLLVMType(ResultType_, builder)),
+    //        LLVMTypeToString(callee->getReturnType()));
+    //}
 
     auto i = 1;
     auto expected = argumentValues.begin();

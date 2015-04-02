@@ -3394,9 +3394,9 @@ TEST_F(TQueryEvaluateTest, TestUdfStringResult)
     });
 
     auto result = BuildRows({
-        "x=hello",
-        "x=hello",
-        "x=0u",
+        "x=\"hello\"",
+        "x=\"hello\"",
+        "x=\"\"",
         ""
     }, resultSplit);
 
