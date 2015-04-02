@@ -659,7 +659,7 @@ Function* CodegenRowComparerFunction(
 }
 
 TCodegenExpression MakeCodegenLiteralExpr(
-    size_t index,
+    int index,
     EValueType type)
 {
     return [

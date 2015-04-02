@@ -364,11 +364,11 @@ TCodegenAggregate MakeCodegenAggregateFunction(
     Twine name = Twine());
 
 TCodegenExpression MakeCodegenLiteralExpr(
-    size_t index,
+    int index,
     EValueType type);
 
 TCodegenExpression MakeCodegenReferenceExpr(
-    size_t index,
+    int index,
     EValueType type,
     Stroka name);
 
