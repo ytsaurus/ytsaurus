@@ -61,6 +61,8 @@ def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None
             "data_size_per_job": data_size_per_job,
             "job_io": {
                 "table_writer": {
+                    # TODO(ignat): added for copy_yamr_to_yt_pull. Add parameter.
+                    "max_row_weight": 128 * 1024 * 1024,
                     "desired_chunk_size": desired_chunk_size
                 }
             }}
