@@ -39,6 +39,12 @@ TChunkReaderBase::TChunkReaderBase(
     , BlockCache_(blockCache)
     , UnderlyingReader_(underlyingReader)
     , Misc_(misc)
+    , SwitchBlockCallback_(BIND(&TChunkReaderBase::SwitchBlockThunk, MakeWeak(this))
+        .AsyncVia(TDispatcher::Get()->GetReaderInvoker()))
+    , InitFirstBlockCallback_(BIND(&TChunkReaderBase::InitFirstBlock, MakeWeak(this))
+        .Via(TDispatcher::Get()->GetReaderInvoker()))
+    , InitNextBlockCallback_(BIND(&TChunkReaderBase::InitNextBlock, MakeWeak(this))
+        .Via(TDispatcher::Get()->GetReaderInvoker()))
 {
     Logger.AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId());
 }
@@ -72,17 +78,28 @@ void TChunkReaderBase::DoOpen()
         ECodec(Misc_.compression_codec()));
 
     YCHECK(SequentialReader_->HasMoreBlocks());
-    WaitFor(SequentialReader_->FetchNextBlock())
-        .ThrowOnError();
 
-    InitFirstBlock();
+    WaitFor(FetchNextBlock().Apply(InitFirstBlockCallback_))
+        .ThrowOnError();
 }
 
-void TChunkReaderBase::DoSwitchBlock()
+TFuture<void> TChunkReaderBase::FetchNextBlock()
 {
-    WaitFor(SequentialReader_->FetchNextBlock())
-        .ThrowOnError();
-    InitNextBlock();
+    return SequentialReader_->FetchNextBlock();
+}
+
+TFuture<void> TChunkReaderBase::SwitchBlock()
+{
+    return FetchNextBlock().Apply(InitNextBlockCallback_);
+}
+
+TFuture<void> TChunkReaderBase::SwitchBlockThunk(const TWeakPtr<TChunkReaderBase>& weakThis)
+{
+    auto this_ = weakThis.Lock();
+    if (!this_) {
+        return MakeFuture(TError("Reader disposed"));
+    }
+    return this_->SwitchBlock();
 }
 
 bool TChunkReaderBase::OnBlockEnded()
@@ -93,9 +110,7 @@ bool TChunkReaderBase::OnBlockEnded()
         return false;
     }
 
-    ReadyEvent_ = BIND(&TChunkReaderBase::DoSwitchBlock, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run();
+    ReadyEvent_ = SwitchBlockCallback_.Run();
     return true;
 }
 
