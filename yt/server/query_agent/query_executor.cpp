@@ -198,12 +198,13 @@ private:
     {
         auto Logger = BuildLogger(fragment->Query);
 
-        Stroka rangesString;
-        for (const auto& range : ranges) {
-            rangesString += Format("[%v .. %v]", range.first, range.second);
-        }
+        if (fragment->VerboseLogging) {
+            Stroka rangesString = JoinToString(ranges, [] (const TKeyRange& range) {
+                return Format("[%v .. %v]", range.first, range.second);
+            });
 
-        LOG_DEBUG("Got ranges for groups %v", rangesString);
+            LOG_DEBUG("Got ranges for groups %v", rangesString);
+        }
 
         return CoordinateAndExecute(
             fragment,
@@ -294,13 +295,6 @@ private:
         LOG_DEBUG("Grouped into %v groups", groupedSplits.size());
         auto ranges = GetRanges(groupedSplits);
 
-        Stroka rangesString;
-        for (const auto& range : ranges) {
-            rangesString += Format("[%v .. %v]", range.first, range.second);
-        }
-
-        LOG_DEBUG("Got ranges for groups %v", rangesString);
-
         return DoCoordinateAndExecute(fragment, std::move(writer), ranges, false, [&] (int index) {
             std::vector<ISchemafulReaderPtr> bottomSplitReaders;
             for (const auto& dataSplit : groupedSplits[index]) {
@@ -335,13 +329,6 @@ private:
         for (auto const& split : splits) {
             ranges.push_back(split.Range);
         }
-
-        Stroka rangesString;
-        for (const auto& range : ranges) {
-            rangesString += Format("[%v .. %v]", range.first, range.second);
-        }
-
-        LOG_DEBUG("Got ranges for groups %v", rangesString);
 
         return DoCoordinateAndExecute(fragment, std::move(writer), ranges, true, [&] (int index) {
             std::vector<ISchemafulReaderPtr> bottomSplitReaders;
