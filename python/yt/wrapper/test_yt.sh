@@ -129,6 +129,7 @@ test_map_reduce()
 
     ./yt map-reduce --mapper cat --reducer "grep 2" --src //home/wrapper_test/input_table --dst //home/wrapper_test/input_table --reduce-by value
     check "1" `./yt get //home/wrapper_test/input_table/@row_count`
+    unset YT_TABULAR_DATA_FORMAT
 }
 
 test_users()
