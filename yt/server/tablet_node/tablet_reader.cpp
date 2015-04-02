@@ -211,7 +211,8 @@ protected:
     }
 
 
-    std::function<bool(const TSession*, const TSession*)> GetSessionComparer() {
+    std::function<bool(const TSession*, const TSession*)> GetSessionComparer()
+    {
         return [&] (const TSession* lhsSession, const TSession* rhsSession) {
             auto lhsRow = *lhsSession->CurrentRow;
             auto rhsRow = *rhsSession->CurrentRow;
