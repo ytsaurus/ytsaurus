@@ -1,3 +1,4 @@
+var dns = require("dns");
 var url = require("url");
 var http = require("http");
 var https = require("https");
@@ -9,6 +10,9 @@ var YtError = require("./error").that;
 ////////////////////////////////////////////////////////////////////////////////
 
 var __DBG = require("./debug").that("A", "HTTP");
+
+var _resolveIPv4 = Q.promisify(dns.resolve4);
+var _resolveIPv6 = Q.promisify(dns.resolve6);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +30,7 @@ function YtHttpRequest(host, port, path, verb, body)
     this.secure = false;
     this.json = false;
     this.body = null;
-    this.headers = {};
+    this.headers = {"Host": host};
     this.nodelay = true;
     this.timeout = 15000;
 
@@ -40,6 +44,7 @@ YtHttpRequest.prototype.withHost = function(host)
 {
     "use strict";
     this.host = host;
+    this.headers["Host"] = host;
     return this;
 };
 
@@ -145,60 +150,66 @@ YtHttpRequest.prototype.fire = function()
     __DBG("Firing: " + this.toString());
 
     var self = this;
+    function impl(addr) {
+        var deferred = Q.defer();
+        var proto = self.secure ? https : http;
+        var req = proto.request({
+            method: self.verb,
+            headers: self.headers,
+            host: addr,
+            port: self.port,
+            path: self.path,
+        });
 
-    var deferred = Q.defer();
-    var proto = self.secure ? https : http;
-    var req = proto.request({
-        method: self.verb,
-        headers: self.headers,
-        host: self.host,
-        port: self.port,
-        path: self.path,
-    });
-
-    req.setNoDelay(self.nodelay);
-    req.setTimeout(self.timeout, function() {
-        deferred.reject(new YtError(
-            self.toString() + " has timed out"));
-    });
-    req.once("error", function(err) {
-        deferred.reject(new YtError(
-            self.toString() + " has failed", err));
-    });
-    req.once("response", function(rsp) {
-        var code = rsp.statusCode;
-        if (
-            (self.failOn4xx && code >= 400 && code < 500) ||
-            (self.failOn5xx && code >= 500 && code < 600))
-        {
+        req.setNoDelay(self.nodelay);
+        req.setTimeout(self.timeout, function() {
             deferred.reject(new YtError(
-                self.toString() + " has responded with " + rsp.statusCode));
-            return;
-        }
-
-        var chunks = [];
-        var result;
-        rsp.on("data", function(chunk) {
-            chunks.push(chunk);
+                self.toString() + " has timed out"));
         });
-        rsp.on("end", function() {
-            result = buffertools.concat.apply(undefined, chunks);
-            if (!self.json) {
-                deferred.resolve(result);
-            } else {
-                try {
-                    deferred.resolve(JSON.parse(result));
-                } catch (err) {
-                    deferred.reject(new YtError(
-                        self.toString() + " has responded with invalid JSON",
-                        err));
-                }
+        req.once("error", function(err) {
+            deferred.reject(new YtError(
+                self.toString() + " has failed", err));
+        });
+        req.once("response", function(rsp) {
+            var code = rsp.statusCode;
+            if (
+                (self.failOn4xx && code >= 400 && code < 500) ||
+                (self.failOn5xx && code >= 500 && code < 600))
+            {
+                deferred.reject(new YtError(
+                    self.toString() + " has responded with " + rsp.statusCode));
+                return;
             }
-        });
-    });
-    req.end(self.body);
 
-    return deferred.promise;
+            var chunks = [];
+            var result;
+            rsp.on("data", function(chunk) {
+                chunks.push(chunk);
+            });
+            rsp.on("end", function() {
+                result = buffertools.concat.apply(undefined, chunks);
+                if (!self.json) {
+                    deferred.resolve(result);
+                } else {
+                    try {
+                        deferred.resolve(JSON.parse(result));
+                    } catch (err) {
+                        deferred.reject(new YtError(
+                            self.toString() + " has responded with invalid JSON",
+                            err));
+                    }
+                }
+            });
+        });
+        req.end(self.body);
+
+        return deferred.promise;
+    }
+
+    var addr4 = _resolveIPv4(self.host);
+    var addr6 = _resolveIPv6(self.host);
+
+    return addr6.catch(function() { return addr4; }).then(impl);
 };
 
 YtHttpRequest.prototype.toString = function()
