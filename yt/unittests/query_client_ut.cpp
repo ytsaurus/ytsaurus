@@ -31,6 +31,7 @@
 
 #ifdef YT_USE_LLVM
 #include <udfs/exponentiate.h>
+#include <udfs/parse_natural.h>
 
 #include <ytlib/query_client/folding_profiler.h>
 #endif
@@ -2000,6 +2001,13 @@ protected:
             TSharedRef::FromRefNonOwning(TRef(
                 exponentiate_bc,
                 exponentiate_bc_len)));
+        ParseNaturalUDF_ = New<TUserDefinedFunction>(
+            "parse_natural",
+            std::vector<EValueType>{EValueType::String},
+            EValueType::Uint64,
+            TSharedRef::FromRefNonOwning(TRef(
+                parse_natural_bc,
+                parse_natural_bc_len)));
     }
 
     virtual void TearDown() override
@@ -2164,6 +2172,7 @@ protected:
 
     IFunctionDescriptorPtr AbsoluteUDF_;
     IFunctionDescriptorPtr ExponentiateUDF_;
+    IFunctionDescriptorPtr ParseNaturalUDF_;
 };
 
 std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
@@ -3321,6 +3330,39 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation2)
         .WillRepeatedly(Return(ExponentiateUDF_));
 
     Evaluate("exponentiate(a, b) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=123",
+        "a=50",
+        "a=",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=123",
+        "x=50",
+        "x=0",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("parse_natural"))
+        .WillRepeatedly(Return(ParseNaturalUDF_));
+
+    Evaluate("parse_natural(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
