@@ -21,9 +21,17 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Value* SplitStringArguments(TCGValue argumentValue)
+std::vector<Value*> SplitStringArguments(
+    TCGValue argumentValue,
+    TCGContext& builder)
 {
-    return argumentValue.GetData();
+    if (argumentValue.GetStaticType() == EValueType::String) {
+        return std::vector<Value*>{
+            argumentValue.GetData(),
+            argumentValue.GetLength()};
+    } else {
+        return std::vector<Value*>{argumentValue.GetData()};
+    }
 }
 
 TCodegenExpression PropagateNullArguments(
@@ -42,21 +50,24 @@ TCodegenExpression PropagateNullArguments(
                 codegenNonNull(argumentValues, builder),
                 type);
         } else {
-            auto codegenArg = codegenArgs.front();
-            auto argumentValue = codegenArg(builder, row);
+            auto currentCodegenArg = codegenArgs.front();
+            auto currentArgValue = currentCodegenArg(builder, row);
                 
-            auto splitArgumentValue = SplitStringArguments(argumentValue);
+            auto splitArgumentValue = SplitStringArguments(currentArgValue, builder);
 
             auto newCodegenArgs = std::vector<TCodegenExpression>(
                 codegenArgs.rbegin(),
                 codegenArgs.rend());
             newCodegenArgs.pop_back();
             auto newArgumentValues = argumentValues;
-            newArgumentValues.push_back(splitArgumentValue);
+            newArgumentValues.insert(
+                newArgumentValues.end(),
+                splitArgumentValue.begin(),
+                splitArgumentValue.end());
 
             return CodegenIf<TCGContext, TCGValue>(
                 builder,
-                argumentValue.IsNull(),
+                currentArgValue.IsNull(),
                 [&] (TCGContext& builder) {
                     return TCGValue::CreateNull(builder, type);
                 },
