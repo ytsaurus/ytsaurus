@@ -550,10 +550,9 @@ void TTablet::Initialize()
 {
     PerformanceCounters_ = New<TTabletPerformanceCounters>();
 
-    Comparer_ = TDynamicRowKeyComparer(
+    Comparer_ = TDynamicRowKeyComparer::Create(
         GetKeyColumnCount(),
-        Schema_,
-        Config_->EnableCodegen);
+        Schema_);
 
     ColumnIndexToLockIndex_.resize(Schema_.Columns().size());
     LockIndexToName_.push_back(PrimaryLockName);
