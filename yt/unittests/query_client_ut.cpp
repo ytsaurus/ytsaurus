@@ -3341,9 +3341,9 @@ TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
     });
 
     std::vector<Stroka> source = {
-        "a=123",
-        "a=50",
-        "a=",
+        "a=\"123\"",
+        "a=\"50\"",
+        "a=\"\"",
         ""
     };
 
@@ -3352,9 +3352,9 @@ TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
     });
 
     auto result = BuildRows({
-        "x=123",
-        "x=50",
-        "x=0",
+        "x=123u",
+        "x=50u",
+        "x=0u",
         ""
     }, resultSplit);
 

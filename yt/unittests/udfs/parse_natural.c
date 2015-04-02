@@ -1,4 +1,5 @@
-unsigned long parse_natural(const char* string, unsigned long length) {
+unsigned long parse_natural(const char* string, int length)
+{
     unsigned long result = 0;
     for (int i = 0; i < length; i++) {
         result *= 10;
