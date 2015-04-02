@@ -677,7 +677,7 @@ TCodegenExpression MakeCodegenLiteralExpr(
 }
 
 TCodegenExpression MakeCodegenReferenceExpr(
-    size_t index,
+    int index,
     EValueType type,
     Stroka name)
 {
