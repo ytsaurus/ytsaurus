@@ -32,6 +32,10 @@ DECLARE_REFCOUNTED_CLASS(TFileSnapshotWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const i64 ReaderBlockSize = (i64) 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFileSnapshotReader
     : public ISnapshotReader
 {
@@ -61,11 +65,11 @@ public:
             .Run();
     }
 
-    virtual TFuture<size_t> Read(void* buf, size_t len) override
+    virtual TFuture<TSharedRef> Read() override
     {
         return BIND(&TFileSnapshotReader::DoRead, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
-            .Run(buf, len);
+            .Run();
     }
 
     virtual TSnapshotParams GetParams() const override
@@ -211,9 +215,11 @@ private:
         LOG_DEBUG("Local snapshot reader opened");
     }
 
-    size_t DoRead(void* buf, size_t len)
+    TSharedRef DoRead()
     {
-        return FacadeInput_->Load(buf, len);
+        auto block = TSharedRef::Allocate(ReaderBlockSize, false);
+        size_t length = FacadeInput_->Load(block.Begin(), block.Size());
+        return block.Slice(TRef(block.Begin(), length));
     }
 
 };
