@@ -137,10 +137,10 @@ void EnumerateListsAndReverse(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicMemoryStore::TFetcherBase
+class TDynamicMemoryStore::TReaderBase
 {
 public:
-    explicit TFetcherBase(
+    explicit TReaderBase(
         TDynamicMemoryStorePtr store,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter)
@@ -430,7 +430,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicMemoryStore::TRangeReader
-    : public TFetcherBase
+    : public TReaderBase
     , public IVersionedReader
 {
 public:
@@ -440,7 +440,7 @@ public:
         TOwningKey upperKey,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter)
-        : TFetcherBase(
+        : TReaderBase(
             std::move(store),
             timestamp,
             columnFilter)
@@ -516,7 +516,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicMemoryStore::TLookupReader
-    : public TFetcherBase
+    : public TReaderBase
     , public IVersionedReader
 {
 public:
@@ -525,7 +525,7 @@ public:
         const std::vector<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter)
-        : TFetcherBase(
+        : TReaderBase(
             std::move(store),
             timestamp,
             columnFilter)
