@@ -32,6 +32,7 @@
 #ifdef YT_USE_LLVM
 #include <udfs/exponentiate.h>
 #include <udfs/parse_natural.h>
+#include <udfs/to_lower.h>
 
 #include <ytlib/query_client/folding_profiler.h>
 #endif
@@ -2008,6 +2009,13 @@ protected:
             TSharedRef::FromRefNonOwning(TRef(
                 parse_natural_bc,
                 parse_natural_bc_len)));
+        ToLowerUDF_ = New<TUserDefinedFunction>(
+            "to_lower",
+            std::vector<EValueType>{EValueType::String},
+            EValueType::String,
+            TSharedRef::FromRefNonOwning(TRef(
+                to_lower_bc,
+                to_lower_bc_len)));
     }
 
     virtual void TearDown() override
@@ -2173,6 +2181,7 @@ protected:
     IFunctionDescriptorPtr AbsoluteUDF_;
     IFunctionDescriptorPtr ExponentiateUDF_;
     IFunctionDescriptorPtr ParseNaturalUDF_;
+    IFunctionDescriptorPtr ToLowerUDF_;
 };
 
 std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
@@ -3363,6 +3372,39 @@ TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
         .WillRepeatedly(Return(ParseNaturalUDF_));
 
     Evaluate("parse_natural(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUdfStringResult)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"HELLO\"",
+        "a=\"HeLlO\"",
+        "a=\"\"",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=hello",
+        "x=hello",
+        "x=0u",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("to_lower"))
+        .WillRepeatedly(Return(ToLowerUDF_));
+
+    Evaluate("to_lower(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
