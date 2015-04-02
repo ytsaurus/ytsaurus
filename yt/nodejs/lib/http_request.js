@@ -147,10 +147,13 @@ YtHttpRequest.prototype.withHeader = function(header, value)
 YtHttpRequest.prototype.fire = function()
 {
     "use strict";
-    __DBG("Firing: " + this.toString());
 
     var self = this;
     function impl(addr) {
+        addr = addr[0];
+
+        __DBG("Firing: " + self.toString() + " via " + addr.toString());
+
         var deferred = Q.defer();
         var proto = self.secure ? https : http;
         var req = proto.request({
