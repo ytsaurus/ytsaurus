@@ -261,17 +261,21 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_templa
     temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
     yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]))
 
+    job_io_config = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
+
     if spec_template is None:
         spec_template = {}
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
-    spec["job_io"] = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
+    spec["job_io"] = job_io_config
 
     if sort_spec_template is None:
         sort_spec = deepcopy(spec)
         del sort_spec["pool"]
     else:
         sort_spec = sort_spec_template
+    sort_spec["sort_job_io"] = job_io_config
+    sort_spec["merge_job_io"] = job_io_config
 
     command = """\
 set -ux
