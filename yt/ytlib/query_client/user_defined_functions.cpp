@@ -34,52 +34,54 @@ std::vector<Value*> SplitStringArguments(
     }
 }
 
-TCodegenExpression PropagateNullArguments(
+TCGValue PropagateNullArguments(
     std::vector<TCodegenExpression> codegenArgs,
-    std::vector<Value*> argumentValues,
-    std::function<Value*(std::vector<Value*>, TCGContext& builder)> codegenNonNull,
-    std::function<TCGValue(Value*, TCGContext& builder)> codegenReturn,
+    std::vector<Value*> initialArgumentValues,
+    std::function<Value*(std::vector<Value*>)> codegenBody,
+    std::function<TCGValue(Value*)> codegenReturn,
     EValueType type,
-    const Stroka& name)
+    const Stroka& name,
+    TCGContext& builder,
+    Value* row)
 {
-    return [=] (TCGContext& builder, Value* row) {
-        if (codegenArgs.empty()) {
-            auto llvmResult = codegenNonNull(argumentValues, builder);
-            return codegenReturn(llvmResult, builder);
-        } else {
-            auto currentCodegenArg = codegenArgs.front();
-            auto currentArgValue = currentCodegenArg(builder, row);
-                
-            auto splitArgumentValue = SplitStringArguments(currentArgValue, builder);
+    if (codegenArgs.empty()) {
+        auto llvmResult = codegenBody(initialArgumentValues);
+        return codegenReturn(llvmResult);
+    } else {
+        auto currentCodegenArg = codegenArgs.front();
+        auto currentArgValue = currentCodegenArg(builder, row);
+            
+        auto splitArgumentValue = SplitStringArguments(currentArgValue, builder);
 
-            auto newCodegenArgs = std::vector<TCodegenExpression>(
-                codegenArgs.rbegin(),
-                codegenArgs.rend());
-            newCodegenArgs.pop_back();
-            auto newArgumentValues = argumentValues;
-            newArgumentValues.insert(
-                newArgumentValues.end(),
-                splitArgumentValue.begin(),
-                splitArgumentValue.end());
+        auto newCodegenArgs = std::vector<TCodegenExpression>(
+            codegenArgs.rbegin(),
+            codegenArgs.rend());
+        newCodegenArgs.pop_back();
+        auto newArgumentValues = initialArgumentValues;
+        newArgumentValues.insert(
+            newArgumentValues.end(),
+            splitArgumentValue.begin(),
+            splitArgumentValue.end());
 
-            return CodegenIf<TCGContext, TCGValue>(
-                builder,
-                currentArgValue.IsNull(),
-                [&] (TCGContext& builder) {
-                    return TCGValue::CreateNull(builder, type);
-                },
-                [&] (TCGContext& builder) {
-                    return PropagateNullArguments(
-                        newCodegenArgs,
-                        newArgumentValues,
-                        codegenNonNull,
-                        codegenReturn,
-                        type,
-                        name)(builder, row);
-                },
-                Twine(name.c_str()));
-        }
-    };
+        return CodegenIf<TCGContext, TCGValue>(
+            builder,
+            currentArgValue.IsNull(),
+            [&] (TCGContext& builder) {
+                return TCGValue::CreateNull(builder, type);
+            },
+            [&] (TCGContext& builder) {
+                return PropagateNullArguments(
+                    newCodegenArgs,
+                    newArgumentValues,
+                    codegenBody,
+                    codegenReturn,
+                    type,
+                    name,
+                    builder,
+                    row);
+            },
+            Twine(name.c_str()));
+    }
 }
 
 TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
@@ -87,16 +89,12 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
     EValueType type,
     const Stroka& name) const
 {
-    auto callUdf = [
-        this_ = MakeStrong(this)
-    ] (std::vector<Value*> argValues, TCGContext& builder) {
-        return this_->LLVMValue(argValues, builder);
-    };
-
-
-    return [=] (TCGContext& builder, Value* row) {
-        auto llvmArgs = std::vector<Value*>();
-
+    return [
+        this_ = MakeStrong(this),
+        type,
+        name,
+        codegenArgs
+    ] (TCGContext& builder, Value* row) {
         auto resultPointer = builder.CreateAlloca(
             TDataTypeBuilder::get(
                 builder.getContext(),
@@ -104,12 +102,17 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
         auto resultLength = builder.CreateAlloca(
             TTypeBuilder::TLength::get(builder.getContext()));
 
+        auto llvmArgs = std::vector<Value*>();
         if (type == EValueType::String) {
             llvmArgs.push_back(resultPointer);
             llvmArgs.push_back(resultLength);
         }
 
-        auto codegenReturn = [=] (Value* llvmResult, TCGContext& builder) {
+        auto callUdf = [&] (std::vector<Value*> argValues) {
+            return this_->LLVMValue(argValues, builder);
+        };
+
+        auto codegenReturn = [&] (Value* llvmResult) {
             if (type == EValueType::String) {
                 return TCGValue::CreateFromValue(
                     builder,
@@ -134,7 +137,9 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
             callUdf,
             codegenReturn,
             type,
-            name)(builder, row);
+            name,
+            builder,
+            row);
     };
 }
 
