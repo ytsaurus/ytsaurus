@@ -145,7 +145,7 @@ public:
     DEFINE_SIGNAL(void(TDynamicRow row, int lockIndex), RowBlocked)
 
 private:
-    class TFetcherBase;
+    class TReaderBase;
     class TRangeReader;
     class TLookupReader;
 
