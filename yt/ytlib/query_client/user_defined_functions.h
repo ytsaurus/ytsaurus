@@ -16,10 +16,9 @@ class TSimpleCallingConvention
         EValueType type,
         const Stroka& name) const override;
 
-    virtual TCodegenExpression MakeSimpleCodegenExpr(
-        std::vector<TCGValue> argValues,
-        EValueType type,
-        const Stroka& name) const = 0;
+    virtual Value* LLVMValue(
+        std::vector<Value*> argValues,
+        TCGContext& builder) const = 0;
 };
 
 class TUserDefinedFunction
@@ -34,10 +33,9 @@ public:
         EValueType resultType,
         TSharedRef implementationFile);
 
-    virtual TCodegenExpression MakeSimpleCodegenExpr(
-        std::vector<TCGValue> codegenArgs,
-        EValueType type,
-        const Stroka& name) const override;
+    virtual Value* LLVMValue(
+        std::vector<Value*> argValues,
+        TCGContext& builder) const;
 
 private:
     Stroka FunctionName_;
