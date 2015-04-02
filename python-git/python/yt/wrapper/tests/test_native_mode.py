@@ -598,6 +598,8 @@ class NativeModeTester(YtTestBase, YTEnv):
         assert [{"x": 1, "y": 2, "z": 3}] == select()
 
     def test_insert_lookup_delete(self):
+        yt.config.format.TABULAR_DATA_FORMAT = None
+
         if yt.config.VERSION == "v2":
             return
 
