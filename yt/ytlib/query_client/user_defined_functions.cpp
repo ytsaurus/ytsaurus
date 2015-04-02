@@ -137,16 +137,19 @@ Stroka LLVMTypeToString(llvm::Type* tp)
     return Stroka(stream.str());
 }
 
-void TUserDefinedFunction::CheckCallee(llvm::Function* callee, TCGContext& builder) const
+void TUserDefinedFunction::CheckCallee(
+    llvm::Function* callee,
+    TCGContext& builder,
+    std::vector<Value*> argumentValues) const
 {
     if (callee == nullptr) {
         THROW_ERROR_EXCEPTION(
             "Could not find LLVM bitcode for %Qv",
             FunctionName_);
-    } else if (callee->arg_size() != ArgumentTypes_.size()) {
+    } else if (callee->arg_size() != argumentValues.size()) {
         THROW_ERROR_EXCEPTION(
             "Wrong number of arguments in LLVM bitcode: expected %v, got %v",
-            ArgumentTypes_.size(),
+            argumentValues.size(),
             callee->arg_size());
     } else if (callee->getReturnType() != ConvertToLLVMType(ResultType_, builder)) {
         THROW_ERROR_EXCEPTION(
@@ -155,18 +158,18 @@ void TUserDefinedFunction::CheckCallee(llvm::Function* callee, TCGContext& build
             LLVMTypeToString(callee->getReturnType()));
     }
 
-    auto i = 0;
-    auto expected = ArgumentTypes_.begin();
+    auto i = 1;
+    auto expected = argumentValues.begin();
     for (
         auto actual = callee->arg_begin();
-        expected != ArgumentTypes_.end();
+        expected != argumentValues.end();
         expected++, actual++, i++)
     {
-        if (actual->getType() != ConvertToLLVMType(*expected, builder)) {
+        if (actual->getType() != (*expected)->getType()) {
             THROW_ERROR_EXCEPTION(
-                "Wrong type for argument %Qv in LLVM bitcode: expected %Qv, got %Qv",
+                "Wrong type for argument %v in LLVM bitcode: expected %Qv, got %Qv",
                 i,
-                LLVMTypeToString(ConvertToLLVMType(*expected, builder)),
+                LLVMTypeToString((*expected)->getType()),
                 LLVMTypeToString(actual->getType()));
         }
     }
@@ -192,7 +195,6 @@ Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
         Linker::LinkModules(module, implModule.get());
         callee = module->getFunction(StringRef(FunctionName_));
     }
-    CheckCallee(callee, builder);
     return callee;
 }
 
@@ -200,9 +202,10 @@ Value* TUserDefinedFunction::LLVMValue(
     std::vector<Value*> argumentValues,
     TCGContext& builder) const
 {
-        auto callee = GetLLVMFunction(builder);
-        auto result = builder.CreateCall(callee, argumentValues);
-        return result;
+    auto callee = GetLLVMFunction(builder);
+    CheckCallee(callee, builder, argumentValues);
+    auto result = builder.CreateCall(callee, argumentValues);
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
