@@ -93,9 +93,15 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
         SchemaIdMapping_.reserve(CachedChunkMeta_->SchemaIdMapping().size());
         int keyColumnCount = static_cast<int>(CachedChunkMeta_->KeyColumns().size());
         for (auto index : columnFilter.Indexes) {
-            if (index >= keyColumnCount) {
-                auto mappingIndex = index - keyColumnCount;
-                SchemaIdMapping_.push_back(CachedChunkMeta_->SchemaIdMapping()[mappingIndex]);
+            if (index < keyColumnCount) {
+                continue;
+            }
+
+            for (const auto& mapping : CachedChunkMeta_->SchemaIdMapping()) {
+                if (mapping.ReaderSchemaIndex == index) {
+                    SchemaIdMapping_.push_back(mapping);
+                    break;
+                }
             }
         }
     }
