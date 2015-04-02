@@ -188,10 +188,10 @@ def _prepare_formats(format, input_format, output_format, binary):
     return input_format, output_format
 
 def _prepare_format(format, raw):
-    if not raw and format is None:
-        format = YsonFormat(process_table_index=False)
     if format is None:
         format = config.format.TABULAR_DATA_FORMAT
+    if not raw and format is None:
+        format = YsonFormat(process_table_index=False)
     if isinstance(format, str):
         format = create_format(format)
 
