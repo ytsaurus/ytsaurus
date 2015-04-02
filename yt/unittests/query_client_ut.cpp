@@ -590,6 +590,11 @@ static TValue MakeUint64(i64 value)
     return MakeUnversionedUint64Value(value);
 }
 
+static TValue MakeBoolean(bool value)
+{
+    return MakeUnversionedBooleanValue(value);
+}
+
 static TValue MakeString(const TStringBuf& value)
 {
     return MakeUnversionedStringValue(value);
@@ -1479,7 +1484,6 @@ class TPrepareExpressionTest
 protected:
     virtual void SetUp() override
     { }
-
 };
 
 TEST_F(TPrepareExpressionTest, Basic)
@@ -1538,7 +1542,7 @@ TEST_P(TPrepareExpressionTest, Simple)
 }
 
 INSTANTIATE_TEST_CASE_P(
-    PrepareExpressionTest,
+    TPrepareExpressionTest,
     TPrepareExpressionTest,
     ::testing::Values(
         std::tuple<TConstExpressionPtr, const char*>(
@@ -1576,7 +1580,114 @@ INSTANTIATE_TEST_CASE_P(
                     Make<TReferenceExpression>("a")),
                 Make<TLiteralExpression>(MakeInt64(2))),
             "-a - 2")
-    ));
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TArithmeticTestParam = std::tuple<const char*, const char*, const char*, TUnversionedValue>;
+
+class TArithmeticTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<TArithmeticTestParam>
+    , public TCompareExpressionTest
+{
+protected:
+    virtual void SetUp() override
+    { }
+};
+
+TEST_P(TArithmeticTest, ConstantFolding)
+{
+    auto schema = GetSampleTableSchema();
+    auto& param = GetParam();
+    auto& lhs = std::get<0>(param);
+    auto& op = std::get<1>(param);
+    auto& rhs = std::get<2>(param);
+    auto expected = Make<TLiteralExpression>(std::get<3>(param));
+
+    auto got = PrepareExpression(Stroka(lhs) + op + rhs, schema);
+
+    EXPECT_TRUE(Equal(got, expected))
+        << "got: " <<  ::testing::PrintToString(got) << std::endl
+        << "expected: " <<  ::testing::PrintToString(expected) << std::endl;
+}
+
+#ifdef YT_USE_LLVM
+
+TEST_P(TArithmeticTest, Evaluate)
+{
+    auto& param = GetParam();
+    auto& lhs = std::get<0>(param);
+    auto& op = std::get<1>(param);
+    auto& rhs = std::get<2>(param);
+    auto& expected = std::get<3>(param);
+
+    TUnversionedValue result;
+    TCGVariables variables;
+    auto schema = GetSampleTableSchema();
+    auto keyColumns = GetSampleKeyColumns();
+
+    auto lhsString = Stroka(lhs);
+    if (lhsString[lhsString.size() - 1] == 'u') {
+        schema.Columns()[0].Type = EValueType::Uint64;
+        schema.Columns()[1].Type = EValueType::Uint64;
+    }
+
+    auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
+    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
+    auto row = NVersionedTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, keyColumns, schema, true);
+
+    TQueryStatistics statistics;
+    TRowBuffer permanentBuffer;
+    TRowBuffer outputBuffer;
+    TRowBuffer intermediateBuffer;
+
+    TExecutionContext executionContext;
+    executionContext.Schema = schema;
+    executionContext.LiteralRows = &variables.LiteralRows;
+    executionContext.PermanentBuffer = &permanentBuffer;
+    executionContext.OutputBuffer = &outputBuffer;
+    executionContext.IntermediateBuffer = &intermediateBuffer;
+    executionContext.Statistics = &statistics;
+#ifndef NDEBUG
+    volatile int dummy;
+    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
+#endif
+
+    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
+
+    EXPECT_EQ(expected, result);
+}
+
+#endif
+
+INSTANTIATE_TEST_CASE_P(
+    TArithmeticTest,
+    TArithmeticTest,
+    ::testing::Values(
+        TArithmeticTestParam("1", "+", "2", MakeInt64(3)),
+        TArithmeticTestParam("1", "-", "2", MakeInt64(-1)),
+        TArithmeticTestParam("3", "*", "2", MakeInt64(6)),
+        TArithmeticTestParam("6", "/", "2", MakeInt64(3)),
+        TArithmeticTestParam("6", "%", "4", MakeInt64(2)),
+        TArithmeticTestParam("6", ">", "4", MakeBoolean(true)),
+        TArithmeticTestParam("6", "<", "4", MakeBoolean(false)),
+        TArithmeticTestParam("6", ">=", "4", MakeBoolean(true)),
+        TArithmeticTestParam("6", "<=", "4", MakeBoolean(false)),
+        TArithmeticTestParam("6", ">=", "6", MakeBoolean(true)),
+        TArithmeticTestParam("6", "<=", "6", MakeBoolean(true)),
+        TArithmeticTestParam("1u", "+", "2u", MakeUint64(3)),
+        TArithmeticTestParam("1u", "-", "2u", MakeUint64(-1)),
+        TArithmeticTestParam("3u", "*", "2u", MakeUint64(6)),
+        TArithmeticTestParam("6u", "/", "2u", MakeUint64(3)),
+        TArithmeticTestParam("6u", "%", "4u", MakeUint64(2)),
+        TArithmeticTestParam("6u", ">", "4u", MakeBoolean(true)),
+        TArithmeticTestParam("6u", "<", "4u", MakeBoolean(false)),
+        TArithmeticTestParam("6u", ">=", "4u", MakeBoolean(true)),
+        TArithmeticTestParam("6u", "<=", "4u", MakeBoolean(false)),
+        TArithmeticTestParam("6u", ">=", "6u", MakeBoolean(true)),
+        TArithmeticTestParam("6u", "<=", "6u", MakeBoolean(true))
+));
 
 ////////////////////////////////////////////////////////////////////////////////
 
