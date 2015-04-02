@@ -304,10 +304,17 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
     WriteThreeRows();
 
+    auto schema = Schema;
+    schema.Columns().push_back(TColumnSchema("vN", EValueType::Double));
+
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
-        Schema,
+        schema,
         KeyColumns).Get().ValueOrThrow();
+
+    TColumnFilter filter;
+    filter.All = false;
+    filter.Indexes = {1, 2, 3, 4, 5, 6};
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
@@ -316,7 +323,7 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
         chunkMeta,
         TReadLimit(),
         TReadLimit(),
-        TColumnFilter(),
+        filter,
         New<TChunkReaderPerformanceCounters>());
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
