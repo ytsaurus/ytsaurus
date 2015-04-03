@@ -8,47 +8,68 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleCallingConvention
-    : public virtual IFunctionDescriptor
+class ICallingConvention
+    : public TRefCounted
 {
 public:
-    virtual TCodegenExpression MakeCodegenExpr(
+    virtual TCodegenExpression MakeCodegenFunctionCall(
         std::vector<TCodegenExpression> codegenArgs,
+        std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
+        EValueType type,
+        const Stroka& name) const = 0;
+
+    virtual void CheckResultType(
+        Type* llvmType,
+        EValueType resultType,
+        TCGContext& builder) const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ICallingConvention);
+
+class TUnversionedValueCallingConvention
+    : public virtual IFunctionDescriptor
+{
+};
+
+class TSimpleCallingConvention
+    : public ICallingConvention
+{
+public:
+    virtual TCodegenExpression MakeCodegenFunctionCall(
+        std::vector<TCodegenExpression> codegenArgs,
+        std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
         EValueType type,
         const Stroka& name) const override;
 
-    virtual Value* LLVMValue(
-        std::vector<Value*> argValues,
-        TCGContext& builder) const = 0;
-
-protected:
     void CheckResultType(
         Type* llvmType,
         EValueType resultType,
-        TCGContext& builder) const;
+        TCGContext& builder) const override;
 };
 
 class TUserDefinedFunction
     : public TTypedFunction
     , public TUniversalRangeFunction
-    , public TSimpleCallingConvention
 {
 public:
     TUserDefinedFunction(
         const Stroka& functionName,
         std::vector<EValueType> argumentTypes,
         EValueType resultType,
-        TSharedRef implementationFile);
+        TSharedRef implementationFile,
+        ICallingConventionPtr callingConvention = New<TSimpleCallingConvention>());
 
-    virtual Value* LLVMValue(
-        std::vector<Value*> argValues,
-        TCGContext& builder) const;
+    virtual TCodegenExpression MakeCodegenExpr(
+        std::vector<TCodegenExpression> codegenArgs,
+        EValueType type,
+        const Stroka& name) const override;
 
 private:
     Stroka FunctionName_;
     TSharedRef ImplementationFile_;
     EValueType ResultType_;
     std::vector<EValueType> ArgumentTypes_;
+    ICallingConventionPtr CallingConvention_;
 
     Function* GetLLVMFunction(TCGContext& builder) const;
     void CheckCallee(

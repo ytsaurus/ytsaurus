@@ -92,8 +92,9 @@ TCGValue PropagateNullArguments(
     }
 }
 
-TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
+TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
     std::vector<TCodegenExpression> codegenArgs,
+    std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
     EValueType type,
     const Stroka& name) const
 {
@@ -101,7 +102,8 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
         this_ = MakeStrong(this),
         type,
         name,
-        codegenArgs
+        codegenArgs,
+        codegenBody
     ] (TCGContext& builder, Value* row) {
         auto resultPointer = builder.CreateAlloca(
             TDataTypeBuilder::get(
@@ -117,7 +119,7 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
         }
 
         auto callUdf = [&] (std::vector<Value*> argValues) {
-            return this_->LLVMValue(argValues, builder);
+            return codegenBody(argValues, builder);
         };
 
         auto codegenReturn = [&] (Value* llvmResult) {
@@ -186,7 +188,8 @@ TUserDefinedFunction::TUserDefinedFunction(
     const Stroka& functionName,
     std::vector<EValueType> argumentTypes,
     EValueType resultType,
-    TSharedRef implementationFile)
+    TSharedRef implementationFile,
+    ICallingConventionPtr callingConvention)
     : TTypedFunction(
         functionName,
         std::vector<TType>(argumentTypes.begin(), argumentTypes.end()),
@@ -195,6 +198,7 @@ TUserDefinedFunction::TUserDefinedFunction(
     , ImplementationFile_(implementationFile)
     , ResultType_(resultType)
     , ArgumentTypes_(argumentTypes)
+    , CallingConvention_(callingConvention)
 { }
 
 void TUserDefinedFunction::CheckCallee(
@@ -213,7 +217,10 @@ void TUserDefinedFunction::CheckCallee(
             callee->arg_size());
     }
 
-    CheckResultType(callee->getReturnType(), ResultType_, builder);
+    CallingConvention_->CheckResultType(
+        callee->getReturnType(),
+        ResultType_,
+        builder);
 
     auto i = 1;
     auto expected = argumentValues.begin();
@@ -255,14 +262,25 @@ Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
     return callee;
 }
 
-Value* TUserDefinedFunction::LLVMValue(
-    std::vector<Value*> argumentValues,
-    TCGContext& builder) const
+TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    const Stroka& name) const
 {
-    auto callee = GetLLVMFunction(builder);
-    CheckCallee(callee, builder, argumentValues);
-    auto result = builder.CreateCall(callee, argumentValues);
-    return result;
+    auto codegenBody = [
+        this_ = MakeStrong(this)
+    ] (std::vector<Value*> argumentValues, TCGContext& builder) {
+        auto callee = this_->GetLLVMFunction(builder);
+        this_->CheckCallee(callee, builder, argumentValues);
+        auto result = builder.CreateCall(callee, argumentValues);
+        return result;
+    };
+
+    return CallingConvention_->MakeCodegenFunctionCall(
+        codegenArgs,
+        codegenBody,
+        type,
+        name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
