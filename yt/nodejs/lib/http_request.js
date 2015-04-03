@@ -32,6 +32,7 @@ function YtHttpRequest(host, port, path, verb, body)
     this.body = null;
     this.headers = {"Host": host};
     this.nodelay = true;
+    this.noresolve = false;
     this.timeout = 15000;
 
     this.failOn4xx = false;
@@ -73,6 +74,13 @@ YtHttpRequest.prototype.setNoDelay = function(nodelay)
 {
     "use strict";
     this.nodelay = nodelay;
+    return this;
+};
+
+YtHttpRequest.prototype.setNoResolve = function(noresolve)
+{
+    "use strict";
+    this.noresolve = noresolve;
     return this;
 };
 
@@ -209,10 +217,16 @@ YtHttpRequest.prototype.fire = function()
         return deferred.promise;
     }
 
-    var addr4 = _resolveIPv4(self.host);
-    var addr6 = _resolveIPv6(self.host);
+    var addr;
+    if (self.noresolve) {
+        addr = Q.resolve([self.host]);
+    } else {
+        var addr4 = _resolveIPv4(self.host);
+        var addr6 = _resolveIPv6(self.host);
+        addr = addr6.catch(function() { return addr4; });
+    }
 
-    return addr6.catch(function() { return addr4; }).then(impl);
+    return addr.then(impl);
 };
 
 YtHttpRequest.prototype.toString = function()

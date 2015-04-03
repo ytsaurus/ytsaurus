@@ -27,6 +27,7 @@ function stubRegistry()
                 host: "localhost",
                 port: 8000,
                 nodelay: true,
+                noresolve: true,
                 timeout: 1000,
                 retries: 2
             },
@@ -34,6 +35,7 @@ function stubRegistry()
                 host: "localhost",
                 port: 9000,
                 nodelay: true,
+                noresolve: true,
                 timeout: 1000,
                 retries: 2
             },
@@ -123,12 +125,12 @@ describe("ApplicationAuth", function() {
                 realm: "ytrealm-key",
             })
         });
-        var mock1 = nock("http://127.0.0.1:8000")
+        var mock1 = nock("http://localhost:8000")
             .post("/token", "code=123456789&grant_type=authorization_code&client_id=ytrealm-id&client_secret=ytrealm-secret")
             .reply(200, {
                 access_token: "deadbabedeadbabe"
             });
-        var mock2 = nock("http://127.0.0.1:9000")
+        var mock2 = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=deadbabedeadbabe")
             .reply(200, {
                 error: "OK",
@@ -151,12 +153,12 @@ describe("ApplicationAuth", function() {
                 return_path: "http://ya.ru/?my_foo=a&my_bar=b"
             })
         });
-        var mock1 = nock("http://127.0.0.1:8000")
+        var mock1 = nock("http://localhost:8000")
             .post("/token", "code=123456789&grant_type=authorization_code&client_id=ytrealm-id&client_secret=ytrealm-secret")
             .reply(200, {
                 access_token: "deadbabedeadbabe"
             });
-        var mock2 = nock("http://127.0.0.1:9000")
+        var mock2 = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=deadbabedeadbabe")
             .reply(200, {
                 error: "OK",
@@ -184,7 +186,7 @@ describe("ApplicationAuth", function() {
     });
 
     it("should respond with an login & realm on proper POST /login request", function(done) {
-        var mock = nock("http://127.0.0.1:9000")
+        var mock = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=foobar")
             .reply(200, {
                 error: "OK",

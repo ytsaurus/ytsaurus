@@ -31,6 +31,7 @@ function stubRegistry()
                 host: "localhost",
                 port: 9000,
                 nodelay: true,
+                noresolve: true,
                 timeout: 100,
                 retries: 2
             }
@@ -105,7 +106,7 @@ describe("YtAuthentication", function() {
     });
 
     it("should accept valid Blackbox tokens", function(done) {
-        var mock = nock("http://127.0.0.1:9000")
+        var mock = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=remote-token")
             .reply(200, {
                 error: "OK",
@@ -122,7 +123,7 @@ describe("YtAuthentication", function() {
     });
 
     it("should reject invalid tokens", function(done) {
-        var mock = nock("http://127.0.0.1:9000")
+        var mock = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=invalid-token")
             .reply(200, { error: "ANY_ERROR" });
         ask("GET", "/",
@@ -135,7 +136,7 @@ describe("YtAuthentication", function() {
 
     [ 400, 500 ].forEach(function(replyCode) {
     it("should fail on " + replyCode + " Blackbox reply", function(done) {
-        var mock = nock("http://127.0.0.1:9000")
+        var mock = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=bad-http-reply")
             .reply(replyCode, { error: ":7" })
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=bad-http-reply")
@@ -150,7 +151,7 @@ describe("YtAuthentication", function() {
     });
 
     it("should fail on Blackbox soft failure", function(done) {
-        var mock = nock("http://127.0.0.1:9000")
+        var mock = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=soft-failure")
             .reply(200, { exception: "TRY_AGAIN" })
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=soft-failure")
@@ -164,7 +165,7 @@ describe("YtAuthentication", function() {
     });
 
     it("should reject invalid token issuer id", function(done) {
-        var mock = nock("http://127.0.0.1:9000")
+        var mock = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=obi-wan-kenobi")
             .reply(200, {
                 error: "OK",
@@ -180,7 +181,7 @@ describe("YtAuthentication", function() {
     });
 
     it("should reject invalid token grants", function(done) {
-        var mock = nock("http://127.0.0.1:9000")
+        var mock = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=qui-gon-jinn")
             .reply(200, {
                 error: "OK",
@@ -204,7 +205,7 @@ describe("YtAuthentication", function() {
     });
 
     it("should retry failed requests", function(done) {
-        var mock = nock("http://127.0.0.1:9000")
+        var mock = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=retryable-token")
             .reply(500)
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=retryable-token")
@@ -223,7 +224,7 @@ describe("YtAuthentication", function() {
     });
 
     it("should accept valid authentication 1-cookie", function(done) {
-        var mock = nock("http://127.0.0.1:9000")
+        var mock = nock("http://localhost:9000")
             .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=mysessionid")
             .reply(200, {
                 status: { value: "VALID", id: 0 },
@@ -239,7 +240,7 @@ describe("YtAuthentication", function() {
     });
 
     it("should accept valid authentication 2-cookie", function(done) {
-        var mock = nock("http://127.0.0.1:9000")
+        var mock = nock("http://localhost:9000")
             .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=mysessionid&sslsessionid=mysslsessionid")
             .reply(200, {
                 status: { value: "VALID", id: 0 },
@@ -255,7 +256,7 @@ describe("YtAuthentication", function() {
     });
 
     it("should accept a cookie which requires resigning", function(done) {
-        var mock = nock("http://127.0.0.1:9000")
+        var mock = nock("http://localhost:9000")
             .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=resigning")
             .reply(200, {
                 status: { value: "NEED_RESET", id: 1 },
@@ -271,7 +272,7 @@ describe("YtAuthentication", function() {
     });
 
     it("should create user if he does not exist", function(done) {
-        var mock1 = nock("http://127.0.0.1:9000")
+        var mock1 = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=some-token")
             .reply(200, {
                 error: "OK",
@@ -303,7 +304,7 @@ describe("YtAuthentication", function() {
     });
 
     it("should not create user if he exists", function(done) {
-        var mock1 = nock("http://127.0.0.1:9000")
+        var mock1 = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=some-token")
             .reply(200, {
                 error: "OK",
