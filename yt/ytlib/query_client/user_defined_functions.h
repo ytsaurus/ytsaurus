@@ -11,6 +11,7 @@ namespace NQueryClient {
 class TSimpleCallingConvention
     : public virtual IFunctionDescriptor
 {
+public:
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
@@ -19,6 +20,12 @@ class TSimpleCallingConvention
     virtual Value* LLVMValue(
         std::vector<Value*> argValues,
         TCGContext& builder) const = 0;
+
+protected:
+    void CheckResultType(
+        Type* llvmType,
+        EValueType resultType,
+        TCGContext& builder) const;
 };
 
 class TUserDefinedFunction
