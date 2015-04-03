@@ -59,6 +59,7 @@ class NativeModeTester(YtTestBase, YTEnv):
     @classmethod
     def setup_class(cls):
         super(NativeModeTester, cls).setup_class()
+        # TODO(ignat): remove setting default format
         yt.config.format.TABULAR_DATA_FORMAT = yt.format.DsvFormat()
 
     @classmethod
@@ -626,6 +627,8 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         yt.delete_rows(table, [{"x": "a"}])
         assert [{"x": "c", "y": "d"}] == list(yt.select_rows("* from [{0}]".format(table), raw=False))
+
+        yt.config.format.TABULAR_DATA_FORMAT = yt.format.DsvFormat()
 
     def test_lenval_python_operations(self):
         def foo(rec):
