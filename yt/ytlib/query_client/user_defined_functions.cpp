@@ -48,14 +48,12 @@ TCGValue PropagateNullArguments(
         auto llvmResult = codegenBody(initialArgumentValues);
         return codegenReturn(llvmResult);
     } else {
-        auto currentCodegenArg = codegenArgs.front();
+        auto currentCodegenArg = codegenArgs.back();
         auto currentArgValue = currentCodegenArg(builder, row);
             
         auto splitArgumentValue = SplitStringArguments(currentArgValue, builder);
 
-        auto newCodegenArgs = std::vector<TCodegenExpression>(
-            codegenArgs.rbegin(),
-            codegenArgs.rend());
+        auto newCodegenArgs = codegenArgs;
         newCodegenArgs.pop_back();
         auto newArgumentValues = initialArgumentValues;
         newArgumentValues.insert(
@@ -131,8 +129,13 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
             }
         };
 
+        auto reversedCodegenArgs = codegenArgs;
+        std::reverse(
+            reversedCodegenArgs.begin(),
+            reversedCodegenArgs.end());
+
         return PropagateNullArguments(
-            codegenArgs,
+            reversedCodegenArgs,
             llvmArgs,
             callUdf,
             codegenReturn,
