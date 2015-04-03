@@ -251,6 +251,13 @@ protected:
         auto& rows = session->Rows;
 
         bool hasMoreRows = session->Reader->Read(&rows);
+
+        auto lastIt = std::remove_if(rows.begin(), rows.end(), [] (TVersionedRow row) {
+            return !row;
+        });
+
+        rows.resize(std::distance(rows.begin(), lastIt));
+
         if (rows.empty()) {
             return !hasMoreRows;
         }
