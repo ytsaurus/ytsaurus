@@ -14,10 +14,8 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
-    const TConstQueryPtr& query,
-    const std::vector<TKeyRange>& ranges,
-    bool refinePredicates);
+typedef std::function<TConstExpressionPtr(
+    const TConstExpressionPtr&, const TTableSchema&, const TKeyColumns&)> TRefiner;
 
 TDataSources GetPrunedSources(
     const TConstExpressionPtr& predicate,
@@ -44,12 +42,10 @@ typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResul
 TQueryStatistics CoordinateAndExecute(
     const TPlanFragmentPtr& fragment,
     ISchemafulWriterPtr writer,
-    const std::vector<TKeyRange>& ranges,
-    bool isOrdered,    
-    TColumnEvaluatorPtr columnEvaluator,
+    const std::vector<TRefiner>& ranges,
+    bool isOrdered,
     std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
-    std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
-    bool refinePredicates = true);
+    std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1706,10 +1706,17 @@ protected:
     { }
 
     TConstExpressionPtr Refine(
-        std::vector<TKey>& keys,
+        std::vector<TKey>& lookupKeys,
         const TConstExpressionPtr& expr,
         const TKeyColumns& keyColumns)
     {
+        std::vector<TRow> keys;
+        keys.reserve(lookupKeys.size());
+
+        for (const auto& lookupKey : lookupKeys) {
+            keys.push_back(lookupKey.Get());
+        }
+
         return RefinePredicate(
             keys,
             expr,

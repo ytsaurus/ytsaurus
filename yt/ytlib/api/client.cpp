@@ -450,14 +450,18 @@ private:
     {
         auto Logger = BuildLogger(fragment->Query);
 
+        std::vector<TRefiner> refiners(ranges.size(), [] (
+            const TConstExpressionPtr& expr,
+            const TTableSchema& schema,
+            const TKeyColumns& keyColumns) {
+                return expr;
+            });
+
         return CoordinateAndExecute(
             fragment,
             writer,
-            ranges,
+            refiners,
             isOrdered,
-            Connection_->GetColumnEvaluatorCache()->Find(
-                fragment->Query->TableSchema,
-                fragment->Query->KeyColumns.size()),
             [&] (const TConstQueryPtr& subquery, int index) {
                 auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = fragment->NodeDirectory;
@@ -477,8 +481,7 @@ private:
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
                 return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
-            },
-            false);
+            });
     }
 
     TQueryStatistics DoExecute(

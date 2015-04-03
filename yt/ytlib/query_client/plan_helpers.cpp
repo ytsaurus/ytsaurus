@@ -456,7 +456,7 @@ TConstExpressionPtr RefinePredicate(
 }
 
 TConstExpressionPtr RefinePredicate(
-    const std::vector<TKey>& lookupKeys,
+    const std::vector<TRow>& lookupKeys,
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns)
 {
@@ -517,12 +517,6 @@ TConstExpressionPtr RefinePredicate(
                 values.push_back(value.Get());
             }
 
-            std::vector<TUnversionedRow> keys;
-            keys.reserve(lookupKeys.size());
-            for (const auto& key : lookupKeys) {
-                keys.push_back(key.Get());
-            }
-
             auto compareValues = [&] (const TRow& lhs, const TRow& rhs) {
                 for (int index = 0; index < reverseIdMapping.size(); ++index) {
                     if (reverseIdMapping[index] != -1) {
@@ -575,6 +569,8 @@ TConstExpressionPtr RefinePredicate(
                 }
                 return 0;
             };
+
+            auto keys = lookupKeys;
 
             auto canOmitInExpr = [&] () {
                 int keyIndex = 0;

@@ -56,12 +56,26 @@ public:
         , Pool_(TTabletReaderPoolTag())
     { }
 
+    TTabletReaderBase(
+        IInvokerPtr poolInvoker,
+        TTabletSnapshotPtr tabletSnapshot,
+        const std::vector<TKey>& keys,
+        TTimestamp timestamp)
+        : PoolInvoker_(std::move(poolInvoker))
+        , TabletSnapshot_(std::move(tabletSnapshot))
+        , PerformanceCounters_(TabletSnapshot_->PerformanceCounters)
+        , Keys_(keys)
+        , Timestamp_(timestamp)
+        , Pool_(TTabletReaderPoolTag())
+    { }
+
 protected:
     const IInvokerPtr PoolInvoker_;
     const TTabletSnapshotPtr TabletSnapshot_;
     const TTabletPerformanceCountersPtr PerformanceCounters_;
-    const TOwningKey LowerBound_;
-    const TOwningKey UpperBound_;
+    const TOwningKey LowerBound_ = EmptyKey();
+    const TOwningKey UpperBound_ = EmptyKey();
+    const std::vector<TKey> Keys_;
     const TTimestamp Timestamp_;
 
     TChunkedMemoryPool Pool_;
@@ -169,18 +183,26 @@ protected:
         const std::vector<IStorePtr>& stores)
     {
         // Create readers.
-        for (const auto& store : stores) {
-            auto reader = store->CreateReader(
-                LowerBound_,
-                UpperBound_,
-                Timestamp_,
-                columnFilter);
+        auto addReader = [&] (IVersionedReaderPtr reader) {
             if (reader) {
                 Sessions_.push_back(TSession());
                 auto& session = Sessions_.back();
                 session.Reader = std::move(reader);
                 session.Rows.reserve(MaxRowsPerRead);
             }
+        };
+
+        for (const auto& store : stores) {
+            addReader(store->CreateReader(
+                LowerBound_,
+                UpperBound_,
+                Timestamp_,
+                columnFilter));
+
+            addReader(store->CreateReader(
+                Keys_,
+                Timestamp_,
+                columnFilter));
         }
 
         // Open readers.
@@ -302,6 +324,18 @@ public:
             timestamp)
     { }
 
+    TSchemafulTabletReader(
+        IInvokerPtr poolInvoker,
+        TTabletSnapshotPtr tabletSnapshot,
+        const std::vector<TKey>& keys,
+        TTimestamp timestamp)
+        : TTabletReaderBase(
+            std::move(poolInvoker),
+            std::move(tabletSnapshot),
+            keys,
+            timestamp)
+    { }
+
     virtual TFuture<void> Open(const TTableSchema& schema) override
     {
         return BIND(&TSchemafulTabletReader::DoOpen, MakeStrong(this))
@@ -342,11 +376,11 @@ private:
         }
 
         // Initialize merger.
-        RowMerger_.reset(new TUnversionedRowMerger(
+        RowMerger_ = std::make_unique<TUnversionedRowMerger>(
             &Pool_,
             TabletSnapshot_->Schema.Columns().size(),
             TabletSnapshot_->KeyColumns.size(),
-            columnFilter));
+            columnFilter);
 
         // Select stores.
         std::vector<IStorePtr> stores;
@@ -395,6 +429,19 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         std::move(tabletSnapshot),
         std::move(lowerBound),
         std::move(upperBound),
+        timestamp);
+}
+
+ISchemafulReaderPtr CreateSchemafulTabletReader(
+    IInvokerPtr poolInvoker,
+    TTabletSnapshotPtr tabletSnapshot,
+    const std::vector<TKey>& keys,
+    TTimestamp timestamp)
+{
+    return New<TSchemafulTabletReader>(
+        std::move(poolInvoker),
+        std::move(tabletSnapshot),
+        keys,
         timestamp);
 }
 
