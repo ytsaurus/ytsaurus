@@ -524,7 +524,7 @@ Stroka ToString(const TKeyTrieNode& node) {
             } else {
                 str += "(key";
                 str += NYT::ToString(node.Offset);
-                str += ", [ ";
+                str += ", { ";
 
                 for (int i = 0; i < node.Bounds.size(); i += 2) {
                     str += node.Bounds[i].Included ? "[" : "(";
@@ -537,7 +537,7 @@ Stroka ToString(const TKeyTrieNode& node) {
                     }
                 }
 
-                str += " ])";
+                str += " })";
 
                 for (const auto& next : node.Next) {
                     str += "\n";
