@@ -35,7 +35,7 @@ std::vector<Value*> SplitStringArguments(
     TCGValue argumentValue,
     TCGContext& builder)
 {
-    if (argumentValue.GetStaticType() == EValueType::String) {
+    if (IsStringLikeType(argumentValue.GetStaticType())) {
         return std::vector<Value*>{
             argumentValue.GetData(),
             argumentValue.GetLength()};
@@ -111,7 +111,7 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
             TTypeBuilder::TLength::get(builder.getContext()));
 
         auto llvmArgs = std::vector<Value*>();
-        if (type == EValueType::String) {
+        if (IsStringLikeType(type)) {
             llvmArgs.push_back(resultPointer);
             llvmArgs.push_back(resultLength);
         }
@@ -121,7 +121,7 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
         };
 
         auto codegenReturn = [&] (Value* llvmResult) {
-            if (type == EValueType::String) {
+            if (IsStringLikeType(type)) {
                 return TCGValue::CreateFromValue(
                     builder,
                     builder.getFalse(),
@@ -164,13 +164,15 @@ void TSimpleCallingConvention::CheckResultType(
     auto expectedResultType = TDataTypeBuilder::get(
         builder.getContext(),
         resultType);
-    if (resultType == EValueType::String &&
+    if (IsStringLikeType(resultType) &&
         llvmType != builder.getVoidTy())
     {
         THROW_ERROR_EXCEPTION(
             "Wrong result type in LLVM bitcode: expected void, got %Qv",
             LLVMTypeToString(llvmType));
-    } else if (llvmType != expectedResultType) {
+    } else if (resultType != EValueType::String &&
+        llvmType != expectedResultType)
+    {
         THROW_ERROR_EXCEPTION(
             "Wrong result type in LLVM bitcode: expected %Qv, got %Qv",
             LLVMTypeToString(expectedResultType),
