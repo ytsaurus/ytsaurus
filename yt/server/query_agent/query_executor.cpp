@@ -305,13 +305,9 @@ private:
         LOG_DEBUG("Grouped into %v groups", groupedSplits.size());
         auto ranges = GetRanges(groupedSplits);
 
-        if (fragment->VerboseLogging) {
-            Stroka rangesString = JoinToString(ranges, [] (const TKeyRange& range) {
-                return Format("[%v .. %v]", range.first, range.second);
-            });
-
-            LOG_DEBUG("Got ranges for groups %v", rangesString);
-        }
+        LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v", JoinToString(ranges, [] (const TKeyRange& range) {
+            return Format("[%v .. %v]", range.first, range.second);
+        }));
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
                 fragment->Query->TableSchema,
@@ -339,6 +335,7 @@ private:
             });
             subreaderCreators.push_back([&] () {
                 LOG_DEBUG("Creating lookup reader for %v keys", keySource.second.size());
+                LOG_DEBUG_IF(fragment->VerboseLogging, "Keys are %v", JoinToString(keySource.second));
                 return GetReader(keySource.first, keySource.second, timestamp, nodeDirectory);
             });
         }
@@ -372,13 +369,9 @@ private:
             ranges.push_back(split.Range);
         }
 
-        if (fragment->VerboseLogging) {
-            Stroka rangesString = JoinToString(ranges, [] (const TKeyRange& range) {
-                return Format("[%v .. %v]", range.first, range.second);
-            });
-
-            LOG_DEBUG("Got ranges for groups %v", rangesString);
-        }
+        LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v", JoinToString(ranges, [] (const TKeyRange& range) {
+            return Format("[%v .. %v]", range.first, range.second);
+        }));
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
                 fragment->Query->TableSchema,
