@@ -69,6 +69,8 @@ public:
     i64 GetUncompressedDataSize() const;
     i64 GetUnmergedRowCount() const;
 
+    bool IsEden() const;
+
     TPartitionSnapshotPtr BuildSnapshot() const;
 
 };

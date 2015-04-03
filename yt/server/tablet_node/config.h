@@ -90,15 +90,15 @@ public:
 
     int MaxPartitionCount;
 
-    i64 MaxEdenDataSize;
-    int MaxEdenChunkCount;
-    int MaxPartitioningFanIn;
-    TDuration AutoPartitioningPeriod;
+    i64 MinPartitioningDataSize;
+    int MinPartitioningStoreCount;
+    i64 MaxPartitioningDataSize;
+    int MaxPartitioningStoreCount;
 
-    int MinCompactionChunkCount;
+    int MinCompactionStoreCount;
+    int MaxCompactionStoreCount;
     i64 CompactionDataSizeBase;
     double CompactionDataSizeRatio;
-    int MaxCompactionFanIn;
 
     int SamplesPerPartition;
 
@@ -144,30 +144,31 @@ public:
             .Default(10240)
             .GreaterThan(0);
 
-        RegisterParameter("max_eden_data_size", MaxEdenDataSize)
+        RegisterParameter("min_partitioning_data_size", MinPartitioningDataSize)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
-        RegisterParameter("max_eden_chunk_count", MaxEdenChunkCount)
-            .Default(8)
+        RegisterParameter("min_partitioning_store_count", MinPartitioningStoreCount)
+            .Default(1)
             .GreaterThan(0);
-        RegisterParameter("max_partitioning_fan_in", MaxPartitioningFanIn)
-            .Default(10)
+        RegisterParameter("max_partitioning_data_size", MaxPartitioningDataSize)
+            .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
-        RegisterParameter("auto_partitioning_period", AutoPartitioningPeriod)
-            .Default(TDuration::Hours(1));
+        RegisterParameter("max_partitioning_store_count", MaxPartitioningStoreCount)
+            .Default(5)
+            .GreaterThan(0);
 
-        RegisterParameter("min_compaction_chunk_count", MinCompactionChunkCount)
+        RegisterParameter("min_compaction_store_count", MinCompactionStoreCount)
             .Default(3)
             .GreaterThan(1);
+        RegisterParameter("max_compaction_store_count", MaxCompactionStoreCount)
+            .Default(5)
+            .GreaterThan(0);
         RegisterParameter("compaction_data_size_base", CompactionDataSizeBase)
             .Default((i64) 16 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("compaction_data_size_ratio", CompactionDataSizeRatio)
             .Default(2.0)
             .GreaterThan(1.0);
-        RegisterParameter("max_compaction_fan_in", MaxCompactionFanIn)
-            .Default(5)
-            .GreaterThan(0);
 
         RegisterParameter("samples_per_partition", SamplesPerPartition)
             .Default(0)
@@ -194,8 +195,14 @@ public:
             if (DesiredPartitionDataSize >= MaxPartitionDataSize) {
                 THROW_ERROR_EXCEPTION("\"desired_partition_data_size\" must be less than \"max_partition_data_size\"");
             }
-            if (MaxCompactionFanIn <= MinCompactionChunkCount) {
-                THROW_ERROR_EXCEPTION("\"max_compaction_fan_in\" must be greater than \"min_compaction_chunk_count\"");
+            if (MaxPartitioningStoreCount < MinPartitioningStoreCount) {
+                THROW_ERROR_EXCEPTION("\"max_partitioning_store_count\" must be greater than or equal to \"min_partitioning_store_count\"");
+            }
+            if (MaxPartitioningDataSize < MinPartitioningDataSize) {
+                THROW_ERROR_EXCEPTION("\"max_partitioning_data_size\" must be greater than or equal to \"min_partitioning_data_size\"");
+            }
+            if (MaxCompactionStoreCount < MinCompactionStoreCount) {
+                THROW_ERROR_EXCEPTION("\"max_compaction_store_count\" must be greater than or equal to \"min_compaction_chunk_count\"");
             }
         });
     }

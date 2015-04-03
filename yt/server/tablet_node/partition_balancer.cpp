@@ -314,7 +314,7 @@ private:
         TPartition* partition,
         int maxSampleCount)
     {
-        YCHECK(partition->GetIndex() != TPartition::EdenIndex);
+        YCHECK(!partition->IsEden());
 
         if (maxSampleCount == 0) {
             return std::vector<TOwningKey>();

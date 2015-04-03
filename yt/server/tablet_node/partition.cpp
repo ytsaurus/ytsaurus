@@ -96,6 +96,11 @@ i64 TPartition::GetUnmergedRowCount() const
     return result;
 }
 
+bool TPartition::IsEden() const
+{
+    return Index_ == EdenIndex;
+}
+
 TPartitionSnapshotPtr TPartition::BuildSnapshot() const
 {
     auto snapshot = New<TPartitionSnapshot>();
