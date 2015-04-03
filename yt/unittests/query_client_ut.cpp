@@ -33,6 +33,7 @@
 #include <udfs/exponentiate.h>
 #include <udfs/parse_natural.h>
 #include <udfs/to_lower.h>
+#include <udfs/is_null_udf.h>
 
 #include <ytlib/query_client/folding_profiler.h>
 #endif
@@ -2016,6 +2017,13 @@ protected:
             TSharedRef::FromRefNonOwning(TRef(
                 to_lower_bc,
                 to_lower_bc_len)));
+        IsNullUDF_ = New<TUserDefinedFunction>(
+            "is_null_udf",
+            std::vector<EValueType>{EValueType::String},
+            EValueType::Boolean,
+            TSharedRef::FromRefNonOwning(TRef(
+                is_null_udf_bc,
+                is_null_udf_bc_len)));
     }
 
     virtual void TearDown() override
@@ -2182,6 +2190,7 @@ protected:
     IFunctionDescriptorPtr ExponentiateUDF_;
     IFunctionDescriptorPtr ParseNaturalUDF_;
     IFunctionDescriptorPtr ToLowerUDF_;
+    IFunctionDescriptorPtr IsNullUDF_;
 };
 
 std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
@@ -3405,6 +3414,37 @@ TEST_F(TQueryEvaluateTest, TestUdfStringResult)
         .WillRepeatedly(Return(ToLowerUDF_));
 
     Evaluate("to_lower(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"Hello\"",
+        "a=\"\"",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean}
+    });
+
+    auto result = BuildRows({
+        "x=false"
+        "x=false",
+        "x=true"
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("is_null_udf"))
+        .WillRepeatedly(Return(IsNullUDF_));
+
+    Evaluate("is_null_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
