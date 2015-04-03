@@ -21,6 +21,16 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka LLVMTypeToString(llvm::Type* tp)
+{
+    std::string str;
+    llvm::raw_string_ostream stream(str);
+    tp->print(stream);
+    return Stroka(stream.str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<Value*> SplitStringArguments(
     TCGValue argumentValue,
     TCGContext& builder)
@@ -146,6 +156,28 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenExpr(
     };
 }
 
+void TSimpleCallingConvention::CheckResultType(
+    Type* llvmType,
+    EValueType resultType,
+    TCGContext& builder) const
+{
+    auto expectedResultType = TDataTypeBuilder::get(
+        builder.getContext(),
+        resultType);
+    if (resultType == EValueType::String &&
+        llvmType != builder.getVoidTy())
+    {
+        THROW_ERROR_EXCEPTION(
+            "Wrong result type in LLVM bitcode: expected void, got %Qv",
+            LLVMTypeToString(llvmType));
+    } else if (llvmType != expectedResultType) {
+        THROW_ERROR_EXCEPTION(
+            "Wrong result type in LLVM bitcode: expected %Qv, got %Qv",
+            LLVMTypeToString(expectedResultType),
+            LLVMTypeToString(llvmType));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TUserDefinedFunction::TUserDefinedFunction(
@@ -163,32 +195,6 @@ TUserDefinedFunction::TUserDefinedFunction(
     , ArgumentTypes_(argumentTypes)
 { }
 
-llvm::Type* ConvertToLLVMType(EValueType type, TCGContext& builder)
-{
-    auto& context = builder.getContext();
-    switch (type) {
-        case EValueType::Int64:
-        case EValueType::Uint64:
-            return Type::getInt64Ty(context);
-        case EValueType::Double:
-            return Type::getDoubleTy(context);
-        case EValueType::Boolean:
-            return Type::getInt1Ty(context);
-        case EValueType::String:
-            return Type::getInt8PtrTy(context);
-        default:
-            return nullptr;
-    }
-}
-
-Stroka LLVMTypeToString(llvm::Type* tp)
-{
-    std::string str;
-    llvm::raw_string_ostream stream(str);
-    tp->print(stream);
-    return Stroka(stream.str());
-}
-
 void TUserDefinedFunction::CheckCallee(
     llvm::Function* callee,
     TCGContext& builder,
@@ -204,12 +210,8 @@ void TUserDefinedFunction::CheckCallee(
             argumentValues.size(),
             callee->arg_size());
     }
-    //} else if (callee->getReturnType() != ConvertToLLVMType(ResultType_, builder)) {
-    //    THROW_ERROR_EXCEPTION(
-    //        "Wrong result type in LLVM bitcode: expected %Qv, got %Qv",
-    //        LLVMTypeToString(ConvertToLLVMType(ResultType_, builder)),
-    //        LLVMTypeToString(callee->getReturnType()));
-    //}
+
+    CheckResultType(callee->getReturnType(), ResultType_, builder);
 
     auto i = 1;
     auto expected = argumentValues.begin();
