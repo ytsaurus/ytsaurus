@@ -42,7 +42,7 @@ TConstExpressionPtr RefinePredicate(
     TColumnEvaluatorPtr columnEvaluator);
 
 TConstExpressionPtr RefinePredicate(
-    const std::vector<TKey>& lookupKeys,
+    const std::vector<TRow>& lookupKeys,
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns);
 

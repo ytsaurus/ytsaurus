@@ -20,6 +20,12 @@ NVersionedTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TOwningKey upperBound,
     TTimestamp timestamp);
 
+NVersionedTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
+    IInvokerPtr poolInvoker,
+    TTabletSnapshotPtr tabletSnapshot,
+    const std::vector<TKey>& keys,
+    TTimestamp timestamp);
+
 //! Creates a reader that merges data from all given #stores and
 //! returns all versions of each value.
 NVersionedTableClient::IVersionedReaderPtr CreateVersionedTabletReader(

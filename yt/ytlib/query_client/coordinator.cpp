@@ -366,21 +366,19 @@ private:
 
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     const TConstQueryPtr& query,
-    const std::vector<TKeyRange>& ranges,
-    bool refinePredicates,
-    TColumnEvaluatorPtr columnEvaluator)
+    const std::vector<TRefiner>& refiners)
 {
     auto Logger = BuildLogger(query);
 
     std::vector<TConstQueryPtr> subqueries;
 
-    auto subqueryInputRowLimit = ranges.empty()
+    auto subqueryInputRowLimit = refiners.empty()
         ? 0
-        : 2 * std::min(query->InputRowLimit, std::numeric_limits<i64>::max() / 2) / ranges.size();
+        : 2 * std::min(query->InputRowLimit, std::numeric_limits<i64>::max() / 2) / refiners.size();
 
     auto subqueryOutputRowLimit = query->OutputRowLimit;
 
-    for (const auto& keyRange : ranges) {
+    for (const auto& refiner : refiners) {
         // Set initial schema and key columns
         auto subquery = New<TQuery>(
             subqueryInputRowLimit,
@@ -392,14 +390,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         subquery->JoinClause = query->JoinClause;
 
         if (query->WhereClause) {
-            subquery->WhereClause = refinePredicates
-                ? RefinePredicate(
-                    keyRange,
-                    query->WhereClause,
-                    subquery->TableSchema,
-                    subquery->KeyColumns,
-                    columnEvaluator)
-                : query->WhereClause;
+            subquery->WhereClause = refiner(query->WhereClause, subquery->TableSchema, subquery->KeyColumns);
         }
 
         if (query->GroupClause) {
@@ -538,12 +529,10 @@ std::vector<TKeyRange> GetRanges(const std::vector<TDataSources>& groupedSplits)
 TQueryStatistics CoordinateAndExecute(
     const TPlanFragmentPtr& fragment,
     ISchemafulWriterPtr writer,
-    const std::vector<TKeyRange>& ranges,
+    const std::vector<TRefiner>& refiners,
     bool isOrdered,
-    TColumnEvaluatorPtr columnEvaluator,
     std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
-    std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
-    bool refinePredicates)
+    std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop)
 {
     auto nodeDirectory = fragment->NodeDirectory;
     auto query = fragment->Query;
@@ -553,7 +542,7 @@ TQueryStatistics CoordinateAndExecute(
 
     TConstQueryPtr topQuery;
     std::vector<TConstQueryPtr> subqueries;
-    std::tie(topQuery, subqueries) = CoordinateQuery(query, ranges, refinePredicates, columnEvaluator);
+    std::tie(topQuery, subqueries) = CoordinateQuery(query, refiners);
 
     LOG_DEBUG("Finished coordinating query");
 
