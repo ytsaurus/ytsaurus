@@ -273,12 +273,13 @@ private:
             auto lowerBound = source.Range.first;
             auto upperBound = source.Range.second;
 
-            YCHECK(upperBound.GetCount() > 0);
+            auto keySize = fragment->Query->KeyColumns.size();
 
-            if (lowerBound.GetCount() + 1 == upperBound.GetCount() 
-                && upperBound[upperBound.GetCount() - 1].Type == EValueType::Max
-                && CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + lowerBound.GetCount()) == 0) {
-
+            if (keySize == lowerBound.GetCount()  &&
+                keySize + 1 == upperBound.GetCount() &&
+                upperBound[keySize].Type == EValueType::Max &&
+                CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
+            {
                 keySources[source.Id].push_back(lowerBound.Get());
             } else {
                 rangeSources.push_back(source);
@@ -310,8 +311,8 @@ private:
         }));
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
-                fragment->Query->TableSchema,
-                fragment->Query->KeyColumns.size());
+            fragment->Query->TableSchema,
+            fragment->Query->KeyColumns.size());
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -364,18 +365,13 @@ private:
             return lhs.Range.first < rhs.Range.first;
         });
         
-        std::vector<TKeyRange> ranges;
-        for (auto const& split : splits) {
-            ranges.push_back(split.Range);
-        }
-
-        LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v", JoinToString(ranges, [] (const TKeyRange& range) {
-            return Format("[%v .. %v]", range.first, range.second);
+        LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v", JoinToString(splits, [] (const TDataSource& split) {
+            return Format("[%v .. %v]", split.Range.first, split.Range.second);
         }));
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
-                fragment->Query->TableSchema,
-                fragment->Query->KeyColumns.size());
+            fragment->Query->TableSchema,
+            fragment->Query->KeyColumns.size());
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
