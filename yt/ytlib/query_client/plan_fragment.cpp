@@ -674,7 +674,7 @@ protected:
                 case EBinaryOp::And:
                     switch (lhs.Type) {
                         case EValueType::Boolean:
-                            lhs.Data.Boolean &&= rhs.Data.Boolean;
+                            lhs.Data.Boolean = lhs.Data.Boolean && rhs.Data.Boolean;
                             return lhs;
                         default:
                             break;
@@ -683,7 +683,7 @@ protected:
                 case EBinaryOp::Or:
                     switch (lhs.Type) {
                         case EValueType::Boolean:
-                            lhs.Data.Boolean ||= rhs.Data.Boolean;
+                            lhs.Data.Boolean = lhs.Data.Boolean || rhs.Data.Boolean;
                             return lhs;
                         default:
                             break;
