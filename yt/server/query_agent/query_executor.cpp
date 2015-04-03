@@ -356,7 +356,7 @@ private:
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto splits = fragment->DataSources;
+        auto splits = Split(fragment->DataSources, nodeDirectory, true, Logger, fragment->VerboseLogging);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
