@@ -99,6 +99,7 @@ udf( ${BASE}/udf/absolute.c SRCS )
 udf( ${BASE}/udfs/exponentiate.c SRCS )
 udf( ${BASE}/udfs/parse_natural.c SRCS )
 udf( ${BASE}/udfs/to_lower.c SRCS )
+udf( ${BASE}/udfs/is_null_udf.c SRCS )
 
 add_msvc_precompiled_header(
   "stdafx.h"
