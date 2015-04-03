@@ -15,7 +15,9 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::function<TConstExpressionPtr(
-    const TConstExpressionPtr&, const TTableSchema&, const TKeyColumns&)> TRefiner;
+    const TConstExpressionPtr& expr,
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns)> TRefiner;
 
 TDataSources GetPrunedSources(
     const TConstExpressionPtr& predicate,
