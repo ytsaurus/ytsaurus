@@ -53,11 +53,6 @@ protected:
 
     TChunkedMemoryPool MemoryPool_;
 
-    // A bunch of cached callbacks.
-    TCallback<TFuture<void>()> SwitchBlockCallback_;
-    TClosure InitFirstBlockCallback_;
-    TClosure InitNextBlockCallback_;
-
 
     static int GetBlockIndexByKey(
         const TKey& key, 
@@ -76,10 +71,7 @@ protected:
 
     void DoOpen();
 
-    TFuture<void> FetchNextBlock();
-
-    TFuture<void> SwitchBlock();
-    static TFuture<void> SwitchBlockThunk(const TWeakPtr<TChunkReaderBase>& weakThis);
+    void DoSwitchBlock();
 
     bool OnBlockEnded();
 
