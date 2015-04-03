@@ -577,8 +577,7 @@ void TUserDefinedFunction::CheckCallee(llvm::Function* callee, TCGContext& build
 
     auto i = 0;
     auto expected = ArgumentTypes_.begin();
-    for (
-        auto actual = callee->arg_begin();
+    for (auto actual = callee->arg_begin();
         expected != ArgumentTypes_.end();
         expected++, actual++, i++)
     {

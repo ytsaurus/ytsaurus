@@ -60,7 +60,7 @@ IFunctionDescriptorPtr TFunctionRegistry::FindFunction(const Stroka& functionNam
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterBuiltinFunctionsImpl(TFunctionRegistryPtr registry)
+void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 {
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
@@ -194,7 +194,7 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
 TFunctionRegistryPtr CreateBuiltinFunctionRegistryImpl()
 {
     auto registry = New<TFunctionRegistry>();
-    RegisterBuiltinFunctionsImpl(registry);
+    RegisterBuiltinFunctions(registry);
     return registry;
 }
 
