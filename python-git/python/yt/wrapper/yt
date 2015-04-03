@@ -403,10 +403,14 @@ def select_rows(**args):
     write_silently(chunk_iter_stream(yt.select_rows(raw=True, **args), 16 * MB))
 
 def add_select_rows_parser(add_parser):
+    # TODO(ignat): remake by alias system
     for name in ("select", "select-rows"):
         parser = add_parser(name, yt.select_rows, epilog="Supported features: https://wiki.yandex-team.ru/yt/userdoc/queries")
         parser.add_argument("query")
         parser.add_argument("--timestamp", type=int)
+        parser.add_argument("--input-row-limit", type=int)
+        parser.add_argument("--output-row-limit", type=int)
+        parser.add_argument("--verbose-logging", action="store_true", default=False)
         parser.add_argument("--format", action=ParseFormat)
         parser.set_defaults(func=select_rows)
 
@@ -414,6 +418,7 @@ def lookup_rows(**args):
     write_silently(chunk_iter_stream(yt.lookup_rows(raw=True, **args), 16 * MB))
 
 def add_lookup_rows_parser(add_parser):
+    # TODO(ignat): remake by alias system
     for name in ("lookup", "lookup-rows"):
         parser = add_parser(name, yt.lookup_rows)
         add_ypath_argument(parser, name="table")
@@ -421,6 +426,7 @@ def add_lookup_rows_parser(add_parser):
         parser.set_defaults(func=lookup_rows, input_stream=sys.stdin)
 
 def add_insert_rows_parser(add_parser):
+    # TODO(ignat): remake by alias system
     for name in ("insert", "insert-rows"):
         parser = add_parser(name, yt.insert_rows)
         add_ypath_argument(parser, name="table")
@@ -428,6 +434,7 @@ def add_insert_rows_parser(add_parser):
         parser.set_defaults(func=yt.insert_rows, input_stream=sys.stdin, raw=True)
 
 def add_delete_rows_parser(add_parser):
+    # TODO(ignat): remake by alias system
     for name in ("delete", "delete-rows"):
         parser = add_parser(name, yt.delete_rows)
         add_ypath_argument(parser, name="table")
