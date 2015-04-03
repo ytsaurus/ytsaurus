@@ -3174,7 +3174,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
         absolute_bc,
         absolute_bc_len));
 
-    auto twoArgumentUdf = New<TUserDefinedFunction>(
+    auto invalidArgumentUdf = New<TUserDefinedFunction>(
         "absolute",
         std::vector<EValueType>{EValueType::Double},
         EValueType::Int64,
@@ -3182,7 +3182,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     EXPECT_CALL(*registry, FindFunction("absolute"))
-        .WillOnce(Return(twoArgumentUdf));
+        .WillOnce(Return(invalidArgumentUdf));
 
     EvaluateExpectingError("absolute(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
