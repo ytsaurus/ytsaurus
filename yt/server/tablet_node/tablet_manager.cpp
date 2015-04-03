@@ -1476,7 +1476,7 @@ private:
 
     void SchedulePartitionSampling(TPartition* partition)
     {
-        if (partition->GetIndex() != TPartition::EdenIndex) {
+        if (!partition->IsEden()) {
             const auto* mutationContext = GetCurrentMutationContext();
             partition->SetSamplingRequestTime(mutationContext->GetTimestamp());
         }

@@ -70,7 +70,8 @@ DEFINE_ENUM(EPartitionState,
     (Normal)             // nothing special is happening
     (Splitting)          // split mutation is submitted
     (Merging)            // merge mutation is submitted
-    (Compacting)         // compaction (or partitioning) is in progress 
+    (Compacting)         // compaction is in progress
+    (Partitioning)       // partitioning is in progress
     (Sampling)           // sampling is in progress
 );
 

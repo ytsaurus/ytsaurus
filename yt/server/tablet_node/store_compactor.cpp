@@ -104,52 +104,35 @@ private:
         if (tablet->GetState() != ETabletState::Mounted)
             return;
 
-        ScanEden(slot, tablet->GetEden());
+        ScanPartitionForCompaction(slot, tablet->GetEden());
+        ScanEdenForPartitioning(slot, tablet->GetEden());
 
         for (auto& partition : tablet->Partitions()) {
-            ScanPartition(slot, partition.get());
+            ScanPartitionForCompaction(slot, partition.get());
         }
     }
 
-    void ScanEden(TTabletSlotPtr slot, TPartition* eden)
+    void ScanEdenForPartitioning(TTabletSlotPtr slot, TPartition* eden)
     {
         if (eden->GetState() != EPartitionState::Normal)
             return;
 
-        auto stores = PickStoresForPartitioning(eden);
-        if (stores.empty())
-            return;
-
-        i64 dataSize = 0;
-        for (auto store : stores) {
-            dataSize += store->GetUncompressedDataSize();
-        }
-
-        // Check if partitioning is needed.
         auto* tablet = eden->GetTablet();
         auto storeManager = tablet->GetStoreManager();
-        auto config = tablet->GetConfig();
-        if (dataSize <= config->MaxEdenDataSize &&
-            stores.size() <= config->MaxEdenChunkCount &&
-            TInstant::Now() < tablet->GetLastPartitioningTime() + config->AutoPartitioningPeriod)
+
+        auto stores = PickStoresForPartitioning(eden);
+        if (stores.empty())
             return;
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&PartitioningSemaphore_);
         if (!guard)
             return;
 
-        // Limit the number of chunks to process at once.
-        if (stores.size() > config->MaxPartitioningFanIn) {
-            stores.erase(
-                stores.begin() + config->MaxPartitioningFanIn,
-                stores.end());
-        }
-
         for (auto store : stores) {
             storeManager->BeginStoreCompaction(store);
         }
 
-        eden->SetState(EPartitionState::Compacting);
+        eden->SetState(EPartitionState::Partitioning);
 
         std::vector<TOwningKey> pivotKeys;
         for (const auto& partition : tablet->Partitions()) {
@@ -165,20 +148,22 @@ private:
             stores));
     }
 
-    void ScanPartition(TTabletSlotPtr slot, TPartition* partition)
+    void ScanPartitionForCompaction(TTabletSlotPtr slot, TPartition* partition)
     {
         if (partition->GetState() != EPartitionState::Normal)
             return;
 
-        // Don't compact partitions whose data size exceeds the limit.
-        // Let Partition Balancer do its job.
         auto* tablet = partition->GetTablet();
         auto storeManager = tablet->GetStoreManager();
         auto config = tablet->GetConfig();
-        if (partition->GetUncompressedDataSize() > config->MaxPartitionDataSize)
+
+        // Don't compact partitions (excluding Eden) whose data size exceeds the limit.
+        // Let Partition Balancer do its job.
+        if (!partition->IsEden() &&
+            partition->GetUncompressedDataSize() > config->MaxPartitionDataSize)
             return;
 
-        auto stores = PickStoresForCompaction(config, partition);
+        auto stores = PickStoresForCompaction(partition);
         if (stores.empty())
             return;
 
@@ -206,26 +191,62 @@ private:
 
     std::vector<TChunkStorePtr> PickStoresForPartitioning(TPartition* eden)
     {
-        std::vector<TChunkStorePtr> stores;
+        auto config = eden->GetTablet()->GetConfig();
+
+        std::vector<TChunkStorePtr> candidates;
         for (auto store : eden->Stores()) {
-            if (TStoreManager::IsStoreCompactable(store)) {
-                stores.push_back(store->AsChunk());
+            if (!TStoreManager::IsStoreCompactable(store))
+                continue;
+
+            candidates.push_back(store->AsChunk());
+        }
+
+        // Sort by decreasing data size.
+        std::sort(
+            candidates.begin(),
+            candidates.end(),
+            [] (TChunkStorePtr lhs, TChunkStorePtr rhs) {
+                return lhs->GetUncompressedDataSize() > rhs->GetUncompressedDataSize();
+            });
+
+        i64 dataSizeSum = 0;
+        int bestStoreCount = -1;
+        for (int i = 0; i < candidates.size(); ++i) {
+            dataSizeSum += candidates[i]->GetUncompressedDataSize();
+            int storeCount = i + 1;
+            if (storeCount >= config->MinPartitioningStoreCount &&
+                storeCount <= config->MaxPartitioningStoreCount &&
+                dataSizeSum >= config->MinPartitioningDataSize &&
+                // Ignore max_partitioning_data_size limit for a single store.
+                (dataSizeSum <= config->MaxPartitioningDataSize || storeCount == 1))
+            {
+                // Prefer to partition more data.
+                bestStoreCount = storeCount;
             }
         }
-        return stores;
+
+        return bestStoreCount >= 0
+            ? std::vector<TChunkStorePtr>(candidates.begin(), candidates.begin() + bestStoreCount)
+            : std::vector<TChunkStorePtr>();
     }
 
-    std::vector<TChunkStorePtr> PickStoresForCompaction(
-        TTableMountConfigPtr config,
-        TPartition* partition)
+    std::vector<TChunkStorePtr> PickStoresForCompaction(TPartition* partition)
     {
+        auto config = partition->GetTablet()->GetConfig();
+
         std::vector<TChunkStorePtr> candidates;
         for (auto store : partition->Stores()) {
-            if (TStoreManager::IsStoreCompactable(store)) {
-                candidates.push_back(store->AsChunk());
-            }
+            if (!TStoreManager::IsStoreCompactable(store))
+                continue;
+
+            // Don't compact large Eden stores.
+            if (partition->IsEden() && store->GetUncompressedDataSize() >= config->MinPartitioningDataSize)
+                continue;
+
+            candidates.push_back(store->AsChunk());
         }
 
+        // Sort by increasing data size.
         std::sort(
             candidates.begin(),
             candidates.end(),
@@ -236,15 +257,20 @@ private:
         for (int i = 0; i < candidates.size(); ++i) {
             i64 dataSizeSum = 0;
             int j = i;
-            while (j < candidates.size() && j < i + config->MaxCompactionFanIn) {
+            while (j < candidates.size()) {
+                int storeCount = j - i;
+                if (storeCount > config->MaxCompactionStoreCount)
+                    break;
                 i64 dataSize = candidates[j]->GetUncompressedDataSize();
-                if (j > i && dataSize > config->CompactionDataSizeBase && dataSize > dataSizeSum * config->CompactionDataSizeRatio)
+                if (dataSize > config->CompactionDataSizeBase &&
+                    dataSizeSum > 0 && dataSize > dataSizeSum * config->CompactionDataSizeRatio)
                     break;
                 dataSizeSum += dataSize;
                 ++j;
             }
 
-            if (j - i >= config->MinCompactionChunkCount) {
+            int storeCount = j - i;
+            if (storeCount >= config->MinCompactionStoreCount) {
                 return std::vector<TChunkStorePtr>(candidates.begin() + i, candidates.begin() + j);
             }
         }
@@ -263,11 +289,11 @@ private:
 
         auto* tablet = partition->GetTablet();
         auto* eden = tablet->GetEden();
-        for (const auto& store : eden->Stores()) {
+        for (auto store : eden->Stores()) {
             handleStore(store);
         }
 
-        for (const auto& store : partition->Stores()) {
+        for (auto store : partition->Stores()) {
             if (store->GetType() == EStoreType::Chunk) {
                 if (std::find(stores.begin(), stores.end(), store->AsChunk()) == stores.end()) {
                     handleStore(store);
@@ -521,7 +547,7 @@ private:
 
         SwitchTo(automatonInvoker);
 
-        YCHECK(eden->GetState() == EPartitionState::Compacting);
+        YCHECK(eden->GetState() == EPartitionState::Partitioning);
         eden->SetState(EPartitionState::Normal);
     }
 
