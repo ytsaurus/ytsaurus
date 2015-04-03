@@ -477,7 +477,6 @@ void TStoreManager::BackoffStoreFlush(TDynamicMemoryStorePtr store)
         Config_->ErrorBackoffTime);
 }
 
-
 bool TStoreManager::IsStoreCompactable(IStorePtr store)
 {
     if (store->GetStoreState() != EStoreState::Persistent) {
