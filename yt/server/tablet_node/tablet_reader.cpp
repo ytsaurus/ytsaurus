@@ -405,6 +405,10 @@ private:
             takePartition(*it);
         }
 
+        for (auto key : Keys_) {
+            takePartition(TabletSnapshot_->FindContainingPartition(key));
+        }
+
         LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v, StoreIds: [%v])",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->Slot->GetCellId(),
