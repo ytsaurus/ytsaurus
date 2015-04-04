@@ -323,6 +323,11 @@ private:
             });
             subreaderCreators.push_back([&] () {
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
+
+                LOG_DEBUG_IF(fragment->VerboseLogging, "Creating reader for ranges %v", JoinToString(groupedSplit, [] (const TDataSource& source) {
+                    return Format("[%v .. %v]", source.Range.first, source.Range.second);
+                }));
+
                 for (const auto& dataSplit : groupedSplit) {
                     bottomSplitReaders.push_back(GetReader(dataSplit, timestamp, nodeDirectory));
                 }
