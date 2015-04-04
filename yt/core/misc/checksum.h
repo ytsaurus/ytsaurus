@@ -10,7 +10,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChecksum GetChecksum(TRef data);
+TChecksum GetChecksum(const TRef& data);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,8 +25,8 @@ protected:
     virtual size_t DoRead(void* buf, size_t len);
 
 private:
-    TInputStream* Input;
-    TChecksum Checksum;
+    TInputStream* const Input_;
+    TChecksum Checksum_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,8 +44,8 @@ protected:
     virtual void DoFinish();
 
 private:
-    TOutputStream* Output;
-    TChecksum Checksum;
+    TOutputStream* const Output_;
+    TChecksum Checksum_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
