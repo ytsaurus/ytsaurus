@@ -27,7 +27,7 @@ public:
     IChunkPtr GetChunk(const TChunkId& chunkId);
 
 private:
-    NCellNode::TBootstrap* Bootstrap_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
 };
 
