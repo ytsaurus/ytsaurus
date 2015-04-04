@@ -252,11 +252,9 @@ protected:
 
         bool hasMoreRows = session->Reader->Read(&rows);
 
-        auto lastIt = std::remove_if(rows.begin(), rows.end(), [] (TVersionedRow row) {
+        rows.erase(std::remove_if(rows.begin(), rows.end(), [] (TVersionedRow row) {
             return !row;
-        });
-
-        rows.resize(std::distance(rows.begin(), lastIt));
+        }), rows.end());
 
         if (rows.empty()) {
             return !hasMoreRows;
@@ -410,7 +408,7 @@ private:
         }
 
         std::sort(stores.begin(), stores.end());
-        stores.resize(std::distance(stores.begin(), std::unique(stores.begin(), stores.end())));
+        stores.erase(std::unique(stores.begin(), stores.end()), stores.end());
 
         LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v, StoreIds: [%v])",
             TabletSnapshot_->TabletId,
