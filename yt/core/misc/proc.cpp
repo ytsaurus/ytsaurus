@@ -52,7 +52,7 @@ std::vector<int> GetPidsByUid(int uid)
             continue;
         }
 
-        auto path = Sprintf("/proc/%d", pid);
+        auto path = Format("/proc/%v", pid);
         struct stat buf;
         int res = ::stat(~path, &buf);
 
@@ -63,7 +63,7 @@ std::vector<int> GetPidsByUid(int uid)
         } else {
             // Assume that the process has already completed.
             auto errno_ = errno;
-            LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %d: stat failed",
+            LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %v: stat failed",
                 pid);
             YCHECK(errno_ == ENOENT || errno_ == ENOTDIR);
         }

@@ -2210,19 +2210,19 @@ private:
         TSortControllerBase::DoInitialize();
 
         if (Spec->Mapper && Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in maper: maximum allowed %d, actual %" PRISZT,
+            THROW_ERROR_EXCEPTION("Too many user files in maper: maximum allowed %v, actual %v",
                 Config->MaxUserFileCount,
                 Spec->Mapper->FilePaths.size());
         }
 
         if (Spec->Reducer && Spec->Reducer->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in reducer: maximum allowed %d, actual %" PRISZT,
+            THROW_ERROR_EXCEPTION("Too many user files in reducer: maximum allowed %v, actual %v",
                 Config->MaxUserFileCount,
                 Spec->Reducer->FilePaths.size());
         }
 
         if (Spec->ReduceCombiner && Spec->ReduceCombiner->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in reduce combiner: maximum allowed %d, actual %" PRISZT,
+            THROW_ERROR_EXCEPTION("Too many user files in reduce combiner: maximum allowed %v, actual %v",
                 Config->MaxUserFileCount,
                 Spec->ReduceCombiner->FilePaths.size());
         }

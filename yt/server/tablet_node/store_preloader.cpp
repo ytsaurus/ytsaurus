@@ -181,7 +181,7 @@ private:
                 ++lastBlockIndex;
             }
 
-            LOG_DEBUG("Reading chunk blocks (BlockIndexes: %d-%d)",
+            LOG_DEBUG("Reading chunk blocks (BlockIndexes: %v-%v)",
                 firstBlockIndex,
                 lastBlockIndex - 1);
 
@@ -197,7 +197,7 @@ private:
                     break;
 
                 case EInMemoryMode::Uncompressed: {
-                    LOG_DEBUG("Decompressing chunk blocks (BlockIndexes: %d-%d)",
+                    LOG_DEBUG("Decompressing chunk blocks (BlockIndexes: %v-%v)",
                         firstBlockIndex,
                         lastBlockIndex - 1);
 

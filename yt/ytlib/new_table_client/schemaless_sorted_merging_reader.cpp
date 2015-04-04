@@ -122,9 +122,8 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
 
 TFuture<void> TSchemalessSortedMergingReader::Open()
 {
-    LOG_INFO(
-        "Opening schemaless sorted merging reader (SessionCount: %d)",
-        static_cast<int>(SessionHolder_.size()));
+    LOG_INFO("Opening schemaless sorted merging reader (SessionCount: %v)",
+        SessionHolder_.size());
 
     ReadyEvent_ =  BIND(&TSchemalessSortedMergingReader::DoOpen, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
