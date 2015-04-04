@@ -295,7 +295,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
         if (OlderLruList_.Empty() || OlderWeightCounter_.Current <= Config_->Capacity * (1 - Config_->YoungerSizeFraction))
             break;
 
-        auto* item = &*(--OlderLruList_.End());
+        auto* item = &*OlderLruList_.Begin();
         MoveToYounger(item);
     }
 
@@ -306,7 +306,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
         if (YoungerLruList_.Empty() || YoungerWeightCounter_.Current + OlderWeightCounter_.Current <= Config_->Capacity)
             break;
 
-        auto* item = &*(--YoungerLruList_.End());
+        auto* item = &*YoungerLruList_.Begin();
         auto value = item->Value;
 
         Pop(item);
