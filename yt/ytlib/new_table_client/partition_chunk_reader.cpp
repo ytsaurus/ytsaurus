@@ -17,12 +17,11 @@ namespace NVersionedTableClient {
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
-using namespace NProto;
+using namespace NRpc;
+using namespace NNodeTrackerClient;
+using namespace NVersionedTableClient::NProto;
 
 using NChunkClient::TReadLimit;
-using NNodeTrackerClient::TNodeDirectoryPtr;
-using NRpc::IChannelPtr;
-using NVersionedTableClient::TChunkReaderConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

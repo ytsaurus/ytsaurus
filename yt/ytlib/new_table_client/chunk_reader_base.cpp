@@ -1,16 +1,9 @@
 #include "stdafx.h"
-
 #include "chunk_reader_base.h"
-
 #include "config.h"
 #include "private.h"
 
 #include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/dispatcher.h>
-
-#include <core/compression/codec.h>
-
-#include <core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -18,8 +11,7 @@ namespace NVersionedTableClient {
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NCompression;
-using namespace NConcurrency;
-using namespace NProto;
+using namespace NVersionedTableClient::NProto;
 
 using NYT::FromProto;
 
@@ -33,11 +25,11 @@ TChunkReaderBase::TChunkReaderBase(
     const NChunkClient::NProto::TMiscExt& misc,
     IBlockCachePtr blockCache)
     : Logger(TableClientLogger)
-    , Config_(config)
+    , Config_(std::move(config))
     , LowerLimit_(lowerLimit)
     , UpperLimit_(upperLimit)
-    , BlockCache_(blockCache)
-    , UnderlyingReader_(underlyingReader)
+    , BlockCache_(std::move(blockCache))
+    , UnderlyingReader_(std::move(underlyingReader))
     , Misc_(misc)
 {
     Logger.AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId());
@@ -45,23 +37,9 @@ TChunkReaderBase::TChunkReaderBase(
 
 TFuture<void> TChunkReaderBase::Open()
 {
-    ReadyEvent_ = BIND(&TChunkReaderBase::DoOpen, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run();
-    return ReadyEvent_;
-}
-
-TFuture<void> TChunkReaderBase::GetReadyEvent()
-{
-    return ReadyEvent_;
-}
-
-void TChunkReaderBase::DoOpen()
-{
     auto blocks = GetBlockSequence();
-
     if (blocks.empty()) {
-        return;
+        return VoidFuture;
     }
 
     SequentialReader_ = New<TSequentialReader>(
@@ -72,31 +50,14 @@ void TChunkReaderBase::DoOpen()
         ECodec(Misc_.compression_codec()));
 
     YCHECK(SequentialReader_->HasMoreBlocks());
-    WaitFor(SequentialReader_->FetchNextBlock())
-        .ThrowOnError();
-
-    InitFirstBlock();
+    ReadyEvent_ = SequentialReader_->FetchNextBlock();
+    InitFirstBlockNeeded_ = true;
+    return ReadyEvent_;
 }
 
-void TChunkReaderBase::DoSwitchBlock()
+TFuture<void> TChunkReaderBase::GetReadyEvent()
 {
-    WaitFor(SequentialReader_->FetchNextBlock())
-        .ThrowOnError();
-    InitNextBlock();
-}
-
-bool TChunkReaderBase::OnBlockEnded()
-{
-    BlockEnded_ = false;
-
-    if (!SequentialReader_->HasMoreBlocks()) {
-        return false;
-    }
-
-    ReadyEvent_ = BIND(&TChunkReaderBase::DoSwitchBlock, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run();
-    return true;
+    return ReadyEvent_;
 }
 
 int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta) const
@@ -128,6 +89,38 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta) const
         });
 
     return (it != rend) ? std::distance(it, rend) : 0;   
+}
+
+bool TChunkReaderBase::BeginRead()
+{
+    if (!ReadyEvent_.IsSet()) {
+        return false;
+    }
+
+    if (InitFirstBlockNeeded_) {
+        InitFirstBlock();
+        InitFirstBlockNeeded_ = false;
+    }
+
+    if (InitNextBlockNeeded_) {
+        InitNextBlock();
+        InitNextBlockNeeded_ = false;
+    }
+
+    return true;
+}
+
+bool TChunkReaderBase::OnBlockEnded()
+{
+    BlockEnded_ = false;
+
+    if (!SequentialReader_->HasMoreBlocks()) {
+        return false;
+    }
+
+    ReadyEvent_ = SequentialReader_->FetchNextBlock();
+    InitNextBlockNeeded_ = true;
+    return true;
 }
 
 int TChunkReaderBase::GetBlockIndexByKey(const TKey& pivotKey, const std::vector<TOwningKey>& blockIndexKeys, int beginBlockIndex)
