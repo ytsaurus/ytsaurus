@@ -332,7 +332,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to open partition reader");
 
             EstimatedBucketCount_ = (EstimatedRowCount_ + SortBucketSize - 1) / SortBucketSize;
-            LOG_INFO("Input size estimated (RowCount: %d, BucketCount: %d)",
+            LOG_INFO("Input size estimated (RowCount: %v, BucketCount: %v)",
                 EstimatedRowCount_,
                 EstimatedBucketCount_);
 
@@ -412,7 +412,7 @@ private:
                 YCHECK(bucketCount <= EstimatedBucketCount_);
             }
 
-            LOG_INFO("Finished reading input (RowCount: %d, BucketCount: %d)",
+            LOG_INFO("Finished reading input (RowCount: %v, BucketCount: %v)",
                 TotalRowCount_,
                 bucketCount);
         }
@@ -420,13 +420,13 @@ private:
 
     void DoSortBucket(int bucketId)
     {
-        LOG_DEBUG("Started sorting bucket %d", bucketId);
+        LOG_DEBUG("Started sorting bucket %v", bucketId);
 
         int startIndex = BucketStart_[bucketId];
         int endIndex = BucketStart_[bucketId + 1] - 1;
         std::sort(Buckets_.begin() + startIndex, Buckets_.begin() + endIndex, SortComparer_);
 
-        LOG_DEBUG("Finished sorting bucket %d", bucketId);
+        LOG_DEBUG("Finished sorting bucket %v", bucketId);
     }
 
     void StartMerge()
