@@ -167,8 +167,8 @@ bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
     MemoryPool_.Clear();
     rows->clear();
 
-    if (!ReadyEvent_.IsSet()) {
-        // Waiting for the next block.
+    if (!BeginRead()) {
+        // Not ready yet.
         return true;
     }
 
@@ -430,8 +430,8 @@ bool TVersionedLookupChunkReader::Read(std::vector<TVersionedRow>* rows)
     MemoryPool_.Clear();
     rows->clear();
 
-    if (!ReadyEvent_.IsSet()) {
-        // Waiting for the next block.
+    if (!BeginRead()) {
+        // Not ready yet.
         return true;
     }
 

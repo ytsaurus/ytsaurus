@@ -316,8 +316,8 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
     MemoryPool_.Clear();
     rows->clear();
 
-    if (!ReadyEvent_.IsSet()) {
-        // Waiting for the next block.
+    if (!BeginRead()) {
+        // Not ready yet.
         return true;
     }
 

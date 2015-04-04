@@ -47,12 +47,17 @@ protected:
     NChunkClient::TSequentialReaderPtr SequentialReader_;
 
     NChunkClient::NProto::TMiscExt Misc_;
-    TFuture<void> ReadyEvent_;
+    TFuture<void> ReadyEvent_ = VoidFuture;
 
     bool BlockEnded_ = false;
+    bool InitFirstBlockNeeded_ = false;
+    bool InitNextBlockNeeded_ = false;
 
     TChunkedMemoryPool MemoryPool_;
 
+
+    bool BeginRead();
+    bool OnBlockEnded();
 
     static int GetBlockIndexByKey(
         const TKey& key, 
@@ -68,12 +73,6 @@ protected:
     int ApplyUpperRowLimit(const NProto::TBlockMetaExt& blockMeta) const;
     int ApplyUpperKeyLimit(const NProto::TBlockMetaExt& blockMeta) const;
     int ApplyUpperKeyLimit(const std::vector<TOwningKey>& blockIndexKeys) const;
-
-    void DoOpen();
-
-    void DoSwitchBlock();
-
-    bool OnBlockEnded();
 
     virtual std::vector<NChunkClient::TSequentialReader::TBlockInfo> GetBlockSequence() = 0;
 

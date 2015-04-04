@@ -61,6 +61,7 @@ set( HDRS
   ${BASE}/name_table.h
   ${BASE}/ordered_schemaful_reader.h
   ${BASE}/partition_chunk_reader.h
+  ${BASE}/partition_chunk_reader-inl.h
   ${BASE}/partitioner.h
   ${BASE}/pipe.h
   ${BASE}/private.h
