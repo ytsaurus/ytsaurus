@@ -452,7 +452,16 @@ TConstExpressionPtr RefinePredicate(
         return expr;
     };
 
-    return refinePredicate(expr);
+    auto result = refinePredicate(expr);
+
+    if (commonPrefixSize > 1) {
+        auto key = keyRange.first;
+        key.Get().SetCount(commonPrefixSize - 1);
+        std::vector<TRow> keys{key.Get()};
+        result = RefinePredicate(keys, result, keyColumns);
+    }
+
+    return result;
 }
 
 TConstExpressionPtr RefinePredicate(
