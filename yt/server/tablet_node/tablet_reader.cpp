@@ -409,6 +409,9 @@ private:
             takePartition(TabletSnapshot_->FindContainingPartition(key));
         }
 
+        std::sort(stores.begin(), stores.end());
+        stores.resize(std::distance(stores.begin(), std::unique(stores.begin(), stores.end())));
+
         LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v, StoreIds: [%v])",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->Slot->GetCellId(),
