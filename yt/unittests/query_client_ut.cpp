@@ -1612,6 +1612,25 @@ TEST_P(TArithmeticTest, ConstantFolding)
         << "expected: " <<  ::testing::PrintToString(expected) << std::endl;
 }
 
+TEST_F(TArithmeticTest, ConstantDivisorsFolding)
+{
+    auto schema = GetSampleTableSchema();
+    auto expr1 = PrepareExpression("k / 100 / 2", schema);
+    auto expr2 = PrepareExpression("k / 200", schema);
+
+    EXPECT_TRUE(Equal(expr1, expr2))
+        << "expr1: " <<  ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " <<  ::testing::PrintToString(expr2) << std::endl;
+
+    expr1 = PrepareExpression("k / 3102228988 / 4021316745", schema);
+    expr2 = PrepareExpression("k / (3102228988 * 4021316745)", schema);
+
+    EXPECT_FALSE(Equal(expr1, expr2))
+        << "expr1: " <<  ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " <<  ::testing::PrintToString(expr2) << std::endl;
+
+}
+
 #ifdef YT_USE_LLVM
 
 TEST_P(TArithmeticTest, Evaluate)
