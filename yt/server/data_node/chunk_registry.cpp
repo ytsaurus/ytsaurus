@@ -5,6 +5,8 @@
 #include "chunk_store.h"
 #include "chunk_cache.h"
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <server/cell_node/bootstrap.h>
 
 namespace NYT {
@@ -21,6 +23,8 @@ TChunkRegistry::TChunkRegistry(TBootstrap* bootstrap)
 
 IChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     // There are two possible places where we can look for a chunk: ChunkStore and ChunkCache.
     auto storedChunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
     if (storedChunk) {
@@ -35,8 +39,10 @@ IChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId)
     return nullptr;
 }
 
-IChunkPtr TChunkRegistry::GetChunk(const TChunkId& chunkId)
+IChunkPtr TChunkRegistry::GetChunkOrThrow(const TChunkId& chunkId)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto chunk = FindChunk(chunkId);
     if (!chunk) {
         THROW_ERROR_EXCEPTION(
@@ -44,6 +50,7 @@ IChunkPtr TChunkRegistry::GetChunk(const TChunkId& chunkId)
             "No such chunk %v",
             chunkId);
     }
+
     return chunk;
 }
 

@@ -45,12 +45,12 @@ TJournalChunk::TJournalChunk(
         bootstrap,
         location,
         descriptor.Id)
+    , Meta_(New<TRefCountedChunkMeta>())
 {
     CachedSealed_ = descriptor.Sealed;
     CachedRowCount_ = descriptor.RowCount;
     CachedDataSize_ = descriptor.DiskSpace;
 
-    Meta_ = New<TRefCountedChunkMeta>();
     Meta_->set_type(static_cast<int>(EChunkType::Journal));
     Meta_->set_version(0);
 }
@@ -75,9 +75,18 @@ TChunkInfo TJournalChunk::GetInfo() const
     return info;
 }
 
-TFuture<TRefCountedChunkMetaPtr> TJournalChunk::GetMeta(
+TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
     i64 /*priority*/,
     const TNullable<std::vector<int>>& extensionTags)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return BIND(&TJournalChunk::DoReadMeta, MakeStrong(this), extensionTags)
+        .AsyncVia(Bootstrap_->GetControlInvoker())
+        .Run();
+}
+
+TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const TNullable<std::vector<int>>& extensionTags)
 {
     UpdateCachedParams();
 
@@ -88,7 +97,7 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::GetMeta(
     miscExt.set_sealed(CachedSealed_);
     SetProtoExtension(Meta_->mutable_extensions(), miscExt);
 
-    return MakeFuture(FilterCachedMeta(extensionTags));
+    return FilterMeta(Meta_, extensionTags);
 }
 
 TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
@@ -96,6 +105,7 @@ TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
     int blockCount,
     i64 priority)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(firstBlockIndex >= 0);
     YCHECK(blockCount >= 0);
 

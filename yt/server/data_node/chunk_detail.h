@@ -55,8 +55,6 @@ protected:
 
     int Version_ = 0;
 
-    TRefCountedChunkMetaPtr Meta_;
-
     TSpinLock SpinLock_;
     TPromise<void> RemovedPromise_; // if not null then remove is scheduled
     int ReadLockCounter_ = 0;
@@ -71,7 +69,9 @@ protected:
     void StartAsyncRemove();
     virtual TFuture<void> AsyncRemove() = 0;
 
-    TRefCountedChunkMetaPtr FilterCachedMeta(const TNullable<std::vector<int>>& extensionTags) const;
+    static TRefCountedChunkMetaPtr FilterMeta(
+        TRefCountedChunkMetaPtr meta,
+        const TNullable<std::vector<int>>& extensionTags);
 
 };
 

@@ -16,6 +16,7 @@
 #include <server/cell_node/bootstrap.h>
 
 #include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/thread_affinity.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -66,49 +67,34 @@ public:
         const TSharedRef& data,
         const TNullable<TNodeDescriptor>& source)
     {
-        while (true) {
-            TInsertCookie cookie(blockId);
-            if (BeginInsert(&cookie)) {
-                auto block = New<TCachedBlock>(blockId, data, source);
-                cookie.EndInsert(block);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-                LOG_DEBUG("Block is put into cache (BlockId: %v, Size: %v, SourceAddress: %v)",
-                    blockId,
-                    data.Size(),
-                    source);
-                return;
-            }
+        TInsertCookie cookie(blockId);
+        if (BeginInsert(&cookie)) {
+            auto block = New<TCachedBlock>(blockId, data, source);
+            cookie.EndInsert(block);
 
-            auto result = cookie.GetValue().Get();
-            if (!result.IsOK()) {
-                // Looks like a parallel Get request has completed unsuccessfully.
-                continue;
-            }
-
-            // This is a cruel reality.
-            // Since we never evict blocks of removed chunks from the cache
-            // it is possible for a block to be put there more than once.
-            // We shall reuse the cached copy but for sanity's sake let's
-            // check that the content is the same.
-            auto block = result.Value();
-
-            if (!TRef::AreBitwiseEqual(data, block->GetData())) {
-                LOG_FATAL("Trying to cache block %v for which a different cached copy already exists",
-                    blockId);
-            }
-
-            LOG_DEBUG("Block is resurrected in cache (BlockId: %v)",
-                blockId);
-            return;
+            LOG_DEBUG("Block is put into cache (BlockId: %v, Size: %v, SourceAddress: %v)",
+                blockId,
+                data.Size(),
+                source);
+        } else {
+            LOG_DEBUG("Failed to cache block due to concurrent read (BlockId: %v, Size: %v, SourceAddress: %v)",
+                blockId,
+                data.Size(),
+                source);
         }
     }
 
     TCachedBlockPtr FindBlock(const TBlockId& blockId)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto cachedBlock = TAsyncSlruCacheBase::Find(blockId);
         if (cachedBlock) {
             LogCacheHit(cachedBlock);
         }
+
         return cachedBlock;
     }
 
@@ -118,6 +104,8 @@ public:
         i64 priority,
         bool enableCaching)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         // During block peering, data nodes exchange individual blocks.
         // Thus the cache may contain a block not bound to any chunk in the registry.
         // Handle these "unbounded" blocks first.
@@ -129,12 +117,15 @@ public:
             return MakeFuture(cachedBlock->GetData());
         }
 
+        LogCacheMiss(blockId);
+
         TInsertCookie cookie(blockId);
         if (enableCaching) {
             if (!BeginInsert(&cookie)) {
-                return cookie
-                    .GetValue()
-                    .Apply(BIND(&TImpl::OnCachedBlockReady, MakeStrong(this)));
+                return cookie.GetValue().Apply(
+                    BIND([] (const TCachedBlockPtr& cachedBlock) {
+                        return cachedBlock->GetData();
+                    }));
             }
         }
 
@@ -165,6 +156,8 @@ public:
         int blockCount,
         i64 priority)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         // NB: Range requests bypass block cache.
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
@@ -190,11 +183,15 @@ public:
 
     i64 GetPendingReadSize() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return PendingReadSize_.load();
     }
 
     TPendingReadSizeGuard IncreasePendingReadSize(i64 delta)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         YASSERT(delta >= 0);
         UpdatePendingReadSize(delta);
         return TPendingReadSizeGuard(delta, Bootstrap_->GetBlockStore());
@@ -202,6 +199,8 @@ public:
 
     void DecreasePendingReadSize(i64 delta)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         UpdatePendingReadSize(-delta);
     }
 
@@ -223,18 +222,18 @@ private:
             block->GetKey());
     }
 
+    void LogCacheMiss(const TBlockId& blockId)
+    {
+        LOG_TRACE("Block cache missed (BlockId: %v)",
+            blockId);
+    }
+
     void UpdatePendingReadSize(i64 delta)
     {
         i64 result = (PendingReadSize_ += delta);
         LOG_TRACE("Pending read size updated (PendingReadSize: %v, Delta: %v)",
             result,
             delta);
-    }
-
-    TSharedRef OnCachedBlockReady(TCachedBlockPtr cachedBlock)
-    {
-        LogCacheHit(cachedBlock);
-        return cachedBlock->GetData();
     }
 
     static TSharedRef OnBlockRead(

@@ -37,7 +37,11 @@ DEFINE_REFCOUNTED_TYPE(TCachedBlock)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Manages cached blocks.
+//! Manages chunk blocks stored at Data Node.
+/*!
+ *  \note
+ *  Thread affinity: any
+ */
 class TBlockStore
     : public TRefCounted
 {

@@ -604,9 +604,9 @@ private:
         ValidateConnected();
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
-        auto chunk = chunkRegistry->GetChunk(chunkId);
-        auto asyncChunkMeta = chunk->GetMeta(context->GetPriority(), extensionTags);
+        auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
+        auto asyncChunkMeta = chunk->ReadMeta(context->GetPriority(), extensionTags);
         asyncChunkMeta.Subscribe(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
             if (!metaOrError.IsOK()) {
                 context->Reply(metaOrError);
@@ -648,7 +648,7 @@ private:
                 continue;
             }
 
-            auto asyncResult = chunk->GetMeta(context->GetPriority());
+            auto asyncResult = chunk->ReadMeta(context->GetPriority());
             asyncResults.push_back(asyncResult.Apply(
                 BIND(
                     &TDataNodeService::MakeChunkSplits,
@@ -660,16 +660,14 @@ private:
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
-        // ToDo(psushin): replace with ReplyFrom when it supports cancelation.
-        auto error = WaitFor(Combine(asyncResults));
-        context->Reply(error);
+        context->ReplyFrom(Combine(asyncResults));
     }
 
     void MakeChunkSplits(
         const NChunkClient::NProto::TChunkSpec* chunkSpec,
         NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
         i64 minSplitSize,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
+        const TKeyColumns& keyColumns,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
@@ -714,19 +712,22 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetTableSamples)
     {
-        context->SetRequestInfo("KeyColumnCount: %v, ChunkCount: %v",
-            request->key_columns_size(),
+        auto keyColumns = FromProto<Stroka>(request->key_columns());
+
+        context->SetRequestInfo("KeyColumns: [%v], ChunkCount: %v",
+            JoinToString(keyColumns),
             request->sample_requests_size());
 
         ValidateConnected();
 
+        auto chunkStore = Bootstrap_->GetChunkStore();
+
         std::vector<TFuture<void>> asyncResults;
-        auto keyColumns = FromProto<Stroka>(request->key_columns());
         for (const auto& sampleRequest : request->sample_requests()) {
             auto* sampleResponse = response->add_sample_responses();
             auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
-            auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
+            auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk) {
                 auto error = TError(
                     NChunkClient::EErrorCode::NoSuchChunk,
@@ -737,8 +738,8 @@ private:
                 continue;
             }
 
-            auto asyncResult = chunk->GetMeta(context->GetPriority());
-            asyncResults.push_back(asyncResult.Apply(
+            auto asyncChunkMeta = chunk->ReadMeta(context->GetPriority());
+            asyncResults.push_back(asyncChunkMeta.Apply(
                 BIND(
                     &TDataNodeService::ProcessSample,
                     MakeStrong(this),
@@ -754,9 +755,9 @@ private:
     }
 
     void ProcessSample(
-        const NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
-        NChunkClient::NProto::TRspGetTableSamples::TChunkSamples* sampleResponse,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
+        const TReqGetTableSamples::TSampleRequest* sampleRequest,
+        TRspGetTableSamples::TChunkSamples* sampleResponse,
+        const TKeyColumns& keyColumns,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
@@ -802,8 +803,8 @@ private:
     void ProcessOldChunkSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta)
+        const TKeyColumns& keyColumns,
+        const TChunkMeta& chunkMeta)
     {
         auto samplesExt = GetProtoExtension<TOldSamplesExt>(chunkMeta.extensions());
         std::vector<TSample> samples;
@@ -862,8 +863,8 @@ private:
     void ProcessVersionedChunkSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta)
+        const TKeyColumns& keyColumns,
+        const TChunkMeta& chunkMeta)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
 

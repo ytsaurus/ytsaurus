@@ -5,6 +5,7 @@
 #include <core/misc/property.h>
 
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/rw_spinlock.h>
 #include <core/concurrency/action_queue.h>
 
 #include <core/actions/signal.h>
@@ -21,7 +22,7 @@ namespace NDataNode {
 //! Manages stored chunks.
 /*!
  *  \note
- *  Thread affinity: ControlThread
+ *  Thread affinity: ControlThread (unless indicated otherwise)
  */
 class TChunkStore
     : public TRefCounted
@@ -55,10 +56,32 @@ public:
     void UnregisterChunk(IChunkPtr chunk);
 
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     IChunkPtr FindChunk(const TChunkId& chunkId) const;
 
     //! Finds chunk by id. Throws if no chunk exists.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     IChunkPtr GetChunkOrThrow(const TChunkId& chunkId) const;
+
+    //! Returns the list of all registered chunks.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    TChunks GetChunks() const;
+
+    //! Returns the number of registered chunks.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    int GetChunkCount() const;
 
     //! Physically removes the chunk.
     /*!
@@ -82,12 +105,6 @@ public:
      */
     TLocationPtr GetReplayedChunkLocation();
 
-    //! Returns the list of all registered chunks.
-    TChunks GetChunks() const;
-
-    //! Returns the number of registered chunks.
-    int GetChunkCount() const;
-
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
 
@@ -107,6 +124,7 @@ private:
         i64 DiskSpace = 0;
     };
 
+    NConcurrency::TReaderWriterSpinLock ChunkMapLock_;
     yhash_map<TChunkId, TChunkEntry> ChunkMap_;
 
 

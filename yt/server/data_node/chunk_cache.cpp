@@ -79,46 +79,25 @@ public:
 
         auto descriptors = Location_->Initialize();
         for (const auto& descriptor : descriptors) {
-            auto chunk = New<TCachedBlobChunk>(
-                Bootstrap_,
-                Location_,
-                descriptor);
-            Put(chunk);
+            TInsertCookie cookie(descriptor.Id);
+            YCHECK(BeginInsert(&cookie));
+
+            auto chunk = CreateChunk(Location_, descriptor);
+            cookie.EndInsert(chunk);
         }
 
         LOG_INFO("Chunk cache initialized, %v chunks total",
             GetSize());
     }
 
-    void Register(TCachedBlobChunkPtr chunk)
+    bool IsEnabled() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto location = chunk->GetLocation();
-        location->UpdateChunkCount(+1);
-        location->UpdateUsedSpace(+chunk->GetInfo().disk_space());
+        return Location_->IsEnabled();
     }
 
-    void Unregister(TCachedBlobChunkPtr chunk)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto location = chunk->GetLocation();
-        location->UpdateChunkCount(-1);
-        location->UpdateUsedSpace(-chunk->GetInfo().disk_space());
-    }
-
-    void Put(TCachedBlobChunkPtr chunk)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        TInsertCookie cookie(chunk->GetId());
-        YCHECK(BeginInsert(&cookie));
-        cookie.EndInsert(chunk);
-        Register(chunk);
-    }
-
-    TFuture<IChunkPtr> Download(
+    TFuture<IChunkPtr> DownloadChunk(
         const TChunkId& chunkId,
         TNodeDirectoryPtr nodeDirectory,
         const TChunkReplicaList& seedReplicas)
@@ -147,21 +126,12 @@ public:
             LOG_INFO("Chunk is already cached (ChunkId: %v)",
                 chunkId);
         }
-
-        return cookieValue.Apply(BIND(&TImpl::OnChunkDownloaded, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetControlInvoker()));
-    }
-
-    bool IsEnabled() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return Location_->IsEnabled();
+        return cookieValue.As<IChunkPtr>();
     }
 
     std::vector<IChunkPtr> GetChunks()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto chunks = GetAll();
         return std::vector<IChunkPtr>(chunks.begin(), chunks.end());
@@ -177,6 +147,48 @@ private:
     DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+
+    void OnChunkCreated(
+        TLocationPtr location,
+        const TChunkDescriptor& descriptor)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        location->UpdateChunkCount(+1);
+        location->UpdateUsedSpace(+descriptor.DiskSpace);
+    }
+
+    void OnChunkDestroyed(
+        TLocationPtr location,
+        const TChunkDescriptor& descriptor)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        location->GetWritePoolInvoker()->Invoke(BIND(
+            &TLocation::RemoveChunkFiles,
+            Location_,
+            descriptor.Id));
+
+        location->UpdateChunkCount(-1);
+        location->UpdateUsedSpace(-descriptor.DiskSpace);
+    }
+
+    TCachedBlobChunkPtr CreateChunk(
+        TLocationPtr location,
+        const TChunkDescriptor& descriptor,
+        const NChunkClient::NProto::TChunkMeta* meta = nullptr)
+    {
+        auto chunk = New<TCachedBlobChunk>(
+            Bootstrap_,
+            Location_,
+            descriptor,
+            meta,
+            BIND(&TImpl::OnChunkDestroyed, MakeStrong(this), Location_, descriptor)
+                .Via(Bootstrap_->GetControlInvoker()));
+        OnChunkCreated(location, descriptor);
+        return chunk;
+    }
 
 
     virtual i64 GetWeight(TCachedBlobChunk* chunk) const override
@@ -225,7 +237,7 @@ private:
         const TChunkReplicaList& seedReplicas,
         TInsertCookie cookie)
     {
-        NLogging::TLogger Logger(DataNodeLogger);
+        auto Logger = DataNodeLogger;
         Logger.AddTag("ChunkId: %v", chunkId);
 
         try {
@@ -243,9 +255,7 @@ private:
 
             try {
                 NFS::ForcePath(NFS::GetDirectoryName(fileName));
-                // File writer opens synchronously.
-                chunkWriter->Open()
-                    .Get()
+                WaitFor(chunkWriter->Open())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Error opening cached chunk for writing");
@@ -299,14 +309,12 @@ private:
             LOG_INFO("Chunk is closed");
 
             LOG_INFO("Chunk is downloaded into cache");
+
             TChunkDescriptor descriptor;
             descriptor.Id = chunkId;
             descriptor.DiskSpace = chunkWriter->GetChunkInfo().disk_space();
-            auto chunk = New<TCachedBlobChunk>(
-                Bootstrap_,
-                Location_,
-                descriptor,
-                &chunkMeta);
+
+            auto chunk = CreateChunk(Location_, descriptor, &chunkMeta);
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading chunk %v into cache",
@@ -317,12 +325,6 @@ private:
         }
     }
 
-    IChunkPtr OnChunkDownloaded(TCachedBlobChunkPtr chunk)
-    {
-        Register(chunk);
-        return chunk;
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -331,13 +333,20 @@ TChunkCache::TChunkCache(TDataNodeConfigPtr config, TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
+TChunkCache::~TChunkCache()
+{ }
+
 void TChunkCache::Initialize()
 {
     Impl_->Initialize();
 }
 
-TChunkCache::~TChunkCache()
-{ }
+bool TChunkCache::IsEnabled() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Impl_->IsEnabled();
+}
 
 IChunkPtr TChunkCache::FindChunk(const TChunkId& chunkId)
 {
@@ -367,14 +376,7 @@ TFuture<IChunkPtr> TChunkCache::DownloadChunk(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl_->Download(chunkId, nodeDirectory, seedReplicas);
-}
-
-bool TChunkCache::IsEnabled() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Impl_->IsEnabled();
+    return Impl_->DownloadChunk(chunkId, nodeDirectory, seedReplicas);
 }
 
 DELEGATE_SIGNAL(TChunkCache, void(IChunkPtr), ChunkAdded, *Impl_);

@@ -6,6 +6,8 @@
 
 #include <core/misc/fs.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <server/cell_node/bootstrap.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -59,6 +61,8 @@ void TChunkBase::IncrementVersion()
 
 bool TChunkBase::TryAcquireReadLock()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     int lockCount;
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -80,6 +84,8 @@ bool TChunkBase::TryAcquireReadLock()
 
 void TChunkBase::ReleaseReadLock()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     bool removing = false;
     int lockCount;
     {
@@ -102,6 +108,9 @@ void TChunkBase::ReleaseReadLock()
 
 bool TChunkBase::IsReadLockAcquired() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TSpinLock> guard(SpinLock_);
     return ReadLockCounter_ > 0;
 }
 
@@ -132,6 +141,8 @@ TFuture<void> TChunkBase::ScheduleRemove()
 
 bool TChunkBase::IsRemoveScheduled() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TGuard<TSpinLock> guard(SpinLock_);
     return static_cast<bool>(RemovedPromise_);
 }
@@ -141,12 +152,13 @@ void TChunkBase::StartAsyncRemove()
     RemovedPromise_.SetFrom(AsyncRemove());
 }
 
-TRefCountedChunkMetaPtr TChunkBase::FilterCachedMeta(const TNullable<std::vector<int>>& extensionTags) const
+TRefCountedChunkMetaPtr TChunkBase::FilterMeta(
+    TRefCountedChunkMetaPtr meta,
+    const TNullable<std::vector<int>>& extensionTags)
 {
-    YCHECK(Meta_);
     return extensionTags
-        ? New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, extensionTags))
-        : Meta_;
+        ? New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*meta, extensionTags))
+        : meta;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

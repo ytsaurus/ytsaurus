@@ -13,6 +13,9 @@ namespace NDataNode {
 /*!
  *  Uploaded chunks can be registered either at TChunkStore or at TChunkCache.
  *  This class provides a single entry point for locating these chunks.
+ *
+ *  \note
+ *  Thread affinity: any
  */
 class TChunkRegistry
     : public TRefCounted
@@ -24,7 +27,7 @@ public:
     IChunkPtr FindChunk(const TChunkId& chunkId);
 
     //! Finds chunk by id. Throws if no chunk exists.
-    IChunkPtr GetChunk(const TChunkId& chunkId);
+    IChunkPtr GetChunkOrThrow(const TChunkId& chunkId);
 
 private:
     NCellNode::TBootstrap* const Bootstrap_;

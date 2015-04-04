@@ -17,10 +17,10 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Manages cached chunks.
+//! Manages chunks cached at Data Node.
 /*!
  *  \note
- *  Thread affinity: ControlThread
+ *  Thread affinity: ControlThread (unless indicated otherwise)
  */
 class TChunkCache
     : public TRefCounted
@@ -29,21 +29,32 @@ public:
     TChunkCache(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
+    ~TChunkCache();
 
     void Initialize();
 
-    ~TChunkCache();
+    bool IsEnabled() const;
 
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     IChunkPtr FindChunk(const TChunkId& chunkId);
 
     //! Returns the list of all registered chunks.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     std::vector<IChunkPtr> GetChunks();
 
     //! Returns the number of registered chunks.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     int GetChunkCount();
-
-    bool IsEnabled() const;
 
     //! Downloads a chunk into the cache.
     /*!

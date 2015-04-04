@@ -365,7 +365,7 @@ private:
 
     virtual void DoRun() override
     {
-        auto metaOrError = WaitFor(Chunk_->GetMeta(0));
+        auto metaOrError = WaitFor(Chunk_->ReadMeta(0));
         THROW_ERROR_EXCEPTION_IF_FAILED(
             metaOrError,
             "Error getting meta of chunk %v",

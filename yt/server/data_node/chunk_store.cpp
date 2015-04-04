@@ -29,6 +29,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NCellNode;
 using namespace NRpc;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,12 +85,16 @@ void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
         return;
 
     auto entry = BuildEntry(chunk);
-    auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), entry));
-    if (!result.second) {
-        auto oldChunk = result.first->second.Chunk;
-        LOG_FATAL("Duplicate chunk: %v vs %v",
-            chunk->GetLocation()->GetChunkPath(chunk->GetId()),
-            oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
+
+    {
+        TWriterGuard guard(ChunkMapLock_);
+        auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), entry));
+        if (!result.second) {
+            auto oldChunk = result.first->second.Chunk;
+            LOG_FATAL("Duplicate chunk: %v vs %v",
+                chunk->GetLocation()->GetChunkPath(chunk->GetId()),
+                oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
+        }
     }
 
     DoRegisterChunk(entry);
@@ -167,7 +172,10 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
 
     if (doRegister) {
         auto entry = BuildEntry(chunk);
-        YCHECK(ChunkMap_.insert(std::make_pair(chunk->GetId(), entry)).second);
+        {
+            TWriterGuard guard(ChunkMapLock_);
+            YCHECK(ChunkMap_.insert(std::make_pair(chunk->GetId(), entry)).second);
+        }
         DoRegisterChunk(entry);
     }
 }
@@ -258,7 +266,10 @@ void TChunkStore::UnregisterChunk(IChunkPtr chunk)
     location->UpdateChunkCount(-1);
     location->UpdateUsedSpace(-entry.DiskSpace);
 
-    ChunkMap_.erase(it);
+    {
+        TWriterGuard guard(ChunkMapLock_);
+        ChunkMap_.erase(it);
+    }
 
     LOG_DEBUG("Chunk unregistered (ChunkId: %v)",
         chunk->GetId());
@@ -276,14 +287,17 @@ TChunkStore::TChunkEntry TChunkStore::BuildEntry(IChunkPtr chunk)
 
 IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
+    TReaderGuard guard(ChunkMapLock_);
     auto it = ChunkMap_.find(chunkId);
     return it == ChunkMap_.end() ? nullptr : it->second.Chunk;
 }
 
 IChunkPtr TChunkStore::GetChunkOrThrow(const TChunkId& chunkId) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto chunk = FindChunk(chunkId);
     if (!chunk) {
         THROW_ERROR_EXCEPTION(
@@ -291,7 +305,29 @@ IChunkPtr TChunkStore::GetChunkOrThrow(const TChunkId& chunkId) const
             "No such chunk %v",
             chunkId);
     }
+
     return chunk;
+}
+
+TChunkStore::TChunks TChunkStore::GetChunks() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(ChunkMapLock_);
+    TChunks result;
+    result.reserve(ChunkMap_.size());
+    for (const auto& pair : ChunkMap_) {
+        result.push_back(pair.second.Chunk);
+    }
+    return result;
+}
+
+int TChunkStore::GetChunkCount() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(ChunkMapLock_);
+    return static_cast<int>(ChunkMap_.size());
 }
 
 TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
@@ -353,25 +389,6 @@ TLocationPtr TChunkStore::GetReplayedChunkLocation()
     return candidate;
 }
 
-TChunkStore::TChunks TChunkStore::GetChunks() const
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    TChunks result;
-    result.reserve(ChunkMap_.size());
-    for (const auto& pair : ChunkMap_) {
-        result.push_back(pair.second.Chunk);
-    }
-    return result;
-}
-
-int TChunkStore::GetChunkCount() const
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    return static_cast<int>(ChunkMap_.size());
-}
-
 void TChunkStore::OnLocationDisabled(TLocationPtr location, const TError& reason)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -426,17 +443,10 @@ IChunkPtr TChunkStore::CreateFromDescriptor(
     switch (chunkType) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            if (location->GetType() == ELocationType::Store) {
-                return New<TStoredBlobChunk>(
-                    Bootstrap_,
-                    location,
-                    descriptor);
-            } else {
-                return New<TCachedBlobChunk>(
-                    Bootstrap_,
-                    location,
-                    descriptor);
-            }
+            return New<TStoredBlobChunk>(
+                Bootstrap_,
+                location,
+                descriptor);
 
         case EObjectType::JournalChunk:
             return New<TJournalChunk>(
