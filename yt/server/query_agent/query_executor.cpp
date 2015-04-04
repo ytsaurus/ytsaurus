@@ -203,7 +203,7 @@ private:
             fragment,
             writer,
             refiners,
-            false,
+            isOrdered,
             [&] (const TConstQueryPtr& subquery, int index) {
                 auto mergingReader = subreaderCreators[index]();
 
@@ -381,9 +381,7 @@ private:
                 return RefinePredicate(dataSplit.Range, expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                std::vector<ISchemafulReaderPtr> bottomSplitReaders;
-                bottomSplitReaders.push_back(GetReader(dataSplit, timestamp, nodeDirectory));
-                return CreateUnorderedSchemafulReader(bottomSplitReaders);
+                return GetReader(dataSplit, timestamp, nodeDirectory);
             });
         }
 
