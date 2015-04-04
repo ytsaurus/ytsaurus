@@ -198,7 +198,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::CanTouch(TItem* item)
 template <class TKey, class TValue, class THash>
 void TSyncSlruCacheBase<TKey, TValue, THash>::Touch(const TKey& key)
 {
-    static auto MinTouchPeriod = TDuration::MilliSeconds(100);
+    static auto MinTouchPeriod = TDuration::MilliSeconds(10);
 
     NConcurrency::TWriterGuard guard(SpinLock_);
 
