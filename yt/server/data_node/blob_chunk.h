@@ -5,6 +5,8 @@
 
 #include <core/misc/async_cache.h>
 
+#include <core/concurrency/rw_spinlock.h>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -19,7 +21,7 @@ public:
 
     virtual bool IsActive() const override;
 
-    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
+    virtual TFuture<TRefCountedChunkMetaPtr> ReadMeta(
         i64 priority,
         const TNullable<std::vector<int>>& extensionTags) override;
 
@@ -42,14 +44,18 @@ protected:
 
 private:
     NChunkClient::NProto::TChunkInfo Info_;
-    NChunkClient::NProto::TBlocksExt BlocksExt_;
+
+    NConcurrency::TReaderWriterSpinLock CachedMetaLock_;
+    TRefCountedChunkMetaPtr CachedMeta_;
+    NChunkClient::NProto::TBlocksExt CachedBlocksExt_;
 
 
-    TFuture<void> ReadMeta(i64 priority);
     void DoReadMeta(
         TChunkReadGuard readGuard,
-        TPromise<void> promise);
-    void InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta);
+        TPromise<TRefCountedChunkMetaPtr> promise);
+
+    TRefCountedChunkMetaPtr GetCachedMeta();
+    TRefCountedChunkMetaPtr SetCachedMeta(const NChunkClient::NProto::TChunkMeta& meta);
 
     void AdjustReadRange(
         int firstBlockIndex,
@@ -94,12 +100,13 @@ public:
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
-        const NChunkClient::NProto::TChunkMeta* meta = nullptr);
+        const NChunkClient::NProto::TChunkMeta* meta,
+        TClosure destroyed);
 
     ~TCachedBlobChunk();
 
 private:
-    TWeakPtr<TChunkCache> ChunkCache_;
+    const TClosure Destroyed_;
 
 };
 

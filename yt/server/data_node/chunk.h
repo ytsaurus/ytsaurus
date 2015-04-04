@@ -32,6 +32,11 @@ DEFINE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Represents a chunk stored locally at Data Node.
+/*!
+ *  \note
+ *  Thread affinity: ControlThread (unless indicated otherwise)
+ */
 struct IChunk
     : public virtual TRefCounted
 {
@@ -54,13 +59,19 @@ struct IChunk
      *  \param tags The list of extension tags to return. If |nullptr|
      *  then all extensions are returned.
      *
-     *  \note The meta is fetched asynchronously and is cached.
+     *  \note
+     *  The meta is fetched asynchronously and is cached.
+     *  Thread affinity: any
      */
-    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
+    virtual TFuture<TRefCountedChunkMetaPtr> ReadMeta(
         i64 priority,
         const TNullable<std::vector<int>>& extensionTags = Null) = 0;
 
     //! Asynchronously reads a range of blocks.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
         int firstBlockIndex,
         int blockCount,
@@ -70,6 +81,9 @@ struct IChunk
     /*!
      *  Succeeds if removal is not scheduled yet.
      *  Returns |true| on success, |false| on failure.
+     *
+     *  \note
+     *  Thread affinity: any
      */
     virtual bool TryAcquireReadLock() = 0;
 
@@ -77,10 +91,17 @@ struct IChunk
     /*!
      *  If this was the last read lock and chunk removal is pending,
      *  enqueues removal actions to the appropriate thread.
+     *
+     *  \note
+     *  Thread affinity: any
      */
     virtual void ReleaseReadLock() = 0;
 
     //! Returns |true| iff a read lock is acquired.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     virtual bool IsReadLockAcquired() const = 0;
 
     //! Marks the chunk as pending for removal.
@@ -92,6 +113,10 @@ struct IChunk
     virtual TFuture<void> ScheduleRemove() = 0;
 
     //! Returns |true| if #ScheduleRemove was called.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     virtual bool IsRemoveScheduled() const = 0;
 
     //! Performs synchronous physical removal of chunk files.

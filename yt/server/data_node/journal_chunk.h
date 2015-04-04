@@ -25,7 +25,8 @@ public:
     virtual bool IsActive() const override;
 
     virtual NChunkClient::NProto::TChunkInfo GetInfo() const override;
-    virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
+
+    virtual TFuture<TRefCountedChunkMetaPtr> ReadMeta(
         i64 priority,
         const TNullable<std::vector<int>>& extensionTags) override;
 
@@ -44,12 +45,17 @@ public:
     bool IsSealed() const;
 
 private:
+    const TRefCountedChunkMetaPtr Meta_;
+
     bool Active_ = false;
     NHydra::IChangelogPtr Changelog_;
     
     mutable i64 CachedRowCount_ = 0;
     mutable i64 CachedDataSize_ = 0;
     mutable bool CachedSealed_ = false;
+
+
+    TRefCountedChunkMetaPtr DoReadMeta(const TNullable<std::vector<int>>& extensionTags);
 
     void UpdateCachedParams() const;
 

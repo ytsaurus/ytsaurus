@@ -8,6 +8,8 @@
 
 #include <core/profiling/scoped_timer.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <ytlib/chunk_client/file_reader.h>
 #include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -18,6 +20,7 @@
 namespace NYT {
 namespace NDataNode {
 
+using namespace NConcurrency;
 using namespace NCellNode;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -42,15 +45,16 @@ TBlobChunkBase::TBlobChunkBase(
 {
     Info_.set_disk_space(descriptor.DiskSpace);
     if (meta) {
-        InitializeCachedMeta(*meta);
+        SetCachedMeta(*meta);
     }
 }
 
 TBlobChunkBase::~TBlobChunkBase()
 {
-    if (Meta_) {
+    auto cachedMeta = GetCachedMeta();
+    if (cachedMeta) {
         auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        tracker->Release(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
+        tracker->Release(EMemoryConsumer::ChunkMeta, cachedMeta->SpaceUsed());
     }
 }
 
@@ -64,27 +68,69 @@ bool TBlobChunkBase::IsActive() const
     return false;
 }
 
-TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::GetMeta(
+TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
     i64 priority,
     const TNullable<std::vector<int>>& extensionTags)
 {
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        if (Meta_) {
-            guard.Release();
-            LOG_TRACE("Meta cache hit (ChunkId: %v)", Id_);
-            return MakeFuture(FilterCachedMeta(extensionTags));
-        }
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto cachedMeta = GetCachedMeta();
+    if (cachedMeta) {
+        LOG_TRACE("Meta cache hit (ChunkId: %v)", Id_);
+        return MakeFuture(FilterMeta(cachedMeta, extensionTags));
     }
 
     LOG_DEBUG("Meta cache miss (ChunkId: %v)", Id_);
 
-    // Make a copy of tags list to pass it into the closure.
-    auto invoker = Bootstrap_->GetControlInvoker();
-    return ReadMeta(priority).Apply(
-        BIND([=, this_ = MakeStrong(this)] () {
-            return FilterCachedMeta(extensionTags);
-        }).AsyncVia(invoker));
+    auto readGuard = TChunkReadGuard::TryAcquire(this);
+    if (!readGuard) {
+        return MakeFuture<TRefCountedChunkMetaPtr>(TError("Cannot read meta of chunk %v: chunk is scheduled for removal",
+            Id_));
+    }
+
+    auto promise = NewPromise<TRefCountedChunkMetaPtr>();
+    auto callback = BIND(
+        &TBlobChunkBase::DoReadMeta,
+        MakeStrong(this),
+        Passed(std::move(readGuard)),
+        promise);
+    Location_
+        ->GetMetaReadInvoker()
+        ->Invoke(callback, priority);
+
+    return promise.ToFuture().Apply(BIND([=] (const TRefCountedChunkMetaPtr& cachedMeta) {
+        return FilterMeta(cachedMeta, extensionTags);
+    }));
+}
+
+void TBlobChunkBase::DoReadMeta(
+    TChunkReadGuard /*readGuard*/,
+    TPromise<TRefCountedChunkMetaPtr> promise)
+{
+    const auto& Profiler = Location_->GetProfiler();
+    LOG_TRACE("Started reading chunk meta (ChunkId: %v, LocationId: %v)",
+        Id_,
+        Location_->GetId());
+
+    NChunkClient::TFileReaderPtr reader;
+    PROFILE_TIMING ("/meta_read_time") {
+        auto readerCache = Bootstrap_->GetBlobReaderCache();
+        try {
+            reader = readerCache->GetReader(this);
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Error reading chunk meta (ChunkId: %v)",
+                Id_);
+            promise.Set(TError(ex));
+            return;
+        }
+    }
+
+    LOG_TRACE("Finished reading chunk meta (ChunkId: %v, LocationId: %v)",
+        Id_,
+        Location_->GetId());
+
+    auto cachedMeta = SetCachedMeta(reader->GetMeta());
+    promise.Set(cachedMeta);
 }
 
 TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlocks(
@@ -92,6 +138,7 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlocks(
     int blockCount,
     i64 priority)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(firstBlockIndex >= 0);
     YCHECK(blockCount >= 0);
 
@@ -134,7 +181,7 @@ void TBlobChunkBase::DoReadBlocks(
         auto reader = readerCache->GetReader(this);
 
         if (!pendingReadSizeGuard) {
-            InitializeCachedMeta(reader->GetMeta());
+            SetCachedMeta(reader->GetMeta());
             
             i64 pendingSize;
             AdjustReadRange(firstBlockIndex, &blockCount, &pendingSize);
@@ -187,70 +234,27 @@ void TBlobChunkBase::DoReadBlocks(
     }
 }
 
-TFuture<void> TBlobChunkBase::ReadMeta(i64 priority)
+TRefCountedChunkMetaPtr TBlobChunkBase::GetCachedMeta()
 {
-    auto readGuard = TChunkReadGuard::TryAcquire(this);
-    if (!readGuard) {
-        return MakeFuture(TError("Cannot read meta of chunk %v: chunk is scheduled for removal",
-            Id_));
-    }
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    auto promise = NewPromise<void>();
-    auto callback = BIND(
-        &TBlobChunkBase::DoReadMeta,
-        MakeStrong(this),
-        Passed(std::move(readGuard)),
-        promise);
-    Location_
-        ->GetMetaReadInvoker()
-        ->Invoke(callback, priority);
-    return promise;
+    TReaderGuard guard(CachedMetaLock_);
+    return CachedMeta_;
 }
 
-void TBlobChunkBase::DoReadMeta(
-    TChunkReadGuard /*readGuard*/,
-    TPromise<void> promise)
+TRefCountedChunkMetaPtr TBlobChunkBase::SetCachedMeta(const NChunkClient::NProto::TChunkMeta& meta)
 {
-    const auto& Profiler = Location_->GetProfiler();
-    LOG_TRACE("Started reading chunk meta (ChunkId: %v, LocationId: %v)",
-        Id_,
-        Location_->GetId());
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    NChunkClient::TFileReaderPtr reader;
-    PROFILE_TIMING ("/meta_read_time") {
-        auto readerCache = Bootstrap_->GetBlobReaderCache();
-        try {
-            reader = readerCache->GetReader(this);
-        } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error reading chunk meta (ChunkId: %v)",
-                Id_);
-            promise.Set(ex);
-            return;
-        }
-    }
+    TWriterGuard guard(CachedMetaLock_);
 
-    InitializeCachedMeta(reader->GetMeta());
-
-    LOG_TRACE("Finished reading chunk meta (ChunkId: %v, LocationId: %v)",
-        Id_,
-        Location_->GetId());
-
-    promise.Set(TError());
-}
-
-void TBlobChunkBase::InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta)
-{
-    TGuard<TSpinLock> guard(SpinLock_);
-    // This check is important since this code may get triggered
-    // multiple times and readers do not use any locking.
-    if (Meta_)
-        return;
-
-    BlocksExt_ = GetProtoExtension<TBlocksExt>(meta.extensions());
-    Meta_ = New<TRefCountedChunkMeta>(meta);
+    CachedBlocksExt_ = GetProtoExtension<TBlocksExt>(meta.extensions());
+    CachedMeta_ = New<TRefCountedChunkMeta>(meta);
 
     auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-    tracker->Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
+    tracker->Acquire(EMemoryConsumer::ChunkMeta, CachedMeta_->SpaceUsed());
+
+    return CachedMeta_;
 }
 
 void TBlobChunkBase::AdjustReadRange(
@@ -258,25 +262,27 @@ void TBlobChunkBase::AdjustReadRange(
     int* blockCount,
     i64* dataSize)
 {
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        if (!Meta_) {
-            *dataSize = -1;
-            return;
-        }
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto cachedMeta = GetCachedMeta();
+    if (!cachedMeta) {
+        *dataSize = -1;
+        return;
     }
 
     auto config = Bootstrap_->GetConfig()->DataNode;
     *blockCount = std::min(*blockCount, config->MaxBlocksPerRead);
 
+    // TODO(babenko): CachedBlocksExt_ is accessed without guard;
+    // we might change this if it becomes evictable.
     *dataSize = 0;
     int blockIndex = firstBlockIndex;
     while (
         blockIndex < firstBlockIndex + *blockCount &&
-        blockIndex < BlocksExt_.blocks_size() &&
+        blockIndex < CachedBlocksExt_.blocks_size() &&
         *dataSize <= config->MaxBytesPerRead)
     {
-        const auto& blockInfo = BlocksExt_.blocks(blockIndex);
+        const auto& blockInfo = CachedBlocksExt_.blocks(blockIndex);
         *dataSize += blockInfo.size();
         ++blockIndex;
     }
@@ -323,26 +329,20 @@ TCachedBlobChunk::TCachedBlobChunk(
     TBootstrap* bootstrap,
     TLocationPtr location,
     const TChunkDescriptor& descriptor,
-    const TChunkMeta* meta)
+    const TChunkMeta* meta,
+    TClosure destroyed)
     : TBlobChunkBase(
         bootstrap,
         location,
         descriptor,
         meta)
     , TAsyncCacheValueBase<TChunkId, TCachedBlobChunk>(GetId())
-    , ChunkCache_(Bootstrap_->GetChunkCache())
+    , Destroyed_(destroyed)
 { }
 
 TCachedBlobChunk::~TCachedBlobChunk()
 {
-    // This check ensures that we don't remove any chunks from cache upon shutdown.
-    if (ChunkCache_.IsExpired())
-        return;
-
-    Location_->GetWritePoolInvoker()->Invoke(BIND(
-        &TLocation::RemoveChunkFiles,
-        Location_,
-        Id_));
+    Destroyed_.Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

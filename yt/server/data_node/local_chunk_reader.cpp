@@ -111,7 +111,7 @@ public:
             NTracing::NullTraceContext, /* NTracing::GetCurrentTraceContext(), */
             "LocalChunkReader",
             "GetChunkMeta");
-        return Chunk_->GetMeta(0, extensionTags).Apply(BIND(
+        return Chunk_->ReadMeta(0, extensionTags).Apply(BIND(
             &TLocalChunkReader::OnGotChunkMeta,
             partitionTag,
             Passed(std::move(guard))));
