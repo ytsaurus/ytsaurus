@@ -542,12 +542,13 @@ private:
                 MakeStrong(this),
                 requestId));
 
-            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v)",
+            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, Endpoint: %v)",
                 requestId,
                 request->GetService(),
                 request->GetMethod(),
                 timeout,
-                level);
+                level,
+                ConvertToYsonString(bus->GetEndpointDescription(), NYson::EYsonFormat::Text).Data());
         }
 
         void OnAcknowledgement(const TRequestId& requestId, const TError& error)
