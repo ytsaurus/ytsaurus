@@ -12,9 +12,6 @@ using namespace NChunkClient::NProto;
 
 TFileReader::TFileReader(const Stroka& fileName)
     : FileName_(fileName)
-    , Opened_(false)
-    , MetaSize_(-1)
-    , DataSize_(-1)
 { }
 
 void TFileReader::Open()
@@ -32,7 +29,7 @@ void TFileReader::Open()
     TChunkMetaHeader metaHeader;
     ReadPod(metaInput, metaHeader);
     if (metaHeader.Signature != TChunkMetaHeader::ExpectedSignature) {
-        THROW_ERROR_EXCEPTION("Incorrect header signature in chunk meta file %Qv: expected %v, actual %v",
+        THROW_ERROR_EXCEPTION("Incorrect header signature in chunk meta file %v: expected %v, actual %v",
             FileName_,
             TChunkMetaHeader::ExpectedSignature,
             metaHeader.Signature);
@@ -43,14 +40,14 @@ void TFileReader::Open()
 
     auto checksum = GetChecksum(metaBlobRef);
     if (checksum != metaHeader.Checksum) {
-        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %Qv: expected %v, actual %v",
+        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %v: expected %v, actual %v",
             FileName_,
             metaHeader.Checksum,
             checksum);
     }
 
     if (!DeserializeFromProtoWithEnvelope(&Meta_, metaBlobRef)) {
-        THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %Qv",
+        THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %v",
             FileName_);
     }
 
@@ -122,7 +119,7 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
 
     auto checksum = GetChecksum(data);
     if (checksum != blockInfo.checksum()) {
-        THROW_ERROR_EXCEPTION("Incorrect checksum of block %v in chunk data file %Qv: expected %v, actual %v",
+        THROW_ERROR_EXCEPTION("Incorrect checksum of block %v in chunk data file %v: expected %v, actual %v",
             blockIndex,
             FileName_,
             blockInfo.checksum(),
