@@ -32,7 +32,9 @@ public:
         }
 
         if (CurrentReader_) {
+            PreviousReader_.Reset();
             if (!CurrentReader_->Read(rows)) {
+                PreviousReader_ = CurrentReader_;
                 CurrentReader_.Reset();
             } else if (rows->empty()) {
                 ReadyEvent_ = CurrentReader_->GetReadyEvent();
@@ -57,6 +59,7 @@ private:
     const std::function<ISchemafulReaderPtr()> GetNextReader_;
 
     ISchemafulReaderPtr CurrentReader_;
+    ISchemafulReaderPtr PreviousReader_;
     TFuture<void> ReadyEvent_;
     TTableSchema Schema_;
 
