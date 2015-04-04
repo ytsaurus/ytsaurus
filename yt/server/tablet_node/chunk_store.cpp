@@ -105,16 +105,11 @@ public:
                 continue;
             }
 
-            auto asyncBlock =
-                BIND(
-                    &TBlockStore::ReadBlock,
-                    blockStore,
-                    Chunk_->GetId(),
-                    blockIndex,
-                    priority,
-                    Config_->EnableCaching)
-                .AsyncVia(Bootstrap_->GetControlInvoker())
-                .Run();
+            auto asyncBlock = blockStore->ReadBlock(
+                Chunk_->GetId(),
+                blockIndex,
+                priority,
+                Config_->EnableCaching);
 
             asyncBlocks.push_back(asyncBlock.Apply(BIND(
                 &TLocalChunkReader::OnGotBlock,
@@ -616,14 +611,7 @@ IChunkPtr TChunkStore::PrepareChunk()
     }
 
     auto chunkRegistry = Bootstrap_->GetChunkRegistry();
-    auto asyncChunk = BIND(&TChunkStore::DoFindChunk, MakeStrong(this))
-        .AsyncVia(Bootstrap_->GetControlInvoker())
-        .Run();
-    auto chunkOrError = WaitFor(asyncChunk);
-    if (!chunkOrError.IsOK()) {
-        return nullptr;
-    }
-    const auto& chunk = chunkOrError.Value();
+    auto chunk = chunkRegistry->FindChunk(StoreId_);
 
     {
         TWriterGuard guard(ChunkLock_);
@@ -639,19 +627,6 @@ IChunkPtr TChunkStore::PrepareChunk()
         }),
         ChunkExpirationTimeout);
 
-    return chunk;
-}
-
-IChunkPtr TChunkStore::DoFindChunk()
-{
-    auto chunkRegistry = Bootstrap_->GetChunkRegistry();
-    auto chunk = chunkRegistry->FindChunk(StoreId_);
-    if (!chunk) {
-        return nullptr;
-    }
-    if (chunk->IsRemoveScheduled()) {
-        return nullptr;
-    }
     return chunk;
 }
 
