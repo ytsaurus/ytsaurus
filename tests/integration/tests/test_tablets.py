@@ -42,6 +42,16 @@ class TestTablets(YTEnvSetup):
                 "key_columns": ["key1", "key2"]
             })
 
+    def _create_table_with_hash(self, path):
+        create("table", path,
+            attributes = {
+                "schema": [
+                    {"name": "hash", "type": "uint64", "expression": "farm_hash(key)"},
+                    {"name": "key", "type": "int64"},
+                    {"name": "value", "type": "string"}],
+                "key_columns": ["hash", "key"]
+            })
+
     def _get_tablet_leader_address(self, tablet_id):
         cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
         peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
@@ -228,6 +238,29 @@ class TestTablets(YTEnvSetup):
         expected = [{"key1": 2, "key2": 203, "value": "2"}]
         actual = select_rows("* from [//tmp/t]")
         self.assertItemsEqual(actual, expected)
+
+    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
+    def test_computed_hash(self):
+        self._sync_create_cells(1, 1)
+
+        self._create_table_with_hash("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+
+        row1 = [{"key": 1, "value": "2"}]
+        insert_rows("//tmp/t", row1)
+        actual = select_rows("key, value from [//tmp/t]")
+        self.assertItemsEqual(actual, row1)
+
+        row2 = [{"key": 2, "value": "2"}]
+        insert_rows("//tmp/t", row2)
+        actual = lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "value"])
+        self.assertItemsEqual(actual, row1)
+        actual = lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "value"])
+        self.assertItemsEqual(actual, row2)
+
+        delete_rows("//tmp/t", [{"key": 1}])
+        actual = select_rows("key, value from [//tmp/t]")
+        self.assertItemsEqual(actual, row2)
 
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_computed_column_update_consistency(self):
