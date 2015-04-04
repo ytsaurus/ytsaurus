@@ -868,7 +868,7 @@ TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChecksum GetChecksum(TRef data)
+TChecksum GetChecksum(const TRef &data)
 {
     return NDetail::GetChecksumImpl(data.Begin(), data.Size(), 0);
 }
@@ -876,48 +876,46 @@ TChecksum GetChecksum(TRef data)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChecksumInput::TChecksumInput(TInputStream* input)
-    : Input(input)
-    , Checksum(0)
+    : Input_(input)
 { }
 
 TChecksum TChecksumInput::GetChecksum() const
 {
-    return Checksum;
+    return Checksum_;
 }
 
 size_t TChecksumInput::DoRead(void* buf, size_t len)
 {
-    size_t res = Input->Read(buf, len);
-    Checksum = NDetail::GetChecksumImpl(buf, res, Checksum);
+    size_t res = Input_->Read(buf, len);
+    Checksum_ = NDetail::GetChecksumImpl(buf, res, Checksum_);
     return res;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChecksumOutput::TChecksumOutput(TOutputStream* output)
-    : Output(output)
-    , Checksum(0)
+    : Output_(output)
 { }
 
 TChecksum TChecksumOutput::GetChecksum() const
 {
-    return Checksum;
+    return Checksum_;
 }
 
 void TChecksumOutput::DoWrite(const void* buf, size_t len)
 {
-    Output->Write(buf, len);
-    Checksum = NDetail::GetChecksumImpl(buf, len, Checksum);
+    Output_->Write(buf, len);
+    Checksum_ = NDetail::GetChecksumImpl(buf, len, Checksum_);
 }
 
 void TChecksumOutput::DoFlush()
 {
-    Output->Flush();
+    Output_->Flush();
 }
 
 void TChecksumOutput::DoFinish()
 {
-    Output->Finish();
+    Output_->Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
