@@ -367,7 +367,8 @@ void TDeleteRowsCommand::DoExecute()
     auto asyncTableInfo = tableMountCache->GetTableInfo(Request_->Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
-    auto nameTable = TNameTable::FromKeyColumns(tableInfo->KeyColumns);
+    auto nameTable = TNameTable::FromKeyColumns(
+        tableInfo->Schema.DepleteKeyColumns(tableInfo->KeyColumns));
 
     // Parse input data.
     auto valueConsumer = New<TBuildingValueConsumer>(

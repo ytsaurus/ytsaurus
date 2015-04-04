@@ -75,7 +75,7 @@ public:
         REGISTER(TInsertRowsExecutor,        "insert_rows"       );
         REGISTER(TSelectRowsExecutor,        "select_rows"       );
         REGISTER(TLookupRowsExecutor,        "lookup_rows"       );
-        REGISTER(TDeleteRowsExecutor,        "delete_row"        );
+        REGISTER(TDeleteRowsExecutor,        "delete_rows"       );
         // COMPAT(babenko)
         REGISTER(TWriteTableExecutor,        "write"             );
         REGISTER(TReadTableExecutor,         "read"              );

@@ -60,6 +60,10 @@ void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
     executionContext.OutputBuffer = &buffer;
     executionContext.IntermediateBuffer = &buffer;
     executionContext.Statistics = &statistics;
+#ifndef NDEBUG
+    int dummy;
+    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
+#endif
 
     Evaluators_[index](
         &fullRow[index],
