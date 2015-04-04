@@ -289,6 +289,9 @@ public:
     //! Maximum number of bytes to fetch via a single range request.
     i64 MaxBytesPerRead;
 
+    //! Enables block checksums validation.
+    bool ValidateBlockChecksums;
+
 
     TDataNodeConfig()
     {
@@ -377,6 +380,8 @@ public:
         RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
             .GreaterThan(0)
             .Default((i64) 64 * 1024 * 1024);
+        RegisterParameter("validate_block_checksums", ValidateBlockChecksums)
+            .Default(true);
 
         RegisterInitializer([&] () {
             BlockCache->CompressedData->Capacity = (i64) 1024 * 1024 * 1024;

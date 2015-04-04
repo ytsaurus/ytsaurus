@@ -10,15 +10,18 @@ using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TFileReader::TFileReader(const Stroka& fileName)
+TFileReader::TFileReader(
+    const Stroka& fileName,
+    bool validateBlocksChecksums)
     : FileName_(fileName)
+    , ValidateBlockChecksums_(validateBlocksChecksums)
 { }
 
 void TFileReader::Open()
 {
     YCHECK(!Opened_);
 
-    Stroka metaFileName = FileName_ + ChunkMetaSuffix;
+    auto metaFileName = FileName_ + ChunkMetaSuffix;
     TFile metaFile(
         metaFileName,
         OpenExisting | RdOnly | Seq | CloseOnExec);
@@ -117,13 +120,15 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
     i64 offset = blockInfo.offset();
     DataFile_->Pread(data.Begin(), data.Size(), offset);
 
-    auto checksum = GetChecksum(data);
-    if (checksum != blockInfo.checksum()) {
-        THROW_ERROR_EXCEPTION("Incorrect checksum of block %v in chunk data file %v: expected %v, actual %v",
-            blockIndex,
-            FileName_,
-            blockInfo.checksum(),
-            checksum);
+    if (ValidateBlockChecksums_) {
+        auto checksum = GetChecksum(data);
+        if (checksum != blockInfo.checksum()) {
+            THROW_ERROR_EXCEPTION("Incorrect checksum of block %v in chunk data file %v: expected %v, actual %v",
+                  blockIndex,
+                  FileName_,
+                  blockInfo.checksum(),
+                  checksum);
+        }
     }
 
     return data;
