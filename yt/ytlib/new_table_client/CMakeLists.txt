@@ -108,7 +108,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${SRCS}
   )
   set( HDRS
-    ${SRCS}
+    ${HDRS}
     ${BASE}/llvm_types.h
   )
 endif()
