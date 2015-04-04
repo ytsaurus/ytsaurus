@@ -3548,7 +3548,7 @@ INSTANTIATE_TEST_CASE_P(
             "(k) in ((2),(4))",
             "(k) in ((2))",
             "2;1",
-            "2;3"},
+            "3;3"},
         std::vector<const char*>{
             "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
@@ -3597,14 +3597,14 @@ INSTANTIATE_TEST_CASE_P(
             "k in ((0),(2),(4))",
             "k in ((2))",
             "2;1",
-            "2;3"},
+            "3;3"},
         std::vector<const char*>{
             "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2),(4))",
             "k in ((2))",
             "2;1",
-            "2;3"},
+            "3;3"},
         std::vector<const char*>{
             "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
             "[k;l]",
@@ -3639,7 +3639,14 @@ INSTANTIATE_TEST_CASE_P(
             "k in ((0),(2),(4))",
             "k in ((2))",
             "2;2;2",
-            "3;3;3"}
+            "3;3;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2)) and l > 2",
+            "l > 2",
+            "2;1",
+            "2;3"}
 ));
 
 #endif
