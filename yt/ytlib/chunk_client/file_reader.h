@@ -17,7 +17,9 @@ class TFileReader
 {
 public:
     //! Creates a new reader.
-    explicit TFileReader(const Stroka& fileName);
+    explicit TFileReader(
+        const Stroka& fileName,
+        bool validateBlocksChecksums = true);
 
     //! Opens the files, reads chunk meta. Must be called before reading blocks.
     void Open();
@@ -47,6 +49,7 @@ public:
 
 private:
     const Stroka FileName_;
+    const bool ValidateBlockChecksums_;
 
     bool Opened_ = false;
     std::unique_ptr<TFile> DataFile_;
