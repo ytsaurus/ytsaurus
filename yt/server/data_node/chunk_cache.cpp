@@ -153,25 +153,25 @@ private:
         TLocationPtr location,
         const TChunkDescriptor& descriptor)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        location->UpdateChunkCount(+1);
-        location->UpdateUsedSpace(+descriptor.DiskSpace);
+        Bootstrap_->GetControlInvoker()->Invoke(BIND(([=] () {
+            location->UpdateChunkCount(+1);
+            location->UpdateUsedSpace(+descriptor.DiskSpace);
+        })));
     }
 
     void OnChunkDestroyed(
         TLocationPtr location,
         const TChunkDescriptor& descriptor)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         location->GetWritePoolInvoker()->Invoke(BIND(
             &TLocation::RemoveChunkFiles,
             Location_,
             descriptor.Id));
 
-        location->UpdateChunkCount(-1);
-        location->UpdateUsedSpace(-descriptor.DiskSpace);
+        Bootstrap_->GetControlInvoker()->Invoke(BIND([=] () {
+            location->UpdateChunkCount(-1);
+            location->UpdateUsedSpace(-descriptor.DiskSpace);
+        }));
     }
 
     TCachedBlobChunkPtr CreateChunk(
@@ -184,8 +184,7 @@ private:
             Location_,
             descriptor,
             meta,
-            BIND(&TImpl::OnChunkDestroyed, MakeStrong(this), Location_, descriptor)
-                .Via(Bootstrap_->GetControlInvoker()));
+            BIND(&TImpl::OnChunkDestroyed, MakeStrong(this), Location_, descriptor));
         OnChunkCreated(location, descriptor);
         return chunk;
     }
