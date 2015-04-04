@@ -96,8 +96,8 @@ private:
 
     std::unique_ptr<THorizontalSchemalessBlockReader> BlockReader_;
 
-    int CurrentBlockIndex_;
-    i64 CurrentRowIndex_;
+    int CurrentBlockIndex_ = -1;
+    i64 CurrentRowIndex_ = -1;
     i64 RowCount_ = 0;
 
     TChunkMeta ChunkMeta_;
@@ -363,6 +363,7 @@ TNameTablePtr TSchemalessChunkReader::GetNameTable() const
 
 i64 TSchemalessChunkReader::GetTableRowIndex() const
 {
+    YCHECK(const_cast<TSchemalessChunkReader*>(this)->BeginRead());
     return TableRowIndex_ + CurrentRowIndex_;
 }
 
