@@ -23,7 +23,7 @@ public:
     { }
 
 private:
-    IAsyncInputStreamPtr UnderlyingStream_;
+    const IAsyncInputStreamPtr UnderlyingStream_;
 
 
     virtual size_t DoRead(void* buf, size_t len) override
@@ -68,7 +68,7 @@ public:
     }
     
 private:
-    TInputStream* UnderlyingStream_;
+    TInputStream* const UnderlyingStream_;
 
     TFuture<size_t> Result_;
     bool Failed_ = false;
@@ -96,7 +96,7 @@ public:
     { }
 
 private:
-    IAsyncOutputStreamPtr UnderlyingStream_;
+    const IAsyncOutputStreamPtr UnderlyingStream_;
 
 
     virtual void DoWrite(const void* buf, size_t len) override
@@ -141,7 +141,7 @@ public:
     }
 
 private:
-    TOutputStream* UnderlyingStream_;
+    TOutputStream* const UnderlyingStream_;
 
     TFuture<void> Result_;
     bool Failed_ = false;
@@ -179,8 +179,8 @@ public:
     }
 
 private:
-    IAsyncInputStreamPtr UnderlyingStream_;
-    size_t BlockSize_;
+    const IAsyncInputStreamPtr UnderlyingStream_;
+    const size_t BlockSize_;
 
 
     void DoRead(
@@ -249,7 +249,7 @@ public:
     }
 
 private:
-    IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
+    const IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
 
     TSharedRef CurrentBlock_;
     i64 CurrentOffset_ = 0;
@@ -268,7 +268,7 @@ private:
         return bytes;
     }
 
-    size_t OnRead(void* buf, size_t len, TSharedRef block)
+    size_t OnRead(void* buf, size_t len, const TSharedRef& block)
     {
         CurrentBlock_ = block;
         return DoCopy(buf, len);
@@ -314,7 +314,7 @@ public:
     }
 
 private:
-    IAsyncOutputStreamPtr UnderlyingStream_;
+    const IAsyncOutputStreamPtr UnderlyingStream_;
 
     struct TEntry
     {
@@ -383,7 +383,7 @@ public:
     }
 
 private:
-    IAsyncZeroCopyOutputStreamPtr UnderlyingStream_;
+    const IAsyncZeroCopyOutputStreamPtr UnderlyingStream_;
 
 };
 
@@ -422,8 +422,8 @@ public:
     }
 
 private:
-    IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
-    size_t WindowSize_;
+    const IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
+    const size_t WindowSize_;
 
     TSpinLock SpinLock_;
     TError Error_;
