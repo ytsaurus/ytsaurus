@@ -749,9 +749,7 @@ private:
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
-        // ToDo(psushin): replace with ReplyFrom when it supports cancelation.
-        auto error = WaitFor(Combine(asyncResults));
-        context->Reply(error);
+        context->ReplyFrom(Combine(asyncResults));
     }
 
     void ProcessSample(
