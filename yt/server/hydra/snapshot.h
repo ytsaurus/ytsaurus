@@ -17,7 +17,7 @@ namespace NHydra {
 
 //! A wrapper around snapshot input stream (either compressed or raw).
 struct ISnapshotReader
-    : public NConcurrency::IAsyncZeroCopyInputStream
+    : public NConcurrency::IAsyncInputStream
 {
     //! Opens the reader.
     virtual TFuture<void> Open() = 0;

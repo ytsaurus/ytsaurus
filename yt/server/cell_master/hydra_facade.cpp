@@ -138,7 +138,7 @@ public:
         WaitFor(reader->Open())
             .ThrowOnError();
 
-        auto syncReader = CreateSyncAdapter(CreateCopyingAdapter(reader));
+        auto syncReader = CreateSyncAdapter(reader);
         Automaton_->Clear();
         Automaton_->LoadSnapshot(syncReader.get());
     }

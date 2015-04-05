@@ -75,6 +75,8 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)
 
 DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, ReadSnapshot)
 {
+    UNUSED(response);
+
     int snapshotId = request->snapshot_id();
     i64 offset = request->offset();
     i64 length = request->length();
@@ -89,19 +91,17 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, ReadSnapshot)
 
     auto reader = FileStore_->CreateRawReader(snapshotId, offset);
 
-    WaitFor(reader->Open())
-        .ThrowOnError();
-
-    auto copyingReader = CreateCopyingAdapter(reader);
+    {
+        auto result = WaitFor(reader->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
 
     struct TSnapshotBlockTag { };
     auto buffer = TSharedRef::Allocate<TSnapshotBlockTag>(length, false);
-
-    auto bytesRead = WaitFor(copyingReader->Read(buffer.Begin(), length))
-        .ValueOrThrow();
-
-    response->Attachments().push_back(buffer.Trim(bytesRead));
-
+    auto result = WaitFor(reader->Read(buffer.Begin(), length));
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    auto bytesRead = result.Value();
+    context->Response().Attachments().push_back(buffer.Slice(TRef(buffer.Begin(), bytesRead)));
     context->SetResponseInfo("BytesRead: %v", bytesRead);
     context->Reply();
 }

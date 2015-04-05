@@ -42,9 +42,9 @@ public:
             .Run();
     }
 
-    virtual TFuture<TSharedRef> Read() override
+    virtual TFuture<size_t> Read(void* buf, size_t len) override
     {
-        return UnderlyingReader_->Read();
+        return UnderlyingReader_->Read(buf, len);
     }
 
     virtual TSnapshotParams GetParams() const override
