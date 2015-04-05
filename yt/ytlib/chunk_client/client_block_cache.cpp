@@ -78,7 +78,7 @@ public:
                 Type_);
             return block->GetData();
         } else {
-            LOG_DEBUG("Block cache miss (BlockId: %v, BlockType: %v)",
+            LOG_TRACE("Block cache miss (BlockId: %v, BlockType: %v)",
                 id,
                 Type_);
             return TSharedRef();
