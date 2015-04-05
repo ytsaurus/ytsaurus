@@ -123,7 +123,7 @@ public:
                 if (query->JoinClause) {
                     auto joinClause = query->JoinClause.Get();
                     YCHECK(executeCallback);
-                    executionContext.EvaluateJoin = GetJoinEvaluator(
+                    executionContext.JoinEvaluator = GetJoinEvaluator(
                         *joinClause,
                         query->WhereClause,
                         query->TableSchema,

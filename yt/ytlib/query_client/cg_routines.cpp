@@ -77,7 +77,6 @@ void WriteRow(TRow row, TExecutionContext* executionContext)
     auto* rowBuffer = executionContext->OutputBuffer;
 
     YASSERT(batch->size() < batch->capacity());
-
     batch->push_back(rowBuffer->Capture(row));
 
     if (batch->size() == batch->capacity()) {
@@ -209,7 +208,7 @@ void JoinOpHelper(
     collectRows(collectRowsClosure, &keys, &keysLookup, &allRows);
 
     std::vector<TRow> joinedRows;
-    executionContext->EvaluateJoin(executionContext, groupHasher, groupComparer, keys, allRows, &joinedRows);
+    executionContext->JoinEvaluator(executionContext, groupHasher, groupComparer, keys, allRows, &joinedRows);
 
     // Consume joined rows.
     executionContext->StopFlag = false;
