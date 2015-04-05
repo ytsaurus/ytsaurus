@@ -106,7 +106,7 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture<int> BuildSnapshotDistributed() = 0;
+    virtual TFuture<int> BuildSnapshot() = 0;
 
     //! Produces monitoring info.
     /*!

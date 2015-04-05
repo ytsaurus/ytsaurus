@@ -305,7 +305,7 @@ public:
         ReadOnly_ = value;
     }
 
-    virtual TFuture<int> BuildSnapshotDistributed() override
+    virtual TFuture<int> BuildSnapshot() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -315,6 +315,12 @@ public:
             return MakeFuture<int>(TError(
                 NHydra::EErrorCode::InvalidState,
                 "Not an active leader"));
+        }
+
+        if (epochContext->Checkpointer->CanBuildSnapshot()) {
+            return MakeFuture<int>(TError(
+                NHydra::EErrorCode::InvalidState,
+                "Cannot build a snapshot at the moment"));
         }
 
         return BuildSnapshotAndWatch(epochContext).Apply(
