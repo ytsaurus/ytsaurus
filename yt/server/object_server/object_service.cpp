@@ -381,7 +381,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
         hydraManager->SetReadOnly(true);
     }
 
-    hydraManager->BuildSnapshotDistributed().Subscribe(BIND([=] (const TErrorOr<int>& errorOrSnapshotId) {
+    hydraManager->BuildSnapshot().Subscribe(BIND([=] (const TErrorOr<int>& errorOrSnapshotId) {
         if (!errorOrSnapshotId.IsOK()) {
             context->Reply(errorOrSnapshotId);
             return;
