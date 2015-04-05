@@ -455,10 +455,9 @@ TConstExpressionPtr RefinePredicate(
     auto result = refinePredicate(expr);
 
     if (commonPrefixSize > 1) {
-        auto key = keyRange.first;
-        key.Get().SetCount(commonPrefixSize - 1);
-        std::vector<TRow> keys{key.Get()};
-        result = RefinePredicate(keys, result, keyColumns);
+        auto beginIt = keyRange.first.Begin();
+        TOwningRow key(beginIt, beginIt + commonPrefixSize - 1);
+        result = RefinePredicate({key.Get()}, result, keyColumns);
     }
 
     return result;
