@@ -185,12 +185,11 @@ TCodegenExpression TFoldingProfiler::Profile(const TConstExpressionPtr& expr, co
             codegenArgs.push_back(Profile(argument, schema));
         }
 
-        return MakeCodegenFunctionExpr(
-            functionExpr->FunctionName,
-            std::move(codegenArgs),
-            functionExpr->Type,
-            "{" + functionExpr->GetName() + "}",
-            FunctionRegistry_);
+        return FunctionRegistry_->GetFunction(functionExpr->FunctionName)
+            .MakeCodegenExpr(
+                std::move(codegenArgs),
+                functionExpr->Type,
+                "{" + functionExpr->GetName() + "}");
     } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
         Fold(static_cast<int>(unaryOp->Opcode));
