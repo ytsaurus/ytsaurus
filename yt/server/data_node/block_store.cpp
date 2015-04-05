@@ -224,7 +224,7 @@ private:
 
     void LogCacheMiss(const TBlockId& blockId)
     {
-        LOG_TRACE("Block cache missed (BlockId: %v)",
+        LOG_TRACE("Block cache miss (BlockId: %v)",
             blockId);
     }
 
