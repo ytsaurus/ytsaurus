@@ -119,11 +119,11 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 
         auto meta = reader->GetParams().Meta;
         auto snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
-
-        auto prefetchingReader = CreatePrefetchingAdapter(reader, SnapshotPrefetchWindowSize);
-        TSnapshotInputStream input(CreateCopyingAdapter(prefetchingReader));
+        auto zeroCopyReader = CreateZeroCopyAdapter(reader, SnapshotReadBlockSize);
+        auto zeroCopyPrefetchingReader = CreatePrefetchingAdapter(zeroCopyReader, SnapshotPrefetchWindowSize);
+        auto prefetchingReader = CreateCopyingAdapter(zeroCopyPrefetchingReader);
+        TSnapshotInputStream input(prefetchingReader);
         DecoratedAutomaton_->LoadSnapshot(snapshotVersion, &input);
-
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.

@@ -80,11 +80,11 @@ public:
     }
 
 private:
-    const TRemoteSnapshotStoreConfigPtr Config_;
-    const TRemoteSnapshotStoreOptionsPtr Options_;
-    const TYPath Path_;
-    const IClientPtr MasterClient_;
-    const std::vector<TTransactionId> PrerequisiteTransactionIds_;
+    TRemoteSnapshotStoreConfigPtr Config_;
+    TRemoteSnapshotStoreOptionsPtr Options_;
+    TYPath Path_;
+    IClientPtr MasterClient_;
+    std::vector<TTransactionId> PrerequisiteTransactionIds_;
 
     NLogging::TLogger Logger = HydraLogger;
 
@@ -108,11 +108,11 @@ private:
                 .Run();
         }
 
-        virtual TFuture<TSharedRef> Read() override
+        virtual TFuture<size_t> Read(void* buf, size_t len) override
         {
             return BIND(&TReader::DoRead, MakeStrong(this))
                 .AsyncVia(GetHydraIOInvoker())
-                .Run();
+                .Run(buf, len);
         }
 
         virtual TSnapshotParams GetParams() const override
@@ -121,14 +121,17 @@ private:
         }
 
     private:
-        const TRemoteSnapshotStorePtr Store_;
-        const int SnapshotId_;
+        TRemoteSnapshotStorePtr Store_;
+        int SnapshotId_;
 
         TYPath Path_;
 
         TSnapshotParams Params_;
 
-        IFileReaderPtr UnderlyingReader_;
+        IFileReaderPtr Reader_;
+
+        TSharedRef CurrentBlock_;
+        size_t CurrentOffset_ = -1;
 
         NLogging::TLogger Logger = HydraLogger;
 
@@ -160,9 +163,9 @@ private:
                 {
                     TFileReaderOptions options;
                     options.Config = Store_->Config_->Reader;
-                    UnderlyingReader_ = Store_->MasterClient_->CreateFileReader(Store_->GetSnapshotPath(SnapshotId_), options);
+                    Reader_ = Store_->MasterClient_->CreateFileReader(Store_->GetSnapshotPath(SnapshotId_), options);
 
-                    WaitFor(UnderlyingReader_->Open())
+                    WaitFor(Reader_->Open())
                         .ThrowOnError();
                 }
                 LOG_DEBUG("Remote snapshot reader opened");
@@ -173,11 +176,28 @@ private:
             }
         }
 
-        TSharedRef DoRead()
+        size_t DoRead(void* buf, size_t len)
         {
             try {
-                return WaitFor(UnderlyingReader_->Read())
-                    .ValueOrThrow();
+                if (!CurrentBlock_ || CurrentOffset_ >= CurrentBlock_.Size()) {
+                    // NB: This is a part of TInputStream implementation; block, do not yield.
+                    CurrentBlock_ = Reader_->Read()
+                        .Get()
+                        .ValueOrThrow();
+                    if (!CurrentBlock_) {
+                        return 0;
+                    }
+                    CurrentOffset_ = 0;
+                }
+
+                size_t bytesToCopy = std::min(len, CurrentBlock_.Size() - CurrentOffset_);
+                std::copy(
+                    CurrentBlock_.Begin() + CurrentOffset_,
+                    CurrentBlock_.Begin() + CurrentOffset_ + bytesToCopy,
+                    static_cast<char*>(buf));
+                CurrentOffset_ += bytesToCopy;
+
+                return bytesToCopy;
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error reading remote snapshot %v",
                     Path_)
@@ -228,9 +248,9 @@ private:
         }
 
     private:
-        const TRemoteSnapshotStorePtr Store_;
-        const int SnapshotId_;
-        const TSnapshotMeta Meta_;
+        TRemoteSnapshotStorePtr Store_;
+        int SnapshotId_;
+        TSnapshotMeta Meta_;
 
         TYPath Path_;
 
