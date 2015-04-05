@@ -219,7 +219,7 @@ private:
     {
         auto block = TSharedRef::Allocate(ReaderBlockSize, false);
         size_t length = FacadeInput_->Load(block.Begin(), block.Size());
-        return block.Slice(TRef(block.Begin(), length));
+        return length == 0 ? TSharedRef() : block.Slice(TRef(block.Begin(), length));
     }
 
 };
