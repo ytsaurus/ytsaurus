@@ -21,7 +21,7 @@ MAX_ROWS_PER_INSERT = 20000
 OUTPUT_ROW_LIMIT = 100000000
 # Mapper job options.
 JOB_COUNT = 20
-JOB_MEMORY_LIMIT = "2GB"
+JOB_MEMORY_LIMIT = "4GB"
 MAX_FAILDED_JOB_COUNT = 10
 
 # Simple transformation class - just copy everything.
@@ -35,6 +35,11 @@ class Copy:
     @staticmethod
     def key_columns(key_columns):
         return key_columns
+
+    # Get list of columns to select
+    @staticmethod
+    def select_columns(schema):
+        return ",".join([x["name"] for x in schema if "expression" not in x.keys()])
 
     # Get pivot keys for the new table
     @staticmethod
@@ -59,13 +64,15 @@ class Rehash:
     def key_columns(key_columns):
         return key_columns
     @staticmethod
+    def select_columns(schema):
+        return ",".join([x["name"] for x in schema if "expression" not in x.keys()])
+    @staticmethod
     def pivot_keys(pivot_keys):
         shard_count = 50
         pivot_keys = [[]] + [[int((i * 2**64) / shard_count - 2**63)] for i in xrange(1, shard_count)]
         return pivot_keys
     @staticmethod
     def row(row):
-        row.pop("hash")
         return row
 
 # Transformation object.
@@ -116,12 +123,12 @@ def regions_mapper(r):
         right = "(%s) < (%s)" % expand_bound(right) if right != None else None
         bounds = [x for x in [left, right, config.get("select_where")] if x is not None]
         where = (" where " + " and ".join(bounds)) if len(bounds) > 0 else ""
-        query = "* from [%s]%s" % (config["source"], where)
+        query = "%s from [%s]%s" % (config["select_columns"], config["source"], where)
         return sp.check_output(["yt", "select_rows", "--output_row_limit", str(config["output_row_limit"]),"--format", "<format=text>yson",  query]) 
     raw_data = StringIO(query(r["left"], r["right"]))
 
     # Insert data into destination table.
-    insert_cmd = ["yt", "insert_rows", "--format", "<format=text>yson", config["destination"]]
+    insert_cmd = ["yt", config["command"], "--format", "<format=text>yson", config["destination"]]
     new_data = []
     def dump_data():
         p = sp.Popen(insert_cmd, stdin=sp.PIPE)
@@ -140,9 +147,10 @@ def regions_mapper(r):
     if False: yield None
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Copy table with tablets.")
-    parser.add_argument("--input", required=True, help="Source table")
-    parser.add_argument("--output", required=True, help="Destination table")
+    parser = argparse.ArgumentParser(description="Map-Reduce table manipulator.")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--copy", nargs=2, metavar=('SOURCE', 'DESTINATION'), help="Copy table")
+    mode.add_argument("--delete", metavar=('SOURCE'), help="Delete rows from table")
     parser.add_argument("--force", action="store_true", help="Overwrite destination table if it exists")
     parser.add_argument("--proxy", type=yt.config.set_proxy, help="YT proxy")
     parser.add_argument("--job_count", type=int, default=JOB_COUNT, help="Numbser of jobs in copy task")
@@ -153,10 +161,10 @@ if __name__ == "__main__":
     parser.add_argument("--where", type=str, help="Additional predicate for 'yt select'")
     args = parser.parse_args()
 
-    src = args.input
-    dst = args.output
+    src = args.copy[0] if args.copy else args.delete
+    dst = args.copy[1] if args.copy else None
     
-    if yt.exists(dst):
+    if dst and yt.exists(dst):
         if args.force:
             yt.remove(dst)
         else:
@@ -225,41 +233,67 @@ if __name__ == "__main__":
     config = {
         "key_columns": deepcopy(key_columns),
         "source": src,
-        "destination": dst,
         "rows_per_insert": args.insert_size,
         "output_row_limit": args.output_row_limit}
     if (args.where): config["select_where"] = args.where
-    with open(CONFIG_FILE_NAME, "w") as config_file: config_file.write(yson.dumps(config))
+    def write_config(config):
+        with open(CONFIG_FILE_NAME, "w") as config_file: config_file.write(yson.dumps(config))
+
+    spec={
+        "job_count": args.job_count,
+        "max_failed_job_count": args.max_failed_job_count,
+        "job_proxy_memory_control": False,
+        "mapper": { "memory_limit": args.memory_limit }}
     
     # Copy tablet pivot keys from source table.
     pivot_keys = sorted([tablet["pivot_key"] for tablet in tablets])
     #if len(pivot_keys) > 1 and pivot_keys[1][0] == -2**63: pivot_keys = pivot_keys[0] + pivot_keys[2:]
 
-    # Create destination table.
-    yt.create_table(dst)
-    yt.set_attribute(dst, "schema", Transform.schema(schema))
-    yt.set_attribute(dst, "key_columns", Transform.key_columns(key_columns))
-    yt.reshard_table(dst, Transform.pivot_keys(pivot_keys))
-    yt.mount_table(dst)
-    while not all(x["state"] == "mounted" for x in yt.get(dst + "/@tablets")):
-        sleep(1)
+    if args.copy:
+        # Create destination table.
+        yt.create_table(dst)
+        yt.set_attribute(dst, "schema", Transform.schema(schema))
+        yt.set_attribute(dst, "key_columns", Transform.key_columns(key_columns))
+        yt.reshard_table(dst, Transform.pivot_keys(pivot_keys))
+        yt.mount_table(dst)
+        while not all(x["state"] == "mounted" for x in yt.get(dst + "/@tablets")):
+            sleep(1)
 
-    # Copy table. Each mapper task copies a single partition.
-    try:
-        yt.run_map(
-            regions_mapper,
-            regions_table,
-            out_regions_table,
-            spec={
-                "job_count": args.job_count,
-                "max_failed_job_count": args.max_failed_job_count,
-                "job_proxy_memory_control": False,
-                "mapper": { "memory_limit": args.memory_limit }},
-            format=yt.YsonFormat(format="text"),
-            local_files=CONFIG_FILE_NAME)
-    except YtError as e:
-        print yt.errors.format_error(e)
-        raise e
+        config["destination"] = dst
+        config["command"] = "insert_rows"
+        config["select_columns"] = Transform.select_columns(schema)
+        write_config(config)
+
+        # Copy table. Each mapper task copies a single partition.
+        try:
+            yt.run_map(
+                regions_mapper,
+                regions_table,
+                out_regions_table,
+                spec=spec,
+                format=yt.YsonFormat(format="text"),
+                local_files=CONFIG_FILE_NAME)
+        except YtError as e:
+            print yt.errors.format_error(e)
+            raise e
+    else:
+        config["destination"] = src
+        config["command"] = "delete_rows"
+        config["select_columns"] = ",".join([x["name"] for x in schema if "expression" not in x.keys() and x["name"] in key_columns])
+        write_config(config)
+
+        # Delete rows from table. Each mapper task deletes from a single partition.
+        try:
+            yt.run_map(
+                regions_mapper,
+                regions_table,
+                out_regions_table,
+                spec=spec,
+                format=yt.YsonFormat(format="text"),
+                local_files=CONFIG_FILE_NAME)
+        except YtError as e:
+            print yt.errors.format_error(e)
+            raise e
 
     yt.remove(regions_table)   
     yt.remove(out_regions_table)
