@@ -155,11 +155,15 @@ public:
                         .ThrowOnError();
                 }
 
-                LOG_DEBUG("Finished evaluating plan fragment (PermanentBufferCapacity: %v, OutputBufferCapacity: %v, IntermediateBufferCapacity: %v)",
+                LOG_DEBUG("Finished evaluating plan fragment ("
+                    "PermanentBufferCapacity: %v, "
+                    "OutputBufferCapacity: %v, "
+                    "IntermediateBufferCapacity: %v)",
                     permanentBuffer.GetCapacity(),
                     outputBuffer.GetCapacity(),
                     intermediateBuffer.GetCapacity());
 
+                LOG_DEBUG("Query statistics (%v)", statistics);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
             }

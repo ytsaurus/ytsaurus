@@ -590,7 +590,9 @@ TQueryStatistics CoordinateAndExecute(
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
     for (auto const& holder : subqueryHolders) {
-        queryStatistics += WaitFor(holder.Get()).ValueOrThrow();
+        auto subfragmentStatistics = WaitFor(holder.Get()).ValueOrThrow();
+        LOG_DEBUG("Subfragment statistics (%v)", subfragmentStatistics);
+        queryStatistics += subfragmentStatistics;
     }
 
     return queryStatistics;

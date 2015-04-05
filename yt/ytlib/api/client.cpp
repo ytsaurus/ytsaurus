@@ -555,6 +555,7 @@ private:
             auto descriptor = nodeDirectory->GetDescriptor(splits[index].second);
             const auto& address = descriptor.GetInterconnectAddress();
 
+            LOG_DEBUG("Delegating to tablet %v", splits[index].first.Id);
             return std::make_pair(TDataSources(1, splits[index].first), address);
         });
     }
