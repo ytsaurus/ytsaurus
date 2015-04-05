@@ -1,12 +1,6 @@
 #include "stdafx.h"
 #include "cg_fragment_compiler.h"
-#include "function_registry.h"
 #include "private.h"
-#include "helpers.h"
-
-#include "plan_fragment.h"
-#include "plan_helpers.h"
-#include "functions.h"
 
 #include "cg_routines.h"
 #include "cg_ir_builder.h"
@@ -1054,17 +1048,6 @@ TCodegenExpression MakeCodegenInOpExpr(
             result,
             EValueType::Boolean);
     };
-}
-
-TCodegenExpression MakeCodegenFunctionExpr(
-    Stroka functionName,
-    std::vector<TCodegenExpression> codegenArgs,
-    EValueType type,
-    Stroka name,
-    const IFunctionRegistryPtr functionRegistry)
-{
-    auto& function = functionRegistry->GetFunction(functionName);
-    return function.MakeCodegenExpr(std::move(codegenArgs), type, name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
