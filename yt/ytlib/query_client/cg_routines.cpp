@@ -106,11 +106,11 @@ void ScanOpHelper(
     auto* reader = executionContext->Reader;
 
     {
-        LOG_DEBUG("Waiting for ready event in generated code while opening");
+        LOG_DEBUG("Started opening reader");
         NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
-        auto error = WaitFor(reader->Open(executionContext->Schema));
-        LOG_DEBUG(error, "Ready event in generated code while opening");
-        error.ThrowOnError();
+        WaitFor(reader->Open(executionContext->Schema))
+            .ThrowOnError();
+        LOG_DEBUG("Finished opening reader");
     }
 
     std::vector<TRow> rows;
@@ -145,11 +145,11 @@ void ScanOpHelper(
         }
 
         if (shouldWait) {
-            LOG_DEBUG("Waiting for ready event in generated code while reading");
+            LOG_DEBUG("Started waiting for more rows");
             NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
-            auto error = WaitFor(reader->GetReadyEvent());
-            LOG_DEBUG(error, "Ready event in generated code while reading");
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
+            LOG_DEBUG("Finished waiting for more rows");
         }
     }
 }
