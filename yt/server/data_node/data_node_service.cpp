@@ -352,7 +352,7 @@ private:
             bool enableCaching = request.enable_caching();
             auto sessionType = EReadSessionType(request.session_type());
 
-            Context_->SetRequestInfo("BlockIds: %v:%v, EnableCaching: %v, SessionType: %v",
+            Context_->SetRequestInfo("BlockIds: %v:[%v], EnableCaching: %v, SessionType: %v",
                 chunkId,
                 JoinToString(request.block_indexes()),
                 enableCaching,
