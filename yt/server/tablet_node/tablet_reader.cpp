@@ -115,9 +115,9 @@ protected:
         if (!ExhaustedSessions_.empty()) {
             // Prevent proceeding to the merge phase in presence of exhausted sessions.
             // Request refill and signal the user that he must wait.
-            RefillExhaustedSessions();
-            YCHECK(ExhaustedSessions_.empty()); // must be cleared in RefillSessions
-            return true;
+            if (RefillExhaustedSessions()) {
+                return true;
+            }
         }
 
         // Refill sessions with newly arrived rows requested in RefillExhaustedSessions above.
@@ -252,9 +252,12 @@ protected:
 
         bool hasMoreRows = session->Reader->Read(&rows);
 
-        rows.erase(std::remove_if(rows.begin(), rows.end(), [] (TVersionedRow row) {
-            return !row;
-        }), rows.end());
+        // Remove null rows.
+        rows.erase(
+            std::remove_if(rows.begin(), rows.end(), [] (TVersionedRow row) {
+                return !row;
+            }),
+            rows.end());
 
         if (rows.empty()) {
             return !hasMoreRows;
@@ -279,7 +282,7 @@ protected:
         return true;
     }
 
-    void RefillExhaustedSessions()
+    bool RefillExhaustedSessions()
     {
         YCHECK(RefillingSessions_.empty());
 
@@ -295,8 +298,7 @@ protected:
         ExhaustedSessions_.clear();
 
         if (asyncResults.empty()) {
-            ReadyEvent_ = VoidFuture;
-            return;
+            return false;
         }
 
         Refilling_ = true;
@@ -304,6 +306,8 @@ protected:
             Refilling_ = false;
             error.ThrowOnError();
         }));
+
+        return true;
     }
 
 };
