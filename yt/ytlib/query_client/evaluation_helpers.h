@@ -67,7 +67,7 @@ struct TExecutionContext
     // "char" type is to due LLVM interop.
     char StopFlag = false;
 
-    TJoinEvaluator EvaluateJoin;
+    TJoinEvaluator JoinEvaluator;
 };
 
 namespace NDetail {
