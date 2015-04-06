@@ -333,7 +333,7 @@ void TLookupRowsCommand::DoExecute()
 
     auto asyncRowset = Context_->GetClient()->LookupRows(
         Request_->Path.GetPath(),
-        TNameTable::FromSchema(tableInfo->Schema, true),
+        valueConsumer->GetNameTable(),
         std::move(keys),
         options);
     auto rowset = WaitFor(asyncRowset)
@@ -368,8 +368,6 @@ void TDeleteRowsCommand::DoExecute()
     auto asyncTableInfo = tableMountCache->GetTableInfo(Request_->Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
-    auto nameTable = TNameTable::FromKeyColumns(
-        tableInfo->Schema.DepleteKeyColumns(tableInfo->KeyColumns));
 
     // Parse input data.
     auto valueConsumer = New<TBuildingValueConsumer>(
@@ -384,7 +382,7 @@ void TDeleteRowsCommand::DoExecute()
 
     transaction->DeleteRows(
         Request_->Path.GetPath(),
-        nameTable,
+        valueConsumer->GetNameTable(),
         std::move(keys));
 
     WaitFor(transaction->Commit())

@@ -1213,8 +1213,7 @@ private:
 
         // Server-side is specifically optimized for handling long runs of keys
         // from the same partition. Let's sort the keys to facilitate this.
-        typedef std::pair<int, NVersionedTableClient::TKey> TIndexedKey;
-        std::vector<TIndexedKey> sortedKeys;
+        std::vector<std::pair<NVersionedTableClient::TKey, int>> sortedKeys;
         sortedKeys.reserve(keys.size());
 
         TRowBuffer buffer;
@@ -1223,35 +1222,24 @@ private:
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
             auto evaluator = evaluatorCache->Find(tableInfo->Schema, keyColumnCount);
 
-            for (int keyIndex = 0; keyIndex < keys.size(); ++keyIndex) {
-                const auto& key = keys[keyIndex];
-                auto tempKey = evaluator->EvaluateKeys(buffer, key, idMapping);
-                sortedKeys.push_back(std::make_pair(keyIndex, tempKey));
+            for (int index = 0; index < keys.size(); ++index) {
+                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema);
+                evaluator->EvaluateKeys(keys[index], buffer);
+                sortedKeys.push_back(std::make_pair(keys[index], index));
             }
-
-            auto trivialIdMapping = TNameTableToSchemaIdMapping(keyColumnCount);
-            for (int index = 0; index < keyColumnCount; ++index) {
-                trivialIdMapping[index] = index;
-            }
-            idMapping = std::move(trivialIdMapping);
         } else {
             for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
-                sortedKeys.push_back(std::make_pair(index, keys[index]));
+                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema);
+                sortedKeys.push_back(std::make_pair(keys[index], index));
             }
         }
-        std::sort(
-            sortedKeys.begin(),
-            sortedKeys.end(),
-            [] (const TIndexedKey& lhs, const TIndexedKey& rhs) {
-                return lhs.second < rhs.second;
-            });
+        std::sort(sortedKeys.begin(), sortedKeys.end());
 
         yhash_map<TTabletInfoPtr, TLookupTabletSessionPtr> tabletToSession;
 
         for (const auto& pair : sortedKeys) {
-            int index = pair.first;
-            auto key = pair.second;
-            ValidateClientKey(key, keyColumnCount, tableInfo->Schema);
+            int index = pair.second;
+            auto key = pair.first;
             auto tabletInfo = SyncGetTabletInfo(tableInfo, key);
             auto it = tabletToSession.find(tabletInfo);
             if (it == tabletToSession.end()) {
@@ -2130,34 +2118,29 @@ private:
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             int keyColumnCount = TableInfo_->KeyColumns.size();
 
-            auto writeRequest = [&] (const TUnversionedRow row, const TNameTableToSchemaIdMapping* idMapping) {
+            auto writeRequest = [&] (const TUnversionedRow row) {
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
                 auto* writer = Transaction_->GetTabletWriter(tabletInfo);
                 writer->WriteCommand(command);
                 writer->WriteMessage(req);
-                writer->WriteUnversionedRow(row, idMapping);
+                writer->WriteUnversionedRow(row, &idMapping);
             };
 
             if (TableInfo_->NeedKeyEvaluation) {
                 TRowBuffer buffer;
-                auto trivialIdMapping = TNameTableToSchemaIdMapping(columnCount);
                 auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
                 auto evaluator = evaluatorCache->Find(TableInfo_->Schema, keyColumnCount);
 
-                for (int index = 0; index < columnCount; ++index) {
-                    trivialIdMapping[index] = index;
-                }
-
                 for (auto row : rows) {
-                    auto tempRow = evaluator->EvaluateKeys(buffer, row, idMapping);
-                    validateRow(tempRow, keyColumnCount, trivialIdMapping, TableInfo_->Schema);
-                    writeRequest(tempRow, &trivialIdMapping);
+                    validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
+                    evaluator->EvaluateKeys(row, buffer);
+                    writeRequest(row);
                     buffer.Clear();
                 }
             } else {
                 for (auto row : rows) {
                     validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
-                    writeRequest(row, &idMapping);
+                    writeRequest(row);
                 }
             }
         }

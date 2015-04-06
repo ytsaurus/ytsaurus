@@ -669,6 +669,113 @@ void ValidateValue(const TUnversionedValue& value)
     }
 }
 
+int ApplyIdMapping(
+    const TUnversionedValue& value,
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping* idMappingPtr)
+{
+    auto id = value.Id;
+    int schemaId = id;
+    if (idMappingPtr != nullptr) {
+        const auto& idMapping = *idMappingPtr;
+        if (id >= idMapping.size()) {
+            THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
+                id,
+                idMapping.size() - 1);
+        }
+        schemaId = idMapping[id];
+        if (schemaId < 0 || schemaId >= schema.Columns().size()) {
+            THROW_ERROR_EXCEPTION("Invalid mapped column id: actual %v, expected in range [0,%v]",
+                schemaId,
+                schema.Columns().size());
+        }
+    }
+    return schemaId;
+}
+
+void ValidateValueType(
+    const TUnversionedValue& value,
+    const TTableSchema& schema,
+    int schemaId)
+{
+    if (value.Type != EValueType::Null && value.Type != schema.Columns()[schemaId].Type) {
+        THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
+            schema.Columns()[schemaId].Name,
+            schema.Columns()[schemaId].Type,
+            EValueType::Null,
+            value.Type);
+    }
+}
+
+void ValidateKeyPart(
+    TUnversionedRow row,
+    int keyColumnCount,
+    const TTableSchema& schema,
+    bool checkComputedColumns)
+{
+    ValidateKeyColumnCount(keyColumnCount);
+
+    if (row.GetCount() < keyColumnCount) {
+        THROW_ERROR_EXCEPTION("Too few values in row: actual %v, expected >= %v",
+            row.GetCount(),
+            keyColumnCount);
+    }
+
+    for (int index = 0; index < keyColumnCount; ++index) {
+        const auto& value = row[index];
+        ValidateKeyValue(value);
+        int schemaId = ApplyIdMapping(value, schema, nullptr);
+        ValidateValueType(value, schema, schemaId);
+        if (schemaId != index) {
+            THROW_ERROR_EXCEPTION("Invalid column: actual %v, expected %v",
+                schema.Columns()[schemaId].Name,
+                schema.Columns()[index].Name);
+        }
+        if (checkComputedColumns && value.Type != EValueType::Null && schema.Columns()[schemaId].Expression) {
+            THROW_ERROR_EXCEPTION(
+                "Column %Qv is computed automatically and should not be provided by user",
+                schema.Columns()[schemaId].Name);
+        }
+    }
+}
+
+void ValidateDataRow(
+    TUnversionedRow row,
+    int keyColumnCount,
+    const TNameTableToSchemaIdMapping* idMappingPtr,
+    const TTableSchema& schema,
+    bool checkComputedColumns)
+{
+    ValidateRowValueCount(row.GetCount());
+    ValidateKeyPart(row, keyColumnCount, schema, checkComputedColumns);
+
+    for (int index = keyColumnCount; index < row.GetCount(); ++index) {
+        const auto& value = row[index];
+        ValidateDataValue(value);
+        int schemaId = ApplyIdMapping(value, schema, idMappingPtr);
+        ValidateValueType(value, schema, schemaId);
+    }
+}
+
+void ValidateKey(
+    TKey key,
+    int keyColumnCount,
+    const TTableSchema& schema,
+    bool checkComputedColumns)
+{
+    if (!key) {
+        THROW_ERROR_EXCEPTION("Key cannot be null");
+    }
+
+    if (key.GetCount() != keyColumnCount) {
+        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %v, actual %v",
+            keyColumnCount,
+            key.GetCount());
+    }
+
+    ValidateKeyPart(key, keyColumnCount, schema, checkComputedColumns);
+}
+
 } // namespace
 
 void ValidateDataValue(const TUnversionedValue& value)
@@ -728,42 +835,7 @@ void ValidateClientDataRow(
     const TNameTableToSchemaIdMapping& idMapping,
     const TTableSchema& schema)
 {
-    ValidateRowValueCount(row.GetCount());
-
-    bool keyColumnFlags[MaxKeyColumnCount] {};
-    int keyColumnSeen = 0;
-    for (const auto* it = row.Begin(); it != row.End(); ++it) {
-        const auto& value = *it;
-        ValidateDataValue(value);
-        int valueId = value.Id;
-        if (valueId >= idMapping.size()) {
-            THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
-                valueId,
-                idMapping.size() - 1);
-        }
-        int schemaId = idMapping[valueId];
-        if (schemaId < keyColumnCount) {
-            if (keyColumnFlags[schemaId]) {
-                THROW_ERROR_EXCEPTION("Duplicate key component with id %v",
-                    schemaId);
-            }
-            keyColumnFlags[schemaId] = true;
-            ++keyColumnSeen;
-        }
-        if (value.Type != EValueType::Null && value.Type != schema.Columns()[schemaId].Type) {
-            THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                schema.Columns()[schemaId].Name,
-                schema.Columns()[schemaId].Type,
-                EValueType::Null,
-                value.Type);
-        }
-    }
-
-    if (keyColumnSeen != keyColumnCount) {
-        THROW_ERROR_EXCEPTION("Some key components are missing: actual %v, expected %v",
-            keyColumnSeen,
-            keyColumnCount);
-    }
+    ValidateDataRow(row, keyColumnCount, &idMapping, schema, true);
 }
 
 void ValidateServerDataRow(
@@ -771,45 +843,7 @@ void ValidateServerDataRow(
     int keyColumnCount,
     const TTableSchema& schema)
 {
-    ValidateRowValueCount(row.GetCount());
-
-    if (row.GetCount() < keyColumnCount) {
-        THROW_ERROR_EXCEPTION("Too few values in row: actual %v, expected >= %v",
-            row.GetCount(),
-            keyColumnCount);
-    }
-    
-    int schemaColumnCount = schema.Columns().size();
-    for (int index = 0; index < row.GetCount(); ++index) {
-        const auto& value = row[index];
-        ValidateDataValue(value);
-        int id = value.Id;
-        if (index < keyColumnCount) {
-            if (id != index) {
-                THROW_ERROR_EXCEPTION("Invalid key component id: actual %v, expected %v",
-                    id,
-                    index);
-            }
-        } else {
-            if (id < keyColumnCount) {
-                THROW_ERROR_EXCEPTION("Misplaced key component: id %v, position %v",
-                    id,
-                    index);
-            }
-            if (id >= schemaColumnCount) {
-                THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
-                    id,
-                    schemaColumnCount - 1);
-            }
-            if (value.Type != EValueType::Null && value.Type != schema.Columns()[id].Type) {
-                THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                    schema.Columns()[id].Name,
-                    schema.Columns()[id].Type,
-                    EValueType::Null,
-                    value.Type);
-            }
-        }
-    }
+    ValidateDataRow(row, keyColumnCount, nullptr, schema, false);
 }
 
 void ValidateClientKey(
@@ -817,39 +851,7 @@ void ValidateClientKey(
     int keyColumnCount,
     const TTableSchema& schema)
 {
-    if (!key) {
-        THROW_ERROR_EXCEPTION("Key cannot be null");
-    }
-
-    if (key.GetCount() != keyColumnCount) {
-        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %v, actual %v",
-            keyColumnCount,
-            key.GetCount());
-    }
-
-    bool keyColumnFlags[MaxKeyColumnCount] {};
-    for (int index = 0; index < keyColumnCount; ++index) {
-        const auto& value = key[index];
-        ValidateKeyValue(value);
-        int id = value.Id;
-        if (id >= keyColumnCount) {
-            THROW_ERROR_EXCEPTION("Invalid value id: actual %v, expected in range [0, %v]",
-                id,
-                keyColumnCount - 1);
-        }
-        if (keyColumnFlags[id]) {
-            THROW_ERROR_EXCEPTION("Duplicate key component with id %v",
-                id);
-        }
-        if (value.Type != EValueType::Null && value.Type != schema.Columns()[id].Type) {
-            THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                schema.Columns()[id].Name,
-                schema.Columns()[id].Type,
-                EValueType::Null,
-                value.Type);
-        }
-        keyColumnFlags[id] = true;
-    }
+    ValidateKey(key, keyColumnCount, schema, true);
 }
 
 void ValidateServerKey(
@@ -857,33 +859,7 @@ void ValidateServerKey(
     int keyColumnCount,
     const TTableSchema& schema)
 {
-    if (!key) {
-        THROW_ERROR_EXCEPTION("Key cannot be null");
-    }
-
-    if (key.GetCount() != keyColumnCount) {
-        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %v, actual %v",
-                keyColumnCount,
-                key.GetCount());
-    }
-
-    for (int index = 0; index < keyColumnCount; ++index) {
-        const auto& value = key[index];
-        ValidateKeyValue(value);
-        int id = value.Id;
-        if (id != index) {
-            THROW_ERROR_EXCEPTION("Invalid key component id: actual %v, expected %v",
-                id,
-                index);
-        }
-        if (value.Type != EValueType::Null && value.Type != schema.Columns()[id].Type) {
-            THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                schema.Columns()[id].Name,
-                schema.Columns()[id].Type,
-                EValueType::Null,
-                value.Type);
-        }
-    }
+    ValidateKey(key, keyColumnCount, schema, false);
 }
 
 void ValidateReadTimestamp(TTimestamp timestamp)

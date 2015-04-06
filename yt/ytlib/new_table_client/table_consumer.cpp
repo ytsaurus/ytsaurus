@@ -24,9 +24,9 @@ const static i64 MaxBufferSize = (i64) 1 * 1024 * 1024;
 TBuildingValueConsumer::TBuildingValueConsumer(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns)
-    : Schema_(schema.Deplete())
-    , KeyColumns_(schema.DepleteKeyColumns(keyColumns))
-    , NameTable_(TNameTable::FromSchema(Schema_, true))
+    : Schema_(schema)
+    , KeyColumns_(keyColumns)
+    , NameTable_(TNameTable::FromSchema(Schema_))
     , WrittenFlags_(NameTable_->GetSize(), false)
     , ValueWriter_(&ValueBuffer_)
 { }

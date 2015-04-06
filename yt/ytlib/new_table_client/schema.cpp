@@ -192,28 +192,6 @@ TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) cons
     return result;
 }
 
-TTableSchema TTableSchema::Deplete() const
-{
-    TTableSchema result;
-    for (int index = 0; index < Columns().size(); ++index) {
-        if (!Columns_[index].Expression) {
-            result.Columns().push_back(Columns_[index]);
-        }
-    }
-    return result;
-}
-
-TKeyColumns TTableSchema::DepleteKeyColumns(const TKeyColumns& keyColumns) const
-{
-    TKeyColumns result;
-    for (int index = 0; index < keyColumns.size(); ++index) {
-        if (!GetColumnOrThrow(keyColumns[index]).Expression) {
-            result.push_back(keyColumns[index]);
-        }
-    }
-    return result;
-}
-
 bool TTableSchema::HasComputedColumns() const
 {
     for (const auto& column : Columns()) {

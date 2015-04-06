@@ -9,13 +9,11 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNameTablePtr TNameTable::FromSchema(const TTableSchema& schema, bool excludeComputedColumns)
+TNameTablePtr TNameTable::FromSchema(const TTableSchema& schema)
 {
     auto nameTable = New<TNameTable>();
     for (const auto& column : schema.Columns()) {
-        if (!excludeComputedColumns || !column.Expression) {
-            nameTable->RegisterName(column.Name);
-        }
+        nameTable->RegisterName(column.Name);
     }
     return nameTable;
 }
