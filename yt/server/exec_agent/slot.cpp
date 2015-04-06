@@ -5,6 +5,8 @@
 
 #include <ytlib/cgroup/cgroup.h>
 
+#include <core/concurrency/action_queue.h>
+
 #include <core/tools/tools.h>
 
 #include <core/misc/proc.h>
@@ -30,6 +32,7 @@ TSlot::TSlot(
     TSlotManagerConfigPtr config,
     const Stroka& path,
     const Stroka& nodeId,
+    IInvokerPtr invoker,
     int slotIndex,
     TNullable<int> userId)
     : IsFree_(true)
@@ -38,7 +41,7 @@ TSlot::TSlot(
     , NodeId_(nodeId)
     , SlotIndex_(slotIndex)
     , UserId_(userId)
-    , SlotThread_(New<TActionQueue>(Format("ExecSlot:%v", slotIndex)))
+    , Invoker_(CreateSerializedInvoker(std::move(invoker)))
     , ProcessGroup_("freezer", GetSlotProcessGroup(slotIndex))
     , NullCGroup_()
     , Logger(ExecAgentLogger)
@@ -290,7 +293,7 @@ const Stroka& TSlot::GetWorkingDirectory() const
 
 IInvokerPtr TSlot::GetInvoker()
 {
-    return SlotThread_->GetInvoker();
+    return Invoker_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

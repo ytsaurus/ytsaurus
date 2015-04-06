@@ -4,6 +4,8 @@
 
 #include <server/cell_node/public.h>
 
+#include <core/concurrency/public.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -33,6 +35,8 @@ private:
     NCellNode::TBootstrap* Bootstrap;
 
     std::vector<TSlotPtr> Slots;
+
+    NConcurrency::TThreadPoolPtr ThreadPool;
 
     bool IsEnabled;
 

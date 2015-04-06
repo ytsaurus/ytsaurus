@@ -104,13 +104,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (JobState != EJobState::Waiting)
+        if (Slot) {
+            // If slot is acquired, then job is already started.
             return;
+        }
 
         StartTime = TInstant::Now();
-        JobState = EJobState::Running;
 
-        YCHECK(!Slot);
         auto slotManager = Bootstrap->GetExecSlotManager();
         Slot = slotManager->AcquireSlot();
 
@@ -147,7 +147,6 @@ public:
 
     virtual EJobState GetState() const override
     {
-        TGuard<TSpinLock> guard(ResultLock);
         return JobState;
     }
 
@@ -224,7 +223,6 @@ public:
 
     virtual void SetProgress(double value) override
     {
-        TGuard<TSpinLock> guard(ResultLock);
         if (JobState == EJobState::Running) {
             Progress_ = value;
         }
@@ -342,6 +340,8 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         try {
+            JobState = EJobState::Running;
+
             YCHECK(JobPhase == EJobPhase::Created);
             JobPhase = EJobPhase::PreparingConfig;
             PrepareConfig();
@@ -477,10 +477,7 @@ private:
             Slot->Release();
         }
 
-        {
-            TGuard<TSpinLock> guard(ResultLock);
-            JobState = FinalJobState;
-        }
+        JobState = FinalJobState;
 
         SetResourceUsage(ZeroNodeResources());
         ResourcesReleased_.Fire();
@@ -490,13 +487,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        if (JobPhase == EJobPhase::Finished)
+        if (JobPhase == EJobPhase::Finished || JobState == EJobState::Aborting)
             return;
 
-        {
-            TGuard<TSpinLock> guard(ResultLock);
-            JobState = EJobState::Aborting;
-        }
+        JobState = EJobState::Aborting;
 
         auto prevJobPhase = JobPhase;
         JobPhase = EJobPhase::Cleanup;
@@ -504,7 +498,6 @@ private:
         LOG_INFO(error, "Aborting job");
 
         if (prevJobPhase >= EJobPhase::Running) {
-            // NB: Kill() never throws.
             ProxyController->Kill(Slot->GetProcessGroup(), error);
         }
 
@@ -513,7 +506,6 @@ private:
             Slot->Clean();
         }
 
-        JobPhase = EJobPhase::Finished;
         SetResult(error);
 
         LOG_INFO("Job aborted");

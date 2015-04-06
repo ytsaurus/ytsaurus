@@ -7,6 +7,8 @@
 #include <server/cell_node/config.h>
 #include <server/data_node/chunk_cache.h>
 
+#include <core/concurrency/action_queue.h>
+
 #ifdef _unix_
     #include <sys/stat.h>
 #endif
@@ -15,6 +17,7 @@ namespace NYT {
 namespace NExecAgent {
 
 using namespace NCellNode;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,6 +30,7 @@ TSlotManager::TSlotManager(
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
+    , ThreadPool(New<TThreadPool>(Config->PoolSize, "ExecSlot"))
     , IsEnabled(true)
 {
     YCHECK(config);
@@ -61,7 +65,13 @@ void TSlotManager::Initialize(int slotCount)
             if (jobControlEnabled) {
                 userId = Config->StartUid + slotId;
             }
-            auto slot = New<TSlot>(Config, slotPath, Format("yt-node-%v", nodeRpcPort), slotId, userId);
+            auto slot = New<TSlot>(
+                Config, 
+                slotPath, 
+                Format("yt-node-%v", nodeRpcPort), 
+                ThreadPool->GetInvoker(), 
+                slotId, 
+                userId);
             slot->Initialize();
             Slots.push_back(slot);
         }
