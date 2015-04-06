@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/ypath/public.h>
+
 #include <ytlib/api/public.h>
 
 #include <unordered_map>
@@ -11,12 +13,9 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IFunctionRegistry
-    : public TRefCounted
+struct IFunctionRegistry
+    : public virtual TRefCounted
 {
-public:
-    virtual ~IFunctionRegistry();
-
     virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) = 0;
 
     IFunctionDescriptorPtr GetFunction(const Stroka& functionName);
@@ -32,7 +31,7 @@ class TFunctionRegistry
 public:
     void RegisterFunction(IFunctionDescriptorPtr descriptor);
 
-    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName);
+    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) override;
 
 private:
     std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
@@ -48,16 +47,16 @@ class TCypressFunctionRegistry
 public:
     TCypressFunctionRegistry(
         NApi::IClientPtr client,
-        const Stroka& registryPath,
+        const NYPath::TYPath& registryPath,
         TFunctionRegistryPtr builtinRegistry);
 
-    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName);
+    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) override;
 
 private:
     const NApi::IClientPtr Client_;
-    const Stroka RegistryPath_;
+    const NYPath::TYPath RegistryPath_;
     const TFunctionRegistryPtr BuiltinRegistry_;
-    const TFunctionRegistryPtr UDFRegistry_;
+    const TFunctionRegistryPtr UdfRegistry_;
 
     void LookupAndRegister(const Stroka& functionName);
 };

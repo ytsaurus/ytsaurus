@@ -17,7 +17,40 @@
 namespace NYT {
 namespace NQueryClient {
 
-using namespace NVersionedTableClient; 
+using namespace NVersionedTableClient;
+using namespace llvm;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+llvm::Type* ConvertToLlvmType(EValueType type, TCGContext& builder)
+{
+    auto& context = builder.getContext();
+    switch (type) {
+        case EValueType::Int64:
+        case EValueType::Uint64:
+            return Type::getInt64Ty(context);
+        case EValueType::Double:
+            return Type::getDoubleTy(context);
+        case EValueType::Boolean:
+            return Type::getInt1Ty(context);
+        case EValueType::String:
+            return Type::getInt8PtrTy(context);
+        default:
+            return nullptr;
+    }
+}
+
+Stroka LlvmTypeToString(llvm::Type* tp)
+{
+    std::string str;
+    llvm::raw_string_ostream stream(str);
+    tp->print(stream);
+    return Stroka(stream.str());
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -412,12 +445,11 @@ THashFunction::THashFunction(
     , RoutineName_(routineName)
 { }
 
-const TUnionType THashFunction::HashTypes_ = 
-    TUnionType{
-        EValueType::Int64,
-        EValueType::Uint64,
-        EValueType::Boolean,
-        EValueType::String};
+const TUnionType THashFunction::HashTypes_ = TUnionType{
+    EValueType::Int64,
+    EValueType::Uint64,
+    EValueType::Boolean,
+    EValueType::String};
 
 TCGValue THashFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
@@ -514,8 +546,6 @@ TCGValue TCastFunction::CodegenValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace llvm;
-
 TUserDefinedFunction::TUserDefinedFunction(
     const Stroka& functionName,
     std::vector<EValueType> argumentTypes,
@@ -530,32 +560,6 @@ TUserDefinedFunction::TUserDefinedFunction(
     , ResultType_(resultType)
     , ArgumentTypes_(argumentTypes)
 { }
-
-llvm::Type* ConvertToLlvmType(EValueType type, TCGContext& builder)
-{
-    auto& context = builder.getContext();
-    switch (type) {
-        case EValueType::Int64:
-        case EValueType::Uint64:
-            return Type::getInt64Ty(context);
-        case EValueType::Double:
-            return Type::getDoubleTy(context);
-        case EValueType::Boolean:
-            return Type::getInt1Ty(context);
-        case EValueType::String:
-            return Type::getInt8PtrTy(context);
-        default:
-            return nullptr;
-    }
-}
-
-Stroka LlvmTypeToString(llvm::Type* tp)
-{
-    std::string str;
-    llvm::raw_string_ostream stream(str);
-    tp->print(stream);
-    return Stroka(stream.str());
-}
 
 void TUserDefinedFunction::CheckCallee(llvm::Function* callee, TCGContext& builder) const
 {
