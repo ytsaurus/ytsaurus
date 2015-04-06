@@ -196,7 +196,7 @@ def get_node_config():
             retry_backoff_time = 100;
         };
 
-        enable_udfs = true;
+        enable_udf = true;
     };
 
     data_node = {
@@ -328,7 +328,7 @@ def get_driver_config():
         > yson
     };
 
-    enable_udfs = true;
+    enable_udf = true;
 }
 """)
 

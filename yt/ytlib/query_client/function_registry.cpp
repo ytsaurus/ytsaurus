@@ -208,10 +208,10 @@ IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
     auto config = client->GetConnection()->GetConfig();
     auto builtinRegistry = CreateBuiltinFunctionRegistryImpl();
 
-    if (config->EnableUDFs) {
+    if (config->EnableUdf) {
         return New<TCypressFunctionRegistry>(
             client,
-            config->UDFRegistryPath,
+            config->UdfRegistryPath,
             builtinRegistry);
     } else {
         return builtinRegistry;

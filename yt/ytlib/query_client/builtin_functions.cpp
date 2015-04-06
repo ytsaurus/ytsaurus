@@ -531,7 +531,7 @@ TUserDefinedFunction::TUserDefinedFunction(
     , ArgumentTypes_(argumentTypes)
 { }
 
-llvm::Type* ConvertToLLVMType(EValueType type, TCGContext& builder)
+llvm::Type* ConvertToLlvmType(EValueType type, TCGContext& builder)
 {
     auto& context = builder.getContext();
     switch (type) {
@@ -549,7 +549,7 @@ llvm::Type* ConvertToLLVMType(EValueType type, TCGContext& builder)
     }
 }
 
-Stroka LLVMTypeToString(llvm::Type* tp)
+Stroka LlvmTypeToString(llvm::Type* tp)
 {
     std::string str;
     llvm::raw_string_ostream stream(str);
@@ -568,11 +568,11 @@ void TUserDefinedFunction::CheckCallee(llvm::Function* callee, TCGContext& build
             "Wrong number of arguments in LLVM bitcode: expected %v, got %v",
             ArgumentTypes_.size(),
             callee->arg_size());
-    } else if (callee->getReturnType() != ConvertToLLVMType(ResultType_, builder)) {
+    } else if (callee->getReturnType() != ConvertToLlvmType(ResultType_, builder)) {
         THROW_ERROR_EXCEPTION(
             "Wrong result type in LLVM bitcode: expected %Qv, got %Qv",
-            LLVMTypeToString(ConvertToLLVMType(ResultType_, builder)),
-            LLVMTypeToString(callee->getReturnType()));
+            LlvmTypeToString(ConvertToLlvmType(ResultType_, builder)),
+            LlvmTypeToString(callee->getReturnType()));
     }
 
     auto i = 0;
@@ -581,12 +581,12 @@ void TUserDefinedFunction::CheckCallee(llvm::Function* callee, TCGContext& build
         expected != ArgumentTypes_.end();
         expected++, actual++, i++)
     {
-        if (actual->getType() != ConvertToLLVMType(*expected, builder)) {
+        if (actual->getType() != ConvertToLlvmType(*expected, builder)) {
             THROW_ERROR_EXCEPTION(
                 "Wrong type for argument %Qv in LLVM bitcode: expected %Qv, got %Qv",
                 i,
-                LLVMTypeToString(ConvertToLLVMType(*expected, builder)),
-                LLVMTypeToString(actual->getType()));
+                LlvmTypeToString(ConvertToLlvmType(*expected, builder)),
+                LlvmTypeToString(actual->getType()));
         }
     }
 }
@@ -604,7 +604,7 @@ Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
 
         if (!implModule) {
             THROW_ERROR_EXCEPTION(
-                "Error parsing LLVM bitcode: %v")
+                "Error parsing LLVM bitcode")
                 << TError(Stroka(diag.getMessage().str()));
         }
 

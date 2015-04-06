@@ -2,6 +2,11 @@
 #include "framework.h"
 #include "versioned_table_client_ut.h"
 
+#ifdef YT_USE_LLVM
+#include "udf/absolute.h"
+#include "udf/invalid_ir.h"
+#endif
+
 #include <core/concurrency/action_queue.h>
 
 #include <ytlib/object_client/helpers.h>
@@ -24,9 +29,6 @@
 #include <ytlib/new_table_client/schemaful_writer.h>
 
 #ifdef YT_USE_LLVM
-#include <udfs/absolute.h>
-#include <udfs/invalid_ir.h>
-
 #include <ytlib/query_client/folding_profiler.h>
 #endif
 
@@ -1976,7 +1978,7 @@ protected:
         std::map<Stroka, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
-        auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -1987,8 +1989,8 @@ protected:
                 outputRowLimit,
                 false,
                 functionRegistry)
-            .Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            .Get()
+            .ThrowOnError();
     }
 
     void Evaluate(
@@ -2000,7 +2002,7 @@ protected:
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
         IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
     {
-        auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -2011,8 +2013,8 @@ protected:
                 outputRowLimit,
                 false,
                 functionRegistry)
-            .Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            .Get()
+            .ThrowOnError();
     }
 
     void EvaluateExpectingError(
@@ -2027,7 +2029,7 @@ protected:
         std::map<Stroka, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
-        auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -2038,8 +2040,8 @@ protected:
                 outputRowLimit,
                 true,
                 functionRegistry)
-            .Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            .Get()
+            .ThrowOnError();
     }
 
     void DoEvaluate(

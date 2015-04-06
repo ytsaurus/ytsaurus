@@ -90,12 +90,12 @@ set( SRCS
   ${BASE}/ytree_fluent_ut.cpp
   ${BASE}/yverify_ut.cpp
   ${BASE}/zigzag_ut.cpp
-  ${BASE}/udfs/invalid_ir.h
+  ${BASE}/udf/invalid_ir.h
 )
 
 protoc( ${BASE}/rpc_ut.proto SRCS )
 
-udf( ${BASE}/udfs/absolute.c SRCS )
+udf( ${BASE}/udf/absolute.c SRCS )
 
 add_msvc_precompiled_header(
   "stdafx.h"
