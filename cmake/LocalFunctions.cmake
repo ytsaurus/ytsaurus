@@ -6,6 +6,33 @@
 #      where names of resulting files will be appended
 ################################################################################
 
+function(UDF udf output)
+  get_filename_component( _realpath ${udf} REALPATH )
+  get_filename_component(_dirname ${_realpath} PATH)
+  get_filename_component( _filename ${_realpath} NAME_WE )
+
+  set(${output} ${${output}} ${_dirname}/${_filename}.h PARENT_SCOPE)
+
+  find_program(CLANG_EXECUTABLE
+    NAMES clang-3.6 clang
+    PATHS $ENV{LLVM_ROOT}/bin ENV PATH
+  )
+
+  add_custom_command(
+    OUTPUT
+      ${_dirname}/${_filename}.h
+    COMMAND
+      ${CLANG_EXECUTABLE} -c -emit-llvm ${_realpath}
+    COMMAND
+      xxd -i ${_filename}.bc > ${_filename}.h
+    MAIN_DEPENDENCY
+      ${_realpath}
+    WORKING_DIRECTORY
+      ${_dirname}
+    COMMENT "Generating LLVM bitcode for ${_filename}..."
+  )
+endfunction()
+
 function(PROTOC proto output)
   get_filename_component( _proto_realpath ${proto} REALPATH )
   get_filename_component( _proto_dirname  ${_proto_realpath} PATH )

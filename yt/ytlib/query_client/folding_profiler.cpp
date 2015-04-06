@@ -186,7 +186,7 @@ TCodegenExpression TFoldingProfiler::Profile(const TConstExpressionPtr& expr, co
         }
 
         return FunctionRegistry_->GetFunction(functionExpr->FunctionName)
-            .MakeCodegenExpr(
+            ->MakeCodegenExpr(
                 std::move(codegenArgs),
                 functionExpr->Type,
                 "{" + functionExpr->GetName() + "}");

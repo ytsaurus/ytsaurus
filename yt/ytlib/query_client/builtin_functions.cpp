@@ -5,6 +5,15 @@
 
 #include <new_table_client/row_base.h>
 
+#include <llvm/Object/ObjectFile.h>
+
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/raw_ostream.h>
+
+#include <llvm/IRReader/IRReader.h>
+
+#include <llvm/Linker/Linker.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -13,7 +22,7 @@ using namespace NVersionedTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTypedFunction::TTypedFunction(
-    Stroka functionName,
+    const Stroka& functionName,
     std::vector<TType> argumentTypes,
     TType repeatedArgumentType,
     TType resultType)
@@ -24,7 +33,7 @@ TTypedFunction::TTypedFunction(
 { }
 
 TTypedFunction::TTypedFunction(
-    Stroka functionName,
+    const Stroka& functionName,
     std::vector<TType> argumentTypes,
     TType resultType)
     : FunctionName_(functionName)
@@ -93,7 +102,7 @@ EValueType TTypedFunction::TypingFunction(
     const std::vector<TType>& expectedArgTypes,
     TType repeatedArgType,
     TType resultType,
-    Stroka functionName,
+    const Stroka& functionName,
     const std::vector<EValueType>& argTypes,
     const TStringBuf& source) const
 {
@@ -200,7 +209,7 @@ TKeyTrieNode TUniversalRangeFunction::ExtractKeyRange(
 TCodegenExpression TCodegenFunction::MakeCodegenExpr(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name) const
+    const Stroka& name) const
 {
     return [
         this,
@@ -228,7 +237,7 @@ TIfFunction::TIfFunction() : TTypedFunction(
 TCGValue TIfFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -272,7 +281,7 @@ TIsPrefixFunction::TIsPrefixFunction()
 TCGValue TIsPrefixFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -335,7 +344,7 @@ TIsSubstrFunction::TIsSubstrFunction()
 TCGValue TIsSubstrFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -354,7 +363,7 @@ TLowerFunction::TLowerFunction()
 TCGValue TLowerFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -393,8 +402,8 @@ TCGValue TLowerFunction::CodegenValue(
 ////////////////////////////////////////////////////////////////////////////////
 
 THashFunction::THashFunction(
-    Stroka functionName,
-    Stroka routineName)
+    const Stroka& functionName,
+    const Stroka& routineName)
     : TTypedFunction(
         functionName,
         std::vector<TType>{ HashTypes_ },
@@ -413,7 +422,7 @@ const TUnionType THashFunction::HashTypes_ =
 TCGValue THashFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -459,7 +468,7 @@ TIsNullFunction::TIsNullFunction()
 TCGValue TIsNullFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
@@ -478,7 +487,9 @@ TCGValue TIsNullFunction::CodegenValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCastFunction::TCastFunction(EValueType resultType, Stroka functionName)
+TCastFunction::TCastFunction(
+    EValueType resultType,
+    const Stroka& functionName)
     : TTypedFunction(
         functionName,
         std::vector<TType>{ CastTypes_ },
@@ -493,12 +504,146 @@ const TUnionType TCastFunction::CastTypes_ = TUnionType{
 TCGValue TCastFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name,
+    const Stroka& name,
     TCGContext& builder,
     Value* row) const
 {
     YCHECK(codegenArgs.size() == 1);
     return codegenArgs[0](builder, row).Cast(builder, type);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace llvm;
+
+TUserDefinedFunction::TUserDefinedFunction(
+    const Stroka& functionName,
+    std::vector<EValueType> argumentTypes,
+    EValueType resultType,
+    TSharedRef implementationFile)
+    : TTypedFunction(
+        functionName,
+        std::vector<TType>(argumentTypes.begin(), argumentTypes.end()),
+        resultType)
+    , FunctionName_(functionName)
+    , ImplementationFile_(implementationFile)
+    , ResultType_(resultType)
+    , ArgumentTypes_(argumentTypes)
+{ }
+
+llvm::Type* ConvertToLlvmType(EValueType type, TCGContext& builder)
+{
+    auto& context = builder.getContext();
+    switch (type) {
+        case EValueType::Int64:
+        case EValueType::Uint64:
+            return Type::getInt64Ty(context);
+        case EValueType::Double:
+            return Type::getDoubleTy(context);
+        case EValueType::Boolean:
+            return Type::getInt1Ty(context);
+        case EValueType::String:
+            return Type::getInt8PtrTy(context);
+        default:
+            return nullptr;
+    }
+}
+
+Stroka LlvmTypeToString(llvm::Type* tp)
+{
+    std::string str;
+    llvm::raw_string_ostream stream(str);
+    tp->print(stream);
+    return Stroka(stream.str());
+}
+
+void TUserDefinedFunction::CheckCallee(llvm::Function* callee, TCGContext& builder) const
+{
+    if (callee == nullptr) {
+        THROW_ERROR_EXCEPTION(
+            "Could not find LLVM bitcode for %Qv",
+            FunctionName_);
+    } else if (callee->arg_size() != ArgumentTypes_.size()) {
+        THROW_ERROR_EXCEPTION(
+            "Wrong number of arguments in LLVM bitcode: expected %v, got %v",
+            ArgumentTypes_.size(),
+            callee->arg_size());
+    } else if (callee->getReturnType() != ConvertToLlvmType(ResultType_, builder)) {
+        THROW_ERROR_EXCEPTION(
+            "Wrong result type in LLVM bitcode: expected %Qv, got %Qv",
+            LlvmTypeToString(ConvertToLlvmType(ResultType_, builder)),
+            LlvmTypeToString(callee->getReturnType()));
+    }
+
+    auto i = 0;
+    auto expected = ArgumentTypes_.begin();
+    for (auto actual = callee->arg_begin();
+        expected != ArgumentTypes_.end();
+        expected++, actual++, i++)
+    {
+        if (actual->getType() != ConvertToLlvmType(*expected, builder)) {
+            THROW_ERROR_EXCEPTION(
+                "Wrong type for argument %Qv in LLVM bitcode: expected %Qv, got %Qv",
+                i,
+                LlvmTypeToString(ConvertToLlvmType(*expected, builder)),
+                LlvmTypeToString(actual->getType()));
+        }
+    }
+}
+
+Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
+{
+    auto module = builder.Module->GetModule();
+    auto callee = module->getFunction(StringRef(FunctionName_));
+    if (!callee) {
+        auto diag = SMDiagnostic();
+        auto buffer = MemoryBufferRef(
+            StringRef(ImplementationFile_.Begin(), ImplementationFile_.Size()),
+            StringRef("impl"));
+        auto implModule = parseIR(buffer, diag, builder.getContext());
+
+        if (!implModule) {
+            THROW_ERROR_EXCEPTION(
+                "Error parsing LLVM bitcode")
+                << TError(Stroka(diag.getMessage().str()));
+        }
+
+        Linker::LinkModules(module, implModule.get());
+        callee = module->getFunction(StringRef(FunctionName_));
+    }
+    CheckCallee(callee, builder);
+    return callee;
+}
+
+TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
+    std::vector<TCodegenExpression> codegenArgs,
+    EValueType type,
+    const Stroka& name) const
+{
+    return [
+        this_ = MakeStrong(this),
+        codegenArgs,
+        type
+    ] (TCGContext& builder, Value* row) {
+        auto callee = this_->GetLLVMFunction(builder);
+        std::vector<Value*> arguments;
+
+        for (auto arg = codegenArgs.begin(); arg != codegenArgs.end(); arg++) {
+            auto argValue = (*arg)(builder, row);
+            arguments.push_back(argValue.GetData());
+        }
+
+        auto result = builder.CreateCall(callee, arguments);
+
+        auto val = TCGValue::CreateFromValue(
+            builder,
+            builder.getFalse(),
+            nullptr,
+            result,
+            type);
+        
+        return val;
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

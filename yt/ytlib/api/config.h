@@ -80,6 +80,9 @@ public:
     NCompression::ECodec LookupResponseCodec;
     int MaxRowsPerReadRequest;
 
+    bool EnableUdf;
+    Stroka UdfRegistryPath;
+
     TConnectionConfig();
 
 };

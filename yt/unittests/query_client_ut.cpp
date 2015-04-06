@@ -2,6 +2,11 @@
 #include "framework.h"
 #include "versioned_table_client_ut.h"
 
+#ifdef YT_USE_LLVM
+#include "udf/absolute.h"
+#include "udf/invalid_ir.h"
+#endif
+
 #include <core/concurrency/action_queue.h>
 
 #include <ytlib/object_client/helpers.h>
@@ -16,6 +21,7 @@
 #include <ytlib/query_client/plan_helpers.h>
 #include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/plan_fragment.pb.h>
+#include <ytlib/query_client/builtin_functions.h>
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
@@ -84,6 +90,7 @@ using namespace NYPath;
 using namespace NObjectClient;
 using namespace NVersionedTableClient;
 using namespace NNodeTrackerClient;
+using namespace NApi;
 
 using ::testing::_;
 using ::testing::StrictMock;
@@ -303,7 +310,7 @@ protected:
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry()); },
+            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry().Get()); },
             matcher);
     }
 
@@ -316,7 +323,7 @@ TEST_F(TQueryPrepareTest, Simple)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3", CreateBuiltinFunctionRegistry());
+    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3", CreateBuiltinFunctionRegistry().Get());
 }
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -393,7 +400,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry());
+    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry().Get());
 }
 
 TEST_F(TQueryPrepareTest, ResultSchemaCollision)
@@ -440,7 +447,7 @@ protected:
 
     void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
 
         TDataSources sources;
         for (const auto& split : dataSplits) {
@@ -1860,6 +1867,14 @@ public:
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
 };
 
+class TFunctionRegistryMock
+    : public IFunctionRegistry
+{
+public:
+    MOCK_METHOD1(FindFunction, IFunctionDescriptorPtr(const Stroka&));
+};
+
+
 TOwningRow BuildRow(
     const Stroka& yson,
     const TDataSplit& dataSplit,
@@ -1875,8 +1890,14 @@ TOwningRow BuildRow(
 struct TQueryExecutor
     : public IExecutor
 {
-    TQueryExecutor(const std::vector<Stroka>& source, IExecutorPtr executeCallback = nullptr)
+    TQueryExecutor(
+        const std::vector<Stroka>& source,
+        IFunctionRegistryPtr functionRegistry,
+        bool shouldFail,
+        IExecutorPtr executeCallback = nullptr)
         : Source(source)
+        , FunctionRegistry(functionRegistry)
+        , ShouldFail_(shouldFail)
         , ExecuteCallback(std::move(executeCallback))
     {
         ReaderMock_ = New<StrictMock<TReaderMock>>();
@@ -1884,6 +1905,8 @@ struct TQueryExecutor
 
     
     std::vector<Stroka> Source;
+    IFunctionRegistryPtr FunctionRegistry;
+    bool ShouldFail_;
     IExecutorPtr ExecuteCallback;
     TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_;
 
@@ -1909,12 +1932,19 @@ struct TQueryExecutor
                 sourceRows.begin(),
                 std::mem_fn(TGetFunction(&TOwningRow::Get)));
 
-            EXPECT_CALL(*ReaderMock_, Read(_))
-                .WillOnce(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
+            ON_CALL(*ReaderMock_, Read(_))
+                .WillByDefault(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
+            if (!ShouldFail_) {
+                EXPECT_CALL(*ReaderMock_, Read(_));
+            }
         };
         
-        EXPECT_CALL(*ReaderMock_, Open(_))
-            .WillOnce(DoAll(Invoke(onOpened), Return(WrapVoidInFuture())));
+        ON_CALL(*ReaderMock_, Open(_))
+            .WillByDefault(DoAll(Invoke(onOpened), Return(WrapVoidInFuture())));
+
+        if (!ShouldFail_) {
+            EXPECT_CALL(*ReaderMock_, Open(_));
+        }
 
         auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
         return MakeFuture(evaluator->RunWithExecutor(
@@ -1934,7 +1964,7 @@ struct TQueryExecutor
                 return WaitFor(subqueryResult)
                     .ValueOrThrow();
             },
-            CreateBuiltinFunctionRegistry()));
+            FunctionRegistry));
     }
 };
 
@@ -1960,13 +1990,14 @@ protected:
         const std::vector<Stroka>& owningSource,
         const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max())
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
     {
         std::vector<std::vector<Stroka>> owningSources(1, owningSource);
         std::map<Stroka, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
-        auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -1974,9 +2005,11 @@ protected:
                 owningSources,
                 owningResult,
                 inputRowLimit,
-                outputRowLimit)
-            .Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                outputRowLimit,
+                false,
+                functionRegistry)
+            .Get()
+            .ThrowOnError();
     }
 
     void Evaluate(
@@ -1985,19 +2018,49 @@ protected:
         const std::vector<std::vector<Stroka>>& owningSources,
         const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max())
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
     {
-        auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
-            query,
-            dataSplits,
-            owningSources,
-            owningResult,
-            inputRowLimit,
-            outputRowLimit)
-            .Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                query,
+                dataSplits,
+                owningSources,
+                owningResult,
+                inputRowLimit,
+                outputRowLimit,
+                false,
+                functionRegistry)
+            .Get()
+            .ThrowOnError();
+    }
+
+    void EvaluateExpectingError(
+        const Stroka& query,
+        const TDataSplit& dataSplit,
+        const std::vector<Stroka>& owningSource,
+        i64 inputRowLimit = std::numeric_limits<i64>::max(),
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
+    {
+        std::vector<std::vector<Stroka>> owningSources(1, owningSource);
+        std::map<Stroka, TDataSplit> dataSplits;
+        dataSplits["//t"] = dataSplit;
+
+        BIND(&TQueryEvaluateTest::DoEvaluate, this)
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run(
+                query,
+                dataSplits,
+                owningSources,
+                std::vector<TOwningRow>(),
+                inputRowLimit,
+                outputRowLimit,
+                true,
+                functionRegistry)
+            .Get()
+            .ThrowOnError();
     }
 
     void DoEvaluate(
@@ -2006,7 +2069,9 @@ protected:
         const std::vector<std::vector<Stroka>>& owningSources,
         const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit,
-        i64 outputRowLimit)
+        i64 outputRowLimit,
+        bool shouldFail,
+        IFunctionRegistryPtr functionRegistry)
     {
         std::vector<std::vector<TRow>> results;
         typedef const TRow(TOwningRow::*TGetFunction)() const;
@@ -2034,15 +2099,22 @@ protected:
         {
             testing::InSequence s;
 
-            EXPECT_CALL(*WriterMock_, Open(_, _))
-                .WillOnce(Return(WrapVoidInFuture()));
+            ON_CALL(*WriterMock_, Open(_, _))
+                .WillByDefault(Return(WrapVoidInFuture()));
+            if (!shouldFail) {
+                EXPECT_CALL(*WriterMock_, Open(_, _));
+            }
+
             for (auto& result : results) {
                 EXPECT_CALL(*WriterMock_, Write(result))
                     .WillOnce(Return(true));
             }
-            
-            EXPECT_CALL(*WriterMock_, Close())
-                .WillOnce(Return(WrapVoidInFuture()));
+
+            ON_CALL(*WriterMock_, Close())
+                .WillByDefault(Return(WrapVoidInFuture()));
+            if (!shouldFail) {
+                EXPECT_CALL(*WriterMock_, Close());
+            }
         }
 
         IExecutorPtr executor;
@@ -2050,11 +2122,17 @@ protected:
         size_t index = owningSources.size();
         while (index > 0) {
             const auto& owningSource = owningSources[--index];
-            auto newExecutor = New<TQueryExecutor>(owningSource, executor);
+            auto newExecutor = New<TQueryExecutor>(owningSource, functionRegistry, shouldFail, executor);
             executor = newExecutor;
         }
 
-        executor->Execute(PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry(), inputRowLimit, outputRowLimit), WriterMock_);
+        if (shouldFail) {
+            EXPECT_THROW(
+                executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit), WriterMock_),
+                TErrorException);
+        } else {
+            executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit), WriterMock_);
+        }
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
@@ -3002,6 +3080,134 @@ TEST_F(TQueryEvaluateTest, TestJoin)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=-2;b=20",
+        "a=9;b=90",
+        "a=-10"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+        "x=2",
+        "x=9",
+        "x=10"
+    }, resultSplit);
+
+    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
+        absolute_bc,
+        absolute_bc_len));
+
+    auto absoluteDescriptor = New<TUserDefinedFunction>(
+        "absolute",
+        std::vector<EValueType>{EValueType::Int64},
+        EValueType::Int64,
+        fileRef);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("absolute"))
+        .WillRepeatedly(Return(absoluteDescriptor));
+
+    Evaluate("absolute(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+    };
+
+    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
+        invalid_ir_bc,
+        invalid_ir_bc_len));
+
+    auto invalidUdfDescriptor = New<TUserDefinedFunction>(
+        "invalid_ir",
+        std::vector<EValueType>{EValueType::Int64},
+        EValueType::Int64,
+        fileRef);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("invalid_ir"))
+        .WillRepeatedly(Return(invalidUdfDescriptor));
+
+    EvaluateExpectingError("invalid_ir(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+    };
+
+    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
+        absolute_bc,
+        absolute_bc_len));
+
+    auto twoArgumentUdf = New<TUserDefinedFunction>(
+        "absolute",
+        std::vector<EValueType>{EValueType::Int64, EValueType::Int64},
+        EValueType::Int64,
+        fileRef);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("absolute"))
+        .WillRepeatedly(Return(twoArgumentUdf));
+
+    EvaluateExpectingError("absolute(a, b) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+    };
+
+    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
+        absolute_bc,
+        absolute_bc_len));
+
+    auto invalidArgumentUdf = New<TUserDefinedFunction>(
+        "absolute",
+        std::vector<EValueType>{EValueType::Double},
+        EValueType::Int64,
+        fileRef);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("absolute"))
+        .WillOnce(Return(invalidArgumentUdf));
+
+    EvaluateExpectingError("absolute(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEvaluateExpressionTest
@@ -3108,12 +3314,12 @@ protected:
 
     std::vector<TKeyRange> Coordinate(const Stroka& source)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
         auto prunedSplits = GetPrunedSources(
             planFragment->Query,
             planFragment->DataSources,
             ColumnEvaluatorCache_,
-            CreateBuiltinFunctionRegistry(),
+            CreateBuiltinFunctionRegistry().Get(),
             true);
 
         return GetRangesFromSources(prunedSplits);
@@ -3121,7 +3327,7 @@ protected:
 
     std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
 
         TDataSources foreignSplits{planFragment->ForeignDataSource};
 

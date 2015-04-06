@@ -17,11 +17,9 @@ class IFunctionRegistry
 public:
     virtual ~IFunctionRegistry();
 
-    virtual void RegisterFunction(IFunctionDescriptorPtr descriptor) = 0;
+    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) = 0;
 
-    virtual IFunctionDescriptor& GetFunction(const Stroka& functionName) = 0;
-
-    virtual bool IsRegistered(const Stroka& functionName) = 0;
+    IFunctionDescriptorPtr GetFunction(const Stroka& functionName);
 };
 
 DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
@@ -32,12 +30,36 @@ class TFunctionRegistry
     : public IFunctionRegistry
 {
 public:
-    virtual void RegisterFunction(IFunctionDescriptorPtr descriptor) override;
-    virtual IFunctionDescriptor& GetFunction(const Stroka& functionName) override;
-    virtual bool IsRegistered(const Stroka& functionName) override;
+    void RegisterFunction(IFunctionDescriptorPtr descriptor);
+
+    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName);
 
 private:
     std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TFunctionRegistry)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressFunctionRegistry
+    : public IFunctionRegistry
+{
+public:
+    TCypressFunctionRegistry(
+        NApi::IClientPtr client,
+        const Stroka& registryPath,
+        TFunctionRegistryPtr builtinRegistry);
+
+    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName);
+
+private:
+    const NApi::IClientPtr Client_;
+    const Stroka RegistryPath_;
+    const TFunctionRegistryPtr BuiltinRegistry_;
+    const TFunctionRegistryPtr UDFRegistry_;
+
+    void LookupAndRegister(const Stroka& functionName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

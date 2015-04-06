@@ -351,7 +351,7 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
             if (index < keyColumns.size()) {
 #ifdef YT_USE_LLVM
                 auto functionRegistry = CreateBuiltinFunctionRegistry();
-                auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, functionRegistry);
+                auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, functionRegistry.Get());
                 if (expr->Type != columnSchema.Type) {
                     THROW_ERROR_EXCEPTION("Computed column %Qv type mismatch: declared type %v but expression type is %v",
                         columnSchema.Name,

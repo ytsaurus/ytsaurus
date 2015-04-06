@@ -31,7 +31,7 @@ struct IFunctionDescriptor
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
-        Stroka name) const = 0;
+        const Stroka& name) const = 0;
 
     virtual TKeyTrieNode ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
