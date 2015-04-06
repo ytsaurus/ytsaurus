@@ -38,8 +38,17 @@ def get(path, trimmed_nodes = None):
                     object[key] = get(new_path)
                 else:
                     walk(new_path, value)
-    
-    result = yt.get(path, attributes=["type", "opaque"])
+
+    try:
+        result = yt.get(path, attributes=["type", "opaque"])
+    except yt.YtResponseError as err:
+        if err.is_access_denied():
+            result = yson.YsonMap()
+            result.attributes["type"] = "map_node"
+            logger.warning("Have no access to %s", path)
+        else:
+            raise
+
     walk(path, result)
     return result
 
@@ -65,7 +74,7 @@ def extract_subtree(root, pred):
         else:
             result += node
             sum_size += get_size(node)
-        
+
     root.attributes["size"] = sum_size
     return yson.to_yson_type(result, root.attributes)
 
@@ -91,20 +100,20 @@ def add_opaques(root, min_threshold, max_threshold):
             if size > max_threshold and get_size(child) > min_threshold:
                 result.append(get_path(child))
                 size -= get_size(child) - 1
-        
+
         if is_opaque(root):
             size = 1
         else:
             size += 1
         root.attributes["size"] = size
         return yson.to_yson_type(nodes, root.attributes)
-    
+
     dfs(root)
     return result
 
 def remove_opaques(root, min_threshold, max_threshold):
     result = []
-    
+
     def remove(node):
         size = get_size(node)
         node.sort(key=get_size)
@@ -113,7 +122,7 @@ def remove_opaques(root, min_threshold, max_threshold):
                 result.append(get_path(child))
                 size += get_size(child) - 1
         node.attributes["size"] = size
-    
+
     apply(root, remove)
 
     return result
@@ -152,7 +161,7 @@ def main():
     removed_opaques = set(remove_opaques(opaque_tree, args.min_threshold, args.max_threshold)) - set(args.save)
 
     result_opaque_tree = extract_subtree(tree, lambda node: (is_opaque(node) or get_path(node) in new_opaques) and get_path(node) not in removed_opaques)
-    
+
     sout = StringIO()
     print_pretty(sout, result_opaque_tree)
     logger.info("Dump opaque tree:\n%s", sout.getvalue())
