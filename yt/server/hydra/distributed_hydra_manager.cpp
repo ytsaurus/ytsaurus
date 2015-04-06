@@ -317,7 +317,7 @@ public:
                 "Not an active leader"));
         }
 
-        if (epochContext->Checkpointer->CanBuildSnapshot()) {
+        if (!epochContext->Checkpointer->CanBuildSnapshot()) {
             return MakeFuture<int>(TError(
                 NHydra::EErrorCode::InvalidState,
                 "Cannot build a snapshot at the moment"));
