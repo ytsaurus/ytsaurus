@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stdbool.h>
 
 typedef enum EValueType
@@ -30,3 +31,8 @@ typedef struct TUnversionedValue
     int Length;
     TUnversionedValueData Data;
 } TUnversionedValue;
+
+typedef struct TExecutionContext {
+    void* OutputBuffer;
+    void* IntermediateBuffer;
+} TExecutionContext;

@@ -1,6 +1,8 @@
 #include <stdlib.h>
+#include <unversioned_value.h>
 
 void to_lower(
+    TExecutionContext* context,
     char** result,
     int* result_length,
     char* string,

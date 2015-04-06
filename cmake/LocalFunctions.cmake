@@ -28,6 +28,8 @@ function(UDF udf output)
       xxd -i ${_filename}.bc > ${_filename}.h
     MAIN_DEPENDENCY
       ${_realpath}
+    DEPENDS
+      ${CMAKE_SOURCE_DIR}/yt/ytlib/udfs/unversioned_value.h
     WORKING_DIRECTORY
       ${_dirname}
     COMMENT "Generating LLVM bitcode for ${_filename}..."
