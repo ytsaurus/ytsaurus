@@ -497,6 +497,9 @@ private:
             Connection_->GetColumnEvaluatorCache(),
             FunctionRegistry_,
             fragment->VerboseLogging);
+
+        LOG_DEBUG("Splitting %v pruned splits", prunedSources.size());
+
         auto splits = Split(prunedSources, nodeDirectory, Logger, fragment->VerboseLogging);
 
         LOG_DEBUG("Regrouping %v splits", splits.size());

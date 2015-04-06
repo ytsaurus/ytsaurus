@@ -455,6 +455,8 @@ TDataSources GetPrunedSources(
     const IFunctionRegistryPtr functionRegistry,
     bool verboseLogging)
 {
+    LOG_DEBUG("Infering ranges from predicate");
+
     TRangeInferrer rangeInferrer(predicate, tableSchema, keyColumns, evaluatorCache, functionRegistry, verboseLogging);
 
     auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
