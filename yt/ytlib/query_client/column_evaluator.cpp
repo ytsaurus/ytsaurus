@@ -80,6 +80,8 @@ void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
         fullRow,
         Variables_[index].ConstantsRowBuilder.GetRow(),
         &executionContext);
+
+    fullRow[index].Id = index;
 #else
     THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
 #endif
@@ -155,11 +157,6 @@ TRow TColumnEvaluator::EvaluateKeys(
     }
 
     EvaluateKeys(fullRow, buffer);
-
-    for (int index = 0; index < KeySize_; ++index) {
-        fullRow[index].Id = index;
-    }
-
     return fullRow;
 }
 
