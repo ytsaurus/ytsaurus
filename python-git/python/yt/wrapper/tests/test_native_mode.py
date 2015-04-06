@@ -392,11 +392,10 @@ class NativeModeTester(YtTestBase, YTEnv):
             lambda: yt.get(test_dir3) == {})
 
         parent_tx = yt.start_transaction()
-        transaction_count = yt.get("//sys/transactions/@count")
         self.check_command(
             lambda: yt.start_transaction(parent_tx),
             None,
-            lambda: yt.get("//sys/transactions/@count") == transaction_count + 1)
+            lambda: len(yt.get("//sys/transactions/{0}/@nested_transaction_ids".format(parent_tx))) == 1)
 
         id = yt.start_transaction()
         self.check_command(lambda: yt.abort_transaction(id))
