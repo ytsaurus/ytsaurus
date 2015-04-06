@@ -27,15 +27,14 @@ typedef union TUnversionedValueData
 typedef struct TUnversionedValue
 {
     short Id;
-    EValueType Type;
+    short Type;
     int Length;
-
     TUnversionedValueData Data;
 } TUnversionedValue;
 
 void is_null_udf(TUnversionedValue* result, TUnversionedValue* value)
 {
+    bool isnull = value->Type == Null;
     result->Type = Boolean;
-    bool isnull = value == NULL;
     result->Data.Boolean = isnull;
 }
