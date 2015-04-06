@@ -2023,7 +2023,8 @@ protected:
             EValueType::Boolean,
             TSharedRef::FromRefNonOwning(TRef(
                 is_null_udf_bc,
-                is_null_udf_bc_len)));
+                is_null_udf_bc_len)),
+            New<TUnversionedValueCallingConvention>());
     }
 
     virtual void TearDown() override
@@ -3435,9 +3436,9 @@ TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
     });
 
     auto result = BuildRows({
-        "x=false"
-        "x=false",
-        "x=true"
+        "x=%false",
+        "x=%false",
+        "x=%true"
     }, resultSplit);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();

@@ -27,8 +27,19 @@ public:
 DEFINE_REFCOUNTED_TYPE(ICallingConvention);
 
 class TUnversionedValueCallingConvention
-    : public virtual IFunctionDescriptor
+    : public virtual ICallingConvention
 {
+public:
+    virtual TCodegenExpression MakeCodegenFunctionCall(
+        std::vector<TCodegenExpression> codegenArgs,
+        std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
+        EValueType type,
+        const Stroka& name) const override;
+
+    void CheckResultType(
+        Type* llvmType,
+        EValueType resultType,
+        TCGContext& builder) const override;
 };
 
 class TSimpleCallingConvention

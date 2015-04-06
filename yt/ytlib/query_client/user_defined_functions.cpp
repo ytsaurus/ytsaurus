@@ -1,9 +1,11 @@
+#include <iostream>
 #include "user_defined_functions.h"
 
 #include "cg_fragment_compiler.h"
 #include "plan_helpers.h"
 
 #include <new_table_client/row_base.h>
+#include <new_table_client/llvm_types.h>
 
 #include <llvm/Object/ObjectFile.h>
 
@@ -184,6 +186,91 @@ void TSimpleCallingConvention::CheckResultType(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//TODO: this is practically the same as CreateFromRow
+TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
+    std::vector<TCodegenExpression> codegenArgs,
+    std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
+    EValueType type,
+    const Stroka& name) const
+{
+    return [=] (TCGContext& builder, Value* row) {
+        auto argumentValues = std::vector<Value*>();
+
+        auto unversionedValueType =
+            llvm::TypeBuilder<TUnversionedValue, false>::get(builder.getContext());
+        unversionedValueType->setName("TUnversionedValue");
+
+        auto unversionedValueStruct = StructType::create(
+            builder.getContext(),
+            "struct.TUnversionedValue");
+
+        auto resultPtr = builder.CreateAlloca(unversionedValueType);
+        auto castedResultPtr = builder.CreateBitCast(
+            resultPtr,
+            PointerType::getUnqual(unversionedValueStruct));
+        argumentValues.push_back(castedResultPtr);
+
+        for (auto arg = codegenArgs.begin();
+            arg != codegenArgs.end();
+            arg++)
+        {
+            auto valuePtr = builder.CreateAlloca(unversionedValueType);
+            auto cgValue = (*arg)(builder, row);
+            cgValue.StoreToValue(builder, valuePtr, 0);
+
+            auto castedValuePtr = builder.CreateBitCast(
+                valuePtr,
+                PointerType::getUnqual(unversionedValueStruct));
+            argumentValues.push_back(castedValuePtr);
+        }
+
+        codegenBody(argumentValues, builder);
+        
+        auto length = builder.CreateLoad(
+            builder.CreateStructGEP(resultPtr, TTypeBuilder::Length));
+
+        auto data = builder.CreateLoad(
+            builder.CreateStructGEP(resultPtr, TTypeBuilder::Data));
+        Type* targetType = TDataTypeBuilder::get(builder.getContext(), type);
+
+        Value* castedData = nullptr;
+
+        if (targetType->isPointerTy()) {
+            castedData = builder.CreateIntToPtr(data,
+                targetType);
+        } else if (targetType->isFloatingPointTy()) {
+            castedData = builder.CreateBitCast(data,
+                targetType);
+        } else {
+            castedData = builder.CreateIntCast(data,
+                targetType,
+                false);
+        }
+
+        auto resultType = builder.CreateLoad(
+            builder.CreateStructGEP(resultPtr, TTypeBuilder::Type));
+        auto isNull = builder.CreateICmpEQ(
+            resultType,
+            builder.getInt16(static_cast<ui16>(EValueType::Null)));
+
+        return TCGValue::CreateFromValue(
+            builder,
+            isNull,
+            length,
+            castedData,
+            type);
+    };
+}
+
+void TUnversionedValueCallingConvention::CheckResultType(
+    Type* llvmType,
+    EValueType resultType,
+    TCGContext& builder) const
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TUserDefinedFunction::TUserDefinedFunction(
     const Stroka& functionName,
     std::vector<EValueType> argumentTypes,
@@ -229,13 +316,13 @@ void TUserDefinedFunction::CheckCallee(
         expected != argumentValues.end();
         expected++, actual++, i++)
     {
-        if (actual->getType() != (*expected)->getType()) {
-            THROW_ERROR_EXCEPTION(
-                "Wrong type for argument %v in LLVM bitcode: expected %Qv, got %Qv",
-                i,
-                LLVMTypeToString((*expected)->getType()),
-                LLVMTypeToString(actual->getType()));
-        }
+        //if (actual->getType() != (*expected)->getType()) {
+        //    THROW_ERROR_EXCEPTION(
+        //        "Wrong type for argument %v in LLVM bitcode: expected %Qv, got %Qv",
+        //        i,
+        //        LLVMTypeToString((*expected)->getType()),
+        //        LLVMTypeToString(actual->getType()));
+        //}
     }
 }
 
