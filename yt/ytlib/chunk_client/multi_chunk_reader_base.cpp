@@ -453,7 +453,6 @@ void TParallelMultiChunkReaderBase::DoOpen()
 
 void TParallelMultiChunkReaderBase::OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex)
 {
-    UNUSED(chunkIndex);
     TSession session;
     session.ChunkReader = chunkReader;
     session.ChunkSpecIndex = chunkIndex;
