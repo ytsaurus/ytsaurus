@@ -365,6 +365,7 @@ private:
         ValidateKeyColumns(ReaderKeyColumns_, chunkKeyColumns);
 
         tableChunkReader->EmptyKey_.resize(chunkKeyColumns.size());
+        tableChunkReader->CurrentKey_.resize(chunkKeyColumns.size());
         auto nameTable = tableChunkReader->GetNameTable();
         for (int i = 0; i < chunkKeyColumns.size(); ++i) {
             auto id = nameTable->GetIdOrRegisterName(chunkKeyColumns[i]);
@@ -440,6 +441,7 @@ private:
             LOG_DEBUG("Skipped initial rows for channel %v", channelIndex);
         }
 
+        tableChunkReader->ResetCurrentRow();
         tableChunkReader->MakeAndValidateRow();
     }
 
