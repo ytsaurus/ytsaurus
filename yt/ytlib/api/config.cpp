@@ -80,9 +80,9 @@ TConnectionConfig::TConnectionConfig()
         .GreaterThan(0)
         .Default(1000);
 
-    RegisterParameter("enable_udfs", EnableUDFs)
+    RegisterParameter("enable_udf", EnableUdf)
         .Default(false);
-    RegisterParameter("udf_registry_path", UDFRegistryPath)
+    RegisterParameter("udf_registry_path", UdfRegistryPath)
         .Default("//tmp/udfs");
 }
 
