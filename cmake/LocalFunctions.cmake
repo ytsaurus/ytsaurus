@@ -12,7 +12,7 @@ function(UDF udf output)
   get_filename_component( _filename ${_realpath} NAME_WE )
 
   set(${output} ${${output}} ${_dirname}/${_filename}.h PARENT_SCOPE)
-  set(${_include_dir} ${CMAKE_BINARY_DIR}/yt/ytlib/udfs)
+  set(${_include_dir} ${CMAKE_BINARY_DIR}/yt/ytlib/udf)
 
   find_program(CLANG_EXECUTABLE
     NAMES clang-3.6 clang
@@ -23,13 +23,13 @@ function(UDF udf output)
     OUTPUT
       ${_dirname}/${_filename}.h
     COMMAND
-      ${CLANG_EXECUTABLE} -I${CMAKE_SOURCE_DIR}/yt/ytlib/udfs -c -emit-llvm ${_realpath}
+      ${CLANG_EXECUTABLE} -I${CMAKE_SOURCE_DIR}/yt/ytlib/udf -c -emit-llvm ${_realpath}
     COMMAND
       xxd -i ${_filename}.bc > ${_filename}.h
     MAIN_DEPENDENCY
       ${_realpath}
     DEPENDS
-      ${CMAKE_SOURCE_DIR}/yt/ytlib/udfs/udf_helpers.h
+      ${CMAKE_SOURCE_DIR}/yt/ytlib/udf/udf_helpers.h
     WORKING_DIRECTORY
       ${_dirname}
     COMMENT "Generating LLVM bitcode for ${_filename}..."

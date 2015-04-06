@@ -4,6 +4,10 @@
 
 #ifdef YT_USE_LLVM
 #include "udf/absolute.h"
+#include <udf/exponentiate.h>
+#include <udf/parse_natural.h>
+#include <udf/to_lower.h>
+#include <udf/is_null_udf.h>
 #include "udf/invalid_ir.h"
 #endif
 
@@ -30,11 +34,6 @@
 #include <ytlib/new_table_client/schemaful_writer.h>
 
 #ifdef YT_USE_LLVM
-#include <udfs/exponentiate.h>
-#include <udfs/parse_natural.h>
-#include <udfs/to_lower.h>
-#include <udfs/is_null_udf.h>
-
 #include <ytlib/query_client/folding_profiler.h>
 #endif
 
