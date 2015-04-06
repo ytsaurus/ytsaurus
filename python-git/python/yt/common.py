@@ -44,8 +44,11 @@ def require(condition, exception):
 def update(d, u):
     for k, v in u.iteritems():
         if isinstance(v, collections.Mapping):
-            r = update(d.get(k, {}), v)
-            d[k] = r
+            if not isinstance(d.get(k, {}), collections.Mapping):
+                d[k] = v
+            else:
+                r = update(d.get(k, {}), v)
+                d[k] = r
         else:
             d[k] = u[k]
     return d
