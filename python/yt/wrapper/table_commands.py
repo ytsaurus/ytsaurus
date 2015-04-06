@@ -1206,8 +1206,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     if sort_by is None:
         sort_by = reduce_by
 
-    sort_by = _prepare_sort_by(sort_by)
     reduce_by = _prepare_reduce_by(reduce_by)
+    sort_by = _prepare_sort_by(sort_by)
 
     spec = compose(
         _configure_spec,
