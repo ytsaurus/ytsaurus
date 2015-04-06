@@ -18,17 +18,16 @@ struct IProxyController
 {
     /*!
      *  Runs job proxy.
-     *  May throw exception.
      */
     virtual TFuture<void> Run() = 0;
 
     /*!
-     *  Is safe to be called anytime.
-     *  Kills job proxy if it is running.
+     *  Safe to call anytime.
+     *  Kills job proxy and all user processes if running.
      *
-     *  Must be called from the same thread as #Run.
+     *  Thread affinity: same thread as #Run.
      */
-    virtual void Kill(const NCGroup::TNonOwningCGroup& group, const TError& error) throw() = 0;
+    virtual void Kill(const NCGroup::TNonOwningCGroup& group, const TError& error) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
