@@ -177,6 +177,20 @@ public:
             CodegenValuesPtrFromRow(builder, row),
             index,
             name + ".valuePtr");
+
+        return CreateFromLLVMValue(
+            builder,
+            valuePtr,
+            staticType,
+            name);
+    }
+
+    static TCGValue CreateFromLLVMValue(
+        TCGIRBuilder& builder,
+        Value* valuePtr,
+        EValueType staticType,
+        Twine name = Twine())
+    {
         auto type = builder.CreateLoad(
             builder.CreateStructGEP(valuePtr, TTypeBuilder::Type, name + ".typePtr"),
             name + ".type");

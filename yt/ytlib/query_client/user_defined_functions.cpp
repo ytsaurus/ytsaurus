@@ -186,7 +186,6 @@ void TSimpleCallingConvention::CheckResultType(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//TODO: this is practically the same as CreateFromRow
 TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     std::vector<TCodegenExpression> codegenArgs,
     std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
@@ -198,7 +197,6 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 
         auto unversionedValueType =
             llvm::TypeBuilder<TUnversionedValue, false>::get(builder.getContext());
-        unversionedValueType->setName("TUnversionedValue");
 
         auto unversionedValueStruct = StructType::create(
             builder.getContext(),
@@ -210,10 +208,7 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
             PointerType::getUnqual(unversionedValueStruct));
         argumentValues.push_back(castedResultPtr);
 
-        for (auto arg = codegenArgs.begin();
-            arg != codegenArgs.end();
-            arg++)
-        {
+        for (auto arg = codegenArgs.begin(); arg != codegenArgs.end(); arg++) {
             auto valuePtr = builder.CreateAlloca(unversionedValueType);
             auto cgValue = (*arg)(builder, row);
             cgValue.StoreToValue(builder, valuePtr, 0);
@@ -225,39 +220,10 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
         }
 
         codegenBody(argumentValues, builder);
-        
-        auto length = builder.CreateLoad(
-            builder.CreateStructGEP(resultPtr, TTypeBuilder::Length));
 
-        auto data = builder.CreateLoad(
-            builder.CreateStructGEP(resultPtr, TTypeBuilder::Data));
-        Type* targetType = TDataTypeBuilder::get(builder.getContext(), type);
-
-        Value* castedData = nullptr;
-
-        if (targetType->isPointerTy()) {
-            castedData = builder.CreateIntToPtr(data,
-                targetType);
-        } else if (targetType->isFloatingPointTy()) {
-            castedData = builder.CreateBitCast(data,
-                targetType);
-        } else {
-            castedData = builder.CreateIntCast(data,
-                targetType,
-                false);
-        }
-
-        auto resultType = builder.CreateLoad(
-            builder.CreateStructGEP(resultPtr, TTypeBuilder::Type));
-        auto isNull = builder.CreateICmpEQ(
-            resultType,
-            builder.getInt16(static_cast<ui16>(EValueType::Null)));
-
-        return TCGValue::CreateFromValue(
+        return TCGValue::CreateFromLLVMValue(
             builder,
-            isNull,
-            length,
-            castedData,
+            resultPtr,
             type);
     };
 }
