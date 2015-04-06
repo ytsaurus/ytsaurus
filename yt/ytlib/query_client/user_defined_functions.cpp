@@ -282,13 +282,13 @@ void TUserDefinedFunction::CheckCallee(
         expected != argumentValues.end();
         expected++, actual++, i++)
     {
-        //if (actual->getType() != (*expected)->getType()) {
-        //    THROW_ERROR_EXCEPTION(
-        //        "Wrong type for argument %v in LLVM bitcode: expected %Qv, got %Qv",
-        //        i,
-        //        LLVMTypeToString((*expected)->getType()),
-        //        LLVMTypeToString(actual->getType()));
-        //}
+        if (actual->getType() != (*expected)->getType()) {
+            THROW_ERROR_EXCEPTION(
+                "Wrong type for argument %v in LLVM bitcode: expected %Qv, got %Qv",
+                i,
+                LLVMTypeToString((*expected)->getType()),
+                LLVMTypeToString(actual->getType()));
+        }
     }
 }
 
