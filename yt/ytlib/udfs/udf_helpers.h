@@ -32,7 +32,6 @@ typedef struct TUnversionedValue
     TUnversionedValueData Data;
 } TUnversionedValue;
 
-typedef struct TExecutionContext {
-    void* OutputBuffer;
-    void* IntermediateBuffer;
-} TExecutionContext;
+typedef struct TExecutionContext TExecutionContext;
+
+char* AllocateBytes(TExecutionContext* context, size_t size);

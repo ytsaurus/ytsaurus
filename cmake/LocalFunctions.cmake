@@ -29,7 +29,7 @@ function(UDF udf output)
     MAIN_DEPENDENCY
       ${_realpath}
     DEPENDS
-      ${CMAKE_SOURCE_DIR}/yt/ytlib/udfs/unversioned_value.h
+      ${CMAKE_SOURCE_DIR}/yt/ytlib/udfs/udf_helpers.h
     WORKING_DIRECTORY
       ${_dirname}
     COMMENT "Generating LLVM bitcode for ${_filename}..."
