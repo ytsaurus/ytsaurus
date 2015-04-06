@@ -12,6 +12,7 @@ function(UDF udf output)
   get_filename_component( _filename ${_realpath} NAME_WE )
 
   set(${output} ${${output}} ${_dirname}/${_filename}.h PARENT_SCOPE)
+  set(${_include_dir} ${CMAKE_BINARY_DIR}/yt/ytlib/udfs)
 
   find_program(CLANG_EXECUTABLE
     NAMES clang-3.6 clang
@@ -22,7 +23,7 @@ function(UDF udf output)
     OUTPUT
       ${_dirname}/${_filename}.h
     COMMAND
-      ${CLANG_EXECUTABLE} -c -emit-llvm ${_realpath}
+      ${CLANG_EXECUTABLE} -I${CMAKE_SOURCE_DIR}/yt/ytlib/udfs -c -emit-llvm ${_realpath}
     COMMAND
       xxd -i ${_filename}.bc > ${_filename}.h
     MAIN_DEPENDENCY
