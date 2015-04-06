@@ -76,6 +76,9 @@ public:
     //! to create freezer subcgroups
     bool EnableCGroups;
 
+    //! Thread pool for job startup initialization.
+    int PoolSize;
+
     TSlotManagerConfig()
     {
         RegisterParameter("path", Path)
@@ -86,6 +89,9 @@ public:
             .Default(10000);
         RegisterParameter("enable_cgroups", EnableCGroups)
             .Default(true);
+        RegisterParameter("pool_size", PoolSize)
+            .GreaterThanOrEqual(1)
+            .Default(3);
     }
 };
 
