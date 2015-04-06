@@ -362,7 +362,7 @@ private:
             JobPhase = EJobPhase::Running;
             RunJobProxy();
         } catch (const std::exception& ex) {
-            DoAbort(ex);
+            Slot->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this), ex));
         }
     }
 

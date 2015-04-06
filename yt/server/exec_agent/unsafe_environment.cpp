@@ -97,7 +97,11 @@ public:
 
         LOG_INFO("Spawning a job proxy (Path: %v)", ProxyPath);
 
-        Process.Spawn();
+        try {
+            Process.Spawn();
+        } catch (const std::exception& ex) {
+            return MakeFuture(TError("Failed to spawn job pxoxy") << ex);
+        }
 
         LOG_INFO("Job proxy started (ProcessId: %v)",
             Process.GetProcessId());
@@ -112,7 +116,7 @@ public:
     }
 
     // Safe to call multiple times
-    virtual void Kill(const TNonOwningCGroup& group, const TError& error) throw() override
+    virtual void Kill(const TNonOwningCGroup& group, const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
