@@ -233,6 +233,11 @@ void TUnversionedValueCallingConvention::CheckResultType(
     EValueType resultType,
     TCGContext& builder) const
 {
+    if (llvmType != builder.getVoidTy()) {
+        THROW_ERROR_EXCEPTION(
+            "Wrong result type in LLVM bitcode: expected void, got %Qv",
+            LLVMTypeToString(llvmType));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
