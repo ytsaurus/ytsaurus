@@ -26,7 +26,6 @@
 #include <core/rpc/service_detail.h>
 
 #include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/action_queue.h>
 
 #include <ytlib/new_table_client/name_table.h>
@@ -133,9 +132,9 @@ public:
     }
 
 private:
-    TDataNodeConfigPtr Config_;
-    TActionQueuePtr WorkerThread_;
-    TBootstrap* Bootstrap_;
+    const TDataNodeConfigPtr Config_;
+    const TActionQueuePtr WorkerThread_;
+    TBootstrap* const Bootstrap_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -325,265 +324,145 @@ private:
     }
 
 
-    class TGetBlockSetSession
-        : public TIntrinsicRefCounted
-    {
-    public:
-        typedef NRpc::TTypedServiceContext<TReqGetBlockSet, TRspGetBlockSet> TCtxGetBlockSet;
-        typedef TIntrusivePtr<TCtxGetBlockSet> TCtxGetBlockSetPtr;
-
-        TGetBlockSetSession(
-            TIntrusivePtr<TDataNodeService> owner,
-            TCtxGetBlockSetPtr context)
-            : Owner_(std::move(owner))
-            , Context_(std::move(context))
-            , Logger(DataNodeLogger)
-            , Awaiter_(New<TParallelAwaiter>(Owner_->Bootstrap_->GetControlInvoker()))
-            , BlocksWithData_(0)
-            , BlocksSize_(0)
-        { }
-
-        void Run()
-        {
-            const auto& request = Context_->Request();
-            auto& response = Context_->Response();
-
-            auto chunkId = FromProto<TChunkId>(request.chunk_id());
-            bool enableCaching = request.enable_caching();
-            auto sessionType = EReadSessionType(request.session_type());
-
-            Context_->SetRequestInfo("BlockIds: %v:[%v], EnableCaching: %v, SessionType: %v",
-                chunkId,
-                JoinToString(request.block_indexes()),
-                enableCaching,
-                sessionType);
-
-            Owner_->ValidateConnected();
-
-            auto chunkStore = Owner_->Bootstrap_->GetChunkStore();
-            auto blockStore = Owner_->Bootstrap_->GetBlockStore();
-            auto peerBlockTable = Owner_->Bootstrap_->GetPeerBlockTable();
-
-            response.set_has_complete_chunk(chunkStore->FindChunk(chunkId) != nullptr);
-            response.set_throttling(Owner_->IsOutThrottling());
-
-            if (response.throttling()) {
-                // Cannot send the actual data to the client due to throttling.
-                // Let's try to suggest some other peers.
-                for (int blockIndex : request.block_indexes()) {
-                    TBlockId blockId(chunkId, blockIndex);
-                    const auto& peers = peerBlockTable->GetPeers(blockId);
-                    if (!peers.empty()) {
-                        auto* peerDescriptor = response.add_peer_descriptors();
-                        peerDescriptor->set_block_index(blockIndex);
-                        for (const auto& peer : peers) {
-                            ToProto(peerDescriptor->add_node_descriptors(), peer.Descriptor);
-                        }
-                        LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
-                            blockId,
-                            static_cast<int>(peers.size()));
-                    }
-                }
-            } else {
-                response.Attachments().resize(request.block_indexes().size());
-
-                // Assign decreasing priorities to block requests to take advantage of sequential read.
-                i64 priority = Context_->GetPriority();
-
-                for (int index = 0; index < request.block_indexes().size(); ++index) {
-                    int blockIndex = request.block_indexes(index);
-
-                    LOG_DEBUG("Fetching block (BlockId: %v:%v)",
-                        chunkId,
-                        blockIndex);
-
-                    Awaiter_->Await(
-                        blockStore->ReadBlock(
-                            chunkId,
-                            blockIndex,
-                            priority,
-                            enableCaching),
-                        BIND(
-                            &TGetBlockSetSession::OnBlockFound,
-                            MakeStrong(this),
-                            index));
-
-                    --priority;
-                }
-            }
-
-            Awaiter_->Complete(
-                BIND(&TGetBlockSetSession::OnComplete, MakeStrong(this)));
-        }
-
-    private:
-        TIntrusivePtr<TDataNodeService> Owner_;
-        TCtxGetBlockSetPtr Context_;
-        NLogging::TLogger Logger;
-
-        TParallelAwaiterPtr Awaiter_;
-
-        // Updated multiple times.
-        std::atomic<int> BlocksWithData_;
-        std::atomic<i64> BlocksSize_;
-
-
-        void OnBlockFound(int index, const TErrorOr<TSharedRef>& blockOrError)
-        {
-            if (!blockOrError.IsOK()) {
-                // Something went wrong while fetching the blocks.
-                Awaiter_->Cancel();
-                Context_->Reply(blockOrError);
-                return;
-            }
-
-            const auto& block = blockOrError.Value();
-            if (block) {
-                auto& response = Context_->Response();
-                response.Attachments()[index] = block;
-                BlocksWithData_ += 1;
-                BlocksSize_ += block.Size();
-            }
-        }
-
-        void OnComplete()
-        {
-            const auto& request = Context_->Request();
-            auto& response = Context_->Response();
-            auto chunkId = FromProto<TChunkId>(request.chunk_id());
-            auto peerBlockTable = Owner_->Bootstrap_->GetPeerBlockTable();
-
-            // Register the peer that we had just sent the reply to.
-            if (request.has_peer_descriptor() && request.has_peer_expiration_time()) {
-                auto descriptor = FromProto<TNodeDescriptor>(request.peer_descriptor());
-                auto expirationTime = TInstant(request.peer_expiration_time());
-                TPeerInfo peerInfo(descriptor, expirationTime);
-                for (int blockIndex : request.block_indexes()) {
-                    peerBlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peerInfo);
-                }
-            }
-
-            Context_->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
-                response.has_complete_chunk(),
-                response.throttling(),
-                BlocksWithData_.load(),
-                response.peer_descriptors_size(),
-                BlocksSize_.load());
-
-            // Throttle response.
-            auto sessionType = EReadSessionType(request.session_type());
-            auto throttler = Owner_->Bootstrap_->GetOutThrottler(sessionType);
-            Context_->ReplyFrom(throttler->Throttle(BlocksSize_));
-        }
-
-    };
-
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
-        New<TGetBlockSetSession>(this, std::move(context))->Run();
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        bool enableCaching = request->enable_caching();
+        auto sessionType = EReadSessionType(request->session_type());
+
+        context->SetRequestInfo("BlockIds: %v:[%v], EnableCaching: %v, SessionType: %v",
+            chunkId,
+            JoinToString(request->block_indexes()),
+            enableCaching,
+            sessionType);
+
+        ValidateConnected();
+
+        auto chunkStore = Bootstrap_->GetChunkStore();
+        auto blockStore = Bootstrap_->GetBlockStore();
+        auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
+
+        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId) != nullptr);
+        response->set_throttling(IsOutThrottling());
+
+        if (IsOutThrottling()) {
+            // Cannot send the actual data to the client due to throttling.
+            // Let's try to suggest some other peers.
+            for (int blockIndex : request->block_indexes()) {
+                TBlockId blockId(chunkId, blockIndex);
+                const auto& peers = peerBlockTable->GetPeers(blockId);
+                if (!peers.empty()) {
+                    auto* peerDescriptor = response->add_peer_descriptors();
+                    peerDescriptor->set_block_index(blockIndex);
+                    for (const auto& peer : peers) {
+                        ToProto(peerDescriptor->add_node_descriptors(), peer.Descriptor);
+                    }
+                    LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
+                        blockId,
+                        peers.size());
+                }
+            }
+        } else {
+            // Assign decreasing priorities to block requests to take advantage of sequential read.
+            i64 priority = context->GetPriority();
+            std::vector<TFuture<TSharedRef>> asyncBlocks;
+            for (int index = 0; index < request->block_indexes().size(); ++index) {
+                int blockIndex = request->block_indexes(index);
+
+                LOG_DEBUG("Fetching block (BlockId: %v:%v)",
+                    chunkId,
+                    blockIndex);
+
+                auto asyncBlock = blockStore->ReadBlock(
+                    chunkId,
+                    blockIndex,
+                    priority,
+                    enableCaching);
+                asyncBlocks.push_back(asyncBlock);
+
+                --priority;
+            }
+
+            response->Attachments() = WaitFor(Combine(asyncBlocks))
+                .ValueOrThrow();
+        }
+
+
+        int blocksWithData = 0;
+        for (const auto& block : response->Attachments()) {
+            if (block) {
+                ++blocksWithData;
+            }
+        }
+
+        i64 blocksSize = GetTotalSize(response->Attachments());
+
+        // Register the peer that we had just sent the reply to.
+        if (request->has_peer_descriptor() && request->has_peer_expiration_time()) {
+            auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
+            auto expirationTime = TInstant(request->peer_expiration_time());
+            TPeerInfo peerInfo(descriptor, expirationTime);
+            for (int blockIndex : request->block_indexes()) {
+                peerBlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peerInfo);
+            }
+        }
+
+        context->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
+            response->has_complete_chunk(),
+            response->throttling(),
+            blocksWithData,
+            response->peer_descriptors_size(),
+            blocksSize);
+
+        // Throttle response.
+        auto throttler = Bootstrap_->GetOutThrottler(sessionType);
+        context->ReplyFrom(throttler->Throttle(blocksSize));
     }
-
-    class TGetBlockRangeSession
-        : public TIntrinsicRefCounted
-    {
-    public:
-        typedef NRpc::TTypedServiceContext<TReqGetBlockRange, TRspGetBlockRange> TCtxGetBlockRange;
-        typedef TIntrusivePtr<TCtxGetBlockRange> TCtxGetBlockRangePtr;
-
-        TGetBlockRangeSession(TIntrusivePtr<TDataNodeService> owner, TCtxGetBlockRangePtr context)
-            : Owner_(std::move(owner))
-            , Context_(std::move(context))
-            , BlocksWithData_(0)
-            , BlocksSize_(0)
-        { }
-
-        void Run()
-        {
-            const auto& request = Context_->Request();
-            auto& response = Context_->Response();
-
-            auto chunkId = FromProto<TChunkId>(request.chunk_id());
-            auto sessionType = EReadSessionType(request.session_type());
-            int firstBlockIndex = request.first_block_index();
-            int blockCount = request.block_count();
-
-            Context_->SetRequestInfo("BlockIds: %v:%v-%v, SessionType: %v",
-                chunkId,
-                firstBlockIndex,
-                firstBlockIndex + blockCount - 1,
-                sessionType);
-
-            Owner_->ValidateConnected();
-
-            auto chunkStore = Owner_->Bootstrap_->GetChunkStore();
-            auto blockStore = Owner_->Bootstrap_->GetBlockStore();
-
-            response.set_has_complete_chunk(chunkStore->FindChunk(chunkId) != nullptr);
-            response.set_throttling(Owner_->IsOutThrottling());
-
-            if (response.throttling()) {
-                OnComplete();
-            } else {
-                blockStore
-                    ->ReadBlocks(
-                        chunkId,
-                        firstBlockIndex,
-                        blockCount,
-                        Context_->GetPriority())
-                    .Subscribe(BIND(&TGetBlockRangeSession::OnGotBlocks, MakeStrong(this)));
-            }
-        }
-
-    private:
-        TIntrusivePtr<TDataNodeService> Owner_;
-        TCtxGetBlockRangePtr Context_;
-
-        // Updated just once.
-        int BlocksWithData_;
-        i64 BlocksSize_;
-
-
-        void OnGotBlocks(const TErrorOr<std::vector<TSharedRef>>& blocksOrError)
-        {
-            if (!blocksOrError.IsOK()) {
-                // Something went wrong while fetching the blocks.
-                Context_->Reply(blocksOrError);
-                return;
-            }
-
-            const auto& blocks = blocksOrError.Value();
-            auto& response = Context_->Response();
-            for (const auto& block : blocks) {
-                response.Attachments().push_back(block);
-                BlocksWithData_ += 1;
-                BlocksSize_ += block.Size();
-            }
-
-            OnComplete();
-        }
-
-        void OnComplete()
-        {
-            const auto& request = Context_->Request();
-            auto& response = Context_->Response();
-
-            Context_->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksSize: %v",
-                response.has_complete_chunk(),
-                response.throttling(),
-                BlocksWithData_,
-                BlocksSize_);
-
-            // Throttle response.
-            auto sessionType = EReadSessionType(request.session_type());
-            auto throttler = Owner_->Bootstrap_->GetOutThrottler(sessionType);
-            Context_->ReplyFrom(throttler->Throttle(BlocksSize_));
-        }
-
-    };
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
     {
-        New<TGetBlockRangeSession>(this, std::move(context))->Run();
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto sessionType = EReadSessionType(request->session_type());
+        int firstBlockIndex = request->first_block_index();
+        int blockCount = request->block_count();
+
+        context->SetRequestInfo("BlockIds: %v:%v-%v, SessionType: %v",
+             chunkId,
+             firstBlockIndex,
+             firstBlockIndex + blockCount - 1,
+             sessionType);
+
+        ValidateConnected();
+
+        auto chunkStore = Bootstrap_->GetChunkStore();
+        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId) != nullptr);
+
+        response->set_throttling(IsOutThrottling());
+
+        if (!IsOutThrottling()) {
+            auto blockStore = Bootstrap_->GetBlockStore();
+            auto asyncBlocks = blockStore->ReadBlocks(
+                chunkId,
+                firstBlockIndex,
+                blockCount,
+                context->GetPriority());
+            auto blocks = WaitFor(asyncBlocks)
+                .ValueOrThrow();
+            response->Attachments().insert(response->Attachments().end(), blocks.begin(), blocks.end());
+        }
+
+        int blocksWithData = response->Attachments().size();
+        i64 blocksSize = GetTotalSize(response->Attachments());
+
+        context->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksSize: %v",
+            response->has_complete_chunk(),
+            response->throttling(),
+            blocksWithData,
+            blocksSize);
+
+        // Throttle response.
+        auto throttler = Bootstrap_->GetOutThrottler(sessionType);
+        context->ReplyFrom(throttler->Throttle(blocksSize));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
