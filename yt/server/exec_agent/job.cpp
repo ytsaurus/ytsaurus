@@ -114,12 +114,8 @@ public:
         auto slotManager = Bootstrap->GetExecSlotManager();
         Slot = slotManager->AcquireSlot();
 
-        auto invoker = Slot->GetInvoker();
-
-        VERIFY_INVOKER_THREAD_AFFINITY(invoker, JobThread);
-
         RunFuture = BIND(&TJob::DoRun, MakeWeak(this))
-            .AsyncVia(invoker)
+            .AsyncVia(Slot->GetInvoker())
             .Run();
     }
 
@@ -332,13 +328,10 @@ private:
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
 
     void DoRun()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
         try {
             JobState = EJobState::Running;
 
@@ -485,8 +478,6 @@ private:
 
     void DoAbort(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
         if (JobPhase == EJobPhase::Finished || JobState == EJobState::Aborting)
             return;
 
