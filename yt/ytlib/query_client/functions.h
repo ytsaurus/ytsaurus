@@ -1,16 +1,7 @@
 #pragma once
 
 #include "cg_fragment_compiler.h"
-
 #include "key_trie.h"
-#include "plan_fragment.h"
-
-#include <core/codegen/module.h>
-
-#include <core/misc/variant.h>
-#include <core/misc/ref_counted.h>
-
-#include <util/generic/stroka.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -18,10 +9,8 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IFunctionDescriptor
-    : public TRefCounted
+    : public virtual TRefCounted
 {
-    virtual ~IFunctionDescriptor();
-
     virtual Stroka GetName() const = 0;
 
     virtual EValueType InferResultType(

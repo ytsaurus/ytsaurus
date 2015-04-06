@@ -43,7 +43,6 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/cg_fragment_compiler.cpp
     ${BASE}/folding_profiler.cpp
     ${BASE}/evaluation_helpers.cpp
-    ${BASE}/functions.cpp
     ${BASE}/builtin_functions.cpp
     ${BASE}/function_registry.cpp
   )

@@ -26,23 +26,22 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYPath;
 
+////////////////////////////////////////////////////////////////////////////////
+
 static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IFunctionRegistry::~IFunctionRegistry()
-{ }
-
 IFunctionDescriptorPtr IFunctionRegistry::GetFunction(const Stroka& functionName)
 {
     auto function = FindFunction(functionName);
-    YCHECK(function != nullptr);
+    YCHECK(function);
     return function;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFunctionRegistry::RegisterFunction(TIntrusivePtr<IFunctionDescriptor> function)
+void TFunctionRegistry::RegisterFunction(IFunctionDescriptorPtr function)
 {
     Stroka functionName = to_lower(function->GetName());
     YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(function))).second);
@@ -112,24 +111,19 @@ TSharedRef ReadFile(const Stroka& fileName, NApi::IClientPtr client)
 {
     auto reader = client->CreateFileReader(fileName);
 
-    auto result = WaitFor(reader->Open());
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    WaitFor(reader->Open())
+        .ThrowOnError();
 
-    int size = 0;
     std::vector<TSharedRef> blocks;
     while (true) {
-        auto blockOrError = WaitFor(reader->Read());
-        THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
-        auto block = blockOrError.Value();
-
-        if (!block) {
+        auto block = WaitFor(reader->Read())
+            .ValueOrThrow();
+        if (!block)
             break;
-        }
-
         blocks.push_back(block);
-        size += block.Size();
     }
-    
+
+    i64 size = GetTotalSize(blocks);
     auto file = TSharedRef::Allocate(size);
     auto memoryOutput = TMemoryOutput(
         file.Begin(),
@@ -144,36 +138,43 @@ TSharedRef ReadFile(const Stroka& fileName, NApi::IClientPtr client)
 
 TCypressFunctionRegistry::TCypressFunctionRegistry(
     NApi::IClientPtr client,
-    const Stroka& registryPath,
+    const NYPath::TYPath& registryPath,
     TFunctionRegistryPtr builtinRegistry)
     : Client_(client)
     , RegistryPath_(registryPath)
     , BuiltinRegistry_(std::move(builtinRegistry))
-    , UDFRegistry_(New<TFunctionRegistry>())
+    , UdfRegistry_(New<TFunctionRegistry>())
 { }
 
 IFunctionDescriptorPtr TCypressFunctionRegistry::FindFunction(const Stroka& functionName)
 {
     if (auto function = BuiltinRegistry_->FindFunction(functionName)) {
         return function;
-    } else if (auto function = UDFRegistry_->FindFunction(functionName)) {
+    } else if (auto function = UdfRegistry_->FindFunction(functionName)) {
         LOG_DEBUG("Found a cached implementation of function %Qv", functionName);
         return function;
     } else {
         LookupAndRegister(functionName);
-        return UDFRegistry_->FindFunction(functionName);
+        return UdfRegistry_->FindFunction(functionName);
     }
 }
 
 void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
 {
-    LOG_DEBUG("Looking for implementation of function %Qv in Cypress", functionName);
+    LOG_DEBUG("Looking for implementation of function %Qv in Cypress",
+        functionName);
+
     auto functionPath = RegistryPath_ + "/" + ToYPathLiteral(to_lower(functionName));
 
     auto cypressFunctionOrError = WaitFor(Client_->GetNode(functionPath));
     if (!cypressFunctionOrError.IsOK()) {
+        LOG_DEBUG(cypressFunctionOrError, "Failed to find implementation of function %Qv in Cypress",
+            functionName);
         return;
     }
+
+    LOG_DEBUG("Found implementation of function %Qv in Cypress",
+        functionName);
 
     auto cypressFunction = ConvertTo<TCypressFunctionDescriptorPtr>(
         cypressFunctionOrError.Value());
@@ -182,7 +183,7 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
         cypressFunction->ImplementationPath,
         Client_);
 
-    UDFRegistry_->RegisterFunction(New<TUserDefinedFunction>(
+    UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
         cypressFunction->Name,
         cypressFunction->ArgumentTypes,
         cypressFunction->ResultType,
