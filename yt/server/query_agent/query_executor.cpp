@@ -340,9 +340,12 @@ private:
                 return RefinePredicate(keySource.second, expr, keyColumns);
             });
             subreaderCreators.push_back([&] () {
-                LOG_DEBUG("Creating lookup reader for %v keys", keySource.second.size());
-                LOG_DEBUG_IF(fragment->VerboseLogging, "Keys are %v", JoinToString(keySource.second));
-                return GetReader(keySource.first, keySource.second, timestamp, nodeDirectory);
+                std::vector<ISchemafulReaderPtr> bottomSplitReaders;
+                for (const auto& keys : SplitKeys(keySource.first, keySource.second)) {
+                    LOG_DEBUG_IF(fragment->VerboseLogging, "Creating lookup reader for %v keys %v", keys.size(), JoinToString(keys));
+                    bottomSplitReaders.push_back(GetReader(keySource.first, keys, timestamp));
+                }
+                return CreateUnorderedSchemafulReader(bottomSplitReaders);
             });
         }
 
@@ -497,6 +500,42 @@ private:
         return allSplits;
     }
 
+    std::vector<std::vector<TRow>> SplitKeys(
+        TGuid tabletId,
+        std::vector<TRow> keys)
+    {
+        std::sort(keys.begin(), keys.end());
+
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+        const auto& partitions = tabletSnapshot->Partitions;
+
+        // Group keys by partitions.
+        std::vector<std::vector<TRow>> resultKeys;
+
+        auto it = keys.begin();
+        while (it != keys.end()) {
+            auto nextPartition = std::upper_bound(
+                partitions.begin(),
+                partitions.end(),
+                *it,
+                [] (const TRow& lhs, const TPartitionSnapshotPtr& rhs) {
+                    return lhs < rhs->PivotKey.Get();
+                });
+
+            if (nextPartition == partitions.end()) {
+                resultKeys.emplace_back(it, keys.end());
+                break;
+            }
+
+            auto nextIt = std::lower_bound(it, keys.end(), (*nextPartition)->PivotKey.Get());
+            resultKeys.emplace_back(it, nextIt);
+            it = nextIt;
+        }
+
+        return resultKeys;
+    }
+
     std::pair<int, int> GetBoundSampleKeys(
         TTabletSnapshotPtr tabletSnapshot,
         const TOwningKey& lowerBound,
@@ -644,7 +683,7 @@ private:
                 return GetChunkReader(source, timestamp, std::move(nodeDirectory));
 
             case EObjectType::Tablet:
-                return GetTabletReader(source, timestamp, std::move(nodeDirectory));
+                return GetTabletReader(source, timestamp);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -655,12 +694,11 @@ private:
     ISchemafulReaderPtr GetReader(
         const NObjectClient::TObjectId& objectId,
         const std::vector<TUnversionedRow>& keys,
-        TTimestamp timestamp,
-        TNodeDirectoryPtr nodeDirectory)
+        TTimestamp timestamp)
     {
         switch (TypeFromId(objectId)) {
             case EObjectType::Tablet:
-                return GetTabletReader(objectId, keys, timestamp, std::move(nodeDirectory));
+                return GetTabletReader(objectId, keys, timestamp);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -741,8 +779,7 @@ private:
 
     ISchemafulReaderPtr GetTabletReader(
         const TDataSource& source,
-        TTimestamp timestamp,
-        TNodeDirectoryPtr nodeDirectory)
+        TTimestamp timestamp)
     {
         try {
             auto tabletId = source.Id;
@@ -771,8 +808,7 @@ private:
     ISchemafulReaderPtr GetTabletReader(
         const NObjectClient::TObjectId& tabletId,
         const std::vector<TUnversionedRow>& keys,
-        TTimestamp timestamp,
-        TNodeDirectoryPtr nodeDirectory)
+        TTimestamp timestamp)
     {
         try {
             auto slotManager = Bootstrap_->GetTabletSlotManager();
