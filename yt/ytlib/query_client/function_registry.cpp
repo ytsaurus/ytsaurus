@@ -85,6 +85,11 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 }
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ECallingConvention,
+    (Simple)
+    (UnversionedValue)
+);
+
 class TCypressFunctionDescriptor
     : public TYsonSerializable
 {
@@ -93,6 +98,7 @@ public:
     std::vector<EValueType> ArgumentTypes;
     EValueType ResultType;
     Stroka ImplementationPath;
+    ECallingConvention CallingConvention;
 
     TCypressFunctionDescriptor()
     {
@@ -102,6 +108,7 @@ public:
         RegisterParameter("result_type", ResultType);
         RegisterParameter("implementation_path", ImplementationPath)
             .NonEmpty();
+        RegisterParameter("calling_convention", CallingConvention);
     }
 };
 
@@ -184,11 +191,24 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
         cypressFunction->ImplementationPath,
         Client_);
 
+    ICallingConventionPtr callingConvention;
+    switch (cypressFunction->CallingConvention) {
+        case ECallingConvention::Simple:
+            callingConvention = New<TSimpleCallingConvention>();
+            break;
+        case ECallingConvention::UnversionedValue:
+            callingConvention = New<TSimpleCallingConvention>();
+            break;
+        default:
+            YUNREACHABLE();
+    }
+
     UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
         cypressFunction->Name,
         cypressFunction->ArgumentTypes,
         cypressFunction->ResultType,
-        implementationFile));
+        implementationFile,
+        callingConvention));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -260,7 +260,8 @@ class TestQuery(YTEnvSetup):
             "argument_types": [
                 "int64"],
             "result_type": "int64",
-            "implementation_path": implementation_path
+            "implementation_path": implementation_path,
+            "calling_convention": "simple"
         }}
         set(registry_path, data)
 
