@@ -37,7 +37,14 @@ typedef std::function<void(
     const std::vector<TRow>& allRows,
     std::vector<TRow>* joinedRows)> TJoinEvaluator;
 
+struct TExecutionContextBase
+{
+    TRowBuffer* OutputBuffer;
+    TRowBuffer* IntermediateBuffer;
+};
+
 struct TExecutionContext
+    : public TExecutionContextBase
 {
 #ifndef NDEBUG
     size_t StackSizeGuardHelper;
@@ -49,8 +56,6 @@ struct TExecutionContext
     std::vector<std::vector<TOwningRow>>* LiteralRows;
     
     TRowBuffer* PermanentBuffer;
-    TRowBuffer* OutputBuffer;
-    TRowBuffer* IntermediateBuffer;
 
     std::vector<TRow>* Batch;
 

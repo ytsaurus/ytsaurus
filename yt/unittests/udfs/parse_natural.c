@@ -1,4 +1,6 @@
-unsigned long parse_natural(const char* string, int length)
+#include <unversioned_value.h>
+
+unsigned long parse_natural(TExecutionContext* context, const char* string, int length)
 {
     unsigned long result = 0;
     for (int i = 0; i < length; i++) {

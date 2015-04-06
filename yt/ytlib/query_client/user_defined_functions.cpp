@@ -31,6 +31,21 @@ Stroka LLVMTypeToString(llvm::Type* tp)
     return Stroka(stream.str());
 }
 
+void PushExecutionContext(
+    TCGContext& builder,
+    std::vector<Value*>& argumentValues)
+{
+    auto fullContext = builder.GetExecutionContextPtr();
+    auto baseContextType = StructType::create(
+        builder.getContext(),
+        "struct.TExecutionContext");
+    auto contextStruct = builder.CreateBitCast(
+        fullContext,
+        PointerType::getUnqual(baseContextType));
+    argumentValues.push_back(contextStruct);
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<Value*> SplitStringArguments(
@@ -115,6 +130,9 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
             TTypeBuilder::TLength::get(builder.getContext()));
 
         auto llvmArgs = std::vector<Value*>();
+
+        PushExecutionContext(builder, llvmArgs);
+
         if (IsStringLikeType(type)) {
             llvmArgs.push_back(resultPointer);
             llvmArgs.push_back(resultLength);
@@ -194,6 +212,8 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 {
     return [=] (TCGContext& builder, Value* row) {
         auto argumentValues = std::vector<Value*>();
+
+        PushExecutionContext(builder, argumentValues);
 
         auto unversionedValueType =
             llvm::TypeBuilder<TUnversionedValue, false>::get(builder.getContext());
@@ -328,6 +348,7 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
     auto codegenBody = [
         this_ = MakeStrong(this)
     ] (std::vector<Value*> argumentValues, TCGContext& builder) {
+
         auto callee = this_->GetLLVMFunction(builder);
         this_->CheckCallee(callee, builder, argumentValues);
         auto result = builder.CreateCall(callee, argumentValues);
