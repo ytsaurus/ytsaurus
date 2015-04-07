@@ -1,6 +1,6 @@
 #include <udf_helpers.h>
 
-void to_lower(
+void tolower_udf(
     TExecutionContext* context,
     char** result,
     int* result_length,

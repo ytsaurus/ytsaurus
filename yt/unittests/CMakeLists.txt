@@ -95,10 +95,10 @@ set( SRCS
 
 protoc( ${BASE}/rpc_ut.proto SRCS )
 
-udf( ${BASE}/udf/absolute.c SRCS )
-udf( ${BASE}/udf/exponentiate.c SRCS )
-udf( ${BASE}/udf/parse_natural.c SRCS )
-udf( ${BASE}/udf/to_lower.c SRCS )
+udf( ${BASE}/udf/abs_udf.c SRCS )
+udf( ${BASE}/udf/exp_udf.c SRCS )
+udf( ${BASE}/udf/strtol_udf.c SRCS )
+udf( ${BASE}/udf/tolower_udf.c SRCS )
 udf( ${BASE}/udf/is_null_udf.c SRCS )
 
 add_msvc_precompiled_header(
