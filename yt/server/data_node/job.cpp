@@ -72,7 +72,7 @@ class TChunkJobBase
     : public IJob
 {
 public:
-    DEFINE_SIGNAL(void(), ResourcesReleased);
+    DEFINE_SIGNAL(void(const TNodeResources& resourcesDelta), ResourcesUpdated);
 
 public:
     TChunkJobBase(

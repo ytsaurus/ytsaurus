@@ -78,18 +78,17 @@ class TJob
     : public NJobAgent::IJob
 {
 public:
-    DEFINE_SIGNAL(void(), ResourcesReleased);
+    DEFINE_SIGNAL(void(const TNodeResources&), ResourcesUpdated);
 
 public:
     TJob(
         const TJobId& jobId,
-        const TNodeResources& resourceLimits,
+        const TNodeResources& resourceUsage,
         TJobSpec&& jobSpec,
         TBootstrap* bootstrap)
         : JobId(jobId)
-        , ResourceLimits(resourceLimits)
         , Bootstrap(bootstrap)
-        , ResourceUsage(resourceLimits)
+        , ResourceUsage(resourceUsage)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -104,12 +103,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (Slot) {
-            // If slot is acquired, then job is already started.
-            return;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            YCHECK(JobState == EJobState::Waiting);
+            JobState = EJobState::Running;
+            StartTime = TInstant::Now();
         }
-
-        StartTime = TInstant::Now();
 
         auto slotManager = Bootstrap->GetExecSlotManager();
         Slot = slotManager->AcquireSlot();
@@ -123,12 +122,21 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (JobState != EJobState::Running && JobState != EJobState::Waiting) {
+                return;
+            }
+            JobState = EJobState::Aborting;
+        }
+
         if (RunFuture) {
             RunFuture.Cancel();
         }
 
         auto invoker = Slot ? Slot->GetInvoker() : GetSyncInvoker();
         invoker->Invoke(BIND(&TJob::DoAbort, MakeStrong(this), error));
+
     }
 
     virtual const TJobId& GetId() const override
@@ -143,6 +151,7 @@ public:
 
     virtual EJobState GetState() const override
     {
+        TGuard<TSpinLock> guard(SpinLock);
         return JobState;
     }
 
@@ -153,30 +162,35 @@ public:
 
     virtual TNodeResources GetResourceUsage() const override
     {
-        TGuard<TSpinLock> guard(ResourcesLock);
+        TGuard<TSpinLock> guard(SpinLock);
         return ResourceUsage;
     }
 
     virtual void SetResourceUsage(const TNodeResources& newUsage) override
     {
-        TGuard<TSpinLock> guard(ResourcesLock);
-        ResourceUsage = newUsage;
+        TNodeResources delta = newUsage;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (JobState != EJobState::Running) {
+                return;
+            }
+            delta -= ResourceUsage;
+            ResourceUsage = newUsage;
+        }
+        ResourcesUpdated_.Fire(delta);
     }
 
     virtual TJobResult GetResult() const override
     {
-        TGuard<TSpinLock> guard(ResultLock);
+        TGuard<TSpinLock> guard(SpinLock);
         return JobResult.Get();
     }
 
     virtual void SetResult(const TJobResult& jobResult) override
     {
-        TGuard<TSpinLock> guard(ResultLock);
+        TGuard<TSpinLock> guard(SpinLock);
 
-        if (JobState == EJobState::Completed ||
-            JobState == EJobState::Aborted ||
-            JobState == EJobState::Failed)
-        {
+        if (JobState != EJobState::Running && JobState != EJobState::Aborting) {
             return;
         }
 
@@ -214,11 +228,13 @@ public:
 
     virtual double GetProgress() const override
     {
+        TGuard<TSpinLock> guard(SpinLock);
         return Progress_;
     }
 
     virtual void SetProgress(double value) override
     {
+        TGuard<TSpinLock> guard(SpinLock);
         if (JobState == EJobState::Running) {
             Progress_ = value;
         }
@@ -226,7 +242,7 @@ public:
 
     virtual TJobStatistics GetJobStatistics() const override
     {
-        TGuard<TSpinLock> guard(ResultLock);
+        TGuard<TSpinLock> guard(SpinLock);
         if (JobResult.HasValue()) {
             return JobResult.Get().statistics();
         } else {
@@ -238,7 +254,7 @@ public:
 
     virtual void SetJobStatistics(const TJobStatistics& statistics) override
     {
-        TGuard<TSpinLock> guard(ResultLock);
+        TGuard<TSpinLock> guard(SpinLock);
         if (JobState == EJobState::Running) {
             JobStatistics = statistics;
         }
@@ -288,44 +304,35 @@ public:
     }
 
 private:
-    TJobId JobId;
+    const TJobId JobId;
     TJobSpec JobSpec;
 
-    TNodeResources ResourceLimits;
-    NCellNode::TBootstrap* Bootstrap;
+    const NCellNode::TBootstrap* Bootstrap;
 
-    //! Protects #ResourceUsage.
-    TSpinLock ResourcesLock;
+    TSpinLock SpinLock;
     TNodeResources ResourceUsage;
-
-    NLogging::TLogger Logger = ExecAgentLogger;
-
-    TSlotPtr Slot;
-
-    TFuture<void> RunFuture;
 
     EJobState JobState = EJobState::Waiting;
     EJobPhase JobPhase = EJobPhase::Created;
 
-    EJobState FinalJobState = EJobState::Completed;
-
     double Progress_ = 0.0;
     TJobStatistics JobStatistics = ZeroJobStatistics();
 
+    TNullable<TJobResult> JobResult;
+
     TNullable<TInstant> StartTime;
+    TSlotPtr Slot;
+    TFuture<void> RunFuture;
+
+    IProxyControllerPtr ProxyController;
+
+    EJobState FinalJobState = EJobState::Completed;
 
     std::vector<NDataNode::IChunkPtr> CachedChunks;
 
     TNodeDirectoryPtr NodeDirectory = New<TNodeDirectory>();
 
-    IProxyControllerPtr ProxyController;
-
-    // Protects #JobResult, #JobState, and #JobStatistics.
-    TSpinLock ResultLock;
-    TNullable<TJobResult> JobResult;
-
-    NJobProxy::TJobProxyConfigPtr ProxyConfig;
-
+    NLogging::TLogger Logger = ExecAgentLogger;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -333,8 +340,6 @@ private:
     void DoRun()
     {
         try {
-            JobState = EJobState::Running;
-
             YCHECK(JobPhase == EJobPhase::Created);
             JobPhase = EJobPhase::PreparingConfig;
             PrepareConfig();
@@ -355,6 +360,14 @@ private:
             JobPhase = EJobPhase::Running;
             RunJobProxy();
         } catch (const std::exception& ex) {
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                if (JobState != EJobState::Running) {
+                    YCHECK(JobState == EJobState::Aborting);
+                    return;
+                }
+                JobState = EJobState::Aborting;
+            }
             Slot->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this), ex));
         }
     }
@@ -450,7 +463,7 @@ private:
         runError.ThrowOnError();
 
         if (!IsResultSet()) {
-            THROW_ERROR_EXCEPTION("Job proxy exited successfully but job result has not been set");
+            THROW_ERROR_EXCEPTION("Job proxy exited successfully, but job result has not been set");
         }
 
         YCHECK(JobPhase == EJobPhase::Running);
@@ -468,20 +481,20 @@ private:
             Slot->Release();
         }
 
-        SetResourceUsage(ZeroNodeResources());
-        ResourcesReleased_.Fire();
+        auto resourceDelta = ZeroNodeResources() - ResourceUsage;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            ResourceUsage = ZeroNodeResources();
 
-        JobPhase = EJobPhase::Finished;
-        JobState = FinalJobState;
+            JobState = FinalJobState;
+            JobPhase = EJobPhase::Finished;
+        }
+
+        ResourcesUpdated_.Fire(resourceDelta);
     }
 
     void DoAbort(const TError& error)
     {
-        if (JobPhase == EJobPhase::Finished || JobState == EJobState::Aborting)
-            return;
-
-        JobState = EJobState::Aborting;
-
         auto prevJobPhase = JobPhase;
         JobPhase = EJobPhase::Cleanup;
 
@@ -496,24 +509,19 @@ private:
             Slot->Clean();
         }
 
-        SetResult(error);
+        TJobResult jobResult;
+        ToProto(jobResult.mutable_error(), error);
+        ToProto(jobResult.mutable_statistics(), GetJobStatistics());
+        SetResult(jobResult);
 
         LOG_INFO("Job aborted");
 
         FinalizeJob();
     }
 
-    void SetResult(const TError& error)
-    {
-        TJobResult jobResult;
-        ToProto(jobResult.mutable_error(), error);
-        ToProto(jobResult.mutable_statistics(), GetJobStatistics());
-        SetResult(jobResult);
-    }
-
     bool IsResultSet() const
     {
-        TGuard<TSpinLock> guard(ResultLock);
+        TGuard<TSpinLock> guard(SpinLock);
         return JobResult.HasValue();
     }
 
@@ -754,13 +762,13 @@ private:
 
 NJobAgent::IJobPtr CreateUserJob(
     const TJobId& jobId,
-    const TNodeResources& resourceLimits,
+    const TNodeResources& resourceUsage,
     TJobSpec&& jobSpec,
     TBootstrap* bootstrap)
 {
     return New<TJob>(
         jobId,
-        resourceLimits,
+        resourceUsage,
         std::move(jobSpec),
         bootstrap);
 }
