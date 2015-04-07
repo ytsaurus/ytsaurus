@@ -197,7 +197,7 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
             callingConvention = New<TSimpleCallingConvention>();
             break;
         case ECallingConvention::UnversionedValue:
-            callingConvention = New<TSimpleCallingConvention>();
+            callingConvention = New<TUnversionedValueCallingConvention>();
             break;
         default:
             YUNREACHABLE();

@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <udf_helpers.h>
 
 void to_lower(

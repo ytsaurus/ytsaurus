@@ -56,7 +56,7 @@ struct TQueryStatistics;
 
 DECLARE_REFCOUNTED_STRUCT(IFunctionDescriptor)
 
-DECLARE_REFCOUNTED_CLASS(ICallingConvention);
+DECLARE_REFCOUNTED_STRUCT(ICallingConvention)
 
 DECLARE_REFCOUNTED_STRUCT(IExecutor)
 

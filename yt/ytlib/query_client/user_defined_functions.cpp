@@ -1,4 +1,3 @@
-#include <iostream>
 #include "user_defined_functions.h"
 
 #include "cg_fragment_compiler.h"
@@ -23,7 +22,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka LLVMTypeToString(llvm::Type* tp)
+Stroka ToString(llvm::Type* tp)
 {
     std::string str;
     llvm::raw_string_ostream stream(str);
@@ -43,27 +42,24 @@ void PushExecutionContext(
         fullContext,
         PointerType::getUnqual(baseContextType));
     argumentValues.push_back(contextStruct);
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<Value*> SplitStringArguments(
-    TCGValue argumentValue,
-    TCGContext& builder)
+void PushArgument(
+    TCGContext& builder,
+    std::vector<Value*>& argumentValues,
+    TCGValue argumentValue)
 {
+    argumentValues.push_back(argumentValue.GetData());
     if (IsStringLikeType(argumentValue.GetStaticType())) {
-        return std::vector<Value*>{
-            argumentValue.GetData(),
-            argumentValue.GetLength()};
-    } else {
-        return std::vector<Value*>{argumentValue.GetData()};
+        argumentValues.push_back(argumentValue.GetLength());
     }
 }
 
 TCGValue PropagateNullArguments(
-    std::vector<TCodegenExpression> codegenArgs,
-    std::vector<Value*> initialArgumentValues,
+    std::vector<TCodegenExpression>& codegenArgs,
+    std::vector<Value*>& argumentValues,
     std::function<Value*(std::vector<Value*>)> codegenBody,
     std::function<TCGValue(Value*)> codegenReturn,
     EValueType type,
@@ -72,21 +68,13 @@ TCGValue PropagateNullArguments(
     Value* row)
 {
     if (codegenArgs.empty()) {
-        auto llvmResult = codegenBody(initialArgumentValues);
+        auto llvmResult = codegenBody(argumentValues);
         return codegenReturn(llvmResult);
     } else {
-        auto currentCodegenArg = codegenArgs.back();
-        auto currentArgValue = currentCodegenArg(builder, row);
-            
-        auto splitArgumentValue = SplitStringArguments(currentArgValue, builder);
+        auto currentArgValue = codegenArgs.back()(builder, row);
+        codegenArgs.pop_back();
 
-        auto newCodegenArgs = codegenArgs;
-        newCodegenArgs.pop_back();
-        auto newArgumentValues = initialArgumentValues;
-        newArgumentValues.insert(
-            newArgumentValues.end(),
-            splitArgumentValue.begin(),
-            splitArgumentValue.end());
+        PushArgument(builder, argumentValues, currentArgValue);
 
         return CodegenIf<TCGContext, TCGValue>(
             builder,
@@ -96,8 +84,8 @@ TCGValue PropagateNullArguments(
             },
             [&] (TCGContext& builder) {
                 return PropagateNullArguments(
-                    newCodegenArgs,
-                    newArgumentValues,
+                    codegenArgs,
+                    argumentValues,
                     codegenBody,
                     codegenReturn,
                     type,
@@ -191,14 +179,14 @@ void TSimpleCallingConvention::CheckResultType(
     {
         THROW_ERROR_EXCEPTION(
             "Wrong result type in LLVM bitcode: expected void, got %Qv",
-            LLVMTypeToString(llvmType));
-    } else if (resultType != EValueType::String &&
+            llvmType);
+    } else if (!IsStringLikeType(resultType) &&
         llvmType != expectedResultType)
     {
         THROW_ERROR_EXCEPTION(
             "Wrong result type in LLVM bitcode: expected %Qv, got %Qv",
-            LLVMTypeToString(expectedResultType),
-            LLVMTypeToString(llvmType));
+            expectedResultType,
+            llvmType);
     }
 }
 
@@ -211,21 +199,20 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     const Stroka& name) const
 {
     return [=] (TCGContext& builder, Value* row) {
+        auto unversionedValueType =
+            llvm::TypeBuilder<TUnversionedValue, false>::get(builder.getContext());
+        auto unversionedValueOpaqueType = StructType::create(
+            builder.getContext(),
+            "struct.TUnversionedValue");
+
         auto argumentValues = std::vector<Value*>();
 
         PushExecutionContext(builder, argumentValues);
 
-        auto unversionedValueType =
-            llvm::TypeBuilder<TUnversionedValue, false>::get(builder.getContext());
-
-        auto unversionedValueStruct = StructType::create(
-            builder.getContext(),
-            "struct.TUnversionedValue");
-
         auto resultPtr = builder.CreateAlloca(unversionedValueType);
         auto castedResultPtr = builder.CreateBitCast(
             resultPtr,
-            PointerType::getUnqual(unversionedValueStruct));
+            PointerType::getUnqual(unversionedValueOpaqueType));
         argumentValues.push_back(castedResultPtr);
 
         for (auto arg = codegenArgs.begin(); arg != codegenArgs.end(); arg++) {
@@ -235,13 +222,13 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 
             auto castedValuePtr = builder.CreateBitCast(
                 valuePtr,
-                PointerType::getUnqual(unversionedValueStruct));
+                PointerType::getUnqual(unversionedValueOpaqueType));
             argumentValues.push_back(castedValuePtr);
         }
 
         codegenBody(argumentValues, builder);
 
-        return TCGValue::CreateFromLLVMValue(
+        return TCGValue::CreateFromLlvmValue(
             builder,
             resultPtr,
             type);
@@ -256,7 +243,7 @@ void TUnversionedValueCallingConvention::CheckResultType(
     if (llvmType != builder.getVoidTy()) {
         THROW_ERROR_EXCEPTION(
             "Wrong result type in LLVM bitcode: expected void, got %Qv",
-            LLVMTypeToString(llvmType));
+            llvmType);
     }
 }
 
@@ -284,7 +271,7 @@ void TUserDefinedFunction::CheckCallee(
     TCGContext& builder,
     std::vector<Value*> argumentValues) const
 {
-    if (callee == nullptr) {
+    if (!callee) {
         THROW_ERROR_EXCEPTION(
             "Could not find LLVM bitcode for %Qv",
             FunctionName_);
@@ -311,13 +298,13 @@ void TUserDefinedFunction::CheckCallee(
             THROW_ERROR_EXCEPTION(
                 "Wrong type for argument %v in LLVM bitcode: expected %Qv, got %Qv",
                 i,
-                LLVMTypeToString((*expected)->getType()),
-                LLVMTypeToString(actual->getType()));
+                (*expected)->getType(),
+                actual->getType());
         }
     }
 }
 
-Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
+Function* TUserDefinedFunction::GetLlvmFunction(TCGContext& builder) const
 {
     auto module = builder.Module->GetModule();
     auto callee = module->getFunction(StringRef(FunctionName_));
@@ -330,7 +317,7 @@ Function* TUserDefinedFunction::GetLLVMFunction(TCGContext& builder) const
 
         if (!implModule) {
             THROW_ERROR_EXCEPTION(
-                "Error parsing LLVM bitcode: %v")
+                "Error parsing LLVM bitcode")
                 << TError(Stroka(diag.getMessage().str()));
         }
 
@@ -349,7 +336,7 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
         this_ = MakeStrong(this)
     ] (std::vector<Value*> argumentValues, TCGContext& builder) {
 
-        auto callee = this_->GetLLVMFunction(builder);
+        auto callee = this_->GetLlvmFunction(builder);
         this_->CheckCallee(callee, builder, argumentValues);
         auto result = builder.CreateCall(callee, argumentValues);
         return result;

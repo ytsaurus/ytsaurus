@@ -3,8 +3,6 @@
 #include "cg_fragment_compiler.h"
 #include "plan_helpers.h"
 
-#include <new_table_client/row_base.h>
-
 namespace NYT {
 namespace NQueryClient {
 
