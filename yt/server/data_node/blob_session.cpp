@@ -9,7 +9,6 @@
 #include "chunk_store.h"
 
 #include <core/misc/fs.h>
-#include <core/misc/sync.h>
 
 #include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/chunk_meta.pb.h>
