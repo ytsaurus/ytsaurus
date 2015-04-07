@@ -131,13 +131,13 @@ public:
             .Default(TDuration::Hours(1));
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
-            .Default((i64) 256 * 1024 * 1024)
+            .Default((i64) 320 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("desired_partition_data_size", DesiredPartitionDataSize)
-            .Default((i64) 192 * 1024 * 1024)
+            .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("min_partition_data_size", MinPartitionDataSize)
-            .Default((i64) 16 * 1024 * 1024)
+            .Default((i64) 192 * 1024 * 1024)
             .GreaterThan(0);
 
         RegisterParameter("max_partition_count", MaxPartitionCount)
@@ -145,7 +145,7 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("min_partitioning_data_size", MinPartitioningDataSize)
-            .Default((i64) 256 * 1024 * 1024)
+            .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("min_partitioning_store_count", MinPartitioningStoreCount)
             .Default(1)
