@@ -117,7 +117,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
 
     int blockIndex = startBlockIndex;
     i64 requestSize = 0;
-
+    std::vector<int> receivedBlockIndexes;
     for (const auto& block : blocks) {
         TBlockId blockId(ChunkId_, blockIndex);
         ValidateBlockIsInWindow(blockIndex);
@@ -155,11 +155,14 @@ TFuture<void> TBlobSession::DoPutBlocks(
         Location_->UpdateUsedSpace(block.Size());
         Size_ += block.Size();
         requestSize += block.Size();
-
-        LOG_DEBUG("Block received (Block: %v)", blockIndex);
-
+        receivedBlockIndexes.push_back(blockIndex);
         ++blockIndex;
     }
+
+    LOG_DEBUG_UNLESS(
+        receivedBlockIndexes.empty(),
+        "Blocks received (Blocks: [%v])",
+        JoinToString(receivedBlockIndexes));
 
     auto sessionManager = Bootstrap_->GetSessionManager();
     while (WindowIndex_ < Window_.size()) {
