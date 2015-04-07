@@ -459,8 +459,6 @@ private:
         Slot->Clean();
 
         YCHECK(JobPhase == EJobPhase::Cleanup);
-        JobPhase = EJobPhase::Finished;
-
         FinalizeJob();
     }
 
@@ -470,10 +468,11 @@ private:
             Slot->Release();
         }
 
-        JobState = FinalJobState;
-
         SetResourceUsage(ZeroNodeResources());
         ResourcesReleased_.Fire();
+
+        JobPhase = EJobPhase::Finished;
+        JobState = FinalJobState;
     }
 
     void DoAbort(const TError& error)
