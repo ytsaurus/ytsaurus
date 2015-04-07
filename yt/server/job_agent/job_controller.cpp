@@ -36,7 +36,6 @@ TJobController::TJobController(
     : Config(config)
     , Bootstrap(bootstrap)
     , StartScheduled(false)
-    , ResourcesUpdatedFlag(false)
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -111,18 +110,24 @@ void TJobController::StartWaitingJobs()
 {
     auto* tracker = Bootstrap->GetMemoryUsageTracker();
 
+    bool resourcesUpdated = false;
+
+    auto usedResources = GetResourceUsage(false);
+    {
+        auto memoryToRelease = tracker->GetUsed(EMemoryConsumer::Job) - usedResources.memory();
+        YCHECK(memoryToRelease >= 0);
+        if (memoryToRelease > 0) {
+            tracker->Release(EMemoryConsumer::Job, memoryToRelease);
+            resourcesUpdated = true;
+        }
+    }
+
     for (const auto& pair : Jobs) {
         auto job = pair.second;
         if (job->GetState() != EJobState::Waiting)
             continue;
 
-        auto usedResources = GetResourceUsage(false);
-        {
-            auto memoryToRelease = tracker->GetUsed(EMemoryConsumer::Job) - usedResources.memory();
-            YCHECK(memoryToRelease >= 0);
-            tracker->Release(EMemoryConsumer::Job, memoryToRelease);
-        }
-
+        usedResources = GetResourceUsage(false);
         auto spareResources = GetResourceLimits() - usedResources;
         auto jobResources = job->GetResourceUsage();
 
@@ -132,11 +137,12 @@ void TJobController::StartWaitingJobs()
             if (error.IsOK()) {
                 LOG_INFO("Starting job (JobId: %v)", job->GetId());
 
-                job->SubscribeResourcesReleased(
-                    BIND(&TJobController::OnResourcesReleased, MakeWeak(this))
+                job->SubscribeResourcesUpdated(
+                    BIND(&TJobController::OnResourcesUpdated, MakeWeak(this), job)
                         .Via(Bootstrap->GetControlInvoker()));
 
                 job->Start();
+                resourcesUpdated = true;
             } else {
                 LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
                     job->GetId());
@@ -149,8 +155,7 @@ void TJobController::StartWaitingJobs()
         }
     }
 
-    if (ResourcesUpdatedFlag) {
-        ResourcesUpdatedFlag = false;
+    if (resourcesUpdated) {
         ResourcesUpdated_.Fire();
     }
 
@@ -201,26 +206,35 @@ void TJobController::AbortJob(IJobPtr job)
 
 void TJobController::RemoveJob(IJobPtr job)
 {
-    LOG_INFO("Job removed (JobId: %v)",
-        job->GetId());
+    LOG_INFO("Job removed (JobId: %v)", job->GetId());
 
     YCHECK(job->GetPhase() > EJobPhase::Cleanup);
     YCHECK(job->GetResourceUsage() == ZeroNodeResources());
     YCHECK(Jobs.erase(job->GetId()) == 1);
 }
 
-void TJobController::OnResourcesReleased()
+void TJobController::OnResourcesUpdated(IJobPtr job, const TNodeResources& resourceDelta)
 {
-    ResourcesUpdatedFlag = true;
-    ScheduleStart();
+    if (!CheckResourceUsageDelta(resourceDelta)) {
+        job->Abort(TError(
+            NExecAgent::EErrorCode::ResourceOverdraft,
+            "Failed to increase resource usage (ResourceDelta: {%v})",
+            FormatResources(resourceDelta)));
+        return;
+    }
+
+    if (!Dominates(resourceDelta, ZeroNodeResources())) {
+        // Some resources decreased.
+        ScheduleStart();
+    }
 }
 
 bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
 {
     // Do this check in the first place in order to avoid weird behavior
     // when decreasing resource usage leads to job abortion because of 
-    // other memory consuming subsystems (e.g. ChunkMeta),
-    if (Dominates(delta, ZeroNodeResources())) {
+    // other memory consuming subsystems (e.g. ChunkMeta)
+    if (Dominates(ZeroNodeResources(), delta)) {
         return true;
     }
 
@@ -237,46 +251,6 @@ bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
     }
 
     return true;
-}
-
-void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& usage)
-{
-    if (job->GetState() != EJobState::Running) {
-        // Outdated request.
-        return;
-    }
-
-    auto oldUsage = job->GetResourceUsage();
-    auto delta = usage - oldUsage;
-
-    if (!CheckResourceUsageDelta(delta)) {
-        job->Abort(TError(
-            NExecAgent::EErrorCode::ResourceOverdraft,
-            "Failed to increase resource usage (OldUsage: {%v}, NewUsage: {%v})",
-            FormatResources(oldUsage),
-            FormatResources(usage)));
-        return;
-    }
-
-    if (!Dominates(delta, ZeroNodeResources())) {
-        OnResourcesReleased();
-    }
-}
-
-void TJobController::UpdateJobProgress(IJobPtr job, double progress, const TJobStatistics& jobStatistics)
-{
-    if (job->GetState() != EJobState::Running) {
-        // Outdated request.
-        return;
-    }
-
-    job->SetProgress(progress);
-    job->SetJobStatistics(jobStatistics);
-}
-
-void TJobController::SetJobResult(IJobPtr job, const TJobResult& result)
-{
-    job->SetResult(result);
 }
 
 void TJobController::PrepareHeartbeat(TReqHeartbeat* request)

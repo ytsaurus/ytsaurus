@@ -68,28 +68,6 @@ public:
     //! Return the current resource usage.
     NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting = true);
 
-    //! Updates the resource usage of a given job.
-    /*!
-     *  Resource usage may only decrease.
-     */
-    void UpdateJobResourceUsage(
-        IJobPtr job,
-        const NNodeTrackerClient::NProto::TNodeResources& usage);
-
-    //! Updates job progress.
-    void UpdateJobProgress(
-        IJobPtr job,
-        double progress,
-        const NJobTrackerClient::NProto::TJobStatistics& jobStatistics);
-
-    //! Compares new usage with resource limits. Detects resource overdraft.
-    bool CheckResourceUsageDelta(const NNodeTrackerClient::NProto::TNodeResources& delta);
-
-    //! Updates job result.
-    void SetJobResult(
-        IJobPtr job,
-        const NJobTrackerClient::NProto::TJobResult& result);
-
     //! Prepares a heartbeat request.
     void PrepareHeartbeat(NJobTrackerClient::NProto::TReqHeartbeat* request);
 
@@ -104,13 +82,17 @@ private:
     yhash_map<TJobId, IJobPtr> Jobs;
 
     bool StartScheduled;
-    bool ResourcesUpdatedFlag;
 
     TJobFactory GetFactory(EJobType type);
     void ScheduleStart();
     void OnJobFinished(IJobPtr job);
-    void OnResourcesReleased();
+    void OnResourcesUpdated(
+        IJobPtr job, 
+        const NNodeTrackerClient::NProto::TNodeResources& resourceDelta);
     void StartWaitingJobs();
+
+    //! Compares new usage with resource limits. Detects resource overdraft.
+    bool CheckResourceUsageDelta(const NNodeTrackerClient::NProto::TNodeResources& delta);
 
 };
 

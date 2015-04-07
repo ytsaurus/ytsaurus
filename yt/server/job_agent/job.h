@@ -20,7 +20,9 @@ namespace NJobAgent {
 struct IJob
     : public virtual TRefCounted
 {
-    DECLARE_INTERFACE_SIGNAL(void(), ResourcesReleased);
+    DECLARE_INTERFACE_SIGNAL(void(
+        const NNodeTrackerClient::NProto::TNodeResources& resourceDelta), 
+        ResourcesUpdated);
 
     virtual void Start() = 0;
 
