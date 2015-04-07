@@ -1,6 +1,6 @@
 #include <udf_helpers.h>
 
-unsigned long parse_natural(TExecutionContext* context, const char* string, int length)
+unsigned long strtol_udf(TExecutionContext* context, const char* string, int length)
 {
     unsigned long result = 0;
     for (int i = 0; i < length; i++) {

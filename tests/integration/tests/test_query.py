@@ -254,9 +254,9 @@ class TestQuery(YTEnvSetup):
         registry_path =  "//tmp/udfs"
         create("document", registry_path)
 
-        implementation_path = "//tmp/absolute.bc"
-        data = { "absolute": {
-            "name": "absolute",
+        implementation_path = "//tmp/abs_udf.bc"
+        data = { "abs_udf": {
+            "name": "abs_udf",
             "argument_types": [
                 "int64"],
             "result_type": "int64",
@@ -265,11 +265,11 @@ class TestQuery(YTEnvSetup):
         }}
         set(registry_path, data)
 
-        local_implementation_path = os.path.join(os.path.dirname(__file__), "../../../yt/unittests/udf/absolute.bc")
+        local_implementation_path = os.path.join(os.path.dirname(__file__), "../../../yt/unittests/udf/abs_udf.bc")
         create("file", implementation_path)
         upload_file(implementation_path, local_implementation_path)
 
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
-        actual = select_rows("absolute(-2 * a) as s from [//tmp/u]")
+        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u]")
         assert expected == actual
