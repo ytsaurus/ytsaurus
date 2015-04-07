@@ -10,7 +10,6 @@
 #include "chunk_store.h"
 
 #include <core/misc/fs.h>
-#include <core/misc/sync.h>
 
 #include <ytlib/object_client/helpers.h>
 

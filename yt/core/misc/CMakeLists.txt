@@ -136,7 +136,6 @@ set( HDRS
   ${BASE}/stack_trace.h
   ${BASE}/string.h
   ${BASE}/subprocess.h
-  ${BASE}/sync.h
   ${BASE}/sync_cache-inl.h
   ${BASE}/sync_cache.h
   ${BASE}/url.h
