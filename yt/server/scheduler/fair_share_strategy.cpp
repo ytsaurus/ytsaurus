@@ -1116,22 +1116,6 @@ public:
             LastUpdateTime = now;
         }
 
-        // Run periodic logging.
-        if (!LastLogTime || now > LastLogTime.Get() + Config->FairShareLogPeriod) {
-            // Log pools information.
-            Host->LogEventFluently(ELogEventType::FairShareInfo)
-                .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
-                .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                    auto operation = pair.first;
-                    BuildYsonMapFluently(fluent)
-                        .Item(ToString(operation->GetId()))
-                        .BeginMap()
-                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operation))
-                        .EndMap();
-                });
-            LastLogTime = now;
-        }
-
         // Update starvation flags for all operations.
         for (const auto& pair : OperationToElement) {
             pair.second->CheckForStarvation(now);
@@ -1145,6 +1129,24 @@ public:
         }
 
         RootElement->BeginHeartbeat();
+
+        // Run periodic logging.
+        if (!LastLogTime || now > LastLogTime.Get() + Config->FairShareLogPeriod) {
+            // Update satisfaction attributes.
+            RootElement->PrescheduleJob(context->GetNode(), false);
+            // Log pools information.
+            Host->LogEventFluently(ELogEventType::FairShareInfo)
+                .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
+                .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
+                    auto operation = pair.first;
+                    BuildYsonMapFluently(fluent)
+                        .Item(ToString(operation->GetId()))
+                        .BeginMap()
+                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operation))
+                        .EndMap();
+                });
+            LastLogTime = now;
+        }
 
         // First-chance scheduling.
         LOG_DEBUG("Scheduling new jobs");
@@ -1178,7 +1180,8 @@ public:
 
         RootElement->BeginHeartbeat();
 
-        auto jobsBeforePreemption = context->StartedJobs().size();
+        auto resourceDiscount = node->ResourceUsageDiscount();
+        int startedBeforePreemption = context->StartedJobs().size();
 
         // Second-chance scheduling.
         // NB: Schedule at most one job.
@@ -1188,10 +1191,13 @@ public:
             if (!RootElement->ScheduleJob(context)) {
                 break;
             }
-            if (context->StartedJobs().size() != jobsBeforePreemption) {
+            if (context->StartedJobs().size() != startedBeforePreemption) {
                 break;
             }
         }
+
+        int startedAfterPreemption = context->StartedJobs().size();
+        int scheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
         // Reset discounts.
         node->ResourceUsageDiscount() = ZeroNodeResources();
@@ -1251,6 +1257,14 @@ public:
         }
 
         RootElement->EndHeartbeat();
+
+        LOG_DEBUG("Heartbeat info: Started jobs: %v, Preempted jobs: %v, "
+            "Scheduled during preemption: %v, Preemptable jobs: %v, Preemptable resources: %v",
+            context->StartedJobs().size(),
+            context->PreemptedJobs().size(),
+            scheduledDuringPreemption,
+            preemptableJobs.size(),
+            FormatResources(resourceDiscount));
     }
 
     virtual void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer) override
