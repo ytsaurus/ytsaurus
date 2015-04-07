@@ -752,7 +752,7 @@ private:
 
         int blocksReceived = 0;
         i64 bytesReceived = 0;
-
+        std::vector<int> receivedBlockIndexes;
         for (int index = 0; index < rsp->Attachments().size(); ++index) {
             const auto& block = rsp->Attachments()[index];
             if (!block)
@@ -760,9 +760,6 @@ private:
 
             int blockIndex = req->block_indexes(index);
             TBlockId blockId(reader->ChunkId_, blockIndex);
-
-            LOG_INFO("Block received (Block: %v)",
-                blockIndex);
 
             // Only keep source address if P2P is on.
             auto sourceDescriptor = reader->LocalDescriptor_
@@ -773,7 +770,13 @@ private:
             YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
             blocksReceived += 1;
             bytesReceived += block.Size();
+            receivedBlockIndexes.push_back(blockIndex);
         }
+
+        LOG_DEBUG_UNLESS(
+            receivedBlockIndexes.empty(),
+            "Blocks received (Blocks: [%v])",
+            JoinToString(receivedBlockIndexes));
 
         if (reader->Config_->FetchFromPeers) {
             for (const auto& peerDescriptor : rsp->peer_descriptors()) {
