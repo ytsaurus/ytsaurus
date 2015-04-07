@@ -65,15 +65,13 @@ public:
         , Process(proxyPath)
         , EnvironmentBuilder(envBuilder)
         , OnExit(NewPromise<void>())
-        , ControllerThread(ThreadFunc, this)
+        , WaitingThread(ThreadFunc, this)
     {
         Logger.AddTag("JobId: %v", jobId);
     }
 
     virtual TFuture<void> Run() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %v)",
             WorkingDirectory);
 
@@ -108,9 +106,9 @@ public:
 
         // Unref is called in the thread.
         Ref();
-        ControllerThread.Start();
+        WaitingThread.Start();
 
-        ControllerThread.Detach();
+        WaitingThread.Detach();
 
         return OnExit;
     }
@@ -118,8 +116,6 @@ public:
     // Safe to call multiple times
     virtual void Kill(const TNonOwningCGroup& group, const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
         LOG_INFO(error, "Killing job in unsafe environment (ProcessGroup: %v)", group.GetFullPath());
 
         SetError(error);
@@ -184,7 +180,6 @@ private:
         OnExit.Set(GetError());
     }
 
-
     const Stroka ProxyPath;
     const Stroka WorkingDirectory;
     const TJobId JobId;
@@ -200,9 +195,7 @@ private:
 
     TPromise<void> OnExit;
 
-    TThread ControllerThread;
-
-    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+    TThread WaitingThread;
 };
 
 #else
@@ -215,15 +208,15 @@ public:
     explicit TUnsafeProxyController(const TJobId& jobId)
         : Logger(ExecAgentLogger)
         , OnExit(NewPromise<void>())
-        , ControllerThread(ThreadFunc, this)
+        , WaitingThread(ThreadFunc, this)
     {
         Logger.AddTag("JobId: %v", jobId);
     }
 
     TFuture<void> Run()
     {
-        ControllerThread.Start();
-        ControllerThread.Detach();
+        WaitingThread.Start();
+        WaitingThread.Detach();
 
         LOG_INFO("Running dummy job");
 
@@ -256,7 +249,7 @@ private:
 
     NLogging::TLogger Logger;
     TPromise<void> OnExit;
-    TThread ControllerThread;
+    TThread WaitingThread;
 };
 
 #endif
