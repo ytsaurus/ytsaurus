@@ -8,10 +8,9 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ICallingConvention
+struct ICallingConvention
     : public TRefCounted
 {
-public:
     virtual TCodegenExpression MakeCodegenFunctionCall(
         std::vector<TCodegenExpression> codegenArgs,
         std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
@@ -27,7 +26,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(ICallingConvention);
 
 class TUnversionedValueCallingConvention
-    : public virtual ICallingConvention
+    : public ICallingConvention
 {
 public:
     virtual TCodegenExpression MakeCodegenFunctionCall(
@@ -82,7 +81,7 @@ private:
     std::vector<EValueType> ArgumentTypes_;
     ICallingConventionPtr CallingConvention_;
 
-    Function* GetLLVMFunction(TCGContext& builder) const;
+    Function* GetLlvmFunction(TCGContext& builder) const;
     void CheckCallee(
         Function* callee,
         TCGContext& builder,

@@ -178,14 +178,14 @@ public:
             index,
             name + ".valuePtr");
 
-        return CreateFromLLVMValue(
+        return CreateFromLlvmValue(
             builder,
             valuePtr,
             staticType,
             name);
     }
 
-    static TCGValue CreateFromLLVMValue(
+    static TCGValue CreateFromLlvmValue(
         TCGIRBuilder& builder,
         Value* valuePtr,
         EValueType staticType,
