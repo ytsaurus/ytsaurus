@@ -21,8 +21,6 @@
 
 #include <cmath>
 
-#include <core/logging/log.h> // FIXME(babenko): remove this
-
 namespace NYT {
 namespace NVersionedTableClient {
 
