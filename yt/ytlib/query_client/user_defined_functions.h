@@ -8,6 +8,11 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ECallingConvention,
+    (Simple)
+    (UnversionedValue)
+);
+
 struct ICallingConvention
     : public TRefCounted
 {
@@ -67,7 +72,7 @@ public:
         std::vector<EValueType> argumentTypes,
         EValueType resultType,
         TSharedRef implementationFile,
-        ICallingConventionPtr callingConvention = New<TSimpleCallingConvention>());
+        ECallingConvention callingConvention);
 
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,

@@ -85,11 +85,6 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ECallingConvention,
-    (Simple)
-    (UnversionedValue)
-);
-
 class TCypressFunctionDescriptor
     : public TYsonSerializable
 {
@@ -191,24 +186,12 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
         cypressFunction->ImplementationPath,
         Client_);
 
-    ICallingConventionPtr callingConvention;
-    switch (cypressFunction->CallingConvention) {
-        case ECallingConvention::Simple:
-            callingConvention = New<TSimpleCallingConvention>();
-            break;
-        case ECallingConvention::UnversionedValue:
-            callingConvention = New<TUnversionedValueCallingConvention>();
-            break;
-        default:
-            YUNREACHABLE();
-    }
-
     UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
         cypressFunction->Name,
         cypressFunction->ArgumentTypes,
         cypressFunction->ResultType,
         implementationFile,
-        callingConvention));
+        cypressFunction->CallingConvention));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
