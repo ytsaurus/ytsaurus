@@ -868,7 +868,7 @@ TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChecksum GetChecksum(const TRef &data)
+TChecksum GetChecksum(const TRef& data)
 {
     return NDetail::GetChecksumImpl(data.Begin(), data.Size(), 0);
 }
