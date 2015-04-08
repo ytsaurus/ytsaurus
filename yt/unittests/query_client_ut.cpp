@@ -3169,6 +3169,39 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestBuiltinUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"HELLO\"",
+        "a=\"HeLlO\"",
+        "a=\"\"",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=\"hello\"",
+        "x=\"hello\"",
+        "x=\"\"",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("to_lower"))
+        .WillRepeatedly(Return(TolowerUdf_));
+
+    Evaluate("to_lower(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestUdf)
 {
     auto split = MakeSplit({
