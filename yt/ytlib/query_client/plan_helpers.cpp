@@ -452,15 +452,7 @@ TConstExpressionPtr RefinePredicate(
         return expr;
     };
 
-    auto result = refinePredicate(expr);
-
-    if (commonPrefixSize > 1) {
-        auto beginIt = keyRange.first.Begin();
-        TOwningRow key(beginIt, beginIt + commonPrefixSize - 1);
-        result = RefinePredicate({key.Get()}, result, keyColumns);
-    }
-
-    return result;
+    return refinePredicate(expr);
 }
 
 TConstExpressionPtr RefinePredicate(
