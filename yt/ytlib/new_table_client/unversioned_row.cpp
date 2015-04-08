@@ -886,6 +886,16 @@ void ValidateServerKey(
     }
 }
 
+void ValidateReadTimestamp(TTimestamp timestamp)
+{
+    if (timestamp != SyncLastCommittedTimestamp &&
+        timestamp != AsyncLastCommittedTimestamp &&
+        (timestamp < MinTimestamp || timestamp > MaxTimestamp))
+    {
+        THROW_ERROR_EXCEPTION("Invalid timestamp %v", timestamp);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TOwningKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelType)

@@ -391,17 +391,6 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
-    void ValidateReadTimestamp(TTimestamp timestamp)
-    {
-        if (timestamp != SyncLastCommittedTimestamp &&
-            timestamp != AsyncLastCommittedTimestamp &&
-            (timestamp < MinTimestamp || timestamp > MaxTimestamp))
-        {
-            THROW_ERROR_EXCEPTION("Invalid timestamp %v", timestamp);
-        }
-    }
-
-    
     void SaveKeys(TSaveContext& context) const
     {
         TabletMap_.SaveKeys(context);
