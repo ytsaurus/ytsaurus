@@ -477,9 +477,7 @@ void ValidateServerKey(
 void ValidateReadTimestamp(TTimestamp timestamp);
 
 //! Returns the successor of |key|, i.e. the key obtained from |key|
-// by appending a |EValueType::Min| sentinel.
-//
-// TODO(sandello): Alter this function to use AdvanceToValueSuccessor().
+//! by appending a |EValueType::Min| sentinel.
 TOwningKey GetKeySuccessor(TKey key);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
