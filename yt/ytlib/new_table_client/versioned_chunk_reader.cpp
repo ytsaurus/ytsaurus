@@ -183,12 +183,12 @@ bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
     }
 
     while (rows->size() < rows->capacity()) {
-        if (UpperLimit_.HasRowIndex() && CurrentRowIndex_ == UpperLimit_.GetRowIndex()) {
+        if (CheckRowLimit_ && CurrentRowIndex_ == UpperLimit_.GetRowIndex()) {
             PerformanceCounters_->StaticChunkRowReadCount += rows->size();
             return !rows->empty();
         }
 
-        if (UpperLimit_.HasKey() && CompareRows(BlockReader_->GetKey(), UpperLimit_.GetKey().Get()) >= 0) {
+        if (CheckKeyLimit_ && CompareRows(BlockReader_->GetKey(), UpperLimit_.GetKey().Get()) >= 0) {
             PerformanceCounters_->StaticChunkRowReadCount += rows->size();
             return !rows->empty();
         }
@@ -245,6 +245,8 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedRangeChunkReader::GetBlockS
 
 void TVersionedRangeChunkReader::InitFirstBlock()
 {
+    CheckBlockUpperLimits(CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_));
+
     BlockReader_.reset(new TSimpleVersionedBlockReader(
         SequentialReader_->GetCurrentBlock(),
         CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
@@ -268,6 +270,9 @@ void TVersionedRangeChunkReader::InitFirstBlock()
 void TVersionedRangeChunkReader::InitNextBlock()
 {
     ++CurrentBlockIndex_;
+
+    CheckBlockUpperLimits(CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_));
+
     BlockReader_.reset(new TSimpleVersionedBlockReader(
         SequentialReader_->GetCurrentBlock(),
         CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
