@@ -86,7 +86,10 @@ private:
     std::vector<EValueType> ArgumentTypes_;
     ICallingConventionPtr CallingConvention_;
 
-    Function* GetLlvmFunction(TCGContext& builder) const;
+    Function* GetLlvmFunction(
+        TCGContext& builder,
+        std::vector<Value*> argumentValues) const;
+
     void CheckCallee(
         Function* callee,
         TCGContext& builder,

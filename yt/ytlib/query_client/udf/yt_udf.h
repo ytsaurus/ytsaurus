@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef enum EValueType
 {
@@ -17,18 +18,18 @@ typedef enum EValueType
 
 typedef union TUnversionedValueData
 {
-    long Int64;
-    unsigned long Uint64;
+    int64_t Int64;
+    uint64_t Uint64;
     double Double;
-    bool Boolean;
+    int8_t Boolean;
     const char* String;
 } TUnversionedValueData;
 
 typedef struct TUnversionedValue
 {
-    short Id;
-    short Type;
-    int Length;
+    int16_t Id;
+    int16_t Type;
+    int32_t Length;
     TUnversionedValueData Data;
 } TUnversionedValue;
 

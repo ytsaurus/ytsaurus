@@ -3,11 +3,7 @@
 #include "versioned_table_client_ut.h"
 
 #ifdef YT_USE_LLVM
-#include "udf/abs_udf.h"
-#include "udf/exp_udf.h"
-#include "udf/strtol_udf.h"
-#include "udf/tolower_udf.h"
-#include "udf/is_null_udf.h"
+#include "udf/test_udfs.h"
 #include "udf/invalid_ir.h"
 #endif
 
@@ -1992,40 +1988,40 @@ protected:
             std::vector<EValueType>{EValueType::Int64},
             EValueType::Int64,
             TSharedRef::FromRefNonOwning(TRef(
-                abs_udf_bc,
-                abs_udf_bc_len)),
+                test_udfs_bc,
+                test_udfs_bc_len)),
             ECallingConvention::Simple);
         ExpUdf_ = New<TUserDefinedFunction>(
             "exp_udf",
             std::vector<EValueType>{EValueType::Int64, EValueType::Int64},
             EValueType::Int64,
             TSharedRef::FromRefNonOwning(TRef(
-                exp_udf_bc,
-                exp_udf_bc_len)),
+                test_udfs_bc,
+                test_udfs_bc_len)),
             ECallingConvention::Simple);
         StrtolUdf_ = New<TUserDefinedFunction>(
             "strtol_udf",
             std::vector<EValueType>{EValueType::String},
             EValueType::Uint64,
             TSharedRef::FromRefNonOwning(TRef(
-                strtol_udf_bc,
-                strtol_udf_bc_len)),
+                test_udfs_bc,
+                test_udfs_bc_len)),
             ECallingConvention::Simple);
         TolowerUdf_ = New<TUserDefinedFunction>(
             "tolower_udf",
             std::vector<EValueType>{EValueType::String},
             EValueType::String,
             TSharedRef::FromRefNonOwning(TRef(
-                tolower_udf_bc,
-                tolower_udf_bc_len)),
+                test_udfs_bc,
+                test_udfs_bc_len)),
             ECallingConvention::Simple);
         IsNullUdf_ = New<TUserDefinedFunction>(
             "is_null_udf",
             std::vector<EValueType>{EValueType::String},
             EValueType::Boolean,
             TSharedRef::FromRefNonOwning(TRef(
-                is_null_udf_bc,
-                is_null_udf_bc_len)),
+                test_udfs_bc,
+                test_udfs_bc_len)),
             ECallingConvention::UnversionedValue);
     }
 
@@ -3277,8 +3273,8 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
     };
 
     auto fileRef = TSharedRef::FromRefNonOwning(TRef(
-        abs_udf_bc,
-        abs_udf_bc_len));
+        test_udfs_bc,
+        test_udfs_bc_len));
 
     auto twoArgumentUdf = New<TUserDefinedFunction>(
         "abs_udf",
@@ -3306,8 +3302,8 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
     };
 
     auto fileRef = TSharedRef::FromRefNonOwning(TRef(
-        abs_udf_bc,
-        abs_udf_bc_len));
+        test_udfs_bc,
+        test_udfs_bc_len));
 
     auto invalidArgumentUdf = New<TUserDefinedFunction>(
         "abs_udf",

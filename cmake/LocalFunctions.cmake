@@ -29,7 +29,7 @@ function(UDF udf output)
     MAIN_DEPENDENCY
       ${_realpath}
     DEPENDS
-      ${_include_dir}/udf_helpers.h
+      ${_include_dir}/yt_udf.h
     WORKING_DIRECTORY
       ${_dirname}
     COMMENT "Generating LLVM bitcode for ${_filename}..."
