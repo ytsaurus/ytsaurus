@@ -137,7 +137,7 @@ public:
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("min_partition_data_size", MinPartitionDataSize)
-            .Default((i64) 192 * 1024 * 1024)
+            .Default((i64) 96 * 1024 * 1024)
             .GreaterThan(0);
 
         RegisterParameter("max_partition_count", MaxPartitionCount)
@@ -145,7 +145,7 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("min_partitioning_data_size", MinPartitioningDataSize)
-            .Default((i64) 128 * 1024 * 1024)
+            .Default((i64) 64 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("min_partitioning_store_count", MinPartitioningStoreCount)
             .Default(1)
