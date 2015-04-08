@@ -57,7 +57,8 @@ Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
         return value;
     }
 
-    Twine resultingName(name.isTriviallyEmpty() ? value->getName() : name);
+    auto valueName = value->getName();
+    Twine resultingName(name.isTriviallyEmpty() ? valueName : name);
 
     // Otherwise, capture |value| in the parent context.
     YCHECK(Parent_);
