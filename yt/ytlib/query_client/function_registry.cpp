@@ -3,7 +3,7 @@
 #include "builtin_functions.h"
 #include "user_defined_functions.h"
 
-#include "../udf/to_lower.h"
+#include "udf/to_lower.h"
 
 #include <ytlib/api/public.h>
 #include <ytlib/api/client.h>
