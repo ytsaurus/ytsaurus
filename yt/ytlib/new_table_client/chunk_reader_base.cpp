@@ -146,6 +146,18 @@ int TChunkReaderBase::GetBlockIndexByKey(const TKey& pivotKey, const std::vector
     return beginBlockIndex + ((it != rend) ? std::distance(it, rend) : 0);
 }
 
+void TChunkReaderBase::CheckBlockUpperLimits(const TBlockMeta& blockMeta)
+{
+    if (UpperLimit_.HasRowIndex()) {
+        CheckRowLimit_ = UpperLimit_.GetRowIndex() < blockMeta.chunk_row_count();
+    }
+
+    if (UpperLimit_.HasKey()) {
+        auto key = FromProto<TOwningKey>(blockMeta.last_key());
+        CheckKeyLimit_ = CompareRows(UpperLimit_.GetKey().Get(), key.Get()) <= 0;
+    }
+}
+
 int TChunkReaderBase::ApplyLowerKeyLimit(const std::vector<TOwningKey>& blockIndexKeys) const
 {
     if (!LowerLimit_.HasKey()) {

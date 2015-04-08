@@ -281,6 +281,8 @@ TDataStatistics TSchemalessChunkReader::GetDataStatistics() const
 
 void TSchemalessChunkReader::InitFirstBlock()
 {
+    CheckBlockUpperLimits(BlockMetaExt_.blocks(CurrentBlockIndex_));
+
     BlockReader_.reset(new THorizontalSchemalessBlockReader(
         SequentialReader_->GetCurrentBlock(),
         BlockMetaExt_.blocks(CurrentBlockIndex_),
@@ -302,6 +304,9 @@ void TSchemalessChunkReader::InitFirstBlock()
 void TSchemalessChunkReader::InitNextBlock()
 {
     ++CurrentBlockIndex_;
+
+    CheckBlockUpperLimits(BlockMetaExt_.blocks(CurrentBlockIndex_));
+
     BlockReader_.reset(new THorizontalSchemalessBlockReader(
         SequentialReader_->GetCurrentBlock(),
         BlockMetaExt_.blocks(CurrentBlockIndex_),
@@ -332,13 +337,12 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
     }
 
     while (rows->size() < rows->capacity()) {
-        // ToDo(psushin): do not check every row.
-        if (UpperLimit_.HasRowIndex() && CurrentRowIndex_ >= UpperLimit_.GetRowIndex()) {
+        if (CheckRowLimit_ && CurrentRowIndex_ >= UpperLimit_.GetRowIndex()) {
             LOG_DEBUG("Upper limit row index reached %v", CurrentRowIndex_);
             return !rows->empty();
         }
 
-        if (UpperLimit_.HasKey() && CompareRows(BlockReader_->GetKey(), UpperLimit_.GetKey()) >= 0) {
+        if (CheckKeyLimit_ && CompareRows(BlockReader_->GetKey(), UpperLimit_.GetKey()) >= 0) {
             LOG_DEBUG("Upper limit key reached %v", BlockReader_->GetKey());
             return !rows->empty();
         }

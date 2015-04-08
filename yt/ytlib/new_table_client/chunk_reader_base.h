@@ -53,6 +53,9 @@ protected:
     bool InitFirstBlockNeeded_ = false;
     bool InitNextBlockNeeded_ = false;
 
+    bool CheckRowLimit_ = false;
+    bool CheckKeyLimit_ = false;
+
     TChunkedMemoryPool MemoryPool_;
 
 
@@ -63,6 +66,8 @@ protected:
         const TKey& key, 
         const std::vector<TOwningKey>& blockIndexKeys, 
         int beginBlockIndex = 0);
+
+    void CheckBlockUpperLimits(const NProto::TBlockMeta& blockMeta);
 
     // These methods return min block index, satisfying the lower limit.
     int ApplyLowerRowLimit(const NProto::TBlockMetaExt& blockMeta) const;
