@@ -940,6 +940,7 @@ private:
             return;
 
         int partitionIndex = partition->GetIndex();
+        i64 partitionDataSize = partition->GetUncompressedDataSize();
 
         tablet->SplitPartition(partitionIndex, pivotKeys);
 
@@ -954,7 +955,7 @@ private:
             tablet->GetTabletId(),
             partitionId,
             resultingPartitionIds,
-            partition->GetUncompressedDataSize(),
+            partitionDataSize,
             JoinToString(pivotKeys, Stroka(" .. ")));
 
         // NB: Initial partition is split into new ones with indexes |[partitionIndex, partitionIndex + pivotKeys.size())|.
@@ -975,11 +976,14 @@ private:
         int firstPartitionIndex = firstPartition->GetIndex();
         int lastPartitionIndex = firstPartitionIndex + request.partition_count() - 1;
 
-        // See HydraSplitPartition.
-        // Currently this code is redundant since there's no escape path below,
-        // but we prefer to keep it to make things look symmetric.
+        i64 partitionsDataSize = 0;
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-            tablet->Partitions()[index]->SetState(EPartitionState::Normal);
+            const auto& partition = tablet->Partitions()[index];
+            partitionsDataSize += partition->GetUncompressedDataSize();
+            // See HydraSplitPartition.
+            // Currently this code is redundant since there's no escape path below,
+            // but we prefer to keep it to make things look symmetric.
+            partition->SetState(EPartitionState::Normal);
         }
 
         auto originalPartitionIds = JoinToString(ConvertToStrings(
@@ -991,10 +995,11 @@ private:
 
         tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, OriginalPartitionIds: [%v], ResultingPartitionId: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, OriginalPartitionIds: [%v], ResultingPartitionId: %v, DataSize: %v)",
             tablet->GetTabletId(),
             originalPartitionIds,
-            tablet->Partitions()[firstPartitionIndex]->GetId());
+            tablet->Partitions()[firstPartitionIndex]->GetId(),
+            partitionsDataSize);
 
         // NB: Initial partitions are merged into a single one with index |firstPartitionIndex|.
         SchedulePartitionsSampling(tablet, firstPartitionIndex, firstPartitionIndex + 1);
