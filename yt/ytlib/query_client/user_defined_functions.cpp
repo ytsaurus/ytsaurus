@@ -86,8 +86,8 @@ TCGValue PropagateNullArguments(
                 return PropagateNullArguments(
                     codegenArgs,
                     argumentValues,
-                    codegenBody,
-                    codegenReturn,
+                    std::move(codegenBody),
+                    std::move(codegenReturn),
                     type,
                     name,
                     builder,
@@ -105,33 +105,35 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
 {
     return [
         this_ = MakeStrong(this),
+        codegenArgs = std::move(codegenArgs),
+        codegenBody = std::move(codegenBody),
         type,
-        name,
-        codegenArgs,
-        codegenBody
-    ] (TCGContext& builder, Value* row) {
-        auto resultPointer = builder.CreateAlloca(
-            TDataTypeBuilder::get(
-                builder.getContext(),
-                EValueType::String));
-        auto resultLength = builder.CreateAlloca(
-            TTypeBuilder::TLength::get(builder.getContext()));
+        name
+    ] (TCGContext& builder, Value* row) mutable {
+        std::reverse(
+            codegenArgs.begin(),
+            codegenArgs.end());
 
         auto llvmArgs = std::vector<Value*>();
-
         PushExecutionContext(builder, llvmArgs);
-
-        if (IsStringLikeType(type)) {
-            llvmArgs.push_back(resultPointer);
-            llvmArgs.push_back(resultLength);
-        }
 
         auto callUdf = [&] (std::vector<Value*> argValues) {
             return codegenBody(argValues, builder);
         };
 
-        auto codegenReturn = [&] (Value* llvmResult) {
-            if (IsStringLikeType(type)) {
+        std::function<TCGValue(Value*)> codegenReturn;
+        if (IsStringLikeType(type)) {
+            auto resultPointer = builder.CreateAlloca(
+                TDataTypeBuilder::get(
+                    builder.getContext(),
+                    EValueType::String));
+            llvmArgs.push_back(resultPointer);
+
+            auto resultLength = builder.CreateAlloca(
+                TTypeBuilder::TLength::get(builder.getContext()));
+            llvmArgs.push_back(resultLength);
+
+            codegenReturn = [&] (Value* llvmResult) {
                 return TCGValue::CreateFromValue(
                     builder,
                     builder.getFalse(),
@@ -139,23 +141,20 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
                     builder.CreateLoad(resultPointer),
                     type,
                     Twine(name.c_str()));
-            } else {
-                return TCGValue::CreateFromValue(
-                    builder,
-                    builder.getFalse(),
-                    nullptr,
-                    llvmResult,
-                    type);
-            }
-        };
-
-        auto reversedCodegenArgs = codegenArgs;
-        std::reverse(
-            reversedCodegenArgs.begin(),
-            reversedCodegenArgs.end());
+            };
+        } else {
+            codegenReturn = [&] (Value* llvmResult) {
+                    return TCGValue::CreateFromValue(
+                        builder,
+                        builder.getFalse(),
+                        nullptr,
+                        llvmResult,
+                        type);
+            };
+        }
 
         return PropagateNullArguments(
-            reversedCodegenArgs,
+            codegenArgs,
             llvmArgs,
             callUdf,
             codegenReturn,
@@ -254,7 +253,7 @@ TUserDefinedFunction::TUserDefinedFunction(
     std::vector<EValueType> argumentTypes,
     EValueType resultType,
     TSharedRef implementationFile,
-    ICallingConventionPtr callingConvention)
+    ECallingConvention callingConvention)
     : TTypedFunction(
         functionName,
         std::vector<TType>(argumentTypes.begin(), argumentTypes.end()),
@@ -263,8 +262,18 @@ TUserDefinedFunction::TUserDefinedFunction(
     , ImplementationFile_(implementationFile)
     , ResultType_(resultType)
     , ArgumentTypes_(argumentTypes)
-    , CallingConvention_(callingConvention)
-{ }
+{
+    switch (callingConvention) {
+        case ECallingConvention::Simple:
+            CallingConvention_ = New<TSimpleCallingConvention>();
+            break;
+        case ECallingConvention::UnversionedValue:
+            CallingConvention_ = New<TUnversionedValueCallingConvention>();
+            break;
+        default:
+            YUNREACHABLE();
+    }
+}
 
 void TUserDefinedFunction::CheckCallee(
     llvm::Function* callee,

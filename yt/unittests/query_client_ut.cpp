@@ -1993,28 +1993,32 @@ protected:
             EValueType::Int64,
             TSharedRef::FromRefNonOwning(TRef(
                 abs_udf_bc,
-                abs_udf_bc_len)));
+                abs_udf_bc_len)),
+            ECallingConvention::Simple);
         ExpUdf_ = New<TUserDefinedFunction>(
             "exp_udf",
             std::vector<EValueType>{EValueType::Int64, EValueType::Int64},
             EValueType::Int64,
             TSharedRef::FromRefNonOwning(TRef(
                 exp_udf_bc,
-                exp_udf_bc_len)));
+                exp_udf_bc_len)),
+            ECallingConvention::Simple);
         StrtolUdf_ = New<TUserDefinedFunction>(
             "strtol_udf",
             std::vector<EValueType>{EValueType::String},
             EValueType::Uint64,
             TSharedRef::FromRefNonOwning(TRef(
                 strtol_udf_bc,
-                strtol_udf_bc_len)));
+                strtol_udf_bc_len)),
+            ECallingConvention::Simple);
         TolowerUdf_ = New<TUserDefinedFunction>(
             "tolower_udf",
             std::vector<EValueType>{EValueType::String},
             EValueType::String,
             TSharedRef::FromRefNonOwning(TRef(
                 tolower_udf_bc,
-                tolower_udf_bc_len)));
+                tolower_udf_bc_len)),
+            ECallingConvention::Simple);
         IsNullUdf_ = New<TUserDefinedFunction>(
             "is_null_udf",
             std::vector<EValueType>{EValueType::String},
@@ -2022,7 +2026,7 @@ protected:
             TSharedRef::FromRefNonOwning(TRef(
                 is_null_udf_bc,
                 is_null_udf_bc_len)),
-            New<TUnversionedValueCallingConvention>());
+            ECallingConvention::UnversionedValue);
     }
 
     virtual void TearDown() override
@@ -3218,7 +3222,8 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
         "invalid_ir",
         std::vector<EValueType>{EValueType::Int64},
         EValueType::Int64,
-        fileRef);
+        fileRef,
+        ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     EXPECT_CALL(*registry, FindFunction("invalid_ir"))
@@ -3246,7 +3251,8 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
         "abs_udf",
         std::vector<EValueType>{EValueType::Int64, EValueType::Int64},
         EValueType::Int64,
-        fileRef);
+        fileRef,
+        ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     EXPECT_CALL(*registry, FindFunction("abs_udf"))
@@ -3274,7 +3280,8 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
         "abs_udf",
         std::vector<EValueType>{EValueType::Double},
         EValueType::Int64,
-        fileRef);
+        fileRef,
+        ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     EXPECT_CALL(*registry, FindFunction("abs_udf"))
