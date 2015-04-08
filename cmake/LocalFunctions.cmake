@@ -12,7 +12,7 @@ function(UDF udf output)
   get_filename_component( _filename ${_realpath} NAME_WE )
 
   set(${output} ${${output}} ${_dirname}/${_filename}.h PARENT_SCOPE)
-  set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/udf)
+  set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
 
   find_program(CLANG_EXECUTABLE
     NAMES clang-3.6 clang
