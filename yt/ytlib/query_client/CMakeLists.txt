@@ -74,5 +74,3 @@ ragel( ${BASE}/lexer.rl YT_SOURCE_FILES )
 protoc( ${BASE}/query_statistics.proto YT_SOURCE_FILES )
 protoc( ${BASE}/plan_fragment.proto YT_SOURCE_FILES )
 protoc( ${BASE}/query_service.proto YT_SOURCE_FILES )
-
-udf( ${BASE}/udf/to_lower.c YT_SOURCE_FILES )

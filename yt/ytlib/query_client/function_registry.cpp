@@ -3,8 +3,6 @@
 #include "builtin_functions.h"
 #include "user_defined_functions.h"
 
-#include "udf/to_lower.h"
-
 #include <ytlib/api/public.h>
 #include <ytlib/api/client.h>
 #include <ytlib/api/file_reader.h>
@@ -84,15 +82,8 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
     registry->RegisterFunction(New<TCastFunction>(
         EValueType::Double,
         "double"));
-    registry->RegisterFunction(New<TUserDefinedFunction>(
-        "to_lower",
-        std::vector<EValueType>{EValueType::String},
-        EValueType::String,
-        TSharedRef::FromRefNonOwning(TRef(
-            to_lower_bc,
-            to_lower_bc_len)),
-        ECallingConvention::Simple));
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressFunctionDescriptor

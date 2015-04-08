@@ -22,6 +22,10 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const char* ExecutionContextStructName = "struct.TExecutionContext";
+
+static const char* UnversionedValueStructName = "struct.TUnversionedValue";
+
 Stroka ToString(llvm::Type* tp)
 {
     std::string str;
@@ -37,7 +41,7 @@ void PushExecutionContext(
     auto fullContext = builder.GetExecutionContextPtr();
     auto baseContextType = StructType::create(
         builder.getContext(),
-        "struct.TExecutionContext");
+        ExecutionContextStructName);
     auto contextStruct = builder.CreateBitCast(
         fullContext,
         PointerType::getUnqual(baseContextType));
@@ -202,7 +206,7 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
             llvm::TypeBuilder<TUnversionedValue, false>::get(builder.getContext());
         auto unversionedValueOpaqueType = StructType::create(
             builder.getContext(),
-            "struct.TUnversionedValue");
+            UnversionedValueStructName);
 
         auto argumentValues = std::vector<Value*>();
 
@@ -313,7 +317,9 @@ void TUserDefinedFunction::CheckCallee(
     }
 }
 
-Function* TUserDefinedFunction::GetLlvmFunction(TCGContext& builder) const
+Function* TUserDefinedFunction::GetLlvmFunction(
+    TCGContext& builder,
+    std::vector<Value*> argumentValues) const
 {
     auto module = builder.Module->GetModule();
     auto callee = module->getFunction(StringRef(FunctionName_));
@@ -332,6 +338,7 @@ Function* TUserDefinedFunction::GetLlvmFunction(TCGContext& builder) const
 
         Linker::LinkModules(module, implModule.get());
         callee = module->getFunction(StringRef(FunctionName_));
+        CheckCallee(callee, builder, argumentValues);
     }
     return callee;
 }
@@ -345,8 +352,7 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
         this_ = MakeStrong(this)
     ] (std::vector<Value*> argumentValues, TCGContext& builder) {
 
-        auto callee = this_->GetLlvmFunction(builder);
-        this_->CheckCallee(callee, builder, argumentValues);
+        auto callee = this_->GetLlvmFunction(builder, argumentValues);
         auto result = builder.CreateCall(callee, argumentValues);
         return result;
     };
