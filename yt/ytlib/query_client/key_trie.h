@@ -81,9 +81,10 @@ private:
 
 };
 
-std::vector<TKeyRange> GetRangesFromTrieWithinRange(
+std::vector<std::pair<TRow, TRow>> GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,
-    const TKeyTrieNode& trie);
+    const TKeyTrieNode& trie,
+    TRowBuffer* rowBuffer);
 
 Stroka ToString(const TKeyTrieNode& node);
 

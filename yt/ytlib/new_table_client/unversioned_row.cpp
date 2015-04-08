@@ -384,6 +384,8 @@ bool operator > (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     return CompareRowValues(lhs, rhs) > 0;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 int CompareRows(
     const TUnversionedValue* lhsBegin,
     const TUnversionedValue* lhsEnd,
@@ -451,6 +453,72 @@ bool operator > (TUnversionedRow lhs, TUnversionedRow rhs)
 {
     return CompareRows(lhs, rhs) > 0;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator == (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs.Get()) == 0;
+}
+
+bool operator != (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs.Get()) != 0;
+}
+
+bool operator <= (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs.Get()) <= 0;
+}
+
+bool operator < (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs.Get()) < 0;
+}
+
+bool operator >= (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs.Get()) >= 0;
+}
+
+bool operator > (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs.Get()) > 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator == (const TUnversionedOwningRow& lhs, TUnversionedRow rhs)
+{
+    return CompareRows(lhs.Get(), rhs) == 0;
+}
+
+bool operator != (const TUnversionedOwningRow& lhs, TUnversionedRow rhs)
+{
+    return CompareRows(lhs.Get(), rhs) != 0;
+}
+
+bool operator <= (const TUnversionedOwningRow& lhs, TUnversionedRow rhs)
+{
+    return CompareRows(lhs.Get(), rhs) <= 0;
+}
+
+bool operator < (const TUnversionedOwningRow& lhs, TUnversionedRow rhs)
+{
+    return CompareRows(lhs.Get(), rhs) < 0;
+}
+
+bool operator >= (const TUnversionedOwningRow& lhs, TUnversionedRow rhs)
+{
+    return CompareRows(lhs.Get(), rhs) >= 0;
+}
+
+bool operator > (const TUnversionedOwningRow& lhs, TUnversionedRow rhs)
+{
+    return CompareRows(lhs.Get(), rhs) > 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 int CompareRows(const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs, int prefixLength)
 {

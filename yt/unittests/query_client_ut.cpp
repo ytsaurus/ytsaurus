@@ -620,12 +620,12 @@ TKeyRange RefineKeyRange(
         &rowBuffer,
         CreateBuiltinFunctionRegistry());
 
-    auto result = GetRangesFromTrieWithinRange(keyRange, keyTrie);
+    auto result = GetRangesFromTrieWithinRange(keyRange, keyTrie, &rowBuffer);
 
     if (result.empty()) {
         return std::make_pair(EmptyKey(), EmptyKey());
     } else if (result.size() == 1) {
-        return result[0];
+        return TKeyRange(TKey(result[0].first), TKey(result[0].second));
     } else {
         return keyRange;
     }
@@ -1238,9 +1238,11 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 
 TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
 {
-    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+    TRowBuffer rowBuffer;
+    auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey(_MIN_), BuildKey(_MAX_)),
-        TKeyTrieNode::Empty());
+        TKeyTrieNode::Empty(),
+        &rowBuffer);
 
     EXPECT_EQ(result.size(), 0);
 }
@@ -1261,9 +1263,10 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
         &rowBuffer,
         CreateBuiltinFunctionRegistry());
 
-    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+    auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        keyTrie);
+        keyTrie,
+        &rowBuffer);
 
     EXPECT_EQ(result.size(), 2);
 
@@ -1290,9 +1293,10 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
         &rowBuffer,
         CreateBuiltinFunctionRegistry());
 
-    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+    auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        keyTrie);
+        keyTrie,
+        &rowBuffer);
 
     EXPECT_EQ(result.size(), 2);
 
@@ -1319,9 +1323,10 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
         &rowBuffer,
         CreateBuiltinFunctionRegistry());
 
-    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+    auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        keyTrie);
+        keyTrie,
+        &rowBuffer);
 
     EXPECT_EQ(result.size(), 9);
 

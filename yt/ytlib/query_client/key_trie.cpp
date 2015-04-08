@@ -303,8 +303,9 @@ TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
 
 void GetRangesFromTrieWithinRangeImpl(
     const TKeyRange& keyRange,
-    std::vector<TKeyRange>* result,
     const TKeyTrieNode& trie,
+    std::vector<std::pair<TRow, TRow>>* result,
+    TRowBuffer* rowBuffer, 
     std::vector<TUnversionedValue> prefix = std::vector<TUnversionedValue>(),
     bool refineLower = true,
     bool refineUpper = true)
@@ -325,20 +326,21 @@ void GetRangesFromTrieWithinRangeImpl(
     YCHECK(!refineLower || offset < lowerBoundSize);
     YCHECK(!refineUpper || offset < upperBoundSize);
 
+    TUnversionedRowBuilder builder(offset);
+
     if (trie.Offset > offset) {
         if (refineLower && refineUpper && keyRange.first[offset] == keyRange.second[offset]) {
             prefix.emplace_back(keyRange.first[offset]);
             GetRangesFromTrieWithinRangeImpl(
                 keyRange,
-                result,
                 trie,
+                result,
+                rowBuffer,
                 prefix,
                 true,
                 true);
         } else {
-            TKeyRange range;
-            TUnversionedOwningRowBuilder builder(offset);
-
+            std::pair<TRow, TRow> range;
             for (size_t i = 0; i < offset; ++i) {
                 builder.AddValue(prefix[i]);
             }
@@ -348,7 +350,8 @@ void GetRangesFromTrieWithinRangeImpl(
                     builder.AddValue(keyRange.first[i]);
                 }
             }
-            range.first = builder.FinishRow();
+            range.first = rowBuffer->Capture(builder.GetRow());
+            builder.Reset();
 
 
             for (size_t i = 0; i < offset; ++i) {
@@ -362,7 +365,8 @@ void GetRangesFromTrieWithinRangeImpl(
             } else {
                 builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
             }
-            range.second = builder.FinishRow();
+            range.second = rowBuffer->Capture(builder.GetRow());
+            builder.Reset();
 
             if (!IsEmpty(range)) {
                 result->push_back(range);
@@ -403,9 +407,7 @@ void GetRangesFromTrieWithinRangeImpl(
             }
         }
 
-        TKeyRange range;
-        TUnversionedOwningRowBuilder builder(offset);
-
+        std::pair<TRow, TRow> range;
         for (size_t j = 0; j < offset; ++j) {
             builder.AddValue(prefix[j]);
         }
@@ -422,7 +424,8 @@ void GetRangesFromTrieWithinRangeImpl(
             }
         }
         
-        range.first = builder.FinishRow();
+        range.first = rowBuffer->Capture(builder.GetRow());
+        builder.Reset();
 
         for (size_t j = 0; j < offset; ++j) {
             builder.AddValue(prefix[j]);
@@ -440,7 +443,8 @@ void GetRangesFromTrieWithinRangeImpl(
             }
         }
 
-        range.second = builder.FinishRow();
+        range.second = rowBuffer->Capture(builder.GetRow());
+        builder.Reset();
         result->push_back(range);
     }
 
@@ -471,25 +475,27 @@ void GetRangesFromTrieWithinRangeImpl(
 
         GetRangesFromTrieWithinRangeImpl(
             keyRange,
-            result,
             next.second,
+            result,
+            rowBuffer,
             prefix,
             refineLowerNext,
             refineUpperNext);
     }
 }
 
-std::vector<TKeyRange> GetRangesFromTrieWithinRange(
+std::vector<std::pair<TRow, TRow>> GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,
-    const TKeyTrieNode& trie)
+    const TKeyTrieNode& trie,
+    TRowBuffer* rowBuffer)
 {
-    std::vector<TKeyRange> result;
+    std::vector<std::pair<TRow, TRow>> result;
 
-    GetRangesFromTrieWithinRangeImpl(keyRange, &result, trie);
+    GetRangesFromTrieWithinRangeImpl(keyRange, trie, &result, rowBuffer);
 
     if (!result.empty()) {
         std::sort(result.begin(), result.end());
-        std::vector<TKeyRange> mergedResult;
+        std::vector<std::pair<TRow, TRow>> mergedResult;
         mergedResult.push_back(result.front());
 
         for (size_t i = 1; i < result.size(); ++i) {

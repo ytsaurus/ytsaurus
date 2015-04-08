@@ -129,7 +129,13 @@ private:
 
         virtual std::vector<TKeyRange> GetRangesWithinRange(const TKeyRange& keyRange) override
         {
-            return GetRangesFromTrieWithinRange(keyRange, KeyTrie_);
+            TRowBuffer rowBuffer;
+            auto unversionedRanges = GetRangesFromTrieWithinRange(keyRange, KeyTrie_, &rowBuffer);
+            std::vector<TKeyRange> ranges;
+            for (auto range : unversionedRanges) {
+                ranges.emplace_back(TKey(range.first), TKey(range.second));
+            }
+            return ranges;
         }
 
     private:
@@ -174,8 +180,14 @@ private:
 
         virtual std::vector<TKeyRange> GetRangesWithinRange(const TKeyRange& keyRange) override
         {
-            auto ranges = GetRangesFromTrieWithinRange(keyRange, KeyTrie_);
-
+            TRowBuffer rowBuffer;
+            auto unversionedRanges = GetRangesFromTrieWithinRange(keyRange, KeyTrie_, &rowBuffer);
+            std::vector<TKeyRange> ranges;
+            for (auto range : unversionedRanges) {
+                ranges.emplace_back(TKey(range.first), TKey(range.second));
+            }
+            rowBuffer.Clear();
+            
             bool rebuildRanges = false;
 
             for (auto& range : ranges) {
@@ -191,7 +203,11 @@ private:
 
                 LOG_DEBUG_IF(VerboseLogging_, "Inferred key constraints %Qv", trie);
 
-                ranges = GetRangesFromTrieWithinRange(keyRange, trie);
+                auto unversionedRanges = GetRangesFromTrieWithinRange(keyRange, trie, &rowBuffer);
+                ranges.clear();
+                for (auto range : unversionedRanges) {
+                    ranges.emplace_back(TKey(range.first), TKey(range.second));
+                }
             }
 
             Buffer_.Clear();
