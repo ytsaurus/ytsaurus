@@ -253,6 +253,20 @@ bool operator <  (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >= (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >  (TUnversionedRow lhs, TUnversionedRow rhs);
 
+bool operator == (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
+bool operator != (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
+bool operator <= (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
+bool operator <  (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
+bool operator >= (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
+bool operator >  (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
+
+bool operator == (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
+bool operator != (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
+bool operator <= (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
+bool operator <  (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
+bool operator >= (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
+bool operator >  (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
+
 //! Ternary comparison predicate for TUnversionedOwningRow-s stripped to a given number of
 //! (leading) values.
 int CompareRows(
