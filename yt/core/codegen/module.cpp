@@ -54,7 +54,10 @@ public:
     {
         uint64_t address = 0;
 
-        address = llvm::SectionMemoryManager::getSymbolAddress(name);
+        auto whitelistLocation = std::find(Whitelist_.begin(), Whitelist_.end(), name);
+        if (whitelistLocation != Whitelist_.end()) {
+            address = llvm::SectionMemoryManager::getSymbolAddress(name);
+        }
         if (address) {
             return address;
         }
@@ -64,6 +67,9 @@ public:
 
     // RoutineRegistry is supposed to be a static object.
     TRoutineRegistry* RoutineRegistry;
+
+private:
+    const std::vector<std::string> Whitelist_ = std::vector<std::string>{};
 };
 
 class TCGModule::TImpl
