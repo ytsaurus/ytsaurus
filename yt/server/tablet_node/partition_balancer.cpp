@@ -108,8 +108,9 @@ private:
         }
 
         if (actualDataSize >  config->MaxPartitionDataSize) {
-            int splitFactor = std::min(
+            int splitFactor = std::min(std::min(
                 actualDataSize / config->DesiredPartitionDataSize + 1,
+                actualDataSize / config->MinPartitioningDataSize),
                 static_cast<i64>(config->MaxPartitionCount - partitionCount));
             if (splitFactor > 1) {
                 RunSplit(partition, splitFactor);
