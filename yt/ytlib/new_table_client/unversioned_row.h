@@ -473,6 +473,9 @@ void ValidateServerKey(
     int keyColumnCount,
     const TTableSchema& schema);
 
+//! Checks if #timestamp is sane and can be used for reading data.
+void ValidateReadTimestamp(TTimestamp timestamp);
+
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 // by appending a |EValueType::Min| sentinel.
 //

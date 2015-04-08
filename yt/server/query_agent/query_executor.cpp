@@ -676,7 +676,9 @@ private:
         TTimestamp timestamp,
         TNodeDirectoryPtr nodeDirectory)
     {
-        auto objectId = source.Id;
+        ValidateReadTimestamp(timestamp);
+
+        const auto& objectId = source.Id;
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
@@ -696,6 +698,9 @@ private:
         const std::vector<TUnversionedRow>& keys,
         TTimestamp timestamp)
     {
+        ValidateReadTimestamp(timestamp);
+
+        // TODO(babenko): add support for chunks
         switch (TypeFromId(objectId)) {
             case EObjectType::Tablet:
                 return GetTabletReader(objectId, keys, timestamp);
@@ -782,7 +787,7 @@ private:
         TTimestamp timestamp)
     {
         try {
-            auto tabletId = source.Id;
+            const auto& tabletId = source.Id;
 
             auto slotManager = Bootstrap_->GetTabletSlotManager();
             auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
