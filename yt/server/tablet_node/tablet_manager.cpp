@@ -941,13 +941,22 @@ private:
 
         int partitionIndex = partition->GetIndex();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, PartitionId: %v, DataSize: %v, Keys: %v)",
+        tablet->SplitPartition(partitionIndex, pivotKeys);
+
+        auto resultingPartitionIds = JoinToString(ConvertToStrings(
+            tablet->Partitions().begin() + partitionIndex,
+            tablet->Partitions().begin() + partitionIndex + pivotKeys.size(),
+            [] (const std::unique_ptr<TPartition>& partition) {
+                return ToString(partition->GetId());
+            }));
+
+        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, OriginalPartitionId: %v, ResultingPartitionIds: [%v], DataSize: %v, Keys: %v)",
             tablet->GetTabletId(),
             partitionId,
+            resultingPartitionIds,
             partition->GetUncompressedDataSize(),
             JoinToString(pivotKeys, Stroka(" .. ")));
 
-        tablet->SplitPartition(partitionIndex, pivotKeys);
         // NB: Initial partition is split into new ones with indexes |[partitionIndex, partitionIndex + pivotKeys.size())|.
         SchedulePartitionsSampling(tablet, partitionIndex, partitionIndex + pivotKeys.size());
         UpdateTabletSnapshot(tablet);
@@ -973,16 +982,20 @@ private:
             tablet->Partitions()[index]->SetState(EPartitionState::Normal);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, PartitionIds: [%v])",
-            tablet->GetTabletId(),
-            JoinToString(ConvertToStrings(
-                tablet->Partitions().begin() + firstPartitionIndex,
-                tablet->Partitions().begin() + lastPartitionIndex + 1,
-                [] (const std::unique_ptr<TPartition>& partition) {
-                     return ToString(partition->GetId());
-                })));
+        auto originalPartitionIds = JoinToString(ConvertToStrings(
+            tablet->Partitions().begin() + firstPartitionIndex,
+            tablet->Partitions().begin() + lastPartitionIndex + 1,
+            [] (const std::unique_ptr<TPartition>& partition) {
+                return ToString(partition->GetId());
+            }));
 
         tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, OriginalPartitionIds: [%v], ResultingPartitionId: %v)",
+            tablet->GetTabletId(),
+            originalPartitionIds,
+            tablet->Partitions()[firstPartitionIndex]->GetId());
+
         // NB: Initial partitions are merged into a single one with index |firstPartitionIndex|.
         SchedulePartitionsSampling(tablet, firstPartitionIndex, firstPartitionIndex + 1);
         UpdateTabletSnapshot(tablet);
