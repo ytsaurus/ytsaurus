@@ -42,7 +42,7 @@ struct TExecutionContext
 #ifndef NDEBUG
     size_t StackSizeGuardHelper;
 #endif
-    TTableSchema Schema;
+    const TTableSchema* Schema;
     ISchemafulReader* Reader;
     ISchemafulWriter* Writer;
 

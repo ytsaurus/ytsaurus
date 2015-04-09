@@ -54,7 +54,7 @@ void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
 
     TQueryStatistics statistics;
     TExecutionContext executionContext;
-    executionContext.Schema = Schema_;
+    executionContext.Schema = &Schema_;
     executionContext.LiteralRows = &Variables_[index].LiteralRows;
     executionContext.PermanentBuffer = &buffer;
     executionContext.OutputBuffer = &buffer;
