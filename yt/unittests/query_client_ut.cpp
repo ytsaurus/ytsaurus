@@ -4,6 +4,7 @@
 
 #ifdef YT_USE_LLVM
 #include "udf/test_udfs.h"
+#include "udf/malloc_udf.h"
 #include "udf/invalid_ir.h"
 #endif
 
@@ -3480,6 +3481,36 @@ TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
         .WillRepeatedly(Return(IsNullUdf_));
 
     Evaluate("is_null_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3",
+        "a=4",
+        ""
+    };
+
+    auto mallocUdf = New<TUserDefinedFunction>(
+        "malloc_udf",
+        std::vector<EValueType>{EValueType::Int64},
+        EValueType::Int64,
+        TSharedRef::FromRefNonOwning(TRef(
+            malloc_udf_bc,
+            malloc_udf_bc_len)),
+        ECallingConvention::Simple);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("malloc_udf"))
+        .WillRepeatedly(Return(mallocUdf));
+
+    EvaluateExpectingError("malloc_udf(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
