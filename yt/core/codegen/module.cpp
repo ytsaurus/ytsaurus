@@ -52,7 +52,7 @@ public:
 
     virtual uint64_t getSymbolAddress(const std::string& name) override
     {
-        auto isWhitelisted = std::find(Whitelist_.begin(), Whitelist_.end(), name) != Whitelist_.end();
+        auto isWhitelisted = Whitelist_.find(name) != Whitelist_.end();
 
         auto address = llvm::SectionMemoryManager::getSymbolAddress(name);
         if (address) {
@@ -60,7 +60,7 @@ public:
                 return address;
             } else {
                 THROW_ERROR_EXCEPTION(
-                    "External calls to function %Qv are not allowed",
+                    "External call to function %Qv is not allowed",
                     name);
             }
         }
@@ -72,7 +72,7 @@ public:
     TRoutineRegistry* RoutineRegistry;
 
 private:
-    const std::vector<std::string> Whitelist_ = std::vector<std::string>{};
+    const std::unordered_set<std::string> Whitelist_ = std::unordered_set<std::string>{};
 };
 
 class TCGModule::TImpl
