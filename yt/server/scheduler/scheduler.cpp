@@ -1086,6 +1086,9 @@ private:
         LOG_INFO("Operation has been prepared and is now running (OperationId: %s)",
             ~ToString(operationId));
 
+        LogEventFluently(ELogEventType::OperationPrepared)
+            .Item("operation_id").Value(operationId);
+
         LogOperationProgress(operation);
 
         // From this moment on the controller is fully responsible for the
