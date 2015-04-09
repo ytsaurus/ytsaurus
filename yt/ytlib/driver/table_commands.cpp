@@ -205,6 +205,7 @@ void TSelectRowsCommand::DoExecute()
     options.Timestamp = Request_->Timestamp;
     options.InputRowLimit = Request_->InputRowLimit;
     options.OutputRowLimit = Request_->OutputRowLimit;
+    options.RangeExpansionLimit = Request_->RangeExpansionLimit;
     options.VerboseLogging = Request_->VerboseLogging;
 
     auto format = Context_->GetOutputFormat();

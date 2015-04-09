@@ -26,6 +26,7 @@ TDataSources GetPrunedSources(
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
+    i64 rangeExpansionLimit,
     bool verboseLogging);
 
 TDataSources GetPrunedSources(
@@ -33,6 +34,7 @@ TDataSources GetPrunedSources(
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
+    i64 rangeExpansionLimit,
     bool verboseLogging);
 
 TKeyRange GetRange(const TDataSources& sources);

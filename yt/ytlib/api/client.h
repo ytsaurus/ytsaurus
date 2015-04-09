@@ -170,6 +170,8 @@ struct TSelectRowsOptions
     TNullable<i64> InputRowLimit;
     //! If null then connection defaults are used.
     TNullable<i64> OutputRowLimit;
+    //! Limits range expanding.
+    i64 RangeExpansionLimit;
     //! If |true| then incomplete result would lead to a failure.
     bool FailOnIncompleteResult = true;
     //! If |true| then logging is more verbose.

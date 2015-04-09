@@ -41,6 +41,7 @@ public:
         const NVersionedTableClient::TNameTableToSchemaIdMapping& idMapping);
 
     const yhash_set<Stroka>& GetReferences(int index);
+    TConstExpressionPtr GetExpression(int index);
 
 private:
     void PrepareEvaluator(int index);
@@ -53,6 +54,7 @@ private:
     std::vector<TCGExpressionCallback> Evaluators_;
     std::vector<TCGVariables> Variables_;
     std::vector<yhash_set<Stroka>> References_;
+    std::vector<TConstExpressionPtr> Expressions_;
 #endif
 };
 

@@ -426,7 +426,7 @@ struct TPlanFragment
     TConstQueryPtr Query;
     bool Ordered = false;
     bool VerboseLogging = false;
-
+    i64 RangeExpansionLimit = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPlanFragment)
