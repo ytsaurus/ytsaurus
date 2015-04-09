@@ -109,10 +109,10 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
 {
     return [
         this_ = MakeStrong(this),
-        codegenArgs = std::move(codegenArgs),
-        codegenBody = std::move(codegenBody),
         type,
-        name
+        name,
+        MOVE(codegenArgs),
+        MOVE(codegenBody)
     ] (TCGContext& builder, Value* row) mutable {
         std::reverse(
             codegenArgs.begin(),
@@ -121,7 +121,7 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
         auto llvmArgs = std::vector<Value*>();
         PushExecutionContext(builder, llvmArgs);
 
-        auto callUdf = [&] (std::vector<Value*> argValues) {
+        auto callUdf = [&codegenBody, &builder] (std::vector<Value*> argValues) {
             return codegenBody(argValues, builder);
         };
 
