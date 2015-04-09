@@ -716,13 +716,13 @@ private:
         TTimestamp timestamp,
         TNodeDirectoryPtr nodeDirectory)
     {
-        auto futureReader = BIND(&TQueryExecutor::GetChunkReaderControl, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetControlInvoker())
+        auto futureReader = BIND(&TQueryExecutor::DoGetChunkReader, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
             .Run(source, timestamp, std::move(nodeDirectory));
         return New<TLazySchemafulReader>(std::move(futureReader));
     }
 
-    ISchemafulReaderPtr GetChunkReaderControl(
+    ISchemafulReaderPtr DoGetChunkReader(
         const TDataSource& source,
         TTimestamp timestamp,
         TNodeDirectoryPtr nodeDirectory)
