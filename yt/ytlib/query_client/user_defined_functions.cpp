@@ -203,7 +203,7 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 {
     return [=] (TCGContext& builder, Value* row) {
         auto unversionedValueType =
-            llvm::TypeBuilder<TUnversionedValue, false>::get(builder.getContext());
+            llvm::TypeBuilder<TValue, false>::get(builder.getContext());
         auto unversionedValueOpaqueType = StructType::create(
             builder.getContext(),
             UnversionedValueStructName);
