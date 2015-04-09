@@ -126,46 +126,6 @@ std::vector<TBound> IntersectBounds(
     return result;
 }
 
-TKeyTriePtr TKeyTrie::Unite(TKeyTriePtr rhs)
-{
-    if (Offset < rhs->Offset) {
-        return rhs;
-    } else if (Offset > rhs->Offset) {
-        return this;
-    }
-
-    std::vector<std::pair<TValue, TKeyTriePtr>> other;
-    for (auto& next : rhs->Next) {
-        auto eq = std::equal_range(Next.begin(), Next.end(), next.first, TKeyTrieComparer());
-        if (eq.first != eq.second) {
-            eq.first->second->Unite(next.second);
-        } else {
-            other.push_back(std::move(next));
-        }
-    }
-    
-    auto middle = Next.size();
-    std::move(other.begin(), other.end(), std::back_inserter(Next));
-    std::inplace_merge(Next.begin(), Next.begin() + middle, Next.end(), TKeyTrieComparer());
-
-    if (!Bounds.empty() || !rhs->Bounds.empty()) {
-        std::vector<TBound> deletedPoints;
-
-        deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-        for (const auto& next : Next) {
-            deletedPoints.emplace_back(next.first, false);
-            deletedPoints.emplace_back(next.first, false);
-        }
-        deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
-
-        std::vector<TBound> bounds = UniteBounds(Bounds, rhs->Bounds);
-
-        Bounds = IntersectBounds(bounds, deletedPoints);
-    }
-
-    return this;
-}
-
 TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
 {
     if (tries.empty()) {
@@ -177,6 +137,10 @@ TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
     std::vector<TKeyTriePtr> maxTries;
     size_t offset = 0;
     for (const auto& trie : tries) {
+        if (!trie) {
+            return TKeyTrie::Universal();
+        }
+
         if (trie->Offset > offset) {
             maxTries.clear();
             offset = trie->Offset;
@@ -196,12 +160,13 @@ TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
 
     std::sort(groups.begin(), groups.end(), TKeyTrieComparer());
 
-    TKeyTriePtr result = TKeyTrie::Empty();
+    auto result = New<TKeyTrie>(offset);
+    std::vector<TKeyTriePtr> unique;
 
     auto it = groups.begin();
     auto end = groups.end();
     while (it != end) {
-        std::vector<TKeyTriePtr> unique;
+        unique.clear();
         auto same = it;
         for (; same != end && *same == *it; ++same) {
             unique.push_back(same->second);
@@ -217,7 +182,7 @@ TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
         }
     }
 
-    size_t size = bounds.size();
+    auto size = bounds.size();
     while (size > 1) {
         size_t i = 0;
         while (2 * i + 1 < bounds.size()) {
@@ -311,12 +276,15 @@ TKeyTriePtr TKeyTrie::FromRange(const TKeyRange& range)
 
 TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 {
-    return lhs->Unite(rhs);
+    return UniteKeyTrie({lhs, rhs});
 };
 
 TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 {
-    if (lhs->Offset < rhs->Offset) {
+    auto lhsOffset = lhs ? lhs->Offset : std::numeric_limits<size_t>::max();
+    auto rhsOffset = rhs ? rhs->Offset : std::numeric_limits<size_t>::max();
+
+    if (lhsOffset < rhsOffset) {
         auto result = lhs;
         for (auto& next : result->Next) {
             next.second = IntersectKeyTrie(next.second, rhs);
@@ -324,13 +292,20 @@ TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
         return result;
     }
 
-    if (lhs->Offset > rhs->Offset) {
+    if (lhsOffset > rhsOffset) {
         auto result = rhs;
         for (auto& next : result->Next) {
             next.second = IntersectKeyTrie(next.second, lhs);
         }
         return result;
     }
+
+    if (!lhs && !rhs) {
+        return nullptr;
+    }
+
+    YCHECK(lhs);
+    YCHECK(rhs);
 
     auto result = New<TKeyTrie>(lhs->Offset);
     result->Bounds = IntersectBounds(lhs->Bounds, rhs->Bounds);
@@ -386,7 +361,6 @@ TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
         }
     }
 
-    // TODO: merge and then adjacent_find
     for (const auto& next : lhs->Next) {
         auto eq = std::equal_range(rhs->Next.begin(), rhs->Next.end(), next.first, TKeyTrieComparer());
         if (eq.first != eq.second) {
@@ -425,7 +399,9 @@ void GetRangesFromTrieWithinRangeImpl(
 
     TUnversionedRowBuilder builder(offset);
 
-    if (trie->Offset > offset) {
+    auto trieOffset = trie ? trie->Offset : std::numeric_limits<size_t>::max();
+
+    if (trieOffset > offset) {
         if (refineLower && refineUpper && keyRange.first[offset] == keyRange.second[offset]) {
             prefix.emplace_back(keyRange.first[offset]);
             GetRangesFromTrieWithinRangeImpl(
@@ -472,6 +448,7 @@ void GetRangesFromTrieWithinRangeImpl(
         return;
     }
 
+    YCHECK(trie);
     YCHECK(trie->Offset == offset);
 
     const auto& resultBounds = trie->Bounds;
@@ -587,7 +564,6 @@ std::vector<std::pair<TRow, TRow>> GetRangesFromTrieWithinRange(
     TRowBuffer* rowBuffer)
 {
     std::vector<std::pair<TRow, TRow>> result;
-
     GetRangesFromTrieWithinRangeImpl(keyRange, trie, &result, rowBuffer);
 
     if (!result.empty()) {
@@ -622,7 +598,8 @@ Stroka ToString(TKeyTriePtr node) {
         [&](TKeyTriePtr node, size_t offset) {
             Stroka str;
             str += printOffset(offset);
-            if (node->Offset == std::numeric_limits<size_t>::max()) {
+
+            if (!node) {
                 str += "(universe)";
             } else {
                 str += "(key";

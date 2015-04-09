@@ -297,7 +297,7 @@ TKeyTriePtr TIsPrefixFunction::ExtractKeyRange(
 
             YCHECK(value.Type == EValueType::String);
 
-            result->Offset = keyPartIndex;
+            result = New<TKeyTrie>(keyPartIndex);
             result->Bounds.emplace_back(value, true);
 
             ui32 length = value.Length;

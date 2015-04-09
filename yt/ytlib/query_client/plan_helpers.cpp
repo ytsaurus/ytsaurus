@@ -75,6 +75,8 @@ TKeyTriePtr ExtractMultipleConstraints(
                 if (keyPartIndex >= 0) {
                     auto value = TValue(constantExpr->Value);
 
+                    result = New<TKeyTrie>(0);
+
                     auto& bounds = result->Bounds;
                     switch (opcode) {
                         case EBinaryOp::Equal:
@@ -148,8 +150,7 @@ TKeyTriePtr ExtractMultipleConstraints(
             for (int keyIndex = keyMapping.size() - 1; keyIndex >= 0; --keyIndex) {
                 auto index = keyMapping[keyIndex];
                 if (index >= 0) {
-                    auto valueConstraint = TKeyTrie::Universal();
-                    valueConstraint->Offset = keyIndex;
+                    auto valueConstraint = New<TKeyTrie>(keyIndex);
                     valueConstraint->Next.emplace_back(literalTuple[index], std::move(rowConstraint));
                     rowConstraint = std::move(valueConstraint);
                 }

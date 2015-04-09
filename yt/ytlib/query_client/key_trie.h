@@ -44,7 +44,7 @@ DECLARE_REFCOUNTED_STRUCT(TKeyTrie)
 struct TKeyTrie
     : public TIntrinsicRefCounted
 {
-    size_t Offset = std::numeric_limits<size_t>::max();
+    size_t Offset = 0;
 
     std::vector<std::pair<TValue, TKeyTriePtr>> Next; // TODO: rename to Following
     std::vector<TBound> Bounds;
@@ -59,7 +59,6 @@ struct TKeyTrie
     TKeyTrie& operator=(const TKeyTrie&) = default;
     TKeyTrie& operator=(TKeyTrie&&) = default;
 
-
     static TKeyTriePtr Empty()
     {
         return New<TKeyTrie>(0);
@@ -67,7 +66,7 @@ struct TKeyTrie
 
     static TKeyTriePtr Universal()
     {
-        return New<TKeyTrie>(std::numeric_limits<size_t>::max());
+        return nullptr;
     }
 
     static TKeyTriePtr FromLowerBound(const TKey& bound);
@@ -77,10 +76,6 @@ struct TKeyTrie
     friend TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs);
     friend TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries);
     friend TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs);
-
-private:
-    TKeyTriePtr Unite(TKeyTriePtr rhs);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TKeyTrie)
