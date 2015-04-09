@@ -1,0 +1,32 @@
+#pragma once
+
+#include "public.h"
+#include "callbacks.h"
+#include "plan_fragment.h"
+#include "query_statistics.h"
+#include "column_evaluator.h"
+#include "function_registry.h"
+
+#include <functional>
+
+namespace NYT {
+namespace NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+typedef std::function<std::vector<TKeyRange>(const TKeyRange& keyRange)> TRangeInferrer;
+
+TRangeInferrer CreateRangeInferrer(
+    const TConstExpressionPtr& predicate,
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns,
+    const TColumnEvaluatorCachePtr& evaluatorCache,
+    const IFunctionRegistryPtr functionRegistry,
+    i64 rangeExpansionLimit,
+    bool verboseLogging);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NQueryClient
+} // namespace NYT
+
