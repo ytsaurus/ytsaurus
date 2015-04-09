@@ -7,6 +7,8 @@ from yt_commands import *
 
 from time import sleep
 from random import randint
+from random import shuffle
+
 
 ##################################################################
 
@@ -94,8 +96,11 @@ class TestQuery(YTEnvSetup):
         mount_table("//tmp/o1")
         self._wait_for_tablet_state("//tmp/o1", ["mounted"])
 
+        values = [i for i in xrange(0, 300)]
+        shuffle(values)
+
         data = [
-            {"key": i, "value": randint(0, 1000)}
+            {"key": i, "value": values[i]}
             for i in xrange(0, 100)]
         insert_rows("//tmp/o1", data)
 
