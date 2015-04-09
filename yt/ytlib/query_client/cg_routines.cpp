@@ -130,7 +130,7 @@ void ScanOpHelper(
     {
         LOG_DEBUG("Started opening reader");
         NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
-        WaitFor(reader->Open(executionContext->Schema))
+        WaitFor(reader->Open(*executionContext->Schema))
             .ThrowOnError();
         LOG_DEBUG("Finished opening reader");
     }

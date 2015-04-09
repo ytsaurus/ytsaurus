@@ -105,7 +105,7 @@ public:
 
                 TExecutionContext executionContext;
                 executionContext.Reader = reader.Get();
-                executionContext.Schema = query->TableSchema;
+                executionContext.Schema = &query->TableSchema;
 
                 executionContext.LiteralRows = &fragmentParams.LiteralRows;
                 executionContext.PermanentBuffer = &permanentBuffer;
