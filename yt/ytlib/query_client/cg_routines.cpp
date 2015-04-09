@@ -346,6 +346,16 @@ void OrderOpHelper(
     consumeRows(consumeRowsClosure, &rows, &executionContext->StopFlag);
 }
 
+char* AllocateBytes(TExecutionContext* executionContext, size_t byteCount)
+{
+    CHECK_STACK();
+
+    return executionContext
+        ->IntermediateBuffer
+        ->GetUnalignedPool()
+        ->AllocateUnaligned(byteCount);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 char IsPrefix(
@@ -506,6 +516,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(SaveJoinRow);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateRow);
+    REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);
     REGISTER_ROUTINE(IsPrefix);

@@ -1,6 +1,7 @@
 #include "function_registry.h"
 #include "functions.h"
 #include "builtin_functions.h"
+#include "user_defined_functions.h"
 
 #include <ytlib/api/public.h>
 #include <ytlib/api/client.h>
@@ -82,6 +83,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         EValueType::Double,
         "double"));
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressFunctionDescriptor
@@ -92,6 +94,7 @@ public:
     std::vector<EValueType> ArgumentTypes;
     EValueType ResultType;
     Stroka ImplementationPath;
+    ECallingConvention CallingConvention;
 
     TCypressFunctionDescriptor()
     {
@@ -101,6 +104,7 @@ public:
         RegisterParameter("result_type", ResultType);
         RegisterParameter("implementation_path", ImplementationPath)
             .NonEmpty();
+        RegisterParameter("calling_convention", CallingConvention);
     }
 };
 
@@ -187,7 +191,8 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
         cypressFunction->Name,
         cypressFunction->ArgumentTypes,
         cypressFunction->ResultType,
-        implementationFile));
+        implementationFile,
+        cypressFunction->CallingConvention));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

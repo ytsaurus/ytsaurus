@@ -3,7 +3,8 @@
 #include "versioned_table_client_ut.h"
 
 #ifdef YT_USE_LLVM
-#include "udf/absolute.h"
+#include "udf/test_udfs.h"
+#include "udf/malloc_udf.h"
 #include "udf/invalid_ir.h"
 #endif
 
@@ -21,7 +22,7 @@
 #include <ytlib/query_client/plan_helpers.h>
 #include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/plan_fragment.pb.h>
-#include <ytlib/query_client/builtin_functions.h>
+#include <ytlib/query_client/user_defined_functions.h>
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
@@ -1982,6 +1983,47 @@ protected:
         WriterMock_ = New<StrictMock<TWriterMock>>();
 
         ActionQueue_ = New<TActionQueue>("Test");
+
+        AbsUdf_ = New<TUserDefinedFunction>(
+            "abs_udf",
+            std::vector<EValueType>{EValueType::Int64},
+            EValueType::Int64,
+            TSharedRef::FromRefNonOwning(TRef(
+                test_udfs_bc,
+                test_udfs_bc_len)),
+            ECallingConvention::Simple);
+        ExpUdf_ = New<TUserDefinedFunction>(
+            "exp_udf",
+            std::vector<EValueType>{EValueType::Int64, EValueType::Int64},
+            EValueType::Int64,
+            TSharedRef::FromRefNonOwning(TRef(
+                test_udfs_bc,
+                test_udfs_bc_len)),
+            ECallingConvention::Simple);
+        StrtolUdf_ = New<TUserDefinedFunction>(
+            "strtol_udf",
+            std::vector<EValueType>{EValueType::String},
+            EValueType::Uint64,
+            TSharedRef::FromRefNonOwning(TRef(
+                test_udfs_bc,
+                test_udfs_bc_len)),
+            ECallingConvention::Simple);
+        TolowerUdf_ = New<TUserDefinedFunction>(
+            "tolower_udf",
+            std::vector<EValueType>{EValueType::String},
+            EValueType::String,
+            TSharedRef::FromRefNonOwning(TRef(
+                test_udfs_bc,
+                test_udfs_bc_len)),
+            ECallingConvention::Simple);
+        IsNullUdf_ = New<TUserDefinedFunction>(
+            "is_null_udf",
+            std::vector<EValueType>{EValueType::String},
+            EValueType::Boolean,
+            TSharedRef::FromRefNonOwning(TRef(
+                test_udfs_bc,
+                test_udfs_bc_len)),
+            ECallingConvention::UnversionedValue);
     }
 
     virtual void TearDown() override
@@ -2144,6 +2186,11 @@ protected:
     TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
     TActionQueuePtr ActionQueue_;
 
+    IFunctionDescriptorPtr AbsUdf_;
+    IFunctionDescriptorPtr ExpUdf_;
+    IFunctionDescriptorPtr StrtolUdf_;
+    IFunctionDescriptorPtr TolowerUdf_;
+    IFunctionDescriptorPtr IsNullUdf_;
 };
 
 std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
@@ -3119,6 +3166,39 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestBuiltinUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"HELLO\"",
+        "a=\"HeLlO\"",
+        "a=\"\"",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=\"hello\"",
+        "x=\"hello\"",
+        "x=\"\"",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("to_lower"))
+        .WillRepeatedly(Return(TolowerUdf_));
+
+    Evaluate("to_lower(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestUdf)
 {
     auto split = MakeSplit({
@@ -3144,21 +3224,11 @@ TEST_F(TQueryEvaluateTest, TestUdf)
         "x=10"
     }, resultSplit);
 
-    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
-        absolute_bc,
-        absolute_bc_len));
-
-    auto absoluteDescriptor = New<TUserDefinedFunction>(
-        "absolute",
-        std::vector<EValueType>{EValueType::Int64},
-        EValueType::Int64,
-        fileRef);
-
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("absolute"))
-        .WillRepeatedly(Return(absoluteDescriptor));
+    EXPECT_CALL(*registry, FindFunction("abs_udf"))
+        .WillRepeatedly(Return(AbsUdf_));
 
-    Evaluate("absolute(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("abs_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
@@ -3182,7 +3252,8 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
         "invalid_ir",
         std::vector<EValueType>{EValueType::Int64},
         EValueType::Int64,
-        fileRef);
+        fileRef,
+        ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     EXPECT_CALL(*registry, FindFunction("invalid_ir"))
@@ -3203,20 +3274,21 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
     };
 
     auto fileRef = TSharedRef::FromRefNonOwning(TRef(
-        absolute_bc,
-        absolute_bc_len));
+        test_udfs_bc,
+        test_udfs_bc_len));
 
     auto twoArgumentUdf = New<TUserDefinedFunction>(
-        "absolute",
+        "abs_udf",
         std::vector<EValueType>{EValueType::Int64, EValueType::Int64},
         EValueType::Int64,
-        fileRef);
+        fileRef,
+        ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("absolute"))
+    EXPECT_CALL(*registry, FindFunction("abs_udf"))
         .WillRepeatedly(Return(twoArgumentUdf));
 
-    EvaluateExpectingError("absolute(a, b) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("abs_udf(a, b) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
 
 TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
@@ -3231,20 +3303,216 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
     };
 
     auto fileRef = TSharedRef::FromRefNonOwning(TRef(
-        absolute_bc,
-        absolute_bc_len));
+        test_udfs_bc,
+        test_udfs_bc_len));
 
     auto invalidArgumentUdf = New<TUserDefinedFunction>(
-        "absolute",
+        "abs_udf",
         std::vector<EValueType>{EValueType::Double},
         EValueType::Int64,
-        fileRef);
+        fileRef,
+        ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("absolute"))
+    EXPECT_CALL(*registry, FindFunction("abs_udf"))
         .WillOnce(Return(invalidArgumentUdf));
 
-    EvaluateExpectingError("absolute(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("abs_udf(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestUdfNullPropagation)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;",
+        "a=-2;b=-20",
+        "a=9;",
+        "b=-10"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "",
+        "x=20",
+        "",
+        "x=10"
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("abs_udf"))
+        .WillRepeatedly(Return(AbsUdf_));
+
+    Evaluate("abs_udf(b) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUdfNullPropagation2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;",
+        "a=2;b=10",
+        "b=9",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "",
+        "x=1024",
+        "",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("exp_udf"))
+        .WillRepeatedly(Return(ExpUdf_));
+
+    Evaluate("exp_udf(a, b) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"123\"",
+        "a=\"50\"",
+        "a=\"\"",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=123u",
+        "x=50u",
+        "x=0u",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("strtol_udf"))
+        .WillRepeatedly(Return(StrtolUdf_));
+
+    Evaluate("strtol_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUdfStringResult)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"HELLO\"",
+        "a=\"HeLlO\"",
+        "a=\"\"",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=\"hello\"",
+        "x=\"hello\"",
+        "x=\"\"",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("tolower_udf"))
+        .WillRepeatedly(Return(TolowerUdf_));
+
+    Evaluate("tolower_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"Hello\"",
+        "a=\"\"",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean}
+    });
+
+    auto result = BuildRows({
+        "x=%false",
+        "x=%false",
+        "x=%true"
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("is_null_udf"))
+        .WillRepeatedly(Return(IsNullUdf_));
+
+    Evaluate("is_null_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3",
+        "a=4",
+        ""
+    };
+
+    auto mallocUdf = New<TUserDefinedFunction>(
+        "malloc_udf",
+        std::vector<EValueType>{EValueType::Int64},
+        EValueType::Int64,
+        TSharedRef::FromRefNonOwning(TRef(
+            malloc_udf_bc,
+            malloc_udf_bc_len)),
+        ECallingConvention::Simple);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("malloc_udf"))
+        .WillRepeatedly(Return(mallocUdf));
+
+    EvaluateExpectingError("malloc_udf(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

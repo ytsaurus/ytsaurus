@@ -52,11 +52,17 @@ public:
 
     virtual uint64_t getSymbolAddress(const std::string& name) override
     {
-        uint64_t address = 0;
+        auto isWhitelisted = Whitelist_.find(name) != Whitelist_.end();
 
-        address = llvm::SectionMemoryManager::getSymbolAddress(name);
+        auto address = llvm::SectionMemoryManager::getSymbolAddress(name);
         if (address) {
-            return address;
+            if (isWhitelisted) {
+                return address;
+            } else {
+                THROW_ERROR_EXCEPTION(
+                    "External call to function %Qv is not allowed",
+                    name);
+            }
         }
 
         return RoutineRegistry->GetAddress(name.c_str());
@@ -64,6 +70,10 @@ public:
 
     // RoutineRegistry is supposed to be a static object.
     TRoutineRegistry* RoutineRegistry;
+
+private:
+    const std::unordered_set<std::string> Whitelist_ = std::unordered_set<std::string>{
+        "memcmp"};
 };
 
 class TCGModule::TImpl
