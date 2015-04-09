@@ -265,7 +265,7 @@ class TestQuery(YTEnvSetup):
         }}
         set(registry_path, data)
 
-        local_implementation_path = os.path.join(os.path.dirname(__file__), "../../../yt/unittests/udf/abs_udf.bc")
+        local_implementation_path = os.path.join(os.path.dirname(__file__), "../../../yt/unittests/udf/test_udfs.bc")
         create("file", implementation_path)
         upload_file(implementation_path, local_implementation_path)
 
