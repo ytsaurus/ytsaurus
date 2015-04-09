@@ -186,6 +186,7 @@ struct TSelectRowsRequest
     NVersionedTableClient::TTimestamp Timestamp;
     TNullable<i64> InputRowLimit;
     TNullable<i64> OutputRowLimit;
+    i64 RangeExpansionLimit;
     bool VerboseLogging;
 
     TSelectRowsRequest()
@@ -197,9 +198,10 @@ struct TSelectRowsRequest
             .Default();
         RegisterParameter("output_row_limit", OutputRowLimit)
             .Default();
+        RegisterParameter("range_expansioin_limit", RangeExpansionLimit)
+            .Default(1000);
         RegisterParameter("verbose_logging", VerboseLogging)
             .Default();
-
     }
 };
 

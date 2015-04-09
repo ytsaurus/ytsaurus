@@ -29,6 +29,7 @@ TColumnEvaluator::TColumnEvaluator(
     , Evaluators_(keySize)
     , Variables_(keySize)
     , References_(keySize)
+    , Expressions_(keySize)
 #endif
 { }
 
@@ -39,8 +40,17 @@ void TColumnEvaluator::PrepareEvaluator(int index)
     YCHECK(Schema_.Columns()[index].Expression);
 
     if (!Evaluators_[index]) {
-        auto expr = PrepareExpression(Schema_.Columns()[index].Expression.Get(), Schema_, FunctionRegistry_.Get());
-        Evaluators_[index] = Profile(expr, Schema_, nullptr, &Variables_[index], &References_[index], FunctionRegistry_)();
+        Expressions_[index] = PrepareExpression(
+            Schema_.Columns()[index].Expression.Get(),
+            Schema_,
+            FunctionRegistry_.Get());
+        Evaluators_[index] = Profile(
+            Expressions_[index],
+            Schema_,
+            nullptr,
+            &Variables_[index],
+            &References_[index],
+            FunctionRegistry_)();
     }
 #else
     THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
@@ -158,6 +168,16 @@ const yhash_set<Stroka>& TColumnEvaluator::GetReferences(int index)
 #ifdef YT_USE_LLVM
     PrepareEvaluator(index);
     return References_[index];
+#else
+    THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
+#endif
+}
+
+TConstExpressionPtr TColumnEvaluator::GetExpression(int index)
+{
+#ifdef YT_USE_LLVM
+    PrepareEvaluator(index);
+    return Expressions_[index];
 #else
     THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
 #endif

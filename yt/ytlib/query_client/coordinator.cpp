@@ -35,6 +35,8 @@
 
 #include <ytlib/tablet_client/public.h>
 
+#include <cstdlib>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -61,12 +63,13 @@ public:
     // Wrapper for Light and Heavy range inferrers.
     // Use Heavy if we need to enrich ranges with computed columns, otherwise Light.
     TRangeInferrer(
-       const TConstExpressionPtr& predicate,
-       const TTableSchema& schema,
-       const TKeyColumns& keyColumns,
-       const TColumnEvaluatorCachePtr& evaluatorCache,
-       const IFunctionRegistryPtr functionRegistry,
-       bool verboseLogging)
+        const TConstExpressionPtr& predicate,
+        const TTableSchema& schema,
+        const TKeyColumns& keyColumns,
+        const TColumnEvaluatorCachePtr& evaluatorCache,
+        const IFunctionRegistryPtr functionRegistry,
+        i64 rangeExpansionLimit,
+        bool verboseLogging)
     {
         if (/*splits.size() == 0 ||*/ !predicate) {
             Impl_ = std::make_unique<TRangeInferrerLight>(predicate, TKeyColumns(), functionRegistry, verboseLogging);
@@ -79,17 +82,7 @@ public:
             return;
         }
 
-        yhash_set<Stroka> references;
-        Profile(predicate, schema, nullptr, nullptr, &references, functionRegistry);
-
-        for (const auto& reference : references) {
-            if (schema.GetColumnOrThrow(reference).Expression) {
-                Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, functionRegistry, verboseLogging);
-                return;
-            }
-        }
-
-        Impl_ = std::make_unique<TRangeInferrerHeavy>(predicate, schema, keyColumns, evaluatorCache, functionRegistry, verboseLogging);
+        Impl_ = std::make_unique<TRangeInferrerHeavy>(predicate, schema, keyColumns, evaluatorCache, functionRegistry, rangeExpansionLimit, verboseLogging);
 #else
         Impl_ = std::make_unique<TRangeInferrerLight>(predicate, keyColumns, functionRegistry, verboseLogging);
 #endif
@@ -117,10 +110,10 @@ private:
     {
     public:
         TRangeInferrerLight(
-           const TConstExpressionPtr& predicate,
-           const TKeyColumns& keyColumns,
-           const IFunctionRegistryPtr functionRegistry,
-           bool verboseLogging)
+            const TConstExpressionPtr& predicate,
+            const TKeyColumns& keyColumns,
+            const IFunctionRegistryPtr functionRegistry,
+            bool verboseLogging)
         {
             KeyTrie_ = ExtractMultipleConstraints(predicate, keyColumns, &KeyTrieBuffer_, functionRegistry);
 
@@ -154,217 +147,308 @@ private:
             const TKeyColumns& keyColumns,
             const TColumnEvaluatorCachePtr& evaluatorCache,
             const IFunctionRegistryPtr functionRegistry,
+            i64 rangeExpansionLimit,
             bool verboseLogging)
             : Schema_(schema)
             , KeySize_(keyColumns.size())
+            , RangeExpansionLimit_(rangeExpansionLimit)
             , VerboseLogging_(verboseLogging)
         {
-            SchemaToDepletedMapping_.resize(KeySize_, -1);
             Evaluator_ = evaluatorCache->Find(Schema_, KeySize_);
-            TKeyColumns depletedKeyColumns;
-
-            for (int index = 0; index < KeySize_; ++index) {
-                if (!Schema_.Columns()[index].Expression) {
-                    SchemaToDepletedMapping_[index] = DepletedToSchemaMapping_.size();
-                    DepletedToSchemaMapping_.push_back(index);
-                    depletedKeyColumns.push_back(keyColumns[index]);
-                } else {
-                    ComputedColumnIndexes_.push_back(index);
-                }
-            }
-
+            yhash_set<Stroka> references;
+            Profile(predicate, schema, nullptr, nullptr, &references, functionRegistry);
+            auto depletedKeyColumns = BuildDepletedIdMapping(references);
             KeyTrie_ = ExtractMultipleConstraints(predicate, depletedKeyColumns, &KeyTrieBuffer_, functionRegistry);
-
             LOG_DEBUG_IF(verboseLogging, "Predicate %Qv defines key constraints %Qv", InferName(predicate), KeyTrie_);
         }
 
         virtual std::vector<TKeyRange> GetRangesWithinRange(const TKeyRange& keyRange) override
         {
-            TRowBuffer rowBuffer;
-            auto unversionedRanges = GetRangesFromTrieWithinRange(keyRange, KeyTrie_, &rowBuffer);
-            std::vector<TKeyRange> ranges;
-            for (auto range : unversionedRanges) {
-                ranges.emplace_back(TKey(range.first), TKey(range.second));
-            }
-            rowBuffer.Clear();
-            
+            auto ranges = GetRangesFromTrieWithinRange(keyRange, KeyTrie_, &Buffer_);
+            std::vector<std::pair<TRow, TRow>> enrichedRanges;
             bool rebuildRanges = false;
+            RangeExpansionLeft_ = (RangeExpansionLimit_ > ranges.size())
+                ? RangeExpansionLimit_ - ranges.size()
+                : 0;
 
             for (auto& range : ranges) {
-                rebuildRanges |= EnrichKeyRange(range);
+                rebuildRanges |= EnrichKeyRange(range, enrichedRanges);
             }
 
             if (rebuildRanges) {
-                TKeyTrieNode trie = TKeyTrieNode::Empty();
-
-                for (const auto& range : ranges) {
-                    trie.Unite(TKeyTrieNode::FromRange(range));
+                std::sort(enrichedRanges.begin(), enrichedRanges.end());
+                int last = 0;
+                for (int index = 1; index < enrichedRanges.size(); ++index) {
+                    if (enrichedRanges[index].first < enrichedRanges[last].second) {
+                        enrichedRanges[last].second = enrichedRanges[index].second;
+                    } else {
+                        ++last;
+                        if (last < index) {
+                            enrichedRanges[last] = enrichedRanges[index];
+                        }
+                    }
                 }
+                enrichedRanges.resize(last + 1);
+            }
 
-                LOG_DEBUG_IF(VerboseLogging_, "Inferred key constraints %Qv", trie);
-
-                auto unversionedRanges = GetRangesFromTrieWithinRange(keyRange, trie, &rowBuffer);
-                ranges.clear();
-                for (auto range : unversionedRanges) {
-                    ranges.emplace_back(TKey(range.first), TKey(range.second));
-                }
+            std::vector<TKeyRange> owningRanges;
+            for (auto range : enrichedRanges) {
+                owningRanges.emplace_back(TKey(range.first), TKey(range.second));
             }
 
             Buffer_.Clear();
-            return ranges;
+            return owningRanges;
         }
 
     private:
-        int GetEssentialKeySize(const TKey& key)
+        class TModRangeGenerator
         {
-            int size = key.GetCount();
-
-            while (size > 0 && IsSentinelType(key[size - 1].Type)) {
-                --size;
+        public:
+            TModRangeGenerator(TUnversionedValue mod)
+                : Value_(mod)
+            {
+                Mod_ = (Value_.Type == EValueType::Uint64)
+                    ? mod.Data.Uint64
+                    : std::abs(mod.Data.Int64);
+                Reset();
             }
 
+            ui64 Count()
+            {
+                return (Value_.Type == EValueType::Uint64)
+                    ? Mod_
+                    : (Mod_ - 1) * 2 + 1;
+            }
+
+            bool Finished() const
+            {
+                return Value_.Data.Uint64 == Mod_;
+            }
+
+            TUnversionedValue Next()
+            {
+                YCHECK(!Finished());
+                auto result = Value_;
+                ++Value_.Data.Uint64;
+                return result;
+            }
+
+            void Reset()
+            {
+                Value_.Data.Uint64 = (Value_.Type == EValueType::Uint64)
+                    ? 0
+                    : (-Mod_ + 1);
+            }
+        private:
+            TUnversionedValue Value_;
+            ui64 Mod_;
+        };
+
+        TKeyColumns BuildDepletedIdMapping(const yhash_set<Stroka>& references)
+        {
+            TKeyColumns depletedKeyColumns;
+            SchemaToDepletedMapping_.resize(KeySize_ + 1, -1);
+
+            auto addIndexToMapping = [&] (int index) {
+                SchemaToDepletedMapping_[index] = DepletedToSchemaMapping_.size();
+                DepletedToSchemaMapping_.push_back(index);
+            };
+
+            for (int index = 0; index < KeySize_; ++index) {
+                auto column = Schema_.Columns()[index];
+                if (!column.Expression || references.find(column.Name) != references.end()) {
+                    addIndexToMapping(index);
+                    depletedKeyColumns.push_back(column.Name);
+                } else {
+                    ComputedColumnIndexes_.push_back(index);
+                }
+            }
+            addIndexToMapping(KeySize_);
+
+            return depletedKeyColumns;
+        }
+
+        bool IsUserColumn(int index, const std::pair<TRow, TRow>& range)
+        {
+            return SchemaToDepletedMapping_[index] != -1;
+        }
+
+        TNullable<int> IsExactColumn(int index, const std::pair<TRow, TRow>& range, int depletedPrefixSize)
+        {
+            const auto& references = Evaluator_->GetReferences(index);
+            int maxReferenceIndex = 0;
+
+            for (const auto& reference : references) {
+                int referenceIndex = Schema_.GetColumnIndexOrThrow(reference);
+                int depletedIndex = SchemaToDepletedMapping_[referenceIndex];
+                maxReferenceIndex = std::max(maxReferenceIndex, referenceIndex);
+
+                if (depletedIndex >= depletedPrefixSize
+                    || depletedIndex == -1
+                    || IsSentinelType(range.first[depletedIndex].Type)
+                    || IsSentinelType(range.second[depletedIndex].Type)
+                    || range.first[depletedIndex] != range.second[depletedIndex])
+                {
+                    return TNullable<int>();
+                }
+            }
+            return maxReferenceIndex;
+        }
+
+        TNullable<TModRangeGenerator> IsModColumn(int index)
+        {
+            auto expr = Evaluator_->GetExpression(index)->As<TBinaryOpExpression>();
+            if (expr && expr->Opcode == EBinaryOp::Modulo) {
+                if (auto literalExpr = expr->Rhs->As<TLiteralExpression>()) {
+                    TUnversionedValue value = literalExpr->Value;
+                    if (value.Type == EValueType::Int64 || value.Type == EValueType::Uint64) {
+                        value.Id = index;
+                        return TModRangeGenerator(value);
+                    }
+                }
+            }
+            return TNullable<TModRangeGenerator>();
+        }
+
+        int ExpandKey(TRow destination, TRow source, int size)
+        {
+            for (int index = 0; index < size; ++index) {
+                int depletedIndex = SchemaToDepletedMapping_[index];
+                if (depletedIndex != -1) {
+                    if (depletedIndex < source.GetCount()) {
+                        destination[index] = source[depletedIndex];
+                    } else {
+                        return index;
+                    }
+                }
+            }
             return size;
         }
 
-        void FixIds(TKey& key)
+        TNullable<TUnversionedValue> TrimSentinel(TRow row)
         {
-            for (int index = 0; index < key.GetCount(); ++index) {
-                key.Get()[index].Id = index;
+            TNullable<TUnversionedValue> result;
+            for (int index = row.GetCount() - 1; index >= 0 && IsSentinelType(row[index].Type); --index) {
+                result = row[index];
+                row.SetCount(index);
+            }
+            return result;
+        }
+
+        void AppendSentinel(TRow row, TNullable<TUnversionedValue> sentinel)
+        {
+            if (sentinel) {
+                row[row.GetCount()] = sentinel.Get();
+                row.SetCount(row.GetCount() + 1);
             }
         }
 
-        void EnrichBound(TKey& bound, int boundSize, bool shrinked, EValueType boundType)
+        TRow Copy(TRow source)
         {
-            YCHECK(boundSize <= KeySize_);
-            bool needEvaluation = ComputedColumnIndexes_.size() > 0 && ComputedColumnIndexes_[0] < boundSize;
-
-            if (!shrinked && !needEvaluation) {
-                return;
+            auto row = TUnversionedRow::Allocate(Buffer_.GetAlignedPool(), source.GetCount());
+            for (int index = 0; index < source.GetCount(); ++index) {
+                row[index] = source[index];
             }
-
-            TUnversionedOwningRowBuilder builder(boundSize + 1);
-
-            for (int index = 0; index < boundSize; ++index) {
-                int depletedIndex = SchemaToDepletedMapping_[index];
-                builder.AddValue(depletedIndex == -1
-                    ? MakeUnversionedSentinelValue(EValueType::Null, index)
-                    : bound[SchemaToDepletedMapping_[index]]);
-            }
-
-            if (!needEvaluation) {
-                if (boundType == EValueType::Max) {
-                    builder.AddValue(MakeUnversionedSentinelValue(boundType, boundSize));
-                }
-
-                bound = builder.FinishRow();
-                FixIds(bound);
-                return;
-            }
-
-            for (int index = boundSize; index < KeySize_; ++index) {
-                int depletedIndex = SchemaToDepletedMapping_[index];
-                builder.AddValue(depletedIndex == -1 || depletedIndex >= bound.GetCount()
-                    ? MakeUnversionedSentinelValue(EValueType::Null, index)
-                    : bound[depletedIndex]);
-            }
-
-            auto enrichedKey = builder.FinishRow();
-
-            for (int index : ComputedColumnIndexes_) {
-                if (index >= boundSize) {
-                    break;
-                }
-
-                Evaluator_->EvaluateKey(enrichedKey.Get(), Buffer_, index);
-            }
-
-            // NB: Copy all data from Buffer_ into the owning row.
-            for (int index = 0; index < boundSize; ++index) {
-                builder.AddValue(enrichedKey[index]);
-            }
-
-            if (shrinked) {
-                if (boundType == EValueType::Max) {
-                    builder.AddValue(MakeUnversionedSentinelValue(boundType, boundSize));
-                }
-            } else {
-                int size = GetEssentialKeySize(bound);
-                if (size < bound.GetCount()) {
-                    builder.AddValue(bound[size]);
-                }
-            }
-
-            bound = builder.FinishRow();
-            FixIds(bound);
+            return row;
         }
 
-        bool EnrichKeyRange(TKeyRange& range)
+        bool EnrichKeyRange(std::pair<TRow, TRow>& range, std::vector<std::pair<TRow, TRow>>& ranges)
         {
-            auto getEssentialKeySize = [&] (const TKey& key) -> int {
-                int size = GetEssentialKeySize(key);
-                return size ? DepletedToSchemaMapping_[size - 1] + 1 : 0;
-            };
+            auto lowerSentinel = TrimSentinel(range.first);
+            auto upperSentinel = TrimSentinel(range.second);
 
-            const int leftSize = getEssentialKeySize(range.first);
-            const int rightSize = getEssentialKeySize(range.second);
-            int lcpSize = std::min(leftSize, rightSize);
+            int depletedPrefixSize = 0;
+            while (depletedPrefixSize < range.first.GetCount()
+                && depletedPrefixSize < range.second.GetCount()
+                && range.first[depletedPrefixSize] == range.second[depletedPrefixSize])
+            {
+                ++depletedPrefixSize;
+            }
 
-            auto getPrefixSize = [&] () -> int {
-                auto validComputedKey = [&] (int computedKey) -> bool {
-                    const auto& references = Evaluator_->GetReferences(computedKey);
+            int shrinkSize = KeySize_;
+            int maxReferenceIndex = 0;
+            int rangeCount = 1;
+            std::vector<TModRangeGenerator> modGenerators;
+            std::vector<int> exactGenerators;
 
-                    for (const auto& reference : references) {
-                        int index = Schema_.GetColumnIndexOrThrow(reference);
-                        int depletedIndex = SchemaToDepletedMapping_[index];
-
-                        if (index >= lcpSize
-                            || depletedIndex == -1
-                            || IsSentinelType(range.first[depletedIndex].Type)
-                            || IsSentinelType(range.second[depletedIndex].Type)
-                            || range.first[depletedIndex] != range.second[depletedIndex])
-                        {
-                            return false;
-                        }
+            for (int index = 0; index < KeySize_; ++index) {
+                if (IsUserColumn(index, range)) {
+                    continue;
+                } else if (auto lastReference = IsExactColumn(index, range, depletedPrefixSize)) {
+                    maxReferenceIndex = std::max(maxReferenceIndex, lastReference.Get());
+                    exactGenerators.push_back(index);
+                    continue;
+                } else if (auto generator = IsModColumn(index)) {
+                    auto count = generator.Get().Count();
+                    if (count < RangeExpansionLeft_ && rangeCount * count < RangeExpansionLeft_) {
+                        rangeCount *= count;
+                        modGenerators.push_back(generator.Get());
+                        continue;
                     }
+                }
+                shrinkSize = index;
+                break;
+            }
 
-                    return true;
+            RangeExpansionLeft_ -= rangeCount;
+
+            auto lowerRow = TUnversionedRow::Allocate(Buffer_.GetAlignedPool(), KeySize_ + 1);
+            auto upperRow = TUnversionedRow::Allocate(Buffer_.GetAlignedPool(), KeySize_ + 1);
+
+            int lowerSize = ExpandKey(lowerRow, range.first, std::max(shrinkSize, maxReferenceIndex + 1));
+            int upperSize = ExpandKey(upperRow, range.second, std::max(shrinkSize, maxReferenceIndex + 1));
+
+            for (int index : exactGenerators) {
+                Evaluator_->EvaluateKey(lowerRow, Buffer_, index);
+                upperRow[index] = lowerRow[index];
+            }
+
+            bool shrinked;
+            if (shrinkSize < DepletedToSchemaMapping_[range.second.GetCount()]) {
+                upperRow[shrinkSize].Type = EValueType::Max;
+                upperRow.SetCount(shrinkSize + 1);
+                lowerRow.SetCount(shrinkSize);
+                shrinked = true;
+            } else {
+                upperRow.SetCount(upperSize);
+                lowerRow.SetCount(lowerSize);
+                AppendSentinel(upperRow, upperSentinel);
+                AppendSentinel(lowerRow, lowerSentinel);
+                shrinked = false;
+            }
+
+            if (modGenerators.empty()) {
+                ranges.push_back(std::make_pair(lowerRow, upperRow));
+            } else {
+                auto yield = [&] () {
+                    ranges.push_back(std::make_pair(Copy(lowerRow), Copy(upperRow)));
+                };
+                auto setValue = [&] (TUnversionedValue value) {
+                    lowerRow[value.Id] = value;
+                    upperRow[value.Id] = value;
                 };
 
-                for (int index = 0; index < KeySize_; ++index) {
-                    if (Schema_.Columns()[index].Expression) {
-                        if (!validComputedKey(index)) {
-                            return index;
+                for (auto& generator : modGenerators) {
+                    setValue(generator.Next());
+                }
+                yield();
+
+                int generatorIndex = modGenerators.size() - 1;
+                while (generatorIndex >= 0) {
+                    if (modGenerators[generatorIndex].Finished()) {
+                        --generatorIndex;
+                    } else {
+                        setValue(modGenerators[generatorIndex].Next());
+                        while (generatorIndex + 1 < modGenerators.size()) {
+                            ++generatorIndex;
+                            modGenerators[generatorIndex].Reset();
+                            setValue(modGenerators[generatorIndex].Next());
                         }
-                    } else if (index >= lcpSize) {
-                        return index;
+                        yield();
                     }
                 }
-
-                return KeySize_;
-            };
-
-            int prefixSize = getPrefixSize();
-
-            auto getEvaluatableKeySize = [&] (int thisKeySize) -> int {
-                for (int index = prefixSize; index < thisKeySize; ++index) {
-                    if (Schema_.Columns()[index].Expression) {
-                        return index;
-                    }
-                }
-
-                return std::max(thisKeySize, prefixSize);
-            };
-
-            int evaluatableLeftSize = getEvaluatableKeySize(leftSize);
-            int evaluatableRightSize = getEvaluatableKeySize(rightSize);
-
-            bool leftShrinked = evaluatableLeftSize < leftSize;
-            bool rightShrinked = evaluatableRightSize < rightSize;
-
-            EnrichBound(range.first, evaluatableLeftSize, leftShrinked, EValueType::Min);
-            EnrichBound(range.second, evaluatableRightSize, rightShrinked, EValueType::Max);
-
-            return leftShrinked || rightShrinked;
+            }
+            return shrinked;
         }
 
         TColumnEvaluatorPtr Evaluator_;
@@ -376,6 +460,8 @@ private:
         std::vector<int> SchemaToDepletedMapping_;
         TTableSchema Schema_;
         int KeySize_;
+        i64 RangeExpansionLimit_;
+        i64 RangeExpansionLeft_;
         bool VerboseLogging_;
     };
 };
@@ -478,11 +564,12 @@ TDataSources GetPrunedSources(
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
+    i64 rangeExpansionLimit,
     bool verboseLogging)
 {
     LOG_DEBUG("Infering ranges from predicate");
 
-    TRangeInferrer rangeInferrer(predicate, tableSchema, keyColumns, evaluatorCache, functionRegistry, verboseLogging);
+    TRangeInferrer rangeInferrer(predicate, tableSchema, keyColumns, evaluatorCache, functionRegistry, rangeExpansionLimit, verboseLogging);
 
     auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
         return Format("[%v .. %v]",
@@ -519,6 +606,7 @@ TDataSources GetPrunedSources(
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
+    i64 rangeExpansionLimit,
     bool verboseLogging)
 {
     return GetPrunedSources(
@@ -528,6 +616,7 @@ TDataSources GetPrunedSources(
         sources,
         evaluatorCache,
         functionRegistry,
+        rangeExpansionLimit,
         verboseLogging);
 }
 

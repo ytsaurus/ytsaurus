@@ -457,7 +457,7 @@ protected:
                 GetBothBoundsFromDataSplit(split)});
         }
 
-        auto prunedSplits = GetPrunedSources(planFragment->Query, sources, ColumnEvaluatorCache_, CreateBuiltinFunctionRegistry(), true);
+        auto prunedSplits = GetPrunedSources(planFragment->Query, sources, ColumnEvaluatorCache_, CreateBuiltinFunctionRegistry(), 1000, true);
 
         EXPECT_EQ(prunedSplits.size(), subqueriesCount);
     }
@@ -3627,6 +3627,7 @@ protected:
             planFragment->DataSources,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry().Get(),
+            1000,
             true);
 
         return GetRangesFromSources(prunedSplits);
@@ -3647,6 +3648,7 @@ protected:
             foreignSplits,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
+            1000,
             true);
 
         return GetRangesFromSources(prunedSplits);
@@ -3735,7 +3737,7 @@ TEST_F(TComputedColumnTest, Inequality)
 
     EXPECT_EQ(result.size(), 1);
 
-    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
+    EXPECT_EQ(BuildKey(""), result[0].first);
     EXPECT_EQ(BuildKey(_MAX_), result[0].second);
 }
 
@@ -3773,7 +3775,7 @@ TEST_F(TComputedColumnTest, ComputedKeyInPredicate)
     EXPECT_EQ(result.size(), 2);
 
     EXPECT_EQ(BuildKey("10;20;"), result[0].first);
-    EXPECT_EQ(BuildKey("10;" _MAX_ ";" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("10;" _MAX_), result[0].second);
     EXPECT_EQ(BuildKey("10;" _MAX_), result[1].first);
     EXPECT_EQ(BuildKey(_MAX_), result[1].second);
 }
@@ -3887,6 +3889,30 @@ TEST_F(TComputedColumnTest, NoComputedColumns)
 
     EXPECT_EQ(BuildKey(_MIN_), result[0].first);
     EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Modulo1)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("l % 2"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where l > 3 and l <= 6");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 3);
+
+    EXPECT_EQ(BuildKey("-1;3;" _MAX_), result[0].first);
+    EXPECT_EQ(BuildKey("-1;6;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("0;3;" _MAX_), result[1].first);
+    EXPECT_EQ(BuildKey("0;6;" _MAX_), result[1].second);
+    EXPECT_EQ(BuildKey("1;3;" _MAX_), result[2].first);
+    EXPECT_EQ(BuildKey("1;6;" _MAX_), result[2].second);
 }
 
 TEST_P(TComputedColumnTest, Join)

@@ -468,6 +468,7 @@ private:
                 subfragment->Timestamp = fragment->Timestamp;
                 subfragment->ForeignDataSource = fragment->ForeignDataSource;
                 subfragment->Query = subquery;
+                subfragment->RangeExpansionLimit = fragment->RangeExpansionLimit,
                 subfragment->VerboseLogging = fragment->VerboseLogging;
                 subfragment->Ordered = fragment->Ordered;
 
@@ -496,6 +497,7 @@ private:
             fragment->DataSources,
             Connection_->GetColumnEvaluatorCache(),
             FunctionRegistry_,
+            fragment->RangeExpansionLimit,
             fragment->VerboseLogging);
 
         LOG_DEBUG("Splitting %v pruned splits", prunedSources.size());
@@ -540,6 +542,7 @@ private:
             fragment->DataSources,
             Connection_->GetColumnEvaluatorCache(),
             FunctionRegistry_,
+            fragment->RangeExpansionLimit,
             fragment->VerboseLogging);
         auto splits = Split(prunedSplits, nodeDirectory, Logger, fragment->VerboseLogging);
 
@@ -1312,6 +1315,7 @@ private:
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
+        fragment->RangeExpansionLimit = options.RangeExpansionLimit;
         fragment->VerboseLogging = options.VerboseLogging;
         auto statistics = WaitFor(QueryHelper_->Execute(fragment, writer))
             .ValueOrThrow();
