@@ -280,22 +280,19 @@ class TestQuery(YTEnvSetup):
         
     def test_udf(self):
         registry_path =  "//tmp/udfs"
-        create("document", registry_path)
+        create("map_node", registry_path)
 
-        implementation_path = "//tmp/abs_udf.bc"
-        data = { "abs_udf": {
-            "name": "abs_udf",
-            "argument_types": [
-                "int64"],
-            "result_type": "int64",
-            "implementation_path": implementation_path,
-            "calling_convention": "simple"
-        }}
-        set(registry_path, data)
+        function_path = os.path.join(registry_path, "abs_udf")
+        create("file", function_path,
+            attributes = { "function_descriptor": {
+                "name": "abs_udf",
+                "argument_types": [
+                    "int64"],
+                "result_type": "int64",
+                "calling_convention": "simple"}})
 
         local_implementation_path = os.path.join(os.path.dirname(__file__), "../../../yt/unittests/udf/test_udfs.bc")
-        create("file", implementation_path)
-        upload_file(implementation_path, local_implementation_path)
+        upload_file(function_path, local_implementation_path)
 
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
