@@ -52,14 +52,17 @@ public:
 
     virtual uint64_t getSymbolAddress(const std::string& name) override
     {
-        uint64_t address = 0;
+        auto isWhitelisted = std::find(Whitelist_.begin(), Whitelist_.end(), name) != Whitelist_.end();
 
-        auto whitelistLocation = std::find(Whitelist_.begin(), Whitelist_.end(), name);
-        if (whitelistLocation != Whitelist_.end()) {
-            address = llvm::SectionMemoryManager::getSymbolAddress(name);
-        }
+        auto address = llvm::SectionMemoryManager::getSymbolAddress(name);
         if (address) {
-            return address;
+            if (isWhitelisted) {
+                return address;
+            } else {
+                THROW_ERROR_EXCEPTION(
+                    "External calls to function %Qv are not allowed",
+                    name);
+            }
         }
 
         return RoutineRegistry->GetAddress(name.c_str());
