@@ -186,12 +186,12 @@ EValueType TTypedFunction::TypingFunction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyTrieNode TUniversalRangeFunction::ExtractKeyRange(
+TKeyTriePtr TUniversalRangeFunction::ExtractKeyRange(
     const TIntrusivePtr<const TFunctionExpression>& expr,
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer) const
 {
-    return TKeyTrieNode::Universal();
+    return TKeyTrie::Universal();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -278,12 +278,12 @@ TCGValue TIsPrefixFunction::CodegenValue(
     return MakeBinaryFunctionCall("IsPrefix", codegenArgs, type, name, builder, row);
 }
 
-TKeyTrieNode TIsPrefixFunction::ExtractKeyRange(
+TKeyTriePtr TIsPrefixFunction::ExtractKeyRange(
     const TIntrusivePtr<const TFunctionExpression>& expr,
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer) const
 {
-    auto result = TKeyTrieNode::Universal();
+    auto result = TKeyTrie::Universal();
     auto lhsExpr = expr->Arguments[0];
     auto rhsExpr = expr->Arguments[1];
 
@@ -297,8 +297,8 @@ TKeyTrieNode TIsPrefixFunction::ExtractKeyRange(
 
             YCHECK(value.Type == EValueType::String);
 
-            result.Offset = keyPartIndex;
-            result.Bounds.emplace_back(value, true);
+            result->Offset = keyPartIndex;
+            result->Bounds.emplace_back(value, true);
 
             ui32 length = value.Length;
             while (length > 0 && value.Data.String[length - 1] == std::numeric_limits<char>::max()) {
@@ -315,7 +315,7 @@ TKeyTrieNode TIsPrefixFunction::ExtractKeyRange(
             } else {
                 value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
             }
-            result.Bounds.emplace_back(value, false);
+            result->Bounds.emplace_back(value, false);
         }
     }
 

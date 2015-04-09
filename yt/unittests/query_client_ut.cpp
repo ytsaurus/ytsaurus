@@ -1242,7 +1242,7 @@ TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
     TRowBuffer rowBuffer;
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey(_MIN_), BuildKey(_MAX_)),
-        TKeyTrieNode::Empty(),
+        TKeyTrie::Empty(),
         &rowBuffer);
 
     EXPECT_EQ(result.size(), 0);

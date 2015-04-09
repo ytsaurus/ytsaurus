@@ -10,16 +10,15 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NVersionedTableClient::TUnversionedValue;
 using NVersionedTableClient::TRowBuffer;
 
 struct TBound
 {    
-    TUnversionedValue Value;
+    TValue Value;
     bool Included;
 
     TBound(
-        TUnversionedValue value,
+        TValue value,
         bool included)
         : Value(value)
         , Included(included)
@@ -40,53 +39,57 @@ std::vector<TBound> IntersectBounds(
     const std::vector<TBound>& lhs,
     const std::vector<TBound>& rhs);
 
-struct TKeyTrieNode
+DECLARE_REFCOUNTED_STRUCT(TKeyTrie)
+
+struct TKeyTrie
+    : public TIntrinsicRefCounted
 {
     size_t Offset = std::numeric_limits<size_t>::max();
 
-    std::map<TUnversionedValue, TKeyTrieNode> Next;
+    std::vector<std::pair<TValue, TKeyTriePtr>> Next; // TODO: rename to Following
     std::vector<TBound> Bounds;
 
-    TKeyTrieNode(const TKeyTrieNode&) = default;
-    TKeyTrieNode(TKeyTrieNode&&) = default;
-
-    TKeyTrieNode& operator=(const TKeyTrieNode&) = default;
-    TKeyTrieNode& operator=(TKeyTrieNode&&) = default;
-
-
-    static TKeyTrieNode Empty()
-    {
-        return TKeyTrieNode(0);
-    }
-
-    static TKeyTrieNode Universal()
-    {
-        return TKeyTrieNode(std::numeric_limits<size_t>::max());
-    }
-
-    static TKeyTrieNode FromLowerBound(const TKey& bound);
-    static TKeyTrieNode FromUpperBound(const TKey& bound);
-    static TKeyTrieNode FromRange(const TKeyRange& range);
-
-
-    TKeyTrieNode& Unite(const TKeyTrieNode& rhs);
-
-    friend TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
-    friend TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
-
-private:
-    TKeyTrieNode(size_t offset)
+    TKeyTrie(size_t offset)
         : Offset(offset)
     { }
 
+    TKeyTrie(const TKeyTrie&) = default;
+    TKeyTrie(TKeyTrie&&) = default;
+
+    TKeyTrie& operator=(const TKeyTrie&) = default;
+    TKeyTrie& operator=(TKeyTrie&&) = default;
+
+
+    static TKeyTriePtr Empty()
+    {
+        return New<TKeyTrie>(0);
+    }
+
+    static TKeyTriePtr Universal()
+    {
+        return New<TKeyTrie>(std::numeric_limits<size_t>::max());
+    }
+
+    static TKeyTriePtr FromLowerBound(const TKey& bound);
+    static TKeyTriePtr FromUpperBound(const TKey& bound);
+    static TKeyTriePtr FromRange(const TKeyRange& range);
+
+    friend TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs);
+    friend TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs);
+
+private:
+    TKeyTriePtr Unite(TKeyTriePtr rhs);
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TKeyTrie)
 
 std::vector<std::pair<TRow, TRow>> GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,
-    const TKeyTrieNode& trie,
+    TKeyTriePtr trie,
     TRowBuffer* rowBuffer);
 
-Stroka ToString(const TKeyTrieNode& node);
+Stroka ToString(TKeyTriePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

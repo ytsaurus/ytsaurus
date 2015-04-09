@@ -132,7 +132,7 @@ private:
         }
 
     private:
-        TKeyTrieNode KeyTrie_ = TKeyTrieNode::Universal();
+        TKeyTriePtr KeyTrie_ = TKeyTrie::Universal();
         TRowBuffer KeyTrieBuffer_;
     };
 
@@ -452,7 +452,7 @@ private:
         }
 
         TColumnEvaluatorPtr Evaluator_;
-        TKeyTrieNode KeyTrie_ = TKeyTrieNode::Universal();
+        TKeyTriePtr KeyTrie_ = TKeyTrie::Universal();
         TRowBuffer KeyTrieBuffer_;
         TRowBuffer Buffer_;
         std::vector<int> DepletedToSchemaMapping_;

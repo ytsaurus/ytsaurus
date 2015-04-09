@@ -35,14 +35,14 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
 }
 
 //! Descends down to conjuncts and disjuncts and extract all constraints.
-TKeyTrieNode ExtractMultipleConstraints(
+TKeyTriePtr ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer,
     const IFunctionRegistryPtr functionRegistry)
 {
     if (!expr) {
-        return TKeyTrieNode::Universal();
+        return TKeyTrie::Universal();
     }
 
     if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
@@ -68,21 +68,21 @@ TKeyTrieNode ExtractMultipleConstraints(
             auto referenceExpr = lhsExpr->As<TReferenceExpression>();
             auto constantExpr = rhsExpr->As<TLiteralExpression>();
 
-            auto result = TKeyTrieNode::Universal();
+            auto result = TKeyTrie::Universal();
 
             if (referenceExpr && constantExpr) {
                 int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
                 if (keyPartIndex >= 0) {
                     auto value = TValue(constantExpr->Value);
 
-                    auto& bounds = result.Bounds;
+                    auto& bounds = result->Bounds;
                     switch (opcode) {
                         case EBinaryOp::Equal:
-                            result.Offset = keyPartIndex;
-                            result.Next.emplace(value, TKeyTrieNode::Universal());
+                            result->Offset = keyPartIndex;
+                            result->Next.emplace_back(value, TKeyTrie::Universal());
                             break;
                         case EBinaryOp::NotEqual:
-                            result.Offset = keyPartIndex;
+                            result->Offset = keyPartIndex;
                             bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
                             bounds.emplace_back(value, false);
                             bounds.emplace_back(value, false);
@@ -90,25 +90,25 @@ TKeyTrieNode ExtractMultipleConstraints(
 
                             break;
                         case EBinaryOp::Less:
-                            result.Offset = keyPartIndex;
+                            result->Offset = keyPartIndex;
                             bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
                             bounds.emplace_back(value, false);
 
                             break;
                         case EBinaryOp::LessOrEqual:
-                            result.Offset = keyPartIndex;
+                            result->Offset = keyPartIndex;
                             bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
                             bounds.emplace_back(value, true);
 
                             break;
                         case EBinaryOp::Greater:
-                            result.Offset = keyPartIndex;
+                            result->Offset = keyPartIndex;
                             bounds.emplace_back(value, false);
                             bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
 
                             break;
                         case EBinaryOp::GreaterOrEqual:
-                            result.Offset = keyPartIndex;
+                            result->Offset = keyPartIndex;
                             bounds.emplace_back(value, true);
                             bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
 
@@ -131,33 +131,33 @@ TKeyTrieNode ExtractMultipleConstraints(
         auto emitConstraint = [&] (int index, const TRow& literalTuple) {
             auto referenceExpr = inExpr->Arguments[index]->As<TReferenceExpression>();
 
-            auto result = TKeyTrieNode::Universal();
+            auto result = TKeyTrie::Universal();
             if (referenceExpr) {
                 int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
 
                 if (keyPartIndex >= 0) {
-                    result.Offset = keyPartIndex;
-                    result.Next.emplace(literalTuple[index], TKeyTrieNode::Universal());
+                    result->Offset = keyPartIndex;
+                    result->Next.emplace_back(literalTuple[index], TKeyTrie::Universal());
                 }
             }
 
             return result;
         };
 
-        auto result = TKeyTrieNode::Empty();
+        auto result = TKeyTrie::Empty();
 
         for (int rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
-            auto rowConstraint = TKeyTrieNode::Universal();
+            auto rowConstraint = TKeyTrie::Universal();
             for (int keyIndex = 0; keyIndex < keySize; ++keyIndex) {
                 rowConstraint = IntersectKeyTrie(rowConstraint, emitConstraint(keyIndex, inExpr->Values[rowIndex]));
             }
-            result.Unite(rowConstraint);
+            result = UniteKeyTrie(result, rowConstraint);
         }
 
         return result;
     }
 
-    return TKeyTrieNode::Universal();
+    return TKeyTrie::Universal();
 }
 
 TConstExpressionPtr MakeAndExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs)

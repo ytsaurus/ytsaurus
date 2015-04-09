@@ -22,7 +22,7 @@ struct IFunctionDescriptor
         EValueType type,
         const Stroka& name) const = 0;
 
-    virtual TKeyTrieNode ExtractKeyRange(
+    virtual TKeyTriePtr ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
         TRowBuffer* rowBuffer) const = 0;
