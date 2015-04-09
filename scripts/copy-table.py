@@ -4,9 +4,10 @@ import yt.wrapper as yt
 import yt.yson as yson
 from yt.common import YtError
 
+import sys
 import argparse
 import subprocess as sp
-import sys
+import itertools as it
 from StringIO import StringIO
 from time import sleep
 from copy import deepcopy
@@ -212,7 +213,9 @@ if __name__ == "__main__":
         yt.remove(tablets_table)   
         yt.remove(partitions_table)
 
-    partition_keys = sorted([key for key in partition_keys if len(key) > 0])
+    partition_keys = [list(it.takewhile(lambda x : x is not None, key)) for key in partition_keys]
+    partition_keys = [key for key in partition_keys if len(key) > 0]
+    partition_keys = sorted(partition_keys)
     print "Total %s partitions" % len(partition_keys)
 
     regions_table = yt.create_temp_table()
