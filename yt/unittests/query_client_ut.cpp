@@ -1674,7 +1674,7 @@ TEST_P(TArithmeticTest, Evaluate)
     TRowBuffer intermediateBuffer;
 
     TExecutionContext executionContext;
-    executionContext.Schema = schema;
+    executionContext.Schema = &schema;
     executionContext.LiteralRows = &variables.LiteralRows;
     executionContext.PermanentBuffer = &permanentBuffer;
     executionContext.OutputBuffer = &outputBuffer;
@@ -3283,7 +3283,7 @@ TEST_P(TEvaluateExpressionTest, Basic)
     TRowBuffer intermediateBuffer;
 
     TExecutionContext executionContext;
-    executionContext.Schema = schema;
+    executionContext.Schema = &schema;
     executionContext.LiteralRows = &variables.LiteralRows;
     executionContext.PermanentBuffer = &permanentBuffer;
     executionContext.OutputBuffer = &outputBuffer;
