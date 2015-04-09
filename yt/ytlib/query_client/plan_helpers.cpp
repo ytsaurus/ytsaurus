@@ -127,34 +127,38 @@ TKeyTriePtr ExtractMultipleConstraints(
 
         return function->ExtractKeyRange(functionExpr, keyColumns, rowBuffer);
     } else if (auto inExpr = expr->As<TInOpExpression>()) {
-        int keySize = inExpr->Arguments.size();
-        auto emitConstraint = [&] (int index, const TRow& literalTuple) {
-            auto referenceExpr = inExpr->Arguments[index]->As<TReferenceExpression>();
+        int argsSize = inExpr->Arguments.size();
 
-            auto result = TKeyTrie::Universal();
+        std::vector<int> keyMapping(keyColumns.size(), -1);
+        for (int index = 0; index < argsSize; ++index) {
+            auto referenceExpr = inExpr->Arguments[index]->As<TReferenceExpression>();
             if (referenceExpr) {
                 int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+                if (keyPartIndex >= 0 && keyMapping[keyPartIndex] == -1) {
+                    keyMapping[keyPartIndex] = index;
+                }
+            }
+        }
 
-                if (keyPartIndex >= 0) {
-                    result->Offset = keyPartIndex;
-                    result->Next.emplace_back(literalTuple[index], TKeyTrie::Universal());
+        std::vector<TKeyTriePtr> keyTries;
+        for (int rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
+            auto literalTuple = inExpr->Values[rowIndex];
+
+            auto rowConstraint = TKeyTrie::Universal();
+            for (int keyIndex = keyMapping.size() - 1; keyIndex >= 0; --keyIndex) {
+                auto index = keyMapping[keyIndex];
+                if (index >= 0) {
+                    auto valueConstraint = TKeyTrie::Universal();
+                    valueConstraint->Offset = keyIndex;
+                    valueConstraint->Next.emplace_back(literalTuple[index], std::move(rowConstraint));
+                    rowConstraint = std::move(valueConstraint);
                 }
             }
 
-            return result;
-        };
-
-        auto result = TKeyTrie::Empty();
-
-        for (int rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
-            auto rowConstraint = TKeyTrie::Universal();
-            for (int keyIndex = 0; keyIndex < keySize; ++keyIndex) {
-                rowConstraint = IntersectKeyTrie(rowConstraint, emitConstraint(keyIndex, inExpr->Values[rowIndex]));
-            }
-            result = UniteKeyTrie(result, rowConstraint);
+            keyTries.push_back(rowConstraint);
         }
 
-        return result;
+        return UniteKeyTrie(keyTries);
     }
 
     return TKeyTrie::Universal();

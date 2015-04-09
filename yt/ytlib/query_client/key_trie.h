@@ -75,6 +75,7 @@ struct TKeyTrie
     static TKeyTriePtr FromRange(const TKeyRange& range);
 
     friend TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs);
+    friend TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries);
     friend TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs);
 
 private:
