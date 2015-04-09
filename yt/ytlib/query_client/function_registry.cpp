@@ -93,7 +93,6 @@ public:
     Stroka Name;
     std::vector<EValueType> ArgumentTypes;
     EValueType ResultType;
-    Stroka ImplementationPath;
     ECallingConvention CallingConvention;
 
     TCypressFunctionDescriptor()
@@ -102,8 +101,6 @@ public:
             .NonEmpty();
         RegisterParameter("argument_types", ArgumentTypes);
         RegisterParameter("result_type", ResultType);
-        RegisterParameter("implementation_path", ImplementationPath)
-            .NonEmpty();
         RegisterParameter("calling_convention", CallingConvention);
     }
 };
@@ -167,10 +164,20 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
 {
     LOG_DEBUG("Looking for implementation of function %Qv in Cypress",
         functionName);
+    
+    const auto descriptorAttribute = "function_descriptor";
 
     auto functionPath = RegistryPath_ + "/" + ToYPathLiteral(to_lower(functionName));
 
-    auto cypressFunctionOrError = WaitFor(Client_->GetNode(functionPath));
+    auto getDescriptorOptions = NApi::TGetNodeOptions();
+    getDescriptorOptions.AttributeFilter = TAttributeFilter(
+        EAttributeFilterMode::MatchingOnly,
+        std::vector<Stroka>{descriptorAttribute});
+
+    auto cypressFunctionOrError = WaitFor(Client_->GetNode(
+        functionPath,
+        getDescriptorOptions));
+
     if (!cypressFunctionOrError.IsOK()) {
         LOG_DEBUG(cypressFunctionOrError, "Failed to find implementation of function %Qv in Cypress",
             functionName);
@@ -180,11 +187,12 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
     LOG_DEBUG("Found implementation of function %Qv in Cypress",
         functionName);
 
-    auto cypressFunction = ConvertTo<TCypressFunctionDescriptorPtr>(
-        cypressFunctionOrError.Value());
+    auto cypressFunction = ConvertToNode(cypressFunctionOrError.Value())
+        ->Attributes()
+        .Find<TCypressFunctionDescriptorPtr>(descriptorAttribute);
 
     auto implementationFile = ReadFile(
-        cypressFunction->ImplementationPath,
+        functionPath,
         Client_);
 
     UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
