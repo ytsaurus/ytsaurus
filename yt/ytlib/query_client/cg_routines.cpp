@@ -33,29 +33,6 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRowComparer
-{
-public:
-    TRowComparer(NDetail::TComparerFunc ptr)
-        : Ptr_(ptr)
-    { }
-
-    bool operator () (const TRow& key, const TOwningRow& current) const
-    {
-        return Ptr_(key, current.Get());
-    }
-
-    bool operator () (const TOwningRow& current, const TRow& key) const
-    {
-        return Ptr_(current.Get(), key);
-    }
-
-private:
-    NDetail::TComparerFunc Ptr_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 void CaptureValue(TValue* value, TChunkedMemoryPool* pool)
 {
     if (IsStringLikeType(EValueType(value->Type))) {
@@ -403,7 +380,7 @@ char IsRowInArray(
 {
     // TODO(lukyan): check null
     const auto& rows = (*executionContext->LiteralRows)[index];
-    return std::binary_search(rows.begin(), rows.end(), row, TRowComparer{comparer});
+    return std::binary_search(rows.begin(), rows.end(), row, comparer);
 }
 
 size_t StringHash(

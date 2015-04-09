@@ -185,16 +185,10 @@ TJoinEvaluator GetJoinEvaluator(
             const std::vector<TRow>& allRows,
             std::vector<TRow>* joinedRows)
         {
-            std::vector<TOwningRow> capturedKeys;
-            for (const auto& key : keys) {
-                capturedKeys.emplace_back(key);
-            }
-            std::sort(capturedKeys.begin(), capturedKeys.end());
-
             subquery->WhereClause = New<TInOpExpression>(
                 NullSourceLocation,
                 joinKeyExprs,
-                capturedKeys);
+                keys);
 
             if (foreignPredicate) {
                 subquery->WhereClause = MakeAndExpression(

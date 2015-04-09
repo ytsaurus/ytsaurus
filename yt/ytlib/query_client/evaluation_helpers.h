@@ -46,7 +46,7 @@ struct TExecutionContext
     ISchemafulReader* Reader;
     ISchemafulWriter* Writer;
 
-    std::vector<std::vector<TOwningRow>>* LiteralRows;
+    std::vector<std::vector<TRow>>* LiteralRows;
     
     TRowBuffer* PermanentBuffer;
     TRowBuffer* OutputBuffer;
@@ -176,7 +176,7 @@ private:
 struct TCGVariables
 {
     TRowBuilder ConstantsRowBuilder;
-    std::vector<std::vector<TOwningRow>> LiteralRows;
+    std::vector<std::vector<TRow>> LiteralRows;
 };
 
 typedef void (TCGQuerySignature)(TRow, TExecutionContext*);
