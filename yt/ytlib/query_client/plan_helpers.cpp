@@ -149,7 +149,7 @@ TKeyTrieNode ExtractMultipleConstraints(
         for (int rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
             auto rowConstraint = TKeyTrieNode::Universal();
             for (int keyIndex = 0; keyIndex < keySize; ++keyIndex) {
-                rowConstraint = IntersectKeyTrie(rowConstraint, emitConstraint(keyIndex, inExpr->Values[rowIndex].Get()));
+                rowConstraint = IntersectKeyTrie(rowConstraint, emitConstraint(keyIndex, inExpr->Values[rowIndex]));
             }
             result.Unite(rowConstraint);
         }
@@ -373,12 +373,12 @@ TConstExpressionPtr RefinePredicate(
             }
 
             TRowBuffer buffer;
-            std::function<bool(const TOwningRow&)> inRange;
+            std::function<bool(TRow)> inRange;
 
             if (tableSchema.HasComputedColumns()) {
                 auto tempRow = TUnversionedRow::Allocate(buffer.GetAlignedPool(), keyColumns.size());
 
-                inRange = [&, tempRow] (const TOwningRow& literalTuple) mutable {
+                inRange = [&, tempRow] (TRow literalTuple) mutable {
                     for (int tupleIndex = 0; tupleIndex < idMapping.size(); ++tupleIndex) {
                         int schemaIndex = idMapping[tupleIndex];
 
@@ -404,7 +404,7 @@ TConstExpressionPtr RefinePredicate(
                     return cmpLower <= 0 && cmpUpper >= 0;
                 };
             } else {
-                inRange = [&] (const TOwningRow& literalTuple) {
+                inRange = [&] (TRow literalTuple) {
                     auto compareRows = [&] (const TUnversionedRow& lhs, const TUnversionedRow& rhs) {
                         for (int index = 0; index < lhs.GetCount(); ++index) {
                             if (index >= reverseIdMapping.size() || reverseIdMapping[index] == -1) {
@@ -424,16 +424,16 @@ TConstExpressionPtr RefinePredicate(
                     };
                     auto cmpLower = compareRows(
                         keyRange.first.Get(),
-                        literalTuple.Get());
+                        literalTuple);
                     auto cmpUpper = compareRows(
                         keyRange.second.Get(),
-                        literalTuple.Get());
+                        literalTuple);
                     return cmpLower <= 0 && cmpUpper >= 0;
                 };
             }
 
-            std::vector<TOwningRow> filteredValues;
-            for (const auto& value : inExpr->Values) {
+            std::vector<TRow> filteredValues;
+            for (auto value : inExpr->Values) {
                 if (inRange(value)) {
                     filteredValues.emplace_back(std::move(value));
                 }
@@ -511,11 +511,7 @@ TConstExpressionPtr RefinePredicate(
                 reverseIdMapping[idMapping[index]] = index;
             }
 
-            std::vector<TUnversionedRow> values;
-            values.reserve(inExpr->Values.size());
-            for (const auto& value : inExpr->Values) {
-                values.push_back(value.Get());
-            }
+            auto values = inExpr->Values;
 
             auto compareValues = [&] (const TRow& lhs, const TRow& rhs) {
                 for (int index = 0; index < reverseIdMapping.size(); ++index) {

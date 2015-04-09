@@ -95,7 +95,7 @@ Stroka InferName(TConstExpressionPtr expr)
         }
         str += " IN (";
         newTuple = true;
-        for (const auto& row: inOp->Values) {
+        for (const auto& row : inOp->Values) {
             str += comma() + ToString(row);
         }
         return str + ")";
@@ -467,7 +467,8 @@ public:
                 }
             }
 
-            auto caturedRows = CaptureRows(inExpr->Values, argTypes, inExpr->GetSource(source));
+            TRowBuffer rowBuffer;
+            auto caturedRows = CaptureRows(inExpr->Values, argTypes, &rowBuffer, inExpr->GetSource(source));
 
             result.push_back(New<TInOpExpression>(
                 inExpr->SourceLocation,
@@ -506,14 +507,15 @@ protected:
         return result;
     };
 
-    static std::vector<TOwningRow> CaptureRows(
+    static std::vector<TRow> CaptureRows(
         const NAst::TValueTupleList& literalTuples,
         const std::vector<EValueType>& argTypes,
+        TRowBuffer* rowBuffer,
         const TStringBuf& source)
     {
-        TUnversionedOwningRowBuilder rowBuilder;
+        TUnversionedRowBuilder rowBuilder;
 
-        std::vector<TOwningRow> result;
+        std::vector<TRow> result;
         for (const auto & tuple : literalTuples) {
             if (tuple.size() != argTypes.size()) {
                 THROW_ERROR_EXCEPTION("IN operator arguments size mismatch")
@@ -530,7 +532,8 @@ protected:
 
                 rowBuilder.AddValue(tuple[i]);
             }
-            result.push_back(rowBuilder.FinishRow());
+            result.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
+            rowBuilder.Reset();
         }
         std::sort(result.begin(), result.end());
 
@@ -1428,8 +1431,13 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
                 typedResult->Arguments.push_back(FromProto(data.arguments(i)));
             }
 
-            typedResult->Values = FromProto<TOwningRow>(data.values());
+            auto owningValues = FromProto<TOwningRow>(data.values());
 
+            for (const auto& value : owningValues) {
+                typedResult->Values.push_back(value.Get());
+            }
+
+            typedResult->Values = typedResult->RowBuffer.Capture(typedResult->Values);
             return typedResult;
         } 
     }
