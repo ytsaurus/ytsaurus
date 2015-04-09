@@ -14,7 +14,7 @@ namespace NQueryClient {
 
 int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName);
 
-TKeyTrieNode ExtractMultipleConstraints(
+TKeyTriePtr ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer,

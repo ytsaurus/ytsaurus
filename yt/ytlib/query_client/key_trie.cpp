@@ -9,11 +9,21 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyTrieNode ReduceKeyTrie(const TKeyTrieNode& keyTrie)
+TKeyTriePtr ReduceKeyTrie(TKeyTriePtr keyTrie)
 {
     // TODO(lukyan): If keyTrie is too big, reduce its size
     return keyTrie;
 }
+
+struct TKeyTrieComparer
+{
+    bool operator () (const std::pair<TValue, TKeyTriePtr>& element, TValue pivot) const {
+        return element.first < pivot;
+    }
+    bool operator () (TValue pivot, const std::pair<TValue, TKeyTriePtr>& element) const {
+        return pivot < element.first;
+    }
+};
 
 int CompareBound(const TBound& lhs, const TBound& rhs, bool lhsDir, bool rhsDir)
 {
@@ -113,23 +123,29 @@ std::vector<TBound> IntersectBounds(
     return result;
 }
 
-TKeyTrieNode& TKeyTrieNode::Unite(const TKeyTrieNode& rhs)
+TKeyTriePtr TKeyTrie::Unite(TKeyTriePtr rhs)
 {
-    if (Offset < rhs.Offset) {
-        *this = rhs;
-        return *this;
-    } else if (Offset > rhs.Offset) {
-        return *this;
+    if (Offset < rhs->Offset) {
+        return rhs;
+    } else if (Offset > rhs->Offset) {
+        return this;
     }
 
-    for (const auto& next : rhs.Next) {
-        auto emplaced = Next.emplace(next);
-        if (!emplaced.second) {
-            emplaced.first->second.Unite(next.second);
+    std::vector<std::pair<TValue, TKeyTriePtr>> other;
+    for (auto& next : rhs->Next) {
+        auto eq = std::equal_range(Next.begin(), Next.end(), next.first, TKeyTrieComparer());
+        if (eq.first != eq.second) {
+            eq.first->second->Unite(next.second);
+        } else {
+            other.push_back(std::move(next));
         }
     }
+    
+    auto middle = Next.size();
+    std::move(other.begin(), other.end(), std::back_inserter(Next));
+    std::inplace_merge(Next.begin(), Next.begin() + middle, Next.end());
 
-    if (!Bounds.empty() || !rhs.Bounds.empty()) {
+    if (!Bounds.empty() || !rhs->Bounds.empty()) {
         std::vector<TBound> deletedPoints;
 
         deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
@@ -139,35 +155,35 @@ TKeyTrieNode& TKeyTrieNode::Unite(const TKeyTrieNode& rhs)
         }
         deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
 
-        std::vector<TBound> bounds = UniteBounds(Bounds, rhs.Bounds);
+        std::vector<TBound> bounds = UniteBounds(Bounds, rhs->Bounds);
 
         Bounds = IntersectBounds(bounds, deletedPoints);
     }
 
-    return *this;
+    return this;
 }
 
-TKeyTrieNode TKeyTrieNode::FromLowerBound(const TKey& bound)
+TKeyTriePtr TKeyTrie::FromLowerBound(const TKey& bound)
 {
-    auto result = TKeyTrieNode::Universal();
+    auto result = TKeyTrie::Universal();
 
     for (int offset = 0; offset < bound.GetCount(); ++offset) {
         if (bound[offset].Type != EValueType::Min && bound[offset].Type != EValueType::Max) {
-            auto node = TKeyTrieNode(offset);
+            auto node = New<TKeyTrie>(offset);
 
             if (offset + 1 < bound.GetCount()) {
                 if (bound[offset + 1].Type == EValueType::Min) {
-                    node.Bounds.emplace_back(bound[offset], true);
-                    node.Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+                    node->Bounds.emplace_back(bound[offset], true);
+                    node->Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
                 } else if (bound[offset + 1].Type == EValueType::Max) {
-                    node.Bounds.emplace_back(bound[offset], false);
-                    node.Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+                    node->Bounds.emplace_back(bound[offset], false);
+                    node->Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
                 } else {
-                    node.Next.emplace(bound[offset], TKeyTrieNode::Universal());
+                    node->Next.emplace_back(bound[offset], TKeyTrie::Universal());
                 }
             } else {
-                node.Bounds.emplace_back(bound[offset], true);
-                node.Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+                node->Bounds.emplace_back(bound[offset], true);
+                node->Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
             }
 
             result = IntersectKeyTrie(result, node);
@@ -177,27 +193,27 @@ TKeyTrieNode TKeyTrieNode::FromLowerBound(const TKey& bound)
     return result;
 }
 
-TKeyTrieNode TKeyTrieNode::FromUpperBound(const TKey& bound)
+TKeyTriePtr TKeyTrie::FromUpperBound(const TKey& bound)
 {
-    auto result = TKeyTrieNode::Universal();
+    auto result = TKeyTrie::Universal();
 
     for (int offset = 0; offset < bound.GetCount(); ++offset) {
         if (bound[offset].Type != EValueType::Min && bound[offset].Type != EValueType::Max) {
-            auto node = TKeyTrieNode(offset);
+            auto node = New<TKeyTrie>(offset);
 
             if (offset + 1 < bound.GetCount()) {
                 if (bound[offset + 1].Type == EValueType::Min) {
-                    node.Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-                    node.Bounds.emplace_back(bound[offset], false);
+                    node->Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+                    node->Bounds.emplace_back(bound[offset], false);
                 } else if (bound[offset + 1].Type == EValueType::Max) {
-                    node.Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-                    node.Bounds.emplace_back(bound[offset], true);
+                    node->Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+                    node->Bounds.emplace_back(bound[offset], true);
                 } else {
-                    node.Next.emplace(bound[offset], TKeyTrieNode::Universal());
+                    node->Next.emplace_back(bound[offset], TKeyTrie::Universal());
                 }
             } else {
-                node.Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-                node.Bounds.emplace_back(bound[offset], false);
+                node->Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+                node->Bounds.emplace_back(bound[offset], false);
             }
 
             result = IntersectKeyTrie(result, node);
@@ -207,49 +223,47 @@ TKeyTrieNode TKeyTrieNode::FromUpperBound(const TKey& bound)
     return result;
 }
 
-TKeyTrieNode TKeyTrieNode::FromRange(const TKeyRange& range)
+TKeyTriePtr TKeyTrie::FromRange(const TKeyRange& range)
 {
     return IntersectKeyTrie(FromLowerBound(range.first), FromUpperBound(range.second));
 }
 
-TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
+TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 {
-    TKeyTrieNode result = lhs;
-    result.Unite(rhs);
-    return result;
+    return lhs->Unite(rhs);
 };
 
-TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
+TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 {
-    if (lhs.Offset < rhs.Offset) {
-        TKeyTrieNode result = lhs;
-        for (auto& next : result.Next) {
+    if (lhs->Offset < rhs->Offset) {
+        auto result = lhs;
+        for (auto& next : result->Next) {
             next.second = IntersectKeyTrie(next.second, rhs);
         }
         return result;
     }
 
-    if (lhs.Offset > rhs.Offset) {
-        TKeyTrieNode result = rhs;
-        for (auto& next : result.Next) {
+    if (lhs->Offset > rhs->Offset) {
+        auto result = rhs;
+        for (auto& next : result->Next) {
             next.second = IntersectKeyTrie(next.second, lhs);
         }
         return result;
     }
 
-    TKeyTrieNode result(lhs.Offset);
-    result.Bounds = IntersectBounds(lhs.Bounds, rhs.Bounds);
+    auto result = New<TKeyTrie>(lhs->Offset);
+    result->Bounds = IntersectBounds(lhs->Bounds, rhs->Bounds);
 
     // Iterate through resulting bounds and convert singleton ranges into
     // new edges in the trie. This enables futher range limiting.
-    auto it = result.Bounds.begin();
-    auto jt = result.Bounds.begin();
-    auto kt = result.Bounds.end();
+    auto it = result->Bounds.begin();
+    auto jt = result->Bounds.begin();
+    auto kt = result->Bounds.end();
     while (it < kt) {
         const auto& lhs = *it++;
         const auto& rhs = *it++;
         if (lhs == rhs) {
-            result.Next.emplace(lhs.Value, TKeyTrieNode::Universal());
+            result->Next.emplace_back(lhs.Value, TKeyTrie::Universal());
         } else {
             if (std::distance(jt, it) > 2) {
                 *jt++ = lhs;
@@ -260,14 +274,14 @@ TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
         }
     }
 
-    result.Bounds.erase(jt, kt);
+    result->Bounds.erase(jt, kt);
 
-    auto covers = [&] (const std::vector<TBound>& bounds, const TUnversionedValue& point) {
+    auto covers = [] (const std::vector<TBound>& bounds, const TValue& point) {
         auto found = std::lower_bound(
             bounds.begin(),
             bounds.end(),
             point,
-            [] (const TBound& bound, const TUnversionedValue& point) {
+            [] (const TBound& bound, const TValue& point) {
                 return bound.Value < point;
             });
 
@@ -279,34 +293,36 @@ TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
         }
     };
 
-    for (const auto& next : lhs.Next) {
-        if (covers(rhs.Bounds, next.first)) {
-            result.Next.insert(next);
+    for (const auto& next : lhs->Next) {
+        if (covers(rhs->Bounds, next.first)) {
+            result->Next.push_back(next);
         }
     }
 
-    for (const auto& next : rhs.Next) {
-        if (covers(lhs.Bounds, next.first)) {
-            result.Next.insert(next);
+    for (const auto& next : rhs->Next) {
+        if (covers(lhs->Bounds, next.first)) {
+            result->Next.push_back(next);
         }
     }
 
-    for (const auto& next : lhs.Next) {
-        auto found = rhs.Next.find(next.first);
-        if (found != rhs.Next.end()) {
-            result.Next.emplace(next.first, IntersectKeyTrie(found->second, next.second));
-        } 
+    // TODO: merge and then adjacent_find
+    for (const auto& next : lhs->Next) {
+        auto eq = std::equal_range(rhs->Next.begin(), rhs->Next.end(), next.first, TKeyTrieComparer());
+        if (eq.first != eq.second) {
+            result->Next.emplace_back(next.first, IntersectKeyTrie(eq.first->second, next.second));
+        }
     }
 
+    std::sort(result->Next.begin(), result->Next.end());
     return result;
 }
 
 void GetRangesFromTrieWithinRangeImpl(
     const TKeyRange& keyRange,
-    const TKeyTrieNode& trie,
+    TKeyTriePtr trie,
     std::vector<std::pair<TRow, TRow>>* result,
     TRowBuffer* rowBuffer, 
-    std::vector<TUnversionedValue> prefix = std::vector<TUnversionedValue>(),
+    std::vector<TValue> prefix = std::vector<TValue>(),
     bool refineLower = true,
     bool refineUpper = true)
 {
@@ -328,7 +344,7 @@ void GetRangesFromTrieWithinRangeImpl(
 
     TUnversionedRowBuilder builder(offset);
 
-    if (trie.Offset > offset) {
+    if (trie->Offset > offset) {
         if (refineLower && refineUpper && keyRange.first[offset] == keyRange.second[offset]) {
             prefix.emplace_back(keyRange.first[offset]);
             GetRangesFromTrieWithinRangeImpl(
@@ -375,9 +391,9 @@ void GetRangesFromTrieWithinRangeImpl(
         return;
     }
 
-    YCHECK(trie.Offset == offset);
+    YCHECK(trie->Offset == offset);
 
-    auto resultBounds = trie.Bounds;
+    const auto& resultBounds = trie->Bounds;
     YCHECK(!(resultBounds.size() & 1));
 
     for (size_t i = 0; i + 1 < resultBounds.size(); i += 2) {
@@ -450,7 +466,7 @@ void GetRangesFromTrieWithinRangeImpl(
 
     prefix.emplace_back();
 
-    for (const auto& next : trie.Next) {
+    for (const auto& next : trie->Next) {
         auto value = next.first;
 
         bool refineLowerNext = false;
@@ -486,7 +502,7 @@ void GetRangesFromTrieWithinRangeImpl(
 
 std::vector<std::pair<TRow, TRow>> GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,
-    const TKeyTrieNode& trie,
+    TKeyTriePtr trie,
     TRowBuffer* rowBuffer)
 {
     std::vector<std::pair<TRow, TRow>> result;
@@ -512,7 +528,7 @@ std::vector<std::pair<TRow, TRow>> GetRangesFromTrieWithinRange(
     return result;
 }
 
-Stroka ToString(const TKeyTrieNode& node) {
+Stroka ToString(TKeyTriePtr node) {
     auto printOffset = [](int offset) {
         Stroka str;
         for (int i = 0; i < offset; ++i) {
@@ -521,33 +537,33 @@ Stroka ToString(const TKeyTrieNode& node) {
         return str;
     };
 
-    std::function<Stroka(const TKeyTrieNode&, size_t)> printNode =
-        [&](const TKeyTrieNode& node, size_t offset) {
+    std::function<Stroka(TKeyTriePtr, size_t)> printNode =
+        [&](TKeyTriePtr node, size_t offset) {
             Stroka str;
             str += printOffset(offset);
-            if (node.Offset == std::numeric_limits<size_t>::max()) {
+            if (node->Offset == std::numeric_limits<size_t>::max()) {
                 str += "(universe)";
             } else {
                 str += "(key";
-                str += NYT::ToString(node.Offset);
+                str += NYT::ToString(node->Offset);
                 str += ", { ";
 
-                for (int i = 0; i < node.Bounds.size(); i += 2) {
-                    str += node.Bounds[i].Included ? "[" : "(";
-                    str += ToString(node.Bounds[i].Value);
+                for (int i = 0; i < node->Bounds.size(); i += 2) {
+                    str += node->Bounds[i].Included ? "[" : "(";
+                    str += ToString(node->Bounds[i].Value);
                     str += ":";
-                    str += ToString(node.Bounds[i+1].Value);
-                    str += node.Bounds[i+1].Included ? "]" : ")";
-                    if (i + 2 < node.Bounds.size()) {
+                    str += ToString(node->Bounds[i+1].Value);
+                    str += node->Bounds[i+1].Included ? "]" : ")";
+                    if (i + 2 < node->Bounds.size()) {
                         str += ", ";
                     }
                 }
 
                 str += " })";
 
-                for (const auto& next : node.Next) {
+                for (const auto& next : node->Next) {
                     str += "\n";
-                    str += printOffset(node.Offset);
+                    str += printOffset(node->Offset);
                     str += ToString(next.first);
                     str += ":\n";
                     str += printNode(next.second, offset + 1);

@@ -68,7 +68,7 @@ class TCodegenFunction
 class TUniversalRangeFunction
     : public virtual IFunctionDescriptor
 {
-    virtual TKeyTrieNode ExtractKeyRange(
+    virtual TKeyTriePtr ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
         TRowBuffer* rowBuffer) const override;
@@ -104,7 +104,7 @@ public:
         TCGContext& builder,
         Value* row) const override;
 
-    virtual TKeyTrieNode ExtractKeyRange(
+    virtual TKeyTriePtr ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
         TRowBuffer* rowBuffer) const override;
