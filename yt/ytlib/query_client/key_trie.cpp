@@ -23,6 +23,9 @@ struct TKeyTrieComparer
     bool operator () (TValue pivot, const std::pair<TValue, TKeyTriePtr>& element) const {
         return pivot < element.first;
     }
+    bool operator () (const std::pair<TValue, TKeyTriePtr>& lhs, const std::pair<TValue, TKeyTriePtr>& rhs) const {
+        return lhs.first < rhs.first;
+    }
 };
 
 int CompareBound(const TBound& lhs, const TBound& rhs, bool lhsDir, bool rhsDir)
@@ -143,7 +146,7 @@ TKeyTriePtr TKeyTrie::Unite(TKeyTriePtr rhs)
     
     auto middle = Next.size();
     std::move(other.begin(), other.end(), std::back_inserter(Next));
-    std::inplace_merge(Next.begin(), Next.begin() + middle, Next.end());
+    std::inplace_merge(Next.begin(), Next.begin() + middle, Next.end(), TKeyTrieComparer());
 
     if (!Bounds.empty() || !rhs->Bounds.empty()) {
         std::vector<TBound> deletedPoints;
@@ -161,6 +164,84 @@ TKeyTriePtr TKeyTrie::Unite(TKeyTriePtr rhs)
     }
 
     return this;
+}
+
+TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
+{
+    if (tries.empty()) {
+        return TKeyTrie::Empty();
+    } else if (tries.size() == 1) {
+        return tries.front();
+    }
+
+    std::vector<TKeyTriePtr> maxTries;
+    size_t offset = 0;
+    for (const auto& trie : tries) {
+        if (trie->Offset > offset) {
+            maxTries.clear();
+            offset = trie->Offset;
+        }
+
+        if (trie->Offset == offset) {
+            maxTries.push_back(trie);
+        }
+    }
+
+    std::vector<std::pair<TValue, TKeyTriePtr>> groups;
+    for (const auto& trie : maxTries) {
+        for (auto& next : trie->Next) {
+            groups.push_back(std::move(next));
+        }
+    }
+
+    std::sort(groups.begin(), groups.end(), TKeyTrieComparer());
+
+    TKeyTriePtr result = TKeyTrie::Empty();
+
+    auto it = groups.begin();
+    auto end = groups.end();
+    while (it != end) {
+        std::vector<TKeyTriePtr> unique;
+        auto same = it;
+        for (; same != end && *same == *it; ++same) {
+            unique.push_back(same->second);
+        }
+        result->Next.emplace_back(it->first, UniteKeyTrie(unique));
+        it = same;
+    }
+
+    std::vector<std::vector<TBound>> bounds;
+    for (const auto& trie : maxTries) {
+        if (!trie->Bounds.empty()) {
+            bounds.push_back(std::move(trie->Bounds));
+        }
+    }
+
+    size_t size = bounds.size();
+    while (size > 1) {
+        size_t i = 0;
+        while (2 * i + 1 < bounds.size()) {
+            bounds[i] = UniteBounds(bounds[2 * i], bounds[2 * i + 1]);
+            ++i;
+        }
+        size = i;
+    }
+
+    YCHECK(bounds.size () <= 1);
+    if (!bounds.empty()) {
+        std::vector<TBound> deletedPoints;
+
+        deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+        for (const auto& next : result->Next) {
+            deletedPoints.emplace_back(next.first, false);
+            deletedPoints.emplace_back(next.first, false);
+        }
+        deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+
+        result->Bounds = IntersectBounds(bounds.front(), deletedPoints);
+    }
+
+    return result;
 }
 
 TKeyTriePtr TKeyTrie::FromLowerBound(const TKey& bound)
@@ -313,7 +394,7 @@ TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
         }
     }
 
-    std::sort(result->Next.begin(), result->Next.end());
+    std::sort(result->Next.begin(), result->Next.end(), TKeyTrieComparer());
     return result;
 }
 
