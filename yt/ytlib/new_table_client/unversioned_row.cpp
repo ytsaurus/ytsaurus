@@ -957,6 +957,17 @@ const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void CaptureValue(TUnversionedValue* value, TChunkedMemoryPool* pool)
+{
+    if (IsStringLikeType(EValueType(value->Type))) {
+        char* dst = pool->AllocateUnaligned(value->Length);
+        memcpy(dst, value->Data.String, value->Length);
+        value->Data.String = dst;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     int size = 2 * MaxVarUint32Size; // header size
@@ -1027,10 +1038,7 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
     ToProto(protoRow, row.Get());
 }
 
-void ToProto(
-    TProtoStringType* protoRow,
-    const TUnversionedValue* begin,
-    const TUnversionedValue* end)
+void ToProto(TProtoStringType* protoRow, const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     *protoRow = SerializeToString(begin, end);
 }
@@ -1038,6 +1046,31 @@ void ToProto(
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
 {
     *row = DeserializeFromString(protoRow);
+}
+
+void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, TRowBuffer* rowBuffer)
+{
+    if (protoRow == SerializedNullRow) {
+        *row = TUnversionedRow();
+    }
+
+    const char* current = protoRow.data();
+
+    ui32 version;
+    current += ReadVarUint32(current, &version);
+    YCHECK(version == 0);
+
+    ui32 valueCount;
+    current += ReadVarUint32(current, &valueCount);
+
+    *row = TUnversionedRow::Allocate(rowBuffer->GetAlignedPool(), valueCount);
+
+    auto* values = row->Begin();
+    for (int index = 0; index < valueCount; ++index) {
+        TUnversionedValue* value = values + index;
+        current += ReadValue(current, value);
+        CaptureValue(value, rowBuffer->GetUnalignedPool());
+    }
 }
 
 Stroka ToString(TUnversionedRow row)

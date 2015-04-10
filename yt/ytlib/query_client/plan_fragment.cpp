@@ -1431,13 +1431,13 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
                 typedResult->Arguments.push_back(FromProto(data.arguments(i)));
             }
 
-            auto owningValues = FromProto<TOwningRow>(data.values());
-
-            for (const auto& value : owningValues) {
-                typedResult->Values.push_back(value.Get());
+            typedResult->Values.reserve(data.values_size());
+            for (const auto& value : data.values()) {
+                TRow row;
+                FromProto(&row, value, &typedResult->RowBuffer);
+                typedResult->Values.push_back(row);
             }
 
-            typedResult->Values = typedResult->RowBuffer.Capture(typedResult->Values);
             return typedResult;
         } 
     }
