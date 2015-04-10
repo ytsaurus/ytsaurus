@@ -10,12 +10,14 @@
 #include "callbacks.h"
 #include "functions.h"
 
+#include <ytlib/tablet_client/wire_protocol.h>
+
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
-#include <core/misc/protobuf_helpers.h>
-
 #include <core/ytree/convert.h>
+
+#include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/query_client/plan_fragment.pb.h>
 
@@ -1338,7 +1340,10 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         serialized->set_kind(static_cast<int>(EExpressionKind::InOp));
         auto* proto = serialized->MutableExtension(NProto::TInOpExpression::in_op_expression);
         ToProto(proto->mutable_arguments(), inOpExpr->Arguments);
-        ToProto(proto->mutable_values(), inOpExpr->Values);
+
+        NTabletClient::TWireProtocolWriter writer;
+        writer.WriteUnversionedRowset(inOpExpr->Values);
+        ToProto(proto->mutable_values(), ToString(MergeRefs(writer.Flush())));
     } else {
         YUNREACHABLE();
     }
@@ -1431,12 +1436,9 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
                 typedResult->Arguments.push_back(FromProto(data.arguments(i)));
             }
 
-            typedResult->Values.reserve(data.values_size());
-            for (const auto& value : data.values()) {
-                TRow row;
-                FromProto(&row, value, &typedResult->RowBuffer);
-                typedResult->Values.push_back(row);
-            }
+            NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(data.values()));
+            reader.ReadUnversionedRowset(&typedResult->Values);
+            typedResult->Values = typedResult->RowBuffer.Capture(typedResult->Values);
 
             return typedResult;
         } 
