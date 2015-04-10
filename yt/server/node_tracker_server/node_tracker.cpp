@@ -149,6 +149,14 @@ public:
         objectManager->RegisterHandler(New<TRackTypeHandler>(this));
     }
 
+    bool TryAcquireNodeRegistrationSemaphore()
+    {
+        if (PendingRegisterNodeMutationCount_ + RegisteredNodeCount_ >= Config_->MaxConcurrentNodeRegistrations) {
+            return false;
+        }
+        ++PendingRegisterNodeMutationCount_;
+        return true;
+    }
 
     TMutationPtr CreateRegisterNodeMutation(
         const TReqRegisterNode& request)
@@ -448,6 +456,9 @@ private:
     yhash_map<TTransaction*, TNode*> TransactionToNodeMap_;
     yhash_map<Stroka, TRack*> NameToRackMap_;
 
+
+    int PendingRegisterNodeMutationCount_ = 0;
+
     std::deque<TNode*> NodeRemovalQueue_;
     int PendingRemoveNodeMutationCount_ = 0;
 
@@ -522,6 +533,10 @@ private:
                 DoUnregisterNode(existingNode, false);
                 DoRemoveNode(existingNode);
             }
+        }
+
+        if (IsLeader()) {
+            YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
         }
 
         auto* node = DoRegisterNode(descriptor, statistics);
@@ -733,6 +748,8 @@ private:
             auto* node = pair.second;
             RefreshNodeConfig(node);
         }
+
+        PendingRegisterNodeMutationCount_ = 0;
 
         NodeRemovalQueue_.clear();
         PendingRemoveNodeMutationCount_ = 0;
@@ -1013,7 +1030,7 @@ private:
     {
         while (
             !NodeRemovalQueue_.empty() &&
-            PendingRemoveNodeMutationCount_ < Config_->MaxConcurrentNodeRemoveMutations)
+            PendingRemoveNodeMutationCount_ < Config_->MaxConcurrentNodeUnregistrations)
         {
             const auto* node = NodeRemovalQueue_.front();
             NodeRemovalQueue_.pop_front();
@@ -1186,6 +1203,11 @@ TRack* TNodeTracker::FindRackByName(const Stroka& name)
 TRack* TNodeTracker::GetRackByNameOrThrow(const Stroka& name)
 {
     return Impl_->GetRackByNameOrThrow(name);
+}
+
+bool TNodeTracker::TryAcquireNodeRegistrationSemaphore()
+{
+    return Impl_->TryAcquireNodeRegistrationSemaphore();
 }
 
 TMutationPtr TNodeTracker::CreateRegisterNodeMutation(

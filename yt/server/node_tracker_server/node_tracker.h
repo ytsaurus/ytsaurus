@@ -26,11 +26,11 @@ public:
     TNodeTracker(
         TNodeTrackerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
+    ~TNodeTracker();
 
     void Initialize();
 
-    ~TNodeTracker();
-
+    bool TryAcquireNodeRegistrationSemaphore();
 
     NHydra::TMutationPtr CreateRegisterNodeMutation(
         const NProto::TReqRegisterNode& request);

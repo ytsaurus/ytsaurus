@@ -16,12 +16,8 @@ public:
     TDuration RegisteredNodeTimeout;
     TDuration OnlineNodeTimeout;
 
-    //! Limits the number of queued |FullHeartbeat| requests plus the number of registered nodes.
-    //! When this limit is reached, |RegisterNode| method starts throttling.
-    int MaxFullHeartbeatQueueSize;
-
-    //! Limits the number of concurrent node removal mutations.
-    int MaxConcurrentNodeRemoveMutations;
+    int MaxConcurrentNodeRegistrations;
+    int MaxConcurrentNodeUnregistrations;
 
     TNodeTrackerConfig()
     {
@@ -30,11 +26,11 @@ public:
         RegisterParameter("online_node_timeout", OnlineNodeTimeout)
             .Default(TDuration::Seconds(60));
 
-        RegisterParameter("max_heartbeat_queue_size", MaxFullHeartbeatQueueSize)
-            .Default(10)
+        RegisterParameter("max_concurrent_node_registrations", MaxConcurrentNodeRegistrations)
+            .Default(5)
             .GreaterThan(0);
-        RegisterParameter("max_concurrent_node_remove_mutations", MaxConcurrentNodeRemoveMutations)
-            .Default(10)
+        RegisterParameter("max_concurrent_node_unregistrations", MaxConcurrentNodeUnregistrations)
+            .Default(5)
             .GreaterThan(0);
     }
 };
