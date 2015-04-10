@@ -23,8 +23,8 @@ class TCachedVersionedChunkMeta
     : public TIntrinsicRefCounted
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, MinKey);
-    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, MaxKey);
+    DEFINE_BYREF_RO_PROPERTY(TOwningKey, MinKey);
+    DEFINE_BYREF_RO_PROPERTY(TOwningKey, MaxKey);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TOwningKey>, BlockIndexKeys);
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
@@ -33,6 +33,10 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
     DEFINE_BYREF_RO_PROPERTY(TKeyFilter, KeyFilter);
+    // Chunk key column count.
+    DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);
+    // Size of padded key column suffix, filled with null.
+    DEFINE_BYVAL_RO_PROPERTY(int, KeyPadding);
 
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
         NChunkClient::IChunkReaderPtr asyncReader,
@@ -47,6 +51,7 @@ private:
 
     void ValidateChunkMeta();
     void ValidateSchema(const TTableSchema& readerSchema);
+    void ValidateKeyColumns(const TKeyColumns& chunkKeyColumns);
 
 };
 

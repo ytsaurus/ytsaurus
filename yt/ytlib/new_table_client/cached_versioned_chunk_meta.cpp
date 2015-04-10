@@ -102,18 +102,42 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
     }
 }
 
-void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
+void TCachedVersionedChunkMeta::ValidateKeyColumns(const TKeyColumns& chunkKeyColumns)
 {
-    auto chunkKeyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
-    auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(chunkKeyColumnsExt);
-    if (KeyColumns_ != chunkKeyColumns) {
-        THROW_ERROR_EXCEPTION("Incorrect key columns: actual [%v], expected [%v]",
+    if (KeyColumns_.size() < chunkKeyColumns.size()) {
+        THROW_ERROR_EXCEPTION("Key column count is less than expected: chunk key columns [%v], reader key columns [%v]",
             JoinToString(chunkKeyColumns),
             JoinToString(KeyColumns_));
     }
 
+    for (int i = 0; i < chunkKeyColumns.size(); ++i) {
+        if (KeyColumns_[i] != chunkKeyColumns[i]) {
+            THROW_ERROR_EXCEPTION("Incompatible key columns: chunk key columns [%v], reader key colums [%v]",
+                JoinToString(chunkKeyColumns),
+                JoinToString(KeyColumns_));
+        }
+    }
+
+    for (int i = chunkKeyColumns.size(); i < KeyColumns_.size(); ++i) {
+        if (ChunkSchema_.FindColumn(KeyColumns_[i])) {
+            THROW_ERROR_EXCEPTION("Incompatible wider key columns: %Qv is a non-key column",
+                KeyColumns_[i]);
+        }
+    }
+
+    KeyColumnCount_ = chunkKeyColumns.size();
+    KeyPadding_ = KeyColumns_.size() - chunkKeyColumns.size();
+}
+
+void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
+{
     auto protoSchema = GetProtoExtension<TTableSchemaExt>(ChunkMeta_.extensions());
     FromProto(&ChunkSchema_, protoSchema);
+
+    auto chunkKeyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
+    auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(chunkKeyColumnsExt);
+
+    ValidateKeyColumns(chunkKeyColumns);
 
     SchemaIdMapping_.reserve(readerSchema.Columns().size() - KeyColumns_.size());
     for (int readerIndex = KeyColumns_.size(); readerIndex < readerSchema.Columns().size(); ++readerIndex) {
