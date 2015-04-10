@@ -477,7 +477,7 @@ private:
             fragment->RangeExpansionLimit,
             fragment->VerboseLogging);
 
-        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
+        LOG_DEBUG("Splitting pruned splits");
 
         std::vector<std::pair<TDataSource, TChunkReplica>> allSplits;
 
@@ -538,7 +538,7 @@ private:
             fragment->RangeExpansionLimit,
             fragment->VerboseLogging);
 
-        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
+        LOG_DEBUG("Splitting pruned splits");
 
         std::vector<std::pair<TDataSource, TChunkReplica>> allSplits;
 
@@ -574,6 +574,8 @@ private:
         const TPlanFragmentPtr& fragment,
         const Stroka& address)
     {
+        auto Logger = BuildLogger(fragment->Query);
+
         TRACE_CHILD("QueryClient", "Delegate") {
             auto channel = NodeChannelFactory_->CreateChannel(address);
             auto config = Connection_->GetConfig();
@@ -593,6 +595,8 @@ private:
 
             TRACE_ANNOTATION("serialization_time", serializationTime);
             TRACE_ANNOTATION("request_size", req->ByteSize());
+
+            LOG_DEBUG("Fragment serialization time is %v, size is %v", serializationTime, req->ByteSize());
 
             auto resultReader = New<TQueryResponseReader>(req->Invoke());
             return std::make_pair(resultReader, resultReader->GetQueryResult());
