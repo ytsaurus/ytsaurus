@@ -76,7 +76,7 @@ public:
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction) override
     {
-        return DoGetProxy(dynamic_cast<TImpl*>(trunkNode), transaction);
+        return DoGetProxy(static_cast<TImpl*>(trunkNode), transaction);
     }
 
     virtual std::unique_ptr<TCypressNodeBase> Instantiate(const TVersionedNodeId& id) override
