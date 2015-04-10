@@ -33,28 +33,28 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TModRangeGenerator
+class TModuloRangeGenerator
 {
 public:
-    TModRangeGenerator(TUnversionedValue mod)
-        : Value_(mod)
+    TModuloRangeGenerator(TUnversionedValue modulo)
+        : Value_(modulo)
     {
-        Mod_ = (Value_.Type == EValueType::Uint64)
-            ? mod.Data.Uint64
-            : std::abs(mod.Data.Int64);
+        Modulo_ = (Value_.Type == EValueType::Uint64)
+            ? modulo.Data.Uint64
+            : std::abs(modulo.Data.Int64);
         Reset();
     }
 
     ui64 Count()
     {
         return (Value_.Type == EValueType::Uint64)
-            ? Mod_
-            : (Mod_ - 1) * 2 + 1;
+            ? Modulo_
+            : (Modulo_ - 1) * 2 + 1;
     }
 
     bool Finished() const
     {
-        return Value_.Data.Uint64 == Mod_;
+        return Value_.Data.Uint64 == Modulo_;
     }
 
     TUnversionedValue Next()
@@ -69,11 +69,11 @@ public:
     {
         Value_.Data.Uint64 = (Value_.Type == EValueType::Uint64)
             ? 0
-            : (-Mod_ + 1);
+            : (-Modulo_ + 1);
     }
 private:
     TUnversionedValue Value_;
-    ui64 Mod_;
+    ui64 Modulo_;
 };
 
 
@@ -214,7 +214,7 @@ private:
         return maxReferenceIndex;
     }
 
-    TNullable<TModRangeGenerator> IsModColumn(int index)
+    TNullable<TModuloRangeGenerator> IsModuloColumn(int index)
     {
         auto expr = Evaluator_->GetExpression(index)->As<TBinaryOpExpression>();
         if (expr && expr->Opcode == EBinaryOp::Modulo) {
@@ -222,11 +222,11 @@ private:
                 TUnversionedValue value = literalExpr->Value;
                 if (value.Type == EValueType::Int64 || value.Type == EValueType::Uint64) {
                     value.Id = index;
-                    return TModRangeGenerator(value);
+                    return TModuloRangeGenerator(value);
                 }
             }
         }
-        return TNullable<TModRangeGenerator>();
+        return TNullable<TModuloRangeGenerator>();
     }
 
     int ExpandKey(TRow destination, TRow source, int size)
@@ -287,7 +287,7 @@ private:
         int shrinkSize = KeySize_;
         int maxReferenceIndex = 0;
         int rangeCount = 1;
-        std::vector<TModRangeGenerator> modGenerators;
+        std::vector<TModuloRangeGenerator> moduloGenerators;
         std::vector<int> exactGenerators;
 
         for (int index = 0; index < KeySize_; ++index) {
@@ -297,11 +297,11 @@ private:
                 maxReferenceIndex = std::max(maxReferenceIndex, lastReference.Get());
                 exactGenerators.push_back(index);
                 continue;
-            } else if (auto generator = IsModColumn(index)) {
+            } else if (auto generator = IsModuloColumn(index)) {
                 auto count = generator.Get().Count();
                 if (count < RangeExpansionLeft_ && rangeCount * count < RangeExpansionLeft_) {
                     rangeCount *= count;
-                    modGenerators.push_back(generator.Get());
+                    moduloGenerators.push_back(generator.Get());
                     continue;
                 }
             }
@@ -336,7 +336,7 @@ private:
             shrinked = false;
         }
 
-        if (modGenerators.empty()) {
+        if (moduloGenerators.empty()) {
             ranges.push_back(std::make_pair(lowerRow, upperRow));
         } else {
             auto yield = [&] () {
@@ -347,21 +347,21 @@ private:
                 upperRow[value.Id] = value;
             };
 
-            for (auto& generator : modGenerators) {
+            for (auto& generator : moduloGenerators) {
                 setValue(generator.Next());
             }
             yield();
 
-            int generatorIndex = modGenerators.size() - 1;
+            int generatorIndex = moduloGenerators.size() - 1;
             while (generatorIndex >= 0) {
-                if (modGenerators[generatorIndex].Finished()) {
+                if (moduloGenerators[generatorIndex].Finished()) {
                     --generatorIndex;
                 } else {
-                    setValue(modGenerators[generatorIndex].Next());
-                    while (generatorIndex + 1 < modGenerators.size()) {
+                    setValue(moduloGenerators[generatorIndex].Next());
+                    while (generatorIndex + 1 < moduloGenerators.size()) {
                         ++generatorIndex;
-                        modGenerators[generatorIndex].Reset();
-                        setValue(modGenerators[generatorIndex].Next());
+                        moduloGenerators[generatorIndex].Reset();
+                        setValue(moduloGenerators[generatorIndex].Next());
                     }
                     yield();
                 }
