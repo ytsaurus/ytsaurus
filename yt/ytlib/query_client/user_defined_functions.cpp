@@ -34,17 +34,31 @@ Stroka ToString(llvm::Type* tp)
     return Stroka(stream.str());
 }
 
+Type* GetOpaqueType(
+    TCGContext& builder,
+    const char* name) {
+    auto existingType = builder.Module
+        ->GetModule()
+        ->getTypeByName(name);
+
+    if (existingType) {
+        return existingType;
+    }
+
+    return StructType::create(
+        builder.getContext(),
+        name);
+}
+
 void PushExecutionContext(
     TCGContext& builder,
     std::vector<Value*>& argumentValues)
 {
     auto fullContext = builder.GetExecutionContextPtr();
-    auto baseContextType = StructType::create(
-        builder.getContext(),
-        ExecutionContextStructName);
+    auto contextType = GetOpaqueType(builder, ExecutionContextStructName);
     auto contextStruct = builder.CreateBitCast(
         fullContext,
-        PointerType::getUnqual(baseContextType));
+        PointerType::getUnqual(contextType));
     argumentValues.push_back(contextStruct);
 }
 
@@ -208,8 +222,8 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     return [=] (TCGContext& builder, Value* row) {
         auto unversionedValueType =
             llvm::TypeBuilder<TValue, false>::get(builder.getContext());
-        auto unversionedValueOpaqueType = StructType::create(
-            builder.getContext(),
+        auto unversionedValueOpaqueType = GetOpaqueType(
+            builder,
             UnversionedValueStructName);
 
         auto argumentValues = std::vector<Value*>();
