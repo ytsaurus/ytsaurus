@@ -45,18 +45,15 @@ public:
         , Config(config)
         {
             RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
-            FullHeartbeatMethodInfo = RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
                 .SetRequestHeavy(true)
                 .SetInvoker(bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Heartbeat)));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
                 .SetRequestHeavy(true));
         }
 
-
 private:
-    TNodeTrackerConfigPtr Config;
-
-    TRuntimeMethodInfoPtr FullHeartbeatMethodInfo;
+    const TNodeTrackerConfigPtr Config;
 
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, RegisterNode)
@@ -83,18 +80,12 @@ private:
             statistics);
 
         auto nodeTracker = Bootstrap_->GetNodeTracker();
-        int fullHeartbeatQueueSize = FullHeartbeatMethodInfo->QueueSizeCounter.Current;
-        int registeredNodeCount = nodeTracker->GetRegisteredNodeCount();
-        if (fullHeartbeatQueueSize + registeredNodeCount > Config->MaxFullHeartbeatQueueSize) {
+        if (nodeTracker->TryAcquireNodeRegistrationSemaphore()) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
-                "Full heartbeat throttling is active")
-                << TErrorAttribute("queue_size", fullHeartbeatQueueSize)
-                << TErrorAttribute("registered_node_count", registeredNodeCount)
-                << TErrorAttribute("limit", Config->MaxFullHeartbeatQueueSize));
+                "Node registration throttling is active"));
             return;
         }
-
 
         auto config = nodeTracker->FindNodeConfigByAddress(address);
         if (config && config->Banned) {
