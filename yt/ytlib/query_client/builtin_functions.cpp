@@ -381,35 +381,6 @@ TCGValue THashFunction::CodegenValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIsNullFunction::TIsNullFunction()
-    : TTypedFunction(
-        "is_null",
-        std::vector<TType>{ 0 },
-        EValueType::Boolean)
-{ }
-
-TCGValue TIsNullFunction::CodegenValue(
-    std::vector<TCodegenExpression> codegenArgs,
-    EValueType type,
-    const Stroka& name,
-    TCGContext& builder,
-    Value* row) const
-{
-    YCHECK(codegenArgs.size() == 1);
-    auto argValue = codegenArgs[0](builder, row);
-
-    return TCGValue::CreateFromValue(
-        builder,
-        builder.getFalse(),
-        nullptr,
-        builder.CreateZExtOrBitCast(
-            argValue.IsNull(),
-            TDataTypeBuilder::TBoolean::get(builder.getContext())),
-        type);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCastFunction::TCastFunction(
     EValueType resultType,
     const Stroka& functionName)
@@ -420,9 +391,9 @@ TCastFunction::TCastFunction(
 { }
 
 const TUnionType TCastFunction::CastTypes_ = TUnionType{
-        EValueType::Int64,
-        EValueType::Uint64,
-        EValueType::Double};
+    EValueType::Int64,
+    EValueType::Uint64,
+    EValueType::Double};
 
 TCGValue TCastFunction::CodegenValue(
     std::vector<TCodegenExpression> codegenArgs,

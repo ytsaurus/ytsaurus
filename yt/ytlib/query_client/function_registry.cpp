@@ -88,7 +88,14 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
     registry->RegisterFunction(New<THashFunction>(
         "farm_hash",
         "FarmHash"));
-    registry->RegisterFunction(New<TIsNullFunction>());
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "is_null",
+        std::vector<TType>{0},
+        EValueType::Boolean,
+        TSharedRef::FromRefNonOwning(TRef(
+            builtin_functions_bc,
+            builtin_functions_bc_len)),
+        ECallingConvention::UnversionedValue));
     registry->RegisterFunction(New<TCastFunction>(
         EValueType::Int64,
         "int64"));
