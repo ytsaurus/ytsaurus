@@ -59,6 +59,8 @@
 
 #include <util/random/random.h>
 
+#include <algorithm>
+
 namespace NYT {
 namespace NTabletServer {
 
@@ -688,11 +690,14 @@ public:
             EnumerateChunksInChunkTree(chunkLists[index]->AsChunkList(), &chunks);
         }
 
+        std::sort(chunks.begin(), chunks.end());
+        chunks.erase(std::unique(chunks.begin(), chunks.end()), chunks.end());
+
         for (auto* chunk : chunks) {
             auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
             auto minKey = FromProto<TOwningKey>(boundaryKeysExt.min());
-            auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.min());
-            auto range = table->GetIntersectingTablets(minKey, maxKey);
+            auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.max());
+            auto range = GetIntersectingTablets(newTablets, minKey, maxKey);
             for (auto it = range.first; it != range.second; ++it) {
                 auto* tablet = *it;
                 chunkManager->AttachToChunkList(
@@ -1702,6 +1707,30 @@ private:
         }
     }
 
+    std::pair<std::vector<TTablet*>::iterator, std::vector<TTablet*>::iterator> GetIntersectingTablets(
+        std::vector<TTablet*>& tablets,
+        const TOwningKey& minKey,
+        const TOwningKey& maxKey)
+    {
+        auto beginIt = std::upper_bound(
+            tablets.begin(),
+            tablets.end(),
+            minKey,
+            [] (const TOwningKey& key, const TTablet* tablet) {
+                return key < tablet->GetPivotKey();
+            });
+
+        if (beginIt != tablets.begin()) {
+            --beginIt;
+        }
+
+        auto endIt = beginIt;
+        while (endIt != tablets.end() && maxKey >= (*endIt)->GetPivotKey()) {
+            ++endIt;
+        }
+
+        return std::make_pair(beginIt, endIt);
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCell, TTabletCell, TTabletCellId, TabletCellMap_)

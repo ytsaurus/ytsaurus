@@ -292,6 +292,30 @@ class TestTablets(YTEnvSetup):
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
         self.assertItemsEqual(actual, expected)
 
+    def test_reshard_data(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t1")
+        self._sync_mount_table("//tmp/t1")
+
+        def reshard(pivots):
+            self._sync_unmount_table("//tmp/t1")
+            reshard_table("//tmp/t1", pivots)
+            self._sync_mount_table("//tmp/t1")
+            #clear_metadata_caches()
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
+        insert_rows("//tmp/t1", rows)
+        self.assertItemsEqual(select_rows("* from [//tmp/t1]"), rows)
+
+        reshard([[], [1]])
+        self.assertItemsEqual(select_rows("* from [//tmp/t1]"), rows)
+
+        reshard([[], [1], [2]])
+        self.assertItemsEqual(select_rows("* from [//tmp/t1]"), rows)
+
+        reshard([[]])
+        self.assertItemsEqual(select_rows("* from [//tmp/t1]"), rows)
+
     def test_no_copy(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t1")
