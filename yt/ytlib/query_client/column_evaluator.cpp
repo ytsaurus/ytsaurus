@@ -28,7 +28,7 @@ TColumnEvaluator::TColumnEvaluator(
 #ifdef YT_USE_LLVM
     , Evaluators_(keySize)
     , Variables_(keySize)
-    , References_(keySize)
+    , ReferenceIds_(keySize)
     , Expressions_(keySize)
 #endif
 { }
@@ -40,6 +40,7 @@ void TColumnEvaluator::PrepareEvaluator(int index)
     YCHECK(Schema_.Columns()[index].Expression);
 
     if (!Evaluators_[index]) {
+        yhash_set<Stroka> references;
         Expressions_[index] = PrepareExpression(
             Schema_.Columns()[index].Expression.Get(),
             Schema_,
@@ -49,8 +50,13 @@ void TColumnEvaluator::PrepareEvaluator(int index)
             Schema_,
             nullptr,
             &Variables_[index],
-            &References_[index],
+            &references,
             FunctionRegistry_)();
+
+        for (const auto& reference : references) {
+            ReferenceIds_[index].push_back(Schema_.GetColumnIndexOrThrow(reference));
+        }
+        std::sort(ReferenceIds_[index].begin(), ReferenceIds_[index].end());
     }
 #else
     THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
@@ -160,11 +166,11 @@ TRow TColumnEvaluator::EvaluateKeys(
     return fullRow;
 }
 
-const yhash_set<Stroka>& TColumnEvaluator::GetReferences(int index)
+const std::vector<int>& TColumnEvaluator::GetReferenceIds(int index)
 {
 #ifdef YT_USE_LLVM
     PrepareEvaluator(index);
-    return References_[index];
+    return ReferenceIds_[index];
 #else
     THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
 #endif

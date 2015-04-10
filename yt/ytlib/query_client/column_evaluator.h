@@ -10,8 +10,6 @@
 
 #include <ytlib/query_client/function_registry.h>
 
-#include <util/generic/hash_set.h>
-
 namespace NYT {
 namespace NQueryClient {
 
@@ -40,7 +38,7 @@ public:
         const TRow partialRow,
         const NVersionedTableClient::TNameTableToSchemaIdMapping& idMapping);
 
-    const yhash_set<Stroka>& GetReferences(int index);
+    const std::vector<int>& GetReferenceIds(int index);
     TConstExpressionPtr GetExpression(int index);
 
 private:
@@ -53,7 +51,7 @@ private:
 #ifdef YT_USE_LLVM
     std::vector<TCGExpressionCallback> Evaluators_;
     std::vector<TCGVariables> Variables_;
-    std::vector<yhash_set<Stroka>> References_;
+    std::vector<std::vector<int>> ReferenceIds_;
     std::vector<TConstExpressionPtr> Expressions_;
 #endif
 };
