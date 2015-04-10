@@ -16,7 +16,9 @@ typedef std::function<TConstExpressionPtr(
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns)> TRefiner;
 
-TDataSources GetPrunedSources(
+typedef std::vector<std::vector<TKeyRange>> TGroupedRanges;
+
+TGroupedRanges GetPrunedSources(
     const TConstExpressionPtr& predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
@@ -26,7 +28,7 @@ TDataSources GetPrunedSources(
     i64 rangeExpansionLimit,
     bool verboseLogging);
 
-TDataSources GetPrunedSources(
+TGroupedRanges GetPrunedSources(
     const TConstQueryPtr& query,
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,

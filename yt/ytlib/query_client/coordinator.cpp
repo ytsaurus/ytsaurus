@@ -120,7 +120,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     return std::make_pair(topQuery, subqueries);
 }
 
-TDataSources GetPrunedSources(
+TGroupedRanges GetPrunedSources(
     const TConstExpressionPtr& predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
@@ -149,29 +149,24 @@ TDataSources GetPrunedSources(
 
     LOG_DEBUG("Splitting %v sources according to ranges", sources.size());
 
-    TDataSources prunedSources;
+    TGroupedRanges prunedSources;
     for (const auto& source : sources) {
         const auto& originalRange = source.Range;
         auto ranges = rangeInferrer(originalRange);
+        prunedSources.push_back(ranges);
 
         for (const auto& range : ranges) {
-            auto sourceCopy = source;
-
             LOG_DEBUG_IF(verboseLogging, "Narrowing source %v key range from %v to %v",
-                sourceCopy.Id,
+                source.Id,
                 keyRangeFormatter(originalRange),
                 keyRangeFormatter(range));
-
-            sourceCopy.Range = range;
-
-            prunedSources.push_back(std::move(sourceCopy));
         }
     }
 
     return prunedSources;
 }
 
-TDataSources GetPrunedSources(
+TGroupedRanges GetPrunedSources(
     const TConstQueryPtr& query,
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
