@@ -457,9 +457,13 @@ protected:
                 GetBothBoundsFromDataSplit(split)});
         }
 
-        auto prunedSplits = GetPrunedSources(planFragment->Query, sources, ColumnEvaluatorCache_, CreateBuiltinFunctionRegistry(), 1000, true);
+        auto groupedRanges = GetPrunedRanges(planFragment->Query, sources, ColumnEvaluatorCache_, CreateBuiltinFunctionRegistry(), 1000, true);
+        int count = 0;
+        for (const auto& group : groupedRanges) {
+            count += group.size();
+        }
 
-        EXPECT_EQ(prunedSplits.size(), subqueriesCount);
+        EXPECT_EQ(count, subqueriesCount);
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
@@ -3622,7 +3626,7 @@ protected:
     std::vector<TKeyRange> Coordinate(const Stroka& source)
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
-        auto prunedSplits = GetPrunedSources(
+        auto prunedSplits = GetPrunedRanges(
             planFragment->Query,
             planFragment->DataSources,
             ColumnEvaluatorCache_,
@@ -3641,7 +3645,7 @@ protected:
 
         const auto& query = planFragment->Query;
 
-        auto prunedSplits = GetPrunedSources(
+        auto prunedSplits = GetPrunedRanges(
             query->WhereClause,
             query->JoinClause->ForeignTableSchema,
             query->JoinClause->ForeignKeyColumns,
@@ -3699,12 +3703,12 @@ private:
         return WrapInFuture(dataSplit);
     }
 
-    std::vector<TKeyRange> GetRangesFromSources(const TDataSources& prunedSplits)
+    std::vector<TKeyRange> GetRangesFromSources(const TGroupedRanges& groupedRanges)
     {
         std::vector<TKeyRange> ranges;
 
-        for (const auto& split : prunedSplits) {
-            ranges.push_back(split.Range);
+        for (const auto& group : groupedRanges) {
+            ranges.insert(ranges.end(), group.begin(), group.end());
         }
 
         std::sort(ranges.begin(), ranges.end());

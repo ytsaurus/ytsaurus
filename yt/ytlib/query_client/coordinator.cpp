@@ -120,7 +120,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     return std::make_pair(topQuery, subqueries);
 }
 
-TGroupedRanges GetPrunedSources(
+TGroupedRanges GetPrunedRanges(
     const TConstExpressionPtr& predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
@@ -166,7 +166,7 @@ TGroupedRanges GetPrunedSources(
     return prunedSources;
 }
 
-TGroupedRanges GetPrunedSources(
+TGroupedRanges GetPrunedRanges(
     const TConstQueryPtr& query,
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
@@ -174,7 +174,7 @@ TGroupedRanges GetPrunedSources(
     i64 rangeExpansionLimit,
     bool verboseLogging)
 {
-    return GetPrunedSources(
+    return GetPrunedRanges(
         query->WhereClause,
         query->TableSchema,
         query->KeyColumns,

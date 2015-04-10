@@ -469,7 +469,7 @@ private:
 
         const auto& dataSources = fragment->DataSources;
 
-        auto prunedRanges = GetPrunedSources(
+        auto prunedRanges = GetPrunedRanges(
             fragment->Query,
             dataSources,
             Connection_->GetColumnEvaluatorCache(),
@@ -491,24 +491,30 @@ private:
 
         LOG_DEBUG("Regrouping %v splits", allSplits.size());
 
-        std::map<Stroka, TDataSources> groups;
+        std::map<ui32, TDataSources> groupsByChunkReplica;
         for (const auto& split : allSplits) {
-            auto descriptor = nodeDirectory->GetDescriptor(split.second);
-            groups[descriptor.GetInterconnectAddress()].push_back(split.first);
+            groupsByChunkReplica[split.second.GetNodeId()].push_back(split.first);
+        }
+
+        std::map<Stroka, TDataSources> groupsByLocation;
+        for (const auto& group : groupsByChunkReplica) {
+            auto descriptor = nodeDirectory->GetDescriptor(TChunkReplica(group.first, 0));
+            auto address = descriptor.GetInterconnectAddress();
+            auto& targetSources = groupsByLocation[address];
+            targetSources.insert(targetSources.end(), group.second.begin(), group.second.end());
         }
 
         std::vector<std::pair<TDataSources, Stroka>> groupedSplits;
         std::vector<TKeyRange> ranges;
-        for (const auto& group : groups) {
+        for (const auto& group : groupsByLocation) {
             if (group.second.empty()) {
                 continue;
             }
-
             groupedSplits.emplace_back(group.second, group.first);
             ranges.push_back(GetRange(group.second));
         }
 
-        LOG_DEBUG("Regrouped into %v groups", groups.size());
+        LOG_DEBUG("Regrouped into %v groups", groupsByLocation.size());
 
         return DoCoordinateAndExecute(fragment, writer, ranges, false, [&] (int index) {
             return groupedSplits[index];
@@ -524,7 +530,7 @@ private:
 
         const auto& dataSources = fragment->DataSources;
 
-        auto prunedRanges = GetPrunedSources(
+        auto prunedRanges = GetPrunedRanges(
             fragment->Query,
             dataSources,
             Connection_->GetColumnEvaluatorCache(),
