@@ -267,68 +267,40 @@ private:
 
 
     std::vector<std::pair<TDataSource, TChunkReplica>> Split(
-        const TDataSources& sources,
+        TGuid objectId,
+        const std::vector<TKeyRange>& ranges,
         TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
-        std::vector<std::pair<TDataSource, TChunkReplica>> result;
-        for (const auto& source : sources) {
-            auto objectId = source.Id;
-            auto type = TypeFromId(objectId);
+        std::vector<std::pair<TDataSource, TChunkReplica>> newSources;
 
-            if (type != EObjectType::Table) {
-                continue;
-            }
-
-            auto newSources = SplitFurther(source, nodeDirectory);
-
+        if (TypeFromId(objectId) == EObjectType::Table) {
+            newSources = SplitTableFurther(objectId, ranges, std::move(nodeDirectory));
             LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v", newSources.size(), objectId);
-
-            result.insert(result.end(), newSources.begin(), newSources.end());
         }
 
-        return result;
-    }
-
-    std::vector<std::pair<TDataSource, TChunkReplica>> SplitFurther(
-        const TDataSource& source,
-        TNodeDirectoryPtr nodeDirectory)
-    {
-        auto objectId = source.Id;
-
-        std::vector<std::pair<TDataSource, TChunkReplica>> subsources;
-        switch (TypeFromId(objectId)) {
-            case EObjectType::Table:
-                subsources = SplitTableFurther(source, std::move(nodeDirectory));
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-
-        return subsources;
+        return newSources;
     }
 
     std::vector<std::pair<TDataSource, TChunkReplica>> SplitTableFurther(
-        const TDataSource& source,
+        TGuid tableId,
+        const std::vector<TKeyRange>& ranges,
         TNodeDirectoryPtr nodeDirectory)
     {
-        auto tableId = source.Id;
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
         return tableInfo->Sorted
-            ? SplitSortedTableFurther(source, std::move(nodeDirectory))
-            : SplitUnsortedTableFurther(source, std::move(nodeDirectory), std::move(tableInfo));
+            ? SplitSortedTableFurther(tableId, ranges, std::move(nodeDirectory))
+            : SplitUnsortedTableFurther(tableId, ranges, std::move(nodeDirectory), std::move(tableInfo));
     }
 
     std::vector<std::pair<TDataSource, TChunkReplica>> SplitSortedTableFurther(
-        const TDataSource& source,
+        TGuid tableId,
+        const std::vector<TKeyRange>& ranges,
         TNodeDirectoryPtr nodeDirectory)
     {
-        auto tableId = source.Id;
-
         // TODO(babenko): refactor and optimize
         TObjectServiceProxy proxy(MasterChannel_);
 
@@ -379,64 +351,67 @@ private:
     }
 
     std::vector<std::pair<TDataSource, TChunkReplica>> SplitUnsortedTableFurther(
-        const TDataSource& source,
+        TGuid tableId,
+        const std::vector<TKeyRange>& ranges,
         TNodeDirectoryPtr nodeDirectory,
         TTableMountInfoPtr tableInfo)
     {
-        auto tableId = source.Id;
-
         if (tableInfo->Tablets.empty()) {
             THROW_ERROR_EXCEPTION("Table %v is neither sorted nor has tablets",
                 tableId);
         }
 
-        auto lowerBound = source.Range.first;
-        auto upperBound = source.Range.second;
-
-        // Run binary search to find the relevant tablets.
-        auto startIt = std::upper_bound(
-            tableInfo->Tablets.begin(),
-            tableInfo->Tablets.end(),
-            lowerBound,
-            [] (const TOwningKey& key, const TTabletInfoPtr& tabletInfo) {
-                return key < tabletInfo->PivotKey;
-            }) - 1;
-
         std::vector<std::pair<TDataSource, TChunkReplica>> subsources;
-        for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
-            const auto& tabletInfo = *it;
-            if (upperBound <= tabletInfo->PivotKey)
-                break;
+        for (const auto& range : ranges) {
+            auto lowerBound = range.first;
+            auto upperBound = range.second;
 
-            if (tabletInfo->State != ETabletState::Mounted) {
-                // TODO(babenko): learn to work with unmounted tablets
-                THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
-                    tabletInfo->TabletId);
+            // Run binary search to find the relevant tablets.
+            auto startIt = std::upper_bound(
+                tableInfo->Tablets.begin(),
+                tableInfo->Tablets.end(),
+                lowerBound,
+                [] (const TOwningKey& key, const TTabletInfoPtr& tabletInfo) {
+                    return key < tabletInfo->PivotKey;
+                }) - 1;
+
+        
+            for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
+                const auto& tabletInfo = *it;
+                if (upperBound <= tabletInfo->PivotKey)
+                    break;
+
+                if (tabletInfo->State != ETabletState::Mounted) {
+                    // TODO(babenko): learn to work with unmounted tablets
+                    THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
+                        tabletInfo->TabletId);
+                }
+
+                TDataSource subsource;
+                subsource.Id = tabletInfo->TabletId;
+
+                auto pivotKey = tabletInfo->PivotKey;
+                auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
+
+                subsource.Range.first = std::max(lowerBound, pivotKey);
+                subsource.Range.second = std::min(upperBound, nextPivotKey);
+
+                const auto& replicas = tabletInfo->Replicas;
+
+                if (replicas.empty()) {
+                    auto objectId = tabletInfo->TabletId;
+                    THROW_ERROR_EXCEPTION("No alive replicas for source %v",
+                        objectId);
+                }
+
+                auto replica = replicas[RandomNumber(replicas.size())];
+                nodeDirectory->AddDescriptor(replica.Id, replica.Descriptor);
+                TChunkReplica chunkReplica(replica.Id, 0);
+
+                subsources.emplace_back(std::move(subsource), chunkReplica);
             }
-
-            TDataSource subsource;
-            subsource.Id = tabletInfo->TabletId;
-
-            auto pivotKey = tabletInfo->PivotKey;
-            auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
-
-            subsource.Range.first = std::max(lowerBound, pivotKey);
-            subsource.Range.second = std::min(upperBound, nextPivotKey);
-
-            const auto& replicas = tabletInfo->Replicas;
-
-            if (replicas.empty()) {
-                auto objectId = tabletInfo->TabletId;
-                THROW_ERROR_EXCEPTION("No alive replicas for source %v",
-                    objectId);
-            }
-
-            auto replica = replicas[RandomNumber(replicas.size())];
-            nodeDirectory->AddDescriptor(replica.Id, replica.Descriptor);
-            TChunkReplica chunkReplica(replica.Id, 0);
-
-            subsources.emplace_back(std::move(subsource), chunkReplica);
         }
+
         return subsources;
     }
 
@@ -492,22 +467,32 @@ private:
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto prunedSources = GetPrunedSources(
+        const auto& dataSources = fragment->DataSources;
+
+        auto prunedRanges = GetPrunedSources(
             fragment->Query,
-            fragment->DataSources,
+            dataSources,
             Connection_->GetColumnEvaluatorCache(),
             FunctionRegistry_,
             fragment->RangeExpansionLimit,
             fragment->VerboseLogging);
 
-        LOG_DEBUG("Splitting %v pruned splits", prunedSources.size());
+        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
 
-        auto splits = Split(prunedSources, nodeDirectory, Logger, fragment->VerboseLogging);
+        std::vector<std::pair<TDataSource, TChunkReplica>> allSplits;
 
-        LOG_DEBUG("Regrouping %v splits", splits.size());
+        for (int index = 0; index < dataSources.size(); ++index) {
+            auto id = dataSources[index].Id;
+            const auto& ranges = prunedRanges[index];
+
+            auto splits = Split(id, ranges, nodeDirectory, Logger, fragment->VerboseLogging);
+            std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
+        }
+
+        LOG_DEBUG("Regrouping %v splits", allSplits.size());
 
         std::map<Stroka, TDataSources> groups;
-        for (const auto& split : splits) {
+        for (const auto& split : allSplits) {
             auto descriptor = nodeDirectory->GetDescriptor(split.second);
             groups[descriptor.GetInterconnectAddress()].push_back(split.first);
         }
@@ -537,32 +522,45 @@ private:
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto prunedSplits = GetPrunedSources(
+        const auto& dataSources = fragment->DataSources;
+
+        auto prunedRanges = GetPrunedSources(
             fragment->Query,
-            fragment->DataSources,
+            dataSources,
             Connection_->GetColumnEvaluatorCache(),
             FunctionRegistry_,
             fragment->RangeExpansionLimit,
             fragment->VerboseLogging);
-        auto splits = Split(prunedSplits, nodeDirectory, Logger, fragment->VerboseLogging);
 
-        LOG_DEBUG("Sorting %v splits", splits.size());
+        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
 
-        std::sort(splits.begin(), splits.end(), [] (const std::pair<TDataSource, TChunkReplica>& lhs, const std::pair<TDataSource, TChunkReplica>& rhs) {
+        std::vector<std::pair<TDataSource, TChunkReplica>> allSplits;
+
+        for (int index = 0; index < dataSources.size(); ++index) {
+            auto id = dataSources[index].Id;
+            const auto& ranges = prunedRanges[index];
+
+            auto splits = Split(id, ranges, nodeDirectory, Logger, fragment->VerboseLogging);
+            std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
+        }
+
+        LOG_DEBUG("Sorting %v splits", allSplits.size());
+
+        std::sort(allSplits.begin(), allSplits.end(), [] (const std::pair<TDataSource, TChunkReplica>& lhs, const std::pair<TDataSource, TChunkReplica>& rhs) {
             return lhs.first.Range.first < rhs.first.Range.first;
         });
 
         std::vector<TKeyRange> ranges;
-        for (auto const& split : splits) {
+        for (auto const& split : allSplits) {
             ranges.push_back(split.first.Range);
         }
 
         return DoCoordinateAndExecute(fragment, writer, ranges, true, [&] (int index) {
-            auto descriptor = nodeDirectory->GetDescriptor(splits[index].second);
+            auto descriptor = nodeDirectory->GetDescriptor(allSplits[index].second);
             const auto& address = descriptor.GetInterconnectAddress();
 
-            LOG_DEBUG("Delegating to tablet %v", splits[index].first.Id);
-            return std::make_pair(TDataSources(1, splits[index].first), address);
+            LOG_DEBUG("Delegating to tablet %v", allSplits[index].first.Id);
+            return std::make_pair(TDataSources(1, allSplits[index].first), address);
         });
     }
 
