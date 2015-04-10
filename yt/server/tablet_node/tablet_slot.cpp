@@ -293,7 +293,7 @@ public:
             HydraManager_ = CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
-                GetAutomatonInvoker(),
+                GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
                 Automaton_,
                 rpcServer,
                 CellManager_,
