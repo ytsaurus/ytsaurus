@@ -983,10 +983,13 @@ private:
             .ValueOrThrow();
     }
 
-    bool SyncForgetTableInfo(const TYPath& path)
+    void SyncForgetTableInfo(const TYPath& path)
     {
         const auto& tableMountCache = Connection_->GetTableMountCache();
-        return tableMountCache->EraseTableInfo(path);
+        auto info = WaitFor(tableMountCache->GetTableInfo(path))
+            .ValueOrThrow();
+        tableMountCache->EraseTableInfo(FromObjectId(info->TableId));
+        tableMountCache->EraseTableInfo(path);
     }
 
     static TTabletInfoPtr SyncGetTabletInfo(
