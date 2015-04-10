@@ -33,17 +33,6 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CaptureValue(TValue* value, TChunkedMemoryPool* pool)
-{
-    if (IsStringLikeType(EValueType(value->Type))) {
-        char* dst = pool->AllocateUnaligned(value->Length);
-        memcpy(dst, value->Data.String, value->Length);
-        value->Data.String = dst;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 #ifndef NDEBUG
 #define CHECK_STACK() \
     { \
