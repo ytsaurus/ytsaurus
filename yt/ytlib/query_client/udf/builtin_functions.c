@@ -7,11 +7,6 @@ char IsSubstr(
     const char* stringData,
     uint32_t stringLength);
 
-char* ToLower(
-    TExecutionContext* executionContext,
-    const char* data,
-    uint32_t length);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 int8_t is_substr(
@@ -36,4 +31,14 @@ void lower(
         (*result)[i] = tolower(s[i]);
     }
     *result_len = s_len;
+}
+
+void is_null(
+    TExecutionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* value)
+{
+    result->Type = Boolean;
+    int8_t isnull = value->Type == Null;
+    result->Data.Boolean = isnull;
 }
