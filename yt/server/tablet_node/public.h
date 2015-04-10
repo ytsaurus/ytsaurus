@@ -130,6 +130,7 @@ DEFINE_ENUM(EStorePreloadState,
 
 DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)
+    (Mutation)
     (Read)
     (Write)
 );
