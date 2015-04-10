@@ -286,9 +286,12 @@ class TestQuery(YTEnvSetup):
         create("file", function_path,
             attributes = { "function_descriptor": {
                 "name": "abs_udf",
-                "argument_types": [
-                    "int64"],
-                "result_type": "int64",
+                "argument_types": [{
+                    "tag": 0,
+                    "value": "int64"}],
+                "result_type": {
+                    "tag": 0,
+                    "value": "int64"},
                 "calling_convention": "simple"}})
 
         local_implementation_path = os.path.join(os.path.dirname(__file__), "../../../yt/unittests/udf/test_udfs.bc")

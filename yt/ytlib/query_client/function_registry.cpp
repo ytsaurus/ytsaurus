@@ -68,7 +68,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
     registry->RegisterFunction(New<TIsPrefixFunction>());
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "is_substr",
-        std::vector<EValueType>{EValueType::String, EValueType::String},
+        std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Boolean,
         TSharedRef::FromRefNonOwning(TRef(
             builtin_functions_bc,
@@ -76,7 +76,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         ECallingConvention::Simple));
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "lower",
-        std::vector<EValueType>{EValueType::String},
+        std::vector<TType>{EValueType::String},
         EValueType::String,
         TSharedRef::FromRefNonOwning(TRef(
             builtin_functions_bc,
@@ -102,13 +102,66 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTypeVector {
+    TTypeVector()
+        : Vector({})
+    { }
+
+    TTypeVector(std::vector<TType> vector)
+        : Vector(vector)
+    { }
+
+    std::vector<TType> Vector;
+};
+
+
+void Deserialize(TType& value, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+
+    auto tagNode = mapNode->FindChild("tag");
+    int tag;
+    Deserialize(tag, tagNode);
+
+    auto valueNode = mapNode->FindChild("value");
+    if (tag == TType::TagOf<TTypeArgument>()) {
+        TTypeArgument type;
+        Deserialize(type, valueNode);
+        value = TType(TVariantTypeTag<TTypeArgument>(), type);
+    } else if (tag == TType::TagOf<TUnionType>()) {
+        TUnionType type;
+        Deserialize(type, valueNode);
+        value = TType(TVariantTypeTag<TUnionType>(), type);
+    } else {
+        EValueType type;
+        Deserialize(type, valueNode);
+        value = TType(TVariantTypeTag<EValueType>(), type);
+    }
+}
+
+void Deserialize(TTypeVector& value, INodePtr node)
+{
+    auto listNode = node->AsList();
+    auto size = listNode->GetChildCount();
+    for (int i = 0; i < size; ++i) {
+        TType child = EValueType::Min;
+        Deserialize(child, listNode->GetChild(i));
+        value.Vector.push_back(child);
+    }
+}
+
+void Serialize(const TTypeVector& value, NYson::IYsonConsumer* consumer)
+{
+    Serialize(value.Vector, consumer);
+}
+
 class TCypressFunctionDescriptor
     : public TYsonSerializable
 {
 public:
     Stroka Name;
-    std::vector<EValueType> ArgumentTypes;
-    EValueType ResultType;
+    TTypeVector ArgumentTypes;
+    TType ResultType = EValueType::Min;
     ECallingConvention CallingConvention;
 
     TCypressFunctionDescriptor()
@@ -213,7 +266,7 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
 
     UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
         cypressFunction->Name,
-        cypressFunction->ArgumentTypes,
+        cypressFunction->ArgumentTypes.Vector,
         cypressFunction->ResultType,
         implementationFile,
         cypressFunction->CallingConvention));
@@ -251,4 +304,32 @@ IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
+
+using namespace NQueryClient;
+
+// Define these in the NYT namespace so that they're in the same namespace as TVariant
+void Serialize(const TType& value, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnBeginMap();
+
+    consumer->OnKeyedItem("tag");
+    Serialize(value.Tag(), consumer);
+
+    consumer->OnKeyedItem("value");
+    if (auto typeArg = value.TryAs<TTypeArgument>()) {
+        Serialize(*typeArg, consumer);
+    } else if (auto unionType = value.TryAs<TUnionType>()) {
+        Serialize(*unionType, consumer);
+    } else {
+        Serialize(value.As<EValueType>(), consumer);
+    }
+
+    consumer->OnEndMap();
+}
+
+void Deserialize(TType& value, INodePtr node)
+{
+    NQueryClient::Deserialize(value, node);
+}
+
 } // namespace NYT
