@@ -24,7 +24,7 @@ struct ICallingConvention
 
     virtual void CheckResultType(
         Type* llvmType,
-        EValueType resultType,
+        TType resultType,
         TCGContext& builder) const = 0;
 };
 
@@ -42,7 +42,7 @@ public:
 
     void CheckResultType(
         Type* llvmType,
-        EValueType resultType,
+        TType resultType,
         TCGContext& builder) const override;
 };
 
@@ -58,7 +58,7 @@ public:
 
     void CheckResultType(
         Type* llvmType,
-        EValueType resultType,
+        TType resultType,
         TCGContext& builder) const override;
 };
 
@@ -69,8 +69,8 @@ class TUserDefinedFunction
 public:
     TUserDefinedFunction(
         const Stroka& functionName,
-        std::vector<EValueType> argumentTypes,
-        EValueType resultType,
+        std::vector<TType> argumentTypes,
+        TType resultType,
         TSharedRef implementationFile,
         ECallingConvention callingConvention);
 
@@ -82,8 +82,8 @@ public:
 private:
     Stroka FunctionName_;
     TSharedRef ImplementationFile_;
-    EValueType ResultType_;
-    std::vector<EValueType> ArgumentTypes_;
+    TType ResultType_;
+    std::vector<TType> ArgumentTypes_;
     ICallingConventionPtr CallingConvention_;
 
     Function* GetLlvmFunction(

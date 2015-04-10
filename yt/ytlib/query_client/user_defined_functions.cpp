@@ -189,19 +189,20 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
 
 void TSimpleCallingConvention::CheckResultType(
     Type* llvmType,
-    EValueType resultType,
+    TType resultType,
     TCGContext& builder) const
 {
+    auto concreteResultType = resultType.As<EValueType>();
     auto expectedResultType = TDataTypeBuilder::get(
         builder.getContext(),
-        resultType);
-    if (IsStringLikeType(resultType) &&
+        concreteResultType);
+    if (IsStringLikeType(concreteResultType) &&
         llvmType != builder.getVoidTy())
     {
         THROW_ERROR_EXCEPTION(
             "Wrong result type in LLVM bitcode: expected void, got %Qv",
             llvmType);
-    } else if (!IsStringLikeType(resultType) &&
+    } else if (!IsStringLikeType(concreteResultType) &&
         llvmType != expectedResultType)
     {
         THROW_ERROR_EXCEPTION(
@@ -258,7 +259,7 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 
 void TUnversionedValueCallingConvention::CheckResultType(
     Type* llvmType,
-    EValueType resultType,
+    TType resultType,
     TCGContext& builder) const
 {
     if (llvmType != builder.getVoidTy()) {
@@ -272,8 +273,8 @@ void TUnversionedValueCallingConvention::CheckResultType(
 
 TUserDefinedFunction::TUserDefinedFunction(
     const Stroka& functionName,
-    std::vector<EValueType> argumentTypes,
-    EValueType resultType,
+    std::vector<TType> argumentTypes,
+    TType resultType,
     TSharedRef implementationFile,
     ECallingConvention callingConvention)
     : TTypedFunction(
