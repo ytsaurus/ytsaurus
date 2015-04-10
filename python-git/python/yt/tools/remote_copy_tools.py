@@ -463,6 +463,8 @@ while True:
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
     spec["locality_timeout"] = 0
+    spec["pool"] = "transfer_kiwi"
+    spec["mapper"] = {"cpu_limit": 0}
     if "max_failed_job_count" not in spec:
         spec["max_failed_job_count"] = 1000
 
@@ -494,13 +496,13 @@ while True:
             files=files,
             input_format=yt.YamrFormat(lenval=False,has_subkey=False),
             output_format=output_format,
-            memory_limit=1000 * yt.common.MB,
+            memory_limit=1280 * yt.common.MB,
             spec=spec)
     finally:
         shutil.rmtree(tmp_dir)
 
 def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
-    ranges = _split_rows_yt(yt_client, src, 256 * yt.common.MB)
+    ranges = _split_rows_yt(yt_client, src, 512 * yt.common.MB)
     fastbone = kwargs.get("fastbone", True)
     if "fastbone" in kwargs:
         del kwargs["fastbone"]
