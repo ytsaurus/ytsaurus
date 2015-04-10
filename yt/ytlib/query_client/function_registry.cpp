@@ -3,6 +3,8 @@
 #include "builtin_functions.h"
 #include "user_defined_functions.h"
 
+#include "udf/builtin_functions.h"
+
 #include <ytlib/api/public.h>
 #include <ytlib/api/client.h>
 #include <ytlib/api/file_reader.h>
@@ -64,8 +66,22 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 {
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
-    registry->RegisterFunction(New<TIsSubstrFunction>());
-    registry->RegisterFunction(New<TLowerFunction>());
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "is_substr",
+        std::vector<EValueType>{EValueType::String, EValueType::String},
+        EValueType::Boolean,
+        TSharedRef::FromRefNonOwning(TRef(
+            builtin_functions_bc,
+            builtin_functions_bc_len)),
+        ECallingConvention::Simple));
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "lower",
+        std::vector<EValueType>{EValueType::String},
+        EValueType::String,
+        TSharedRef::FromRefNonOwning(TRef(
+            builtin_functions_bc,
+            builtin_functions_bc_len)),
+        ECallingConvention::Simple));
     registry->RegisterFunction(New<THashFunction>(
         "simple_hash",
         "SimpleHash"));
