@@ -80,7 +80,7 @@ private:
             statistics);
 
         auto nodeTracker = Bootstrap_->GetNodeTracker();
-        if (nodeTracker->TryAcquireNodeRegistrationSemaphore()) {
+        if (!nodeTracker->TryAcquireNodeRegistrationSemaphore()) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Node registration throttling is active"));
