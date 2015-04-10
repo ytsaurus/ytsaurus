@@ -115,7 +115,6 @@ void TJobController::StartWaitingJobs()
     auto usedResources = GetResourceUsage(false);
     {
         auto memoryToRelease = tracker->GetUsed(EMemoryConsumer::Job) - usedResources.memory();
-        YCHECK(memoryToRelease >= 0);
         if (memoryToRelease > 0) {
             tracker->Release(EMemoryConsumer::Job, memoryToRelease);
             resourcesUpdated = true;

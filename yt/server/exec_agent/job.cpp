@@ -90,8 +90,6 @@ public:
         , Bootstrap(bootstrap)
         , ResourceUsage(resourceUsage)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         JobSpec.Swap(&jobSpec);
 
         NodeDirectory->AddDescriptor(InvalidNodeId, Bootstrap->GetLocalDescriptor());
@@ -101,8 +99,6 @@ public:
 
     virtual void Start() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         {
             TGuard<TSpinLock> guard(SpinLock);
             YCHECK(JobState == EJobState::Waiting);
@@ -120,8 +116,6 @@ public:
 
     virtual void Abort(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         {
             TGuard<TSpinLock> guard(SpinLock);
             if (JobState != EJobState::Running && JobState != EJobState::Waiting) {
@@ -333,9 +327,6 @@ private:
     TNodeDirectoryPtr NodeDirectory = New<TNodeDirectory>();
 
     NLogging::TLogger Logger = ExecAgentLogger;
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
 
     void DoRun()
     {
