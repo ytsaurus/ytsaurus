@@ -18,7 +18,7 @@ typedef std::function<TConstExpressionPtr(
 
 typedef std::vector<std::vector<TKeyRange>> TGroupedRanges;
 
-TGroupedRanges GetPrunedSources(
+TGroupedRanges GetPrunedRanges(
     const TConstExpressionPtr& predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
@@ -28,7 +28,7 @@ TGroupedRanges GetPrunedSources(
     i64 rangeExpansionLimit,
     bool verboseLogging);
 
-TGroupedRanges GetPrunedSources(
+TGroupedRanges GetPrunedRanges(
     const TConstQueryPtr& query,
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
