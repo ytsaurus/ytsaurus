@@ -504,18 +504,11 @@ const TOwningKey& ChooseMinKey(const TOwningKey& a, const TOwningKey& b);
 //! Ties are broken in favour of the first argument.
 const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b);
 
-void CaptureValue(TUnversionedValue* value, TChunkedMemoryPool* pool);
-
 Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end);
 
 void ToProto(TProtoStringType* protoRow, TUnversionedRow row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
-void ToProto(
-    TProtoStringType* protoRow,
-    const TUnversionedValue* begin,
-    const TUnversionedValue* end);
-
-
+void ToProto(TProtoStringType* protoRow, const TUnversionedValue* begin, const TUnversionedValue* end);
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);

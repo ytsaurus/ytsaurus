@@ -9,6 +9,8 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void CaptureValue(TUnversionedValue* value, TChunkedMemoryPool* pool);
+
 //! Holds data for a bunch of rows.
 /*!
  *  Internally, implemented as a pair of chunked pools: one for aligned
