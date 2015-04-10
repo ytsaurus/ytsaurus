@@ -72,7 +72,7 @@ message TInOpExpression
         optional TInOpExpression in_op_expression = 108;
     }
     repeated TExpression arguments = 1;
-    repeated bytes values = 2;
+    required bytes values = 2;
 }
 
 message TNamedItem
