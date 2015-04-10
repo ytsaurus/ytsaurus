@@ -363,8 +363,8 @@ TConstExpressionPtr RefinePredicate(
             }
 
             const auto areValidReferences = [&] (int index) {
-                for (const auto& reference : columnEvaluator->GetReferences(index)) {
-                    if (tableSchema.GetColumnIndexOrThrow(reference) >= rowSize) {
+                for (const auto& reference : columnEvaluator->GetReferenceIds(index)) {
+                    if (reference >= rowSize) {
                         return false;
                     }
                 }

@@ -196,11 +196,9 @@ private:
 
     TNullable<int> IsExactColumn(int index, const std::pair<TRow, TRow>& range, int depletedPrefixSize)
     {
-        const auto& references = Evaluator_->GetReferences(index);
         int maxReferenceIndex = 0;
 
-        for (const auto& reference : references) {
-            int referenceIndex = Schema_.GetColumnIndexOrThrow(reference);
+        for (int referenceIndex : Evaluator_->GetReferenceIds(index)) {
             int depletedIndex = SchemaToDepletedMapping_[referenceIndex];
             maxReferenceIndex = std::max(maxReferenceIndex, referenceIndex);
 
