@@ -7,7 +7,6 @@ namespace NYT {
 namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-namespace {
 
 void CaptureValue(TUnversionedValue* value, TChunkedMemoryPool* pool)
 {
@@ -17,8 +16,6 @@ void CaptureValue(TUnversionedValue* value, TChunkedMemoryPool* pool)
         value->Data.String = dst;
     }
 }
-
-} // namespace
 
 struct TAlignedRowBufferPoolTag { };
 struct TUnalignedRowBufferPoolTag { };

@@ -957,17 +957,6 @@ const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CaptureValue(TUnversionedValue* value, TChunkedMemoryPool* pool)
-{
-    if (IsStringLikeType(EValueType(value->Type))) {
-        char* dst = pool->AllocateUnaligned(value->Length);
-        memcpy(dst, value->Data.String, value->Length);
-        value->Data.String = dst;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     int size = 2 * MaxVarUint32Size; // header size
