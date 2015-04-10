@@ -273,8 +273,9 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 {
     std::vector<TVersionedRow> expected;
     {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 1, 1);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 4, 1, 1, 1);
         FillKey(row, MakeNullable(A), MakeNullable(1), MakeNullable(1.5));
+        row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
 
         // v1
         row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
@@ -283,8 +284,9 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
         expected.push_back(row);
     } {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 2, 1, 0);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 4, 2, 1, 0);
         FillKey(row, MakeNullable(A), MakeNullable(2), Null);
+        row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
 
         // v1
         row.BeginValues()[0] = MakeVersionedInt64Value(2, 1, 3);
@@ -295,8 +297,9 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
         expected.push_back(row);
     } {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 4, 0, 0, 1);
         FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
+        row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
         row.BeginDeleteTimestamps()[0] = 20;
 
         expected.push_back(row);
@@ -304,13 +307,24 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
     WriteThreeRows();
 
-    auto schema = Schema;
-    schema.Columns().push_back(TColumnSchema("vN", EValueType::Double));
+    TTableSchema schema;
+    schema.Columns() = {
+        TColumnSchema("k1", EValueType::String),
+        TColumnSchema("k2", EValueType::Int64),
+        TColumnSchema("k3", EValueType::Double),
+        TColumnSchema("kN", EValueType::String),
+        TColumnSchema("v1", EValueType::Int64),
+        TColumnSchema("v2", EValueType::Int64),
+        TColumnSchema("vN", EValueType::Double)
+    };
+
+    auto keyColumns = KeyColumns;
+    keyColumns.push_back("kN");
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
         schema,
-        KeyColumns).Get().ValueOrThrow();
+        keyColumns).Get().ValueOrThrow();
 
     TColumnFilter filter;
     filter.All = false;

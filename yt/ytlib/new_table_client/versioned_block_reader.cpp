@@ -20,12 +20,14 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     const TSharedRef& block,
     const TBlockMeta& meta,
     const TTableSchema& chunkSchema,
-    const TKeyColumns& keyColumns,
+    int keyColumnCount,
+    int keyPadding,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
     TTimestamp timestamp)
     : Block_(block)
     , Timestamp_(timestamp)
-    , KeyColumnCount_(keyColumns.size())
+    , KeyColumnCount_(keyColumnCount)
+    , PaddedKeyColumnCount_(keyColumnCount + keyPadding)
     , SchemaIdMapping_(schemaIdMapping)
     , ChunkSchema_(chunkSchema)
     , Meta_(meta)
@@ -33,7 +35,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
 {
     YCHECK(Meta_.row_count() > 0);
 
-    for (int index = 0; index < KeyColumnCount_; ++index) {
+    for (int index = 0; index < PaddedKeyColumnCount_; ++index) {
         KeyBuilder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, index));
     }
     Key_ = KeyBuilder_.GetRow();
@@ -147,12 +149,12 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool* mem
 {
     auto row = TVersionedRow::Allocate(
         memoryPool,
-        KeyColumnCount_,
+        PaddedKeyColumnCount_,
         GetColumnValueCount(ChunkSchema_.Columns().size() - 1),
         WriteTimestampCount_,
         DeleteTimestampCount_);
 
-    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * PaddedKeyColumnCount_);
 
     auto* beginWriteTimestamps = row.BeginWriteTimestamps();
     for (int i = 0; i < WriteTimestampCount_; ++i) {
@@ -216,11 +218,11 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         // Row has been deleted at given timestamp.
         auto row = TVersionedRow::Allocate(
             memoryPool,
-            KeyColumnCount_,
+            PaddedKeyColumnCount_,
             0, // no values
             0, // no write timestamps
             1);
-        ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+        ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * PaddedKeyColumnCount_);
         row.BeginDeleteTimestamps()[0] = deleteTimestamp;
         return row;
     }
@@ -229,12 +231,12 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
 
     auto row = TVersionedRow::Allocate(
         memoryPool,
-        KeyColumnCount_,
+        PaddedKeyColumnCount_,
         SchemaIdMapping_.size(),
         1,
         hasDeleteTimestamp ? 1 : 0);
 
-    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * PaddedKeyColumnCount_);
     
     row.BeginWriteTimestamps()[0] = writeTimestamp;
     if (hasDeleteTimestamp) {

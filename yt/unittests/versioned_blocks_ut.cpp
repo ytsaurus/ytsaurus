@@ -95,22 +95,25 @@ protected:
 TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 {
     // Reorder value columns in reading schema.
-    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 3}, {3, 4}};
+    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 5}, {3, 6}};
 
     TSimpleVersionedBlockReader blockReader(
         Data,
         Meta,
         Schema,
-        KeyColumns,
+        KeyColumns.size(),
+        2, // Two padding key columns.
         schemaIdMapping,
         7);
 
-    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 2, 1, 0);
+    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 5, 2, 1, 0);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
-    row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 3);
-    row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 4);
+    row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
+    row.BeginKeys()[4] = MakeUnversionedSentinelValue(EValueType::Null, 4);
+    row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
+    row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 6);
     row.BeginWriteTimestamps()[0] = 5;
 
     std::vector<TVersionedRow> rows;
@@ -121,13 +124,14 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 
 TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
 {
-    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 3}};
+    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 5}};
 
     TSimpleVersionedBlockReader blockReader(
         Data,
         Meta,
         Schema,
-        KeyColumns,
+        KeyColumns.size(),
+        0,
         schemaIdMapping,
         9);
 
@@ -151,7 +155,8 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
         Data,
         Meta,
         Schema,
-        KeyColumns,
+        KeyColumns.size(),
+        0,
         schemaIdMapping,
         SyncLastCommittedTimestamp);
 
@@ -177,7 +182,8 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
         Data,
         Meta,
         Schema,
-        KeyColumns,
+        KeyColumns.size(),
+        0,
         schemaIdMapping,
         AsyncAllCommittedTimestamp);
 

@@ -21,12 +21,13 @@ public:
         const TSharedRef& block,
         const NProto::TBlockMeta& meta,
         const TTableSchema& chunkSchema,
-        const TKeyColumns& keyColumns,
+        int keyColumnCount,
+        int keyPadding, 
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp);
 
     bool NextRow();
-
+    
     bool SkipToRowIndex(i64 rowIndex);
     bool SkipToKey(TKey key);
     
@@ -43,6 +44,7 @@ private:
 
     TTimestamp Timestamp_;
     const int KeyColumnCount_;
+    const int PaddedKeyColumnCount_;
 
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
     const TTableSchema& ChunkSchema_;
