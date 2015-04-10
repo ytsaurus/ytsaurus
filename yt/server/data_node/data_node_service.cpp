@@ -13,7 +13,6 @@
 #include "session.h"
 #include "master_connector.h"
 
-#include <server/cell_node/public.h>
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/string.h>
@@ -27,6 +26,8 @@
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/action_queue.h>
+
+#include <core/profiling/profile_manager.h>
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/private.h>
@@ -124,6 +125,10 @@ public:
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
 
+        for (auto type : TEnumTraits<EWriteSessionType>::GetDomainValues()) {
+            SessionTypeToTag_[type] = NProfiling::TProfileManager::Get()->RegisterTag("type", type);
+        }
+
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TDataNodeService::OnProfiling, MakeWeak(this)),
@@ -137,6 +142,8 @@ private:
     TBootstrap* const Bootstrap_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
+
+    TEnumIndexedVector<NProfiling::TTagId, EWriteSessionType> SessionTypeToTag_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
@@ -943,7 +950,10 @@ private:
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         for (auto type : TEnumTraits<EWriteSessionType>::GetDomainValues()) {
-            Profiler.Enqueue("/session_count/" + FormatEnum(type), sessionManager->GetSessionCount(type));
+            Profiler.Enqueue(
+                "/session_count",
+                sessionManager->GetSessionCount(type),
+                {SessionTypeToTag_[type]});
         }
     }
 };
