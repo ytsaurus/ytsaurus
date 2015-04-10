@@ -34,6 +34,8 @@ class TUnversionedValueCallingConvention
     : public ICallingConvention
 {
 public:
+    TUnversionedValueCallingConvention(int repeatedArgIndex);
+
     virtual TCodegenExpression MakeCodegenFunctionCall(
         std::vector<TCodegenExpression> codegenArgs,
         std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
@@ -44,6 +46,9 @@ public:
         Type* llvmType,
         TType resultType,
         TCGContext& builder) const override;
+
+private:
+    int RepeatedArgIndex_;
 };
 
 class TSimpleCallingConvention
@@ -74,6 +79,13 @@ public:
         TSharedRef implementationFile,
         ECallingConvention callingConvention);
 
+    TUserDefinedFunction(
+        const Stroka& functionName,
+        std::vector<TType> argumentTypes,
+        TType repeatedArgType,
+        TType resultType,
+        TSharedRef implementationFile);
+
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
@@ -85,6 +97,14 @@ private:
     TType ResultType_;
     std::vector<TType> ArgumentTypes_;
     ICallingConventionPtr CallingConvention_;
+
+    TUserDefinedFunction(
+        const Stroka& functionName,
+        std::vector<TType> argumentTypes,
+        TType repeatedArgType,
+        TType resultType,
+        TSharedRef implementationFile,
+        ICallingConventionPtr callingConvention);
 
     Function* GetLlvmFunction(
         TCGContext& builder,

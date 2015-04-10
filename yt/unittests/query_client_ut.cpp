@@ -2132,6 +2132,14 @@ protected:
                 test_udfs_bc,
                 test_udfs_bc_len)),
             ECallingConvention::UnversionedValue);
+        SumUdf_ = New<TUserDefinedFunction>(
+            "sum_udf",
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Int64,
+            EValueType::Int64,
+            TSharedRef::FromRefNonOwning(TRef(
+                test_udfs_bc,
+                test_udfs_bc_len)));
     }
 
     virtual void TearDown() override
@@ -2299,6 +2307,7 @@ protected:
     IFunctionDescriptorPtr StrtolUdf_;
     IFunctionDescriptorPtr TolowerUdf_;
     IFunctionDescriptorPtr IsNullUdf_;
+    IFunctionDescriptorPtr SumUdf_;
 };
 
 std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
@@ -3589,6 +3598,37 @@ TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
         .WillRepeatedly(Return(IsNullUdf_));
 
     Evaluate("is_null_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestVarargUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1",
+        "a=2",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+        "x=2",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("sum_udf"))
+        .WillRepeatedly(Return(SumUdf_));
+
+    Evaluate("a as x FROM [//t] where sum_udf(1, 2, 3) = sum_udf(3, 3)", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }

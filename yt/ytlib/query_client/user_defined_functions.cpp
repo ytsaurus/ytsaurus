@@ -214,6 +214,11 @@ void TSimpleCallingConvention::CheckResultType(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUnversionedValueCallingConvention::TUnversionedValueCallingConvention(
+    int repeatedArgIndex)
+    : RepeatedArgIndex_(repeatedArgIndex)
+{ }
+
 TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     std::vector<TCodegenExpression> codegenArgs,
     std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
@@ -237,7 +242,12 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
             PointerType::getUnqual(unversionedValueOpaqueType));
         argumentValues.push_back(castedResultPtr);
 
-        for (auto arg = codegenArgs.begin(); arg != codegenArgs.end(); arg++) {
+        int argIndex = 0;
+        auto arg = codegenArgs.begin();
+        for (;
+            arg != codegenArgs.end() && argIndex != RepeatedArgIndex_;
+            arg++, argIndex++) 
+        {
             auto valuePtr = builder.CreateAlloca(unversionedValueType);
             auto cgValue = (*arg)(builder, row);
             cgValue.StoreToValue(builder, valuePtr, 0);
@@ -246,6 +256,30 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
                 valuePtr,
                 PointerType::getUnqual(unversionedValueOpaqueType));
             argumentValues.push_back(castedValuePtr);
+        }
+
+        if (argIndex == RepeatedArgIndex_) {
+            auto varargSize = builder.getInt32(
+                codegenArgs.size() - RepeatedArgIndex_);
+
+            auto varargPtr = builder.CreateAlloca(
+                unversionedValueType,
+                varargSize);
+            auto castedVarargPtr = builder.CreateBitCast(
+                varargPtr,
+                PointerType::getUnqual(unversionedValueOpaqueType));
+
+            argumentValues.push_back(castedVarargPtr);
+            argumentValues.push_back(varargSize);
+
+            for (int varargIndex = 0; arg != codegenArgs.end(); arg++, varargIndex++) {
+                auto valuePtr = builder.CreateConstGEP1_32(
+                    varargPtr,
+                    varargIndex);
+                
+                auto cgValue = (*arg)(builder, row);
+                cgValue.StoreToValue(builder, valuePtr, 0);
+            }
         }
 
         codegenBody(argumentValues, builder);
@@ -274,29 +308,64 @@ void TUnversionedValueCallingConvention::CheckResultType(
 TUserDefinedFunction::TUserDefinedFunction(
     const Stroka& functionName,
     std::vector<TType> argumentTypes,
+    TType repeatedArgType,
     TType resultType,
     TSharedRef implementationFile,
-    ECallingConvention callingConvention)
+    ICallingConventionPtr callingConvention)
     : TTypedFunction(
         functionName,
         std::vector<TType>(argumentTypes.begin(), argumentTypes.end()),
+        repeatedArgType,
         resultType)
     , FunctionName_(functionName)
     , ImplementationFile_(implementationFile)
     , ResultType_(resultType)
     , ArgumentTypes_(argumentTypes)
+    , CallingConvention_(callingConvention)
+{ }
+
+ICallingConventionPtr GetCallingConvention(
+    ECallingConvention callingConvention)
 {
     switch (callingConvention) {
         case ECallingConvention::Simple:
-            CallingConvention_ = New<TSimpleCallingConvention>();
-            break;
+            return New<TSimpleCallingConvention>();
         case ECallingConvention::UnversionedValue:
-            CallingConvention_ = New<TUnversionedValueCallingConvention>();
-            break;
+            return New<TUnversionedValueCallingConvention>(-1);
         default:
             YUNREACHABLE();
     }
 }
+
+TUserDefinedFunction::TUserDefinedFunction(
+    const Stroka& functionName,
+    std::vector<TType> argumentTypes,
+    TType resultType,
+    TSharedRef implementationFile,
+    ECallingConvention callingConvention)
+    : TUserDefinedFunction(
+        functionName,
+        argumentTypes,
+        EValueType::Null,
+        resultType,
+        implementationFile,
+        GetCallingConvention(callingConvention))
+{ }
+
+TUserDefinedFunction::TUserDefinedFunction(
+    const Stroka& functionName,
+    std::vector<TType> argumentTypes,
+    TType repeatedArgType,
+    TType resultType,
+    TSharedRef implementationFile)
+    : TUserDefinedFunction(
+        functionName,
+        argumentTypes,
+        repeatedArgType,
+        resultType,
+        implementationFile,
+        New<TUnversionedValueCallingConvention>(argumentTypes.size()))
+{ }
 
 void TUserDefinedFunction::CheckCallee(
     llvm::Function* callee,
