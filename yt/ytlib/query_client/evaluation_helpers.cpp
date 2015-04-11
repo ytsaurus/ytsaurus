@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "evaluation_helpers.h"
 
+#include "private.h"
 #include "plan_helpers.h"
 #include "helpers.h"
 #include "query_statistics.h"
@@ -14,6 +15,8 @@ namespace NQueryClient {
 
 using namespace NConcurrency;
 using NVersionedTableClient::GetUnversionedRowDataSize;
+
+static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,6 +215,8 @@ TJoinEvaluator GetJoinEvaluator(
             }
 
             const auto& foreignRows = rowset->GetRows();  
+
+            LOG_DEBUG("Got %v foreign rows", foreignRows.size());
 
             TJoinLookupRows foreignLookup(
                 InitialGroupOpHashtableCapacity,

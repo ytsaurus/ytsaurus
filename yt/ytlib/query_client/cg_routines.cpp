@@ -196,8 +196,12 @@ void JoinOpHelper(
     // Collect join ids.
     collectRows(collectRowsClosure, &keys, &keysLookup, &allRows);
 
+    LOG_DEBUG("Collected %v join keys from %v rows", keys.size(), allRows.size());
+
     std::vector<TRow> joinedRows;
     executionContext->JoinEvaluator(executionContext, groupHasher, groupComparer, keys, allRows, &joinedRows);
+
+    LOG_DEBUG("Joined into %v rows", joinedRows.size());
 
     // Consume joined rows.
     executionContext->StopFlag = false;
