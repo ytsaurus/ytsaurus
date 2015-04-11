@@ -209,6 +209,7 @@ TJoinEvaluator GetJoinEvaluator(
                 NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
 
                 auto statistics = executeCallback(subquery, writer);
+                LOG_DEBUG("Remote subquery statistics %v", statistics);
                 *executionContext->Statistics += statistics;
 
                 rowset = WaitFor(rowsetFuture).ValueOrThrow();
