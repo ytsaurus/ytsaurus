@@ -266,6 +266,7 @@ public:
         // TODO(babenko): consider moving this code into HydraIO queue
         if (!IsClosed_) {
             try {
+                DoFinish();
                 File_->Close();
                 NFS::Remove(FileName_ + TempFileSuffix);
             } catch (const std::exception& ex) {
@@ -383,12 +384,8 @@ private:
         LOG_DEBUG("Local snapshot writer opened");
     }
 
-    void DoClose()
+    void DoFinish()
     {
-        YCHECK(IsOpened_ && !IsClosed_);
-
-        LOG_DEBUG("Closing local snapshot writer");
-
         // NB: Some calls might be redundant.
         FacadeOutput_->Finish();
         if (LengthMeasureOutput_) {
@@ -401,6 +398,15 @@ private:
             ChecksumOutput_->Finish();
         }
         FileOutput_->Finish();
+    }
+
+    void DoClose()
+    {
+        YCHECK(IsOpened_ && !IsClosed_);
+
+        LOG_DEBUG("Closing local snapshot writer");
+
+        DoFinish();
 
         Params_.Meta = Meta_;
         if (ChecksumOutput_) {
