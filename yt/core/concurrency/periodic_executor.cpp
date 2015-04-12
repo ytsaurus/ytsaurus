@@ -20,39 +20,39 @@ TPeriodicExecutor::TPeriodicExecutor(
     EPeriodicExecutorMode mode,
     TDuration splay)
     : Invoker(invoker)
-    , Callback(callback)
-    , Period(period)
-    , Mode(mode)
-    , Splay(splay)
-    , IdlePromise(MakePromise<void>(TError()))
+    , Callback_(callback)
+    , Period_(period)
+    , Mode_(mode)
+    , Splay_(splay)
+    , IdlePromise_(MakePromise<void>(TError()))
 { }
 
 void TPeriodicExecutor::Start()
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    if (Started)
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (Started_)
         return;
-    Started = true;
-    PostDelayedCallback(RandomDuration(Splay));
+    Started_ = true;
+    PostDelayedCallback(RandomDuration(Splay_));
 }
 
 TFuture<void> TPeriodicExecutor::Stop()
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    if (Started) {
-        Started = false;
-        TDelayedExecutor::CancelAndClear(Cookie);
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (Started_) {
+        Started_ = false;
+        TDelayedExecutor::CancelAndClear(Cookie_);
     }
-    return IdlePromise;
+    return IdlePromise_;
 }
 
 void TPeriodicExecutor::ScheduleOutOfBand()
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    if (!Started)
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (!Started_)
         return;
-    if (Busy) {
-        OutOfBandRequested = true;
+    if (Busy_) {
+        OutOfBandRequested_ = true;
     } else {
         guard.Release();
         PostCallback();
@@ -61,31 +61,31 @@ void TPeriodicExecutor::ScheduleOutOfBand()
 
 void TPeriodicExecutor::ScheduleNext()
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    if (!Started)
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (!Started_)
         return;
 
     // There several reasons why this may fail:
     // 1) Calling ScheduleNext outside of the periodic action
     // 2) Calling ScheduleNext more than once
     // 3) Calling ScheduleNext for an invoker in automatic mode
-    YCHECK(Busy);
-    Busy = false;
+    YCHECK(Busy_);
+    Busy_ = false;
 
-    if (OutOfBandRequested) {
-        OutOfBandRequested = false;
+    if (OutOfBandRequested_) {
+        OutOfBandRequested_ = false;
         guard.Release();
         PostCallback();
     } else {
-        PostDelayedCallback(Period);
+        PostDelayedCallback(Period_);
     }
 }
 
 void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock);
-    TDelayedExecutor::CancelAndClear(Cookie);
-    Cookie = TDelayedExecutor::Submit(
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    TDelayedExecutor::CancelAndClear(Cookie_);
+    Cookie_ = TDelayedExecutor::Submit(
         BIND(&TPeriodicExecutor::PostCallback, MakeWeak(this)),
         delay);
 }
@@ -101,29 +101,30 @@ void TPeriodicExecutor::PostCallback()
 
 void TPeriodicExecutor::OnCallbackSuccess()
 {
+    TPromise<void> idlePromise;
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (!Started || Busy)
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (!Started_ || Busy_)
             return;
-        Busy = true;
-        TDelayedExecutor::CancelAndClear(Cookie);
-        IdlePromise = NewPromise<void>();
+        Busy_ = true;
+        TDelayedExecutor::CancelAndClear(Cookie_);
+        idlePromise = IdlePromise_ = NewPromise<void>();
     }
 
-    Callback.Run();
-    IdlePromise.Set();
+    Callback_.Run();
+    idlePromise.Set();
     
-    if (Mode == EPeriodicExecutorMode::Automatic) {
+    if (Mode_ == EPeriodicExecutorMode::Automatic) {
         ScheduleNext();
     }
 }
 
 void TPeriodicExecutor::OnCallbackFailure()
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    if (!Started)
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (!Started_)
         return;
-    PostDelayedCallback(Period);
+    PostDelayedCallback(Period_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

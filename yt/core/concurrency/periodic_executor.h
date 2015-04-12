@@ -55,18 +55,19 @@ public:
     void ScheduleNext();
 
 private:
-    IInvokerPtr Invoker;
-    TClosure Callback;
-    TDuration Period;
-    EPeriodicExecutorMode Mode;
-    TDuration Splay;
+    const IInvokerPtr Invoker;
+    const TClosure Callback_;
+    const TDuration Period_;
+    const EPeriodicExecutorMode Mode_;
+    const TDuration Splay_;
 
-    TSpinLock SpinLock;
-    bool Started = false;
-    bool Busy = false;
-    bool OutOfBandRequested = false;
-    TDelayedExecutorCookie Cookie;
-    TPromise<void> IdlePromise;
+    TSpinLock SpinLock_;
+    bool Started_ = false;
+    bool Busy_ = false;
+    bool OutOfBandRequested_ = false;
+    TDelayedExecutorCookie Cookie_;
+    TPromise<void> IdlePromise_;
+
 
     void PostDelayedCallback(TDuration delay);
     void PostCallback();
