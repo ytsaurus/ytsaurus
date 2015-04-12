@@ -47,36 +47,40 @@ public:
         TOwningKey lowerBound,
         TOwningKey upperBound,
         TTimestamp timestamp)
-        : PoolInvoker_(std::move(poolInvoker))
-        , TabletSnapshot_(std::move(tabletSnapshot))
-        , PerformanceCounters_(TabletSnapshot_->PerformanceCounters)
-        , LowerBound_(std::move(lowerBound))
-        , UpperBound_(std::move(upperBound))
-        , Timestamp_(timestamp)
-        , Pool_(TTabletReaderPoolTag())
-    { }
+        : TTabletReaderBase(
+            std::move(poolInvoker),
+            std::move(tabletSnapshot),
+            timestamp)
+    {
+        LowerBound_ = std::move(lowerBound);
+        UpperBound_ = std::move(upperBound);
+    }
 
     TTabletReaderBase(
         IInvokerPtr poolInvoker,
         TTabletSnapshotPtr tabletSnapshot,
         const std::vector<TKey>& keys,
         TTimestamp timestamp)
-        : PoolInvoker_(std::move(poolInvoker))
-        , TabletSnapshot_(std::move(tabletSnapshot))
-        , PerformanceCounters_(TabletSnapshot_->PerformanceCounters)
-        , Keys_(keys)
-        , Timestamp_(timestamp)
-        , Pool_(TTabletReaderPoolTag())
-    { }
+        : TTabletReaderBase(
+            std::move(poolInvoker),
+            std::move(tabletSnapshot),
+            timestamp)
+    {
+        Keys_ = keys;
+    }
 
 protected:
     const IInvokerPtr PoolInvoker_;
     const TTabletSnapshotPtr TabletSnapshot_;
     const TTabletPerformanceCountersPtr PerformanceCounters_;
-    const TOwningKey LowerBound_ = EmptyKey();
-    const TOwningKey UpperBound_ = EmptyKey();
-    const std::vector<TKey> Keys_;
     const TTimestamp Timestamp_;
+
+    // For range reads.
+    TOwningKey LowerBound_ = EmptyKey();
+    TOwningKey UpperBound_ = EmptyKey();
+
+    // For set reads.
+    std::vector<TKey> Keys_;
 
     TChunkedMemoryPool Pool_;
 
@@ -86,6 +90,9 @@ protected:
         std::vector<TVersionedRow> Rows;
         std::vector<TVersionedRow>::iterator CurrentRow;
     };
+
+    const std::function<bool(const TSession*, const TSession*)> SessionComparer_;
+    const TDynamicRowKeyComparer KeyComparer_;
 
     SmallVector<TSession, TypicalStoresPerSession> Sessions_;
 
@@ -102,6 +109,19 @@ protected:
     std::atomic<bool> Opened_ = {false};
     std::atomic<bool> Refilling_ = {false};
 
+
+    TTabletReaderBase(
+        IInvokerPtr poolInvoker,
+        TTabletSnapshotPtr tabletSnapshot,
+        TTimestamp timestamp)
+        : PoolInvoker_(std::move(poolInvoker))
+        , TabletSnapshot_(std::move(tabletSnapshot))
+        , PerformanceCounters_(TabletSnapshot_->PerformanceCounters)
+        , Timestamp_(timestamp)
+        , Pool_(TTabletReaderPoolTag())
+        , SessionComparer_(GetSessionComparer())
+        , KeyComparer_(TabletSnapshot_->RowKeyComparer)
+    { }
 
     template <class TRow, class TRowMerger>
     bool DoRead(std::vector<TRow>* rows, TRowMerger* rowMerger)
@@ -144,11 +164,9 @@ protected:
                 auto partialRow = *session->CurrentRow;
 
                 if (currentKeyBegin) {
-                    if (TabletSnapshot_->RowKeyComparer(
-                            partialRow.BeginKeys(),
-                            partialRow.EndKeys(),
-                            currentKeyBegin,
-                            currentKeyEnd) != 0)
+                    if (KeyComparer_(
+                            partialRow.BeginKeys(), partialRow.EndKeys(),
+                            currentKeyBegin, currentKeyEnd) != 0)
                         break;
                 } else {
                     currentKeyBegin = partialRow.BeginKeys();
@@ -159,10 +177,10 @@ protected:
 
                 if (++session->CurrentRow == session->Rows.end()) {
                     ExhaustedSessions_.push_back(session);
-                    ExtractHeap(SessionHeapBegin_, SessionHeapEnd_,  GetSessionComparer());
+                    ExtractHeap(SessionHeapBegin_, SessionHeapEnd_,  SessionComparer_);
                     --SessionHeapEnd_;
                 } else {
-                    AdjustHeapFront(SessionHeapBegin_, SessionHeapEnd_,  GetSessionComparer());
+                    AdjustHeapFront(SessionHeapBegin_, SessionHeapEnd_,  SessionComparer_);
                 }
             }
 
@@ -232,17 +250,14 @@ protected:
         Opened_ = true;
     }
 
-
     std::function<bool(const TSession*, const TSession*)> GetSessionComparer()
     {
         return [&] (const TSession* lhsSession, const TSession* rhsSession) {
             auto lhsRow = *lhsSession->CurrentRow;
             auto rhsRow = *rhsSession->CurrentRow;
-            return TabletSnapshot_->RowKeyComparer(
-                lhsRow.BeginKeys(),
-                lhsRow.EndKeys(),
-                rhsRow.BeginKeys(),
-                rhsRow.EndKeys()) < 0;
+            return KeyComparer_(
+                lhsRow.BeginKeys(), lhsRow.EndKeys(),
+                rhsRow.BeginKeys(), rhsRow.EndKeys()) < 0;
         };
     }
 
@@ -270,7 +285,7 @@ protected:
         for (int index = 0; index < rowCount - 1; ++index) {
             auto lhs = rows[index];
             auto rhs = rows[index + 1];
-            YASSERT(TabletSnapshot_->RowKeyComparer(
+            YASSERT(KeyComparer_(
                 lhs.BeginKeys(), lhs.EndKeys(),
                 rhs.BeginKeys(), rhs.EndKeys()) < 0);
         }
@@ -278,7 +293,7 @@ protected:
 
         session->CurrentRow = rows.begin();
         *SessionHeapEnd_++ = session;
-        AdjustHeapBack(SessionHeapBegin_, SessionHeapEnd_, GetSessionComparer());
+        AdjustHeapBack(SessionHeapBegin_, SessionHeapEnd_, SessionComparer_);
         return true;
     }
 
@@ -363,7 +378,7 @@ public:
     }
 
 private:
-    std::unique_ptr<TUnversionedRowMerger> RowMerger_;
+    std::unique_ptr<TSchemafulRowMerger> RowMerger_;
 
 
     void DoOpen(const TTableSchema& schema)
@@ -385,7 +400,7 @@ private:
         }
 
         // Initialize merger.
-        RowMerger_ = std::make_unique<TUnversionedRowMerger>(
+        RowMerger_ = std::make_unique<TSchemafulRowMerger>(
             &Pool_,
             TabletSnapshot_->Schema.Columns().size(),
             TabletSnapshot_->KeyColumns.size(),
@@ -507,7 +522,7 @@ public:
         for (int index = 0; index < static_cast<int>(rows->size()) - 1; ++index) {
             auto lhs = (*rows)[index];
             auto rhs = (*rows)[index + 1];
-            YASSERT(TabletSnapshot_->RowKeyComparer(
+            YASSERT(KeyComparer_(
                 lhs.BeginKeys(), lhs.EndKeys(),
                 rhs.BeginKeys(), rhs.EndKeys()) < 0);
         }

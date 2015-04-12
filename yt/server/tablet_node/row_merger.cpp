@@ -12,7 +12,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedRowMerger::TUnversionedRowMerger(
+TSchemafulRowMerger::TSchemafulRowMerger(
     TChunkedMemoryPool* pool,
     int schemaColumnCount,
     int keyColumnCount,
@@ -48,7 +48,7 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     Cleanup();
 }
 
-void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
+void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
 {
     if (!row)
         return;
@@ -109,7 +109,7 @@ void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
     }
 }
 
-TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
+TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
 {
     if (!Started_) {
         return TUnversionedRow();
@@ -135,14 +135,14 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     return mergedRow;
 }
 
-void TUnversionedRowMerger::Reset()
+void TSchemafulRowMerger::Reset()
 {
     YCHECK(!Started_);
     Pool_->Clear();
     MergedRow_ = TUnversionedRow();
 }
 
-void TUnversionedRowMerger::Cleanup()
+void TSchemafulRowMerger::Cleanup()
 {
     LatestWrite_ = NullTimestamp;
     LatestDelete_ = NullTimestamp;

@@ -194,7 +194,7 @@ class TEditList;
 typedef TEditList<NVersionedTableClient::TVersionedValue> TValueList;
 typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
 
-class TUnversionedRowMerger;
+class TSchemafulRowMerger;
 class TVersionedRowMerger;
 
 typedef NVersionedTableClient::TMultiChunkWriterOptions TTabletWriterOptions;
