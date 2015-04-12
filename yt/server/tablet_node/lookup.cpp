@@ -191,7 +191,7 @@ private:
             return;
         }
 
-        TUnversionedRowMerger merger(
+        TSchemafulRowMerger merger(
             &MemoryPool_,
             SchemaColumnCount_,
             KeyColumnCount_,

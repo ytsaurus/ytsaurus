@@ -14,10 +14,10 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnversionedRowMerger
+class TSchemafulRowMerger
 {
 public:
-    TUnversionedRowMerger(
+    TSchemafulRowMerger(
         TChunkedMemoryPool* pool,
         int schemaColumnCount,
         int keyColumnCount,
