@@ -61,8 +61,6 @@ public:
 
 private:
     class TTargetChecker;
-    using TFactorToNode = ymultimap<double, TNode*>;
-    using TNodeToFactorIt = yhash_map<TNode*, TFactorToNode::iterator>;
 
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
