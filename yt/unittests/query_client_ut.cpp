@@ -1601,7 +1601,7 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TArithmeticTestParam = std::tuple<const char*, const char*, const char*, TUnversionedValue>;
+using TArithmeticTestParam = std::tuple<EValueType, const char*, const char*, const char*, TUnversionedValue>;
 
 class TArithmeticTest
     : public ::testing::Test
@@ -1617,10 +1617,10 @@ TEST_P(TArithmeticTest, ConstantFolding)
 {
     auto schema = GetSampleTableSchema();
     auto& param = GetParam();
-    auto& lhs = std::get<0>(param);
-    auto& op = std::get<1>(param);
-    auto& rhs = std::get<2>(param);
-    auto expected = Make<TLiteralExpression>(std::get<3>(param));
+    auto& lhs = std::get<1>(param);
+    auto& op = std::get<2>(param);
+    auto& rhs = std::get<3>(param);
+    auto expected = Make<TLiteralExpression>(std::get<4>(param));
 
     auto got = PrepareExpression(Stroka(lhs) + op + rhs, schema);
 
@@ -1653,21 +1653,18 @@ TEST_F(TArithmeticTest, ConstantDivisorsFolding)
 TEST_P(TArithmeticTest, Evaluate)
 {
     auto& param = GetParam();
-    auto& lhs = std::get<0>(param);
-    auto& op = std::get<1>(param);
-    auto& rhs = std::get<2>(param);
-    auto& expected = std::get<3>(param);
+    auto type = std::get<0>(param);
+    auto& lhs = std::get<1>(param);
+    auto& op = std::get<2>(param);
+    auto& rhs = std::get<3>(param);
+    auto& expected = std::get<4>(param);
 
     TUnversionedValue result;
     TCGVariables variables;
-    auto schema = GetSampleTableSchema();
     auto keyColumns = GetSampleKeyColumns();
-
-    auto lhsString = Stroka(lhs);
-    if (lhsString[lhsString.size() - 1] == 'u') {
-        schema.Columns()[0].Type = EValueType::Uint64;
-        schema.Columns()[1].Type = EValueType::Uint64;
-    }
+    auto schema = GetSampleTableSchema();
+    schema.Columns()[0].Type = type;
+    schema.Columns()[1].Type = type;
 
     auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
     auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
@@ -1692,7 +1689,8 @@ TEST_P(TArithmeticTest, Evaluate)
 
     callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
 
-    EXPECT_EQ(expected, result);
+    EXPECT_EQ(expected, result)
+        << "row: " << ::testing::PrintToString(row);
 }
 
 #endif
@@ -1701,28 +1699,28 @@ INSTANTIATE_TEST_CASE_P(
     TArithmeticTest,
     TArithmeticTest,
     ::testing::Values(
-        TArithmeticTestParam("1", "+", "2", MakeInt64(3)),
-        TArithmeticTestParam("1", "-", "2", MakeInt64(-1)),
-        TArithmeticTestParam("3", "*", "2", MakeInt64(6)),
-        TArithmeticTestParam("6", "/", "2", MakeInt64(3)),
-        TArithmeticTestParam("6", "%", "4", MakeInt64(2)),
-        TArithmeticTestParam("6", ">", "4", MakeBoolean(true)),
-        TArithmeticTestParam("6", "<", "4", MakeBoolean(false)),
-        TArithmeticTestParam("6", ">=", "4", MakeBoolean(true)),
-        TArithmeticTestParam("6", "<=", "4", MakeBoolean(false)),
-        TArithmeticTestParam("6", ">=", "6", MakeBoolean(true)),
-        TArithmeticTestParam("6", "<=", "6", MakeBoolean(true)),
-        TArithmeticTestParam("1u", "+", "2u", MakeUint64(3)),
-        TArithmeticTestParam("1u", "-", "2u", MakeUint64(-1)),
-        TArithmeticTestParam("3u", "*", "2u", MakeUint64(6)),
-        TArithmeticTestParam("6u", "/", "2u", MakeUint64(3)),
-        TArithmeticTestParam("6u", "%", "4u", MakeUint64(2)),
-        TArithmeticTestParam("6u", ">", "4u", MakeBoolean(true)),
-        TArithmeticTestParam("6u", "<", "4u", MakeBoolean(false)),
-        TArithmeticTestParam("6u", ">=", "4u", MakeBoolean(true)),
-        TArithmeticTestParam("6u", "<=", "4u", MakeBoolean(false)),
-        TArithmeticTestParam("6u", ">=", "6u", MakeBoolean(true)),
-        TArithmeticTestParam("6u", "<=", "6u", MakeBoolean(true))
+        TArithmeticTestParam(EValueType::Int64, "1", "+", "2", MakeInt64(3)),
+        TArithmeticTestParam(EValueType::Int64, "1", "-", "2", MakeInt64(-1)),
+        TArithmeticTestParam(EValueType::Int64, "3", "*", "2", MakeInt64(6)),
+        TArithmeticTestParam(EValueType::Int64, "6", "/", "2", MakeInt64(3)),
+        TArithmeticTestParam(EValueType::Int64, "6", "%", "4", MakeInt64(2)),
+        TArithmeticTestParam(EValueType::Int64, "6", ">", "4", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Int64, "6", "<", "4", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Int64, "6", ">=", "4", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Int64, "6", "<=", "4", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Int64, "6", ">=", "6", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Int64, "6", "<=", "6", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Uint64, "1u", "+", "2u", MakeUint64(3)),
+        TArithmeticTestParam(EValueType::Uint64, "1u", "-", "2u", MakeUint64(-1)),
+        TArithmeticTestParam(EValueType::Uint64, "3u", "*", "2u", MakeUint64(6)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", "/", "2u", MakeUint64(3)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", "%", "4u", MakeUint64(2)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", ">", "4u", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", "<", "4u", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", ">=", "4u", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", "<=", "4u", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", ">=", "6u", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", "<=", "6u", MakeBoolean(true))
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
