@@ -126,7 +126,7 @@ inline __m128i Fold(__m128i value, __m128i data, __m128i foldFactor)
     return _mm_xor_si128(data, Fold(value, foldFactor));
 }
 
-inline __m128i AlignedPrefixLoad(const void* p, size_t* length)
+ATTRIBUTE_NO_SANITIZE_ADDRESS inline __m128i AlignedPrefixLoad(const void* p, size_t* length)
 {
     size_t offset = (size_t)p & 15; *length = 16 - offset;
     return _mm_shift_right_si128(_mm_load_si128((__m128i*)((char*)p - offset)), offset);
