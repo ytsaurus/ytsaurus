@@ -137,7 +137,11 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
                 TTypeBuilder::TLength::get(builder.getContext()));
             llvmArgs.push_back(resultLength);
 
-            codegenReturn = [&] (Value* llvmResult) {
+            codegenReturn = [
+                &,
+                resultLength,
+                resultPointer
+            ] (Value* llvmResult) {
                 return TCGValue::CreateFromValue(
                     builder,
                     builder.getFalse(),
