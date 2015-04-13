@@ -325,62 +325,6 @@ TKeyTriePtr TIsPrefixFunction::ExtractKeyRange(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashFunction::THashFunction(
-    const Stroka& functionName,
-    const Stroka& routineName)
-    : TTypedFunction(
-        functionName,
-        std::vector<TType>{ HashTypes_ },
-        HashTypes_,
-        EValueType::Uint64)
-    , RoutineName_(routineName)
-{ }
-
-const TUnionType THashFunction::HashTypes_ = TUnionType{
-    EValueType::Int64,
-    EValueType::Uint64,
-    EValueType::Boolean,
-    EValueType::String};
-
-TCGValue THashFunction::CodegenValue(
-    std::vector<TCodegenExpression> codegenArgs,
-    EValueType type,
-    const Stroka& name,
-    TCGContext& builder,
-    Value* row) const
-{
-    Value* argRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-    Value* executionContextPtrRef = builder.GetExecutionContextPtr();
-
-    builder.CreateCall3(
-        builder.Module->GetRoutine("AllocateRow"),
-        executionContextPtrRef,
-        builder.getInt32(codegenArgs.size()),
-        argRowPtr);
-
-    Value* argRowRef = builder.CreateLoad(argRowPtr);
-
-    std::vector<EValueType> keyTypes;
-    for (int index = 0; index < codegenArgs.size(); ++index) {
-        auto id = index;
-        auto value = codegenArgs[index](builder, row);
-        value.StoreToRow(builder, argRowRef, index, id);
-    }
-
-    Value* result = builder.CreateCall(
-        builder.Module->GetRoutine(RoutineName_),
-        argRowRef);
-
-    return TCGValue::CreateFromValue(
-        builder,
-        builder.getInt1(false),
-        nullptr,
-        result,
-        EValueType::Uint64);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCastFunction::TCastFunction(
     EValueType resultType,
     const Stroka& functionName)

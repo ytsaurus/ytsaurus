@@ -201,14 +201,14 @@ void TSimpleCallingConvention::CheckResultType(
     {
         THROW_ERROR_EXCEPTION(
             "Wrong result type in LLVM bitcode: expected void, got %Qv",
-            llvmType);
+            ToString(llvmType));
     } else if (!IsStringLikeType(concreteResultType) &&
         llvmType != expectedResultType)
     {
         THROW_ERROR_EXCEPTION(
             "Wrong result type in LLVM bitcode: expected %Qv, got %Qv",
-            expectedResultType,
-            llvmType);
+            ToString(expectedResultType),
+            ToString(llvmType));
     }
 }
 
@@ -299,7 +299,7 @@ void TUnversionedValueCallingConvention::CheckResultType(
     if (llvmType != builder.getVoidTy()) {
         THROW_ERROR_EXCEPTION(
             "Wrong result type in LLVM bitcode: expected void, got %Qv",
-            llvmType);
+            ToString(llvmType));
     }
 }
 
@@ -399,8 +399,8 @@ void TUserDefinedFunction::CheckCallee(
             THROW_ERROR_EXCEPTION(
                 "Wrong type for argument %v in LLVM bitcode: expected %Qv, got %Qv",
                 i,
-                (*expected)->getType(),
-                actual->getType());
+                ToString((*expected)->getType()),
+                ToString(actual->getType()));
         }
     }
 }

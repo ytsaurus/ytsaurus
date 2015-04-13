@@ -74,6 +74,8 @@ class TUniversalRangeFunction
         TRowBuffer* rowBuffer) const override;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TIfFunction
     : public TTypedFunction
     , public TCodegenFunction
@@ -108,77 +110,6 @@ public:
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
         TRowBuffer* rowBuffer) const override;
-};
-
-class TIsSubstrFunction
-    : public TTypedFunction
-    , public TCodegenFunction
-    , public TUniversalRangeFunction
-{
-public:
-    TIsSubstrFunction();
-
-    virtual TCGValue CodegenValue(
-        std::vector<TCodegenExpression> codegenArgs,
-        EValueType type,
-        const Stroka& name,
-        TCGContext& builder,
-        Value* row) const override;
-};
-
-class TLowerFunction
-    : public TTypedFunction
-    , public TCodegenFunction
-    , public TUniversalRangeFunction
-{
-public:
-    TLowerFunction();
-
-    virtual TCGValue CodegenValue(
-        std::vector<TCodegenExpression> codegenArgs,
-        EValueType type,
-        const Stroka& name,
-        TCGContext& builder,
-        Value* row) const override;
-};
-
-class THashFunction
-    : public TTypedFunction
-    , public TCodegenFunction
-    , public TUniversalRangeFunction
-{
-public:
-    THashFunction(
-        const Stroka& routineName,
-        const Stroka& functionName);
-
-    virtual TCGValue CodegenValue(
-        std::vector<TCodegenExpression> codegenArgs,
-        EValueType type,
-        const Stroka& name,
-        TCGContext& builder,
-        Value* row) const override;
-
-private:
-    static const TUnionType HashTypes_;
-
-    const Stroka RoutineName_;
-};
-
-class TIsNullFunction
-    : public TTypedFunction
-    , public TCodegenFunction
-    , public TUniversalRangeFunction
-{
-public:
-    TIsNullFunction();
-
-    virtual TCGValue CodegenValue(
-        std::vector<TCodegenExpression> codegenArgs,
-        EValueType type,
-        const Stroka& name,
-        TCGContext& builder,
-        Value* row) const override;
 };
 
 class TCastFunction
