@@ -43,6 +43,7 @@ add_library(ytcore STATIC
 )
 
 target_link_libraries ( ytcore
+  -latomic
   ytext-arcadia-util
   ytext-ev
   ytext-jerasure
