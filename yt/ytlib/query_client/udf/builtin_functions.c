@@ -20,7 +20,7 @@ uint64_t SimpleHash(TRow row);
 
 uint64_t FarmHash(TRow row);
 
-void AllocateRow1(TExecutionContext* context, int valueCount, TRow* row);
+void AllocateRow(TExecutionContext* context, int valueCount, TRow* row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,7 +67,7 @@ void hash_with_routine(
     uint64_t (*routine)(TRow))
 {
     TRow row;
-    AllocateRow1(context, args_len + 1, &row);
+    AllocateRow(context, args_len + 1, &row);
     TUnversionedValue* row_value = (TUnversionedValue*)(row + 1);
 
     *row_value = *arg1;

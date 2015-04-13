@@ -136,19 +136,8 @@ public:
         auto type = RoutineRegistry_->GetTypeBuilder(symbol)(
             const_cast<llvm::LLVMContext&>(Context_));
 
-        auto it = CachedRoutines_.find(symbol);
-        if (it == CachedRoutines_.end()) {
-            auto routine = llvm::Function::Create(
-                type,
-                llvm::Function::ExternalLinkage,
-                symbol.c_str(),
-                Module_);
-
-            it = CachedRoutines_.insert(std::make_pair(symbol, routine)).first;
-        }
-
-        YCHECK(it->second->getFunctionType() == type);
-        return it->second;
+        auto function = Module_->getOrInsertFunction(symbol.c_str(), type);
+        return reinterpret_cast<llvm::Function*>(function);
     }
 
     uint64_t GetFunctionAddress(const Stroka& name)
@@ -277,8 +266,6 @@ private:
     llvm::Module* Module_;
 
     std::unique_ptr<llvm::ExecutionEngine> Engine_;
-
-    mutable yhash_map<Stroka, llvm::Function*> CachedRoutines_;
 
     bool Compiled_ = false;
 
