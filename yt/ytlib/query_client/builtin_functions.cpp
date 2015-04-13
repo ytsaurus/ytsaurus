@@ -2,6 +2,7 @@
 
 #include "cg_fragment_compiler.h"
 #include "plan_helpers.h"
+#include "private.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -203,7 +204,7 @@ TCodegenExpression TCodegenFunction::MakeCodegenExpr(
 {
     return [
         this,
-        codegenArgs,
+        MOVE(codegenArgs),
         type,
         name
     ] (TCGContext& builder, Value* row) {
@@ -467,7 +468,7 @@ TCGValue TIsNullFunction::CodegenValue(
     return TCGValue::CreateFromValue(
         builder,
         builder.getFalse(),
-        nullptr,            
+        nullptr,
         builder.CreateZExtOrBitCast(
             argValue.IsNull(),
             TDataTypeBuilder::TBoolean::get(builder.getContext())),
