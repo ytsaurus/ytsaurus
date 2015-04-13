@@ -53,7 +53,12 @@ struct TKeyTrie
         : Offset(offset)
     { }
 
-    TKeyTrie(const TKeyTrie&) = default;
+    TKeyTrie(const TKeyTrie& other)
+        : Offset(other.Offset)
+        , Next(other.Next)
+        , Bounds(other.Bounds)
+    { }
+
     TKeyTrie(TKeyTrie&&) = default;
 
     TKeyTrie& operator=(const TKeyTrie&) = default;

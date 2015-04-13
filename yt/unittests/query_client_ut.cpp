@@ -1363,6 +1363,42 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
     EXPECT_EQ(BuildKey("60;60;" _MAX_), result[8].second);
 }
 
+TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
+{
+    auto expr = PrepareExpression(
+        "(k, m) in ((2, 3), (4, 6)) and l in (2, 3)",
+        GetSampleTableSchema());
+
+    TRowBuffer rowBuffer;
+
+    auto keyColumns = GetSampleKeyColumns();
+
+    auto keyTrie = ExtractMultipleConstraints(
+        expr,
+        keyColumns,
+        &rowBuffer,
+        CreateBuiltinFunctionRegistry());
+
+    auto result = GetRangesFromTrieWithinRange(
+        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        keyTrie,
+        &rowBuffer);
+
+    EXPECT_EQ(result.size(), 4);
+
+    EXPECT_EQ(BuildKey("2;2;3"), result[0].first);
+    EXPECT_EQ(BuildKey("2;2;3;" _MAX_), result[0].second);
+
+    EXPECT_EQ(BuildKey("2;3;3"), result[1].first);
+    EXPECT_EQ(BuildKey("2;3;3;" _MAX_), result[1].second);
+
+    EXPECT_EQ(BuildKey("4;2;6"), result[2].first);
+    EXPECT_EQ(BuildKey("4;2;6;" _MAX_), result[2].second);
+
+    EXPECT_EQ(BuildKey("4;3;6"), result[3].first);
+    EXPECT_EQ(BuildKey("4;3;6;" _MAX_), result[3].second);
+}
+
 TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 {
     auto expr = PrepareExpression(

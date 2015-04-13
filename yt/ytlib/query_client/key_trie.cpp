@@ -285,7 +285,7 @@ TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
     auto rhsOffset = rhs ? rhs->Offset : std::numeric_limits<size_t>::max();
 
     if (lhsOffset < rhsOffset) {
-        auto result = lhs;
+        auto result = New<TKeyTrie>(*lhs);
         for (auto& next : result->Next) {
             next.second = IntersectKeyTrie(next.second, rhs);
         }
@@ -293,7 +293,7 @@ TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
     }
 
     if (lhsOffset > rhsOffset) {
-        auto result = rhs;
+        auto result = New<TKeyTrie>(*rhs);
         for (auto& next : result->Next) {
             next.second = IntersectKeyTrie(next.second, lhs);
         }
