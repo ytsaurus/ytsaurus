@@ -28,8 +28,7 @@ public:
 private:
     using TBase::State;
     using TBase::Logger;
-    using TBase::ChunkSpecs;
-    using TBase::PrefetchWindow;
+    using TBase::Chunks;
     using TBase::CurrentSession;
     using TBase::ReaderProvider;
 

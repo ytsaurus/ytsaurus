@@ -26,10 +26,10 @@ TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
     , CurrentReaderIndex(-1)
 {
     LOG_DEBUG("Multi chunk sequential reader created (ChunkCount: %d)",
-        static_cast<int>(ChunkSpecs.size()));
+        static_cast<int>(Chunks.size()));
 
-    Sessions.reserve(ChunkSpecs.size());
-    for (int i = 0; i < static_cast<int>(ChunkSpecs.size()); ++i) {
+    Sessions.reserve(Chunks.size());
+    for (int i = 0; i < static_cast<int>(Chunks.size()); ++i) {
         Sessions.push_back(NewPromise<typename TBase::TSession>());
     }
 }
@@ -40,12 +40,8 @@ TAsyncError TMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
     YCHECK(CurrentReaderIndex == -1);
     YCHECK(!State.HasRunningOperation());
 
-    if (ChunkSpecs.size() > 0) {
-        TBase::PrepareNextChunk();
-        for (int i = 0; i < PrefetchWindow; ++i) {
-            TBase::PrepareNextChunk();
-        }
-
+    if (Chunks.size() > 0) {
+        TBase::PrepareNextChunks();
         ++CurrentReaderIndex;
 
         State.StartOperation();
@@ -101,10 +97,8 @@ bool TMultiChunkSequentialReader<TChunkReader>::ValidateReader()
         TBase::ProcessFinishedReader(CurrentSession);
         CurrentSession = typename TBase::TSession();
 
-        TBase::PrepareNextChunk();
-
         ++CurrentReaderIndex;
-        if (CurrentReaderIndex < ChunkSpecs.size()) {
+        if (CurrentReaderIndex < Chunks.size()) {
             if (!State.HasRunningOperation())
                 State.StartOperation();
 

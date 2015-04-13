@@ -26,14 +26,14 @@ TMultiChunkParallelReader<TChunkReader>::TMultiChunkParallelReader(
     , CompleteReaderCount(0)
 {
     srand(time(nullptr));
-    std::random_shuffle(ChunkSpecs.begin(), ChunkSpecs.end());
+    std::random_shuffle(Chunks.begin(), Chunks.end());
 
     ReadySessions.reserve(std::min(
-        static_cast<int>(ChunkSpecs.size()),
-        PrefetchWindow));
+        static_cast<int>(Chunks.size()),
+        MaxPrefetchWindow));
 
     if (ReaderProvider->KeepInMemory()) {
-        CompleteSessions.resize(ChunkSpecs.size());
+        CompleteSessions.resize(Chunks.size());
     }
 }
 
@@ -42,13 +42,9 @@ TAsyncError TMultiChunkParallelReader<TChunkReader>::AsyncOpen()
 {
     YASSERT(!State.HasRunningOperation());
 
-    if (ChunkSpecs.size() != 0) {
+    if (Chunks.size() != 0) {
         State.StartOperation();
-
-        TBase::PrepareNextChunk();
-        for (int i = 0; i < TBase::PrefetchWindow; ++i) {
-            TBase::PrepareNextChunk();
-        }
+        TBase::PrepareNextChunks();
     }
 
     return State.GetOperationError();
@@ -76,7 +72,6 @@ void TMultiChunkParallelReader<TChunkReader>::ProcessReadyReader(
 {
     if (!session.Reader->GetFacade()) {
         // Reader is not valid - shift window.
-        TBase::PrepareNextChunk();
         FinishReader(session);
         session = typename TBase::TSession();
     }
@@ -90,7 +85,7 @@ void TMultiChunkParallelReader<TChunkReader>::ProcessReadyReader(
 
         if (!session.Reader) {
             ++CompleteReaderCount;
-            isReadingComplete = (CompleteReaderCount == ChunkSpecs.size());
+            isReadingComplete = (CompleteReaderCount == Chunks.size());
         } else if (finishOperation) {
             CurrentSession = session;
         } else {
@@ -150,7 +145,6 @@ bool TMultiChunkParallelReader<TChunkReader>::FetchNext()
             &TMultiChunkParallelReader<TChunkReader>::FinishReader,
             MakeWeak(this),
             CurrentSession));
-        TBase::PrepareNextChunk();
     } else {
         CurrentSession.Reader->GetReadyEvent().Subscribe(
             BIND(&TMultiChunkParallelReader<TChunkReader>::OnReaderReady,
@@ -162,7 +156,7 @@ bool TMultiChunkParallelReader<TChunkReader>::FetchNext()
     TGuard<TSpinLock> guard(SpinLock);
     if (isReaderComplete) {
         ++CompleteReaderCount;
-        if (CompleteReaderCount == ChunkSpecs.size()) {
+        if (CompleteReaderCount == Chunks.size()) {
             return true;
         }
     }

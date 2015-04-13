@@ -27,6 +27,37 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static int GetBufferSize(const NProto::TChunkSpec& chunkSpec, const TMultiChunkReaderConfigPtr& config)
+{
+    i64 currentSize;
+    NChunkClient::GetStatistics(chunkSpec, &currentSize);
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.extensions());
+
+    // block that possibly exceeds group size + block used by upper level chunk reader.
+    i64 chunkBufferSize = ChunkReaderMemorySize + 2 * miscExt.max_block_size();
+
+    if (currentSize > miscExt.max_block_size()) {
+        chunkBufferSize += config->WindowSize + config->GroupSize;
+    } 
+
+    return chunkBufferSize;
+}
+
+static TMultiChunkReaderConfigPtr PatchReaderConfig(TMultiChunkReaderConfigPtr config, int bufferSize)
+{
+    auto newConfig = config;
+    if (bufferSize < config->WindowSize + config->GroupSize) {
+        // Patch config to ensure that we don't eat too much memory.
+        newConfig = CloneYsonSerializable(config);
+        newConfig->WindowSize = std::max(bufferSize / 2, 1);
+        newConfig->GroupSize = std::max(bufferSize / 2, 1);
+    }
+
+    return newConfig;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TChunkReader>
 TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     TMultiChunkReaderConfigPtr config,
@@ -37,21 +68,20 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     const TProviderPtr& readerProvider)
     : IsFetchingComplete_(false)
     , Config(config)
-    , PrefetchWindow(0)
+    , FreeBufferSize(Config->MaxBufferSize)
     , MasterChannel(masterChannel)
     , BlockCache(blockCache)
     , NodeDirectory(nodeDirectory)
-    , ChunkSpecs(chunkSpecs)
     , ReaderProvider(readerProvider)
-    , LastPreparedReader(-1)
+    , NextReaderIndex(0)
     , FetchingCompleteAwaiter(New<NConcurrency::TParallelAwaiter>(GetSyncInvoker()))
     , Logger(ChunkReaderLogger)
 {
-    if (ChunkSpecs.empty()) {
+    if (chunkSpecs.empty()) {
         return;
     }
 
-    FOREACH (const auto& chunkSpec, ChunkSpecs) {
+    FOREACH (const auto& chunkSpec, chunkSpecs) {
         if (IsUnavailable(chunkSpec)) {
             auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
             FailedChunks.push_back(chunkId);
@@ -63,85 +93,46 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
             State.Fail(error);
             return;
         }
+
+        Chunks.emplace_back(TChunk{chunkSpec, GetBufferSize(chunkSpec, config)});
     }
-
-    if (ReaderProvider->KeepInMemory()) {
-        PrefetchWindow = MaxPrefetchWindow;
-    } else {
-        auto sortedChunkSpecs = ChunkSpecs;
-        std::sort(sortedChunkSpecs.begin(), sortedChunkSpecs.end(), [] (
-            const NChunkClient::NProto::TChunkSpec& lhs,
-            const NChunkClient::NProto::TChunkSpec& rhs)
-        {
-            i64 lhsDataSize, rhsDataSize;
-            NChunkClient::GetStatistics(lhs, &lhsDataSize);
-            NChunkClient::GetStatistics(rhs, &rhsDataSize);
-
-            return lhsDataSize > rhsDataSize;
-        });
-
-        i64 smallestDataSize;
-        NChunkClient::GetStatistics(sortedChunkSpecs.back(), &smallestDataSize);
-
-        if (smallestDataSize < config->WindowSize + config->GroupSize) {
-            // Patch config to ensure that we don't eat too much memory.
-            Config->WindowSize = std::max(smallestDataSize / 2, (i64) 1);
-            Config->GroupSize = std::max(smallestDataSize / 2, (i64) 1);
-        }
-
-        PrefetchWindow = 0;
-        i64 bufferSize = 0;
-        while (PrefetchWindow < sortedChunkSpecs.size()) {
-            auto& chunkSpec = sortedChunkSpecs[PrefetchWindow];
-            i64 currentSize;   
-            NChunkClient::GetStatistics(chunkSpec, &currentSize);
-            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.extensions());
-
-            // block that possibly exceeds group size + block used by upper level chunk reader.
-            i64 chunkBufferSize = ChunkReaderMemorySize + 2 * miscExt.max_block_size();
-
-            if (currentSize > miscExt.max_block_size()) {
-                chunkBufferSize += config->WindowSize + config->GroupSize;
-            } 
-
-            if (bufferSize + chunkBufferSize > Config->MaxBufferSize) {
-                break;
-            } else {
-                bufferSize += chunkBufferSize;
-                ++PrefetchWindow;
-            }
-        }
-        // Don't allow overcommit during prefetching, so exclude the last chunk.
-        PrefetchWindow = std::max(PrefetchWindow - 1, 0);
-        PrefetchWindow = std::min(PrefetchWindow, MaxPrefetchWindow);
-    }
-
-    LOG_DEBUG("Preparing reader (PrefetchWindow: %d)", PrefetchWindow);
 }
 
 template <class TChunkReader>
-void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
+void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunks()
+{
+    TGuard<TSpinLock> guard(NextChunkLock);
+    for (; NextReaderIndex < Chunks.size(); ++NextReaderIndex) {
+        if (Chunks[NextReaderIndex].BufferSize > FreeBufferSize &&
+            ActiveReaderCount > 0 &&
+            !ReaderProvider->KeepInMemory()) 
+        {
+            return;
+        }
+
+        if (ActiveReaderCount > MaxPrefetchWindow) {
+            return;
+        }
+
+        ++ActiveReaderCount;
+        FreeBufferSize -= Chunks[NextReaderIndex].BufferSize;
+        TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
+            &TMultiChunkReaderBase<TChunkReader>::DoPrepareChunk,
+            MakeWeak(this),
+            NextReaderIndex));
+    }
+}
+
+template <class TChunkReader>
+void TMultiChunkReaderBase<TChunkReader>::DoPrepareChunk(int chunkIndex)
 {
     if (!State.IsActive()) {
         return;
     }
-    
-    int chunkSpecsCount = static_cast<int>(ChunkSpecs.size());
-
-    int chunkIndex = -1;
-
-    {
-        TGuard<TSpinLock> guard(NextChunkLock);
-        LastPreparedReader = std::min(LastPreparedReader + 1, chunkSpecsCount);
-        if (LastPreparedReader == chunkSpecsCount) {
-            return;
-        }
-        chunkIndex = LastPreparedReader;
-    }
 
     TSession session;
     session.ChunkIndex = chunkIndex;
-    const auto& chunkSpec = ChunkSpecs[chunkIndex];
+    const auto& chunkSpec = Chunks[chunkIndex].ChunkSpec;
 
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
@@ -150,12 +141,13 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
         chunkIndex,
         ~ToString(chunkId));
 
+    auto config = PatchReaderConfig(Config, Chunks[chunkIndex].BufferSize);
     IAsyncReaderPtr asyncReader;
     if (IsErasureChunkId(chunkId)) {
         auto erasureCodecId = NErasure::ECodec(chunkSpec.erasure_codec());
         auto* erasureCodec = NErasure::GetCodec(erasureCodecId);
         auto readers = CreateErasureDataPartsReaders(
-            Config,
+            config,
             BlockCache,
             MasterChannel,
             NodeDirectory,
@@ -165,7 +157,7 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
         asyncReader = CreateNonReparingErasureReader(readers);
     } else {
         asyncReader = CreateReplicationReader(
-            Config,
+            config,
             BlockCache,
             MasterChannel,
             NodeDirectory,
@@ -188,10 +180,10 @@ template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& session)
 {
     LOG_DEBUG("Chunk opened (ChunkIndex: %d)", session.ChunkIndex);
-    ReaderProvider->OnReaderOpened(session.Reader, ChunkSpecs[session.ChunkIndex]);
+    ReaderProvider->OnReaderOpened(session.Reader, Chunks[session.ChunkIndex].ChunkSpec);
 
     FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompleteEvent());
-    if (FetchingCompleteAwaiter->GetRequestCount() == ChunkSpecs.size()) {
+    if (FetchingCompleteAwaiter->GetRequestCount() == Chunks.size()) {
         FetchingCompleteAwaiter->Complete(BIND(
             &TMultiChunkReaderBase<TChunkReader>::OnFetchingComplete,
             MakeWeak(this)));
@@ -208,12 +200,15 @@ template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::ProcessFinishedReader(const TSession& session)
 {
     ReaderProvider->OnReaderFinished(session.Reader);
+    --ActiveReaderCount;
+    FreeBufferSize += Chunks[session.ChunkIndex].BufferSize;
+    PrepareNextChunks();
 }
 
 template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& session)
 {
-    const auto& chunkSpec = ChunkSpecs[session.ChunkIndex];
+    const auto& chunkSpec = Chunks[session.ChunkIndex].ChunkSpec;
     auto chunkId = NYT::FromProto<NChunkClient::TChunkId>(chunkSpec.chunk_id());
     LOG_DEBUG("Failed chunk added (ChunkId: %s)", ~ToString(chunkId));
     TGuard<TSpinLock> guard(FailedChunksLock);

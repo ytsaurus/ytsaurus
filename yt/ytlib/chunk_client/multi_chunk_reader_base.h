@@ -70,14 +70,21 @@ protected:
         { }
     };
 
+    struct TChunk 
+    {
+        NProto::TChunkSpec ChunkSpec;
+        int BufferSize;
+    };
+
     TMultiChunkReaderConfigPtr Config;
-    int PrefetchWindow;
+    std::atomic<i64> FreeBufferSize;
+    std::atomic<int> ActiveReaderCount;
 
     NRpc::IChannelPtr MasterChannel;
     NChunkClient::IBlockCachePtr BlockCache;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 
-    std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
+    std::vector<TChunk> Chunks;
 
     TProviderPtr ReaderProvider;
 
@@ -87,7 +94,7 @@ protected:
 
     // Protects LastPreparedReader;
     TSpinLock NextChunkLock;
-    volatile int LastPreparedReader;
+    int NextReaderIndex;
 
     NConcurrency::TParallelAwaiterPtr FetchingCompleteAwaiter;
 
@@ -99,9 +106,10 @@ protected:
 
     virtual void OnReaderOpened(const TSession& session, TError error) = 0;
 
-    void PrepareNextChunk();
+    void PrepareNextChunks();
+    void DoPrepareChunk(int chunkIndex);
     void ProcessOpenedReader(const TSession& session);
-    void ProcessFinishedReader(const  TSession& reader);
+    void ProcessFinishedReader(const TSession& reader);
 
     void AddFailedChunk(const TSession& session);
     void OnFetchingComplete();
