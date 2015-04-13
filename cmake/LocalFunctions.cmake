@@ -8,11 +8,14 @@
 
 function(UDF udf output)
   get_filename_component( _realpath ${udf} REALPATH )
-  get_filename_component(_dirname ${_realpath} PATH)
   get_filename_component( _filename ${_realpath} NAME_WE )
 
-  set(${output} ${${output}} ${_dirname}/${_filename}.h PARENT_SCOPE)
+  set(_bc_dirname ${CMAKE_BINARY_DIR}/bin/)
+  set(_bc_filename ${_filename}.bc)
   set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
+  set(_h_file ${CMAKE_BINARY_DIR}/include/udf/${_filename}.h)
+
+  set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
 
   find_program(CLANG_EXECUTABLE
     NAMES clang-3.6 clang
@@ -21,17 +24,21 @@ function(UDF udf output)
 
   add_custom_command(
     OUTPUT
-      ${_dirname}/${_filename}.h
+      ${_h_file}
     COMMAND
-      ${CLANG_EXECUTABLE} -I${_include_dir} -c -emit-llvm ${_realpath}
+      ${CLANG_EXECUTABLE} -c
+        -I${_include_dir}
+        -emit-llvm
+        -o ${_bc_filename}
+        ${_realpath}
     COMMAND
-      xxd -i ${_filename}.bc > ${_filename}.h
+      xxd -i ${_bc_filename} > ${_h_file}
     MAIN_DEPENDENCY
       ${_realpath}
     DEPENDS
       ${_include_dir}/yt_udf.h
     WORKING_DIRECTORY
-      ${_dirname}
+      ${_bc_dirname}
     COMMENT "Generating LLVM bitcode for ${_filename}..."
   )
 endfunction()

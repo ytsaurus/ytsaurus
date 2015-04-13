@@ -10,6 +10,8 @@ from random import randint
 from random import shuffle
 
 
+from distutils.spawn import find_executable
+
 ##################################################################
 
 @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
@@ -294,7 +296,7 @@ class TestQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "simple"}})
 
-        local_implementation_path = os.path.join(os.path.dirname(__file__), "../../../yt/unittests/udf/test_udfs.bc")
+        local_implementation_path = find_executable("test_udfs.bc")
         upload_file(function_path, local_implementation_path)
 
         self._sample_data(path="//tmp/u")
