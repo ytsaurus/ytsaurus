@@ -73,7 +73,9 @@ public:
 
 private:
     const std::unordered_set<std::string> Whitelist_ = std::unordered_set<std::string>{
-        "memcmp"};
+        "memcmp",
+        "__chkstk"
+    };
 };
 
 class TCGModule::TImpl
