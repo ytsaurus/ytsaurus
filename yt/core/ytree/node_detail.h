@@ -138,11 +138,11 @@ protected:
         const TYPath& path,
         NRpc::IServiceContextPtr context) override;
 
-    void SetChild(
+    virtual void SetChild(
         INodeFactoryPtr factory,
         const TYPath& path,
         INodePtr value,
-        bool recursive);
+        bool recursive) override;
 
 };
 

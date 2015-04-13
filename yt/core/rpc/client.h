@@ -118,8 +118,8 @@ protected:
         bool oneWay,
         int protocolVersion);
 
-    virtual bool IsRequestHeavy() const;
-    virtual bool IsResponseHeavy() const;
+    virtual bool IsRequestHeavy() const override;
+    virtual bool IsResponseHeavy() const override;
 
     virtual TSharedRef SerializeBody() = 0;
 

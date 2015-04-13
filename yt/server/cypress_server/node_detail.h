@@ -412,7 +412,7 @@ private:
 
     virtual void DoBranch(
         const TMapNode* originatingNode,
-        TMapNode* branchedNode);
+        TMapNode* branchedNode) override;
 
     virtual void DoMerge(
         TMapNode* originatingNode,
