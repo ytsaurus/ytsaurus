@@ -78,9 +78,11 @@
 #if defined(__GNUC__) || defined(__clang__)
     #define SILENT_UNUSED __attribute__((unused))
     #define PER_THREAD __thread
+    #define ATTRIBUTE_NO_SANITIZE_ADDRESS __attribute__((no_sanitize_address))
 #elif defined(_MSC_VER)
     #define SILENT_UNUSED
     #define PER_THREAD __declspec(thread)
+    #define ATTRIBUTE_NO_SANITIZE_ADDRESS
     // VS does not support alignof natively yet.
     #define alignof __alignof
 #else
