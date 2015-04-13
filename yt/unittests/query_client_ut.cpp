@@ -3688,6 +3688,31 @@ TEST_F(TQueryEvaluateTest, TestSimpleHash)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestFarmHash)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=3509085207357874260u",
+        "x=3315701238936582721u"
+    }, resultSplit);
+
+    Evaluate("farm_hash(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+
+    SUCCEED();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEvaluateExpressionTest
