@@ -179,7 +179,7 @@ public:
 
         RegisterParameter("max_read_fan_in", MaxReadFanIn)
             .GreaterThan(0)
-            .Default(20);
+            .Default(30);
 
         RegisterParameter("in_memory_mode", InMemoryMode)
             .Default(EInMemoryMode::None);
