@@ -42,7 +42,7 @@ TAsyncError TMultiChunkParallelReader<TChunkReader>::AsyncOpen()
 {
     YASSERT(!State.HasRunningOperation());
 
-    if (Chunks.size() != 0) {
+    if (!Chunks.empty()) {
         State.StartOperation();
         TBase::PrepareNextChunks();
     }

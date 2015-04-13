@@ -69,6 +69,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     : IsFetchingComplete_(false)
     , Config(config)
     , FreeBufferSize(Config->MaxBufferSize)
+    , ActiveReaderCount(0)
     , MasterChannel(masterChannel)
     , BlockCache(blockCache)
     , NodeDirectory(nodeDirectory)
