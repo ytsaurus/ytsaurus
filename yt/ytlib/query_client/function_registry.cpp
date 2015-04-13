@@ -64,27 +64,35 @@ IFunctionDescriptorPtr TFunctionRegistry::FindFunction(const Stroka& functionNam
 
 void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 {
+    auto builtinImplementations = TSharedRef::FromRefNonOwning(TRef(
+        builtin_functions_bc,
+        builtin_functions_bc_len));
+
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "is_substr",
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Boolean,
-        TSharedRef::FromRefNonOwning(TRef(
-            builtin_functions_bc,
-            builtin_functions_bc_len)),
+        builtinImplementations,
         ECallingConvention::Simple));
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "lower",
         std::vector<TType>{EValueType::String},
         EValueType::String,
-        TSharedRef::FromRefNonOwning(TRef(
-            builtin_functions_bc,
-            builtin_functions_bc_len)),
+        builtinImplementations,
         ECallingConvention::Simple));
-    registry->RegisterFunction(New<THashFunction>(
+    TUnionType hashTypes = TUnionType{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Boolean,
+        EValueType::String};
+    registry->RegisterFunction(New<TUserDefinedFunction>(
         "simple_hash",
-        "SimpleHash"));
+        std::vector<TType>{hashTypes},
+        hashTypes,
+        EValueType::Uint64,
+        builtinImplementations));
     registry->RegisterFunction(New<THashFunction>(
         "farm_hash",
         "FarmHash"));
@@ -92,9 +100,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         "is_null",
         std::vector<TType>{0},
         EValueType::Boolean,
-        TSharedRef::FromRefNonOwning(TRef(
-            builtin_functions_bc,
-            builtin_functions_bc_len)),
+        builtinImplementations,
         ECallingConvention::UnversionedValue));
     registry->RegisterFunction(New<TCastFunction>(
         EValueType::Int64,
