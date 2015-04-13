@@ -292,7 +292,7 @@ void TFoldingProfiler::Fold(const char* str)
 void TFoldingProfiler::Refer(const TReferenceExpression* referenceExpr)
 {
     if (References_) {
-        References_->insert(referenceExpr->ColumnName.c_str());
+        References_->insert(referenceExpr->ColumnName);
     }
 }
 

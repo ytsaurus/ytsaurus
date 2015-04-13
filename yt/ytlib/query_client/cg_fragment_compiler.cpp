@@ -680,19 +680,19 @@ TCodegenExpression MakeCodegenLiteralExpr(
 TCodegenExpression MakeCodegenReferenceExpr(
     int index,
     EValueType type,
-    Stroka& name)
+    Stroka name)
 {
     return [
             index,
             type,
-            name
+            MOVE(name)
         ] (TCGContext& builder, Value* row) {
             return TCGValue::CreateFromRow(
                 builder,
                 row,
                 index,
                 type,
-                "reference." + Twine(name));
+                "reference." + Twine(name.c_str()));
         };
 }
 
