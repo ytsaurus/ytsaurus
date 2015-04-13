@@ -96,6 +96,7 @@ bool TMultiChunkSequentialReader<TChunkReader>::ValidateReader()
     if (!CurrentSession.Reader->GetFacade()) {
         TBase::ProcessFinishedReader(CurrentSession);
         CurrentSession = typename TBase::TSession();
+        TBase::PrepareNextChunks();
 
         ++CurrentReaderIndex;
         if (CurrentReaderIndex < Chunks.size()) {

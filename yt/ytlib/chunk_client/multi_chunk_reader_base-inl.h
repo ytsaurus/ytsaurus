@@ -202,7 +202,6 @@ void TMultiChunkReaderBase<TChunkReader>::ProcessFinishedReader(const TSession& 
     ReaderProvider->OnReaderFinished(session.Reader);
     --ActiveReaderCount;
     FreeBufferSize += Chunks[session.ChunkIndex].BufferSize;
-    PrepareNextChunks();
 }
 
 template <class TChunkReader>

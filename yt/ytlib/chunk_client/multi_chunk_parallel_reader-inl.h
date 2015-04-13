@@ -112,6 +112,7 @@ void TMultiChunkParallelReader<TChunkReader>::FinishReader(
         CompleteSessions[session.ChunkIndex] = session;
     }
     TBase::ProcessFinishedReader(session);
+    TBase::PrepareNextChunks();
 }
 
 template <class TChunkReader>
