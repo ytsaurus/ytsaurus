@@ -492,7 +492,6 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(GetRowsSize);
     REGISTER_ROUTINE(IsPrefix);
     REGISTER_ROUTINE(IsSubstr);
-    REGISTER_ROUTINE(ToLower);
     REGISTER_ROUTINE(IsRowInArray);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHash);

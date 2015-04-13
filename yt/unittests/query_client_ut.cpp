@@ -2092,54 +2092,47 @@ protected:
 
         ActionQueue_ = New<TActionQueue>("Test");
 
+        auto testUdfImplementations =
+            TSharedRef::FromRefNonOwning(TRef(
+                test_udfs_bc,
+                test_udfs_bc_len));
+
         AbsUdf_ = New<TUserDefinedFunction>(
             "abs_udf",
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
-            TSharedRef::FromRefNonOwning(TRef(
-                test_udfs_bc,
-                test_udfs_bc_len)),
+            testUdfImplementations,
             ECallingConvention::Simple);
         ExpUdf_ = New<TUserDefinedFunction>(
             "exp_udf",
             std::vector<TType>{EValueType::Int64, EValueType::Int64},
             EValueType::Int64,
-            TSharedRef::FromRefNonOwning(TRef(
-                test_udfs_bc,
-                test_udfs_bc_len)),
+            testUdfImplementations,
             ECallingConvention::Simple);
         StrtolUdf_ = New<TUserDefinedFunction>(
             "strtol_udf",
             std::vector<TType>{EValueType::String},
             EValueType::Uint64,
-            TSharedRef::FromRefNonOwning(TRef(
-                test_udfs_bc,
-                test_udfs_bc_len)),
+            testUdfImplementations,
             ECallingConvention::Simple);
         TolowerUdf_ = New<TUserDefinedFunction>(
             "tolower_udf",
             std::vector<TType>{EValueType::String},
             EValueType::String,
-            TSharedRef::FromRefNonOwning(TRef(
-                test_udfs_bc,
-                test_udfs_bc_len)),
+            testUdfImplementations,
             ECallingConvention::Simple);
         IsNullUdf_ = New<TUserDefinedFunction>(
             "is_null_udf",
             std::vector<TType>{EValueType::String},
             EValueType::Boolean,
-            TSharedRef::FromRefNonOwning(TRef(
-                test_udfs_bc,
-                test_udfs_bc_len)),
+            testUdfImplementations,
             ECallingConvention::UnversionedValue);
         SumUdf_ = New<TUserDefinedFunction>(
             "sum_udf",
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
             EValueType::Int64,
-            TSharedRef::FromRefNonOwning(TRef(
-                test_udfs_bc,
-                test_udfs_bc_len)));
+            testUdfImplementations);
     }
 
     virtual void TearDown() override

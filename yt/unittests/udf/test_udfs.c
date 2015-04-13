@@ -43,7 +43,7 @@ void tolower_udf(
 
 void is_null_udf(TExecutionContext* context, TUnversionedValue* result, TUnversionedValue* value)
 {
-    bool isnull = value->Type == Null;
+    int8_t isnull = value->Type == Null;
     result->Type = Boolean;
     result->Data.Boolean = isnull;
 }

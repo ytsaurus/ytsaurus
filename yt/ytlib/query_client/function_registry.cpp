@@ -20,6 +20,8 @@
 
 #include <core/misc/error.h>
 
+#include <core/misc/serialize.h>
+
 #include <mutex>
 
 namespace NYT {
@@ -124,57 +126,62 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTypeVector {
-    TTypeVector()
-        : Vector({})
+struct TDescriptorType {
+    TDescriptorType()
+        : Type(EValueType::Min)
     { }
 
-    TTypeVector(std::vector<TType> vector)
-        : Vector(vector)
+    TDescriptorType(TType type)
+        : Type(type)
     { }
 
-    std::vector<TType> Vector;
+    TType Type;
 };
 
+const Stroka TagKey = "tag";
+const Stroka ValueKey = "value";
 
-void Deserialize(TType& value, INodePtr node)
+void Serialize(const TDescriptorType& value, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnBeginMap();
+
+    consumer->OnKeyedItem(TagKey);
+    NYT::NYTree::Serialize(value.Type.Tag(), consumer);
+
+    consumer->OnKeyedItem(ValueKey);
+    if (auto typeArg = value.Type.TryAs<TTypeArgument>()) {
+        NYT::NYTree::Serialize(*typeArg, consumer);
+    } else if (auto unionType = value.Type.TryAs<TUnionType>()) {
+        NYT::NYTree::Serialize(*unionType, consumer);
+    } else {
+        NYT::NYTree::Serialize(value.Type.As<EValueType>(), consumer);
+    }
+
+    consumer->OnEndMap();
+}
+
+void Deserialize(TDescriptorType& value, INodePtr node)
 {
     auto mapNode = node->AsMap();
 
-    auto tagNode = mapNode->FindChild("tag");
+    auto tagNode = mapNode->FindChild(TagKey);
     int tag;
     Deserialize(tag, tagNode);
 
-    auto valueNode = mapNode->FindChild("value");
+    auto valueNode = mapNode->FindChild(ValueKey);
     if (tag == TType::TagOf<TTypeArgument>()) {
         TTypeArgument type;
         Deserialize(type, valueNode);
-        value = TType(TVariantTypeTag<TTypeArgument>(), type);
+        value.Type = type;
     } else if (tag == TType::TagOf<TUnionType>()) {
         TUnionType type;
         Deserialize(type, valueNode);
-        value = TType(TVariantTypeTag<TUnionType>(), type);
+        value.Type = type;
     } else {
         EValueType type;
         Deserialize(type, valueNode);
-        value = TType(TVariantTypeTag<EValueType>(), type);
+        value.Type = type;
     }
-}
-
-void Deserialize(TTypeVector& value, INodePtr node)
-{
-    auto listNode = node->AsList();
-    auto size = listNode->GetChildCount();
-    for (int i = 0; i < size; ++i) {
-        TType child = EValueType::Min;
-        Deserialize(child, listNode->GetChild(i));
-        value.Vector.push_back(child);
-    }
-}
-
-void Serialize(const TTypeVector& value, NYson::IYsonConsumer* consumer)
-{
-    Serialize(value.Vector, consumer);
 }
 
 class TCypressFunctionDescriptor
@@ -182,8 +189,8 @@ class TCypressFunctionDescriptor
 {
 public:
     Stroka Name;
-    TTypeVector ArgumentTypes;
-    TType ResultType = EValueType::Min;
+    std::vector<TDescriptorType> ArgumentTypes;
+    TDescriptorType ResultType;
     ECallingConvention CallingConvention;
 
     TCypressFunctionDescriptor()
@@ -193,6 +200,15 @@ public:
         RegisterParameter("argument_types", ArgumentTypes);
         RegisterParameter("result_type", ResultType);
         RegisterParameter("calling_convention", CallingConvention);
+    }
+
+    std::vector<TType> GetArgumentsTypes()
+    {
+      std::vector<TType> argumentTypes;
+      for (const auto& type: ArgumentTypes) {
+        argumentTypes.push_back(type.Type);
+      }
+      return argumentTypes;
     }
 };
 
@@ -288,8 +304,8 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
 
     UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
         cypressFunction->Name,
-        cypressFunction->ArgumentTypes.Vector,
-        cypressFunction->ResultType,
+        cypressFunction->GetArgumentsTypes(),
+        cypressFunction->ResultType.Type,
         implementationFile,
         cypressFunction->CallingConvention));
 }
@@ -326,32 +342,5 @@ IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
-
-using namespace NQueryClient;
-
-// Define these in the NYT namespace so that they're in the same namespace as TVariant
-void Serialize(const TType& value, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnBeginMap();
-
-    consumer->OnKeyedItem("tag");
-    Serialize(value.Tag(), consumer);
-
-    consumer->OnKeyedItem("value");
-    if (auto typeArg = value.TryAs<TTypeArgument>()) {
-        Serialize(*typeArg, consumer);
-    } else if (auto unionType = value.TryAs<TUnionType>()) {
-        Serialize(*unionType, consumer);
-    } else {
-        Serialize(value.As<EValueType>(), consumer);
-    }
-
-    consumer->OnEndMap();
-}
-
-void Deserialize(TType& value, INodePtr node)
-{
-    NQueryClient::Deserialize(value, node);
-}
 
 } // namespace NYT
