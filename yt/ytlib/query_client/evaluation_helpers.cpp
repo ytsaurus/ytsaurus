@@ -141,6 +141,7 @@ TJoinEvaluator GetJoinEvaluator(
     const auto& joinColumns = joinClause.JoinColumns;
     auto& foreignTableSchema = joinClause.ForeignTableSchema;
     auto& foreignKeyColumns = joinClause.ForeignKeyColumns;
+    auto& joinedTableSchema = joinClause.JoinedTableSchema;
     auto foreignPredicate = ExtractPredicateForColumnSubset(predicate, foreignTableSchema);
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
@@ -178,6 +179,19 @@ TJoinEvaluator GetJoinEvaluator(
             NullSourceLocation,
             foreignTableSchema.GetColumnOrThrow(column).Type,
             column));
+    }
+
+
+    std::vector<std::pair<bool, int>> columnMapping;
+
+    for (const auto& column : joinedTableSchema.Columns()) {
+        if (auto self = selfTableSchema.FindColumn(column.Name)) {
+            columnMapping.emplace_back(true, selfTableSchema.GetColumnIndex(*self));
+        } else if (auto foreign = foreignTableSchema.FindColumn(column.Name)) {
+            columnMapping.emplace_back(false, foreignTableSchema.GetColumnIndex(*foreign));
+        } else {
+            YUNREACHABLE();
+        }        
     }
 
     return [=, executeCallback = std::move(executeCallback)] (
@@ -239,14 +253,9 @@ TJoinEvaluator GetJoinEvaluator(
                 auto equalRange = foreignLookup.equal_range(rowBuilder.GetRow());
                 for (auto it = equalRange.first; it != equalRange.second; ++it) {
                     rowBuilder.Reset();
-
-                    for (int valueIndex = 0; valueIndex < row.GetCount(); ++valueIndex) {
-                        rowBuilder.AddValue(row[valueIndex]);
-                    }
-
                     auto foreignRow = *it;
-                    for (int valueIndex = joinColumns.size(); valueIndex < foreignRow.GetCount(); ++valueIndex) {
-                        rowBuilder.AddValue(foreignRow[valueIndex]);
+                    for (auto columnIndex : columnMapping) {
+                        rowBuilder.AddValue(columnIndex.first ? row[columnIndex.second] : foreignRow[columnIndex.second]);
                     }
 
                     if (executionContext->StopFlag = CountRow(&executionContext->JoinRowLimit)) {
