@@ -181,11 +181,10 @@ TCodegenExpression TFoldingProfiler::Profile(const TConstExpressionPtr& expr, co
         Fold(referenceExpr->ColumnName.c_str());
         Refer(referenceExpr);
 
-        auto column = referenceExpr->ColumnName;
         return MakeCodegenReferenceExpr(
-            schema.GetColumnIndexOrThrow(column),
+            schema.GetColumnIndexOrThrow(referenceExpr->ColumnName),
             referenceExpr->Type,
-            column.c_str());
+            referenceExpr->ColumnName);
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::FunctionExpr));
         Fold(functionExpr->FunctionName.c_str());
