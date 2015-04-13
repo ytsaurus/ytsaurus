@@ -17,7 +17,7 @@ extern NRpc::IChannelFactoryPtr HeavyNodeChannelFactory;
 // For light requests (e.g. SendBlocks, GetBlocks, etc).
 extern NRpc::IChannelFactoryPtr LightNodeChannelFactory;
 
-const int MaxPrefetchWindow = 250;
+const int MaxPrefetchWindow = 512;
 
 //! Estimated memory overhead per chunk reader.
 const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
