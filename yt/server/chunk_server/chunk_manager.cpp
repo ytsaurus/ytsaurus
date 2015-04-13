@@ -1025,12 +1025,6 @@ private:
         const TReqIncrementalHeartbeat& request,
         TRspIncrementalHeartbeat* /*response*/)
     {
-        // XXX(babenko)
-        for (const auto& x : node->ChunkRemovalQueue()) {}
-        for (const auto& x : node->ChunkReplicationQueues())
-            for (const auto& y : x) {}
-        for (const auto& x : node->ChunkSealQueue()) {}
-
         // Shrink hashtables.
         ShrinkHashTable(&node->StoredReplicas());
         ShrinkHashTable(&node->CachedReplicas());
