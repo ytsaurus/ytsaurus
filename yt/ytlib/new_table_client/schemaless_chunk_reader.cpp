@@ -467,7 +467,7 @@ private:
 
     using TBase::ReadyEvent_;
     using TBase::CurrentSession_;
-    using TBase::ChunkSpecs_;
+    using TBase::Chunks_;
 
     virtual IChunkReaderBasePtr CreateTemplateReader(const TChunkSpec& chunkSpec, IChunkReaderPtr asyncReader) override;
     virtual void OnReaderSwitched() override;
@@ -587,7 +587,7 @@ TNameTablePtr TSchemalessMultiChunkReader<TBase>::GetNameTable() const
 template <class TBase>
 int TSchemalessMultiChunkReader<TBase>::GetTableIndex() const
 {
-    return ChunkSpecs_[CurrentSession_.ChunkSpecIndex].table_index();
+    return Chunks_[CurrentSession_.ChunkIndex].Spec.table_index();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

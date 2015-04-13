@@ -48,21 +48,27 @@ protected:
     struct TSession
     {
         IChunkReaderBasePtr ChunkReader;
-        int ChunkSpecIndex = -1;
+        int ChunkIndex = -1;
 
         void Reset()
         {
             ChunkReader.Reset();
-            ChunkSpecIndex = -1;
+            ChunkIndex = -1;
         }
+    };
+
+    struct TChunk 
+    {
+        NProto::TChunkSpec Spec;
+        i64 MemoryEstimate;
     };
 
     NLogging::TLogger Logger;
 
-    TMultiChunkReaderConfigPtr Config_;
+    const TMultiChunkReaderConfigPtr Config_;
     const TMultiChunkReaderOptionsPtr Options_;
 
-    const std::vector<NProto::TChunkSpec> ChunkSpecs_;
+    std::vector<TChunk> Chunks_;
 
     const NConcurrency::IThroughputThrottlerPtr Throttler_;
 
@@ -90,8 +96,6 @@ protected:
 
     bool OnEmptyRead(bool readerFinished);
 
-    void OpenPrefetchChunks();
-
     void RegisterFailedChunk(int chunkIndex);
 
 protected:
@@ -99,8 +103,9 @@ protected:
     const NRpc::IChannelPtr MasterChannel_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
-    int PrefetchReaderIndex_ = 0;
-    int PrefetchWindow_;
+    TSpinLock PrefetchLock_;
+    int PrefetchIndex_ = 0;
+    i64 FreeBufferSize_;
 
     NConcurrency::TParallelAwaiterPtr FetchingCompletedAwaiter_;
 
@@ -113,16 +118,17 @@ protected:
 
     TSpinLock DataStatisticsLock_;
     NProto::TDataStatistics DataStatistics_;
+    std::atomic<int> ActiveReaderCount_ = { 0 };
     yhash_set<IChunkReaderBasePtr> ActiveReaders_;
 
     // If KeepInMemory option is set, we store here references to finished readers.
     std::vector<IChunkReaderBasePtr> FinishedReaders_;
 
 
-    IChunkReaderPtr CreateRemoteReader(const NProto::TChunkSpec& chunkSpec);
+    IChunkReaderPtr CreateRemoteReader(const TChunk& chunk);
 
-    void OpenNextChunk();
-    void DoOpenNextChunk();
+    void OpenNextChunks();
+    void DoOpenChunk(int chunkIndex);
 
 };
 
