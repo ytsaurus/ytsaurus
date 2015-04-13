@@ -1805,14 +1805,14 @@ INSTANTIATE_TEST_CASE_P(
         std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
-            "(k,l) in ((1,2),(3,4)) and k > 3",
-            "k > 3",
+            "(k,l) in ((1,2),(3,4))",
+            "true",
             std::vector<const char*>{"1;2"}),
         std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
-            "(k,l) in ((1,2),(3,4)) and k > 3",
-            "k > 3",
+            "(k,l) in ((1,2),(3,4))",
+            "true",
             std::vector<const char*>{"1;2", "3;4"}),
         std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
@@ -1823,32 +1823,32 @@ INSTANTIATE_TEST_CASE_P(
         std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
-            "(l,k) in ((1,2),(3,4)) and k > 3",
-            "k > 3",
+            "(l,k) in ((1,2),(3,4))",
+            "true",
             std::vector<const char*>{"2;1"}),
         std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
-            "(l,k) in ((1,2),(3,4)) and k > 3",
-            "k > 3",
+            "(l,k) in ((1,2),(3,4))",
+            "true",
             std::vector<const char*>{"2;1", "4;3"}),
         std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
-            "k in ((1),(3)) and k > 3",
-            "k > 3",
+            "k in ((1),(3))",
+            "true",
             std::vector<const char*>{"1;2", "3;4"}),
         std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
-            "k in ((1),(3)) and k > 3",
-            "k > 3",
+            "k in ((1),(3))",
+            "true",
             std::vector<const char*>{"1", "3"}),
         std::make_tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
-            "l in ((2),(4)) and k > 3",
-            "k > 3",
+            "l in ((2),(4))",
+            "true",
             std::vector<const char*>{"1;2", "3;4"})
 ));
 

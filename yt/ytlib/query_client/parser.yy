@@ -77,6 +77,9 @@
 %token KwBetween "keyword `BETWEEN`"
 %token KwIn "keyword `IN`"
 
+%token KwFalse "keyword `TRUE`"
+%token KwTrue "keyword `FALSE`"
+
 %token <TStringBuf> Identifier "identifier"
 
 %token <i64> Int64Literal "int64 literal"
@@ -429,6 +432,10 @@ literal-expr
         { $$ = MakeUnversionedDoubleValue($1); }
     | StringLiteral
         { $$ = rowBuffer->Capture(MakeUnversionedStringValue($1)); }
+    | KwFalse
+        { $$ = MakeUnversionedBooleanValue(false); }
+    | KwTrue
+        { $$ = MakeUnversionedBooleanValue(true); }
 ;
 
 literal-list
