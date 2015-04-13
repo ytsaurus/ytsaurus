@@ -19,7 +19,7 @@ public:
     virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
     virtual void OnBooleanScalar(bool value) override;
-    virtual void OnEntity();
+    virtual void OnEntity() override;
 
     virtual void OnBeginList() override;
     virtual void OnListItem() override;
