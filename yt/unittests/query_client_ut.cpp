@@ -1725,6 +1725,76 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TCompareWithNullTestParam = std::tuple<const char*, const char*, TUnversionedValue>;
+
+class TCompareWithNullTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<TCompareWithNullTestParam>
+    , public TCompareExpressionTest
+{
+protected:
+    virtual void SetUp() override
+    { }
+};
+
+TEST_P(TCompareWithNullTest, Simple)
+{
+    auto& param = GetParam();
+    auto& rowString = std::get<0>(param);
+    auto& exprString = std::get<1>(param);
+    auto& expected = std::get<2>(param);
+
+    TUnversionedValue result;
+    TCGVariables variables;
+    auto schema = GetSampleTableSchema();
+    auto keyColumns = GetSampleKeyColumns();
+
+    TQueryStatistics statistics;
+    TRowBuffer permanentBuffer;
+    TRowBuffer outputBuffer;
+    TRowBuffer intermediateBuffer;
+
+    TExecutionContext executionContext;
+    executionContext.Schema = &schema;
+    executionContext.PermanentBuffer = &permanentBuffer;
+    executionContext.OutputBuffer = &outputBuffer;
+    executionContext.IntermediateBuffer = &intermediateBuffer;
+    executionContext.Statistics = &statistics;
+#ifndef NDEBUG
+    volatile int dummy;
+    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
+#endif
+
+    auto row = NVersionedTableClient::BuildRow(rowString, keyColumns, schema, true);
+    auto expr = PrepareExpression(exprString, schema);
+    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
+    executionContext.LiteralRows = &variables.LiteralRows;
+    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
+    EXPECT_EQ(expected, result)
+        << "row: " << ::testing::PrintToString(rowString) << std::endl
+        << "expr: " << ::testing::PrintToString(exprString) << std::endl;
+}
+
+INSTANTIATE_TEST_CASE_P(
+    TCompareWithNullTest,
+    TCompareWithNullTest,
+    ::testing::Values(
+        TCompareWithNullTestParam("k=1", "l != k", MakeBoolean(true)),
+        TCompareWithNullTestParam("k=1", "l = k", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "l < k", MakeBoolean(true)),
+        TCompareWithNullTestParam("k=1", "l > k", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "k <= l", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "k >= l", MakeBoolean(true)),
+        TCompareWithNullTestParam("k=1", "l != m", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "l = m", MakeBoolean(true)),
+        TCompareWithNullTestParam("k=1", "l < m", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "l > m", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "m <= l", MakeBoolean(true)),
+        TCompareWithNullTestParam("k=1", "m >= l", MakeBoolean(true))
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRefineLookupPredicateTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<

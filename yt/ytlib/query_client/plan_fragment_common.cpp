@@ -48,6 +48,27 @@ EBinaryOp GetReversedBinaryOpcode(EBinaryOp opcode)
     }
 }
 
+bool IsBinaryOpCompare(EBinaryOp opcode)
+{
+    switch (opcode) {
+        case EBinaryOp::Plus:           return false;
+        case EBinaryOp::Minus:          return false;
+        case EBinaryOp::Multiply:       return false;
+        case EBinaryOp::Divide:         return false;
+        case EBinaryOp::Modulo:         return false;
+        case EBinaryOp::And:            return false;
+        case EBinaryOp::Or:             return false;
+        case EBinaryOp::Equal:          return true;
+        case EBinaryOp::NotEqual:       return true;
+        case EBinaryOp::Less:           return true;
+        case EBinaryOp::LessOrEqual:    return true;
+        case EBinaryOp::Greater:        return true;
+        case EBinaryOp::GreaterOrEqual: return true;
+        default:
+            YUNREACHABLE();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

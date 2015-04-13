@@ -47,6 +47,8 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode);
 // Reverse binary opcode for compariosn operations.
 EBinaryOp GetReversedBinaryOpcode(EBinaryOp opcode);
 
+bool IsBinaryOpCompare(EBinaryOp opcode);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
