@@ -68,40 +68,49 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         builtin_functions_bc,
         builtin_functions_bc_len));
 
-    registry->RegisterFunction(New<TIfFunction>());
-    registry->RegisterFunction(New<TIsPrefixFunction>());
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "is_substr",
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Boolean,
         builtinImplementations,
         ECallingConvention::Simple));
+
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "lower",
         std::vector<TType>{EValueType::String},
         EValueType::String,
         builtinImplementations,
         ECallingConvention::Simple));
+
     TUnionType hashTypes = TUnionType{
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
         EValueType::String};
+
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "simple_hash",
         std::vector<TType>{hashTypes},
         hashTypes,
         EValueType::Uint64,
         builtinImplementations));
-    registry->RegisterFunction(New<THashFunction>(
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
         "farm_hash",
-        "FarmHash"));
+        std::vector<TType>{hashTypes},
+        hashTypes,
+        EValueType::Uint64,
+        builtinImplementations));
+
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "is_null",
         std::vector<TType>{0},
         EValueType::Boolean,
         builtinImplementations,
         ECallingConvention::UnversionedValue));
+
+    registry->RegisterFunction(New<TIfFunction>());
+    registry->RegisterFunction(New<TIsPrefixFunction>());
     registry->RegisterFunction(New<TCastFunction>(
         EValueType::Int64,
         "int64"));

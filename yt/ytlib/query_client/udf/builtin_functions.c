@@ -18,6 +18,8 @@ typedef TUnversionedRowHeader* TRow;
 
 uint64_t SimpleHash(TRow row);
 
+uint64_t FarmHash(TRow row);
+
 void AllocateRow1(TExecutionContext* context, int valueCount, TRow* row);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,12 +58,13 @@ void is_null(
     result->Data.Boolean = isnull;
 }
 
-void simple_hash(
+void hash_with_routine(
     TExecutionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* arg1,
     TUnversionedValue* args,
-    int args_len)
+    int args_len,
+    uint64_t (*routine)(TRow))
 {
     TRow row;
     AllocateRow1(context, args_len + 1, &row);
@@ -73,8 +76,28 @@ void simple_hash(
         row_value[i] = args[i];
     }
 
-    uint64_t hash = SimpleHash(row);
+    uint64_t hash = routine(row);
 
     result->Type = Uint64;
     result->Data.Uint64 = hash;
+}
+
+void simple_hash(
+    TExecutionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* arg1,
+    TUnversionedValue* args,
+    int args_len)
+{
+    hash_with_routine(context, result, arg1, args, args_len, SimpleHash);
+}
+
+void farm_hash(
+    TExecutionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* arg1,
+    TUnversionedValue* args,
+    int args_len)
+{
+    hash_with_routine(context, result, arg1, args, args_len, FarmHash);
 }
