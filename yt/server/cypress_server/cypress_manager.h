@@ -113,6 +113,7 @@ public:
         bool includeRoot = true);
 
     bool IsOrphaned(TCypressNodeBase* trunkNode);
+    bool IsAlive(TCypressNodeBase* trunkNode, NTransactionServer::TTransaction* transaction);
 
     DECLARE_METAMAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
     DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);

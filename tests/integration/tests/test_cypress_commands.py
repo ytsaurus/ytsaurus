@@ -578,6 +578,14 @@ class TestCypressCommands(YTEnvSetup):
         remove("//tmp/a")
         remove("//tmp/b")
 
+    def test_link10(self):
+        create("table", "//tmp/a")
+        link("//tmp/a", "//tmp/b")
+        tx = start_transaction()
+        lock("//tmp/a", tx=tx, mode="snapshot")
+        remove("//tmp/a")
+        assert not exists("//tmp/b")
+
     def test_access_stat1(self):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')

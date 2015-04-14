@@ -1635,9 +1635,8 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     auto propagate = [&] () -> TResolveResult {
         if (verb == "Exists") {
             auto proxy = FindTargetProxy();
-            static IYPathServicePtr doesNotExistService = New<TDoesNotExistService>();
-            return
-                proxy
+            static const auto doesNotExistService = New<TDoesNotExistService>();
+            return proxy
                 ? TResolveResult::There(proxy, path)
                 : TResolveResult::There(doesNotExistService, path);
         } else {
@@ -1737,6 +1736,7 @@ IObjectProxyPtr TLinkNodeProxy::FindTargetProxy() const
     const auto& targetId = impl->GetTargetId();
 
     if (IsBroken(targetId)) {
+        printf("broken\n");
         return nullptr;
     }
 
@@ -1760,8 +1760,14 @@ bool TLinkNodeProxy::IsBroken(const NObjectServer::TObjectId& id) const
 {
     if (IsVersionedType(TypeFromId(id))) {
         auto cypressManager = Bootstrap->GetCypressManager();
-        auto* node = cypressManager->FindNode(TVersionedNodeId(id));
-        return cypressManager->IsOrphaned(node);
+        auto* trunkNode = cypressManager->FindNode(TVersionedNodeId(id));
+        if (!trunkNode) {
+            return true;
+        }
+        if (!cypressManager->IsAlive(trunkNode, Transaction)) {
+            return true;
+        }
+        return false;
     } else {
         auto objectManager = Bootstrap->GetObjectManager();
         auto* obj = objectManager->FindObject(id);
