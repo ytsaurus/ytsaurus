@@ -56,16 +56,10 @@ add_library( ytserver_lib
 target_link_libraries( ytserver
   ytserver_lib
   ytlib
+  ytext-lfalloc
 )
 
-if (WIN32)
-  target_link_libraries( ytserver
-    ytext-lfalloc-fake
-  )
-else()
-  target_link_libraries( ytserver
-    ytext-lfalloc
-  )
+if (NOT WIN32)
   set_target_properties( ytserver
     PROPERTIES
     LINK_FLAGS "-static-libstdc++"

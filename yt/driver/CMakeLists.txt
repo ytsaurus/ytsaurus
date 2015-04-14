@@ -34,16 +34,10 @@ add_executable( yt ${SRCS} ${HDRS} )
 
 target_link_libraries( yt
   ytlib
+  ytext-lfalloc
 )
 
-if (WIN32)
-  target_link_libraries( yt
-    ytext-lfalloc-fake
-  )
-else()
-  target_link_libraries( yt
-    ytext-lfalloc
-  )
+if (NOT WIN32)
   set_target_properties( yt
     PROPERTIES
     LINK_FLAGS "-static-libstdc++"

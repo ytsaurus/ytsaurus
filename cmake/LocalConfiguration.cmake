@@ -12,7 +12,7 @@
 if(CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE "Debug"
     CACHE STRING
-    "Choose the type of build, options are: None (CMAKE_CXX_FLAGS or CMAKE_C_FLAGS are used) Debug Release RelWithDebInfo MinSizeRel Sanitizer."
+    "Choose the type of build, options are: None (CMAKE_CXX_FLAGS or CMAKE_C_FLAGS are used), Debug, Release, RelWithDebInfo."
     FORCE)
 endif()
 
@@ -134,23 +134,29 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     CACHE STRING "(Auto-generated) C compiler flags" FORCE)
   set(CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=c++11 -fPIC ${DIAGNOSTIC_FLAGS} ${ARCH_FLAGS}"
     CACHE STRING "(Auto-generated) C++ compiler flags" FORCE)
-
-  if(YT_USE_LTO)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -flto")
-  endif()
-
+  
   # Use libc++ on Mac OS X.
   if(APPLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
   endif()
 
+  if(YT_USE_LTO)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -flto")
+  endif()
+
+  if(YT_BUILD_ENABLE_ASAN)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -fsanitize=address -mllvm -asan-stack=0")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -fsanitize=address -mllvm -asan-stack=0")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address -pie")
+  endif()
+
+  message(STATUS "asan ${ASAN_COMPILER_FLAGS}!!" )
+  
   set(CMAKE_CXX_FLAGS_DEBUG "-g -O0"
     CACHE STRING "" FORCE)
   set(CMAKE_CXX_FLAGS_RELEASE "-O2"
     CACHE STRING "" FORCE)
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2"
-    CACHE STRING "" FORCE)
-  set(CMAKE_CXX_FLAGS_SANITIZER "-g -O1 -fsanitize=thread -fPIE"
     CACHE STRING "" FORCE)
 
   set(CMAKE_C_FLAGS_DEBUG "-g -O0"
@@ -159,13 +165,10 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     CACHE STRING "" FORCE)
   set(CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O2"
     CACHE STRING "" FORCE)
-  set(CMAKE_C_FLAGS_SANITIZER "-g -O1 -fsanitize=thread -fPIE"
-    CACHE STRING "" FORCE)
-
+  
   # TODO(sandello): Enable this when gcc will be stable.
   # set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-fwhole-program")
   # set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "-fwhole-program")
-  set(CMAKE_EXE_LINKER_FLAGS_SANITIZER "-fsanitize=thread -pie")
 
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
