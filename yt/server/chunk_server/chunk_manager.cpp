@@ -1239,6 +1239,11 @@ private:
         Profiler.SetEnabled(false);
 
         NeedToRecomputeStatistics_ = false;
+    }
+
+    virtual void OnRecoveryComplete() override
+    {
+        Profiler.SetEnabled(true);
 
         // Reset runtime info.
         for (const auto& pair : ChunkMap_) {
@@ -1254,11 +1259,6 @@ private:
             auto* chunkList = pair.second;
             chunkList->ResetWeakRefCounter();
         }
-    }
-
-    virtual void OnRecoveryComplete() override
-    {
-        Profiler.SetEnabled(true);
 
         if (NeedToRecomputeStatistics_) {
             RecomputeStatistics();
