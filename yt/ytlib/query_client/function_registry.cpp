@@ -126,6 +126,12 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETypeCategory,
+    ((TypeArgument) (TType::TagOf<TTypeArgument>()))
+    ((UnionType)    (TType::TagOf<TUnionType>()))
+    ((ConcreteType) (TType::TagOf<EValueType>()))
+);
+
 struct TDescriptorType {
     TDescriptorType()
         : Type(EValueType::Min)
@@ -146,7 +152,7 @@ void Serialize(const TDescriptorType& value, NYson::IYsonConsumer* consumer)
     consumer->OnBeginMap();
 
     consumer->OnKeyedItem(TagKey);
-    NYT::NYTree::Serialize(value.Type.Tag(), consumer);
+    NYT::NYTree::Serialize(ETypeCategory(value.Type.Tag()), consumer);
 
     consumer->OnKeyedItem(ValueKey);
     if (auto typeArg = value.Type.TryAs<TTypeArgument>()) {
@@ -165,7 +171,7 @@ void Deserialize(TDescriptorType& value, INodePtr node)
     auto mapNode = node->AsMap();
 
     auto tagNode = mapNode->FindChild(TagKey);
-    int tag;
+    ETypeCategory tag;
     Deserialize(tag, tagNode);
 
     auto valueNode = mapNode->FindChild(ValueKey);

@@ -289,10 +289,10 @@ class TestQuery(YTEnvSetup):
             attributes = { "function_descriptor": {
                 "name": "abs_udf",
                 "argument_types": [{
-                    "tag": 0,
+                    "tag": "concrete_type",
                     "value": "int64"}],
                 "result_type": {
-                    "tag": 0,
+                    "tag": "concrete_type",
                     "value": "int64"},
                 "calling_convention": "simple"}})
 
@@ -301,13 +301,13 @@ class TestQuery(YTEnvSetup):
             attributes = { "function_descriptor": {
                 "name": "sum_udf",
                 "argument_types": [{
-                    "tag": 0,
+                    "tag": "concrete_type",
                     "value": "int64"}],
                 "repeated_argument_type": {
-                    "tag": 0,
+                    "tag": "concrete_type",
                     "value": "int64"},
                 "result_type": {
-                    "tag": 0,
+                    "tag": "concrete_type",
                     "value": "int64"},
                 "calling_convention": "unversioned_value"}})
 
