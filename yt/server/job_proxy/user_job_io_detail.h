@@ -28,6 +28,8 @@ public:
 
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) override;
 
+    virtual bool IsKeySwitchEnabled() const override;
+
 protected:
     IJobHost* Host_;
 

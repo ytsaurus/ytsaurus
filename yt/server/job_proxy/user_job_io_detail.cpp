@@ -102,6 +102,11 @@ void TUserJobIOBase::PopulateResult(TSchedulerJobResultExt* schedulerJobResultEx
     }
 }
 
+bool TUserJobIOBase::IsKeySwitchEnabled() const
+{
+    return false;
+}
+
 ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
     TTableWriterOptionsPtr options,
     const TChunkListId& chunkListId,
