@@ -52,7 +52,7 @@ public:
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::OnScanSlots, Unretained(this)),
             SlotScanPeriod,
-            EPeriodicExecutorMode::Manual))
+            EPeriodicExecutorMode::Automatic))
     { }
 
     void Initialize()
@@ -314,15 +314,15 @@ private:
                     }
                 })
                 .AsyncVia(slot->GetGuardedAutomatonInvoker())
-                .Run());
+                .Run()
+                // Silent any error to avoid premature return from WaitFor.
+                .Apply(BIND([] (const TError&) { })));
         }
+        WaitFor(Combine(asyncResults));
 
-        Combine(asyncResults).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError&) {
-            VERIFY_THREAD_AFFINITY(ControlThread);
-            EndSlotScan_.Fire();
-            LOG_DEBUG("Slot scan completed");
-            SlotScanExecutor_->ScheduleNext();
-        }).Via(GetCurrentInvoker()));
+        EndSlotScan_.Fire();
+
+        LOG_DEBUG("Slot scan completed");
     }
 
 
