@@ -190,6 +190,7 @@ class TCypressFunctionDescriptor
 public:
     Stroka Name;
     std::vector<TDescriptorType> ArgumentTypes;
+    TDescriptorType RepeatedArgumentType;
     TDescriptorType ResultType;
     ECallingConvention CallingConvention;
 
@@ -200,6 +201,8 @@ public:
         RegisterParameter("argument_types", ArgumentTypes);
         RegisterParameter("result_type", ResultType);
         RegisterParameter("calling_convention", CallingConvention);
+        RegisterParameter("repeated_argument_type", RepeatedArgumentType)
+            .Default(TDescriptorType(EValueType::Null));
     }
 
     std::vector<TType> GetArgumentsTypes()
@@ -302,12 +305,26 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
         functionPath,
         Client_);
 
-    UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
-        cypressFunction->Name,
-        cypressFunction->GetArgumentsTypes(),
-        cypressFunction->ResultType.Type,
-        implementationFile,
-        cypressFunction->CallingConvention));
+    if (cypressFunction->RepeatedArgumentType.Type.Is<EValueType>() &&
+        cypressFunction->RepeatedArgumentType.Type.As<EValueType>() == EValueType::Null)
+    {
+        UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
+            cypressFunction->Name,
+            cypressFunction->GetArgumentsTypes(),
+            cypressFunction->ResultType.Type,
+            implementationFile,
+            cypressFunction->CallingConvention));
+    } else {
+        if (cypressFunction->CallingConvention == ECallingConvention::Simple) {
+            THROW_ERROR_EXCEPTION("Function using the simple calling convention may not have repeated arguments");
+        }
+        UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
+            cypressFunction->Name,
+            cypressFunction->GetArgumentsTypes(),
+            cypressFunction->RepeatedArgumentType.Type,
+            cypressFunction->ResultType.Type,
+            implementationFile));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -342,5 +359,4 @@ IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
-
 } // namespace NYT

@@ -284,8 +284,8 @@ class TestQuery(YTEnvSetup):
         registry_path =  "//tmp/udfs"
         create("map_node", registry_path)
 
-        function_path = os.path.join(registry_path, "abs_udf")
-        create("file", function_path,
+        abs_path = os.path.join(registry_path, "abs_udf")
+        create("file", abs_path,
             attributes = { "function_descriptor": {
                 "name": "abs_udf",
                 "argument_types": [{
@@ -296,10 +296,26 @@ class TestQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "simple"}})
 
+        sum_path = os.path.join(registry_path, "sum_udf")
+        create("file", sum_path,
+            attributes = { "function_descriptor": {
+                "name": "sum_udf",
+                "argument_types": [{
+                    "tag": 0,
+                    "value": "int64"}],
+                "repeated_argument_type": {
+                    "tag": 0,
+                    "value": "int64"},
+                "result_type": {
+                    "tag": 0,
+                    "value": "int64"},
+                "calling_convention": "unversioned_value"}})
+
         local_implementation_path = find_executable("test_udfs.bc")
-        upload_file(function_path, local_implementation_path)
+        upload_file(abs_path, local_implementation_path)
+        upload_file(sum_path, local_implementation_path)
 
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
-        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u]")
+        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u] where sum_udf(2, 3, 4) = sum_udf(6, 3)")
         assert expected == actual
