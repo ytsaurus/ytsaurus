@@ -19,7 +19,7 @@ TPeriodicExecutor::TPeriodicExecutor(
     TDuration period,
     EPeriodicExecutorMode mode,
     TDuration splay)
-    : Invoker(invoker)
+    : Invoker_(invoker)
     , Callback_(callback)
     , Period_(period)
     , Mode_(mode)
@@ -94,7 +94,7 @@ void TPeriodicExecutor::PostCallback()
 {
     auto this_ = MakeWeak(this);
     GuardedInvoke(
-        Invoker,
+        Invoker_,
         BIND(&TPeriodicExecutor::OnCallbackSuccess, this_),
         BIND(&TPeriodicExecutor::OnCallbackFailure, this_));
 }
