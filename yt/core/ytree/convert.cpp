@@ -20,6 +20,11 @@ TYsonString ConvertToYsonString(const char* value)
     return ConvertToYsonString(Stroka(value));
 }
 
+TYsonString ConvertToYsonString(const TStringBuf& value)
+{
+    return ConvertToYsonString(Stroka(value));
+}
+
 const TToken& SkipAttributes(TTokenizer* tokenizer)
 {
     int depth = 0;
