@@ -55,7 +55,7 @@ public:
     void ScheduleNext();
 
 private:
-    const IInvokerPtr Invoker;
+    const IInvokerPtr Invoker_;
     const TClosure Callback_;
     const TDuration Period_;
     const EPeriodicExecutorMode Mode_;
