@@ -294,3 +294,69 @@ echo {v = 2} >&7
 
         # Check that operation has more than 1 job
         assert get("//tmp/out/@row_count") >= count + 2
+
+    def test_key_switch_yamr(self):
+        create('table', '//tmp/in')
+        create('table', '//tmp/out')
+
+        write(
+            '//tmp/in',
+            [
+                {'key': 'a', 'value': ''},
+                {'key': 'b', 'value': ''},
+                {'key': 'b', 'value': ''}
+            ],
+            sorted_by = ['key'])
+
+        op_id = reduce(
+            in_='//tmp/in',
+            out='//tmp/out',
+            command='cat 1>&2',
+            reduce_by=['key'],
+            spec={
+                "enable_key_switch": "true",
+                "reducer": {"format": yson.loads("<lenval=true>yamr")},
+                "job_count": 1
+            })
+
+        jobs_path = "//sys/operations/" + op_id + "/jobs"
+        for job_id in ls(jobs_path):
+            stderr_bytes = download(jobs_path + "/" + job_id + "/stderr")
+
+        assert stderr_bytes.encode("hex") == \
+            "010000006100000000feffffff010000006200000000010000006200000000"
+
+    def test_key_switch_yson(self):
+        create('table', '//tmp/in')
+        create('table', '//tmp/out')
+
+        write(
+            '//tmp/in',
+            [
+                {'key': 'a', 'value': ''},
+                {'key': 'b', 'value': ''},
+                {'key': 'b', 'value': ''}
+            ],
+            sorted_by = ['key'])
+
+        op_id = reduce(
+            in_='//tmp/in',
+            out='//tmp/out',
+            command='cat 1>&2',
+            reduce_by=['key'],
+            spec={
+                "enable_key_switch": "true",
+                "reducer": {"format": yson.loads("<format=text>yson")},
+                "job_count": 1
+            })
+
+        jobs_path = "//sys/operations/" + op_id + "/jobs"
+        for job_id in ls(jobs_path):
+            stderr_bytes = download(jobs_path + "/" + job_id + "/stderr")
+
+        assert stderr_bytes == \
+"""{"key"="a";"value"=""};
+<"key_switch"=%true>#;
+{"key"="b";"value"=""};
+{"key"="b";"value"=""};
+"""

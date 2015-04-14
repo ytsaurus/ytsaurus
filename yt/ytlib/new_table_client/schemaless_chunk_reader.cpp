@@ -79,6 +79,8 @@ public:
 
     virtual i64 GetTableRowIndex() const;
 
+    virtual TKeyColumns GetKeyColumns() const override;
+
 private:
     const TNameTablePtr NameTable_;
     TNameTablePtr ChunkNameTable_;
@@ -371,6 +373,11 @@ i64 TSchemalessChunkReader::GetTableRowIndex() const
     return TableRowIndex_ + CurrentRowIndex_;
 }
 
+TKeyColumns TSchemalessChunkReader::GetKeyColumns() const
+{
+    return KeyColumns_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
@@ -452,6 +459,8 @@ public:
     virtual i64 GetTotalRowCount() const override;
 
     virtual TNameTablePtr GetNameTable() const override;
+
+    virtual TKeyColumns GetKeyColumns() const override;
 
     i64 GetTableRowIndex() const;
 
@@ -585,6 +594,12 @@ TNameTablePtr TSchemalessMultiChunkReader<TBase>::GetNameTable() const
 }
 
 template <class TBase>
+TKeyColumns TSchemalessMultiChunkReader<TBase>::GetKeyColumns() const
+{
+    return KeyColumns_;
+}
+
+template <class TBase>
 int TSchemalessMultiChunkReader<TBase>::GetTableIndex() const
 {
     return ChunkSpecs_[CurrentSession_.ChunkSpecIndex].table_index();
@@ -663,6 +678,8 @@ public:
     virtual i64 GetTableRowIndex() const override;
     virtual TNameTablePtr GetNameTable() const override;
     virtual i64 GetTotalRowCount() const override;
+
+    virtual TKeyColumns GetKeyColumns() const override;
 
 private:
     typedef TSchemalessMultiChunkReader<TSequentialMultiChunkReaderBase> TUnderlyingReader;
@@ -849,6 +866,11 @@ i64 TSchemalessTableReader::GetTotalRowCount() const
 TNameTablePtr TSchemalessTableReader::GetNameTable() const
 {
     return NameTable_;
+}
+
+TKeyColumns TSchemalessTableReader::GetKeyColumns() const
+{
+    return TKeyColumns();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

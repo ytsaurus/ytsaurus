@@ -281,6 +281,7 @@ message TReduceJobSpecExt
     }
 
     repeated string key_columns = 1;
+    optional bool enable_key_switch = 2 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

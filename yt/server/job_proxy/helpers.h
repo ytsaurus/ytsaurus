@@ -4,7 +4,7 @@
 
 #include <ytlib/formats/format.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <core/misc/blob_output.h>
 
@@ -20,7 +20,8 @@ public:
     TContextPreservingInput(
         NVersionedTableClient::ISchemalessMultiChunkReaderPtr reader, 
         const NFormats::TFormat& format, 
-        bool enableTableSwitch);
+        bool enableTableSwitch,
+        bool enableKeySwitch);
 
     void PipeReaderToOutput(TOutputStream* outputStream);
 
@@ -32,6 +33,11 @@ private:
 
     bool EnableTableSwitch_;
     int TableIndex_;
+
+    bool EnableKeySwitch_;
+    int KeyColumnCount_;
+    NVersionedTableClient::TOwningKey LastKey_;
+    NVersionedTableClient::TKey CurrentKey_;
 
     TBlobOutput CurrentBuffer_;
     TBlobOutput PreviousBuffer_;

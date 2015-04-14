@@ -118,6 +118,11 @@ public:
         return UnderlyingReader_->GetNameTable();
     }
 
+    virtual TKeyColumns GetKeyColumns() const override
+    {
+        return KeyColumns_;
+    }
+
     virtual i64 GetTotalRowCount() const override
     {
         return Rows_.size();
