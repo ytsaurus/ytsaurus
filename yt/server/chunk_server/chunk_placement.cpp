@@ -86,10 +86,17 @@ void TChunkPlacement::Start()
     auto nodeTracker = Bootstrap_->GetNodeTracker();
     for (const auto& pair : nodeTracker->Nodes()) {
         auto* node = pair.second;
-        // NB: Some nodes may be in "unregistered" state on leader startup;
-        // these will be pushed to removed state soon.
-        if (node->GetState() == ENodeState::Registered) {
-            OnNodeRegistered(node);
+        switch (node->GetState()) {
+            case ENodeState::Registered:
+            case ENodeState::Online:
+                OnNodeRegistered(node);
+                break;
+            case ENodeState::Unregistered:
+                // Some nodes may be in "unregistered" state on leader startup;
+                // these will be pushed to removed state soon.
+                break;
+            default:
+                YUNREACHABLE();
         }
     }
 }
@@ -216,7 +223,10 @@ void TChunkPlacement::RemoveFromLoadRankList(TNode* node)
 
 void TChunkPlacement::AdvanceInLoadRankList(TNode* node)
 {
-    for (int i = node->GetLoadRank();
+    int loadRank = node->GetLoadRank();
+    YCHECK(loadRank >= 0);
+
+    for (int i = loadRank;
          i + 1 < LoadRankToNode_.size() &&
          GetLoadFactor(LoadRankToNode_[i + 1]) < GetLoadFactor(LoadRankToNode_[i]);
          ++i)
