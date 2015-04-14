@@ -981,6 +981,14 @@ private:
         for (auto replica : node->CachedReplicas()) {
             RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::NodeRemoved);
         }
+
+        if (ChunkPlacement_) {
+            ChunkPlacement_->OnNodeRemoved(node);
+        }
+
+        if (ChunkReplicator_) {
+            ChunkReplicator_->OnNodeRemoved(node);
+        }
     }
 
     void OnNodeConfigUpdated(TNode* node)

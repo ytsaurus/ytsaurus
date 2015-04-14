@@ -65,7 +65,7 @@ void TNode::Init()
     Transaction_ = nullptr;
     Decommissioned_ = Config_->Decommissioned;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
-    ResetHints();
+    ResetSessionHints();
 }
 
 const TNodeDescriptor& TNode::GetDescriptor() const
@@ -260,7 +260,7 @@ void TNode::ClearChunkSealQueue()
     ChunkSealQueue_.clear();
 }
 
-void TNode::ResetHints()
+void TNode::ResetSessionHints()
 {
     HintedUserSessionCount_ = 0;
     HintedReplicationSessionCount_ = 0;

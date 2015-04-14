@@ -30,6 +30,7 @@ public:
     void OnNodeRegistered(TNode* node);
     void OnNodeUnregistered(TNode* node);
     void OnNodeUpdated(TNode* node);
+    void OnNodeRemoved(TNode* node);
 
     double GetFillFactor(TNode* node) const;
 
@@ -70,6 +71,13 @@ private:
 
 
     static int GetLoadFactor(TNode* node);
+
+    void InsertToFillFactorMap(TNode* node);
+    void RemoveFromFillFactorMap(TNode* node);
+
+    void InsertToLoadRankList(TNode* node);
+    void RemoveFromLoadRankList(TNode* node);
+    void AdvanceInLoadRankList(TNode* node);
 
     TNodeList GetWriteTargets(
         TChunk* chunk,

@@ -137,7 +137,7 @@ public:
     void RemoveFromChunkSealQueue(TChunk* chunk);
     void ClearChunkSealQueue();
 
-    void ResetHints();
+    void ResetSessionHints();
     
     void AddSessionHint(NChunkClient::EWriteSessionType sessionType);
 
