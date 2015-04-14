@@ -208,9 +208,9 @@ public:
     ui64 Estimation()
     {
         if (Type_ == EValueType::Int64) {
-            return Generator_.As<TQuotientEnumerationGenerator<i64>>().Estimation();
+            return Generator_.As<TDivisionRangeGenerator<i64>>().Estimation();
         } else {
-            return Generator_.As<TQuotientEnumerationGenerator<ui64>>().Estimation();
+            return Generator_.As<TDivisionRangeGenerator<ui64>>().Estimation();
         }
     }
 
