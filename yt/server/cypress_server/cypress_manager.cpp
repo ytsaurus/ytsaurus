@@ -1310,7 +1310,7 @@ void TCypressManager::InitBuiltin()
         // Create the root.
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto rootNodeHolder = std::make_unique<TMapNode>(TVersionedNodeId(RootNodeId));
-        rootNodeHolder->SetTrunkNode(RootNode);
+        rootNodeHolder->SetTrunkNode(rootNodeHolder.get());
         rootNodeHolder->SetAccount(securityManager->GetSysAccount());
         rootNodeHolder->Acd().SetInherit(false);
         rootNodeHolder->Acd().AddEntry(TAccessControlEntry(
