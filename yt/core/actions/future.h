@@ -463,9 +463,21 @@ public:
     //! Returns the underlying future.
     TFuture<T>& Get();
 
+    //! Returns the underlying future.
+    const TFuture<T>& operator*() const; // noexcept
+
+    //! Returns the underlying future.
+    TFuture<T>& operator*(); // noexcept
+
+    //! Returns the underlying future.
+    const TFuture<T>* operator->() const; // noexcept
+
+    //! Returns the underlying future.
+    TFuture<T>* operator->(); // noexcept
+
 private:
     TFuture<T> Future_;
-    const bool Blocking_;
+    bool Blocking_;
 
 };
 

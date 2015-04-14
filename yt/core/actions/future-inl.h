@@ -987,6 +987,12 @@ TFutureHolder<T>::~TFutureHolder()
 }
 
 template <class T>
+TFutureHolder<T>::operator bool() const
+{
+    return static_cast<bool>(Future_);
+}
+
+template <class T>
 TFuture<T>& TFutureHolder<T>::Get()
 {
     return Future_;
@@ -996,6 +1002,30 @@ template <class T>
 const TFuture<T>& TFutureHolder<T>::Get() const
 {
     return Future_;
+}
+
+template <class T>
+const TFuture<T>& TFutureHolder<T>::operator*() const // noexcept
+{
+    return Future_;
+}
+
+template <class T>
+TFuture<T>& TFutureHolder<T>::operator*() // noexcept
+{
+    return Future_;
+}
+
+template <class T>
+const TFuture<T>* TFutureHolder<T>::operator->() const // noexcept
+{
+    return &Future_;
+}
+
+template <class T>
+TFuture<T>* TFutureHolder<T>::operator->() // noexcept
+{
+    return &Future_;
 }
 
 template <class T>
