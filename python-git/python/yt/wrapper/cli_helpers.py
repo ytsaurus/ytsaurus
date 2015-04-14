@@ -1,5 +1,6 @@
 import yt.logger as logger
 from yt.wrapper.errors import YtOperationFailedError, YtError
+from yt.wrapper.operation_commands import format_operation_stderrs
 
 import os
 import sys
@@ -41,7 +42,7 @@ def run_main(main_func):
         if "stderrs" in error.attributes:
             print >>sys.stderr
             print >>sys.stderr, "Stderrs of failed jobs:"
-            print >>sys.stderr, error.attributes["stderrs"]
+            print >>sys.stderr, format_operation_stderrs(error.attributes["stderrs"])
         die()
     except YtError as error:
         die(str(error), error.code)
