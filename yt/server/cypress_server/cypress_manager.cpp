@@ -563,8 +563,8 @@ TCypressNodeBase* TCypressManager::CreateNode(
     YCHECK(factory);
 
     auto* transaction = factory->GetTransaction();
-    auto* node = handler->Create(transaction, request, response).release();
-    RegisterNode(node);
+    auto nodeHolder = handler->Create(transaction, request, response);
+    auto* node = RegisterNode(std::move(nodeHolder));
 
     // Set account.
     auto securityManager = Bootstrap_->GetSecurityManager();
@@ -587,10 +587,9 @@ TCypressNodeBase* TCypressManager::CreateNode(const TNodeId& id)
 {
     auto type = TypeFromId(id);
     auto handler = GetHandler(type);
-    auto* node = handler->Instantiate(TVersionedNodeId(id)).release();
-    node->SetTrunkNode(node);
-    RegisterNode(node);
-    return node;
+    auto nodeHolder = handler->Instantiate(TVersionedNodeId(id));
+    nodeHolder->SetTrunkNode(nodeHolder.get());
+    return RegisterNode(std::move(nodeHolder));
 }
 
 TCypressNodeBase* TCypressManager::CloneNode(
@@ -982,17 +981,15 @@ TLock* TCypressManager::DoCreateLock(
     const TLockRequest& request)
 {
     auto objectManager = Bootstrap_->GetObjectManager();
-
     auto id = objectManager->GenerateId(EObjectType::Lock);
-
-    auto* lock  = new TLock(id);
-    lock->SetState(ELockState::Pending);
-    lock->SetTrunkNode(trunkNode);
-    lock->SetTransaction(transaction);
-    lock->Request() = request;
-    trunkNode->PendingLocks().push_back(lock);
-    lock->SetLockListIterator(--trunkNode->PendingLocks().end());
-    LockMap.Insert(id, lock);
+    auto lockHolder = std::make_unique<TLock>(id);
+    lockHolder->SetState(ELockState::Pending);
+    lockHolder->SetTrunkNode(trunkNode);
+    lockHolder->SetTransaction(transaction);
+    lockHolder->Request() = request;
+    trunkNode->PendingLocks().push_back(lockHolder.get());
+    lockHolder->SetLockListIterator(--trunkNode->PendingLocks().end());
+    auto* lock = LockMap.Insert(id, std::move(lockHolder));
 
     YCHECK(transaction->Locks().insert(lock).second);
     objectManager->RefObject(lock);
@@ -1203,28 +1200,28 @@ TCypressNodeBase* TCypressManager::BranchNode(
 
     // Create a branched node and initialize its state.
     auto handler = GetHandler(originatingNode);
-    auto branchedNode = handler->Branch(originatingNode, transaction, mode);
-    YCHECK(branchedNode->GetLockMode() == mode);
-    auto* branchedNode_ = branchedNode.release();
+    auto branchedNodeHolder = handler->Branch(originatingNode, transaction, mode);
 
     TVersionedNodeId versionedId(id, transaction->GetId());
-    NodeMap.Insert(versionedId, branchedNode_);
+    auto* branchedNode = NodeMap.Insert(versionedId, std::move(branchedNodeHolder));
+
+    YCHECK(branchedNode->GetLockMode() == mode);
 
     // Register the branched node with the transaction.
-    transaction->BranchedNodes().push_back(branchedNode_);
+    transaction->BranchedNodes().push_back(branchedNode);
 
     // The branched node holds an implicit reference to its originator.
     objectManager->RefObject(originatingNode->GetTrunkNode());
 
     // Update resource usage.
     auto* account = originatingNode->GetAccount();
-    securityManager->SetAccount(branchedNode_, account);
+    securityManager->SetAccount(branchedNode, account);
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Node branched (NodeId: %v, Mode: %v)",
         TVersionedNodeId(id, transaction->GetId()),
         mode);
 
-    return branchedNode_;
+    return branchedNode;
 }
 
 void TCypressManager::SaveKeys(NCellMaster::TSaveContext& context) const
@@ -1312,17 +1309,17 @@ void TCypressManager::InitBuiltin()
     if (!RootNode) {
         // Create the root.
         auto securityManager = Bootstrap_->GetSecurityManager();
-        RootNode = new TMapNode(TVersionedNodeId(RootNodeId));
-        RootNode->SetTrunkNode(RootNode);
-        RootNode->SetAccount(securityManager->GetSysAccount());
-        RootNode->Acd().SetInherit(false);
-        RootNode->Acd().AddEntry(TAccessControlEntry(
+        auto rootNodeHolder = std::make_unique<TMapNode>(TVersionedNodeId(RootNodeId));
+        rootNodeHolder->SetTrunkNode(RootNode);
+        rootNodeHolder->SetAccount(securityManager->GetSysAccount());
+        rootNodeHolder->Acd().SetInherit(false);
+        rootNodeHolder->Acd().AddEntry(TAccessControlEntry(
             ESecurityAction::Allow,
             securityManager->GetEveryoneGroup(),
             EPermission::Read));
-        RootNode->Acd().SetOwner(securityManager->GetRootUser());
+        rootNodeHolder->Acd().SetOwner(securityManager->GetRootUser());
 
-        NodeMap.Insert(TVersionedNodeId(RootNodeId), RootNode);
+        RootNode = NodeMap.Insert(TVersionedNodeId(RootNodeId), std::move(rootNodeHolder));
         YCHECK(RootNode->RefObject() == 1);
     }
 }
@@ -1351,23 +1348,25 @@ void TCypressManager::OnRecoveryComplete()
     }
 }
 
-void TCypressManager::RegisterNode(TCypressNodeBase* node)
+TCypressNodeBase* TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> nodeHolder)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(node->IsTrunk());
+    YCHECK(nodeHolder->IsTrunk());
 
     const auto* mutationContext = GetCurrentMutationContext();
-    node->SetCreationTime(mutationContext->GetTimestamp());
-    node->SetModificationTime(mutationContext->GetTimestamp());
-    node->SetAccessTime(mutationContext->GetTimestamp());
-    node->SetRevision(mutationContext->GetVersion().ToRevision());
+    nodeHolder->SetCreationTime(mutationContext->GetTimestamp());
+    nodeHolder->SetModificationTime(mutationContext->GetTimestamp());
+    nodeHolder->SetAccessTime(mutationContext->GetTimestamp());
+    nodeHolder->SetRevision(mutationContext->GetVersion().ToRevision());
 
-    const auto& nodeId = node->GetId();
-    NodeMap.Insert(TVersionedNodeId(nodeId), node);
+    const auto& nodeId = nodeHolder->GetId();
+    auto* node = NodeMap.Insert(TVersionedNodeId(nodeId), std::move(nodeHolder));
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Type: %v)",
         nodeId,
         TypeFromId(nodeId));
+
+    return node;
 }
 
 void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)

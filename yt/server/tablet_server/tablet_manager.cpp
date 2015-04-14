@@ -231,16 +231,15 @@ public:
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletCell);
-        auto cell_ = std::make_unique<TTabletCell>(id);
-        auto* cell = cell_.get();
+        auto cellHolder = std::make_unique<TTabletCell>(id);
 
-        cell->SetSize(size);
-        cell->SetOptions(ConvertTo<TTabletCellOptionsPtr>(attributes)); // may throw
-        cell->Peers().resize(size);
+        cellHolder->SetSize(size);
+        cellHolder->SetOptions(ConvertTo<TTabletCellOptionsPtr>(attributes)); // may throw
+        cellHolder->Peers().resize(size);
 
-        ReconfigureCell(cell);
+        ReconfigureCell(cellHolder.get());
 
-        TabletCellMap_.Insert(id, cell_.release());
+        auto* cell = TabletCellMap_.Insert(id, std::move(cellHolder));
 
         // Make the fake reference.
         YCHECK(cell->RefObject() == 1);   
@@ -313,9 +312,10 @@ public:
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Tablet);
-        auto* tablet = new TTablet(id);
-        tablet->SetTable(table);
-        TabletMap_.Insert(id, tablet);
+        auto tabletHolder = std::make_unique<TTablet>(id);
+        tabletHolder->SetTable(table);
+
+        auto* tablet = TabletMap_.Insert(id, std::move(tabletHolder));
         objectManager->RefObject(tablet);
 
         // Once the first table is created, table is no longer sorted.

@@ -111,8 +111,8 @@ public:
 
     TMailbox* CreateMailbox(const TCellId& cellId)
     {
-        auto* mailbox = new TMailbox(cellId);
-        MailboxMap_.Insert(cellId, mailbox);
+        auto mailboxHolder = std::make_unique<TMailbox>(cellId);
+        auto* mailbox = MailboxMap_.Insert(cellId, std::move(mailboxHolder));
         
         if (IsLeader()) {
             SendPing(mailbox);

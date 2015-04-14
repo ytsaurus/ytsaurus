@@ -611,8 +611,8 @@ void TObjectManager::DoClear()
         auto& entry = TypeToEntry_[type];
         if (HasSchema(type)) {
             auto id = MakeSchemaObjectId(type, Bootstrap_->GetCellTag());
-            entry.SchemaObject = new TSchemaObject(id);
-            SchemaMap_.Insert(id, entry.SchemaObject);
+            auto schemaObjectHolder = std::make_unique<TSchemaObject>(id);
+            entry.SchemaObject = SchemaMap_.Insert(id, std::move(schemaObjectHolder));
             entry.SchemaObject->RefObject();
             entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
         }
@@ -721,9 +721,8 @@ TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto result = new TAttributeSet();
-    AttributeMap_.Insert(id, result);
-    return result;
+    auto resultHolder = std::make_unique<TAttributeSet>();
+    return AttributeMap_.Insert(id, std::move(resultHolder));
 }
 
 void TObjectManager::RemoveAttributes(const TVersionedObjectId& id)
@@ -764,7 +763,7 @@ void TObjectManager::MergeAttributes(
 
     if (!originatingAttributes) {
         auto attributeSet = AttributeMap_.Release(branchedId);
-        AttributeMap_.Insert(originatingId, attributeSet.release());
+        AttributeMap_.Insert(originatingId, std::move(attributeSet));
     } else {
         for (const auto& pair : branchedAttributes->Attributes()) {
             if (!pair.second && !originatingId.IsBranched()) {

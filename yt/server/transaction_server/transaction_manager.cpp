@@ -310,8 +310,8 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Transaction);
 
-        auto* transaction = new TTransaction(id);
-        TransactionMap_.Insert(id, transaction);
+        auto transactionHolder = std::make_unique<TTransaction>(id);
+        auto* transaction = TransactionMap_.Insert(id, std::move(transactionHolder));
 
         // Every active transaction has a fake reference to itself.
         objectManager->RefObject(transaction);

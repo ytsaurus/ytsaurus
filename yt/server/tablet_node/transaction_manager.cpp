@@ -358,8 +358,8 @@ private:
         auto startTimestamp = TTimestamp(request.start_timestamp());
         auto timeout = TDuration::MilliSeconds(request.timeout());
 
-        auto* transaction = new TTransaction(transactionId);
-        TransactionMap_.Insert(transactionId, transaction);
+        auto transactionHolder = std::make_unique<TTransaction>(transactionId);
+        auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
 
         const auto* mutationContext = GetCurrentMutationContext();
 
