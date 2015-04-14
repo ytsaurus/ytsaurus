@@ -6,6 +6,11 @@ export YT_TOKEN=1da6afc98d189e8ba59d2ea39f29d0f1 #teamcity user
 DEST="//home/files"
 YT="yt/wrapper/yt"
 
+# Upload python egg
+python setup.py bdist_egg
+EGG_FILE=$(find dist/ -name "*.egg" | head -n 1)
+cat dist/*.egg | $YT upload "$DEST/${EGG_FILE##*/}"
+
 # Upload self-contained binaries
 mv yt/wrapper/pickling.py pickling.py
 cp standard_pickling.py yt/wrapper/pickling.py
