@@ -121,14 +121,5 @@ add_executable( unittester
 target_link_libraries( unittester
   ytlib
   ytserver_lib
+  ytext-lfalloc
 )
-
-if (WIN32)
-  target_link_libraries( unittester
-    ytext-lfalloc-fake
-  )
-else()
-  target_link_libraries( unittester
-    ytext-lfalloc
-  )
-endif()
