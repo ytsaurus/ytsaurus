@@ -220,11 +220,11 @@ private:
             return commit->GetAsyncResponseMessage();
         }
 
-        commit = new TCommit(
+        auto commitHolder = std::make_unique<TCommit>(
             transactionId,
             mutationId,
             participantCellIds);
-        TransientCommitMap_.Insert(transactionId, commit);
+        commit = TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
 
         // Commit instance may die below.
         auto asyncResponseMessage = commit->GetAsyncResponseMessage();
@@ -373,11 +373,11 @@ private:
         if (!commit) {
             // Commit could be missing (e.g. at followers or during recovery).
             // Let's recreate it since it's needed below in SetCommitSucceeded.
-            commit = new TCommit(
+            auto commitHolder = std::make_unique<TCommit>(
                 transactionId,
                 mutationId,
                 std::vector<TCellId>());
-            TransientCommitMap_.Insert(transactionId, commit);
+            commit = TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
         }
 
         YCHECK(!commit->GetPersistent());
@@ -394,18 +394,20 @@ private:
         auto prepareTimestamp = TTimestamp(request.prepare_timestamp());
 
         // Ensure commit existence (possibly moving it from transient to persistent).
+        std::unique_ptr<TCommit> commitHolder;
         auto* commit = FindCommit(transactionId);
         if (commit) {
             YCHECK(!commit->GetPersistent());
-            TransientCommitMap_.Release(transactionId).release();
+            commitHolder = TransientCommitMap_.Release(transactionId);
         } else {
-            commit = new TCommit(
+            commitHolder = std::make_unique<TCommit>(
                 transactionId,
                 mutationId,
                 participantCellIds);
+            commit = commitHolder.get();
         }
         commit->SetPersistent(true);
-        PersistentCommitMap_.Insert(transactionId, commit);
+        PersistentCommitMap_.Insert(transactionId, std::move(commitHolder));
 
         const auto& coordinatorCellId = HiveManager_->GetSelfCellId();
 

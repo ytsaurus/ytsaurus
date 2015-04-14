@@ -143,7 +143,7 @@ private:
         std::unique_ptr<TCypressNodeBase> Create(const TVersionedNodeId& id) const;
 
     private:
-        TCypressManager* CypressManager;
+        TCypressManager* const CypressManager;
 
     };
 
@@ -163,7 +163,7 @@ private:
     bool RecomputeTabletOwners = false;
     
     
-    void RegisterNode(TCypressNodeBase* node);
+    TCypressNodeBase* RegisterNode(std::unique_ptr<TCypressNodeBase> nodeHolder);
 
     void DestroyNode(TCypressNodeBase* trunkNode);
 

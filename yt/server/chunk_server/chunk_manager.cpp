@@ -408,18 +408,16 @@ public:
     {
         Profiler.Increment(AddedChunkCounter_);
         auto id = Bootstrap_->GetObjectManager()->GenerateId(type);
-        auto* chunk = new TChunk(id);
-        ChunkMap_.Insert(id, chunk);
-        return chunk;
+        auto chunkHolder = std::make_unique<TChunk>(id);
+        return ChunkMap_.Insert(id, std::move(chunkHolder));
     }
 
     TChunkList* CreateChunkList()
     {
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::ChunkList);
-        auto* chunkList = new TChunkList(id);
-        ChunkListMap_.Insert(id, chunkList);
-        return chunkList;
+        auto chunkListHolder = std::make_unique<TChunkList>(id);
+        return ChunkListMap_.Insert(id, std::move(chunkListHolder));
     }
 
 

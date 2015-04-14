@@ -180,13 +180,17 @@ TEntityMap<TKey, TValue, TTraits, THash>::~TEntityMap()
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-void TEntityMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue* value)
+TValue* TEntityMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, std::unique_ptr<TValue> valueHolder)
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
+    auto* value = valueHolder.release();
     YASSERT(value);
+
     YCHECK(this->Map_.insert(std::make_pair(key, value)).second);
     value->SetDynamicData(AllocateDynamicData());
+
+    return value;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>

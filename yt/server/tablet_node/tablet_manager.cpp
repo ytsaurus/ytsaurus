@@ -523,7 +523,7 @@ private:
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request.mount_config())), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request.writer_options()), tabletId);
 
-        auto* tablet = new TTablet(
+        auto tabletHolder = std::make_unique<TTablet>(
             mountConfig,
             writerOptions,
             tabletId,
@@ -533,13 +533,14 @@ private:
             keyColumns,
             pivotKey,
             nextPivotKey);
-        tablet->CreateInitialPartition();
-        tablet->SetState(ETabletState::Mounted);
 
-        auto storeManager = CreateStoreManager(tablet);
+        tabletHolder->CreateInitialPartition();
+        tabletHolder->SetState(ETabletState::Mounted);
+
+        auto storeManager = CreateStoreManager(tabletHolder.get());
         storeManager->CreateActiveStore();
 
-        TabletMap_.Insert(tabletId, tablet);
+        auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
         std::vector<std::pair<TOwningKey, int>> chunkBoundaries;
 

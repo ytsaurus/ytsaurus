@@ -1015,14 +1015,14 @@ private:
 
     TAccount* DoCreateAccount(const TAccountId& id, const Stroka& name)
     {
-        auto* account = new TAccount(id);
-        account->SetName(name);
+        auto accountHolder = std::make_unique<TAccount>(id);
+        accountHolder->SetName(name);
         // Give some reasonable initial resource limits.
-        account->ResourceLimits().DiskSpace = (i64) 1024 * 1024 * 1024; // 1 GB
-        account->ResourceLimits().NodeCount = 1000;
-        account->ResourceLimits().ChunkCount = 100000;
+        accountHolder->ResourceLimits().DiskSpace = (i64) 1024 * 1024 * 1024; // 1 GB
+        accountHolder->ResourceLimits().NodeCount = 1000;
+        accountHolder->ResourceLimits().ChunkCount = 100000;
 
-        AccountMap_.Insert(id, account);
+        auto* account = AccountMap_.Insert(id, std::move(accountHolder));
         YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
 
         // Make the fake reference.
@@ -1048,10 +1048,10 @@ private:
 
     TUser* DoCreateUser(const TUserId& id, const Stroka& name)
     {
-        auto* user = new TUser(id);
-        user->SetName(name);
+        auto userHolder = std::make_unique<TUser>(id);
+        userHolder->SetName(name);
 
-        UserMap_.Insert(id, user);
+        auto* user = UserMap_.Insert(id, std::move(userHolder));
         YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
 
         YCHECK(user->RefObject() == 1);
@@ -1062,10 +1062,10 @@ private:
 
     TGroup* DoCreateGroup(const TGroupId& id, const Stroka& name)
     {
-        auto* group = new TGroup(id);
-        group->SetName(name);
+        auto groupHolder = std::make_unique<TGroup>(id);
+        groupHolder->SetName(name);
 
-        GroupMap_.Insert(id, group);
+        auto* group = GroupMap_.Insert(id, std::move(groupHolder));
         YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
 
         // Make the fake reference.

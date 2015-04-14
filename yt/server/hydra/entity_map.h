@@ -141,7 +141,7 @@ public:
     explicit TEntityMap(const TTraits& traits = TTraits());
     ~TEntityMap();
 
-    void Insert(const TKey& key, TValue* value);
+    TValue* Insert(const TKey& key, std::unique_ptr<TValue> valueHolder);
 
     bool TryRemove(const TKey& key);
     void Remove(const TKey& key);

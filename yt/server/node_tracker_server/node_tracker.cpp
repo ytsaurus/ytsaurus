@@ -313,11 +313,11 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Rack);
 
-        auto* rack = new TRack(id);
-        rack->SetName(name);
-        rack->SetIndex(AllocateRackIndex());
+        auto rackHolder = std::make_unique<TRack>(id);
+        rackHolder->SetName(name);
+        rackHolder->SetIndex(AllocateRackIndex());
 
-        RackMap_.Insert(id, rack);
+        auto* rack = RackMap_.Insert(id, std::move(rackHolder));
         YCHECK(NameToRackMap_.insert(std::make_pair(name, rack)).second);
 
         // Make the fake reference.
@@ -862,16 +862,17 @@ private:
 
             const auto* mutationContext = GetCurrentMutationContext();
 
-            auto* node = new TNode(
+            auto nodeHolder = std::make_unique<TNode>(
                 nodeId,
                 descriptor,
                 config,
                 mutationContext->GetTimestamp());
+            auto* node = NodeMap_.Insert(nodeId, std::move(nodeHolder));
+
             node->SetState(ENodeState::Registered);
             node->Statistics() = statistics;
             node->SetRack(config->Rack ? FindRackByName(*config->Rack) : nullptr);
 
-            NodeMap_.Insert(nodeId, node);
             AddressToNodeMap_.insert(std::make_pair(address, node));
             HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
             
