@@ -43,7 +43,6 @@ add_library(ytcore STATIC
 )
 
 target_link_libraries ( ytcore
-  -latomic
   ytext-arcadia-util
   ytext-ev
   ytext-jerasure
@@ -53,6 +52,12 @@ target_link_libraries ( ytcore
   protobuf
   farmhash
 )
+
+if (NOT APPLE)
+  target_link_libraries ( ytcore
+    -latomic
+  )
+endif()
 
 if (YT_BUILD_ENABLE_LLVM)
   llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES mcjit ipo x86 mcdisassembler linker asmparser irreader)
