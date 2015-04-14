@@ -150,8 +150,6 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address -pie")
   endif()
 
-  message(STATUS "asan ${ASAN_COMPILER_FLAGS}!!" )
-  
   set(CMAKE_CXX_FLAGS_DEBUG "-g -O0"
     CACHE STRING "" FORCE)
   set(CMAKE_CXX_FLAGS_RELEASE "-O2"
