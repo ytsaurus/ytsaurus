@@ -65,26 +65,7 @@ Stroka TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> gene
         return unionString + " }";
     } else {
         auto concreteType = tp.As<EValueType>();
-        switch (concreteType) {
-            case EValueType::TheBottom:
-                return "the bottom type";
-            case EValueType::Null:
-                return "no type";
-            case EValueType::Int64:
-                return "int";
-            case EValueType::Uint64:
-                return "unsigned int";
-            case EValueType::Double:
-                return "double";
-            case EValueType::Boolean:
-                return "bool";
-            case EValueType::String:
-                return "string";
-            case EValueType::Any:
-                return "any type";
-            default:
-                YUNREACHABLE();
-        }
+        return ToString(concreteType);
     }
 }
 
@@ -134,7 +115,8 @@ EValueType TTypedFunction::TypingFunction(
     {
         if (!unify(*expectedArg, *arg)) {
             THROW_ERROR_EXCEPTION(
-                "Wrong type for argument %v. Expected %v, got %v",
+                "Wrong type for argument %v to function %Qv: expected %Qv, got %Qv",
+                functionName,
                 argIndex,
                 TypeToString(*expectedArg, genericAssignments),
                 TypeToString(*arg, genericAssignments))
@@ -149,7 +131,7 @@ EValueType TTypedFunction::TypingFunction(
         (arg != argTypes.end() && hasNoRepeatedArgument))
     {
         THROW_ERROR_EXCEPTION(
-            "Function %Qv expects %v arguments, got %v",
+            "Wrong number of arguments to function %Qv: expected %v, got %v",
             functionName,
             expectedArgTypes.size(),
             argTypes.size())
@@ -159,7 +141,8 @@ EValueType TTypedFunction::TypingFunction(
     for (; arg != argTypes.end(); arg++) {
         if (!unify(repeatedArgType, *arg)) {
             THROW_ERROR_EXCEPTION(
-                "Wrong type for repeated argument. Expected %v, got %v",
+                "Wrong type for repeated argument to function %Qv: expected %Qv, got %Qv",
+                functionName,
                 TypeToString(repeatedArgType, genericAssignments),
                 TypeToString(*arg, genericAssignments))
                 << TErrorAttribute("expression", source);
@@ -169,13 +152,15 @@ EValueType TTypedFunction::TypingFunction(
     if (auto* genericResult = resultType.TryAs<TTypeArgument>()) {
         if (!genericAssignments.count(*genericResult)) {
             THROW_ERROR_EXCEPTION(
-                "Ambiguous result type")
+                "Ambiguous result type for function %Qv",
+                functionName)
                 << TErrorAttribute("expression", source);
         }
         return genericAssignments[*genericResult];
     } else if (!resultType.TryAs<EValueType>()) {
         THROW_ERROR_EXCEPTION(
-            "Ambiguous result type")
+            "Ambiguous result type for function %Qv",
+            functionName)
             << TErrorAttribute("expression", source);
     } else {
         return resultType.As<EValueType>();

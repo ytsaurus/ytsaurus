@@ -23,6 +23,7 @@ struct ICallingConvention
         const Stroka& name) const = 0;
 
     virtual void CheckResultType(
+        const Stroka& functionName,
         Type* llvmType,
         TType resultType,
         TCGContext& builder) const = 0;
@@ -43,6 +44,7 @@ public:
         const Stroka& name) const override;
 
     void CheckResultType(
+        const Stroka& functionName,
         Type* llvmType,
         TType resultType,
         TCGContext& builder) const override;
@@ -62,6 +64,7 @@ public:
         const Stroka& name) const override;
 
     void CheckResultType(
+        const Stroka& functionName,
         Type* llvmType,
         TType resultType,
         TCGContext& builder) const override;

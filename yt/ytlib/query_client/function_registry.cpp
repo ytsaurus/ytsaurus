@@ -297,17 +297,31 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
     LOG_DEBUG("Found implementation of function %Qv in Cypress",
         functionName);
 
-    auto cypressFunction = ConvertToNode(cypressFunctionOrError.Value())
-        ->Attributes()
-        .Find<TCypressFunctionDescriptorPtr>(descriptorAttribute);
+    TCypressFunctionDescriptorPtr cypressFunction;
+    bool hasNoRepeatedArgument;
+    try {
+        cypressFunction = ConvertToNode(cypressFunctionOrError.Value())
+            ->Attributes()
+            .Find<TCypressFunctionDescriptorPtr>(descriptorAttribute);
+        
+        hasNoRepeatedArgument =
+            cypressFunction->RepeatedArgumentType.Type.Is<EValueType>() &&
+            cypressFunction->RepeatedArgumentType.Type.As<EValueType>() == EValueType::Null;
 
+        if (cypressFunction->CallingConvention == ECallingConvention::Simple && !hasNoRepeatedArgument) {
+            THROW_ERROR_EXCEPTION("Function using the simple calling convention may not have repeated arguments");
+        }
+    } catch (const TErrorException& exception) {
+        THROW_ERROR_EXCEPTION(
+            "Error while deserializing UDF descriptor from Cypress")
+            << exception;
+    }
+  
     auto implementationFile = ReadFile(
         functionPath,
         Client_);
 
-    if (cypressFunction->RepeatedArgumentType.Type.Is<EValueType>() &&
-        cypressFunction->RepeatedArgumentType.Type.As<EValueType>() == EValueType::Null)
-    {
+    if (hasNoRepeatedArgument) {
         UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
             cypressFunction->Name,
             cypressFunction->GetArgumentsTypes(),
@@ -315,9 +329,6 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
             implementationFile,
             cypressFunction->CallingConvention));
     } else {
-        if (cypressFunction->CallingConvention == ECallingConvention::Simple) {
-            THROW_ERROR_EXCEPTION("Function using the simple calling convention may not have repeated arguments");
-        }
         UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
             cypressFunction->Name,
             cypressFunction->GetArgumentsTypes(),
