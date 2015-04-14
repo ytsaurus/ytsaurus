@@ -188,6 +188,7 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
 }
 
 void TSimpleCallingConvention::CheckResultType(
+    const Stroka& functionName,
     Type* llvmType,
     TType resultType,
     TCGContext& builder) const
@@ -200,7 +201,8 @@ void TSimpleCallingConvention::CheckResultType(
         llvmType != builder.getVoidTy())
     {
         THROW_ERROR_EXCEPTION(
-            "Wrong result type in LLVM bitcode: expected void, got %Qv",
+            "Wrong result type in LLVM bitcode for function %Qv: expected void, got %Qv",
+            functionName,
             ToString(llvmType));
     } else if (!IsStringLikeType(concreteResultType) &&
         llvmType != expectedResultType)
@@ -292,13 +294,15 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 }
 
 void TUnversionedValueCallingConvention::CheckResultType(
+    const Stroka& functionName,
     Type* llvmType,
     TType resultType,
     TCGContext& builder) const
 {
     if (llvmType != builder.getVoidTy()) {
         THROW_ERROR_EXCEPTION(
-            "Wrong result type in LLVM bitcode: expected void, got %Qv",
+            "Wrong result type in LLVM bitcode for function %Qv: expected void, got %Qv",
+            functionName,
             ToString(llvmType));
     }
 }
@@ -374,16 +378,18 @@ void TUserDefinedFunction::CheckCallee(
 {
     if (!callee) {
         THROW_ERROR_EXCEPTION(
-            "Could not find LLVM bitcode for %Qv",
+            "Could not find LLVM bitcode for function %Qv",
             FunctionName_);
     } else if (callee->arg_size() != argumentValues.size()) {
         THROW_ERROR_EXCEPTION(
-            "Wrong number of arguments in LLVM bitcode: expected %v, got %v",
+            "Wrong number of arguments in LLVM bitcode for function %Qv: expected %v, got %v",
+            FunctionName_,
             argumentValues.size(),
             callee->arg_size());
     }
 
     CallingConvention_->CheckResultType(
+        FunctionName_,
         callee->getReturnType(),
         ResultType_,
         builder);
@@ -397,7 +403,8 @@ void TUserDefinedFunction::CheckCallee(
     {
         if (actual->getType() != (*expected)->getType()) {
             THROW_ERROR_EXCEPTION(
-                "Wrong type for argument %v in LLVM bitcode: expected %Qv, got %Qv",
+                "Wrong type for argument %v in LLVM bitcode for function %Qv: expected %Qv, got %Qv",
+                FunctionName_,
                 i,
                 ToString((*expected)->getType()),
                 ToString(actual->getType()));
@@ -420,7 +427,8 @@ Function* TUserDefinedFunction::GetLlvmFunction(
 
         if (!implModule) {
             THROW_ERROR_EXCEPTION(
-                "Error parsing LLVM bitcode")
+                "Error parsing LLVM bitcode for function %Qv",
+                FunctionName_)
                 << TError(Stroka(diag.getMessage().str()));
         }
 
