@@ -33,6 +33,11 @@ inline TUnversionedOwningRow BuildKey(const Stroka& yson)
                     keyPart->GetValue<i64>(),
                     id));
                 break;
+            case ENodeType::Uint64:
+                keyBuilder.AddValue(MakeUint64Value<TUnversionedValue>(
+                    keyPart->GetValue<ui64>(),
+                    id));
+                break;
             case ENodeType::Double:
                 keyBuilder.AddValue(MakeDoubleValue<TUnversionedValue>(
                     keyPart->GetValue<double>(),

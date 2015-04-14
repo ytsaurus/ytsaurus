@@ -53,6 +53,9 @@ TConstExpressionPtr ExtractPredicateForColumnSubset(
     const TConstExpressionPtr& expr,
     const TTableSchema& tableSchema);
 
+std::vector<std::pair<TRow, TRow>> MergeOverlappingRanges(
+    std::vector<std::pair<TRow, TRow>> ranges);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
