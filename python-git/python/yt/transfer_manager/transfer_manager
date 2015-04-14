@@ -5,7 +5,7 @@ from yt.transfer_manager.logger import TaskIdLogger
 from yt.transfer_manager.pattern_matching import match_copy_pattern
 
 from yt.tools.logging_server import LogRecordSocketReceiver
-from yt.tools.yamr import Yamr
+from yt.tools.yamr import Yamr, YamrError
 from yt.tools.hadoop import Hive
 from yt.tools.remote_copy_tools import \
     copy_yamr_to_yt_pull, \
@@ -108,7 +108,10 @@ def remove_unsigned(obj):
 
 def truncate_stderrs_attributes(error, limit):
     if hasattr(error, "attributes") and "stderrs" in error.attributes:
-        error.attributes["details"] = error.attributes["stderrs"][:limit]
+        if isinstance(error, yt.YtOperationFailedError):
+            error.attributes["details"] = yt.format_operation_stderrs(error.attributes["stderrs"])[:limit]
+        elif isinstance(error, YamrError):
+            error.attributes["details"] = error.attributes["stderrs"][:limit]
         del error.attributes["stderrs"]
     if hasattr(error, "inner_errors"):
         for inner_error in error.inner_errors:
