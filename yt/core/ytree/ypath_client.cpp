@@ -325,7 +325,9 @@ void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonStrin
 {
     auto request = TYPathProxy::Set(path);
     request->set_value(value.Data());
-    ExecuteVerb(service, request).Get().ThrowOnError();
+    ExecuteVerb(service, request)
+        .Get()
+        .ThrowOnError();
 }
 
 void SyncYPathRemove(
@@ -337,7 +339,9 @@ void SyncYPathRemove(
     auto request = TYPathProxy::Remove(path);
     request->set_recursive(recursive);
     request->set_force(force);
-    ExecuteVerb(service, request).Get().ThrowOnError();
+    ExecuteVerb(service, request)
+        .Get()
+        .ThrowOnError();
 }
 
 std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
