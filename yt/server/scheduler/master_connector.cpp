@@ -1091,10 +1091,13 @@ private:
 
         for (const auto& id : watchSet) {
             auto cellTag = CellTagFromId(id);
-            const auto& batchRsp = batchRsps[cellTag];
-            auto rspOrError = batchRsp->GetResponse("check_tx_" + ToString(id));
-            if (!rspOrError.IsOK()) {
-                deadTransactionIds.insert(id);
+            auto it = batchRsps.find(cellTag);
+            if (it != batchRsps.end()) {
+                const auto& batchRsp = it->second;
+                auto rspOrError = batchRsp->GetResponse("check_tx_" + ToString(id));
+                if (!rspOrError.IsOK()) {
+                    deadTransactionIds.insert(id);
+                }
             }
         }
 
