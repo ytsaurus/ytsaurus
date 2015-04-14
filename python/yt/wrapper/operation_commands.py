@@ -236,30 +236,51 @@ def get_stderrs(operation, only_failed_jobs, limit=None, client=None):
     if only_failed_jobs:
         jobs_with_stderr = filter(lambda obj: "error" in obj.attributes, jobs_with_stderr)
 
-    output = StringIO()
+    result = []
+
     for path in prefix(jobs_with_stderr, get_value(limit, config.ERRORS_TO_PRINT_LIMIT)):
-        output.write("Host: ")
-        output.write(get_attribute(path, "address", client=client))
-        output.write("\n")
+        job_with_stderr = {}
+        job_with_stderr["host"] = get_attribute(path, "address", client=client)
 
         if only_failed_jobs:
-            output.write("Error:\n")
-            output.write(format_error(path.attributes["error"]))
-            output.write("\n")
+            job_with_stderr["error"] = format_error(path.attributes["error"])
 
         try:
             stderr_path = os.path.join(path, "stderr")
             if exists(stderr_path, client=client):
-                for line in download_file(stderr_path, client=client):
-                    output.write(line)
-            output.write("\n\n")
+                job_with_stderr["stderr"] = download_file(stderr_path, client=client).read()
         except YtResponseError:
             if config.IGNORE_STDERR_IF_DOWNLOAD_FAILED:
                 break
             else:
                 raise
 
+        result.append(job_with_stderr)
+
+    return result
+
+def format_operation_stderrs(jobs_with_stderr):
+    """
+    Format operation jobs with stderr to string
+    """
+
+    output = StringIO()
+
+    for job in jobs_with_stderr:
+        output.write("Host: ")
+        output.write(job["host"])
+        output.write("\n")
+
+        if "error" in job:
+            output.write("Error:\n")
+            output.write(job["error"])
+            output.write("\n")
+
+        output.write(job["stderr"])
+        output.write("\n\n")
+
     return output.getvalue()
+
 
 def get_operation_result(operation, client=None):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
@@ -335,13 +356,15 @@ class Operation(object):
             attributes = {}
             if stderrs:
                 attributes["stderrs"] = stderrs
+            attributes["operation_id"] = self.id
+            attributes["state"] = state.name
             raise YtOperationFailedError(message, attributes=attributes)
 
         stderr_level = logging._levelNames[config.STDERR_LOGGING_LEVEL]
         if logger.LOGGER.isEnabledFor(stderr_level):
             stderrs = get_stderrs(self.id, only_failed_jobs=False, client=self.client)
             if stderrs:
-                logger.log(stderr_level, "\n" + stderrs)
+                logger.log(stderr_level, "\n" + format_operation_stderrs(stderrs))
 
 class WaitStrategy(object):
     """Deprecated! Strategy synchronously wait operation, print current progress and finalize at the completion."""
