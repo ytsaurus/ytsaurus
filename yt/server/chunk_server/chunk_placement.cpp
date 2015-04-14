@@ -385,7 +385,7 @@ bool TChunkPlacement::IsValidWriteTarget(
     EWriteSessionType sessionType)
 {
     if (node->GetState() != ENodeState::Online) {
-        // Do not write anything to a node before its first heartbeat or after the it is unregistered.
+        // Do not write anything to a node before its first heartbeat or after it is unregistered.
         return false;
     }
 
