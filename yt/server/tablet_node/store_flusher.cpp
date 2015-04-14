@@ -88,9 +88,9 @@ public:
         , Semaphore_(Config_->StoreFlusher->MaxConcurrentFlushes)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::BeginSlotScan, MakeStrong(this)));
-        slotManager->SubscribeScanSlot(BIND(&TStoreFlusher::ScanSlot, MakeStrong(this)));
-        slotManager->SubscribeEndSlotScan(BIND(&TStoreFlusher::EndSlotScan, MakeStrong(this)));
+        slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
+        slotManager->SubscribeScanSlot(BIND(&TStoreFlusher::OnScanSlot, MakeStrong(this)));
+        slotManager->SubscribeEndSlotScan(BIND(&TStoreFlusher::OnEndSlotScan, MakeStrong(this)));
     }
 
 private:
@@ -111,14 +111,15 @@ private:
     std::vector<TForcedRotationCandidate> ForcedRotationCandidates_;
 
 
-    void BeginSlotScan()
+    void OnBeginSlotScan()
     {
-        // NB: No locking is needed.
+        // NB: Strictly speaking, this locking is redundant.
+        TGuard<TSpinLock> guard(SpinLock_);
         PassiveMemoryUsage_ = 0;
         ForcedRotationCandidates_.clear();
     }
 
-    void ScanSlot(TTabletSlotPtr slot)
+    void OnScanSlot(TTabletSlotPtr slot)
     {
         if (slot->GetAutomatonState() != EPeerState::Leading)
             return;
@@ -130,24 +131,29 @@ private:
         }
     }
 
-    void EndSlotScan()
+    void OnEndSlotScan()
     {
-        // NB: No locking is needed.
+        std::vector<TForcedRotationCandidate> candidates;
+
+        // NB: Strictly speaking, this locking is redundant.
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            ForcedRotationCandidates_.swap(candidates);
+        }
+
         // Order candidates by increasing memory usage.
         std::sort(
-            ForcedRotationCandidates_. begin(),
-            ForcedRotationCandidates_.end(),
+            candidates. begin(),
+            candidates.end(),
             [] (const TForcedRotationCandidate& lhs, const TForcedRotationCandidate& rhs) {
                 return lhs.MemoryUsage < rhs.MemoryUsage;
             });
         
         // Pick the heaviest candidates until no more rotations are needed.
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        while (slotManager->IsRotationForced(PassiveMemoryUsage_) &&
-               !ForcedRotationCandidates_.empty())
-        {
-            auto candidate = ForcedRotationCandidates_.back();
-            ForcedRotationCandidates_.pop_back();
+        while (slotManager->IsRotationForced(PassiveMemoryUsage_) && !candidates.empty()) {
+            auto candidate = candidates.back();
+            candidates.pop_back();
 
             auto tabletId = candidate.TabletId;
             auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId);
