@@ -142,12 +142,11 @@ EValueType TTypedFunction::TypingFunction(
         }
     }
 
-    auto* concreteRepeatedType = repeatedArgType.TryAs<EValueType>();
-    bool hasRepeatedArgument = (concreteRepeatedType == nullptr) ||
-        *concreteRepeatedType == EValueType::Null;
+    bool hasNoRepeatedArgument = repeatedArgType.Is<EValueType>() &&
+        repeatedArgType.As<EValueType>() == EValueType::Null;
 
     if (expectedArg != expectedArgTypes.end() ||
-        (arg != argTypes.end() && !hasRepeatedArgument))
+        (arg != argTypes.end() && hasNoRepeatedArgument))
     {
         THROW_ERROR_EXCEPTION(
             "Function %Qv expects %v arguments, got %v",
