@@ -13,7 +13,8 @@ function(UDF udf output)
   set(_bc_dirname ${CMAKE_BINARY_DIR}/bin/)
   set(_bc_filename ${_filename}.bc)
   set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
-  set(_h_file ${CMAKE_BINARY_DIR}/include/udf/${_filename}.h)
+  set(_h_dirname ${CMAKE_BINARY_DIR}/include/udf)
+  set(_h_file ${_h_dirname}/${_filename}.h)
 
   set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
 
@@ -25,6 +26,8 @@ function(UDF udf output)
   add_custom_command(
     OUTPUT
       ${_h_file}
+    COMMAND
+      mkdir -p ${_h_dirname}
     COMMAND
       ${CLANG_EXECUTABLE} -c
         -I${_include_dir}
