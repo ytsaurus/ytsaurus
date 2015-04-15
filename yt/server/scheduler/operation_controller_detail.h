@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "config.h"
 #include "operation_controller.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"

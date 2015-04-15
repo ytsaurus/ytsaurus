@@ -3,6 +3,7 @@
 #include "public.h"
 #include "chunk_pool.h"
 
+#include <ytlib/node_tracker_client/helpers.h>
 #include <ytlib/node_tracker_client/node.pb.h>
 
 namespace NYT {

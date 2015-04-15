@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "job_resources.h"
+#include "config.h"
 
 #include <ytlib/chunk_client/private.h>
 

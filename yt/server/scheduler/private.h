@@ -5,7 +5,6 @@
 #include "operation_controller.h"
 #include "job.h"
 #include "exec_node.h"
-#include "config.h"
 
 #include <core/logging/log.h>
 
@@ -39,6 +38,8 @@ typedef TIntrusivePtr<TSnapshotDownloader> TSnapshotDownloaderPtr;
 class TOperationControllerBase;
 
 extern const double ApproximateSizesBoostFactor;
+
+extern const Stroka RootPoolName;
 
 extern const NLogging::TLogger SchedulerLogger;
 extern const NLogging::TLogger OperationLogger;

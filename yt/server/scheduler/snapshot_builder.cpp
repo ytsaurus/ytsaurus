@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "config.h"
 #include "snapshot_builder.h"
 #include "scheduler.h"
 #include "helpers.h"

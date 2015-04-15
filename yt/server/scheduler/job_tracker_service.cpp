@@ -5,6 +5,8 @@
 
 #include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
+#include <ytlib/node_tracker_client/helpers.h>
+
 #include <server/cell_scheduler/bootstrap.h>
 
 namespace NYT {
