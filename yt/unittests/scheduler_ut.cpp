@@ -294,7 +294,7 @@ TEST_W(TSchedulerTest, WaitForAsyncVia)
 
 // Various invokers.
 
-TEST_F(TSchedulerTest, WaitForInSerializedInvoker)
+TEST_F(TSchedulerTest, WaitForInSerializedInvoker1)
 {
     auto invoker = CreateSerializedInvoker(Queue1->GetInvoker());
     BIND([&] () {
@@ -303,6 +303,30 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker)
                 .ThrowOnError();
         }
     }).AsyncVia(invoker).Run().Get().ThrowOnError();
+}
+
+TEST_F(TSchedulerTest, WaitForInSerializedInvoker2)
+{
+    // NB! This may be confusing, but serialized invoker is expected to start 
+    // executing next action if current action is blocked on WaitFor.
+
+    auto invoker = CreateSerializedInvoker(Queue1->GetInvoker());
+    std::vector<TFuture<void>> futures
+
+    bool finishedFirstAction = false;
+    futures.emplace_back(BIND([&] () {
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10)))
+                .ThrowOnError();
+        finishedFirstAction = true;
+    }).AsyncVia(invoker).Run());
+
+    futures.emplace_back(BIND([&] () {
+        if (finishedFirstAction) {
+            THROW_ERROR_EXCEPTION("Serialization error");
+        }
+    }).AsyncVia(invoker).Run());
+
+    Combine(futures).Get().ThrowOnError();
 }
 
 TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
