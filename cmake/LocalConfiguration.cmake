@@ -132,7 +132,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 
   set(CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -fPIC ${DIAGNOSTIC_FLAGS} ${ARCH_FLAGS}"
     CACHE STRING "(Auto-generated) C compiler flags" FORCE)
-  set(CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=c++11 -fPIC ${DIAGNOSTIC_FLAGS} ${ARCH_FLAGS}"
+  set(CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=c++1y -fPIC ${DIAGNOSTIC_FLAGS} ${ARCH_FLAGS}"
     CACHE STRING "(Auto-generated) C++ compiler flags" FORCE)
   
   # Use libc++ on Mac OS X.

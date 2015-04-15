@@ -311,7 +311,7 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker2)
     // executing next action if current action is blocked on WaitFor.
 
     auto invoker = CreateSerializedInvoker(Queue1->GetInvoker());
-    std::vector<TFuture<void>> futures
+    std::vector<TFuture<void>> futures;
 
     bool finishedFirstAction = false;
     futures.emplace_back(BIND([&] () {
