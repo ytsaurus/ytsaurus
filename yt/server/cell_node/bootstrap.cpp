@@ -289,7 +289,8 @@ void TBootstrap::DoRun()
     JobController->RegisterFactory(NJobAgent::EJobType::UnorderedMerge,  createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::Partition,       createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::SimpleSort,      createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::PartitionSort,   createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::IntermediateSort,createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::FinalSort,       createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::SortedReduce,    createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::PartitionReduce, createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::ReduceCombiner,  createExecJob);
