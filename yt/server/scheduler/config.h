@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <core/concurrency/throughput_throttler.h>
 
@@ -45,6 +45,9 @@ public:
     //! If enabled, pools will be able to starve and provoke preemption.
     bool EnablePoolStarvation;
 
+    //! Default parent pool for operations with unknown pool.
+    Stroka DefaultParentPool;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -75,6 +78,9 @@ public:
 
         RegisterParameter("enable_pool_starvation", EnablePoolStarvation)
             .Default(true);
+
+        RegisterParameter("default_parent_pool", DefaultParentPool)
+            .Default(RootPoolName);
     }
 };
 

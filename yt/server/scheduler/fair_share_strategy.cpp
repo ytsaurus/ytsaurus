@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "config.h"
 #include "fair_share_strategy.h"
 #include "scheduler_strategy.h"
 #include "master_connector.h"
@@ -1051,7 +1052,7 @@ public:
 
     virtual Stroka GetId() const override
     {
-        return Stroka("<Root>");
+        return Stroka(RootPoolName);
     }
 
     virtual double GetWeight() const override
@@ -1471,7 +1472,13 @@ private:
         auto operationElement = GetOperationElement(operation);
         auto pool = operationElement->GetPool();
         if (!pool->GetParent()) {
-            SetPoolParent(pool, RootElement);
+            auto defaultParentPool = FindPool(Config->DefaultParentPool);
+            if (!defaultParentPool) {
+                LOG_WARNING("Default parent pool %Qv is not registered", Config->DefaultParentPool);
+                SetPoolParent(pool, RootElement);
+            } else {
+                SetPoolParent(pool, defaultParentPool);
+            }
         }
         pool->AddChild(operationElement);
         pool->IncreaseUsage(operationElement->ResourceUsage());
