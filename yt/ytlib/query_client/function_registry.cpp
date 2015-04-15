@@ -132,16 +132,16 @@ DEFINE_ENUM(ETypeCategory,
     ((ConcreteType) (TType::TagOf<EValueType>()))
 );
 
-struct TDescriptorType {
+struct TDescriptorType
+{
     TDescriptorType()
-        : Type(EValueType::Min)
     { }
 
     TDescriptorType(TType type)
         : Type(type)
     { }
 
-    TType Type;
+    TType Type = EValueType::Min;
 };
 
 const Stroka TagKey = "tag";
@@ -175,18 +175,30 @@ void Deserialize(TDescriptorType& value, INodePtr node)
     Deserialize(tag, tagNode);
 
     auto valueNode = mapNode->FindChild(ValueKey);
-    if (tag == TType::TagOf<TTypeArgument>()) {
-        TTypeArgument type;
-        Deserialize(type, valueNode);
-        value.Type = type;
-    } else if (tag == TType::TagOf<TUnionType>()) {
-        TUnionType type;
-        Deserialize(type, valueNode);
-        value.Type = type;
-    } else {
-        EValueType type;
-        Deserialize(type, valueNode);
-        value.Type = type;
+    switch (tag) {
+        case ETypeCategory::TypeArgument:
+            {
+                TTypeArgument type;
+                Deserialize(type, valueNode);
+                value.Type = type;
+                break;
+            }
+        case ETypeCategory::UnionType:
+            {
+                TUnionType type;
+                Deserialize(type, valueNode);
+                value.Type = type;
+                break;
+            }
+        case ETypeCategory::ConcreteType: 
+            {
+                EValueType type;
+                Deserialize(type, valueNode);
+                value.Type = type;
+                break;
+            }
+        default:
+            YUNREACHABLE();
     }
 }
 
@@ -196,7 +208,7 @@ class TCypressFunctionDescriptor
 public:
     Stroka Name;
     std::vector<TDescriptorType> ArgumentTypes;
-    TDescriptorType RepeatedArgumentType;
+    TNullable<TDescriptorType> RepeatedArgumentType;
     TDescriptorType ResultType;
     ECallingConvention CallingConvention;
 
@@ -208,16 +220,16 @@ public:
         RegisterParameter("result_type", ResultType);
         RegisterParameter("calling_convention", CallingConvention);
         RegisterParameter("repeated_argument_type", RepeatedArgumentType)
-            .Default(TDescriptorType(EValueType::Null));
+            .Default(nullptr);
     }
 
     std::vector<TType> GetArgumentsTypes()
     {
-      std::vector<TType> argumentTypes;
-      for (const auto& type: ArgumentTypes) {
-        argumentTypes.push_back(type.Type);
-      }
-      return argumentTypes;
+        std::vector<TType> argumentTypes;
+        for (const auto& type: ArgumentTypes) {
+            argumentTypes.push_back(type.Type);
+        }
+        return argumentTypes;
     }
 };
 
@@ -304,17 +316,14 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
         functionName);
 
     TCypressFunctionDescriptorPtr cypressFunction;
-    bool hasNoRepeatedArgument;
     try {
         cypressFunction = ConvertToNode(cypressFunctionOrError.Value())
             ->Attributes()
             .Find<TCypressFunctionDescriptorPtr>(descriptorAttribute);
         
-        hasNoRepeatedArgument =
-            cypressFunction->RepeatedArgumentType.Type.Is<EValueType>() &&
-            cypressFunction->RepeatedArgumentType.Type.As<EValueType>() == EValueType::Null;
-
-        if (cypressFunction->CallingConvention == ECallingConvention::Simple && !hasNoRepeatedArgument) {
+        if (cypressFunction->CallingConvention == ECallingConvention::Simple && 
+            cypressFunction->RepeatedArgumentType)
+        {
             THROW_ERROR_EXCEPTION("Function using the simple calling convention may not have repeated arguments");
         }
     } catch (const TErrorException& exception) {
@@ -327,7 +336,7 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
         functionPath,
         Client_);
 
-    if (hasNoRepeatedArgument) {
+    if (!cypressFunction->RepeatedArgumentType) {
         UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
             cypressFunction->Name,
             cypressFunction->GetArgumentsTypes(),
@@ -338,7 +347,7 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
         UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
             cypressFunction->Name,
             cypressFunction->GetArgumentsTypes(),
-            cypressFunction->RepeatedArgumentType.Type,
+            cypressFunction->RepeatedArgumentType->Type,
             cypressFunction->ResultType.Type,
             implementationFile));
     }
