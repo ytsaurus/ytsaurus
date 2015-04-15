@@ -70,10 +70,6 @@ void SetCurrentThreadName(const char* name)
         dlsym(RTLD_DEFAULT, "pthread_setname_np");
 
     if (dynamic_pthread_setname_np) {
-        if (::strlen(name) >= _MAX_THREAD_NAME_LENGTH_) {
-            fprintf(stderr, "Thread name '%s' will be truncated\n", name);
-        }
-
         char truncatedName[_MAX_THREAD_NAME_LENGTH_];
         ::memset(truncatedName, 0, _MAX_THREAD_NAME_LENGTH_);
         ::strncpy(truncatedName, name, _MAX_THREAD_NAME_LENGTH_ - 1);
