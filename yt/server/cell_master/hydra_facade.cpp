@@ -139,6 +139,7 @@ public:
             .ThrowOnError();
 
         auto syncReader = CreateSyncAdapter(CreateCopyingAdapter(reader));
+        Automaton_->SetSerializationDumpEnabled(true);
         Automaton_->Clear();
         Automaton_->LoadSnapshot(syncReader.get());
     }
