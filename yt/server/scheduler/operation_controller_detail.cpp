@@ -2090,7 +2090,6 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
                 bestTask->GetPendingJobCount());
             auto job = bestTask->ScheduleJob(context, jobLimits);
             if (job) {
-                bestTask->SetDelayedTime(Null);
                 UpdateTask(bestTask);
                 return job;
             }
