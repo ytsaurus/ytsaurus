@@ -93,6 +93,7 @@ namespace std {
 
 #ifdef __GNUC__
 
+#if __GNUC__ == 4 && __GNUC_MINOR__ < 9
 // As of now, GCC does not support make_unique.
 // See https://gcc.gnu.org/ml/libstdc++/2014-06/msg00010.html
 template <typename TResult, typename ...TArgs>
@@ -100,6 +101,7 @@ std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 {
     return std::unique_ptr<TResult>(new TResult(std::forward<TArgs>(args)...));
 }
+#endif
 
 // As of now, GCC does not have std::aligned_union.
 template <typename... _Types>
