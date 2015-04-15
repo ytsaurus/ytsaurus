@@ -316,6 +316,6 @@ class TestQuery(YTEnvSetup):
         upload_file(sum_path, local_implementation_path)
 
         self._sample_data(path="//tmp/u")
-        expected = [{"s": 2 * i} for i in xrange(1, 10)]
-        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u] where sum_udf(2, 3, 4) = sum_udf(6, 3)")
+        expected = [{"s": i} for i in xrange(1, 10)]
+        actual = select_rows("a as s from [//tmp/u] where b = b")
         assert expected == actual
