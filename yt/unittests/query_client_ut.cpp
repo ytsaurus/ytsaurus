@@ -3659,12 +3659,14 @@ TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
 TEST_F(TQueryEvaluateTest, TestSimpleHash)
 {
     auto split = MakeSplit({
-        {"a", EValueType::Int64}
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+        {"c", EValueType::Boolean}
     });
 
     std::vector<Stroka> source = {
-        "a=3",
-        ""
+        "a=3;b=\"hello\";c=%true",
+        "a=54;c=%false"
     };
 
     auto resultSplit = MakeSplit({
@@ -3672,11 +3674,11 @@ TEST_F(TQueryEvaluateTest, TestSimpleHash)
     });
 
     auto result = BuildRows({
-        "x=4154780334809507742u",
-        "x=14313749767032793493u"
+        "x=14233899715629335710u",
+        "x=5934953485792485966u"
     }, resultSplit);
 
-    Evaluate("simple_hash(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("simple_hash(a, b, c) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     SUCCEED();
 }
@@ -3684,12 +3686,14 @@ TEST_F(TQueryEvaluateTest, TestSimpleHash)
 TEST_F(TQueryEvaluateTest, TestFarmHash)
 {
     auto split = MakeSplit({
-        {"a", EValueType::Int64}
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+        {"c", EValueType::Boolean}
     });
 
     std::vector<Stroka> source = {
-        "a=3",
-        ""
+        "a=3;b=\"hello\";c=%true",
+        "a=54;c=%false"
     };
 
     auto resultSplit = MakeSplit({
@@ -3697,11 +3701,11 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
     });
 
     auto result = BuildRows({
-        "x=3509085207357874260u",
-        "x=3315701238936582721u"
+        "x=13185060272037541714u",
+        "x=1607147011416532415u"
     }, resultSplit);
 
-    Evaluate("farm_hash(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("farm_hash(a, b, c) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     SUCCEED();
 }
