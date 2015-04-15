@@ -58,6 +58,7 @@ protected:
 
     INodeTypeHandlerPtr TypeHandler;
     NCellMaster::TBootstrap* Bootstrap;
+    TCypressManagerConfigPtr Config;
     NTransactionServer::TTransaction* Transaction;
     TCypressNodeBase* TrunkNode;
 

@@ -21,6 +21,8 @@
 
 #include <core/ypath/tokenizer.h>
 
+#include <server/cell_master/config.h>
+
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
 #include <server/security_server/user.h>
@@ -211,6 +213,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     : TObjectProxyBase(bootstrap, trunkNode)
     , TypeHandler(typeHandler)
     , Bootstrap(bootstrap)
+    , Config(Bootstrap->GetConfig()->CypressManager)
     , Transaction(transaction)
     , TrunkNode(trunkNode)
 {
@@ -1147,7 +1150,7 @@ void TMapNodeProxy::SetChild(
     INodePtr value,
     bool recursive)
 {
-    TMapNodeMixin::SetChild(factory, path, value, recursive);
+    TMapNodeMixin::SetChild(factory, path, value, recursive, Config->MaxNodeChildCount);
 }
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
@@ -1349,7 +1352,7 @@ void TListNodeProxy::SetChild(
     INodePtr value,
     bool recursive)
 {
-    TListNodeMixin::SetChild(factory, path, value, recursive);
+    TListNodeMixin::SetChild(factory, path, value, recursive, Config->MaxNodeChildCount);
 }
 
 IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(

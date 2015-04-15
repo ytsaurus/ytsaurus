@@ -154,7 +154,7 @@ void TCompositeNodeMixin::SetRecursive(
 
     auto factory = CreateFactory();
     auto value = ConvertToNode(TYsonString(request->value()), factory.Get());
-    SetChild(factory, "/" + path, value, false);
+    SetChild(factory, "/" + path, value, false, Null);
     factory->Commit();
 
     context->Reply();
@@ -286,7 +286,8 @@ void TMapNodeMixin::SetChild(
     INodeFactoryPtr factory,
     const TYPath& path,
     INodePtr value,
-    bool recursive)
+    bool recursive,
+    TNullable<int> maxChildCount)
 {
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
@@ -310,6 +311,10 @@ void TMapNodeMixin::SetChild(
         }
 
         auto newValue = lastStep ? value : factory->CreateMap();
+        if (maxChildCount && node->GetChildCount() >= *maxChildCount) {
+            THROW_ERROR_EXCEPTION("Too many children in map node")
+                    << TErrorAttribute("limit", *maxChildCount);
+        }
         YCHECK(node->AddChild(newValue, key));
 
         if (!lastStep) {
@@ -376,7 +381,8 @@ void TListNodeMixin::SetChild(
     INodeFactoryPtr /*factory*/,
     const TYPath& path,
     INodePtr value,
-    bool recursive)
+    bool recursive,
+    TNullable<int> maxChildCount)
 {
     if (recursive) {
         THROW_ERROR_EXCEPTION("Cannot create intermediate nodes in a list");
@@ -413,6 +419,10 @@ void TListNodeMixin::SetChild(
     tokenizer.Advance();
     tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
+    if (maxChildCount && GetChildCount() >= *maxChildCount) {
+        THROW_ERROR_EXCEPTION("Too many children in list node")
+                << TErrorAttribute("limit", *maxChildCount);
+    }
     AddChild(value, beforeIndex);
 }
 
