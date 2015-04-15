@@ -101,9 +101,7 @@ public:
         CmdLine.add(ConfigTemplate);
         CmdLine.add(Node);
         CmdLine.add(Master);
-#ifdef YT_ENABLE_SERIALIZATION_DUMP
         CmdLine.add(DumpMasterSnapshot);
-#endif
         CmdLine.add(Scheduler);
         CmdLine.add(JobProxy);
         CmdLine.add(JobId);
