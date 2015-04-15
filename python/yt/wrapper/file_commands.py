@@ -121,8 +121,6 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
         destination = prefix
         if placement_strategy == "random":
             destination = find_free_subpath(prefix, client=client)
-        if placement_strategy == "replace" and exists(prefix, client=client):
-            remove(destination, client=client)
         if placement_strategy == "ignore" and exists(destination, client=client):
             return
         if yt_filename is None:
@@ -133,6 +131,9 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
         mkdir(os.path.dirname(destination), recursive=True, client=client)
         if yt_filename is None:
             yt_filename = os.path.basename(destination)
+
+    if placement_strategy == "replace" and exists(prefix, client=client):
+        remove(destination, client=client)
 
     logger.debug("Uploading file '%s' with strategy '%s'", filename, placement_strategy)
 
