@@ -36,7 +36,8 @@ Stroka ToString(llvm::Type* tp)
 
 Type* GetOpaqueType(
     TCGContext& builder,
-    const char* name) {
+    const char* name)
+{
     auto existingType = builder.Module
         ->GetModule()
         ->getTypeByName(name);
