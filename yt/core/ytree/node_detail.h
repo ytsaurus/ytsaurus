@@ -100,7 +100,8 @@ protected:
         INodeFactoryPtr factory,
         const TYPath& path,
         INodePtr value,
-        bool recursive) = 0;
+        bool recursive,
+        TNullable<int> maxChildCount) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,7 +125,8 @@ protected:
         INodeFactoryPtr factory,
         const TYPath& path,
         INodePtr value,
-        bool recursive) override;
+        bool recursive,
+        TNullable<int> maxChildCount) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,7 +144,8 @@ protected:
         INodeFactoryPtr factory,
         const TYPath& path,
         INodePtr value,
-        bool recursive) override;
+        bool recursive,
+        TNullable<int> maxChildCount) override;
 
 };
 
