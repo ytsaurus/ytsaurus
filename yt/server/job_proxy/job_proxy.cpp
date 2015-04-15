@@ -252,7 +252,8 @@ IJobPtr TJobProxy::CreateBuiltinJob()
         case NScheduler::EJobType::SortedMerge:
             return CreateSortedMergeJob(this);
 
-        case NScheduler::EJobType::PartitionSort:
+        case NScheduler::EJobType::FinalSort:
+        case NScheduler::EJobType::IntermediateSort:
             return CreatePartitionSortJob(this);
 
         case NScheduler::EJobType::SimpleSort:

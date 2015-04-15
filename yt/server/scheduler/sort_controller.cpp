@@ -1921,7 +1921,6 @@ private:
         }
 
         TJobSpec sortJobSpecTemplate;
-        sortJobSpecTemplate.set_type(static_cast<int>(SimpleSort ? EJobType::SimpleSort : EJobType::PartitionSort));
         {
             auto* schedulerJobSpecExt = sortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -1933,12 +1932,14 @@ private:
 
         {
             IntermediateSortJobSpecTemplate = sortJobSpecTemplate;
+            IntermediateSortJobSpecTemplate.set_type(static_cast<int>(SimpleSort ? EJobType::SimpleSort : EJobType::IntermediateSort));
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
         }
 
         {
             FinalSortJobSpecTemplate = sortJobSpecTemplate;
+            FinalSortJobSpecTemplate.set_type(static_cast<int>(SimpleSort ? EJobType::SimpleSort : EJobType::FinalSort));
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
         }
@@ -2438,7 +2439,7 @@ private:
                     ReduceCombinerFiles,
                     ReduceCombinerTableFiles);
             } else {
-                IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::PartitionSort));
+                IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::IntermediateSort));
                 auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
                 ToProto(sortJobSpecExt->mutable_key_columns(), Spec->SortBy);
             }
