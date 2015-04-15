@@ -183,6 +183,7 @@ void TSlot::DoResetProcessGroup()
 void TSlot::Clean()
 {
     try {
+        LOG_INFO("Cleaning slot");
         DoCleanProcessGroups();
         DoCleanSandbox();
     } catch (const std::exception& ex) {

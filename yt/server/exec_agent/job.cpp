@@ -9,7 +9,7 @@
 
 #include <core/misc/proc.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <core/actions/cancelable_context.h>
 
 #include <core/logging/log_manager.h>
 
@@ -99,38 +99,43 @@ public:
 
     virtual void Start() override
     {
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            YCHECK(JobState == EJobState::Waiting);
-            JobState = EJobState::Running;
-            StartTime = TInstant::Now();
-        }
+        // No SpinLock here, because concurrent access is impossible before 
+        // calling Start.
+        YCHECK(JobState == EJobState::Waiting);
+        JobState = EJobState::Running;
 
+        StartTime = TInstant::Now();
         auto slotManager = Bootstrap->GetExecSlotManager();
         Slot = slotManager->AcquireSlot();
 
-        RunFuture = BIND(&TJob::DoRun, MakeWeak(this))
-            .AsyncVia(Slot->GetInvoker())
+        auto invoker = CancelableContext->CreateInvoker(Slot->GetInvoker());
+        BIND(&TJob::DoRun, MakeWeak(this))
+            .Via(invoker)
             .Run();
     }
 
     virtual void Abort(const TError& error) override
     {
+        if (GetState() == EJobState::Waiting) {
+            // Abort before the start.
+            JobState = EJobState::Aborted;
+            ResourceUsage = ZeroNodeResources();
+            return;
+        }
+
         {
             TGuard<TSpinLock> guard(SpinLock);
-            if (JobState != EJobState::Running && JobState != EJobState::Waiting) {
+            if (JobState != EJobState::Running) {
                 return;
             }
             JobState = EJobState::Aborting;
         }
 
-        if (RunFuture) {
-            RunFuture.Cancel();
-        }
-
-        auto invoker = Slot ? Slot->GetInvoker() : GetSyncInvoker();
-        invoker->Invoke(BIND(&TJob::DoAbort, MakeStrong(this), error));
-
+        CancelableContext->Cancel();
+        YCHECK(Slot);
+        BIND(&TJob::DoAbort, MakeStrong(this), error)
+            .Via(Slot->GetInvoker())
+            .Run();
     }
 
     virtual const TJobId& GetId() const override
@@ -184,7 +189,7 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock);
 
-        if (JobState != EJobState::Running && JobState != EJobState::Aborting) {
+        if (JobState != EJobState::Running) {
             return;
         }
 
@@ -309,6 +314,8 @@ private:
     EJobState JobState = EJobState::Waiting;
     EJobPhase JobPhase = EJobPhase::Created;
 
+    TCancelableContextPtr CancelableContext = New<TCancelableContext>();
+
     double Progress_ = 0.0;
     TJobStatistics JobStatistics = ZeroJobStatistics();
 
@@ -359,7 +366,9 @@ private:
                 }
                 JobState = EJobState::Aborting;
             }
-            Slot->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this), ex));
+            BIND(&TJob::DoAbort, MakeStrong(this), ex)
+                .Via(Slot->GetInvoker())
+                .Run();
         }
     }
 
@@ -453,32 +462,28 @@ private:
 
         runError.ThrowOnError();
 
-        if (!IsResultSet()) {
-            THROW_ERROR_EXCEPTION("Job proxy exited successfully, but job result has not been set");
-        }
-
+        YCHECK(JobResult.HasValue());
         YCHECK(JobPhase == EJobPhase::Running);
+
         JobPhase = EJobPhase::Cleanup;
-
         Slot->Clean();
-
         YCHECK(JobPhase == EJobPhase::Cleanup);
+
+        LOG_INFO("Job completed");
+
         FinalizeJob();
     }
 
     void FinalizeJob()
     {
-        if (Slot) {
-            Slot->Release();
-        }
-
+        Slot->Release();
         auto resourceDelta = ZeroNodeResources() - ResourceUsage;
         {
             TGuard<TSpinLock> guard(SpinLock);
             ResourceUsage = ZeroNodeResources();
 
-            JobState = FinalJobState;
             JobPhase = EJobPhase::Finished;
+            JobState = FinalJobState;
         }
 
         ResourcesUpdated_.Fire(resourceDelta);
@@ -486,17 +491,18 @@ private:
 
     void DoAbort(const TError& error)
     {
-        auto prevJobPhase = JobPhase;
-        JobPhase = EJobPhase::Cleanup;
+        YCHECK(GetState() == EJobState::Aborting);
 
         LOG_INFO(error, "Aborting job");
+
+        auto prevJobPhase = JobPhase;
+        JobPhase = EJobPhase::Cleanup;
 
         if (prevJobPhase >= EJobPhase::Running) {
             ProxyController->Kill(Slot->GetProcessGroup(), error);
         }
 
         if (prevJobPhase >= EJobPhase::PreparingSandbox) {
-            LOG_INFO("Cleaning slot");
             Slot->Clean();
         }
 
@@ -508,12 +514,6 @@ private:
         LOG_INFO("Job aborted");
 
         FinalizeJob();
-    }
-
-    bool IsResultSet() const
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        return JobResult.HasValue();
     }
 
     void DownloadChunks(const google::protobuf::RepeatedPtrField<TChunkSpec>& chunks)
