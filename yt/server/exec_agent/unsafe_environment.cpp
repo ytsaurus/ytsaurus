@@ -114,11 +114,9 @@ public:
     }
 
     // Safe to call multiple times
-    virtual void Kill(const TNonOwningCGroup& group, const TError& error) override
+    virtual void Kill(const TNonOwningCGroup& group) override
     {
-        LOG_INFO(error, "Killing job in unsafe environment (ProcessGroup: %v)", group.GetFullPath());
-
-        SetError(error);
+        LOG_INFO("Killing job in unsafe environment (ProcessGroup: %v)", group.GetFullPath());
 
         // One certaily can say that Process.Spawn exited
         // before this line due to thread affinity
@@ -143,20 +141,6 @@ public:
     }
 
 private:
-    void SetError(const TError& error)
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (Error.IsOK()) {
-            Error = error;
-        }
-    }
-
-    TError GetError() const
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        return Error;
-    }
-
     static void* ThreadFunc(void* param)
     {
         auto controller = MakeStrong(static_cast<TUnsafeProxyController*>(param));
@@ -173,11 +157,10 @@ private:
         LOG_INFO(error, "Job proxy finished");
 
         if (!error.IsOK()) {
-            auto wrappedError = TError("Job proxy failed") << error;
-            SetError(wrappedError);
+            error = TError("Job proxy failed") << error;
         }
 
-        OnExit.Set(GetError());
+        OnExit.Set(error);
     }
 
     const Stroka ProxyPath;
