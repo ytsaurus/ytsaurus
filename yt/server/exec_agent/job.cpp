@@ -118,8 +118,9 @@ public:
     {
         if (GetState() == EJobState::Waiting) {
             // Abort before the start.
-            JobState = EJobState::Aborted;
-            ResourceUsage = ZeroNodeResources();
+            YCHECK(!JobResult.HasValue());
+            DoSetResult(error);
+            SetFinalState();
             return;
         }
 
@@ -128,12 +129,13 @@ public:
             if (JobState != EJobState::Running) {
                 return;
             }
+            DoSetResult(error);
             JobState = EJobState::Aborting;
         }
 
         CancelableContext->Cancel();
         YCHECK(Slot);
-        BIND(&TJob::DoAbort, MakeStrong(this), error)
+        BIND(&TJob::DoAbort, MakeStrong(this))
             .Via(Slot->GetInvoker())
             .Run();
     }
@@ -188,41 +190,10 @@ public:
     virtual void SetResult(const TJobResult& jobResult) override
     {
         TGuard<TSpinLock> guard(SpinLock);
-
         if (JobState != EJobState::Running) {
             return;
         }
-
-        if (JobResult) {
-            auto error = FromProto<TError>(JobResult->error());
-            if (!error.IsOK()) {
-                return;
-            }
-        }
-
-        JobResult = jobResult;
-        auto error = FromProto<TError>(jobResult.error());
-
-        if (error.IsOK()) {
-            return;
-        }
-
-        if (IsFatalError(error)) {
-            error.Attributes().Set("fatal", IsFatalError(error));
-            ToProto(JobResult->mutable_error(), error);
-            FinalJobState = EJobState::Failed;
-            return;
-        }
-
-        auto abortReason = GetAbortReason(jobResult);
-        if (abortReason) {
-            error.Attributes().Set("abort_reason", abortReason);
-            ToProto(JobResult->mutable_error(), error);
-            FinalJobState = EJobState::Aborted;
-            return;
-        }
-
-        FinalJobState = EJobState::Failed;
+        DoSetResult(jobResult);
     }
 
     virtual double GetProgress() const override
@@ -364,12 +335,55 @@ private:
                     YCHECK(JobState == EJobState::Aborting);
                     return;
                 }
+                DoSetResult(ex);
                 JobState = EJobState::Aborting;
             }
-            BIND(&TJob::DoAbort, MakeStrong(this), ex)
+            BIND(&TJob::DoAbort, MakeStrong(this))
                 .Via(Slot->GetInvoker())
                 .Run();
         }
+    }
+
+    void DoSetResult(const TError& error)
+    {
+        TJobResult jobResult;
+        ToProto(jobResult.mutable_error(), error);
+        ToProto(jobResult.mutable_statistics(), GetJobStatistics());
+        DoSetResult(jobResult);
+    }
+
+    void DoSetResult(const TJobResult& jobResult)
+    {
+        if (JobResult) {
+            auto error = FromProto<TError>(JobResult->error());
+            if (!error.IsOK()) {
+                return;
+            }
+        }
+
+        JobResult = jobResult;
+        auto error = FromProto<TError>(jobResult.error());
+
+        if (error.IsOK()) {
+            return;
+        }
+
+        if (IsFatalError(error)) {
+            error.Attributes().Set("fatal", IsFatalError(error));
+            ToProto(JobResult->mutable_error(), error);
+            FinalJobState = EJobState::Failed;
+            return;
+        }
+
+        auto abortReason = GetAbortReason(jobResult);
+        if (abortReason) {
+            error.Attributes().Set("abort_reason", abortReason);
+            ToProto(JobResult->mutable_error(), error);
+            FinalJobState = EJobState::Aborted;
+            return;
+        }
+
+        FinalJobState = EJobState::Failed;
     }
 
     void PrepareConfig()
@@ -458,7 +472,7 @@ private:
         auto runError = WaitFor(ProxyController->Run());
 
         // NB: We should explicitly call Kill() to clean up possible child processes.
-        ProxyController->Kill(Slot->GetProcessGroup(), TError());
+        ProxyController->Kill(Slot->GetProcessGroup());
 
         runError.ThrowOnError();
 
@@ -480,36 +494,36 @@ private:
         auto resourceDelta = ZeroNodeResources() - ResourceUsage;
         {
             TGuard<TSpinLock> guard(SpinLock);
-            ResourceUsage = ZeroNodeResources();
-
-            JobPhase = EJobPhase::Finished;
-            JobState = FinalJobState;
+            SetFinalState();
         }
 
         ResourcesUpdated_.Fire(resourceDelta);
     }
 
-    void DoAbort(const TError& error)
+    void SetFinalState()
+    {
+        ResourceUsage = ZeroNodeResources();
+
+        JobPhase = EJobPhase::Finished;
+        JobState = FinalJobState;
+    }
+
+    void DoAbort()
     {
         YCHECK(GetState() == EJobState::Aborting);
 
-        LOG_INFO(error, "Aborting job");
+        LOG_INFO("Aborting job");
 
         auto prevJobPhase = JobPhase;
         JobPhase = EJobPhase::Cleanup;
 
         if (prevJobPhase >= EJobPhase::Running) {
-            ProxyController->Kill(Slot->GetProcessGroup(), error);
+            ProxyController->Kill(Slot->GetProcessGroup());
         }
 
         if (prevJobPhase >= EJobPhase::PreparingSandbox) {
             Slot->Clean();
         }
-
-        TJobResult jobResult;
-        ToProto(jobResult.mutable_error(), error);
-        ToProto(jobResult.mutable_statistics(), GetJobStatistics());
-        SetResult(jobResult);
 
         LOG_INFO("Job aborted");
 

@@ -27,7 +27,7 @@ struct IProxyController
      *
      *  Thread affinity: same thread as #Run.
      */
-    virtual void Kill(const NCGroup::TNonOwningCGroup& group, const TError& error) = 0;
+    virtual void Kill(const NCGroup::TNonOwningCGroup& group) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
