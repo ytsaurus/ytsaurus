@@ -84,7 +84,7 @@ private:
             : Null;
         const auto& forbiddenAddresses = request->forbidden_addresses();
 
-        context->SetRequestInfo("ChunkId: %v, DesirdTargetCount: %v, MinTargetCount: %v, PeferredHostName: %v, ForbiddenAddresses: [%v]",
+        context->SetRequestInfo("ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, PeferredHostName: %v, ForbiddenAddresses: [%v]",
             chunkId,
             desiredTargetCount,
             minTargetCount,
