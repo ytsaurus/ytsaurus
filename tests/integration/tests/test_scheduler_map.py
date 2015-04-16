@@ -170,14 +170,12 @@ class TestEventLog(YTEnvSetup):
         write("//tmp/t1", [{"a": "b"}])
         op_id = map(in_="//tmp/t1", out="//tmp/t2", command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null')
 
-        statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert get_statistics(statistics, "completed_jobs.user_job.cpu.user.sum") > 0
-        assert get_statistics(statistics, "completed_jobs.user_job.block_io.bytes_read.sum") is not None
-        assert get_statistics(statistics, "completed_jobs.user_job.memory.rss.count") > 0
-        assert get_statistics(statistics, "completed_jobs.job_proxy.cpu.user.count") == 1
-        assert get_statistics(statistics, "completed_jobs.job_proxy.cpu.user.count") == 1
-        assert "failed_jobs" in statistics
-        assert "aborted_jobs" in statistics
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op_id))
+        assert get_statistics(statistics, "user_job.cpu.user.$.completed.map.sum") > 0
+        assert get_statistics(statistics, "user_job.block_io.bytes_read.$.completed.map.sum") is not None
+        assert get_statistics(statistics, "user_job.current_memory.rss.$.completed.map.count") > 0
+        assert get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1
+        assert get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1
 
         # wait for scheduler to dump the event log
         time.sleep(6)
@@ -305,7 +303,10 @@ class TestUserStatistics(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
-            "force_enable_accounting" : True
+            "force_enable_accounting" : True,
+            'slot_manager' : {
+                'enable_cgroups' : 'true'
+            }
         }
     }
 
@@ -322,9 +323,9 @@ class TestUserStatistics(YTEnvSetup):
                 r'os.write(5, \"{ cpu={ k1=4; k3=7 }}; {k2=-7};{k2=1};\"); '
                 r'os.close(5);"'))
 
-        statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert get_statistics(statistics, "completed_jobs.custom.cpu.k1.max") == 4
-        assert get_statistics(statistics, "completed_jobs.custom.k2.count") == 1
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op_id))
+        assert get_statistics(statistics, "custom.cpu.k1.$.completed.map.max") == 4
+        assert get_statistics(statistics, "custom.k2.$.completed.map.count") == 1
 
     def test_multiple_job_statistics(self):
         create("table", "//tmp/t1")
@@ -332,8 +333,8 @@ class TestUserStatistics(YTEnvSetup):
         write("//tmp/t1", [{"a": "b"} for i in range(2)])
 
         op_id = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"job_count": 2})
-        statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert get_statistics(statistics, "completed_jobs.user_job.cpu.user.count") == 2
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op_id))
+        assert get_statistics(statistics, "user_job.cpu.user.$.completed.map.count") == 2
 
     def test_job_statistics_progress(self):
         create("table", "//tmp/t1")
@@ -370,20 +371,25 @@ class TestUserStatistics(YTEnvSetup):
             tries = 0
             statistics = {}
 
-            while not statistics.get("completed_jobs", {}):
-                time.sleep(1)
-                tries += 1
-                statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-                if tries > 10:
-                    break
+            counter_name = "user_job.cpu.user.$.completed.map.count"
+            count = None
 
-            assert get_statistics(statistics, "completed_jobs.user_job.cpu.user.count") == 1
+            while count is None or tries <= 10:
+                statistics = get("//sys/operations/{0}/@progress".format(op_id))
+                tries += 1
+                try:
+                    count = get_statistics(statistics["job_statistics"], counter_name)
+                except KeyError:
+                    pass
+
+            assert count == 1
 
             os.unlink(keeper_filename)
             track_op(op_id)
 
-            statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-            assert get_statistics(statistics, "completed_jobs.user_job.cpu.user.count") == 2
+            statistics = get("//sys/operations/{0}/@progress".format(op_id))
+            count = get_statistics(statistics["job_statistics"], counter_name)
+            assert count == 2
         finally:
             to_delete.reverse()
             for filename in to_delete:
@@ -639,8 +645,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert get("//tmp/t2/@row_count") == 1
 
-        progress = get("//sys/operations/{0}/@progress".format(op_id))
-        assert progress["exact_input_statistics"]["row_count"] == 1
+        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/map/sum".format(op_id))
+        assert row_count == 1
 
     def test_multiple_output_row_count(self):
         create("table", "//tmp/t1")
@@ -649,9 +655,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
         write("//tmp/t1", [{"key" : i} for i in xrange(5)])
 
         op_id = map(command="cat; echo {hello=world} >&4", in_="//tmp/t1", out=["//tmp/t2", "//tmp/t3"])
-        progress = get("//sys/operations/{0}/@progress".format(op_id))
-        assert progress["detailed_output_statistics"][0]["row_count"] == 5
-        assert progress["detailed_output_statistics"][1]["row_count"] == 1
+        assert get("//tmp/t2/@row_count") == 5
+        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/0/row_count/$/completed/map/sum".format(op_id))
+        assert row_count == 5
+        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum".format(op_id))
+        assert row_count == 1
 
 
     def test_invalid_output_record(self):

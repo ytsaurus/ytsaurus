@@ -194,7 +194,6 @@ private:
         {
             TTask::OnJobCompleted(joblet);
 
-            RegisterInput(joblet);
             RegisterOutput(joblet, joblet->JobIndex);
         }
 

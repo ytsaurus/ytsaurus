@@ -26,8 +26,6 @@
 #include <ytlib/node_tracker_client/helpers.h>
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/job_tracker_client/statistics.h>
-
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -175,13 +173,7 @@ public:
         Progress_ = value;
     }
 
-    virtual TJobStatistics GetJobStatistics() const override
-    {
-        // ToDo(psushin)
-        return ZeroJobStatistics();
-    }
-
-    virtual void SetJobStatistics(const TJobStatistics& statistics) override
+    virtual void SetStatistics(const NYTree::TYsonString& /*statistics*/) override
     {
         YUNREACHABLE();
     }
@@ -269,7 +261,6 @@ private:
         JobPhase_ = EJobPhase::Finished;
         JobState_ = finalState;
         ToProto(Result_.mutable_error(), error);
-        ToProto(Result_.mutable_statistics(), GetJobStatistics());
         auto deltaResources = ZeroNodeResources() - ResourceLimits_;
         ResourceLimits_ = ZeroNodeResources();
         JobFuture_.Reset();

@@ -30,8 +30,6 @@
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <ytlib/job_tracker_client/statistics.h>
-
 #include <ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <ytlib/security_client/public.h>
@@ -91,6 +89,7 @@ public:
         : JobId(jobId)
         , Bootstrap(bootstrap)
         , ResourceUsage(resourceUsage)
+        , Statistics(SerializedEmptyStatistics)
     {
         JobSpec.Swap(&jobSpec);
 
@@ -103,7 +102,7 @@ public:
 
     virtual void Start() override
     {
-        // No SpinLock here, because concurrent access is impossible before 
+        // No SpinLock here, because concurrent access is impossible before
         // calling Start.
         YCHECK(JobState == EJobState::Waiting);
         JobState = EJobState::Running;
@@ -214,26 +213,6 @@ public:
         }
     }
 
-    virtual TJobStatistics GetJobStatistics() const override
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (JobResult.HasValue()) {
-            return JobResult.Get().statistics();
-        } else {
-            auto result = JobStatistics;
-            result.set_time(GetElapsedTime().MilliSeconds());
-            return result;
-        }
-    }
-
-    virtual void SetJobStatistics(const TJobStatistics& statistics) override
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (JobState == EJobState::Running) {
-            JobStatistics = statistics;
-        }
-    }
-
     TDuration GetElapsedTime() const
     {
         if (StartTime.HasValue()) {
@@ -251,6 +230,14 @@ public:
         NJobProberClient::TJobProberServiceProxy jobProberProxy(jobProberChannel);
         jobProberProxy.SetDefaultTimeout(Bootstrap->GetConfig()->ExecAgent->JobProberRpcTimeout);
         return jobProberProxy;
+    }
+
+    virtual void SetStatistics(const TYsonString& statistics) override
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (JobState == EJobState::Running) {
+            Statistics = statistics;
+        }
     }
 
     std::vector<TChunkId> DumpInputContexts() const override
@@ -292,7 +279,7 @@ private:
     TCancelableContextPtr CancelableContext = New<TCancelableContext>();
 
     double Progress_ = 0.0;
-    TJobStatistics JobStatistics = ZeroJobStatistics();
+    TYsonString Statistics;
 
     TNullable<TJobResult> JobResult;
 
@@ -352,8 +339,7 @@ private:
     {
         TJobResult jobResult;
         ToProto(jobResult.mutable_error(), error);
-        ToProto(jobResult.mutable_statistics(), JobStatistics);
-        jobResult.mutable_statistics()->set_time(GetElapsedTime().MilliSeconds());
+        ToProto(jobResult.mutable_statistics(), Statistics.Data());
         DoSetResult(jobResult);
     }
 

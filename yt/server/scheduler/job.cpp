@@ -8,6 +8,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NNodeTrackerClient::NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -36,6 +37,12 @@ TJob::TJob(
 TDuration TJob::GetDuration() const
 {
     return *FinishTime_ - StartTime_;
+}
+
+void TJob::SetResult(const NJobTrackerClient::NProto::TJobResult& result)
+{
+    Result_ = result;
+    Statistics_ = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(Result_.statistics()));
 }
 
 ////////////////////////////////////////////////////////////////////

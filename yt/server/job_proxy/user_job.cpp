@@ -131,18 +131,17 @@ public:
 
         DoJobIO();
 
-        {
-            TGuard<TSpinLock> guard(StatisticsLock_);
-            Statistics_.Add(
-                "/user_job/time",
-                static_cast<i64>(GetElapsedTime().MilliSeconds()));
-        }
-
         WaitFor(BlockIOWatchdogExecutor_->Stop());
         WaitFor(MemoryWatchdogExecutor_->Stop());
 
         if (!JobErrorPromise_.IsSet())  {
             FinalizeJobIO();
+        }
+
+        {
+            // One do not need to get a lock here
+            TGuard<TSpinLock> guard(StatisticsLock_);
+            FillCurrentDataStatistics(Statistics_);
         }
 
         CleanupCGroups();
@@ -680,6 +679,25 @@ private:
         Statistics_.AddComplex(path, statistic);
     }
 
+    void FillCurrentDataStatistics(TStatistics& statistics) const
+    {
+        statistics.Add(
+            "/user_job/time",
+            static_cast<i64>(GetElapsedTime().MilliSeconds()));
+
+        statistics.AddComplex("/data/input", GetDataStatistics(JobIO_->GetReaders()));
+
+        int i = 0;
+        for (const auto& writer : JobIO_->GetWriters()) {
+            statistics.AddComplex(
+                "/data/output/" + NYPath::ToYPathLiteral(i),
+                writer->GetDataStatistics());
+            ++i;
+        }
+
+        statistics.Add("/data/time", GetElapsedTime().MilliSeconds());
+    }
+
     template <class T>
     TDataStatistics GetDataStatistics(const std::vector<T>& sources) const
     {
@@ -691,24 +709,15 @@ private:
         return statistics;
     }
 
-    virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const override
+    virtual TStatistics GetStatistics() const override
     {
-        NJobTrackerClient::NProto::TJobStatistics result;
-        result.set_time(GetElapsedTime().MilliSeconds());
-
-        ToProto(result.mutable_input(), GetDataStatistics(JobIO_->GetReaders()));
-
-        for (const auto& writer : JobIO_->GetWriters()) {
-            auto* output = result.add_output();
-            ToProto(output, writer->GetDataStatistics());
-        }
-
+        TStatistics result;
         {
             TGuard<TSpinLock> guard(StatisticsLock_);
-            ToProto(result.mutable_statistics(), ConvertToYsonString(Statistics_).Data());
+            result = Statistics_;
         }
-
-        return result;
+        FillCurrentDataStatistics(result);
+        return std::move(result);
     }
 
     void DoJobIO()
@@ -834,7 +843,7 @@ private:
 
         if (Memory_.IsCreated()) {
             auto statistics = Memory_.GetStatistics();
-            AddStatistic("/user_job/memory", statistics);
+            AddStatistic("/user_job/current_memory", statistics);
 
             i64 uidRss = rss;
             rss = statistics.Rss + statistics.MappedFile;

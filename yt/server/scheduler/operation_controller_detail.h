@@ -37,8 +37,6 @@
 #include <ytlib/node_tracker_client/public.h>
 #include <ytlib/node_tracker_client/helpers.h>
 
-#include <ytlib/job_tracker_client/statistics.h>
-
 #include <ytlib/scheduler/statistics.h>
 
 #include <server/chunk_server/public.h>
@@ -163,24 +161,10 @@ protected:
     i64 TotalEstimatedInputRowCount;
     i64 TotalEstimatedInputValueCount;
 
-    // These totals are exact.
-    NChunkClient::NProto::TDataStatistics TotalExactInputDataStatistics;
-
-    // These totals are exact.
-    NChunkClient::NProto::TDataStatistics TotalIntermediateDataStatistics;
-
-    // These totals are exact.
-    std::vector<NChunkClient::NProto::TDataStatistics> OutputDataStatistics;
-
     int UnavailableInputChunkCount;
 
     // Job counters.
     TProgressCounter JobCounter;
-
-    // Job statistics.
-    NJobTrackerClient::NProto::TJobStatistics CompletedJobStatistics;
-    NJobTrackerClient::NProto::TJobStatistics FailedJobStatistics;
-    NJobTrackerClient::NProto::TJobStatistics AbortedJobStatistics;
 
     // Maps node ids seen in fetch responses to node descriptors.
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
@@ -526,7 +510,6 @@ protected:
         static TChunkStripePtr BuildIntermediateChunkStripe(
             google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
-        void RegisterInput(TJobletPtr joblet);
         void RegisterOutput(TJobletPtr joblet, int key);
 
     };
@@ -758,16 +741,14 @@ protected:
         int key,
         TOutputTable* outputTable);
 
-    void RegisterInput(TJobletPtr joblet);
+    virtual void RegisterOutput(
+        TJobletPtr joblet,
+        int key);
 
     void RegisterOutput(
         NChunkClient::TRefCountedChunkSpecPtr chunkSpec,
         int key,
         int tableIndex);
-
-    void RegisterOutput(
-        TJobletPtr joblet,
-        int key);
 
     void RegisterOutput(
         const NChunkClient::TChunkTreeId& chunkTreeId,

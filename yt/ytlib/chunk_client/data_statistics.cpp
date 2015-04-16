@@ -2,7 +2,7 @@
 #include "data_statistics.h"
 
 #include <core/misc/format.h>
-        
+
 #include <core/ytree/fluent.h>
 
 namespace NYT {
@@ -79,6 +79,15 @@ void Serialize(const TDataStatistics& statistics, NYson::IYsonConsumer* consumer
             .Item("uncompressed_data_size").Value(statistics.uncompressed_data_size())
             .Item("compressed_data_size").Value(statistics.compressed_data_size())
         .EndMap();
+}
+
+void Deserialize(TDataStatistics& value, INodePtr node)
+{
+    auto rootMap = node->AsMap();
+    value.set_chunk_count(rootMap->GetChild("chunk_count")->GetValue<i64>());
+    value.set_row_count(rootMap->GetChild("row_count")->GetValue<i64>());
+    value.set_uncompressed_data_size(rootMap->GetChild("uncompressed_data_size")->GetValue<i64>());
+    value.set_compressed_data_size(rootMap->GetChild("compressed_data_size")->GetValue<i64>());
 }
 
 Stroka ToString(const TDataStatistics& statistics)

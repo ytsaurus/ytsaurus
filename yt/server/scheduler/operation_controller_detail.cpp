@@ -624,12 +624,14 @@ void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr joblet)
 void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet)
 {
     if (Controller->IsRowCountPreserved()) {
-        const auto& statistics = joblet->Job->Result().statistics();
-        if (statistics.input().row_count() != GetTotalOutputDataStatistics(statistics).row_count()) {
+        const auto& statistics = joblet->Job->Statistics();
+        auto inputStatistics = GetTotalInputDataStatistics(statistics);
+        auto outputStatistics = GetTotalOutputDataStatistics(statistics);
+        if (inputStatistics.row_count() != outputStatistics.row_count()) {
             Controller->OnOperationFailed(TError(
                 "Input/output row count mismatch in completed job: %v != %v",
-                statistics.input().row_count(),
-                GetTotalOutputDataStatistics(statistics).row_count())
+                inputStatistics.row_count(),
+                outputStatistics.row_count())
                 << TErrorAttribute("task", GetId()));
         }
     }
@@ -928,11 +930,6 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
     return stripe;
 }
 
-void TOperationControllerBase::TTask::RegisterInput(TJobletPtr joblet)
-{
-    Controller->RegisterInput(joblet);
-}
-
 void TOperationControllerBase::TTask::RegisterOutput(TJobletPtr joblet, int key)
 {
     Controller->RegisterOutput(joblet, key);
@@ -961,13 +958,8 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalEstimatedInputDataSize(0)
     , TotalEstimatedInputRowCount(0)
     , TotalEstimatedInputValueCount(0)
-    , TotalExactInputDataStatistics(NChunkClient::NProto::ZeroDataStatistics())
-    , TotalIntermediateDataStatistics(NChunkClient::NProto::ZeroDataStatistics())
     , UnavailableInputChunkCount(0)
     , JobCounter(0)
-    , CompletedJobStatistics(ZeroJobStatistics())
-    , FailedJobStatistics(ZeroJobStatistics())
-    , AbortedJobStatistics(ZeroJobStatistics())
     , Spec(spec)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
@@ -1011,8 +1003,6 @@ void TOperationControllerBase::Initialize()
 
         OutputTables.push_back(table);
     }
-
-    OutputDataStatistics.resize(OutputTables.size(), NChunkClient::NProto::ZeroDataStatistics());
 
     if (InputTables.size() > Config->MaxInputTableCount) {
         THROW_ERROR_EXCEPTION(
@@ -1586,14 +1576,9 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     LogFinishedJobFluently(ELogEventType::JobCompleted, job);
 
-    const auto& jobStatistics = result.statistics();
     JobCounter.Completed(1);
-    CompletedJobStatistics += jobStatistics;
 
-    if (jobStatistics.has_statistics()) {
-        auto statistics = ConvertTo<TStatistics>(TYsonString(jobStatistics.statistics()));
-        Operation->UpdateStatistics(statistics, EJobFinalState::Completed);
-    }
+    Operation->UpdateJobStatistics(job);
 
     const auto& schedulerResultEx = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
@@ -1624,7 +1609,8 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
         .Item("error").Value(error);
 
     JobCounter.Failed(1);
-    FailedJobStatistics += result.statistics();
+
+    Operation->UpdateJobStatistics(job);
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobFailed(joblet);
@@ -1650,13 +1636,13 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto abortReason = GetAbortReason(job);
-    const auto& result = job->Result();
 
     LogFinishedJobFluently(ELogEventType::JobAborted, job)
         .Item("reason").Value(abortReason);
 
     JobCounter.Aborted(1, abortReason);
-    AbortedJobStatistics += result.statistics();
+
+    Operation->UpdateJobStatistics(job);
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobAborted(joblet);
@@ -3339,13 +3325,6 @@ void TOperationControllerBase::RegisterEndpoints(
     }
 }
 
-void TOperationControllerBase::RegisterInput(TJobletPtr joblet)
-{
-    // Update input statistics.
-    const auto& jobResult = joblet->Job->Result();
-    TotalExactInputDataStatistics += jobResult.statistics().input();
-}
-
 void TOperationControllerBase::RegisterOutput(
     TRefCountedChunkSpecPtr chunkSpec,
     int key,
@@ -3365,15 +3344,6 @@ void TOperationControllerBase::RegisterOutput(
     TJobletPtr joblet,
     int key)
 {
-    // Update output statistics.
-    const auto& jobResult = joblet->Job->Result();
-    const auto& statistics = jobResult.statistics();
-
-    YCHECK(statistics.output_size() == OutputDataStatistics.size());
-    for (auto i = 0; i < statistics.output_size(); ++i) {
-        OutputDataStatistics[i] += statistics.output(i);
-    }
-
     const auto* userJobResult = FindUserJobResult(joblet);
 
     for (int tableIndex = 0; tableIndex < static_cast<int>(OutputTables.size()); ++tableIndex) {
@@ -3423,10 +3393,6 @@ void TOperationControllerBase::RegisterIntermediate(
     TCompletedJobPtr completedJob,
     TChunkStripePtr stripe)
 {
-    // Update output statistics.
-    const auto& jobResult = joblet->Job->Result();
-    TotalIntermediateDataStatistics += GetTotalOutputDataStatistics(jobResult.statistics());
-
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
@@ -3475,30 +3441,13 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
-        .Item("statistics").Do(BIND(&TOperation::BuildStatistics, Operation))
-        .Item("job_statistics").BeginMap()
-            .Item("completed").Value(CompletedJobStatistics)
-            .Item("failed").Value(FailedJobStatistics)
-            .Item("aborted").Value(AbortedJobStatistics)
-        .EndMap()
+        .Item("job_statistics").Do(BIND(&TOperation::BuildJobStatistics, Operation))
         .Item("estimated_input_statistics").BeginMap()
             .Item("chunk_count").Value(TotalEstimatedInputChunkCount)
             .Item("uncompressed_data_size").Value(TotalEstimatedInputDataSize)
             .Item("row_count").Value(TotalEstimatedInputRowCount)
             .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
         .EndMap()
-        .Item("exact_input_statistics").Value(TotalExactInputDataStatistics)
-        .Item("intermediate_statistics").Value(TotalIntermediateDataStatistics)
-        .Item("output_statistics").Value(
-            std::accumulate(
-                OutputDataStatistics.begin(),
-                OutputDataStatistics.end(),
-                NChunkClient::NProto::ZeroDataStatistics()))
-        .Item("detailed_output_statistics").DoListFor(
-            OutputDataStatistics,
-            [] (TFluentList fluent, const NChunkClient::NProto::TDataStatistics& statistics) {
-                fluent.Item().Value(statistics);
-            })
         .Item("live_preview").BeginMap()
             .Item("output_supported").Value(IsOutputLivePreviewSupported())
             .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
@@ -3729,20 +3678,13 @@ TFluentLogEvent TOperationControllerBase::LogEventFluently(ELogEventType eventTy
 
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
 {
-    const auto& result = job->Result();
-    const auto& statistics = result.statistics();
-
     return LogEventFluently(eventType)
         .Item("job_id").Value(job->GetId())
         .Item("operation_id").Value(job->GetOperation()->GetId())
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
         .Item("resource_limits").Value(job->ResourceLimits())
-        .DoIf(statistics.has_statistics(), [&] (TFluentLogEvent fluent) {
-            auto jobStatistics = ConvertTo<TStatistics>(TYsonString(statistics.statistics()));
-            fluent
-                .Item("statistics").Value(jobStatistics);
-        })
+        .Item("statistics").Value(job->Statistics())
         .Item("node_address").Value(job->GetNode()->GetDefaultAddress())
         .Item("job_type").Value(job->GetType());
 }
@@ -3778,17 +3720,9 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, TotalEstimatedInputRowCount);
     Persist(context, TotalEstimatedInputValueCount);
 
-    Persist(context, TotalExactInputDataStatistics);
-    Persist(context, TotalIntermediateDataStatistics);
-    Persist(context, OutputDataStatistics);
-
     Persist(context, UnavailableInputChunkCount);
 
     Persist(context, JobCounter);
-
-    Persist(context, CompletedJobStatistics);
-    Persist(context, FailedJobStatistics);
-    Persist(context, AbortedJobStatistics);
 
     Persist(context, NodeDirectory);
 

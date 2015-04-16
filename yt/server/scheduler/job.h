@@ -11,6 +11,8 @@
 
 #include <ytlib/node_tracker_client/node.pb.h>
 
+#include <ytlib/scheduler/statistics.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -46,6 +48,11 @@ public:
 
     //! Job result returned by node.
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::NProto::TJobResult, Result);
+
+    void SetResult(const NJobTrackerClient::NProto::TJobResult& result);
+
+    // Custom and builtin job statistics.
+    DEFINE_BYREF_RO_PROPERTY(TStatistics, Statistics);
 
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);

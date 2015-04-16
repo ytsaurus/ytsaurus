@@ -1,18 +1,32 @@
 #include "stdafx.h"
 #include "statistics.h"
 
+#include <ytlib/chunk_client/data_statistics.h>
+
 #include <core/ytree/fluent.h>
 
 namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
+using namespace NYPath;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-void TStatistics::Add(const NYPath::TYPath& name, i64 summary)
+void TStatistics::Add(const TYPath& name, i64 summary)
 {
     Data_[name] = summary;
+}
+
+void TStatistics::AddSuffixToNames(const Stroka& suffix)
+{
+    yhash_map<TYPath, i64> newData;
+    for (const auto& pair : Data_) {
+        newData[pair.first + suffix] = pair.second;
+    }
+
+    Data_ = std::move(newData);
 }
 
 void TStatistics::Merge(const TStatistics& other)
@@ -44,11 +58,36 @@ void Deserialize(TStatistics& value, INodePtr node)
     }
 }
 
+TDataStatistics GetTotalInputDataStatistics(const TStatistics& statistics)
+{
+    return statistics.GetComplex<TDataStatistics>("/data/input");
+}
+
+TDataStatistics GetTotalOutputDataStatistics(const TStatistics& statistics)
+{
+    auto outputStatistics = statistics.GetComplex<yhash_map<Stroka, TDataStatistics>>("/data/output");
+
+    TDataStatistics result = ZeroDataStatistics();
+    for (const auto& pair : outputStatistics) {
+        result += pair.second;
+    }
+    return result;
+}
+
+i64 GetTime(const TStatistics& statistics)
+{
+    return statistics.Get("/data/time");
+}
+
+////////////////////////////////////////////////////////////////////
+
+const TYsonString SerializedEmptyStatistics(ConvertToYsonString(TStatistics()));
+
 ////////////////////////////////////////////////////////////////////
 
 TStatisticsConsumer::TStatisticsConsumer(
     TParsedStatisticsConsumer consumer,
-    const NYPath::TYPath& path)
+    const TYPath& path)
     : Path_(path)
     , TreeBuilder_(CreateBuilderFromFactory(GetEphemeralNodeFactory()))
     , Consumer_(consumer)

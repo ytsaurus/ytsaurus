@@ -7,6 +7,7 @@
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/scheduler/job.pb.h>
+#include <ytlib/scheduler/statistics.h>
 
 #include <ytlib/job_tracker_client/public.h>
 
@@ -61,7 +62,7 @@ struct IJob
 
     virtual double GetProgress() const = 0;
 
-    virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const = 0;
+    virtual NScheduler::TStatistics GetStatistics() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
     virtual NYTree::TYsonString Strace() = 0;

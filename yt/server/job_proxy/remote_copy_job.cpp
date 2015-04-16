@@ -38,6 +38,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
+using namespace NScheduler;
 using namespace NJobTrackerClient::NProto;
 using namespace NVersionedTableClient;
 using namespace NApi;
@@ -115,14 +116,15 @@ public:
         return std::vector<TChunkId>();
     }
 
-    virtual TJobStatistics GetStatistics() const override
+    virtual TStatistics GetStatistics() const override
     {
-        TJobStatistics result;
+        TStatistics result;
+        result.AddComplex("/data/input", DataStatistics_);
+        result.AddComplex(
+            "/data/output/" + NYPath::ToYPathLiteral(0),
+            DataStatistics_);
 
-        result.set_time(GetElapsedTime().MilliSeconds());
-        // TODO(ignat): report intermediate statistics for block copying.
-        ToProto(result.mutable_input(), DataStatistics_);
-        ToProto(result.add_output(), DataStatistics_);
+        result.Add("/data/time", GetElapsedTime().MilliSeconds());
 
         return result;
     }

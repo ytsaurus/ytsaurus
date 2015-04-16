@@ -20,6 +20,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NVersionedTableClient;
 using namespace NYTree;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,12 +118,16 @@ std::vector<TChunkId> TSimpleJobBase::GetFailedChunkIds() const
     return Reader_->GetFailedChunkIds();
 }
 
-TJobStatistics TSimpleJobBase::GetStatistics() const
+TStatistics TSimpleJobBase::GetStatistics() const
 {
-    TJobStatistics result;
-    result.set_time(GetElapsedTime().MilliSeconds());
-    ToProto(result.mutable_input(), Reader_->GetDataStatistics());
-    ToProto(result.add_output(), Writer_->GetDataStatistics());
+    TStatistics result;
+    result.AddComplex("/data/input", Reader_->GetDataStatistics());
+    result.AddComplex(
+        "/data/output/" + NYPath::ToYPathLiteral(0),
+        Writer_->GetDataStatistics());
+
+    result.Add("/data/time", GetElapsedTime().MilliSeconds());
+
     return result;
 }
 
