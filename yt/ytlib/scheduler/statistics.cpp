@@ -24,14 +24,23 @@ void TStatistics::Merge(const TStatistics& other)
 
 void Deserialize(TStatistics& value, INodePtr node)
 {
-    if (node->GetType() == ENodeType::Int64) {
-        value.Data_.insert(std::make_pair(node->GetPath(), node->AsInt64()->GetValue()));
-    } else if (node->GetType() == ENodeType::Map) {
-        for (auto& pair : node->AsMap()->GetChildren()) {
-            Deserialize(value, pair.second);
-        }
-    } else {
-        YUNREACHABLE();
+    switch (node->GetType()) {
+        case ENodeType::Int64:
+            value.Data_.insert(std::make_pair(node->GetPath(), node->AsInt64()->GetValue()));
+            break;
+
+        case ENodeType::Uint64:
+            value.Data_.insert(std::make_pair(node->GetPath(), node->AsUint64()->GetValue()));
+            break;
+
+        case ENodeType::Map:
+            for (auto& pair : node->AsMap()->GetChildren()) {
+                Deserialize(value, pair.second);
+            }
+            break;
+
+        default:
+            YUNREACHABLE();
     }
 }
 
