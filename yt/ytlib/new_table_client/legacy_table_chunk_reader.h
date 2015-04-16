@@ -35,6 +35,8 @@ public:
 
     virtual TNameTablePtr GetNameTable() const override;
 
+    virtual TKeyColumns GetKeyColumns() const override;
+
     virtual i64 GetTableRowIndex() const override;
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
@@ -70,6 +72,7 @@ private:
     NChunkClient::TSequentialReaderPtr SequentialReader_;
     TColumnFilter ColumnFilter_;
     TNameTablePtr NameTable_;
+    TKeyColumns KeyColumns_;
 
     NChunkClient::TReadLimit UpperLimit_;
 
@@ -85,8 +88,6 @@ private:
     std::vector<TColumnInfo> ColumnInfo_;
 
     i64 TableRowIndex_;
-
-    int KeyColumnCount_;
 
     i64 CurrentRowIndex_ = -1;
     i64 BeginRowIndex_ = 0;

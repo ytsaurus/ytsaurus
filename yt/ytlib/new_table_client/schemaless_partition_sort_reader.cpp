@@ -168,6 +168,11 @@ public:
         return UnderlyingReader_->GetNameTable();
     }
 
+    virtual TKeyColumns GetKeyColumns() const override
+    {
+        return KeyColumns_;
+    }
+
     virtual bool IsFetchingCompleted() const override
     {
         YCHECK(UnderlyingReader_);

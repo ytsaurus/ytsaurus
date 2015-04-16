@@ -580,7 +580,8 @@ private:
             auto input = New<TContextPreservingInput>(
                 readers[i],
                 format,
-                Config_->JobIO->EnableInputTableIndex);
+                Config_->JobIO->EnableInputTableIndex,
+                JobIO_->IsKeySwitchEnabled());
 
             ContextPreservingInputs_.push_back(input);
             PrepareInputTablePipe(pipeFactory->Create(), 3 * i, input);
