@@ -92,14 +92,14 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "simple_hash",
-        std::vector<TType>{hashTypes},
+        std::vector<TType>{},
         hashTypes,
         EValueType::Uint64,
         builtinImplementations));
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "farm_hash",
-        std::vector<TType>{hashTypes},
+        std::vector<TType>{},
         hashTypes,
         EValueType::Uint64,
         builtinImplementations));

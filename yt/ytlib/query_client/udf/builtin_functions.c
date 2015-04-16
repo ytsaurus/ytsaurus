@@ -7,20 +7,13 @@ char IsSubstr(
     const char* stringData,
     uint32_t stringLength);
 
+uint64_t SimpleHash(
+    const TUnversionedValue* begin,
+    const TUnversionedValue* end);
 
-typedef struct TUnversionedRowHeader
-{
-    uint32_t Count;
-    uint32_t Padding;
-} TUnversionedRowHeader;
-
-typedef TUnversionedRowHeader* TRow;
-
-uint64_t SimpleHash(TRow row);
-
-uint64_t FarmHash(TRow row);
-
-void AllocateRow(TExecutionContext* context, int valueCount, TRow* row);
+uint64_t FarmHash(
+    const TUnversionedValue* begin,
+    const TUnversionedValue* end);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,46 +51,22 @@ void is_null(
     result->Data.Boolean = isnull;
 }
 
-void hash_with_routine(
-    TExecutionContext* context,
-    TUnversionedValue* result,
-    TUnversionedValue* arg1,
-    TUnversionedValue* args,
-    int args_len,
-    uint64_t (*routine)(TRow))
-{
-    TRow row;
-    AllocateRow(context, args_len + 1, &row);
-    TUnversionedValue* row_value = (TUnversionedValue*)(row + 1);
-
-    *row_value = *arg1;
-    row_value++;
-    for (int i = 0; i < args_len; i++) {
-        row_value[i] = args[i];
-    }
-
-    uint64_t hash = routine(row);
-
-    result->Type = Uint64;
-    result->Data.Uint64 = hash;
-}
-
 void simple_hash(
     TExecutionContext* context,
     TUnversionedValue* result,
-    TUnversionedValue* arg1,
     TUnversionedValue* args,
     int args_len)
 {
-    hash_with_routine(context, result, arg1, args, args_len, SimpleHash);
+    result->Data.Uint64 = SimpleHash(args, args + args_len);;
+    result->Type = Uint64;
 }
 
 void farm_hash(
     TExecutionContext* context,
     TUnversionedValue* result,
-    TUnversionedValue* arg1,
     TUnversionedValue* args,
     int args_len)
 {
-    hash_with_routine(context, result, arg1, args, args_len, FarmHash);
+    result->Data.Uint64 = FarmHash(args, args + args_len);
+    result->Type = Uint64;
 }
