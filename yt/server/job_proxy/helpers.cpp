@@ -65,7 +65,8 @@ void TContextPreservingInput::PipeReaderToOutput(TOutputStream* outputStream)
 
         if (EnableTableSwitch_ && TableIndex_ != Reader_->GetTableIndex()) {
             TableIndex_ = Reader_->GetTableIndex();
-            BuildYsonListFluently(Consumer_).Item()
+            BuildYsonListFluently(Consumer_)
+                .Item()
                 .BeginAttributes()
                     .Item("table_index").Value(TableIndex_)
                 .EndAttributes()
@@ -91,7 +92,8 @@ void TContextPreservingInput::WriteRows(const std::vector<TUnversionedRow>& rows
 
         if (EnableKeySwitch_) {
             if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
-                BuildYsonListFluently(Consumer_).Item()
+                BuildYsonListFluently(Consumer_)
+                    .Item()
                     .BeginAttributes()
                         .Item("key_switch").Value(true)
                     .EndAttributes()
