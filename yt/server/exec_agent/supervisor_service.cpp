@@ -73,18 +73,18 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
     double progress = request->progress();
-    const auto& statistics = request->job_statistics();
+    const auto& statistics = request->statistics();
 
-    context->SetRequestInfo("JobId: %v, Progress: %lf, JobStatistics: %v",
+    context->SetRequestInfo("JobId: %v, Progress: %lf, Statistics: %Qv",
         jobId,
         progress,
-        ~statistics.DebugString());
+        statistics);
 
     auto jobController = Bootstrap->GetJobController();
     auto job = jobController->GetJobOrThrow(jobId);
 
     job->SetProgress(progress);
-    job->SetJobStatistics(statistics);
+    job->SetStatistics(NYTree::TYsonString(statistics));
 }
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)

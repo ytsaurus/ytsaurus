@@ -25,8 +25,6 @@
 
 #include <ytlib/chunk_client/private.h>
 
-#include <ytlib/job_tracker_client/statistics.h>
-
 #include <ytlib/scheduler/helpers.h>
 
 #include <ytlib/new_table_client/name_table.h>
@@ -1467,6 +1465,7 @@ private:
 
         job->SetState(EJobState::Aborted);
         ToProto(job->Result().mutable_error(), error);
+        ToProto(job->Result().mutable_statistics(), SerializedEmptyStatistics.Data());
 
         OnJobFinished(job);
 
@@ -1511,7 +1510,7 @@ private:
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Completed);
-            job->Result().Swap(result);
+            job->SetResult(*result);
 
             OnJobFinished(job);
 
@@ -1532,7 +1531,7 @@ private:
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Failed);
-            job->Result().Swap(result);
+            job->SetResult(*result);
 
             OnJobFinished(job);
 
@@ -1557,7 +1556,7 @@ private:
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Aborted);
-            job->Result().Swap(result);
+            job->SetResult(*result);
 
             OnJobFinished(job);
 
@@ -1995,11 +1994,12 @@ private:
         switch (state) {
             case EJobState::Completed: {
                 if (jobStatus->has_result()) {
-                    const auto& statistics = jobStatus->result().statistics();
+                    auto statistics = ConvertTo<TStatistics>(TYsonString(jobStatus->result().statistics()));
+
                     LOG_INFO("Job completed, removal scheduled (Input: {%v}, Output: {%v}, Time: %v)",
-                        statistics.input(),
                         GetTotalOutputDataStatistics(statistics),
-                        statistics.time());
+                        GetTotalOutputDataStatistics(statistics),
+                        GetTime(statistics));
                 } else {
                     LOG_INFO("Job completed, removal scheduled");
                 }

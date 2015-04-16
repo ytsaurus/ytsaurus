@@ -25,7 +25,7 @@ void Serialize(const TBaseStatistics<T>& statistics, NYson::IYsonConsumer* consu
     for (const auto& pair : statistics.Data_) {
         ForceYPath(root, pair.first);
         auto value = NYTree::ConvertToNode(pair.second);
-        SetNodeByYPath(root, pair.first, value);
+        SetNodeByYPath(root, pair.first, std::move(value));
     }
     Serialize(*root, consumer);
 }
@@ -44,6 +44,26 @@ void TStatistics::AddComplex(const NYPath::TYPath& path, const T& statistics)
 
     Serialize(statistics, &consumer);
 }
+
+template <class T>
+T TStatistics::GetComplex(const NYPath::TYPath& path) const
+{
+    auto root = NYTree::GetEphemeralNodeFactory()->CreateMap();
+    for (const auto& pair : Data_) {
+        if (path.is_prefix(pair.first)) {
+            auto subPath = pair.first.substr(path.size());
+
+            ForceYPath(root, subPath);
+            auto value = NYTree::ConvertToNode(pair.second);
+            SetNodeByYPath(root, subPath, std::move(value));
+        }
+    }
+
+    T result;
+    Deserialize(result, std::move(root));
+    return result;
+ }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

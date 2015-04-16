@@ -21,7 +21,7 @@ struct IJob
     : public virtual TRefCounted
 {
     DECLARE_INTERFACE_SIGNAL(void(
-        const NNodeTrackerClient::NProto::TNodeResources& resourceDelta), 
+        const NNodeTrackerClient::NProto::TNodeResources& resourceDelta),
         ResourcesUpdated);
 
     virtual void Start() = 0;
@@ -49,8 +49,7 @@ struct IJob
     virtual double GetProgress() const = 0;
     virtual void SetProgress(double value) = 0;
 
-    virtual NJobTrackerClient::NProto::TJobStatistics GetJobStatistics() const = 0;
-    virtual void SetJobStatistics(const NJobTrackerClient::NProto::TJobStatistics& statistics) = 0;
+    virtual void SetStatistics(const NYTree::TYsonString& statistics) = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContexts() const = 0;
     virtual NYTree::TYsonString Strace() const = 0;

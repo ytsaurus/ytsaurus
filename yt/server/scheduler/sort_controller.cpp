@@ -64,6 +64,7 @@ public:
         , SortDataSizeCounter(0)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
+        , TotalOutputRowCount(0)
         , SimpleSort(false)
     { }
 
@@ -84,6 +85,8 @@ public:
 
         Persist(context, SortStartThresholdReached);
         Persist(context, MergeStartThresholdReached);
+
+        Persist(context, TotalOutputRowCount);
 
         Persist(context, SimpleSort);
         Persist(context, Partitions);
@@ -131,6 +134,7 @@ protected:
     bool SortStartThresholdReached;
     bool MergeStartThresholdReached;
 
+    i64 TotalOutputRowCount;
 
     // Forward declarations.
     class TPartitionTask;
@@ -380,7 +384,6 @@ protected:
 
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
-            RegisterInput(joblet);
             RegisterIntermediate(
                 joblet,
                 stripe,
@@ -1258,15 +1261,11 @@ protected:
             for (auto partition : Partitions) {
                 totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
             }
-            i64 totalOutputRowCount = 0;
-            for (const auto& statistics : OutputDataStatistics) {
-                totalOutputRowCount += statistics.row_count();
-            }
-            if (totalInputRowCount != totalOutputRowCount) {
+            if (totalInputRowCount != TotalOutputRowCount) {
                 OnOperationFailed(TError(
                     "Input/output row count mismatch in sort operation: %v != %v",
                     totalInputRowCount,
-                    totalOutputRowCount));
+                    TotalOutputRowCount));
             }
         }
 
@@ -1607,6 +1606,16 @@ protected:
                 .Item("max").Value(sizeHistogram.Max)
                 .Item("count").Value(sizeHistogram.Count)
             .EndMap();
+    }
+
+    virtual void RegisterOutput(TJobletPtr joblet, int key) override
+    {
+        {
+            auto totalOutput = GetTotalOutputDataStatistics(joblet->Job->Statistics());
+            TotalOutputRowCount += totalOutput.row_count();
+        }
+
+        TOperationControllerBase::RegisterOutput(std::move(joblet), key);
     }
 
 };

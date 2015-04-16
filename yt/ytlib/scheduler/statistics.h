@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ytlib/chunk_client/data_statistics.pb.h>
+
 #include <core/ytree/forwarding_yson_consumer.h>
 #include <core/ytree/tree_builder.h>
 #include <core/ytree/convert.h>
@@ -40,6 +42,11 @@ public:
     template <class T>
     void AddComplex(const NYPath::TYPath& path, const T& statistics);
 
+    template <class T>
+    T GetComplex(const NYPath::TYPath& path) const;
+
+    void AddSuffixToNames(const Stroka& suffix);
+
     void Merge(const TStatistics& other);
 
 private:
@@ -49,6 +56,12 @@ private:
 };
 
 void Deserialize(TStatistics& value, NYTree::INodePtr node);
+
+NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics(const TStatistics& statistics);
+NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatistics& statistics);
+i64 GetTime(const TStatistics& statistics);
+
+extern const NYTree::TYsonString SerializedEmptyStatistics;
 
 ////////////////////////////////////////////////////////////////////
 

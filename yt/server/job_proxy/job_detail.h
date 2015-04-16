@@ -6,7 +6,6 @@
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/job_tracker_client/job.pb.h>
-#include <ytlib/job_tracker_client/statistics.h>
 
 #include <ytlib/new_table_client/public.h>
 
@@ -50,7 +49,7 @@ public:
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
-    virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const override;
+    virtual NScheduler::TStatistics GetStatistics() const override;
 
 protected:
     const NJobTrackerClient::NProto::TJobSpec& JobSpec_;

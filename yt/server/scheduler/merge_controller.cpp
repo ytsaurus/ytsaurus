@@ -270,7 +270,6 @@ protected:
         {
             TTask::OnJobCompleted(joblet);
 
-            RegisterInput(joblet);
             RegisterOutput(joblet, PartitionIndex);
         }
 

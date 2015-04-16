@@ -219,7 +219,6 @@ private:
         virtual void OnJobCompleted(TJobletPtr joblet) override
         {
             TTask::OnJobCompleted(joblet);
-            RegisterInput(joblet);
             RegisterOutput(joblet, joblet->JobIndex);
         }
 
