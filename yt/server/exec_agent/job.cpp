@@ -344,14 +344,17 @@ private:
         }
     }
 
+    // Must be called with set SpinLock.
     void DoSetResult(const TError& error)
     {
         TJobResult jobResult;
         ToProto(jobResult.mutable_error(), error);
-        ToProto(jobResult.mutable_statistics(), GetJobStatistics());
+        ToProto(jobResult.mutable_statistics(), JobStatistics);
+        jobResult.mutable_statistics()->set_time(GetElapsedTime().MilliSeconds());
         DoSetResult(jobResult);
     }
 
+    // Must be called with set SpinLock.
     void DoSetResult(const TJobResult& jobResult)
     {
         if (JobResult) {
@@ -500,6 +503,7 @@ private:
         ResourcesUpdated_.Fire(resourceDelta);
     }
 
+    // Must be called with set SpinLock.
     void SetFinalState()
     {
         ResourceUsage = ZeroNodeResources();
