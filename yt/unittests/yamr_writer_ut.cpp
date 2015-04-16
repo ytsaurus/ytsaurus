@@ -331,6 +331,37 @@ TEST(TYamrWriterTest, LenvalWithTableIndex)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TYamrWriterTest, LenvalWithKeySwitch)
+{
+    TStringStream outputStream;
+    auto config = New<TYamrFormatConfig>();
+    config->Lenval = true;
+    TYamrConsumer consumer(&outputStream, config);
+
+    consumer.OnListItem();
+    consumer.OnBeginAttributes();
+        consumer.OnKeyedItem("key_switch");
+        consumer.OnBooleanScalar(true);
+    consumer.OnEndAttributes();
+    consumer.OnEntity();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key1");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value1");
+    consumer.OnEndMap();
+
+    Stroka output = Stroka(
+        "\xfe\xff\xff\xff"
+        "\x04\x00\x00\x00" "key1"
+        "\x06\x00\x00\x00" "value1"
+        , 4 + 4 + 4 + 4 + 6
+    );
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+
 TEST(TYamrWriterTest, IntegerAndDoubleValues)
 {
     TStringStream outputStream;

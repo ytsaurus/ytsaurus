@@ -395,6 +395,7 @@ public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     TNullable< std::vector<Stroka> > ReduceBy;
+    bool EnableKeySwitch;
 
     TReduceOperationSpec()
     {
@@ -406,6 +407,8 @@ public:
             .NonEmpty();
         RegisterParameter("reduce_by", ReduceBy)
             .Default();
+        RegisterParameter("enable_key_switch", EnableKeySwitch)
+            .Default(false);
 
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 128 * 1024 * 1024;
@@ -582,6 +585,8 @@ public:
     TJobIOConfigPtr SortJobIO;
     TJobIOConfigPtr ReduceJobIO;
 
+    bool EnableKeySwitch;
+
     TMapReduceOperationSpec()
     {
         RegisterParameter("output_table_paths", OutputTablePaths)
@@ -617,6 +622,9 @@ public:
         RegisterParameter("map_selectivity_factor", MapSelectivityFactor)
             .Default(1.0)
             .GreaterThan(0);
+
+        RegisterParameter("enable_key_switch", EnableKeySwitch)
+            .Default(false);
 
         // The following settings are inherited from base but make no sense for map-reduce:
         //   DataSizePerUnorderedMergeJob

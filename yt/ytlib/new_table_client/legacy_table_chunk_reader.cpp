@@ -482,10 +482,10 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
     : SequentialReader_(nullptr)
     , ColumnFilter_(columnFilter)
     , NameTable_(nameTable)
+    , KeyColumns_(keyColumns)
     , UpperLimit_(upperLimit)
     , MemoryPool_(TLegacyTableChunkReaderMemoryPoolTag())
     , TableRowIndex_(tableRowIndex)
-    , KeyColumnCount_(keyColumns.size())
     , Logger(TableClientLogger)
 {
     YCHECK(config);
@@ -582,8 +582,8 @@ void TLegacyTableChunkReader::ResetCurrentRow()
 {
     YASSERT(CurrentKey_.size() == EmptyKey_.size());
     std::memcpy(CurrentKey_.data(), EmptyKey_.data(), EmptyKey_.size() * sizeof(TUnversionedRow));
-    CurrentRow_.resize(KeyColumnCount_);
-    std::memcpy(CurrentRow_.data(), EmptyKey_.data(), KeyColumnCount_ * sizeof(TUnversionedRow));
+    CurrentRow_.resize(KeyColumns_.size());
+    std::memcpy(CurrentRow_.data(), EmptyKey_.data(), KeyColumns_.size() * sizeof(TUnversionedRow));
 }
 
 void TLegacyTableChunkReader::FinishReader()
@@ -740,6 +740,11 @@ TFuture<void> TLegacyTableChunkReader::GetFetchingCompletedEvent()
 TNameTablePtr TLegacyTableChunkReader::GetNameTable() const
 {
     return NameTable_;
+}
+
+TKeyColumns TLegacyTableChunkReader::GetKeyColumns() const
+{
+    return KeyColumns_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -95,7 +95,23 @@ void TYamrConsumer::OnBooleanScalar(bool value)
         OnStringScalar(StringStorage_.back());
         return;
     }
-    THROW_ERROR_EXCEPTION("Boolean attributes are not supported by YAMR");
+
+    YASSERT(State == EState::ExpectAttributeValue);
+
+    switch (ControlAttribute) {
+    case EControlAttribute::KeySwitch:
+        if (Config->Lenval) {
+            WritePod(*Stream, static_cast<ui32>(-2));
+        } else {
+            THROW_ERROR_EXCEPTION("Key switch is not supported in text YaMR");
+        }
+        break;
+
+    default:
+        THROW_ERROR_EXCEPTION("Unknown boolean control attribute received");
+    }
+
+    State = EState::ExpectEndAttributes;
 }
 
 void TYamrConsumer::OnStringScalar(const TStringBuf& value)

@@ -73,6 +73,7 @@ DEFINE_ENUM(ETableChunkFormat,
 
 DEFINE_ENUM(EControlAttribute,
     (TableIndex)
+    (KeySwitch)
 );
 
 // COMPAT(psushin): Legacy enum for old chunks.
