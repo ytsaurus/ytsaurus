@@ -175,6 +175,14 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using UpdateTime where LogID < 4")
         assert expected == actual
 
+        expected = [
+            {"LogID": 2, "OrderID": 1, "UpdateTime": 3, "LogID1": 2, "OrderID1": 1}]
+
+        actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using UpdateTime where (LogID, OrderID) IN ((2, 1))")
+
+
+
+
     def test_types(self):
         create("table", "//tmp/t")
 
