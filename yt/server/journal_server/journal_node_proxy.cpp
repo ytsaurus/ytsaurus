@@ -189,9 +189,7 @@ private:
         }
 
         ValidateTransaction();
-        ValidatePermission(
-            NYTree::EPermissionCheckScope::This,
-            NSecurityServer::EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
         auto* node = GetThisTypedImpl();
         if (!node->IsSealed()) {
