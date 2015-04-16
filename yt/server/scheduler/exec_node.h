@@ -18,8 +18,8 @@ namespace NScheduler {
 class TExecNode
     : public TRefCounted
 {
-    //! Descriptor as reported by node.
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::TNodeDescriptor, Descriptor);
+    //! Address map as reported by node.
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::TAddressMap, Addresses);
 
     //! Jobs that are currently running on this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
@@ -45,16 +45,17 @@ class TExecNode
     //! Controls heartbeat expiration.
     DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
 
+public:
     bool HasEnoughResources(const NNodeTrackerClient::NProto::TNodeResources& neededResources) const;
     bool HasSpareResources() const;
 
-    const Stroka& GetAddress() const;
+    Stroka GetDefaultAddress();
 
     //! Checks if the node can handle jobs demanding a certain #tag.
     bool CanSchedule(const TNullable<Stroka>& tag) const;
 
 public:
-    explicit TExecNode(const NNodeTrackerClient::TNodeDescriptor& descriptor);
+    explicit TExecNode(const NNodeTrackerClient::TAddressMap& addresses);
 
 };
 

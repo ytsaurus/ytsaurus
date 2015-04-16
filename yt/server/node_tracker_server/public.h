@@ -28,6 +28,7 @@ using NNodeTrackerClient::InvalidNodeId;
 using NNodeTrackerClient::TRackId;
 using NNodeTrackerClient::NullRackId;
 
+using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::TNodeDescriptor;
 
 DECLARE_REFCOUNTED_CLASS(TNodeTracker)

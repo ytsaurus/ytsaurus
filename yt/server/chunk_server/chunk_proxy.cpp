@@ -122,7 +122,7 @@ private:
 
         auto serializeRegularReplica = [] (TFluentList fluent, TNodePtrWithIndex replica) {
             fluent.Item()
-                .Value(replica.GetPtr()->GetAddress());
+                .Value(replica.GetPtr()->GetDefaultAddress());
         };
 
         auto serializeErasureReplica = [] (TFluentList fluent, TNodePtrWithIndex replica) {
@@ -130,7 +130,7 @@ private:
                 .BeginAttributes()
                     .Item("index").Value(replica.GetIndex())
                 .EndAttributes()
-                .Value(replica.GetPtr()->GetAddress());
+                .Value(replica.GetPtr()->GetDefaultAddress());
         };
 
         auto serializeJournalReplica = [] (TFluentList fluent, TNodePtrWithIndex replica) {
@@ -138,7 +138,7 @@ private:
                 .BeginAttributes()
                     .Item("type").Value(EJournalReplicaType(replica.GetIndex()))
                 .EndAttributes()
-                .Value(replica.GetPtr()->GetAddress());
+                .Value(replica.GetPtr()->GetDefaultAddress());
         };
 
         TReplicaSerializer serializeReplica;

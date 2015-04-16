@@ -3,6 +3,7 @@
 
 #include <core/misc/address.h>
 #include <core/misc/protobuf_helpers.h>
+#include <core/misc/string.h>
 
 #include <core/concurrency/thread_affinity.h>
 
@@ -12,14 +13,15 @@ namespace NNodeTrackerClient {
 using namespace NChunkClient;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeDescriptor::TNodeDescriptor()
-{ }
-
-TNodeDescriptor::TNodeDescriptor(const yhash_map<Stroka, Stroka>& addresses)
+TNodeDescriptor::TNodeDescriptor(
+    const TAddressMap& addresses,
+    const TNullable<Stroka>& rack)
     : Addresses_(addresses)
+    , Rack_(rack)
 { }
 
 bool TNodeDescriptor::IsLocal() const
@@ -29,23 +31,18 @@ bool TNodeDescriptor::IsLocal() const
 
 const Stroka& TNodeDescriptor::GetDefaultAddress() const
 {
-    auto it = Addresses_.find(DefaultNetworkName);
-    YCHECK(it != Addresses_.end());
-    return it->second;
+    return NNodeTrackerClient::GetDefaultAddress(Addresses_);
 }
 
 const Stroka& TNodeDescriptor::GetInterconnectAddress() const
 {
-    auto it = Addresses_.find(InterconnectNetworkName);
-    if (it != Addresses_.end()) {
-        return it->second;
-    }
-    return GetDefaultAddress();
+    return NNodeTrackerClient::GetInterconnectAddress(Addresses_);
 }
 
 const Stroka& TNodeDescriptor::GetAddressOrThrow(const Stroka& name) const
 {
-    // Fallback to default address if interconnect address requested.
+    // Interconnect address requires special handling since we fallback to
+    // the default one when the interconnect address is missing.
     if (name == InterconnectNetworkName) {
         return GetInterconnectAddress();
     }
@@ -63,7 +60,7 @@ const Stroka& TNodeDescriptor::GetAddressOrThrow(const Stroka& name) const
 
 TNullable<Stroka> TNodeDescriptor::FindAddress(const Stroka& name) const
 {
-    // Fallback to default address if interconnect address requested.
+    // See above.
     if (name == InterconnectNetworkName) {
         return GetInterconnectAddress();
     }
@@ -77,7 +74,7 @@ TNullable<Stroka> TNodeDescriptor::FindAddress(const Stroka& name) const
 
 const Stroka& TNodeDescriptor::GetAddress(const Stroka& name) const
 {
-    // Fallback to default address if interconnect address requested.
+    // See above.
     if (name == InterconnectNetworkName) {
         return GetInterconnectAddress();
     }
@@ -91,40 +88,81 @@ void TNodeDescriptor::Persist(TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Addresses_);
+    Persist(context, Rack_);
 }
 
 Stroka ToString(const TNodeDescriptor& descriptor)
 {
-    return descriptor.GetDefaultAddress();
+    TStringBuilder builder;
+    builder.AppendString(descriptor.GetDefaultAddress());
+    if (descriptor.GetRack()) {
+        builder.AppendChar('@');
+        builder.AppendString(*descriptor.GetRack());
+    }
+    return builder.Flush();
 }
 
-void ToProto(NProto::TNodeDescriptor* protoDescriptor, const TNodeDescriptor& descriptor)
+const Stroka& GetDefaultAddress(const TAddressMap& addresses)
 {
-    protoDescriptor->set_address(descriptor.GetDefaultAddress());
-    for (const auto& pair : descriptor.Addresses()) {
-        if (pair.first == DefaultNetworkName) {
-            continue;
-        }
-        NProto::TAddressDescriptor addressDescriptor;
-        addressDescriptor.set_network(pair.first);
-        addressDescriptor.set_address(pair.second);
-        *protoDescriptor->add_addresses() = addressDescriptor;
+    auto it = addresses.find(DefaultNetworkName);
+    YCHECK(it != addresses.end());
+    return it->second;
+}
+
+const Stroka& GetInterconnectAddress(const TAddressMap& addresses)
+{
+    auto it = addresses.find(InterconnectNetworkName);
+    return it == addresses.end() ? GetDefaultAddress(addresses) : it->second;
+}
+
+namespace NProto {
+
+void ToProto(NNodeTrackerClient::NProto::TAddressMap* protoAddresses, const NNodeTrackerClient::TAddressMap& addresses)
+{
+    for (const auto& pair : addresses) {
+        auto* entry = protoAddresses->add_entries();
+        entry->set_network(pair.first);
+        entry->set_address(pair.second);
     }
 }
 
-void FromProto(TNodeDescriptor* descriptor, const NProto::TNodeDescriptor& protoDescriptor)
+void FromProto(NNodeTrackerClient::TAddressMap* addresses, const NNodeTrackerClient::NProto::TAddressMap& protoAddresses)
 {
-    TNodeDescriptor::TAddressMap addresses;
-    for (const auto& addressDescriptor : protoDescriptor.addresses()) {
-        addresses[addressDescriptor.network()] = addressDescriptor.address();
+    addresses->clear();
+    for (const auto& entry : protoAddresses.entries()) {
+        YCHECK(addresses->insert(std::make_pair(entry.network(), entry.address())).second);
     }
-    addresses[DefaultNetworkName] = protoDescriptor.address();
-    *descriptor = TNodeDescriptor(addresses);
 }
+
+void ToProto(NNodeTrackerClient::NProto::TNodeDescriptor* protoDescriptor, const NNodeTrackerClient::TNodeDescriptor& descriptor)
+{
+    using NYT::ToProto;
+
+    ToProto(protoDescriptor->mutable_addresses(), descriptor.Addresses());
+
+    if (descriptor.GetRack()) {
+        protoDescriptor->set_rack(*descriptor.GetRack());
+    } else {
+        protoDescriptor->clear_rack();
+    }
+}
+
+void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrackerClient::NProto::TNodeDescriptor& protoDescriptor)
+{
+    using NYT::FromProto;
+
+    *descriptor = NNodeTrackerClient::TNodeDescriptor(
+        FromProto<NNodeTrackerClient::TAddressMap>(protoDescriptor.addresses()),
+        protoDescriptor.has_rack() ? MakeNullable(protoDescriptor.rack()) : Null);
+}
+
+} // namespace NProto
 
 bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
 {
-    return lhs.GetDefaultAddress() == rhs.GetDefaultAddress();
+    return
+        lhs.GetDefaultAddress() == rhs.GetDefaultAddress() &&
+        lhs.GetRack() == rhs.GetRack();
 }
 
 bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
@@ -136,7 +174,7 @@ bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
 
 void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(SpinLock_);
     for (const auto& item : source.items()) {
         DoAddDescriptor(item.node_id(), FromProto<TNodeDescriptor>(item.node_descriptor()));
     }
@@ -144,8 +182,8 @@ void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
 
 void TNodeDirectory::DumpTo(NProto::TNodeDirectory* destination)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    for (const auto& pair : IdToDescriptor) {
+    TGuard<TSpinLock> guard(SpinLock_);
+    for (const auto& pair : IdToDescriptor_) {
         auto* item = destination->add_items();
         item->set_node_id(pair.first);
         ToProto(item->mutable_node_descriptor(), pair.second);
@@ -154,26 +192,26 @@ void TNodeDirectory::DumpTo(NProto::TNodeDirectory* destination)
 
 void TNodeDirectory::AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(SpinLock_);
     DoAddDescriptor(id, descriptor);
 }
 
 void TNodeDirectory::DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
 {
-    auto it = IdToDescriptor.find(id);
-    YCHECK(it == IdToDescriptor.end() || it->second == descriptor);
-    if (it != IdToDescriptor.end()) {
+    auto it = IdToDescriptor_.find(id);
+    YCHECK(it == IdToDescriptor_.end() || it->second == descriptor);
+    if (it != IdToDescriptor_.end()) {
         return;
     }
-    IdToDescriptor[id] = descriptor;
-    AddressToDescriptor[descriptor.GetDefaultAddress()] = descriptor;
+    IdToDescriptor_[id] = descriptor;
+    AddressToDescriptor_[descriptor.GetDefaultAddress()] = descriptor;
 }
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(TNodeId id) const
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    auto it = IdToDescriptor.find(id);
-    return it == IdToDescriptor.end() ? nullptr : &it->second;
+    TGuard<TSpinLock> guard(SpinLock_);
+    auto it = IdToDescriptor_.find(id);
+    return it == IdToDescriptor_.end() ? nullptr : &it->second;
 }
 
 const TNodeDescriptor& TNodeDirectory::GetDescriptor(TNodeId id) const
@@ -199,9 +237,9 @@ std::vector<TNodeDescriptor> TNodeDirectory::GetDescriptors(const std::vector<TC
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(const Stroka& address)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    auto it = AddressToDescriptor.find(address);
-    return it == AddressToDescriptor.end() ? nullptr : &it->second;
+    TGuard<TSpinLock> guard(SpinLock_);
+    auto it = AddressToDescriptor_.find(address);
+    return it == AddressToDescriptor_.end() ? nullptr : &it->second;
 }
 
 const TNodeDescriptor& TNodeDirectory::GetDescriptor(const Stroka& address)
@@ -214,8 +252,8 @@ const TNodeDescriptor& TNodeDirectory::GetDescriptor(const Stroka& address)
 void TNodeDirectory::Persist(TStreamPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, IdToDescriptor);
-    Persist(context, AddressToDescriptor);
+    Persist(context, IdToDescriptor_);
+    Persist(context, AddressToDescriptor_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -63,7 +63,7 @@ message TRspPutBlocks
 message TReqSendBlocks
 {
     required NYT.NProto.TGuid chunk_id = 1;
-    required NYT.NNodeTrackerClient.NProto.TNodeDescriptor target = 2;
+    required NYT.NNodeTrackerClient.NProto.TNodeDescriptor target_descriptor = 2;
     required int32 first_block_index = 3;
     required int32 block_count = 4;
 }

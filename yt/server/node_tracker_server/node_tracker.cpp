@@ -210,14 +210,14 @@ public:
 
     void RefreshNodeConfig(TNode* node)
     {
-        auto attributes = FindNodeAttributes(node->GetAddress());
+        auto attributes = FindNodeAttributes(node->GetDefaultAddress());
         if (!attributes)
             return;
 
         if (!ReconfigureYsonSerializable(node->GetConfig(), attributes))
             return;
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node configuration updated (Address: %v)", node->GetAddress());
+        LOG_INFO_UNLESS(IsRecovery(), "Node configuration updated (Address: %v)", node->GetDefaultAddress());
 
         NodeConfigUpdated_.Fire(node);
     }
@@ -489,7 +489,7 @@ private:
 
     static TYPath GetNodePath(TNode* node)
     {
-        return GetNodePath(node->GetAddress());
+        return GetNodePath(node->GetDefaultAddress());
     }
 
 
@@ -520,15 +520,16 @@ private:
 
     TRspRegisterNode HydraRegisterNode(const TReqRegisterNode& request)
     {
-        auto descriptor = FromProto<NNodeTrackerClient::TNodeDescriptor>(request.node_descriptor());
+        auto addresses = FromProto<TAddressMap>(request.addresses());
+        const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request.statistics();
 
         // Kick-out any previous incarnation.
         {
-            auto* existingNode = FindNodeByAddress(descriptor.GetDefaultAddress());
+            auto* existingNode = FindNodeByAddress(address);
             if (existingNode) {
                 LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingId: %v)",
-                    descriptor.GetDefaultAddress(),
+                    address,
                     existingNode->GetId());
                 DoUnregisterNode(existingNode, false);
                 DoRemoveNode(existingNode);
@@ -539,7 +540,7 @@ private:
             YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
         }
 
-        auto* node = DoRegisterNode(descriptor, statistics);
+        auto* node = DoRegisterNode(addresses, statistics);
 
         TRspRegisterNode response;
         response.set_node_id(node->GetId());
@@ -592,7 +593,7 @@ private:
         PROFILE_TIMING ("/full_heartbeat_time") {
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
-                node->GetAddress(),
+                node->GetDefaultAddress(),
                 node->GetState(),
                 statistics);
 
@@ -606,7 +607,7 @@ private:
 
             LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %v, Address: %v)",
                 nodeId,
-                node->GetAddress());
+                node->GetDefaultAddress());
 
             FullHeartbeat_.Fire(node, request);
         }
@@ -629,7 +630,7 @@ private:
         PROFILE_TIMING ("/incremental_heartbeat_time") {
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
-                node->GetAddress(),
+                node->GetDefaultAddress(),
                 node->GetState(),
                 statistics);
 
@@ -702,7 +703,7 @@ private:
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
-            const auto& address = node->GetAddress();
+            const auto& address = node->GetDefaultAddress();
 
             YCHECK(AddressToNodeMap_.insert(std::make_pair(address, node)).second);
             HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
@@ -847,16 +848,16 @@ private:
         auto* node = it->second;
         LOG_INFO_UNLESS(IsRecovery(), "Node lease expired (NodeId: %v, Address: %v)",
             node->GetId(),
-            node->GetAddress());
+            node->GetDefaultAddress());
 
         DoUnregisterNode(node, true);
     }
 
 
-    TNode* DoRegisterNode(const TNodeDescriptor& descriptor, const TNodeStatistics& statistics)
+    TNode* DoRegisterNode(const TAddressMap& addresses, const TNodeStatistics& statistics)
     {
         PROFILE_TIMING ("/node_register_time") {
-            const auto& address = descriptor.GetDefaultAddress();
+            const auto& address = GetDefaultAddress(addresses);
             auto config = GetNodeConfigByAddress(address);
             auto nodeId = GenerateNodeId();
 
@@ -864,7 +865,7 @@ private:
 
             auto nodeHolder = std::make_unique<TNode>(
                 nodeId,
-                descriptor,
+                addresses,
                 config,
                 mutationContext->GetTimestamp());
             auto* node = NodeMap_.Insert(nodeId, std::move(nodeHolder));
@@ -896,7 +897,7 @@ private:
                 // Set attributes.
                 {
                     auto attributes = CreateEphemeralAttributes();
-                    attributes->Set("title", Format("Lease for node %v", node->GetAddress()));
+                    attributes->Set("title", Format("Lease for node %v", node->GetDefaultAddress()));
                     objectManager->FillCustomAttributes(transaction, *attributes);
                 }
 
@@ -919,8 +920,17 @@ private:
                     req->set_ignore_existing(true);
 
                     auto attributes = CreateEphemeralAttributes();
-                    attributes->Set("remote_address", descriptor.GetInterconnectAddress());
+                    attributes->Set("remote_address", GetInterconnectAddress(addresses));
                     ToProto(req->mutable_node_attributes(), *attributes);
+
+                    SyncExecuteVerb(rootService, req);
+                }
+
+                // Lock Cypress node.
+                {
+                    auto req = TCypressYPathProxy::Lock(nodePath);
+                    req->set_mode(static_cast<int>(ELockMode::Shared));
+                    SetTransactionId(req, transaction->GetId());
 
                     SyncExecuteVerb(rootService, req);
                 }
@@ -931,18 +941,9 @@ private:
             // Make the initial lease renewal (and also set "last_seen_time" attribute).
             RenewNodeLease(node);
 
-            // Lock Cypress node.
-            {
-                auto req = TCypressYPathProxy::Lock(nodePath);
-                req->set_mode(static_cast<int>(ELockMode::Shared));
-                SetTransactionId(req, transaction->GetId());
-
-                SyncExecuteVerb(rootService, req);
-            }
-
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
                 nodeId,
-                descriptor.GetDefaultAddress(),
+                address,
                 statistics);
 
             NodeRegistered_.Fire(node);
@@ -962,7 +963,7 @@ private:
                 transactionManager->AbortTransaction(transaction, false);
             }
 
-            const auto& address = node->GetAddress();
+            const auto& address = node->GetDefaultAddress();
             YCHECK(AddressToNodeMap_.erase(address) == 1);
             {
                 auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(address)));
@@ -985,7 +986,7 @@ private:
 
             LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
                 node->GetId(),
-                node->GetAddress());
+                node->GetDefaultAddress());
         }
     }
 
@@ -994,7 +995,7 @@ private:
         PROFILE_TIMING ("/node_remove_time") {
             // Make copies, node will die soon.
             auto nodeId = node->GetId();
-            auto address = node->GetAddress();
+            auto address = node->GetDefaultAddress();
 
             NodeRemoved_.Fire(node);
 
@@ -1061,7 +1062,7 @@ private:
         if (config->Banned) {
             LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
                 node->GetId(),
-                node->GetAddress());
+                node->GetDefaultAddress());
             if (IsLeader()) {
                 PostUnregisterNodeMutation(node);
             }
@@ -1072,20 +1073,20 @@ private:
             if (rack) {
                 LOG_INFO_UNLESS(IsRecovery(), "Node rack set (NodeId: %v, Address: %v, Rack: %v)",
                     node->GetId(),
-                    node->GetAddress(),
+                    node->GetDefaultAddress(),
                     *config->Rack);
             } else {
                 // This should not happen. But let's issue an error instead of crashing.
                 LOG_ERROR_UNLESS(IsRecovery(), "Unknown rack set to node (NodeId: %v, Address: %v, Rack: %v)",
                     node->GetId(),
-                    node->GetAddress(),
+                    node->GetDefaultAddress(),
                     *config->Rack);
             }
             node->SetRack(rack);
         } else {
             LOG_INFO_UNLESS(IsRecovery(), "Node rack reset (NodeId: %v, Address: %)",
                 node->GetId(),
-                node->GetAddress());
+                node->GetDefaultAddress());
             node->SetRack(nullptr);
         }
     }

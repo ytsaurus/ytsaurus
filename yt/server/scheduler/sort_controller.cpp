@@ -783,7 +783,7 @@ protected:
         {
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
-            const auto& address = joblet->Job->GetNode()->GetAddress();
+            const auto& address = joblet->Job->GetNode()->GetDefaultAddress();
             Partition->AddressToLocality[address] += joblet->InputStripeList->TotalDataSize;
 
             // Don't rely on static assignment anymore.
@@ -1194,7 +1194,7 @@ protected:
 
         for (auto partition : partitionsToAssign) {
             auto node = nodeHeap.front();
-            const auto& address = node->Node->GetAddress();
+            const auto& address = node->Node->GetDefaultAddress();
 
             partition->AssignedAddress = address;
             auto task = partition->Maniac
@@ -1216,7 +1216,7 @@ protected:
         for (auto node : nodeHeap) {
             if (node->AssignedDataSize > 0) {
                 LOG_DEBUG("Node used (Address: %v, Weight: %.4lf, AssignedDataSize: %v, AdjustedDataSize: %v)",
-                    node->Node->GetAddress(),
+                    node->Node->GetDefaultAddress(),
                     node->Weight,
                     node->AssignedDataSize,
                     static_cast<i64>(node->AssignedDataSize / node->Weight));

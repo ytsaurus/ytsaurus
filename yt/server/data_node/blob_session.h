@@ -72,7 +72,7 @@ private:
     virtual TFuture<void> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
-        const NNodeTrackerClient::TNodeDescriptor& target) override;
+        const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
     virtual TFuture<void> DoFlushBlocks(int blockIndex) override;
 

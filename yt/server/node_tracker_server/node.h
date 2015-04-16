@@ -103,13 +103,14 @@ public:
 public:
     TNode(
         TNodeId id,
-        const TNodeDescriptor& descriptor,
+        const TAddressMap& addresses,
         TNodeConfigPtr config,
         TInstant registerTime);
     explicit TNode(TNodeId id);
 
-    const TNodeDescriptor& GetDescriptor() const;
-    const Stroka& GetAddress() const;
+    TNodeDescriptor GetDescriptor() const;
+    const TAddressMap& GetAddresses() const;
+    const Stroka& GetDefaultAddress() const;
 
     const TNodeConfigPtr& GetConfig() const;
 
@@ -154,8 +155,9 @@ public:
     static ui64 GenerateVisitMark();
 
 private:
-    TNodeDescriptor Descriptor_;
-    TNodeConfigPtr Config_;
+    TAddressMap Addresses_;
+    const TNodeConfigPtr Config_;
+
     int HintedUserSessionCount_;
     int HintedReplicationSessionCount_;
     int HintedRepairSessionCount_;
@@ -173,7 +175,7 @@ struct TNodePtrAddressFormatter
 {
     Stroka operator () (TNode* node) const
     {
-        return node->GetAddress();
+        return node->GetDefaultAddress();
     }
 };
 

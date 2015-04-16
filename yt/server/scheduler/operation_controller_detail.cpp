@@ -469,7 +469,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto joblet = New<TJoblet>(this, jobIndex);
 
     auto node = context->GetNode();
-    const auto& address = node->GetAddress();
+    const auto& address = node->GetDefaultAddress();
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
@@ -530,7 +530,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         joblet->Job->GetId(),
         Controller->Operation->GetId(),
         jobType,
-        context->GetNode()->GetAddress(),
+        context->GetNode()->GetDefaultAddress(),
         jobIndex,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
@@ -906,7 +906,7 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
         joblet->OutputCookie,
         destinationPool,
         inputCookie,
-        joblet->Job->GetNode()->GetAddress());
+        joblet->Job->GetNode()->GetDefaultAddress());
 
     Controller->RegisterIntermediate(
         joblet,
@@ -1570,7 +1570,7 @@ void TOperationControllerBase::OnJobStarted(TJobPtr job)
         .Item("job_id").Value(job->GetId())
         .Item("operation_id").Value(job->GetOperation()->GetId())
         .Item("resource_limits").Value(job->ResourceLimits())
-        .Item("node_address").Value(job->GetNode()->GetAddress());
+        .Item("node_address").Value(job->GetNode()->GetDefaultAddress());
 
     JobCounter.Start(1);
 }
@@ -2025,7 +2025,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
     const TNodeResources& jobLimits)
 {
     auto node = context->GetNode();
-    const auto& address = node->GetAddress();
+    const auto& address = node->GetDefaultAddress();
 
     for (auto group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
@@ -2104,7 +2104,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
 {
     auto now = TInstant::Now();
     const auto& node = context->GetNode();
-    const auto& address = node->GetAddress();
+    const auto& address = node->GetDefaultAddress();
 
     for (auto group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
@@ -3740,7 +3740,7 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
             fluent
                 .Item("statistics").Value(jobStatistics);
         })
-        .Item("node_address").Value(job->GetNode()->GetAddress())
+        .Item("node_address").Value(job->GetNode()->GetDefaultAddress())
         .Item("job_type").Value(job->GetType());
 }
 

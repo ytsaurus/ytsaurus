@@ -47,17 +47,22 @@ message TNodeResources
     optional int32 seal_slots        = 8;
 }
 
-// Describes a cluster node.
-message TAddressDescriptor
+// A collection of network name to address mappings.
+message TAddressMap
 {
-    required string network = 1;
-    required string address = 2;
+    message TAddressEntry
+    {
+        required string network = 1;
+        required string address = 2;
+    }
+
+    repeated TAddressEntry entries = 3;
 }
 
 message TNodeDescriptor
 {
-    required string address = 2;
-    repeated TAddressDescriptor addresses = 3;
+    required TAddressMap addresses = 1;
+    optional string rack = 2;
 }
 
 // Provides a mapping from node ids to descriptors.

@@ -22,7 +22,7 @@ public:
 
     static int GetProtocolVersion()
     {
-        return 12;
+        return 13;
     }
 
     explicit TQueryServiceProxy(NRpc::IChannelPtr channel)

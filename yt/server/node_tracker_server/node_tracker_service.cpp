@@ -71,8 +71,8 @@ private:
                 "If you are sure and wish to continue then run 'yt remove //sys/@provision_lock'");
         }
 
-        auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
-        const auto& address = descriptor.GetDefaultAddress();
+        auto addresses = FromProto<TAddressMap>(request->addresses());
+        const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request->statistics();
 
         context->SetRequestInfo("Address: %v, %v",
@@ -110,7 +110,7 @@ private:
 
         context->SetRequestInfo("NodeId: %v, Address: %v, %v",
             nodeId,
-            node->GetAddress(),
+            node->GetDefaultAddress(),
             statistics);
 
         if (node->GetState() != ENodeState::Registered) {
@@ -139,7 +139,7 @@ private:
 
         context->SetRequestInfo("NodeId: %v, Address: %v, %v",
             nodeId,
-            node->GetAddress(),
+            node->GetDefaultAddress(),
             statistics);
 
         if (node->GetState() != ENodeState::Online) {

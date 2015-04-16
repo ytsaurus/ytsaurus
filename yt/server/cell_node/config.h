@@ -4,6 +4,8 @@
 
 #include <ytlib/api/config.h>
 
+#include <ytlib/node_tracker_client/public.h>
+
 #include <server/misc/config.h>
 
 #include <server/exec_agent/config.h>
@@ -50,7 +52,7 @@ public:
     //! Metadata cache service configuration.
     NObjectServer::TMasterCacheServiceConfigPtr MasterCacheService;
 
-    yhash_map<Stroka, Stroka> Addresses;
+    NNodeTrackerClient::TAddressMap Addresses;
 
     TCellNodeConfig()
     {

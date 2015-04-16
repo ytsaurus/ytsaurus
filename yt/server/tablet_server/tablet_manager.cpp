@@ -840,7 +840,7 @@ private:
             auto* cell = slot.Cell;
             if (cell) {
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer offline: node unregistered (Address: %v, CellId: %v, PeerId: %v)",
-                    node->GetAddress(),
+                    node->GetDefaultAddress(),
                     cell->GetId(),
                     slot.PeerId);
                 cell->DetachPeer(node);
@@ -868,7 +868,7 @@ private:
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), cell->GetPrerequisiteTransaction()->GetId());
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PrerequisiteTransactionId: %v)",
-                node->GetAddress(),
+                node->GetDefaultAddress(),
                 cellId,
                 cell->GetPrerequisiteTransaction()->GetId());
         };
@@ -886,7 +886,7 @@ private:
             protoInfo->set_peer_id(cell->GetPeerId(node));
             
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot configuration update requested (Address: %v, CellId: %v, Version: %v)",
-                node->GetAddress(),
+                node->GetDefaultAddress(),
                 cellId,
                 cell->GetConfigVersion());
         };
@@ -899,14 +899,14 @@ private:
             ToProto(protoInfo->mutable_cell_id(), cellId);
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot removal requested (Address: %v, CellId: %v)",
-                node->GetAddress(),
+                node->GetDefaultAddress(),
                 cellId);
         };
 
         const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
-        const auto& address = node->GetAddress();
+        const auto& address = node->GetDefaultAddress();
 
         // Our expectations.
         yhash_set<TTabletCell*> expectedCells;

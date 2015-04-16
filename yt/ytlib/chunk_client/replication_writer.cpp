@@ -283,8 +283,8 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     auto req = node->HeavyProxy.PutBlocks();
     ToProto(req->mutable_chunk_id(), writer->ChunkId_);
     req->set_first_block_index(FirstBlockIndex_);
-    req->Attachments().insert(req->Attachments().begin(), Blocks_.begin(), Blocks_.end());
     req->set_enable_caching(writer->Config_->EnableCaching);
+    req->Attachments().insert(req->Attachments().begin(), Blocks_.begin(), Blocks_.end());
 
     LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
         GetStartBlockIndex(),
@@ -335,7 +335,7 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
             ToProto(req->mutable_chunk_id(), writer->ChunkId_);
             req->set_first_block_index(FirstBlockIndex_);
             req->set_block_count(Blocks_.size());
-            ToProto(req->mutable_target(), dstNode->Descriptor);
+            ToProto(req->mutable_target_descriptor(), dstNode->Descriptor);
 
             auto rspOrError = WaitFor(req->Invoke());
 
@@ -515,7 +515,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    TNodeDescriptor nodeDescriptor = NodeDirectory_->GetDescriptor(target);
+    auto nodeDescriptor = NodeDirectory_->GetDescriptor(target);
     auto address = nodeDescriptor.GetDefaultAddress();
     LOG_DEBUG("Starting write session (Address: %v)", address);
 

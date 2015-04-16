@@ -285,19 +285,19 @@ private:
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
-        auto target = FromProto<TNodeDescriptor>(request->target());
+        auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, TargetAddress: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, Target: %v",
             chunkId,
             firstBlockIndex,
             lastBlockIndex,
-            target.GetDefaultAddress());
+            targetDescriptor);
 
         ValidateConnected();
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
-        session->SendBlocks(firstBlockIndex, blockCount, target)
+        session->SendBlocks(firstBlockIndex, blockCount, targetDescriptor)
             .Subscribe(BIND([=] (const TError& error) {
                 if (error.IsOK()) {
                     context->Reply();
@@ -305,7 +305,7 @@ private:
                     context->Reply(TError(
                         NChunkClient::EErrorCode::PipelineFailed,
                         "Error putting blocks to %v",
-                        target.GetDefaultAddress())
+                        targetDescriptor.GetDefaultAddress())
                         << error);
                 }
             }));

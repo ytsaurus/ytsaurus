@@ -138,7 +138,7 @@ private:
     class TImpl;
     class TRackTypeHandler;
 
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 
