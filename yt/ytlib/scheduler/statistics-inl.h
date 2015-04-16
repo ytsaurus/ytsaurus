@@ -40,7 +40,7 @@ void TStatistics::AddComplex(const NYPath::TYPath& path, const T& statistics)
             Merge(other);
         }),
         path);
-    consumer.OnMyListItem();
+    consumer.OnListItem();
 
     Serialize(statistics, &consumer);
 }
