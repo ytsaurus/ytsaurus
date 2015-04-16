@@ -690,8 +690,20 @@ public:
             EnumerateChunksInChunkTree(chunkLists[index]->AsChunkList(), &chunks);
         }
 
-        std::sort(chunks.begin(), chunks.end());
-        chunks.erase(std::unique(chunks.begin(), chunks.end()), chunks.end());
+        std::sort(
+            chunks.begin(),
+            chunks.end(),
+            [] (TChunk* lhs, TChunk* rhs) {
+                    return lhs->GetId() < rhs->GetId();
+            });
+        chunks.erase(
+            std::unique(
+                chunks.begin(),
+                chunks.end(),
+                [] (TChunk* lhs, TChunk* rhs) {
+                    return lhs->GetId() == rhs->GetId();
+                }),
+                chunks.end());
 
         for (auto* chunk : chunks) {
             auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
