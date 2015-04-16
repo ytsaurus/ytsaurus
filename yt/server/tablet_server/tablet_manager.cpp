@@ -703,7 +703,7 @@ public:
                 [] (TChunk* lhs, TChunk* rhs) {
                     return lhs->GetId() == rhs->GetId();
                 }),
-                chunks.end());
+            chunks.end());
 
         for (auto* chunk : chunks) {
             auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
