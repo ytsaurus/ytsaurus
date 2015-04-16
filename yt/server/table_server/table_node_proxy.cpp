@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "stdafx.h"
 #include "table_node_proxy.h"
 #include "table_node.h"
 #include "private.h"
@@ -328,6 +329,7 @@ private:
             cellId);
 
         ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
         auto* impl = LockThisTypedImpl();
 
@@ -354,6 +356,7 @@ private:
             force);
 
         ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
         auto* impl = LockThisTypedImpl();
 
@@ -378,6 +381,7 @@ private:
             lastTabletIndex);
 
         ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
         auto* impl = LockThisTypedImpl();
 
@@ -403,6 +407,7 @@ private:
             static_cast<int>(pivotKeys.size()));
 
         ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
         auto* impl = LockThisTypedImpl();
 
