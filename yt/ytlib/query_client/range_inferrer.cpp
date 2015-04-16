@@ -401,8 +401,9 @@ private:
                 return result;
             } else if (expr->As<TLiteralExpression>()) {
                 return TDivisors();
+            } else {
+                YUNREACHABLE();
             }
-            YUNREACHABLE();
         };
 
         TDivisors result;
@@ -638,6 +639,16 @@ private:
         int lowerSize = ExpandKey(lowerRow, range.first, std::max(shrinkSize, maxReferenceIndex + 1));
         int upperSize = ExpandKey(upperRow, range.second, std::max(shrinkSize, maxReferenceIndex + 1));
 
+        // Trim trailing modulo computed columns.
+        while (!moduloComputedColumns.empty() &&
+            moduloComputedColumns.back().first == lowerSize - 1 &&
+            lowerSize == upperSize)
+        {
+            --lowerSize;
+            --upperSize;
+            moduloComputedColumns.pop_back();
+        }
+
         // Evaluate computed columns with exact value.
         for (int index : exactlyComputedColumns) {
             Evaluator_->EvaluateKey(lowerRow, Buffer_, index);
@@ -704,7 +715,7 @@ private:
             };
 
             for (auto& generator : moduloComputedColumns) {
-                setValue(generator.second.Next());
+                setValue(MakeUnversionedSentinelValue(EValueType::Null, generator.first));
             }
             yield();
 
@@ -717,7 +728,7 @@ private:
                     while (generatorIndex + 1 < moduloComputedColumns.size()) {
                         ++generatorIndex;
                         moduloComputedColumns[generatorIndex].second.Reset();
-                        setValue(moduloComputedColumns[generatorIndex].second.Next());
+                        setValue(MakeUnversionedSentinelValue(EValueType::Null, moduloComputedColumns[generatorIndex].first));
                     }
                     yield();
                 }
@@ -806,7 +817,7 @@ TRangeInferrer CreateRangeInferrer(
     ui64 rangeExpansionLimit,
     bool verboseLogging)
 {
-    if (!schema.HasComputedColumns()) {
+    if (!predicate || !schema.HasComputedColumns()) {
         return CreateLightRangeInferrer(
             predicate,
             keyColumns,
