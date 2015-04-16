@@ -319,12 +319,16 @@ echo {v = 2} >&7
                 "job_count": 1
             })
 
-        jobs_path = "//sys/operations/" + op_id + "/jobs"
-        for job_id in ls(jobs_path):
-            stderr_bytes = download(jobs_path + "/" + job_id + "/stderr")
+        jobs_path = "//sys/operations/{0}/jobs".format(op_id)
+        job_ids = ls(jobs_path)
+        assert len(job_ids) == 1
+        stderr_bytes = download("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
 
         assert stderr_bytes.encode("hex") == \
-            "010000006100000000feffffff010000006200000000010000006200000000"
+            "010000006100000000" \
+            "feffffff" \
+            "010000006200000000" \
+            "010000006200000000"
 
     def test_key_switch_yson(self):
         create('table', '//tmp/in')
@@ -350,13 +354,13 @@ echo {v = 2} >&7
                 "job_count": 1
             })
 
-        jobs_path = "//sys/operations/" + op_id + "/jobs"
-        for job_id in ls(jobs_path):
-            stderr_bytes = download(jobs_path + "/" + job_id + "/stderr")
+        jobs_path = "//sys/operations/{0}/jobs".format(op_id)
+        job_ids = ls(jobs_path)
+        assert len(job_ids) == 1
+        stderr_bytes = download("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
 
         assert stderr_bytes == \
-"""{"key"="a";"value"=""};
-<"key_switch"=%true>#;
-{"key"="b";"value"=""};
-{"key"="b";"value"=""};
-"""
+            '{"key"="a";"value"=""};\n' \
+            '<"key_switch"=%true>#;\n' \
+            '{"key"="b";"value"=""};\n' \
+            '{"key"="b";"value"=""};\n'
