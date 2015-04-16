@@ -35,10 +35,10 @@ message TReqFetch
 
     // Deprecated = 5;
     // Deprecated = 6;
-	optional NChunkClient.NProto.TChannel channel = 7;
+    optional NChunkClient.NProto.TChannel channel = 7;
     // Deprecated = 8;
     // Deprecated = 9;
-	
+
     optional bool fetch_parity_replicas = 10 [default = false];
 
     repeated TReadRange ranges = 11;
