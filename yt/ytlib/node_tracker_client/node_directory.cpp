@@ -24,11 +24,6 @@ TNodeDescriptor::TNodeDescriptor(
     , Rack_(rack)
 { }
 
-bool TNodeDescriptor::IsLocal() const
-{
-    return GetServiceHostName(GetDefaultAddress()) == TAddressResolver::Get()->GetLocalHostName();
-}
-
 const Stroka& TNodeDescriptor::GetDefaultAddress() const
 {
     return NNodeTrackerClient::GetDefaultAddress(Addresses_);
@@ -113,6 +108,19 @@ const Stroka& GetInterconnectAddress(const TAddressMap& addresses)
 {
     auto it = addresses.find(InterconnectNetworkName);
     return it == addresses.end() ? GetDefaultAddress(addresses) : it->second;
+}
+
+EAddressLocality ComputeAddressLocality(const TNodeDescriptor& first, const TNodeDescriptor& second)
+{
+    if (GetServiceHostName(first.GetDefaultAddress()) == GetServiceHostName(second.GetDefaultAddress())) {
+        return EAddressLocality::SameHost;
+    }
+
+    if (first.GetRack() && second.GetRack() && *first.GetRack() == *second.GetRack()) {
+        return EAddressLocality::SameRack;
+    }
+
+    return EAddressLocality::None;
 }
 
 namespace NProto {
