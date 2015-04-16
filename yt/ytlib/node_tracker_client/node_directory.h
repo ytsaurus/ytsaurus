@@ -4,6 +4,7 @@
 
 #include <core/misc/nullable.h>
 #include <core/misc/property.h>
+#include <core/misc/enum.h>
 
 #include <ytlib/chunk_client/chunk_replica.h>
 
@@ -27,8 +28,6 @@ public:
         const TAddressMap& addresses,
         const TNullable<Stroka>& rack = Null);
 
-    bool IsLocal() const;
-
     const Stroka& GetDefaultAddress() const;
     const Stroka& GetInterconnectAddress() const;
     const Stroka& GetAddressOrThrow(const Stroka& name) const;
@@ -46,6 +45,15 @@ Stroka ToString(const TNodeDescriptor& descriptor);
 // Accessors for some well-known adddresses.
 const Stroka& GetDefaultAddress(const TAddressMap& addresses);
 const Stroka& GetInterconnectAddress(const TAddressMap& addresses);
+
+//! Please keep the items in this particular order: the further the better.
+DEFINE_ENUM(EAddressLocality,
+    (None)
+    (SameRack)
+    (SameHost)
+);
+
+EAddressLocality ComputeAddressLocality(const TNodeDescriptor& first, const TNodeDescriptor& second);
 
 namespace NProto {
 

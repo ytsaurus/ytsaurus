@@ -518,15 +518,19 @@ private:
             }
         }
 
-        // Prefer local node if in seeds.
-        for (auto it = SeedReplicas_.begin(); it != SeedReplicas_.end(); ++it) {
-            const auto& descriptor = reader->NodeDirectory_->GetDescriptor(*it);
-            if (descriptor.IsLocal()) {
-                auto localSeed = *it;
-                SeedReplicas_.erase(it);
-                SeedReplicas_.insert(SeedReplicas_.begin(), localSeed);
-                break;
-            }
+        if (reader->LocalDescriptor_) {
+            // Sort by descreasing locality.
+            const auto& localDescriptor = *reader->LocalDescriptor_;
+            std::sort(
+                SeedReplicas_.begin(),
+                SeedReplicas_.end(),
+                [&] (TChunkReplica lhsReplica, TChunkReplica rhsReplica) {
+                    const auto& lhsDescriptor = reader->NodeDirectory_->GetDescriptor(lhsReplica);
+                    const auto& rhsDescriptor = reader->NodeDirectory_->GetDescriptor(rhsReplica);
+                    auto lhsLocality = ComputeAddressLocality(lhsDescriptor, localDescriptor);
+                    auto rhsLocality = ComputeAddressLocality(rhsDescriptor, localDescriptor);
+                    return lhsLocality > rhsLocality;
+                });
         }
 
         NextPass();
