@@ -24,15 +24,15 @@ TKeyTriePtr ExtractMultipleConstraints(
 
 //! Returns a minimal key range that cover both inputs.
 TKeyRange Unite(const TKeyRange& first, const TKeyRange& second);
-std::pair<TRow, TRow> Unite(const std::pair<TRow, TRow>& first, const std::pair<TRow, TRow>& second);
+TRowRange Unite(const TRowRange& first, const TRowRange& second);
 
 //! Returns a maximal key range covered by both inputs.
 TKeyRange Intersect(const TKeyRange& first, const TKeyRange& second);
-std::pair<TRow, TRow> Intersect(const std::pair<TRow, TRow>& first, const std::pair<TRow, TRow>& second);
+TRowRange Intersect(const TRowRange& first, const TRowRange& second);
 
 //! Checks whether key range is empty.
 bool IsEmpty(const TKeyRange& keyRange);
-bool IsEmpty(const std::pair<TRow, TRow>& keyRange);
+bool IsEmpty(const TRowRange& keyRange);
 
 TConstExpressionPtr MakeAndExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs);
 TConstExpressionPtr MakeOrExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs);

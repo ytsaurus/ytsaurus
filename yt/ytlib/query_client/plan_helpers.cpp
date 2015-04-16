@@ -612,7 +612,7 @@ TKeyRange Unite(const TKeyRange& first, const TKeyRange& second)
     return std::make_pair(lower, upper);
 }
 
-std::pair<TRow, TRow> Unite(const std::pair<TRow, TRow>& first, const std::pair<TRow, TRow>& second)
+TRowRange Unite(const TRowRange& first, const TRowRange& second)
 {
     const auto& lower = std::min(first.first, second.first);
     const auto& upper = std::max(first.second, second.second);
@@ -640,7 +640,7 @@ TKeyRange Intersect(const TKeyRange& first, const TKeyRange& second)
     }
 }
 
-std::pair<TRow, TRow> Intersect(const std::pair<TRow, TRow>& first, const std::pair<TRow, TRow>& second)
+TRowRange Intersect(const TRowRange& first, const TRowRange& second)
 {
     const auto* leftmost = &first;
     const auto* rightmost = &second;
@@ -667,7 +667,7 @@ bool IsEmpty(const TKeyRange& keyRange)
     return keyRange.first >= keyRange.second;
 }
 
-bool IsEmpty(const std::pair<TRow, TRow>& keyRange)
+bool IsEmpty(const TRowRange& keyRange)
 {
     return keyRange.first >= keyRange.second;
 }
