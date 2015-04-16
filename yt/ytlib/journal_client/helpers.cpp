@@ -50,10 +50,10 @@ public:
     }
 
 private:
-    TChunkId ChunkId_;
-    std::vector<TNodeDescriptor> Replicas_;
-    TDuration Timeout_;
-    int Quorum_;
+    const TChunkId ChunkId_;
+    const std::vector<TNodeDescriptor> Replicas_;
+    const TDuration Timeout_;
+    const int Quorum_;
 
     int SuccessCounter_ = 0;
     int ResponseCounter_ = 0;
@@ -91,7 +91,9 @@ private:
         }
     }
 
-    void OnResponse(const TNodeDescriptor& descriptor, const TDataNodeServiceProxy::TErrorOrRspFinishChunkPtr& rspOrError)
+    void OnResponse(
+        const TNodeDescriptor& descriptor,
+        const TDataNodeServiceProxy::TErrorOrRspFinishChunkPtr& rspOrError)
     {
         ++ResponseCounter_;
         // NB: Missing session is also OK.
@@ -161,10 +163,10 @@ public:
     }
 
 private:
-    TChunkId ChunkId_;
-    std::vector<TNodeDescriptor> Replicas_;
-    TDuration Timeout_;
-    int Quorum_;
+    const TChunkId ChunkId_;
+    const std::vector<TNodeDescriptor> Replicas_;
+    const TDuration Timeout_;
+    const int Quorum_;
 
     std::vector<TMiscExt> Infos_;
     std::vector<TError> InnerErrors_;
@@ -206,7 +208,9 @@ private:
             BIND(&TComputeQuorumRowCountSession::OnComplete, MakeStrong(this)));
     }
 
-    void OnResponse(const TNodeDescriptor& descriptor, const TDataNodeServiceProxy::TErrorOrRspGetChunkMetaPtr& rspOrError)
+    void OnResponse(
+        const TNodeDescriptor& descriptor,
+        const TDataNodeServiceProxy::TErrorOrRspGetChunkMetaPtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
             const auto& rsp = rspOrError.Value();
