@@ -59,14 +59,14 @@ public:
     typedef TCallback<void(const TStatistics&)> TParsedStatisticsConsumer;
     explicit TStatisticsConsumer(TParsedStatisticsConsumer consumer, const NYPath::TYPath& path);
 
-    virtual void OnMyListItem() override;
-
 private:
     NYPath::TYPath Path_;
     std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
     TParsedStatisticsConsumer Consumer_;
 
+    virtual void OnMyListItem() override;
     void ProcessItem();
+
 };
 
 ////////////////////////////////////////////////////////////////////
