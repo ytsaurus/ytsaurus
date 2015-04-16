@@ -83,7 +83,8 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EWriteSessionType sessionType) const;
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EReadSessionType sessionType) const;
 
-    const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
+    const NNodeTrackerClient::TAddressMap& GetLocalAddresses() const;
+    NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const;
 
     const TGuid& GetCellId() const;
 
@@ -133,10 +134,11 @@ private:
 
     NQueryClient::IExecutorPtr QueryExecutor;
 
-    NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
+    NNodeTrackerClient::TAddressMap LocalAddresses;
 
 
     void DoRun();
+    void InitNodeAddresses();
 
 };
 

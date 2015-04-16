@@ -11,6 +11,7 @@ namespace NNodeTrackerClient {
 
 namespace NProto {
 
+class TNodeDescriptor;
 class TNodeDirectory;
 
 class TReqRegisterNode;
@@ -26,14 +27,16 @@ class TRspFullHeartbeat;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-typedef i32 TNodeId;
+using TNodeId = i32;
 const TNodeId InvalidNodeId = 0;
 const TNodeId MaxNodeId = (1 << 28) - 1; // TNodeId must fit into 28 bits (see TChunkReplica)
 
-typedef NObjectClient::TObjectId TRackId;
+using TRackId = NObjectClient::TObjectId;
 extern const TRackId NullRackId;
 
+using TAddressMap = yhash_map<Stroka, Stroka>;
 class TNodeDescriptor;
+
 class TNodeDirectoryBuilder;
 
 DECLARE_REFCOUNTED_CLASS(TNodeDirectory)

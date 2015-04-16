@@ -256,7 +256,7 @@ void TJobController::PrepareHeartbeat(TReqHeartbeat* request)
 {
     auto masterConnector = Bootstrap->GetMasterConnector();
     request->set_node_id(masterConnector->GetNodeId());
-    ToProto(request->mutable_node_descriptor(), Bootstrap->GetLocalDescriptor());
+    ToProto(request->mutable_addresses(), Bootstrap->GetLocalAddresses());
     *request->mutable_resource_limits() = GetResourceLimits();
     *request->mutable_resource_usage() = GetResourceUsage();
 

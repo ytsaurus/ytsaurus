@@ -63,7 +63,7 @@ private:
 
         context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: {%v}",
             nodeId,
-            node->GetAddress(),
+            node->GetDefaultAddress(),
             FormatResourceUsage(resourceUsage, resourceLimits));
 
         if (node->GetState() != ENodeState::Online) {

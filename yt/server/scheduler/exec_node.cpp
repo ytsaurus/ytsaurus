@@ -9,13 +9,12 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NNodeTrackerClient;
-using NNodeTrackerClient::TNodeDescriptor;
 using NNodeTrackerClient::NProto::TNodeResources;
 
 ////////////////////////////////////////////////////////////////////
 
-TExecNode::TExecNode(const TNodeDescriptor& descriptor)
-    : Descriptor_(descriptor)
+TExecNode::TExecNode(const TAddressMap& addresses)
+    : Addresses_(addresses)
     , ResourceLimits_(ZeroNodeResources())
     , ResourceUsage_(ZeroNodeResources())
 { }
@@ -32,9 +31,9 @@ bool TExecNode::HasSpareResources() const
     return HasEnoughResources(MinSpareNodeResources());
 }
 
-const Stroka& TExecNode::GetAddress() const
+Stroka TExecNode::GetDefaultAddress()
 {
-    return Descriptor_.GetDefaultAddress();
+    return NNodeTrackerClient::GetDefaultAddress(Addresses_);
 }
 
 bool TExecNode::CanSchedule(const TNullable<Stroka>& tag) const

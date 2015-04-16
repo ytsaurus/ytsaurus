@@ -29,7 +29,7 @@ message TChunkRemoveInfo
 
 message TReqRegisterNode
 {
-    required TNodeDescriptor node_descriptor = 1;
+    required TAddressMap addresses = 1;
     required TNodeStatistics statistics = 2;
 }
 

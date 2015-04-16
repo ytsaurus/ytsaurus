@@ -322,7 +322,7 @@ private:
                 .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<TNodeId, TNode*>& pair) {
                     auto* node = pair.second;
                     if (node->GetState() == expectedState) {
-                        fluent.Item().Value(node->GetAddress());
+                        fluent.Item().Value(node->GetDefaultAddress());
                     }
                 });
             return true;

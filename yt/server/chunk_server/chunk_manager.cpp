@@ -548,7 +548,7 @@ public:
             if (node->GetState() != ENodeState::Online) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at %v which has invalid state %Qlv",
                     id,
-                    node->GetAddress(),
+                    node->GetDefaultAddress(),
                     node->GetState());
                 continue;
             }
@@ -998,11 +998,11 @@ private:
             if (config->Decommissioned) {
                 LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (NodeId: %v, Address: %v)",
                     node->GetId(),
-                    node->GetAddress());
+                    node->GetDefaultAddress());
             } else {
                 LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
                     node->GetId(),
-                    node->GetAddress());
+                    node->GetDefaultAddress());
             }
             node->SetDecommissioned(config->Decommissioned);
         }
@@ -1322,7 +1322,7 @@ private:
                 chunkWithIndex,
                 cached,
                 nodeId,
-                node->GetAddress());
+                node->GetDefaultAddress());
         }
 
         if (ChunkReplicator_ && !cached) {
@@ -1350,7 +1350,7 @@ private:
                 cached,
                 reason,
                 nodeId,
-                node->GetAddress());
+                node->GetDefaultAddress());
             return;
         }
 
@@ -1379,7 +1379,7 @@ private:
                 cached,
                 reason,
                 nodeId,
-                node->GetAddress());
+                node->GetDefaultAddress());
         }
 
         if (ChunkReplicator_ && !cached) {
@@ -1428,7 +1428,7 @@ private:
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added, removal scheduled (NodeId: %v, Address: %v, ChunkId: %v, Cached: %v)",
                 nodeId,
-                node->GetAddress(),
+                node->GetDefaultAddress(),
                 chunkIdWithIndex,
                 cached);
 
@@ -1446,7 +1446,7 @@ private:
         if (!cached && node->HasUnapprovedReplica(chunkWithIndex)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
-                node->GetAddress(),
+                node->GetDefaultAddress(),
                 chunkWithIndex);
 
             node->ApproveReplica(chunkWithIndex);
@@ -1475,7 +1475,7 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Cached: %v, Address: %v, NodeId: %v)",
                  chunkIdWithIndex,
                  cached,
-                 node->GetAddress(),
+                node->GetDefaultAddress(),
                  nodeId);
             return;
         }

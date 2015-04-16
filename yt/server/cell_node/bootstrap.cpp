@@ -93,6 +93,7 @@ namespace NCellNode {
 
 using namespace NBus;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 using namespace NChunkServer;
 using namespace NElection;
 using namespace NHydra;
@@ -147,19 +148,10 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    {
-        auto addresses = Config->Addresses;
-        if (addresses.find(NNodeTrackerClient::DefaultNetworkName) == addresses.end()) {
-            addresses[NNodeTrackerClient::DefaultNetworkName] = TAddressResolver::Get()->GetLocalHostName();
-        }
-        for (auto& pair : addresses) {
-            pair.second = BuildServiceAddress(pair.second, Config->RpcPort);
-        }
-        LocalDescriptor = NNodeTrackerClient::TNodeDescriptor(addresses);
-    }
+    auto localDescriptor = GetLocalDescriptor();
 
-    LOG_INFO("Starting node (LocalDescriptor: %v, MasterAddresses: [%v])",
-        LocalDescriptor,
+    LOG_INFO("Starting node (MasterAddresses: [%v])",
+        localDescriptor,
         JoinToString(Config->ClusterConnection->Master->Addresses));
 
     {
@@ -264,7 +256,7 @@ void TBootstrap::DoRun()
     JobProxyConfig->SandboxName = SandboxDirectoryName;
     JobProxyConfig->AddressResolver = Config->AddressResolver;
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfig->SupervisorConnection->Address = LocalDescriptor.GetInterconnectAddress();
+    JobProxyConfig->SupervisorConnection->Address = localDescriptor.GetInterconnectAddress();
     JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
@@ -541,9 +533,14 @@ NQueryClient::IExecutorPtr TBootstrap::GetQueryExecutor() const
     return QueryExecutor;
 }
 
-const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
+const TAddressMap& TBootstrap::GetLocalAddresses() const
 {
-    return LocalDescriptor;
+    return LocalAddresses;
+}
+
+TNodeDescriptor TBootstrap::GetLocalDescriptor() const
+{
+    return TNodeDescriptor(LocalAddresses);
 }
 
 const TGuid& TBootstrap::GetCellId() const
@@ -619,6 +616,24 @@ IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EReadSessionType sessionType
 
         default:
             YUNREACHABLE();
+    }
+}
+
+void TBootstrap::InitNodeAddresses()
+{
+    // First without port number.
+    auto hostNames = Config->Addresses;
+    if (hostNames.find(NNodeTrackerClient::DefaultNetworkName) == hostNames.end()) {
+        YCHECK(hostNames.insert(std::make_pair(
+            NNodeTrackerClient::DefaultNetworkName,
+            TAddressResolver::Get()->GetLocalHostName())).second);
+    }
+
+    // Now append port number.
+    for (auto& pair : hostNames) {
+        YCHECK(LocalAddresses.insert(std::make_pair(
+            pair.first,
+            BuildServiceAddress(pair.second, Config->RpcPort))).second);
     }
 }
 

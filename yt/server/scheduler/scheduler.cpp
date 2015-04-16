@@ -58,7 +58,7 @@ using namespace NVersionedTableClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 
-using NNodeTrackerClient::TNodeDescriptor;
+using NNodeTrackerClient::TAddressMap;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -249,16 +249,16 @@ public:
         return node;
     }
 
-    TExecNodePtr GetOrRegisterNode(const TNodeDescriptor& descriptor)
+    TExecNodePtr GetOrRegisterNode(const TAddressMap& addresses)
     {
-        auto it = AddressToNode_.find(descriptor.GetDefaultAddress());
+        auto it = AddressToNode_.find(GetDefaultAddress(addresses));
         if (it == AddressToNode_.end()) {
-            return RegisterNode(descriptor);
+            return RegisterNode(addresses);
         }
 
         // Update the current descriptor, just in case.
         auto node = it->second;
-        node->Descriptor() = descriptor;
+        node->Addresses() = addresses;
         return node;
     }
 
@@ -403,13 +403,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto probeProxy = CreateJobProber(jobId);
+        auto proxy = CreateJobProberProxy(jobId);
 
-        auto req = probeProxy.Strace();
+        auto req = proxy.Strace();
         ToProto(req->mutable_job_id(), jobId);
 
         auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error stracing processes of job %v", jobId);
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error stracing processes of job %v",
+            jobId);
 
         auto& res = rspOrError.Value();
 
@@ -427,13 +428,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto probeProxy = CreateJobProber(jobId);
+        auto proxy = CreateJobProberProxy(jobId);
 
-        auto req = probeProxy.DumpInputContext();
+        auto req = proxy.DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
 
         auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error dumping input context for job %v", jobId)
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error dumping input context for job %v",
+            jobId)
 
         auto& res = rspOrError.Value();
         auto chunkIds = FromProto<TGuid>(res->chunk_id());
@@ -444,19 +446,19 @@ public:
             path);
     }
 
-    TJobProberServiceProxy CreateJobProber(const TJobId& jobId)
+    TJobProberServiceProxy CreateJobProberProxy(const TJobId& jobId)
     {
         auto job = FindJob(jobId);
         if (!job) {
             THROW_ERROR_EXCEPTION("No such job %v", jobId);
         }
 
-        const auto& address = job->GetNode()->Descriptor().GetInterconnectAddress();
+        const auto& address = GetInterconnectAddress(job->GetNode()->Addresses());
         auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
 
-        TJobProberServiceProxy jobProber(channel);
-        jobProber.SetDefaultTimeout(Bootstrap_->GetConfig()->Scheduler->JobProberRpcTimeout);
-        return jobProber;
+        TJobProberServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->Scheduler->JobProberRpcTimeout);
+        return proxy;
     }
 
     void ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
@@ -530,7 +532,7 @@ public:
                 // Check for missing jobs.
                 for (auto job : missingJobs) {
                     LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
-                        node->GetAddress(),
+                        node->GetDefaultAddress(),
                         job->GetId(),
                         job->GetOperation()->GetId());
                     AbortJob(job, TError("Job vanished"));
@@ -1246,13 +1248,12 @@ private:
     }
 
 
-    TExecNodePtr RegisterNode(const TNodeDescriptor& descriptor)
+    TExecNodePtr RegisterNode(const TAddressMap& addresses)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Node online (Descriptor: %v)", descriptor.GetDefaultAddress());
-
-        auto node = New<TExecNode>(descriptor);
+        auto node = New<TExecNode>(addresses);
+        const auto& address = node->GetDefaultAddress();
 
         auto lease = TLeaseManager::CreateLease(
             Config_->NodeHeartbeatTimeout,
@@ -1264,7 +1265,9 @@ private:
         TotalResourceLimits_ += node->ResourceLimits();
         TotalResourceUsage_ += node->ResourceUsage();
 
-        YCHECK(AddressToNode_.insert(std::make_pair(node->GetAddress(), node)).second);
+        YCHECK(AddressToNode_.insert(std::make_pair(address, node)).second);
+
+        LOG_INFO("Node online (Address: %v)", address);
 
         return node;
     }
@@ -1273,14 +1276,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Node offline (Address: %v)", node->GetAddress());
+        LOG_INFO("Node offline (Address: %v)", node->GetDefaultAddress());
 
         TotalResourceLimits_ -= node->ResourceLimits();
         TotalResourceUsage_ -= node->ResourceUsage();
 
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
-        const auto& address = node->GetAddress();
+        const auto& address = node->GetDefaultAddress();
         for (auto job : jobs) {
             LOG_INFO("Aborting job on an offline node %v (JobId: %v, OperationId: %v)",
                 address,
@@ -1903,7 +1906,7 @@ private:
     void BuildNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
-            .Item(node->GetAddress()).BeginMap()
+            .Item(node->GetDefaultAddress()).BeginMap()
                 .Do([=] (TFluentMap fluent) {
                     BuildExecNodeAttributes(node, fluent);
                 })
@@ -1919,7 +1922,7 @@ private:
     {
         auto jobId = FromProto<TJobId>(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
-        const auto& jobAddress = node->GetAddress();
+        const auto& jobAddress = node->GetDefaultAddress();
 
         NLogging::TLogger Logger(SchedulerLogger);
         Logger.AddTag("Address: %v, JobId: %v",
@@ -1972,7 +1975,7 @@ private:
             operation->GetId());
 
         // Check if the job is running on a proper node.
-        const auto& expectedAddress = job->GetNode()->GetAddress();
+        const auto& expectedAddress = job->GetNode()->GetDefaultAddress();
         if (jobAddress != expectedAddress) {
             // Job has moved from one node to another. No idea how this could happen.
             if (state == EJobState::Aborting) {
@@ -2221,7 +2224,7 @@ TExecNodePtr TScheduler::GetNode(const Stroka& address)
     return Impl_->GetNode(address);
 }
 
-TExecNodePtr TScheduler::GetOrRegisterNode(const TNodeDescriptor& descriptor)
+TExecNodePtr TScheduler::GetOrRegisterNode(const TAddressMap& descriptor)
 {
     return Impl_->GetOrRegisterNode(descriptor);
 }

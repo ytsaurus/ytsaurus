@@ -196,7 +196,7 @@ void TMasterConnector::SendRegister()
 
     auto req = proxy.RegisterNode();
     *req->mutable_statistics() = ComputeStatistics();
-    ToProto(req->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
+    ToProto(req->mutable_addresses(), Bootstrap_->GetLocalAddresses());
     req->Invoke().Subscribe(
         BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
