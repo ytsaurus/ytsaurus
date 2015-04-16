@@ -105,6 +105,8 @@ typedef NVersionedTableClient::TUnversionedOwningRowBuilder TOwningRowBuilder;
 typedef NVersionedTableClient::TOwningKey TKey;
 
 typedef std::pair<TKey, TKey> TKeyRange;
+typedef std::pair<TRow, TRow> TRowRange;
+typedef std::vector<TRowRange> TRowRanges;
 
 const int MaxRowsPerRead = 1024;
 const int MaxRowsPerWrite = 1024;
