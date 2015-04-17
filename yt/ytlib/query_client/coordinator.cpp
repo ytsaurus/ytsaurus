@@ -270,9 +270,9 @@ TQueryStatistics CoordinateAndExecute(
 
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
-    for (auto const& holder : subqueryHolders) {
-        auto subfragmentStatistics = WaitFor(holder.Get()).ValueOrThrow();
-        LOG_DEBUG("Subfragment statistics (%v)", subfragmentStatistics);
+    for (int index = 0; index < subqueryHolders.size(); ++index) {
+        auto subfragmentStatistics = WaitFor(subqueryHolders[index].Get()).ValueOrThrow();
+        LOG_DEBUG("Subfragment statistics (%v) subfragmentID: %v", subfragmentStatistics, subqueries[index]->Id);
         queryStatistics += subfragmentStatistics;
     }
 
