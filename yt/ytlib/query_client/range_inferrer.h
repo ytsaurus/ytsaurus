@@ -22,7 +22,7 @@ TRangeInferrer CreateRangeInferrer(
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
-    i64 rangeExpansionLimit,
+    ui64 rangeExpansionLimit,
     bool verboseLogging);
 
 ////////////////////////////////////////////////////////////////////////////////
