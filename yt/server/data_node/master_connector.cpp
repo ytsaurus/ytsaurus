@@ -39,6 +39,7 @@
 #include <server/data_node/journal_dispatcher.h>
 
 #include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
 
 #include <util/random/random.h>
 
@@ -58,19 +59,24 @@ using namespace NHydra;
 using namespace NObjectClient;
 using namespace NCellNode;
 
+using NNodeTrackerClient::TAddressMap;
+using NNodeTrackerClient::TNodeDescriptor;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnector::TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootstrap)
+TMasterConnector::TMasterConnector(
+    TDataNodeConfigPtr config,
+    const TAddressMap& localAddresses,
+    TBootstrap* bootstrap)
     : Config_(config)
+    , LocalAddresses_(localAddresses)
     , Bootstrap_(bootstrap)
-    , Started_(false)
     , ControlInvoker_(bootstrap->GetControlInvoker())
-    , State_(EState::Offline)
-    , NodeId_(InvalidNodeId)
+    , LocalDescriptor_(LocalAddresses_)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
     YCHECK(Config_);
@@ -141,8 +147,23 @@ void TMasterConnector::RegisterAlert(const Stroka& alert)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     
-    TGuard<TSpinLock> guard(AlertsSpinLock_);
+    TGuard<TSpinLock> guard(AlertsLock_);
     Alerts_.push_back(alert);
+}
+
+const TAddressMap& TMasterConnector::GetLocalAddresses() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return LocalAddresses_;
+}
+
+TNodeDescriptor TMasterConnector::GetLocalDescriptor() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    return LocalDescriptor_;
 }
 
 void TMasterConnector::ScheduleNodeHeartbeat()
@@ -196,7 +217,7 @@ void TMasterConnector::SendRegister()
 
     auto req = proxy.RegisterNode();
     *req->mutable_statistics() = ComputeStatistics();
-    ToProto(req->mutable_addresses(), Bootstrap_->GetLocalAddresses());
+    ToProto(req->mutable_addresses(), LocalAddresses_);
     req->Invoke().Subscribe(
         BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
@@ -334,7 +355,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
     *request->mutable_statistics() = ComputeStatistics();
 
     {
-        TGuard<TSpinLock> guard(AlertsSpinLock_);
+        TGuard<TSpinLock> guard(AlertsLock_);
         ToProto(request->mutable_alerts(), Alerts_);
     }
 
@@ -467,7 +488,17 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
         return;
     }
 
-    LOG_DEBUG("Successfully reported incremental node heartbeat to master");
+    const auto& rsp = rspOrError.Value();
+
+    auto rack = rsp->has_rack() ? MakeNullable(rsp->rack()) : Null;
+
+    LOG_DEBUG("Successfully reported incremental node heartbeat to master (Rack: %v)",
+        rack);
+
+    {
+        TGuard<TSpinLock> guard(LocalDescriptorLock_);
+        LocalDescriptor_ = TNodeDescriptor(LocalAddresses_, rack);
+    }
 
     {
         auto it = AddedSinceLastSuccess_.begin();
@@ -495,7 +526,6 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
         ReportedRemoved_.clear();
     }
 
-    const auto& rsp = rspOrError.Value();
     auto slotManager = Bootstrap_->GetTabletSlotManager();
     for (const auto& info : rsp->tablet_slots_to_remove()) {
         auto cellId = FromProto<TCellId>(info.cell_id());

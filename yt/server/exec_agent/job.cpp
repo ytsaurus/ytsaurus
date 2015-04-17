@@ -38,6 +38,7 @@
 #include <server/data_node/chunk.h>
 #include <server/data_node/chunk_cache.h>
 #include <server/data_node/block_store.h>
+#include <server/data_node/master_connector.h>
 
 #include <server/job_agent/job.h>
 
@@ -92,7 +93,9 @@ public:
     {
         JobSpec.Swap(&jobSpec);
 
-        NodeDirectory->AddDescriptor(InvalidNodeId, Bootstrap->GetLocalDescriptor());
+        NodeDirectory->AddDescriptor(
+            InvalidNodeId,
+            Bootstrap->GetMasterConnector()->GetLocalDescriptor());
 
         Logger.AddTag("JobId: %v", jobId);
     }

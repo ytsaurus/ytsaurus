@@ -4,6 +4,7 @@
 
 #include <core/misc/address.h>
 #include <core/misc/ref_counted_tracker.h>
+#include <core/misc/collection_helpers.h>
 
 #include <core/concurrency/action_queue.h>
 
@@ -148,10 +149,10 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    auto localDescriptor = GetLocalDescriptor();
+    auto localAddresses = GetLocalAddresses();
 
-    LOG_INFO("Starting node (MasterAddresses: [%v])",
-        localDescriptor,
+    LOG_INFO("Starting node (LocalAddresses: [%v], MasterAddresses: [%v])",
+        JoinToString(GetValues(localAddresses)),
         JoinToString(Config->ClusterConnection->Master->Addresses));
 
     {
@@ -215,7 +216,10 @@ void TBootstrap::DoRun()
 
     SessionManager = New<TSessionManager>(Config->DataNode, this);
 
-    MasterConnector = New<NDataNode::TMasterConnector>(Config->DataNode, this);
+    MasterConnector = New<NDataNode::TMasterConnector>(
+        Config->DataNode,
+        localAddresses,
+        this);
 
     ChunkStore = New<NDataNode::TChunkStore>(Config->DataNode, this);
 
@@ -256,7 +260,7 @@ void TBootstrap::DoRun()
     JobProxyConfig->SandboxName = SandboxDirectoryName;
     JobProxyConfig->AddressResolver = Config->AddressResolver;
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfig->SupervisorConnection->Address = localDescriptor.GetInterconnectAddress();
+    JobProxyConfig->SupervisorConnection->Address = GetInterconnectAddress(localAddresses);
     JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
@@ -533,16 +537,6 @@ NQueryClient::IExecutorPtr TBootstrap::GetQueryExecutor() const
     return QueryExecutor;
 }
 
-const TAddressMap& TBootstrap::GetLocalAddresses() const
-{
-    return LocalAddresses;
-}
-
-TNodeDescriptor TBootstrap::GetLocalDescriptor() const
-{
-    return TNodeDescriptor(LocalAddresses);
-}
-
 const TGuid& TBootstrap::GetCellId() const
 {
     return Config->ClusterConnection->Master->CellId;
@@ -619,7 +613,7 @@ IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EReadSessionType sessionType
     }
 }
 
-void TBootstrap::InitNodeAddresses()
+TAddressMap TBootstrap::GetLocalAddresses()
 {
     // First without port number.
     auto hostNames = Config->Addresses;
@@ -630,11 +624,14 @@ void TBootstrap::InitNodeAddresses()
     }
 
     // Now append port number.
+    TAddressMap addresses;
     for (auto& pair : hostNames) {
-        YCHECK(LocalAddresses.insert(std::make_pair(
+        YCHECK(addresses.insert(std::make_pair(
             pair.first,
             BuildServiceAddress(pair.second, Config->RpcPort))).second);
     }
+
+    return addresses;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

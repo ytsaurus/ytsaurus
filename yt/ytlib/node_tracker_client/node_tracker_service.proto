@@ -157,6 +157,9 @@ message TRspIncrementalHeartbeat
     // Hive Manager stuff.
     repeated TUnregisterHiveCellInfo hive_cells_to_unregister = 4;
     repeated TReconfigureHiveCellInfo hive_cells_to_reconfigure = 5;
+
+    // General.
+    optional string rack = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
