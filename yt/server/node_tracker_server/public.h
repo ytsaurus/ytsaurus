@@ -38,7 +38,6 @@ DECLARE_REFCOUNTED_CLASS(TNodeConfig)
 
 class TNode;
 typedef SmallVector<TNode*, NChunkClient::TypicalReplicaCount> TNodeList;
-typedef TNodeList TSortedNodeList; // to clarify the semantics
 
 class TRack;
 typedef ui64 TRackSet;

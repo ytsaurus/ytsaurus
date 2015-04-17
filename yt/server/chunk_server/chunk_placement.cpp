@@ -31,7 +31,7 @@ class TChunkPlacement::TTargetChecker
 public:
     TTargetChecker(
         const TChunk* chunk,
-        const TSortedNodeList* forbiddenNodes)
+        const TNodeList* forbiddenNodes)
         : ForbiddenNodes_(forbiddenNodes)
         , MaxReplicasPerRack_(chunk->GetMaxReplicasPerRack())
     {
@@ -63,7 +63,7 @@ public:
     }
 
 private:
-    const TSortedNodeList* const ForbiddenNodes_;
+    const TNodeList* const ForbiddenNodes_;
     const int MaxReplicasPerRack_;
     std::array<i8, MaxRackCount> PerRackCounters_{};
 
@@ -145,7 +145,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
-    const TSortedNodeList* forbiddenNodes,
+    const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName,
     EWriteSessionType sessionType)
 {
@@ -237,7 +237,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
-    const TSortedNodeList* forbiddenNodes,
+    const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName,
     EWriteSessionType sessionType)
 {
@@ -312,7 +312,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     auto nodeTracker = Bootstrap_->GetNodeTracker();
     auto chunkManager = Bootstrap_->GetChunkManager();
 
-    TSortedNodeList forbiddenNodes;
+    TNodeList forbiddenNodes;
 
     for (auto replica : chunk->StoredReplicas()) {
         forbiddenNodes.push_back(replica.GetPtr());
@@ -332,8 +332,6 @@ TNodeList TChunkPlacement::GetWriteTargets(
             }
         }
     }
-
-    std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
 
     return GetWriteTargets(
         chunk,
