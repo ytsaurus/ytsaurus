@@ -5,6 +5,8 @@
 #include "chunk_manager.h"
 #include "private.h"
 
+#include <core/misc/small_set.h>
+
 #include <server/node_tracker_server/node.h>
 #include <server/node_tracker_server/rack.h>
 #include <server/node_tracker_server/node_tracker.h>
@@ -26,46 +28,75 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkPlacement::TTargetChecker
+class TChunkPlacement::TTargetCollector
 {
 public:
-    TTargetChecker(
+    TTargetCollector(
         const TChunk* chunk,
         const TNodeList* forbiddenNodes)
-        : ForbiddenNodes_(forbiddenNodes)
-        , MaxReplicasPerRack_(chunk->GetMaxReplicasPerRack())
+        : MaxReplicasPerRack_(chunk->GetMaxReplicasPerRack())
     {
-        for (auto replica : chunk->StoredReplicas()) {
-            Add(replica.GetPtr());
+        if (forbiddenNodes) {
+            ForbiddenNodes_ = *forbiddenNodes;
         }
+
+        for (auto replica : chunk->StoredReplicas()) {
+            auto* node = replica.GetPtr();
+            IncreaseRackUsage(node);
+            ForbiddenNodes_.push_back(node);
+        }
+
+        std::sort(ForbiddenNodes_.begin(), ForbiddenNodes_.end());
     }
 
-    bool Check(const TNode* node) const
+    bool CheckNode(TNode* node, bool enableRackAwareness) const
     {
-        if (ForbiddenNodes_ && std::binary_search(ForbiddenNodes_->begin(), ForbiddenNodes_->end(), node)) {
+        if (std::find(ForbiddenNodes_.begin(), ForbiddenNodes_.end(), node) != ForbiddenNodes_.end()) {
             return false;
         }
 
-        const auto* rack = node->GetRack();
-        if (rack && PerRackCounters_[rack->GetIndex()] >= MaxReplicasPerRack_) {
-            return false;
+        if (enableRackAwareness) {
+            const auto* rack = node->GetRack();
+            if (rack && PerRackCounters_[rack->GetIndex()] >= MaxReplicasPerRack_) {
+                return false;
+            }
         }
 
         return true;
     }
 
-    void Add(const TNode* node)
+    bool TryAddNode(TNode* node, bool enableRackAwareness)
+    {
+        if (!CheckNode(node, enableRackAwareness)) {
+            return false;
+        }
+
+        IncreaseRackUsage(node);
+        AddedNodes_.push_back(node);
+        ForbiddenNodes_.push_back(node);
+        return true;
+    }
+
+    const TNodeList& GetAddedNodes() const
+    {
+        return AddedNodes_;
+    }
+
+private:
+    const int MaxReplicasPerRack_;
+
+    std::array<i8, MaxRackCount> PerRackCounters_{};
+    TNodeList ForbiddenNodes_;
+    TNodeList AddedNodes_;
+
+
+    void IncreaseRackUsage(TNode* node)
     {
         const auto* rack = node->GetRack();
         if (rack) {
             ++PerRackCounters_[rack->GetIndex()];
         }
     }
-
-private:
-    const TNodeList* const ForbiddenNodes_;
-    const int MaxReplicasPerRack_;
-    std::array<i8, MaxRackCount> PerRackCounters_{};
 
 };
 
@@ -149,7 +180,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     const TNullable<Stroka>& preferredHostName,
     EWriteSessionType sessionType)
 {
-    auto targets = GetWriteTargets(
+    auto targetNodes = GetWriteTargets(
         chunk,
         desiredCount,
         minCount,
@@ -157,11 +188,11 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         preferredHostName,
         EWriteSessionType::User);
 
-    for (auto* target : targets) {
+    for (auto* target : targetNodes) {
         AddSessionHint(target, sessionType);
     }
 
-    return targets;
+    return targetNodes;
 }
 
 int TChunkPlacement::GetLoadFactor(TNode* node)
@@ -241,47 +272,35 @@ TNodeList TChunkPlacement::GetWriteTargets(
     const TNullable<Stroka>& preferredHostName,
     EWriteSessionType sessionType)
 {
-    TNodeList targets;
-    TTargetChecker checker(chunk, forbiddenNodes);
+    TTargetCollector collector(chunk, forbiddenNodes);
 
-    auto checkTarget = [&] (TNode* node) -> bool {
-        if (!IsValidWriteTarget(node, chunk, sessionType)) {
-            return false;
+    auto tryAdd = [&] (TNode* node, bool enableRackAwareness) {
+        if (IsValidWriteTarget(node, chunk, sessionType)) {
+            collector.TryAddNode(node, enableRackAwareness);
         }
-        if (!checker.Check(node)) {
-            return false;
-        }
-        return true;
     };
 
-    auto addTarget = [&] (TNode* node) {
-        targets.push_back(node);
-        checker.Add(node);
+    auto tryAddAll = [&] (bool enableRackAwareness) {
+        for (auto* node : LoadRankToNode_) {
+            if (collector.GetAddedNodes().size() == desiredCount)
+                break;
+            tryAdd(node, enableRackAwareness);
+        }
     };
 
     if (preferredHostName) {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto* preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName);
-        if (preferredNode && checkTarget(preferredNode)) {
-            addTarget(preferredNode);
+        if (preferredNode) {
+            tryAdd(preferredNode, true);
         }
     }
 
-    for (auto* node : LoadRankToNode_) {
-        if (targets.size() == desiredCount)
-            break;
-        if (!targets.empty() && targets[0] == node)
-            continue; // skip preferred node
-        if (!checkTarget(node))
-            continue;
-        addTarget(node);
-    }
+    tryAddAll(true);
+    tryAddAll(false);
 
-    if (targets.size()< minCount) {
-        targets.clear();
-    }
-
-    return targets;
+    const auto& nodes = collector.GetAddedNodes();
+    return nodes.size() < minCount ? TNodeList() : nodes;
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
@@ -290,17 +309,17 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     int minCount,
     EWriteSessionType sessionType)
 {
-    auto targets = GetWriteTargets(
+    auto targetNodes = GetWriteTargets(
         chunk,
         desiredCount,
         minCount,
         sessionType);
 
-    for (auto* target : targets) {
+    for (auto* target : targetNodes) {
         AddSessionHint(target, sessionType);
     }
 
-    return targets;
+    return targetNodes;
 }
 
 TNodeList TChunkPlacement::GetWriteTargets(
@@ -313,11 +332,6 @@ TNodeList TChunkPlacement::GetWriteTargets(
     auto chunkManager = Bootstrap_->GetChunkManager();
 
     TNodeList forbiddenNodes;
-
-    for (auto replica : chunk->StoredReplicas()) {
-        forbiddenNodes.push_back(replica.GetPtr());
-    }
-
     auto jobList = chunkManager->FindJobList(chunk);
     if (jobList) {
         for (const auto& job : jobList->Jobs()) {
@@ -414,14 +428,14 @@ TNode* TChunkPlacement::GetBalancingTarget(
     TChunkPtrWithIndex chunkWithIndex,
     double maxFillFactor)
 {
-    TTargetChecker checker(chunkWithIndex.GetPtr(), nullptr);
+    TTargetCollector collector(chunkWithIndex.GetPtr(), nullptr);
 
     for (const auto& pair : FillFactorToNode_) {
         auto* node = pair.second;
         if (GetFillFactor(node) > maxFillFactor) {
             break;
         }
-        if (IsValidBalancingTarget(node, chunkWithIndex) && checker.Check(node)) {
+        if (IsValidBalancingTarget(node, chunkWithIndex) && collector.CheckNode(node, true)) {
             return node;
         }
     }

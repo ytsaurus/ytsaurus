@@ -61,7 +61,7 @@ public:
         double maxFillFactor);
 
 private:
-    class TTargetChecker;
+    class TTargetCollector;
 
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
