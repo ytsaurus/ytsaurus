@@ -88,7 +88,7 @@ public:
         const TKeyColumns& keyColumns,
         const TColumnEvaluatorCachePtr& evaluatorCache,
         const IFunctionRegistryPtr functionRegistry,
-        i64 rangeExpansionLimit,
+        ui64 rangeExpansionLimit,
         bool verboseLogging)
         : Schema_(schema)
         , KeySize_(keyColumns.size())
@@ -161,8 +161,8 @@ private:
     std::vector<int> SchemaToDepletedMapping_;
     TTableSchema Schema_;
     int KeySize_;
-    i64 RangeExpansionLimit_;
-    i64 RangeExpansionLeft_;
+    ui64 RangeExpansionLimit_;
+    ui64 RangeExpansionLeft_;
     bool VerboseLogging_;
 
     TKeyColumns BuildDepletedIdMapping(const yhash_set<Stroka>& references)
@@ -385,7 +385,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
-    i64 rangeExpansionLimit,
+    ui64 rangeExpansionLimit,
     bool verboseLogging)
 {
     auto heavyInferrer = New<TRangeInferrerHeavy>(
@@ -447,7 +447,7 @@ TRangeInferrer CreateRangeInferrer(
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
-    i64 rangeExpansionLimit,
+    ui64 rangeExpansionLimit,
     bool verboseLogging)
 {
     if (!predicate) {

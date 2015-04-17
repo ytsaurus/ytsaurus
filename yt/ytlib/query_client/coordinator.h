@@ -25,7 +25,7 @@ TGroupedRanges GetPrunedRanges(
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
-    i64 rangeExpansionLimit,
+    ui64 rangeExpansionLimit,
     bool verboseLogging);
 
 TGroupedRanges GetPrunedRanges(
@@ -33,7 +33,7 @@ TGroupedRanges GetPrunedRanges(
     const TDataSources& sources,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
-    i64 rangeExpansionLimit,
+    ui64 rangeExpansionLimit,
     bool verboseLogging);
 
 TKeyRange GetRange(const TDataSources& sources);
