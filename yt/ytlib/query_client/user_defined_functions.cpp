@@ -1,4 +1,3 @@
-#include <iostream>
 #include "user_defined_functions.h"
 
 #include "cg_fragment_compiler.h"
@@ -434,6 +433,8 @@ Function* TUserDefinedFunction::GetLlvmFunction(
                 << TError(Stroka(diag.getMessage().str()));
         }
 
+        // Link two modules together, with the first module modified to be the
+        // composite of the two input modules.
         auto linkError = Linker::LinkModules(module, implModule.get());
 
         if (linkError) {
