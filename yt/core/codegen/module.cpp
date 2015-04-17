@@ -131,13 +131,13 @@ public:
         return Module_;
     }
 
-    llvm::Function* GetRoutine(const Stroka& symbol) const
+    llvm::Constant* GetRoutine(const Stroka& symbol) const
     {
         auto type = RoutineRegistry_->GetTypeBuilder(symbol)(
             const_cast<llvm::LLVMContext&>(Context_));
 
         auto function = Module_->getOrInsertFunction(symbol.c_str(), type);
-        return reinterpret_cast<llvm::Function*>(function);
+        return function;
     }
 
     uint64_t GetFunctionAddress(const Stroka& name)
@@ -292,7 +292,7 @@ llvm::Module* TCGModule::GetModule() const
     return Impl_->GetModule();
 }
 
-llvm::Function* TCGModule::GetRoutine(const Stroka& symbol) const
+llvm::Constant* TCGModule::GetRoutine(const Stroka& symbol) const
 {
     return Impl_->GetRoutine(symbol);
 }
