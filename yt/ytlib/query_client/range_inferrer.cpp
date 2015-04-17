@@ -286,7 +286,7 @@ private:
 
         int shrinkSize = KeySize_;
         int maxReferenceIndex = 0;
-        int rangeCount = 1;
+        ui64 rangeCount = 1;
         std::vector<TModuloRangeGenerator> moduloGenerators;
         std::vector<int> exactGenerators;
 
@@ -309,7 +309,7 @@ private:
             break;
         }
 
-        RangeExpansionLeft_ -= rangeCount;
+        RangeExpansionLeft_ -= std::min(rangeCount, RangeExpansionLeft_);
 
         auto lowerRow = TUnversionedRow::Allocate(Buffer_.GetAlignedPool(), KeySize_ + 1);
         auto upperRow = TUnversionedRow::Allocate(Buffer_.GetAlignedPool(), KeySize_ + 1);
