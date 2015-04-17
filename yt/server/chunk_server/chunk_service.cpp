@@ -96,7 +96,7 @@ private:
         
         auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
 
-        TSortedNodeList forbiddenNodes;
+        TNodeList forbiddenNodes;
         for (const auto& address : forbiddenAddresses) {
             auto* node = nodeTracker->FindNodeByAddress(address);
             if (node) {

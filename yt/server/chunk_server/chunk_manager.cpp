@@ -392,7 +392,7 @@ public:
         TChunk* chunk,
         int desiredCount,
         int minCount,
-        const TSortedNodeList* forbiddenNodes,
+        const TNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName)
     {
         return ChunkPlacement_->AllocateWriteTargets(
@@ -1665,7 +1665,7 @@ TNodeList TChunkManager::AllocateWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
-    const TSortedNodeList* forbiddenNodes,
+    const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
 {
     return Impl_->AllocateWriteTargets(

@@ -52,7 +52,7 @@ public:
         TChunk* chunk,
         int desiredCount,
         int minCount,
-        const TSortedNodeList* forbiddenNodes,
+        const TNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName);
 
     TChunk* CreateChunk(NObjectServer::EObjectType type);
