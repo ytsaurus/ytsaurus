@@ -245,7 +245,7 @@ private:
                 Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
-                Bootstrap_->GetLocalDescriptor(),
+                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 chunkId,
                 seedReplicas);
 

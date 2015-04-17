@@ -35,6 +35,7 @@
 #include <server/data_node/block_store.h>
 #include <server/data_node/chunk_registry.h>
 #include <server/data_node/chunk.h>
+#include <server/data_node/master_connector.h>
 
 #include <server/query_agent/config.h>
 
@@ -654,7 +655,7 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
             GetBlockCache(),
             Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
             New<TNodeDirectory>(),
-            Bootstrap_->GetLocalDescriptor(),
+            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             StoreId_);
     }
 

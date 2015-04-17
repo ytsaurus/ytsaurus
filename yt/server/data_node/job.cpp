@@ -8,6 +8,7 @@
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "session_manager.h"
+#include "master_connector.h"
 #include "session.h"
 #include "private.h"
 
@@ -528,7 +529,7 @@ private:
                 Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
-                Bootstrap_->GetLocalDescriptor(),
+                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 partId,
                 partReplicas,
                 InterconnectNetworkName,

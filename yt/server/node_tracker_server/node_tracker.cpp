@@ -638,6 +638,10 @@ private:
             node->Alerts() = FromProto<Stroka>(request.alerts());
 
             RenewNodeLease(node);
+
+            if (node->GetRack()) {
+                response->set_rack(node->GetRack()->GetName());
+            }
             
             IncrementalHeartbeat_.Fire(node, request, response);
         }

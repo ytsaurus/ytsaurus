@@ -33,9 +33,8 @@ static const auto& Logger = JobTrackerServerLogger;
 TJobController::TJobController(
     TJobControllerConfigPtr config,
     TBootstrap* bootstrap)
-    : Config(config)
-    , Bootstrap(bootstrap)
-    , StartScheduled(false)
+    : Config_(config)
+    , Bootstrap_(bootstrap)
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -43,20 +42,20 @@ TJobController::TJobController(
 
 void TJobController::RegisterFactory(EJobType type, TJobFactory factory)
 {
-    YCHECK(Factories.insert(std::make_pair(type, factory)).second);
+    YCHECK(Factories_.insert(std::make_pair(type, factory)).second);
 }
 
 TJobFactory TJobController::GetFactory(EJobType type)
 {
-    auto it = Factories.find(type);
-    YCHECK(it != Factories.end());
+    auto it = Factories_.find(type);
+    YCHECK(it != Factories_.end());
     return it->second;
 }
 
 IJobPtr TJobController::FindJob(const TJobId& jobId)
 {
-    auto it = Jobs.find(jobId);
-    return it == Jobs.end() ? nullptr : it->second;
+    auto it = Jobs_.find(jobId);
+    return it == Jobs_.end() ? nullptr : it->second;
 }
 
 IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId)
@@ -71,7 +70,7 @@ IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId)
 std::vector<IJobPtr> TJobController::GetJobs()
 {
     std::vector<IJobPtr> result;
-    for (const auto& pair : Jobs) {
+    for (const auto& pair : Jobs_) {
         result.push_back(pair.second);
     }
     return result;
@@ -80,15 +79,15 @@ std::vector<IJobPtr> TJobController::GetJobs()
 TNodeResources TJobController::GetResourceLimits()
 {
     TNodeResources result;
-    result.set_user_slots(Bootstrap->GetExecSlotManager()->GetSlotCount());
-    result.set_cpu(Config->ResourceLimits->Cpu);
-    result.set_network(Config->ResourceLimits->Network);
-    result.set_replication_slots(Config->ResourceLimits->ReplicationSlots);
-    result.set_removal_slots(Config->ResourceLimits->RemovalSlots);
-    result.set_repair_slots(Config->ResourceLimits->RepairSlots);
-    result.set_seal_slots(Config->ResourceLimits->SealSlots);
+    result.set_user_slots(Bootstrap_->GetExecSlotManager()->GetSlotCount());
+    result.set_cpu(Config_->ResourceLimits->Cpu);
+    result.set_network(Config_->ResourceLimits->Network);
+    result.set_replication_slots(Config_->ResourceLimits->ReplicationSlots);
+    result.set_removal_slots(Config_->ResourceLimits->RemovalSlots);
+    result.set_repair_slots(Config_->ResourceLimits->RepairSlots);
+    result.set_seal_slots(Config_->ResourceLimits->SealSlots);
 
-    const auto* tracker = Bootstrap->GetMemoryUsageTracker();
+    const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
     result.set_memory(tracker->GetFree() + tracker->GetUsed(EMemoryConsumer::Job));
 
     return result;
@@ -97,7 +96,7 @@ TNodeResources TJobController::GetResourceLimits()
 TNodeResources TJobController::GetResourceUsage(bool includeWaiting)
 {
     auto result = ZeroNodeResources();
-    for (const auto& pair : Jobs) {
+    for (const auto& pair : Jobs_) {
         if (includeWaiting || pair.second->GetState() != EJobState::Waiting) {
             auto usage = pair.second->GetResourceUsage();
             result += usage;
@@ -108,7 +107,7 @@ TNodeResources TJobController::GetResourceUsage(bool includeWaiting)
 
 void TJobController::StartWaitingJobs()
 {
-    auto* tracker = Bootstrap->GetMemoryUsageTracker();
+    auto* tracker = Bootstrap_->GetMemoryUsageTracker();
 
     bool resourcesUpdated = false;
 
@@ -121,7 +120,7 @@ void TJobController::StartWaitingJobs()
         }
     }
 
-    for (const auto& pair : Jobs) {
+    for (const auto& pair : Jobs_) {
         auto job = pair.second;
         if (job->GetState() != EJobState::Waiting)
             continue;
@@ -138,7 +137,7 @@ void TJobController::StartWaitingJobs()
 
                 job->SubscribeResourcesUpdated(
                     BIND(&TJobController::OnResourcesUpdated, MakeWeak(this), job)
-                        .Via(Bootstrap->GetControlInvoker()));
+                        .Via(Bootstrap_->GetControlInvoker()));
 
                 job->Start();
                 resourcesUpdated = true;
@@ -158,7 +157,7 @@ void TJobController::StartWaitingJobs()
         ResourcesUpdated_.Fire();
     }
 
-    StartScheduled = false;
+    StartScheduled_ = false;
 }
 
 IJobPtr TJobController::CreateJob(
@@ -179,7 +178,7 @@ IJobPtr TJobController::CreateJob(
         jobId,
         type);
 
-    YCHECK(Jobs.insert(std::make_pair(jobId, job)).second);
+    YCHECK(Jobs_.insert(std::make_pair(jobId, job)).second);
     ScheduleStart();
 
     return job;
@@ -187,11 +186,11 @@ IJobPtr TJobController::CreateJob(
 
 void TJobController::ScheduleStart()
 {
-    if (!StartScheduled) {
-        Bootstrap->GetControlInvoker()->Invoke(BIND(
+    if (!StartScheduled_) {
+        Bootstrap_->GetControlInvoker()->Invoke(BIND(
             &TJobController::StartWaitingJobs,
             MakeWeak(this)));
-        StartScheduled = true;
+        StartScheduled_ = true;
     }
 }
 
@@ -209,7 +208,7 @@ void TJobController::RemoveJob(IJobPtr job)
 
     YCHECK(job->GetPhase() > EJobPhase::Cleanup);
     YCHECK(job->GetResourceUsage() == ZeroNodeResources());
-    YCHECK(Jobs.erase(job->GetId()) == 1);
+    YCHECK(Jobs_.erase(job->GetId()) == 1);
 }
 
 void TJobController::OnResourcesUpdated(IJobPtr job, const TNodeResources& resourceDelta)
@@ -242,7 +241,7 @@ bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
     }
 
     if (delta.memory() > 0) {
-        auto* tracker = Bootstrap->GetMemoryUsageTracker();
+        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         auto error = tracker->TryAcquire(EMemoryConsumer::Job, delta.memory());
         if (!error.IsOK()) {
             return false;
@@ -254,13 +253,13 @@ bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
 
 void TJobController::PrepareHeartbeat(TReqHeartbeat* request)
 {
-    auto masterConnector = Bootstrap->GetMasterConnector();
+    auto masterConnector = Bootstrap_->GetMasterConnector();
     request->set_node_id(masterConnector->GetNodeId());
-    ToProto(request->mutable_addresses(), Bootstrap->GetLocalAddresses());
+    ToProto(request->mutable_addresses(), masterConnector->GetLocalAddresses());
     *request->mutable_resource_limits() = GetResourceLimits();
     *request->mutable_resource_usage() = GetResourceUsage();
 
-    for (const auto& pair : Jobs) {
+    for (const auto& pair : Jobs_) {
         auto job = pair.second;
         auto type = EJobType(job->GetSpec().type());
         auto state = job->GetState();

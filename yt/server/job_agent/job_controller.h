@@ -75,13 +75,14 @@ public:
     void ProcessHeartbeat(NJobTrackerClient::NProto::TRspHeartbeat* response);
 
 private:
-    TJobControllerConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    const TJobControllerConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
-    yhash_map<EJobType, TJobFactory> Factories;
-    yhash_map<TJobId, IJobPtr> Jobs;
+    yhash_map<EJobType, TJobFactory> Factories_;
+    yhash_map<TJobId, IJobPtr> Jobs_;
 
-    bool StartScheduled;
+    bool StartScheduled_ = false;
+
 
     TJobFactory GetFactory(EJobType type);
     void ScheduleStart();

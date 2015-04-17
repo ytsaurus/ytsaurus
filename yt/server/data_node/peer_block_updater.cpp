@@ -51,7 +51,7 @@ void TPeerBlockUpdater::Update()
     LOG_INFO("Updating peer blocks");
 
     auto expirationTime = Config->PeerUpdateExpirationTimeout.ToDeadLine();
-    auto localDescriptor = Bootstrap->GetLocalDescriptor();
+    auto localDescriptor = Bootstrap->GetMasterConnector()->GetLocalDescriptor();
 
     typedef TDataNodeServiceProxy TProxy;
 

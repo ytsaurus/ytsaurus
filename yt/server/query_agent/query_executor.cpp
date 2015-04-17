@@ -53,6 +53,7 @@
 
 #include <server/data_node/local_chunk_reader.h>
 #include <server/data_node/chunk_registry.h>
+#include <server/data_node/master_connector.h>
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
@@ -760,7 +761,7 @@ private:
                 Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
-                Bootstrap_->GetLocalDescriptor(),
+                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 chunkId);
         }
 
