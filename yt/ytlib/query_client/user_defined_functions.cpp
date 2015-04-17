@@ -1,3 +1,4 @@
+#include <iostream>
 #include "user_defined_functions.h"
 
 #include "cg_fragment_compiler.h"
@@ -433,7 +434,14 @@ Function* TUserDefinedFunction::GetLlvmFunction(
                 << TError(Stroka(diag.getMessage().str()));
         }
 
-        Linker::LinkModules(module, implModule.get());
+        auto linkError = Linker::LinkModules(module, implModule.get());
+
+        if (linkError) {
+            THROW_ERROR_EXCEPTION(
+                "Error linking LLVM bitcode for function %Qv",
+                FunctionName_);
+        }
+
         callee = module->getFunction(StringRef(FunctionName_));
         CheckCallee(callee, builder, argumentValues);
     }
