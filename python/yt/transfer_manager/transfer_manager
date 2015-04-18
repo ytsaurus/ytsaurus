@@ -441,10 +441,7 @@ class Application(object):
                 continue
 
             active_client, passive_client = self._get_active_and_passive_clients(task)
-            if active_client._type != "yt":
-                continue
-
-            if task.pool is None:
+            if active_client._type == "yt" and task.pool is None:
                 logger.warning("Cannot load task %s: task has no pool", id)
                 continue
 
@@ -497,8 +494,10 @@ class Application(object):
             return destination_client, source_client
         elif destination_client._type == "yt":
             return destination_client, source_client
-        else: # _type == "kiwi"
+        elif destination_client._type == "kiwi":
             return self.kiwi_transmitter, source_client
+        else:
+            raise yt.YtError("Unknown destination client type: %r", destination_client._type)
 
     def _initialize_pool(self, task):
         if task.pool is not None:
