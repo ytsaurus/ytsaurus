@@ -126,6 +126,7 @@ DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
 
 class TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig
+    , public NHydra::TFileChangelogDispatcherConfig
 {
 public:
     //! A path where multiplexed changelogs are stored.

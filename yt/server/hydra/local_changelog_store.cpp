@@ -99,9 +99,10 @@ public:
         const Stroka& threadName,
         TFileChangelogStoreConfigPtr config)
         : TAsyncSlruCacheBase(config->ChangelogReaderCache)
-        , Dispatcher_(New<TFileChangelogDispatcher>(threadName))
         , Config_(config)
-        , Logger(HydraLogger)
+        , Dispatcher_(New<TFileChangelogDispatcher>(
+            Config_,
+            threadName))
     {
         Logger.AddTag("Path: %v", Config_->Path);
     }
@@ -136,10 +137,10 @@ public:
     }
 
 private:
-    TFileChangelogDispatcherPtr Dispatcher_;
-    TFileChangelogStoreConfigPtr Config_;
+    const TFileChangelogStoreConfigPtr Config_;
+    const TFileChangelogDispatcherPtr Dispatcher_;
 
-    NLogging::TLogger Logger;
+    NLogging::TLogger Logger = HydraLogger;
 
 
     Stroka GetChangelogPath(int id)

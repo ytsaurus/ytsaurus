@@ -120,7 +120,9 @@ public:
             NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/changelog_cache"))
         , Bootstrap_(bootstrap)
         , Config_(config)
-        , ChangelogDispatcher_(New<TFileChangelogDispatcher>("JournalFlush"))
+        , ChangelogDispatcher_(New<TFileChangelogDispatcher>(
+            config->MultiplexedChangelog,
+            "JournalFlush"))
     { }
 
     void Initialize();

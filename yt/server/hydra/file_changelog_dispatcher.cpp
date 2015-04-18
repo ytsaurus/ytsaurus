@@ -14,6 +14,10 @@
 
 #include <atomic>
 
+#ifdef _linux_
+    #include <linux/ioprio.h>
+#endif
+
 namespace NYT {
 namespace NHydra {
 
@@ -456,8 +460,11 @@ class TFileChangelogDispatcher::TImpl
     : public TRefCounted
 {
 public:
-    explicit TImpl(const Stroka& threadName)
-        : ProcessQueuesCallback_(BIND(&TImpl::ProcessQueues, MakeWeak(this)))
+    TImpl(
+        const TFileChangelogDispatcherConfigPtr config,
+        const Stroka& threadName)
+        : Config_(config)
+        , ProcessQueuesCallback_(BIND(&TImpl::ProcessQueues, MakeWeak(this)))
         , ActionQueue_(New<TActionQueue>(threadName))
         , PeriodicExecutor_(New<TPeriodicExecutor>(
             ActionQueue_->GetInvoker(),
@@ -466,6 +473,17 @@ public:
         , RecordCounter_("/records")
         , ByteCounter_("/bytes")
     {
+        GetInvoker()->Invoke(BIND([this_ = MakeStrong(this)] () {
+#ifdef _linux_
+            int result = ioprio_set(
+                IOPRIO_WHO_PROCESS,
+                0,
+                IOPRIO_PRIO_VALUE(Config_->IOClass,  Config_->IOPriority));
+            if (result == -1) {
+                LOG_ERROR(TError::FromSystem(), "Failed to set IO priority for changelog flush thread");
+             }
+#endif
+        }));
         PeriodicExecutor_->Start();
     }
 
@@ -552,6 +570,7 @@ public:
     }
 
 private:
+    const TFileChangelogDispatcherConfigPtr Config_;
     const TClosure ProcessQueuesCallback_;
     std::atomic<bool> ProcessQueuesCallbackPending_ = {false};
 
@@ -797,8 +816,10 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileChangelogDispatcher::TFileChangelogDispatcher(const Stroka& threadName)
-    : Impl_(New<TImpl>(threadName))
+TFileChangelogDispatcher::TFileChangelogDispatcher(
+    TFileChangelogDispatcherConfigPtr config,
+    const Stroka& threadName)
+    : Impl_(New<TImpl>(config, threadName))
 { }
 
 TFileChangelogDispatcher::~TFileChangelogDispatcher()

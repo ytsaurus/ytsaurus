@@ -19,7 +19,9 @@ class TFileChangelogDispatcher
     , public IShutdownable
 {
 public:
-    explicit TFileChangelogDispatcher(const Stroka& threadName);
+    TFileChangelogDispatcher(
+        const TFileChangelogDispatcherConfigPtr config,
+        const Stroka& threadName);
 
     ~TFileChangelogDispatcher();
 
@@ -46,7 +48,7 @@ private:
     friend class TFileChangelog;
     friend class TFileChangelogQueue;
 
-    TImplPtr Impl_;
+    const TImplPtr Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcher)
