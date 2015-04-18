@@ -18,7 +18,7 @@ namespace NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileChangelogConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Minimum total index records size between consecutive index records.
@@ -45,8 +45,27 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelogConfig)
 
+class TFileChangelogDispatcherConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    int IOClass;
+    int IOPriority;
+
+    TFileChangelogDispatcherConfig()
+    {
+        RegisterParameter("io_class", IOClass)
+            .Default(1); // IOPRIO_CLASS_RT
+        RegisterParameter("io_priority", IOPriority)
+            .Default(3);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcherConfig)
+
 class TFileChangelogStoreConfig
     : public TFileChangelogConfig
+    , public TFileChangelogDispatcherConfig
 {
 public:
     //! A path where changelogs are stored.

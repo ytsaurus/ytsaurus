@@ -38,6 +38,7 @@ class TSaveContext;
 class TLoadContext;
 
 DECLARE_REFCOUNTED_CLASS(TFileChangelogConfig)
+DECLARE_REFCOUNTED_CLASS(TFileChangelogDispatcherConfig)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TLocalSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreConfig)
