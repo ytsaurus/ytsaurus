@@ -175,7 +175,7 @@ protected:
 
     virtual void DoDestroy(TChunk* chunk) override;
 
-    virtual TTransaction* DoGetStagingTransaction(TChunk* chunk)
+    virtual TTransaction* DoGetStagingTransaction(TChunk* chunk) override
     {
         return chunk->GetStagingTransaction();
     }
@@ -293,7 +293,7 @@ private:
 
     virtual void DoDestroy(TChunkList* chunkList) override;
 
-    virtual TTransaction* DoGetStagingTransaction(TChunkList* chunkList)
+    virtual TTransaction* DoGetStagingTransaction(TChunkList* chunkList) override
     {
         return chunkList->GetStagingTransaction();
     }
