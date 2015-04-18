@@ -41,8 +41,9 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TNodeTrackerServiceProxy::GetServiceName(),
-            NodeTrackerServerLogger)
-        , Config(config)
+            NodeTrackerServerLogger,
+            TNodeTrackerServiceProxy::GetProtocolVersion())
+        , Config_(config)
         {
             RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
@@ -53,7 +54,7 @@ public:
         }
 
 private:
-    const TNodeTrackerConfigPtr Config;
+    const TNodeTrackerConfigPtr Config_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, RegisterNode)
