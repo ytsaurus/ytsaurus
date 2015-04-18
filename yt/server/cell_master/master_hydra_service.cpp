@@ -13,13 +13,13 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
     TBootstrap* bootstrap,
     const Stroka& serviceName,
     const NLogging::TLogger& logger,
-    int version)
+    int protocolVersion)
     : NHydra::THydraServiceBase(
         bootstrap->GetHydraFacade()->GetHydraManager(),
         bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(),
         NRpc::TServiceId(serviceName, bootstrap->GetCellId()),
         logger,
-        version)
+    protocolVersion)
     , Bootstrap_(bootstrap)
 {
     YCHECK(Bootstrap_);
