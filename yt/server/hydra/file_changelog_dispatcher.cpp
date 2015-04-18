@@ -15,7 +15,11 @@
 #include <atomic>
 
 #ifdef _linux_
-    #include <linux/ioprio.h>
+    #include <unistd.h>
+    // Copied from linux/ioprio.h
+    #define IOPRIO_CLASS_SHIFT              (13)
+    #define IOPRIO_PRIO_VALUE(class, data)  (((class) << IOPRIO_CLASS_SHIFT) | data)
+    #define IOPRIO_WHO_PROCESS (1)
 #endif
 
 namespace NYT {
@@ -475,7 +479,8 @@ public:
     {
         GetInvoker()->Invoke(BIND([this_ = MakeStrong(this)] () {
 #ifdef _linux_
-            int result = ioprio_set(
+            int result = syscall(
+                SYS_ioprio_get,
                 IOPRIO_WHO_PROCESS,
                 0,
                 IOPRIO_PRIO_VALUE(Config_->IOClass,  Config_->IOPriority));
