@@ -639,7 +639,7 @@ private:
 
             RenewNodeLease(node);
 
-            if (node->GetRack()) {
+            if (response && node->GetRack()) {
                 response->set_rack(node->GetRack()->GetName());
             }
             
@@ -716,6 +716,8 @@ private:
 
             if (node->GetTransaction()) {
                 RegisterLeaseTransaction(node);
+            } else {
+                DoUnregisterNode(node, true);
             }
         }
 
