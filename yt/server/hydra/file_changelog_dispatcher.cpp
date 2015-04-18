@@ -477,7 +477,7 @@ public:
         , RecordCounter_("/records")
         , ByteCounter_("/bytes")
     {
-        GetInvoker()->Invoke(BIND([this_ = MakeStrong(this)] () {
+        GetInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] () {
 #ifdef _linux_
             int result = syscall(
                 SYS_ioprio_get,
