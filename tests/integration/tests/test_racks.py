@@ -123,46 +123,12 @@ class TestRacks(YTEnvSetup):
             self._set_rack(node, "r")
         remove_rack("r")
         for node in nodes:
-            assert not self._has_rack(node) 
-
+            assert not self._has_rack(node)
+            
     def test_assign_fail(self):
         n = get_nodes()[0]
         with pytest.raises(YtError): self._set_rack(n, "r")
 
-
-    def test_regular_not_enough_racks(self):
-        self._init_n_racks(1)
-        create("file", "//tmp/file")
-        with pytest.raises(YtError): upload("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
-        
-    def test_regular_enough_racks(self):
-        self._init_n_racks(2)
-        create("file", "//tmp/file")
-        upload("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
-
-        
-    def test_erasure_not_enough_racks(self):
-        self._init_n_racks(5)
-        create("file", "//tmp/file", attributes={"erasure_codec": "lrc_12_2_2"})
-        with pytest.raises(YtError): upload("//tmp/file", self.FILE_DATA)
-        
-    def test_erasure_enough_racks(self):
-        self._init_n_racks(6)
-        create("file", "//tmp/file", attributes={"erasure_codec": "lrc_12_2_2"})
-        upload("//tmp/file", self.FILE_DATA)
-
-
-    def test_journal_not_enough_racks(self):
-        self._init_n_racks(1)
-        create("journal", "//tmp/j")
-        with pytest.raises(YtError): write_journal("//tmp/j", self.JOURNAL_DATA)
-
-    def test_journal_enough_racks(self):
-        self._init_n_racks(3)
-        create("journal", "//tmp/j")
-        write_journal("//tmp/j", self.JOURNAL_DATA)
-
-        
     def test_unsafely_placed(self):
         create("file", "//tmp/file", file_writer={"upload_replication_factor": 3})
         upload("//tmp/file", self.FILE_DATA)
@@ -181,7 +147,6 @@ class TestRacks(YTEnvSetup):
 
         time.sleep(1.0)
         assert not get("#" + chunk_id + "/@unsafely_placed")
-
 
     def test_regular_move_to_safe_place(self):
         create("file", "//tmp/file")
