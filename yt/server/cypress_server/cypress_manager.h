@@ -126,6 +126,18 @@ public:
 
     bool IsOrphaned(TCypressNodeBase* trunkNode);
 
+    //! Returns the list consisting of the trunk node
+    //! and all of its existing versioned overrides up to #transaction;
+    //! #trunkNode is the last element.
+    TCypressNodeList GetNodeOriginators(
+        NTransactionServer::TTransaction* transaction,
+        TCypressNodeBase* trunkNode);
+
+    //! Same as GetNodeOverrides but #trunkNode is the first element.
+    TCypressNodeList GetNodeReverseOriginators(
+        NTransactionServer::TTransaction* transaction,
+        TCypressNodeBase* trunkNode);
+
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock, TLockId);
 
@@ -193,8 +205,6 @@ private:
         TCypressNodeBase* branchedNode);
     void RemoveBranchedNodes(NTransactionServer::TTransaction* transaction);
     void RemoveBranchedNode(TCypressNodeBase* branchedNode);
-    void PromoteLocks(NTransactionServer::TTransaction* transaction);
-    void PromoteLock(TLock* lock, NTransactionServer::TTransaction* parentTransaction);
 
     TError CheckLock(
         TCypressNodeBase* trunkNode,

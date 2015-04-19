@@ -212,7 +212,7 @@ private:
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
-        auto hydraFacade = Bootstrap->GetHydraFacade();
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
         auto hydraManager = hydraFacade->GetHydraManager();
 
         // NB: Mutation context check is needed to prevent leader fallback for propagated mutations.
@@ -269,7 +269,7 @@ private:
         auto service = Producer.Run(trunkNode, transaction);
         return New<TVirtualNodeProxy>(
             this,
-            Bootstrap,
+            Bootstrap_,
             transaction,
             trunkNode,
             service,

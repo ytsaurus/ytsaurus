@@ -10,12 +10,6 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAttributeSet::TAttributeSet()
-{ }
-
-TAttributeSet::TAttributeSet(const TVersionedObjectId&)
-{ }
-
 void TAttributeSet::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;

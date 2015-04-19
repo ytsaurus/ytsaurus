@@ -562,8 +562,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
     YCHECK(handler);
     YCHECK(factory);
 
-    auto* transaction = factory->GetTransaction();
-    auto nodeHolder = handler->Create(transaction, request, response);
+    auto nodeHolder = handler->Create(request, response);
     auto* node = RegisterNode(std::move(nodeHolder));
 
     // Set account.
@@ -1184,6 +1183,37 @@ bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
     }
 }
 
+TCypressNodeList TCypressManager::GetNodeOriginators(
+    NTransactionServer::TTransaction* transaction,
+    TCypressNodeBase* trunkNode)
+{
+    YCHECK(trunkNode->IsTrunk());
+
+    // Fast path.
+    if (!transaction) {
+        return TCypressNodeList(1, trunkNode);
+    }
+
+    // Slow path.
+    TCypressNodeList result;
+    auto* currentNode = GetVersionedNode(trunkNode, transaction);
+    while (currentNode) {
+        result.push_back(currentNode);
+        currentNode = currentNode->GetOriginator();
+    }
+
+    return result;
+}
+
+TCypressNodeList TCypressManager::GetNodeReverseOriginators(
+    NTransactionServer::TTransaction* transaction,
+    TCypressNodeBase* trunkNode)
+{
+    auto result = GetNodeOriginators(transaction, trunkNode);
+    std::reverse(result.begin(), result.end());
+    return result;
+}
+
 TCypressNodeBase* TCypressManager::BranchNode(
     TCypressNodeBase* originatingNode,
     TTransaction* transaction,
@@ -1272,6 +1302,16 @@ void TCypressManager::OnAfterSnapshotLoaded()
         auto* parent = node->GetParent();
         if (parent) {
             YCHECK(parent->ImmediateDescendants().insert(node).second);
+        }
+    }
+
+    // Compute originators.
+    for (const auto& pair : NodeMap) {
+        auto* node = pair.second;
+        if (!node->IsTrunk()) {
+            auto* parentTransaction = node->GetTransaction()->GetParent();
+            auto* originator = GetVersionedNode(node->GetTrunkNode(), parentTransaction);
+            node->SetOriginator(originator);
         }
     }
 
@@ -1486,30 +1526,22 @@ void TCypressManager::ListSubtreeNodes(
 {
     YCHECK(trunkNode->IsTrunk());
 
-    auto transactionManager = Bootstrap_->GetTransactionManager();
-
     if (includeRoot) {
         subtreeNodes->push_back(trunkNode);
     }
 
     switch (trunkNode->GetType()) {
         case EObjectType::MapNode: {
-            auto transactions = transactionManager->GetTransactionPath(transaction);
-            std::reverse(transactions.begin(), transactions.end());
-
+            auto originators = GetNodeReverseOriginators(transaction, trunkNode);
             yhash_map<Stroka, TCypressNodeBase*> children;
-            for (auto* currentTransaction : transactions) {
-                TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
-                const auto* node = FindNode(versionedId);
-                if (node) {
-                    const auto* mapNode = static_cast<const TMapNode*>(node);
-                    for (const auto& pair : mapNode->KeyToChild()) {
-                        if (pair.second) {
-                            children[pair.first] = pair.second;
-                        } else {
-                            // NB: erase may fail.
-                            children.erase(pair.first);
-                        }
+            for (const auto* node : originators) {
+                const auto* mapNode = static_cast<const TMapNode*>(node);
+                for (const auto& pair : mapNode->KeyToChild()) {
+                    if (pair.second) {
+                        children[pair.first] = pair.second;
+                    } else {
+                        // NB: erase may fail.
+                        children.erase(pair.first);
                     }
                 }
             }

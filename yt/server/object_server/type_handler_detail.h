@@ -140,10 +140,6 @@ public:
             acd->Clear();
         }
 
-        // Remove user attributes, if any.
-        auto objectManager = this->Bootstrap_->GetObjectManager();
-        objectManager->TryRemoveAttributes(TVersionedObjectId(object->GetId()));
-
         // Run custom destruction logic.
         this->DoDestroy(static_cast<TObject*>(object));
 

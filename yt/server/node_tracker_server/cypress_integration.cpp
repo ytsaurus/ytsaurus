@@ -81,7 +81,7 @@ private:
             return nullptr;
         }
         auto address = parent->AsMap()->GetChildKey(this);
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         return nodeTracker->FindNodeByAddress(address);
     }
 
@@ -202,7 +202,7 @@ private:
             // Validate rack name.
             if (newValue) {
                 auto name = ConvertTo<Stroka>(*newValue);
-                auto nodeTracker = Bootstrap->GetNodeTracker();
+                auto nodeTracker = Bootstrap_->GetNodeTracker();
                 nodeTracker->GetRackByNameOrThrow(name);
             }
         } else {
@@ -231,7 +231,7 @@ private:
         if (!node)
             return;
 
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->RefreshNodeConfig(node);
     }
 };
@@ -256,7 +256,7 @@ private:
     {
         return New<TCellNodeProxy>(
             this,
-            Bootstrap,
+            Bootstrap_,
             transaction,
             trunkNode);
     }
@@ -303,8 +303,8 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        auto nodeTracker = Bootstrap->GetNodeTracker();
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        auto chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "offline") {
             BuildYsonFluently(consumer)
@@ -384,7 +384,7 @@ private:
     {
         return New<TCellNodeMapProxy>(
             this,
-            Bootstrap,
+            Bootstrap_,
             transaction,
             trunkNode);
     }

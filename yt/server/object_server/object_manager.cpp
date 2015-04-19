@@ -4,7 +4,6 @@
 #include "config.h"
 #include "private.h"
 #include "garbage_collector.h"
-#include "attribute_set.h"
 #include "schema.h"
 #include "master.h"
 
@@ -525,13 +524,11 @@ void TObjectManager::WeakUnrefObject(TObjectBase* object)
 void TObjectManager::SaveKeys(NCellMaster::TSaveContext& context) const
 {
     SchemaMap_.SaveKeys(context);
-    AttributeMap_.SaveKeys(context);
 }
 
 void TObjectManager::SaveValues(NCellMaster::TSaveContext& context) const
 {
     SchemaMap_.SaveValues(context);
-    AttributeMap_.SaveValues(context);
     GarbageCollector_->Save(context);
 }
 
@@ -551,7 +548,15 @@ void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
         SchemaMap_.LoadKeys(context);
     }
 
-    AttributeMap_.LoadKeys(context);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 117) {
+        int n = TSizeSerializer::Load(context);
+        LegacyAttributeIds_.clear();
+        for (int i = 0; i < n; ++i) {
+            LegacyAttributeIds_.push_back(Load<TVersionedObjectId>(context));
+            context.RegisterEntity(nullptr);
+        }
+    }
 }
 
 void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
@@ -570,7 +575,20 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
         }
     }
 
-    AttributeMap_.LoadValues(context);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 117) {
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        for (const auto& id : LegacyAttributeIds_) {
+            TObjectBase* object;
+            auto type = TypeFromId(id.ObjectId);
+            if (IsVersionedType(type)) {
+                object = cypressManager->GetNode(id);
+            } else {
+                object = GetObject(id.ObjectId);
+            }
+            NYT::Load(context, *object->GetMutableAttributes());
+        }
+    }
 
     GarbageCollector_->Load(context);
 }
@@ -597,8 +615,6 @@ void TObjectManager::DoClear()
     MasterObject_->RefObject();
 
     MasterProxy_ = CreateMasterProxy(Bootstrap_, MasterObject_.get());
-
-    AttributeMap_.Clear();
 
     GarbageCollector_->Clear();
 
@@ -705,74 +721,35 @@ IObjectProxyPtr TObjectManager::GetProxy(
     return handler->GetProxy(object, transaction);
 }
 
-TAttributeSet* TObjectManager::GetOrCreateAttributes(const TVersionedObjectId& id)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    auto* userAttributes = FindAttributes(id);
-    if (!userAttributes) {
-        userAttributes = CreateAttributes(id);
-    }
-
-    return userAttributes;
-}
-
-TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    auto resultHolder = std::make_unique<TAttributeSet>();
-    return AttributeMap_.Insert(id, std::move(resultHolder));
-}
-
-void TObjectManager::RemoveAttributes(const TVersionedObjectId& id)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    AttributeMap_.Remove(id);
-}
-
-bool TObjectManager::TryRemoveAttributes(const TVersionedObjectId& id)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    return AttributeMap_.TryRemove(id);
-}
-
 void TObjectManager::BranchAttributes(
-    const TVersionedObjectId& originatingId,
-    const TVersionedObjectId& branchedId)
+    const TObjectBase* /*originatingObject*/,
+    TObjectBase* /*branchedObject*/)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    UNUSED(originatingId);
-    UNUSED(branchedId);
     // We don't store empty deltas at the moment
 }
 
 void TObjectManager::MergeAttributes(
-    const TVersionedObjectId& originatingId,
-    const TVersionedObjectId& branchedId)
+    TObjectBase* originatingObject,
+    const TObjectBase* branchedObject)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto* originatingAttributes = FindAttributes(originatingId);
-    const auto* branchedAttributes = FindAttributes(branchedId);
-    if (!branchedAttributes) {
+    const auto* branchedAttributes = branchedObject->GetAttributes();
+    if (!branchedAttributes)
         return;
+
+    auto* originatingAttributes = originatingObject->GetMutableAttributes();
+    for (const auto& pair : branchedAttributes->Attributes()) {
+        if (!pair.second && originatingObject->IsTrunk()) {
+            originatingAttributes->Attributes().erase(pair.first);
+        } else {
+            originatingAttributes->Attributes()[pair.first] = pair.second;
+        }
     }
 
-    if (!originatingAttributes) {
-        auto attributeSet = AttributeMap_.Release(branchedId);
-        AttributeMap_.Insert(originatingId, std::move(attributeSet));
-    } else {
-        for (const auto& pair : branchedAttributes->Attributes()) {
-            if (!pair.second && !originatingId.IsBranched()) {
-                originatingAttributes->Attributes().erase(pair.first);
-            } else {
-                originatingAttributes->Attributes()[pair.first] = pair.second;
-            }
-        }
-        AttributeMap_.Remove(branchedId);
+    if (originatingAttributes->Attributes().empty()) {
+        originatingObject->ClearAttributes();
     }
 }
 
@@ -787,7 +764,7 @@ void TObjectManager::FillCustomAttributes(
     if (keys.empty())
         return;
 
-    auto* attributeSet = GetOrCreateAttributes(TVersionedObjectId(object->GetId()));
+    auto* attributeSet = object->GetMutableAttributes();
     for (const auto& key : keys) {
         YCHECK(attributeSet->Attributes().insert(std::make_pair(
             key,
@@ -1092,8 +1069,6 @@ void TObjectManager::OnProfiling()
     Profiler.Enqueue("/destroyed_object_count", DestroyedObjectCount_);
     Profiler.Enqueue("/locked_object_count", LockedObjectCount_);
 }
-
-DEFINE_ENTITY_MAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, AttributeMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

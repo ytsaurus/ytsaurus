@@ -159,7 +159,7 @@ private:
             auto* chunk = chunkList->Children().back()->AsChunk();
             i64 penultimateRowCount = chunkList->RowCountSums().empty() ? 0 : chunkList->RowCountSums().back();
 
-            auto chunkManager = Bootstrap->GetChunkManager();
+            auto chunkManager = Bootstrap_->GetChunkManager();
             return chunkManager
                 ->GetChunkQuorumInfo(chunk)
                 .Apply(BIND([=] (const TMiscExt& miscExt) {

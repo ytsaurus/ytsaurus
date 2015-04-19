@@ -33,7 +33,8 @@ public:
     explicit TNontemplateCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
 protected:
-    NCellMaster::TBootstrap* Bootstrap;
+    NCellMaster::TBootstrap* const Bootstrap_;
+
 
     bool IsLeader() const;
     bool IsRecovery() const;
@@ -85,19 +86,13 @@ public:
     }
 
     virtual std::unique_ptr<TCypressNodeBase> Create(
-        NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto id = TVersionedNodeId(objectManager->GenerateId(GetObjectType()));
 
-        auto node = DoCreate(
-            id,
-            transaction,
-            request,
-            response);
-
+        auto node = DoCreate(id, request, response);
         node->SetTrunkNode(node.get());
 
         return std::move(node);
@@ -132,7 +127,7 @@ public:
         // Instantiate a branched copy.
         auto originatingId = originatingNode->GetVersionedId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
-        std::unique_ptr<TImpl> branchedNode(new TImpl(branchedId));
+        auto branchedNode = std::make_unique<TImpl>(branchedId);
 
         // Run core stuff.
         BranchCore(
@@ -189,7 +184,6 @@ protected:
 
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
-        NTransactionServer::TTransaction* /*transaction*/,
         TReqCreate* /*request*/,
         TRspCreate* /*response*/)
     {
