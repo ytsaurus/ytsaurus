@@ -96,7 +96,7 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* table = GetThisTypedImpl();
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
 
         const auto* chunkList = table->GetChunkList();
         const auto& statistics = chunkList->Statistics();
@@ -333,7 +333,7 @@ private:
 
         auto* impl = LockThisTypedImpl();
 
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->MountTable(
             impl,
             firstTabletIndex,
@@ -360,7 +360,7 @@ private:
 
         auto* impl = LockThisTypedImpl();
 
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->UnmountTable(
             impl,
             force,
@@ -385,7 +385,7 @@ private:
 
         auto* impl = LockThisTypedImpl();
 
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->RemountTable(
             impl,
             firstTabletIndex,
@@ -411,7 +411,7 @@ private:
 
         auto* impl = LockThisTypedImpl();
 
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->ReshardTable(
             impl,
             firstTabletIndex,
@@ -435,7 +435,7 @@ private:
         ToProto(response->mutable_key_columns()->mutable_names(), table->KeyColumns());
         response->set_sorted(table->GetSorted());
 
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
         auto schema = tabletManager->GetTableSchema(table);
         ToProto(response->mutable_schema(), schema);
 

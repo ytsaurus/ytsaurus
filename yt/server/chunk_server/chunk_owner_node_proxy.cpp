@@ -574,7 +574,7 @@ TFuture<void> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
 
     if (key == "chunk_ids") {
         return GetChunkIdsAttribute(
-            Bootstrap,
+            Bootstrap_,
             const_cast<TChunkList*>(chunkList),
             consumer);
     }
@@ -591,7 +591,7 @@ TFuture<void> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
         typedef TCodecStatisticsVisitor<TExtractCompressionCodec> TCompressionStatisticsVisitor;
 
         return ComputeCodecStatistics<TCompressionStatisticsVisitor>(
-            Bootstrap,
+            Bootstrap_,
             const_cast<TChunkList*>(chunkList),
             consumer);
     }
@@ -608,7 +608,7 @@ TFuture<void> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
         typedef TCodecStatisticsVisitor<TExtractErasureCodec> TErasureStatisticsVisitor;
 
         return ComputeCodecStatistics<TErasureStatisticsVisitor>(
-            Bootstrap,
+            Bootstrap_,
             const_cast<TChunkList*>(chunkList),
             consumer);
     }
@@ -642,7 +642,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     const Stroka& key,
     const TYsonString& value)
 {
-    auto chunkManager = Bootstrap->GetChunkManager();
+    auto chunkManager = Bootstrap_->GetChunkManager();
 
     if (key == "replication_factor") {
         ValidateNoTransaction();
@@ -661,7 +661,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         if (node->GetReplicationFactor() != replicationFactor) {
             node->SetReplicationFactor(replicationFactor);
 
-            auto securityManager = Bootstrap->GetSecurityManager();
+            auto securityManager = Bootstrap_->GetSecurityManager();
             securityManager->UpdateAccountNodeUsage(node);
 
             if (IsLeader()) {
@@ -729,8 +729,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
     auto* node = LockThisTypedImpl<TChunkOwnerBase>(GetLockMode(mode));
     ValidatePrepareForUpdate();
 
-    auto chunkManager = Bootstrap->GetChunkManager();
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto chunkManager = Bootstrap_->GetChunkManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
 
     TChunkList* resultChunkList;
     switch (mode) {
@@ -824,8 +824,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     auto* chunkList = node->GetChunkList();
 
     auto visitor = New<TFetchChunkVisitor>(
-        Bootstrap,
-        Bootstrap->GetConfig()->ChunkManager,
+        Bootstrap_,
+        Bootstrap_->GetConfig()->ChunkManager,
         chunkList,
         context,
         channel,

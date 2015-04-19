@@ -57,7 +57,6 @@ protected:
     class TResourceUsageVisitor;
 
     INodeTypeHandlerPtr TypeHandler;
-    NCellMaster::TBootstrap* Bootstrap;
     TCypressManagerConfigPtr Config;
     NTransactionServer::TTransaction* Transaction;
     TCypressNodeBase* TrunkNode;
@@ -312,7 +311,7 @@ private:
     { \
         return New<T##key##NodeProxy>( \
             this, \
-            Bootstrap, \
+            Bootstrap_, \
             transaction, \
             node); \
     }

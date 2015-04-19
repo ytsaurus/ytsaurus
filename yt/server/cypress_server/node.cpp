@@ -32,7 +32,8 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     , Acd_(this)
     , AccessStatisticsUpdateIndex_(-1)
     , Parent_(nullptr)
-    , TransactionId(id.TransactionId)
+    , Originator_(nullptr)
+    , TransactionId_(id.TransactionId)
 { }
 
 TCypressNodeBase::~TCypressNodeBase()
@@ -43,9 +44,9 @@ TCypressNodeBase* TCypressNodeBase::GetParent() const
     return Parent_;
 }
 
-void TCypressNodeBase::SetParent(TCypressNodeBase* newParent)
+void TCypressNodeBase::SetParent(TCypressNodeBase* parent)
 {
-    if (Parent_ == newParent)
+    if (Parent_ == parent)
         return;
 
     // Drop old parent.
@@ -54,7 +55,7 @@ void TCypressNodeBase::SetParent(TCypressNodeBase* newParent)
     }
 
     // Set new parent.
-    Parent_ = newParent;
+    Parent_ = parent;
     if (Parent_) {
         YCHECK(Parent_->IsTrunk());
         YCHECK(Parent_->ImmediateDescendants().insert(this).second);
@@ -66,9 +67,19 @@ void TCypressNodeBase::ResetParent()
     Parent_ = nullptr;
 }
 
+TCypressNodeBase* TCypressNodeBase::GetOriginator() const
+{
+    return Originator_;
+}
+
+void TCypressNodeBase::SetOriginator(TCypressNodeBase* originator)
+{
+    Originator_ = originator;
+}
+
 TVersionedNodeId TCypressNodeBase::GetVersionedId() const
 {
-    return TVersionedNodeId(Id, TransactionId);
+    return TVersionedNodeId(Id, TransactionId_);
 }
 
 void TCypressNodeBase::Save(TSaveContext& context) const
@@ -111,12 +122,12 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, AccessCounter_);
 
     // Reconstruct TrunkNode and Transaction.
-    if (TransactionId == NullTransactionId) {
+    if (TransactionId_ == NullTransactionId) {
         TrunkNode_ = this;
         Transaction_ = nullptr;
     } else {
         TrunkNode_ = context.Get<TCypressNodeBase>(TVersionedNodeId(Id));
-        Transaction_ = context.Get<TTransaction>(TransactionId);
+        Transaction_ = context.Get<TTransaction>(TransactionId_);
     }
 
     // Reconstruct iterators from locks to their positions in the lock list.

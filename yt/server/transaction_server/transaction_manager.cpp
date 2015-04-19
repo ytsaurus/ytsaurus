@@ -448,21 +448,6 @@ public:
         return transaction;
     }
 
-    TTransactionPath GetTransactionPath(TTransaction* transaction) const
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TTransactionPath result;
-        while (true) {
-            result.push_back(transaction);
-            if (!transaction) {
-                break;
-            }
-            transaction = transaction->GetParent();
-        }
-        return result;
-    }
-
     void StageObject(TTransaction* transaction, TObjectBase* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -832,11 +817,6 @@ void TTransactionManager::PingTransaction(TTransaction* transaction, bool pingAn
 TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& id)
 {
     return Impl_->GetTransactionOrThrow(id);
-}
-
-TTransactionPath TTransactionManager::GetTransactionPath(TTransaction* transaction) const
-{
-    return Impl_->GetTransactionPath(transaction);
 }
 
 void TTransactionManager::StageObject(TTransaction* transaction, TObjectBase* object)

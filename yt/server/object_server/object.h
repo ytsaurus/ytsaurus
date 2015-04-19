@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "attribute_set.h"
 
 #include <server/hydra/entity_map.h>
 
@@ -26,6 +27,7 @@ public:
 
     //! Returns |true| if this is a well-known subject (e.g. "root", "users" etc).
     bool IsBuiltin() const;
+
 
     //! Increments the object's reference counter.
     /*!
@@ -55,6 +57,7 @@ public:
      */
     int WeakUnrefObject();
 
+
     //! Sets weak reference counter to zero.
     void ResetWeakRefCounter();
 
@@ -64,14 +67,25 @@ public:
     //! Returns the current lock counter.
     int GetObjectWeakRefCounter() const;
 
-    //! Returns True iff the reference counter is non-zero.
+
+    //! Returns |true| iff the reference counter is non-zero.
     bool IsAlive() const;
 
-    //! Returns True iff the lock counter is non-zero.
+    //! Returns |true| iff the lock counter is non-zero.
     bool IsLocked() const;
 
-    //! Returns True iff the object is either non-versioned or versioned but does not belong to a transaction.
+    //! Returns |true| iff the object is either non-versioned or versioned but does not belong to a transaction.
     bool IsTrunk() const;
+
+
+    //! Returns an immutable collection of attributes associated with the object or |nullptr| is there are none.
+    const TAttributeSet* GetAttributes() const;
+
+    //! Returns (created if needed) a mutable collection of attributes associated with the object.
+    TAttributeSet* GetMutableAttributes();
+
+    //! Clears the collection of attributes associated with the object.
+    void ClearAttributes();
 
 protected:
     void Save(NCellMaster::TSaveContext& context) const;
@@ -80,6 +94,7 @@ protected:
     TObjectId Id;
     int RefCounter = 0;
     int WeakRefCounter = 0;
+    std::unique_ptr<TAttributeSet> Attributes_;
 
 };
 

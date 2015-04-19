@@ -153,7 +153,7 @@ protected:
     {
         return CreateTableNodeProxy(
             this,
-            Bootstrap,
+            Bootstrap_,
             transaction,
             trunkNode);
     }
@@ -163,7 +163,7 @@ protected:
         TBase::DoDestroy(table);
 
         if (table->IsTrunk()) {
-            auto tabletManager = Bootstrap->GetTabletManager();
+            auto tabletManager = Bootstrap_->GetTabletManager();
             tabletManager->ClearTablets(table);
         }
     }
@@ -222,7 +222,7 @@ protected:
         clonedNode->KeyColumns() = sourceNode->KeyColumns();
 
         if (sourceNode->IsDynamic()) {
-            auto objectManager = Bootstrap->GetObjectManager();
+            auto objectManager = Bootstrap_->GetObjectManager();
             for (auto* tablet : sourceNode->Tablets()) {
                 objectManager->RefObject(tablet);
                 clonedNode->Tablets().push_back(tablet);

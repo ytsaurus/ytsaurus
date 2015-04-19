@@ -94,16 +94,47 @@ bool TObjectBase::IsTrunk() const
     return node->GetTrunkNode() == node;
 }
 
+const TAttributeSet* TObjectBase::GetAttributes() const
+{
+    return Attributes_.get();
+}
+
+TAttributeSet* TObjectBase::GetMutableAttributes()
+{
+    if (!Attributes_) {
+        Attributes_ = std::make_unique<TAttributeSet>();
+    }
+    return Attributes_.get();
+}
+
+void TObjectBase::ClearAttributes()
+{
+    Attributes_.reset();
+}
+
 void TObjectBase::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
     Save(context, RefCounter);
+    if (Attributes_) {
+        Save(context, true);
+        Save(context, *Attributes_);
+    } else {
+        Save(context, false);
+    }
 }
 
 void TObjectBase::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     Load(context, RefCounter);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 117) {
+        if (Load<bool>(context)) {
+            Attributes_ = std::make_unique<TAttributeSet>();
+            Load(context, *Attributes_);
+        }
+    }
 }
 
 TObjectId GetObjectId(const TObjectBase* object)
