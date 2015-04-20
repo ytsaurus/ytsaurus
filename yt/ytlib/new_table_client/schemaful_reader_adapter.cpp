@@ -47,7 +47,13 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
+        rows->clear();
         MemoryPool_.Clear();
+
+        if (ErrorPromise_.IsSet()) {
+            return true;
+        }
+
         auto hasMore = UnderlyingReader_->Read(rows);
         if (rows->empty()) {
             return hasMore;
@@ -58,10 +64,15 @@ public:
 
         try {
             for (int i = 0; i < rows->size(); ++i) {
-                rows_[i] = RowReorderer_->ReorderKey(rows_[i], &MemoryPool_);
-                ValidateServerDataRow(rows_[i], 0, ReaderSchema_);
+                auto row = RowReorderer_->ReorderKey(rows_[i], &MemoryPool_);
+                for (int valueIndex = 0; valueIndex < ReaderSchema_.Columns().size(); ++valueIndex) {
+                    ValidateDataValue(row[valueIndex]);
+                    ValidateValueType(row[valueIndex], ReaderSchema_, valueIndex);
+                }
+                rows_[i] = row;
             }
         } catch (const std::exception& ex) {
+            rows_.clear();
             ErrorPromise_.Set(ex);
         }
 

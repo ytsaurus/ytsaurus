@@ -411,6 +411,12 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Checks that #value type is compatible with the schema column type.
+void ValidateValueType(
+    const TUnversionedValue& value,
+    const TTableSchema& schema,
+    int schemaId);
+
 //! Checks that #value is allowed to appear in data. Throws on failure.
 void ValidateDataValue(const TUnversionedValue& value);
 

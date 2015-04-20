@@ -60,6 +60,21 @@ class TestQuery(YTEnvSetup):
 
             assert len(result) == 10 * i
 
+    def test_invalid_data(self):
+        path = "//tmp/t"
+        create("table", path,
+            attributes = {
+                "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}]
+            })
+        data = [{"a" : 1, "b" : 2}, 
+                {"a" : 1, "b" : 2.2}, 
+                {"a" : 1, "b" : "smth"}]
+
+        write("<sorted_by=[a; b]>" + path, data)
+        with pytest.raises(YtError):
+            result = select_rows("a, b from [{0}] where b=b".format(path), verbose=False)
+            print result
+
     def test_project1(self):
         self._sample_data(path="//tmp/p1")
         expected = [{"s": 2 * i + 10 * i - 1} for i in xrange(1, 10)]
