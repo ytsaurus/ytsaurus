@@ -441,7 +441,6 @@ TCypressManager::TCypressManager(
     : TMasterAutomatonPart(bootstrap)
     , Config(config)
     , NodeMap(TNodeMapTraits(this))
-    , RootNode(nullptr)
     , AccessTracker(New<TAccessTracker>(config, bootstrap))
 {
     VERIFY_INVOKER_THREAD_AFFINITY(bootstrap->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
@@ -459,20 +458,28 @@ TCypressManager::TCypressManager(
     RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap_));
     RegisterHandler(New<TDocumentNodeTypeHandler>(Bootstrap_));
 
+    // COMPAT(babenko)
     RegisterLoader(
         "Cypress.Keys",
         BIND(&TCypressManager::LoadKeys, Unretained(this)));
+    // COMPAT(babenko)
     RegisterLoader(
         "Cypress.Values",
+        BIND(&TCypressManager::LoadValues, Unretained(this)));
+    RegisterLoader(
+        "CypressManager.Keys",
+        BIND(&TCypressManager::LoadKeys, Unretained(this)));
+    RegisterLoader(
+        "CypressManager.Values",
         BIND(&TCypressManager::LoadValues, Unretained(this)));
 
     RegisterSaver(
         ESerializationPriority::Keys,
-        "Cypress.Keys",
+        "CypressManager.Keys",
         BIND(&TCypressManager::SaveKeys, Unretained(this)));
     RegisterSaver(
         ESerializationPriority::Values,
-        "Cypress.Values",
+        "CypressManager.Values",
         BIND(&TCypressManager::SaveValues, Unretained(this)));
 
     RegisterMethod(BIND(&TCypressManager::UpdateAccessStatistics, Unretained(this)));

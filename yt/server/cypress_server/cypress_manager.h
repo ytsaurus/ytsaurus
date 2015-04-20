@@ -167,7 +167,7 @@ private:
     TEnumIndexedVector<INodeTypeHandlerPtr, NObjectClient::EObjectType> TypeToHandler;
 
     TNodeId RootNodeId;
-    TCypressNodeBase* RootNode;
+    TCypressNodeBase* RootNode = nullptr;
 
     TAccessTrackerPtr AccessTracker;
 
