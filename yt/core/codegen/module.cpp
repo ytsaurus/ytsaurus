@@ -136,8 +136,7 @@ public:
         auto type = RoutineRegistry_->GetTypeBuilder(symbol)(
             const_cast<llvm::LLVMContext&>(Context_));
 
-        auto function = Module_->getOrInsertFunction(symbol.c_str(), type);
-        return function;
+        return Module_->getOrInsertFunction(symbol.c_str(), type);
     }
 
     uint64_t GetFunctionAddress(const Stroka& name)

@@ -64,8 +64,7 @@ Stroka TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> gene
         }
         return unionString + " }";
     } else {
-        auto concreteType = tp.As<EValueType>();
-        return ToString(concreteType);
+        return ToString(tp.As<EValueType>());
     }
 }
 

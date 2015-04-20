@@ -27,7 +27,7 @@ function(UDF udf output)
     OUTPUT
       ${_h_file}
     COMMAND
-      mkdir -p ${_h_dirname}
+      ${CMAKE_COMMAND} -E make_directory ${_h_dirname}
     COMMAND
       ${CLANG_EXECUTABLE} -c
         -I${_include_dir}

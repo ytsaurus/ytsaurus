@@ -134,13 +134,6 @@ DEFINE_ENUM(ETypeCategory,
 
 struct TDescriptorType
 {
-    TDescriptorType()
-    { }
-
-    TDescriptorType(TType type)
-        : Type(type)
-    { }
-
     TType Type = EValueType::Min;
 };
 
@@ -170,11 +163,11 @@ void Deserialize(TDescriptorType& value, INodePtr node)
 {
     auto mapNode = node->AsMap();
 
-    auto tagNode = mapNode->FindChild(TagKey);
+    auto tagNode = mapNode->GetChild(TagKey);
     ETypeCategory tag;
     Deserialize(tag, tagNode);
 
-    auto valueNode = mapNode->FindChild(ValueKey);
+    auto valueNode = mapNode->GetChild(ValueKey);
     switch (tag) {
         case ETypeCategory::TypeArgument:
             {
@@ -220,7 +213,7 @@ public:
         RegisterParameter("result_type", ResultType);
         RegisterParameter("calling_convention", CallingConvention);
         RegisterParameter("repeated_argument_type", RepeatedArgumentType)
-            .Default(nullptr);
+            .Default();
     }
 
     std::vector<TType> GetArgumentsTypes()
@@ -319,7 +312,7 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
     try {
         cypressFunction = ConvertToNode(cypressFunctionOrError.Value())
             ->Attributes()
-            .Find<TCypressFunctionDescriptorPtr>(descriptorAttribute);
+            .Get<TCypressFunctionDescriptorPtr>(descriptorAttribute);
         
         if (cypressFunction->CallingConvention == ECallingConvention::Simple && 
             cypressFunction->RepeatedArgumentType)
