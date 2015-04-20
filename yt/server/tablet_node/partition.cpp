@@ -68,7 +68,8 @@ void TPartition::Load(TLoadContext& context)
     Load(context, SamplingRequestTime_);
     Load(context, *SampleKeys_);
 
-    int storeCount = TSizeSerializer::Load(context);
+    // COMPAT(babenko)
+    int storeCount = context.GetVersion() < 6 ? Load<size_t>(context) : TSizeSerializer::Load(context);
     for (int index = 0; index < storeCount; ++index) {
         auto storeId = Load<TStoreId>(context);
         auto store = Tablet_->GetStore(storeId);
