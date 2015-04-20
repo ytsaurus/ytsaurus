@@ -135,5 +135,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAggregateFunction
+    : public IAggregateFunctionDescriptor
+{
+public:
+    TAggregateFunction(Stroka name);
+
+    virtual Stroka GetName() const override;
+
+private:
+    const Stroka Name_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT

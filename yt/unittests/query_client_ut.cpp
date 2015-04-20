@@ -2057,6 +2057,7 @@ class TFunctionRegistryMock
 {
 public:
     MOCK_METHOD1(FindFunction, IFunctionDescriptorPtr(const Stroka&));
+    MOCK_METHOD1(FindAggregateFunction, IAggregateFunctionDescriptorPtr(const Stroka&));
 };
 
 

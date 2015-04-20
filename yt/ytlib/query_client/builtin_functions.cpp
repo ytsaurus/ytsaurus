@@ -335,5 +335,17 @@ TCGValue TCastFunction::CodegenValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAggregateFunction::TAggregateFunction(
+    Stroka name)
+    : Name_(name)
+{ }
+
+Stroka TAggregateFunction::GetName() const
+{
+    return Name_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT

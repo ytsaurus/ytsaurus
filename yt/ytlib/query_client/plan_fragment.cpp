@@ -351,7 +351,7 @@ protected:
                 referenceExpr->ColumnName));
         } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
             auto functionName = functionExpr->FunctionName;
-            auto aggregateFunction = GetAggregate(functionName);
+            auto aggregateFunction = GetAggregate(functionName, functionRegistry);
 
             if (aggregateFunction) {
                 auto subexprName = InferName(functionExpr);
@@ -593,7 +593,9 @@ protected:
         return &tableSchema->Columns().back();
     }
 
-    static TNullable<EAggregateFunction> GetAggregate(const TStringBuf& functionName)
+    static TNullable<EAggregateFunction> GetAggregate(
+        const TStringBuf functionName,
+        IFunctionRegistryPtr functionRegistry)
     {
         Stroka name(functionName);
         name.to_lower();
@@ -606,6 +608,9 @@ protected:
             result.Assign(EAggregateFunction::Min);
         } else if (name == "max") {
             result.Assign(EAggregateFunction::Max);
+        } else if (auto aggregate = functionRegistry->FindAggregateFunction(name)) {
+            //TODO
+            YUNIMPLEMENTED();
         }
 
         return result;
