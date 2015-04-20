@@ -981,10 +981,19 @@ public:
 
     virtual void CheckForStarvation(TInstant now) override
     {
+        auto minSharePreemptionTimeout = Spec_->MinSharePreemptionTimeout.Get(Config->MinSharePreemptionTimeout);
+        auto fairSharePreemptionTimeout = Spec_->FairSharePreemptionTimeout.Get(Config->FairSharePreemptionTimeout);
+
+        int jobCount = Operation_->GetController()->GetTotalJobCount();
+        double jobCountRatio = jobCount / Config->JobCountPreemptionTimeoutCoefficient;
+
+        if (jobCountRatio < 1.0) {
+            minSharePreemptionTimeout *= jobCountRatio;
+            fairSharePreemptionTimeout *= jobCountRatio;
+        }
+
         TSchedulerElementBase::CheckForStarvation(
-            Spec_->MinSharePreemptionTimeout.Get(Config->MinSharePreemptionTimeout),
-            Spec_->FairSharePreemptionTimeout.Get(Config->FairSharePreemptionTimeout),
-            now);
+            minSharePreemptionTimeout, fairSharePreemptionTimeout, now);
     }
 
     virtual void IncreaseUsage(const TNodeResources& delta) override
