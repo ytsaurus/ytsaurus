@@ -48,8 +48,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TPartitionId, Id);
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
 
-    DEFINE_BYVAL_RW_PROPERTY(TOwningKey, PivotKey);
-    DEFINE_BYVAL_RW_PROPERTY(TOwningKey, NextPivotKey);
+    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, PivotKey);
+    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, NextPivotKey);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<IStorePtr>, Stores);
 
@@ -60,8 +60,12 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TKeyListPtr, SampleKeys);
 
 public:
-    TPartition(TTablet* tablet, const TPartitionId& id, int index);
-    ~TPartition();
+    TPartition(
+        TTablet* tablet,
+        const TPartitionId& id,
+        int index,
+        TOwningKey pivotKey,
+        TOwningKey nextPivotKey);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);

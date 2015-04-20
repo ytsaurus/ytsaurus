@@ -570,8 +570,9 @@ private:
         auto schema = tablet->Schema();
 
         NLogging::TLogger Logger(TabletNodeLogger);
-        Logger.AddTag("TabletId: %v, PartitionRange: %v .. %v",
+        Logger.AddTag("TabletId: %v, Eden: %v, PartitionRange: %v .. %v",
             tabletId,
+            partition->IsEden(),
             partition->GetPivotKey(),
             partition->GetNextPivotKey());
 
