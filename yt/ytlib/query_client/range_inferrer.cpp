@@ -50,7 +50,7 @@ public:
     {
         return (Value_.Type == EValueType::Uint64)
             ? Modulo_
-            : (Modulo_ - 1) * 2 + 1;
+            : (Modulo_ * 2) - 1;
     }
 
     bool Finished() const
@@ -176,9 +176,9 @@ private:
     }
 };
 
-struct ILiftedGenerator
+struct IGenerator
 {
-    virtual ~ILiftedGenerator() = default;
+    virtual ~IGenerator() = default;
 
     virtual void Reset() = 0;
     virtual TUnversionedValue Next() = 0;
@@ -189,12 +189,8 @@ struct ILiftedGenerator
 
 template <class TGenerator, class TLift>
 class TLiftedGenerator
-    : public ILiftedGenerator
+    : public IGenerator
 {
-private:
-    TGenerator Underlying_;
-    TLift Lift_;
-
 public:
     TLiftedGenerator(TGenerator underlying, TLift lift)
         : Underlying_(std::move(underlying))
@@ -220,15 +216,19 @@ public:
     {
         return Underlying_.Estimation();
     }
+
+private:
+    TGenerator Underlying_;
+    TLift Lift_;
 };
 
 template <class TPrimitive, class TLift, class TUnlift>
-std::unique_ptr<ILiftedGenerator> CreateLiftedRangeGenerator(
+std::unique_ptr<IGenerator> CreateLiftedGenerator(
     TLift lift,
     TUnlift unlift,
     TUnversionedValue lower,
     TUnversionedValue upper,
-    TDivisors divisors)
+    const TDivisors& divisors)
 {
     auto unliftedDivisors = SmallVector<TPrimitive, 1>();
     for (const auto& divisor : divisors) {
@@ -241,6 +241,30 @@ std::unique_ptr<ILiftedGenerator> CreateLiftedRangeGenerator(
     return std::make_unique<TLiftedGenerator<decltype(underlying), TLift>>(
         std::move(underlying),
         std::move(lift));
+}
+
+std::unique_ptr<IGenerator> CreateQuotientEnumerationGenerator(
+    TUnversionedValue lower,
+    TUnversionedValue upper,
+    const TDivisors& divisors)
+{
+    std::unique_ptr<IGenerator> generator;
+    switch (lower.Type) {
+        case EValueType::Int64:
+            generator = CreateLiftedGenerator<i64>(
+                [] (i64 value) { return MakeUnversionedInt64Value(value); },
+                [] (const TUnversionedValue& value) { return value.Data.Int64; },
+                lower, upper, divisors);
+            break;
+        case EValueType::Uint64:
+            generator = CreateLiftedGenerator<ui64>(
+                [] (ui64 value) { return MakeUnversionedUint64Value(value); },
+                [] (const TUnversionedValue& value) { return value.Data.Uint64; },
+                lower, upper, divisors);
+        default:
+            break;
+    }
+    return generator;
 }
 
 // Extract ranges from a predicate and enrich them with computed column values.
@@ -542,7 +566,7 @@ private:
         std::vector<int> exactlyComputedColumns;
         std::vector<int> enumerableColumns;
         std::vector<int> enumeratorDependentColumns;
-        std::unique_ptr<ILiftedGenerator> enumeratorGenerator;
+        std::unique_ptr<IGenerator> enumeratorGenerator;
 
         // Add modulo computed column if we still fit into range expansion limit.
         auto addModuloColumn = [&] (int index, const TModuloRangeGenerator& generator) {
@@ -579,7 +603,7 @@ private:
         }
 
         // Shrink bounds up to the first column dependent on range iteration. Try to use modulo generators when appropriate.
-        auto shrinkDivisionComputedColumns = [&] () {
+        auto shrinkEnumerableColumns = [&] () {
             for (int index : enumerableColumns) {
                 if (auto generator = GetModuloGeneratorForColumn(index)) {
                     if (addModuloColumn(index, generator.Get())) {
@@ -601,28 +625,12 @@ private:
         // Check if we can use iteration.
         if (canEnumerate && !enumerableColumns.empty()) {
             if (shrinkSize <= prefixSize) {
-                shrinkDivisionComputedColumns();
+                shrinkEnumerableColumns();
             } else {
-                const auto& lower = range.first[depletedPrefixSize];
-                const auto& upper = range.second[depletedPrefixSize];
-                const auto divisors = GetDivisors(prefixSize, enumerableColumns);
-
-                std::unique_ptr<ILiftedGenerator> generator;
-                switch (range.first[depletedPrefixSize].Type) {
-                    case EValueType::Int64:
-                        generator = CreateLiftedRangeGenerator<i64>(
-                            [] (i64 value) { return MakeUnversionedInt64Value(value); },
-                            [] (const TUnversionedValue& value) { return value.Data.Int64; },
-                            lower, upper, divisors);
-                        break;
-                    case EValueType::Uint64:
-                        generator = CreateLiftedRangeGenerator<ui64>(
-                            [] (ui64 value) { return MakeUnversionedUint64Value(value); },
-                            [] (const TUnversionedValue& value) { return value.Data.Uint64; },
-                            lower, upper, divisors);
-                    default:
-                        break;
-                }
+                auto generator = CreateQuotientEnumerationGenerator(
+                    range.first[depletedPrefixSize],
+                    range.second[depletedPrefixSize],
+                    GetDivisors(prefixSize, enumerableColumns));
 
                 if (generator &&
                     generator->Estimation() < RangeExpansionLeft_ &&
@@ -631,7 +639,7 @@ private:
                     rangeCount *= generator->Estimation();
                     enumeratorGenerator = std::move(generator);
                 } else {
-                    shrinkDivisionComputedColumns();
+                    shrinkEnumerableColumns();
                 }
             }
         }
@@ -664,7 +672,7 @@ private:
             upperRow[index] = lowerRow[index];
         }
 
-        // Check whther our bound is shrinked and append appropriate sentinels.
+        // Check whether our bound is shrinked and append appropriate sentinels.
         bool shrinked;
         if (shrinkSize < DepletedToSchemaMapping_[range.second.GetCount()]) {
             upperRow[shrinkSize].Type = EValueType::Max;
