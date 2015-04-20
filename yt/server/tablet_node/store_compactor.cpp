@@ -35,6 +35,8 @@
 #include <ytlib/api/connection.h>
 #include <ytlib/api/transaction.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
 
@@ -49,6 +51,7 @@ using namespace NHydra;
 using namespace NVersionedTableClient;
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NObjectClient;
 using namespace NTabletNode::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,11 +197,24 @@ private:
         auto config = eden->GetTablet()->GetConfig();
 
         std::vector<TChunkStorePtr> candidates;
+        std::vector<TChunkStorePtr> forcedCandidates;
         for (auto store : eden->Stores()) {
             if (!TStoreManager::IsStoreCompactable(store))
                 continue;
 
-            candidates.push_back(store->AsChunk());
+            auto candidate = store->AsChunk();
+            candidates.push_back(candidate);
+            if (IsCompactionForced(candidate) &&
+                candidate->GetUncompressedDataSize() >= config->MinPartitionDataSize &&
+                forcedCandidates.size() < config->MaxPartitioningStoreCount)
+            {
+                forcedCandidates.push_back(candidate);
+            }
+        }
+
+        // Check for forced candidates.
+        if (!forcedCandidates.empty()) {
+            return forcedCandidates;
         }
 
         // Sort by decreasing data size.
@@ -235,6 +251,7 @@ private:
         auto config = partition->GetTablet()->GetConfig();
 
         std::vector<TChunkStorePtr> candidates;
+        std::vector<TChunkStorePtr> forcedCandidates;
         for (auto store : partition->Stores()) {
             if (!TStoreManager::IsStoreCompactable(store))
                 continue;
@@ -243,7 +260,18 @@ private:
             if (partition->IsEden() && store->GetUncompressedDataSize() >= config->MinPartitioningDataSize)
                 continue;
 
-            candidates.push_back(store->AsChunk());
+            auto candidate = store->AsChunk();
+            candidates.push_back(candidate);
+            if (IsCompactionForced(candidate) &&
+                forcedCandidates.size() < config->MaxCompactionStoreCount)
+            {
+                forcedCandidates.push_back(candidate);
+            }
+        }
+
+        // Check for forced candidates.
+        if (!forcedCandidates.empty()) {
+            return forcedCandidates;
         }
 
         // Sort by increasing data size.
@@ -713,6 +741,22 @@ private:
 
         YCHECK(partition->GetState() == EPartitionState::Compacting);
         partition->SetState(EPartitionState::Normal);
+    }
+
+
+    static bool IsCompactionForced(TChunkStorePtr store)
+    {
+        const auto& config = store->GetTablet()->GetConfig();
+        if (!config->ForcedCompactionRevision) {
+            return false;
+        }
+
+        ui64 revision = CounterFromId(store->GetId());
+        if (revision < *config->ForcedCompactionRevision) {
+            return false;
+        }
+
+        return true;
     }
 
 };

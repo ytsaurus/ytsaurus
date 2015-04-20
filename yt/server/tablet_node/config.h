@@ -110,6 +110,8 @@ public:
 
     int MaxStoresPerTablet;
 
+    TNullable<ui64> ForcedCompactionRevision;
+
     TTableMountConfig()
     {
         RegisterParameter("enable_codegen", EnableCodegen)
@@ -187,6 +189,9 @@ public:
         RegisterParameter("max_stores_per_tablet", MaxStoresPerTablet)
             .Default(10000)
             .GreaterThan(0);
+
+        RegisterParameter("forced_compaction_revision", ForcedCompactionRevision)
+            .Default(Null);
 
         RegisterValidator([&] () {
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {
