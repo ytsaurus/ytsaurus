@@ -45,10 +45,10 @@ extern const Stroka DefaultNetworkName;
 extern const Stroka InterconnectNetworkName;
 
 DEFINE_ENUM(EErrorCode,
-    ((NoSuchNode)    (300))
-    ((InvalidState)  (301))
-    ((NoSuchNetwork) (302))
-    ((NoSuchRack)    (303))
+    ((NoSuchNode)    (1600))
+    ((InvalidState)  (1601))
+    ((NoSuchNetwork) (1602))
+    ((NoSuchRack)    (1603))
 );
 
 ///////////////////////////////////////////////////////////////////////////////
