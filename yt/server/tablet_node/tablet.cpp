@@ -230,7 +230,8 @@ void TTablet::Load(TLoadContext& context)
         return store;
     };
 
-    int storeCount = TSizeSerializer::Load(context);
+    // COMPAT(babenko)
+    int storeCount = context.GetVersion() < 6 ? Load<size_t>(context) : TSizeSerializer::Load(context);
     for (int index = 0; index < storeCount; ++index) {
         auto store = loadStore();
         YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
@@ -265,7 +266,8 @@ void TTablet::Load(TLoadContext& context)
 
     Eden_ = loadPartition(TPartition::EdenIndex);
 
-    int partitionCount = TSizeSerializer::Load(context);
+    // COMPAT(babenko)
+    int partitionCount = context.GetVersion() < 6 ? Load<size_t>(context) : TSizeSerializer::Load(context);
     for (int index = 0; index < partitionCount; ++index) {
         auto partition = loadPartition(index);
         YCHECK(PartitionMap_.insert(std::make_pair(partition->GetId(), partition.get())).second);
