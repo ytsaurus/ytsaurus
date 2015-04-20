@@ -517,7 +517,9 @@ private:
 
     void DoAbort()
     {
-        YCHECK(GetState() == EJobState::Aborting);
+        if (GetState() != EJobState::Aborting) {
+            return;
+        }
 
         LOG_INFO("Aborting job");
 
