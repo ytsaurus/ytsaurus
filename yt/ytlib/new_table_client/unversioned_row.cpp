@@ -693,20 +693,6 @@ int ApplyIdMapping(
     return schemaId;
 }
 
-void ValidateValueType(
-    const TUnversionedValue& value,
-    const TTableSchema& schema,
-    int schemaId)
-{
-    if (value.Type != EValueType::Null && value.Type != schema.Columns()[schemaId].Type) {
-        THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-            schema.Columns()[schemaId].Name,
-            schema.Columns()[schemaId].Type,
-            EValueType::Null,
-            value.Type);
-    }
-}
-
 void ValidateKeyPart(
     TUnversionedRow row,
     int keyColumnCount,
@@ -777,6 +763,20 @@ void ValidateKey(
 }
 
 } // namespace
+
+void ValidateValueType(
+    const TUnversionedValue& value,
+    const TTableSchema& schema,
+    int schemaId)
+{
+    if (value.Type != EValueType::Null && value.Type != schema.Columns()[schemaId].Type) {
+        THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
+            schema.Columns()[schemaId].Name,
+            schema.Columns()[schemaId].Type,
+            EValueType::Null,
+            value.Type);
+    }
+}
 
 void ValidateDataValue(const TUnversionedValue& value)
 {
