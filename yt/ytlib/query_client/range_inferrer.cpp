@@ -33,8 +33,6 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 using TDivisors = SmallVector<TUnversionedValue, 1>;
-using TInt64Divisors = SmallVector<i64, 1>;
-using TUint64Divisors = SmallVector<ui64, 1>;
 
 class TModuloRangeGenerator
 {
@@ -83,51 +81,59 @@ template <class T>
 class TQuotientEnumerationGenerator
 {
 public:
-    TQuotientEnumerationGenerator(T lower, T upper, SmallVector<T, 1>& divisors)
-        : Estimation_(Estimate(lower, upper, divisors))
+    TQuotientEnumerationGenerator(T lower, T upper, const SmallVector<T, 1>& divisors)
+        : DivisorQueue_(CreateDivisorQueue(lower, divisors))
+        , Estimate_(Estimate(lower, upper, divisors))
         , Lower_(lower)
         , Upper_(upper)
     {
-        for (auto divisor : divisors) {
-            ui64 step = lower >= 0 ? Abs(divisor) - (lower % divisor) : - (lower % divisor);
-            PermanentQueue_.emplace(step, Abs(divisor));
-        }
         Reset();
     }
 
     void Reset()
     {
-        Queue_ = PermanentQueue_;
+        CurrentQueue_ = DivisorQueue_;
         Current_ = Lower_;
         Delta_ = 0;
-    }
-
-    bool Finished()
-    {
-        return Queue_.empty();
     }
 
     T Next()
     {
         YCHECK(!Finished());
+
         auto result = Current_;
-        Shift();
-        if (!Queue_.empty()) {
-            auto top = Queue_.top();
+
+        while (!CurrentQueue_.empty() && CurrentQueue_.top().first == Delta_) {
+            auto top = CurrentQueue_.top();
+            CurrentQueue_.pop();
+            if (top.second + Delta_ >= Delta_ ) {
+                CurrentQueue_.emplace(top.second + Delta_, top.second);
+            }
+        }
+
+        if (!CurrentQueue_.empty()) {
+            auto top = CurrentQueue_.top();
             if (top.first - Delta_ > static_cast<ui64>(Upper_ - Current_)) {
-                while (!Queue_.empty()) {
-                    Queue_.pop();
+                while (!CurrentQueue_.empty()) {
+                    CurrentQueue_.pop();
                 }
             } else {
                 Current_ += top.first - Delta_;
                 Delta_ = top.first;
             }
         }
+
         return result;
     }
 
-    ui64 Estimation() {
-        return Estimation_;
+    bool Finished() const
+    {
+        return CurrentQueue_.empty();
+    }
+
+    ui64 Estimation() const
+    {
+        return Estimate_;
     }
 
 private:
@@ -135,26 +141,27 @@ private:
         std::pair<ui64, ui64>,
         std::vector<std::pair<ui64, ui64>>,
         std::greater<std::pair<ui64, ui64>>>;
-    TPriorityQueue PermanentQueue_;
-    TPriorityQueue Queue_;
-    const ui64 Estimation_;
+
+    const TPriorityQueue DivisorQueue_;
+    const ui64 Estimate_;
     const T Lower_;
     const T Upper_;
-    T Current_;
+
+    TPriorityQueue CurrentQueue_;
+    T Current_ = T();
     ui64 Delta_ = 0;
 
-    void Shift()
+    static TPriorityQueue CreateDivisorQueue(T lower, const SmallVector<T, 1>& divisors)
     {
-        while (!Queue_.empty() && Queue_.top().first == Delta_) {
-            auto top = Queue_.top();
-            Queue_.pop();
-            if (top.second + Delta_ >= Delta_ ) {
-                Queue_.emplace(top.second + Delta_, top.second);
-            }
+        TPriorityQueue queue;
+        for (auto divisor : divisors) {
+            ui64 step = lower >= 0 ? Abs(divisor) - (lower % divisor) : - (lower % divisor);
+            queue.emplace(step, Abs(divisor));
         }
+        return queue;
     }
 
-    static ui64 Estimate(T lower, T upper, SmallVector<T, 1>& divisors)
+    static ui64 Estimate(T lower, T upper, const SmallVector<T, 1>& divisors)
     {
         ui64 estimate = 1;
         for (auto divisor : divisors) {
@@ -169,91 +176,72 @@ private:
     }
 };
 
-template <>
-class TQuotientEnumerationGenerator<TUnversionedValue>
+struct ILiftedGenerator
 {
+    virtual ~ILiftedGenerator() = default;
+
+    virtual void Reset() = 0;
+    virtual TUnversionedValue Next() = 0;
+
+    virtual bool Finished() const = 0;
+    virtual ui64 Estimation() const = 0;
+};
+
+template <class TGenerator, class TLift>
+class TLiftedGenerator
+    : public ILiftedGenerator
+{
+private:
+    TGenerator Underlying_;
+    TLift Lift_;
+
 public:
-    TQuotientEnumerationGenerator(TUnversionedValue lower, TUnversionedValue upper, TDivisors divisors)
-        : Type_(lower.Type)
-        , Generator_(Create(lower, upper, divisors))
+    TLiftedGenerator(TGenerator underlying, TLift lift)
+        : Underlying_(std::move(underlying))
+        , Lift_(std::move(lift))
     { }
 
-    void Reset()
+    virtual void Reset() override
     {
-        if (Type_ == EValueType::Int64) {
-            Generator_.As<TQuotientEnumerationGenerator<i64>>().Reset();
-        } else {
-            Generator_.As<TQuotientEnumerationGenerator<ui64>>().Reset();
-        }
+        Underlying_.Reset();
     }
 
-    bool Finished()
+    virtual TUnversionedValue Next() override
     {
-        if (Type_ == EValueType::Int64) {
-            return Generator_.As<TQuotientEnumerationGenerator<i64>>().Finished();
-        } else {
-            return Generator_.As<TQuotientEnumerationGenerator<ui64>>().Finished();
-        }
+        return Lift_(Underlying_.Next());
     }
 
-    TUnversionedValue Next()
+    virtual bool Finished() const override
     {
-        if (Type_ == EValueType::Int64) {
-            return MakeUnversionedInt64Value(Generator_.As<TQuotientEnumerationGenerator<i64>>().Next());
-        } else {
-            return MakeUnversionedUint64Value(Generator_.As<TQuotientEnumerationGenerator<ui64>>().Next());
-        }
+        return Underlying_.Finished();
     }
 
-    ui64 Estimation()
+    virtual ui64 Estimation() const override
     {
-        if (Type_ == EValueType::Int64) {
-            return Generator_.As<TDivisionRangeGenerator<i64>>().Estimation();
-        } else {
-            return Generator_.As<TDivisionRangeGenerator<ui64>>().Estimation();
-        }
-    }
-
-private:
-    using TGenerator = TVariant<TQuotientEnumerationGenerator<i64>, TQuotientEnumerationGenerator<ui64>>;
-
-    EValueType Type_;
-    TGenerator Generator_;
-
-    TGenerator Create(TUnversionedValue lower, TUnversionedValue upper, TDivisors unversionedDivisors)
-    {
-        YCHECK(lower.Type == upper.Type);
-        if (lower.Type == EValueType::Int64) {
-            auto divisors = GetInt64Vector(unversionedDivisors);
-            return TQuotientEnumerationGenerator<i64>(lower.Data.Int64, upper.Data.Int64, divisors);
-
-        } else if (lower.Type == EValueType::Uint64) {
-            auto divisors = GetUint64Vector(unversionedDivisors);
-            return TQuotientEnumerationGenerator<ui64>(lower.Data.Uint64, upper.Data.Uint64, divisors);
-        }
-        YUNREACHABLE();
-    }
-
-    TInt64Divisors GetInt64Vector(TDivisors unversionedVector)
-    {
-        TInt64Divisors result;
-        for (const auto& element : unversionedVector) {
-            YCHECK(element.Type == EValueType::Int64);
-            result.push_back(element.Data.Int64);
-        }
-        return result;
-    }
-
-    TUint64Divisors GetUint64Vector(TDivisors unversionedVector)
-    {
-        TUint64Divisors result;
-        for (const auto& element : unversionedVector) {
-            YCHECK(element.Type == EValueType::Uint64);
-            result.push_back(element.Data.Uint64);
-        }
-        return result;
+        return Underlying_.Estimation();
     }
 };
+
+template <class TPrimitive, class TLift, class TUnlift>
+std::unique_ptr<ILiftedGenerator> CreateLiftedRangeGenerator(
+    TLift lift,
+    TUnlift unlift,
+    TUnversionedValue lower,
+    TUnversionedValue upper,
+    TDivisors divisors)
+{
+    auto unliftedDivisors = SmallVector<TPrimitive, 1>();
+    for (const auto& divisor : divisors) {
+        unliftedDivisors.push_back(unlift(divisor));
+    }
+    auto underlying = TQuotientEnumerationGenerator<TPrimitive>(
+        unlift(lower),
+        unlift(upper),
+        unliftedDivisors);
+    return std::make_unique<TLiftedGenerator<decltype(underlying), TLift>>(
+        std::move(underlying),
+        std::move(lift));
+}
 
 // Extract ranges from a predicate and enrich them with computed column values.
 class TRangeInferrerHeavy
@@ -541,7 +529,8 @@ private:
         }
 
         // Check if we need to iterate over a first column after the longest common prefix.
-        bool canEnumerate = depletedPrefixSize < range.first.GetCount() &&
+        bool canEnumerate =
+            depletedPrefixSize < range.first.GetCount() &&
             depletedPrefixSize < range.second.GetCount() &&
             IsIntegralType(range.first[depletedPrefixSize].Type) &&
             IsIntegralType(range.second[depletedPrefixSize].Type);
@@ -553,7 +542,7 @@ private:
         std::vector<int> exactlyComputedColumns;
         std::vector<int> enumerableColumns;
         std::vector<int> enumeratorDependentColumns;
-        TNullable<TQuotientEnumerationGenerator<TUnversionedValue>> enumeratorGenerator;
+        std::unique_ptr<ILiftedGenerator> enumeratorGenerator;
 
         // Add modulo computed column if we still fit into range expansion limit.
         auto addModuloColumn = [&] (int index, const TModuloRangeGenerator& generator) {
@@ -614,13 +603,33 @@ private:
             if (shrinkSize <= prefixSize) {
                 shrinkDivisionComputedColumns();
             } else {
-                auto generator = TQuotientEnumerationGenerator<TUnversionedValue>(
-                    range.first[depletedPrefixSize],
-                    range.second[depletedPrefixSize],
-                    GetDivisors(prefixSize, enumerableColumns));
-                if (generator.Estimation() < RangeExpansionLeft_ && rangeCount * generator.Estimation() < RangeExpansionLeft_) {
-                    rangeCount *= generator.Estimation();
-                    enumeratorGenerator = generator;
+                const auto& lower = range.first[depletedPrefixSize];
+                const auto& upper = range.second[depletedPrefixSize];
+                const auto divisors = GetDivisors(prefixSize, enumerableColumns);
+
+                std::unique_ptr<ILiftedGenerator> generator;
+                switch (range.first[depletedPrefixSize].Type) {
+                    case EValueType::Int64:
+                        generator = CreateLiftedRangeGenerator<i64>(
+                            [] (i64 value) { return MakeUnversionedInt64Value(value); },
+                            [] (const TUnversionedValue& value) { return value.Data.Int64; },
+                            lower, upper, divisors);
+                        break;
+                    case EValueType::Uint64:
+                        generator = CreateLiftedRangeGenerator<ui64>(
+                            [] (ui64 value) { return MakeUnversionedUint64Value(value); },
+                            [] (const TUnversionedValue& value) { return value.Data.Uint64; },
+                            lower, upper, divisors);
+                    default:
+                        break;
+                }
+
+                if (generator &&
+                    generator->Estimation() < RangeExpansionLeft_ &&
+                    rangeCount * generator->Estimation() < RangeExpansionLeft_)
+                {
+                    rangeCount *= generator->Estimation();
+                    enumeratorGenerator = std::move(generator);
                 } else {
                     shrinkDivisionComputedColumns();
                 }
@@ -682,7 +691,7 @@ private:
             if (!enumeratorGenerator) {
                 ranges.push_back(std::make_pair(lowerRow, upperRow));
             } else {
-                auto& generator = enumeratorGenerator.Get();
+                auto& generator = *enumeratorGenerator;
                 generator.Reset();
                 YCHECK(generator.Next() == lowerRow[prefixSize]);
                 evaluateColumns(lowerRow, enumerableColumns);
