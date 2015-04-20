@@ -753,7 +753,7 @@ private:
         }
 
         ui64 revision = CounterFromId(store->GetId());
-        if (revision < *config->ForcedCompactionRevision) {
+        if (revision > *config->ForcedCompactionRevision) {
             return false;
         }
 
