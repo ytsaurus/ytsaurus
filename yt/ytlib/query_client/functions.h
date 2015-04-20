@@ -32,5 +32,15 @@ DEFINE_REFCOUNTED_TYPE(IFunctionDescriptor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IAggregateFunctionDescriptor
+    : public virtual TRefCounted
+{
+    virtual Stroka GetName() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IAggregateFunctionDescriptor)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT

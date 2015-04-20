@@ -46,10 +46,11 @@ IFunctionDescriptorPtr IFunctionRegistry::GetFunction(const Stroka& functionName
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFunctionRegistry::RegisterFunction(IFunctionDescriptorPtr function)
+void TFunctionRegistry::RegisterFunction(IFunctionDescriptorPtr descriptor)
 {
-    Stroka functionName = to_lower(function->GetName());
-    YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(function))).second);
+    Stroka functionName = to_lower(descriptor->GetName());
+    YCHECK(!FindAggregateFunction(functionName));
+    YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(descriptor))).second);
 }
 
 IFunctionDescriptorPtr TFunctionRegistry::FindFunction(const Stroka& functionName)
@@ -59,6 +60,23 @@ IFunctionDescriptorPtr TFunctionRegistry::FindFunction(const Stroka& functionNam
         return nullptr;
     } else {
         return RegisteredFunctions_.at(name);
+    }
+}
+
+void TFunctionRegistry::RegisterAggregateFunction(IAggregateFunctionDescriptorPtr descriptor)
+{
+    Stroka aggregateName = to_lower(descriptor->GetName());
+    YCHECK(!FindFunction(aggregateName));
+    YCHECK(RegisteredAggregateFunctions_.insert(std::make_pair(aggregateName, std::move(descriptor))).second);
+}
+
+IAggregateFunctionDescriptorPtr TFunctionRegistry::FindAggregateFunction(const Stroka& aggregateName)
+{
+    auto name = to_lower(aggregateName);
+    if (RegisteredAggregateFunctions_.count(name) == 0) {
+        return nullptr;
+    } else {
+        return RegisteredAggregateFunctions_.at(name);
     }
 }
 
@@ -350,6 +368,11 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
             cypressFunction->ResultType.Type,
             implementationFile));
     }
+}
+
+IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::FindAggregateFunction(const Stroka& aggregateName)
+{
+    return BuiltinRegistry_->FindAggregateFunction(aggregateName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
