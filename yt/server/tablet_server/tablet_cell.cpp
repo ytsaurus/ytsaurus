@@ -28,9 +28,11 @@ void TTabletCell::TPeer::Persist(NCellMaster::TPersistenceContext& context)
         Persist(context, address);
         YCHECK(!address);
     } else if (context.IsLoad() && context.LoadContext().GetVersion() < 116) {
-        TAddressMap addresses;
+        TNullable<TAddressMap> addresses;
         Persist(context, addresses);
-        Descriptor = TNodeDescriptor(addresses);
+        if (addresses) {
+            Descriptor = TNodeDescriptor(*addresses);
+        }
     } else {
         Persist(context, Descriptor);
     }
