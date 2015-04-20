@@ -91,7 +91,7 @@ def _process_request_backoff(current_time):
         get_session().last_request_time = now_seconds
 
 def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False, timeout=None, retry_action=None, **kwargs):
-    if timeout is not None:
+    if timeout is None:
         timeout = http_config.REQUEST_RETRY_TIMEOUT / 1000.0
 
     retriable_errors = list(RETRIABLE_ERRORS)
