@@ -31,30 +31,30 @@ void TKeyList::Load(TLoadContext& context)
 const int TPartition::EdenIndex;
 #endif
 
-TPartition::TPartition(TTablet* tablet, const TPartitionId& id, int index)
+TPartition::TPartition(
+    TTablet* tablet,
+    const TPartitionId& id,
+    int index,
+    TOwningKey pivotKey,
+    TOwningKey nextPivotKey)
     : Tablet_(tablet)
     , Id_(id)
     , Index_(index)
-    , PivotKey_(MinKey())
-    , NextPivotKey_(MaxKey())
+    , PivotKey_(std::move(pivotKey))
+    , NextPivotKey_(std::move(nextPivotKey))
     , State_(EPartitionState::Normal)
     , SampleKeys_(New<TKeyList>())
-{ }
-
-TPartition::~TPartition()
 { }
 
 void TPartition::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
-    Save(context, PivotKey_);
-    Save(context, NextPivotKey_);
     Save(context, SamplingTime_);
     Save(context, SamplingRequestTime_);
     Save(context, *SampleKeys_);
 
-    Save(context, Stores_.size());
+    TSizeSerializer::Save(context, Stores_.size());
     for (auto store : Stores_) {
         Save(context, store->GetId());
     }
@@ -64,14 +64,12 @@ void TPartition::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, PivotKey_);
-    Load(context, NextPivotKey_);
     Load(context, SamplingTime_);
     Load(context, SamplingRequestTime_);
     Load(context, *SampleKeys_);
 
-    size_t storeCount = Load<size_t>(context);
-    for (size_t index = 0; index < storeCount; ++index) {
+    int storeCount = TSizeSerializer::Load(context);
+    for (int index = 0; index < storeCount; ++index) {
         auto storeId = Load<TStoreId>(context);
         auto store = Tablet_->GetStore(storeId);
         YCHECK(Stores_.insert(store).second);
