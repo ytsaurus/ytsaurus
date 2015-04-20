@@ -48,6 +48,10 @@ public:
     //! Default parent pool for operations with unknown pool.
     Stroka DefaultParentPool;
 
+    // Preemption timeout for operations with small number of jobs will be
+    // discounted proportionaly to this coefficient.
+    double JobCountPreemptionTimeoutCoefficient;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -81,6 +85,10 @@ public:
 
         RegisterParameter("default_parent_pool", DefaultParentPool)
             .Default(RootPoolName);
+
+        RegisterParameter("job_count_preemption_timeout_coefficient", JobCountPreemptionTimeoutCoefficient)
+            .Default(1.0)
+            .GreaterThanOrEqual(1.0);
     }
 };
 
