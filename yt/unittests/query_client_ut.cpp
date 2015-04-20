@@ -3621,7 +3621,7 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
     EXPECT_CALL(*registry, FindFunction("sum_udf"))
         .WillRepeatedly(Return(SumUdf_));
 
-    Evaluate("a as x FROM [//t] where sum_udf(1, 2, 3) = sum_udf(3, 3)", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("a as x FROM [//t] where sum_udf(10, a) in (11, 12)", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }

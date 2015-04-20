@@ -8,8 +8,6 @@ from yt_commands import *
 from time import sleep
 from random import randint
 from random import shuffle
-
-
 from distutils.spawn import find_executable
 
 ##################################################################
@@ -279,7 +277,7 @@ class TestQuery(YTEnvSetup):
         expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in [10, 20, 30]]
         actual = sorted(select_rows("* from [//tmp/tc] where key in (10, 20, 30)"))
         self.assertItemsEqual(actual, expected)
-        
+
     def test_udf(self):
         registry_path =  "//tmp/udfs"
         create("map_node", registry_path)
@@ -316,6 +314,6 @@ class TestQuery(YTEnvSetup):
         upload_file(sum_path, local_implementation_path)
 
         self._sample_data(path="//tmp/u")
-        expected = [{"s": i} for i in xrange(1, 10)]
-        actual = select_rows("a as s from [//tmp/u] where b = b")
+        expected = [{"s": 2 * i} for i in xrange(1, 10)]
+        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u] where sum_udf(b, 1, 2) = sum_udf(3, b)")
         assert expected == actual
