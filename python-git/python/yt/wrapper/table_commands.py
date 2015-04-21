@@ -221,7 +221,7 @@ class TempfilesManager(object):
 def _prepare_binary(binary, operation_type, input_format=None, output_format=None,
                     reduce_by=None, client=None):
     if _is_python_function(binary):
-        if isinstance(input_format, YamrFormat) and set(reduce_by) != set(["key"]):
+        if isinstance(input_format, YamrFormat) and reduce_by is not None and set(reduce_by) != set(["key"]):
             raise YtError("Yamr format does not support reduce by %r", reduce_by)
         with TempfilesManager() as tempfiles_manager:
             binary, binary_file, files = py_wrapper.wrap(binary, operation_type, tempfiles_manager,
