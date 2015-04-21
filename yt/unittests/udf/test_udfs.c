@@ -43,7 +43,7 @@ void tolower_udf(
 
 void is_null_udf(TExecutionContext* context, TUnversionedValue* result, TUnversionedValue* value)
 {
-    bool isnull = value->Type == Null;
+    int8_t isnull = value->Type == Null;
     result->Type = Boolean;
     result->Data.Boolean = isnull;
 }
@@ -51,4 +51,19 @@ void is_null_udf(TExecutionContext* context, TUnversionedValue* result, TUnversi
 long abs_udf(TExecutionContext* context, long n)
 {
     return labs(n);
+}
+
+void sum_udf(
+    TExecutionContext* context,
+    TUnversionedValue* result_value,
+    TUnversionedValue* n1,
+    TUnversionedValue* ns,
+    int ns_len)
+{
+    int64_t result = n1->Data.Int64;
+    for (int i = 0; i < ns_len; i++) {
+        result += ns[i].Data.Int64;
+    }
+    result_value->Type = Int64;
+    result_value->Data.Int64 = result;
 }

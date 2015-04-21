@@ -2093,46 +2093,47 @@ protected:
 
         ActionQueue_ = New<TActionQueue>("Test");
 
-        AbsUdf_ = New<TUserDefinedFunction>(
-            "abs_udf",
-            std::vector<EValueType>{EValueType::Int64},
-            EValueType::Int64,
+        auto testUdfImplementations =
             TSharedRef::FromRefNonOwning(TRef(
                 test_udfs_bc,
-                test_udfs_bc_len)),
+                test_udfs_bc_len));
+
+        AbsUdf_ = New<TUserDefinedFunction>(
+            "abs_udf",
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Int64,
+            testUdfImplementations,
             ECallingConvention::Simple);
         ExpUdf_ = New<TUserDefinedFunction>(
             "exp_udf",
-            std::vector<EValueType>{EValueType::Int64, EValueType::Int64},
+            std::vector<TType>{EValueType::Int64, EValueType::Int64},
             EValueType::Int64,
-            TSharedRef::FromRefNonOwning(TRef(
-                test_udfs_bc,
-                test_udfs_bc_len)),
+            testUdfImplementations,
             ECallingConvention::Simple);
         StrtolUdf_ = New<TUserDefinedFunction>(
             "strtol_udf",
-            std::vector<EValueType>{EValueType::String},
+            std::vector<TType>{EValueType::String},
             EValueType::Uint64,
-            TSharedRef::FromRefNonOwning(TRef(
-                test_udfs_bc,
-                test_udfs_bc_len)),
+            testUdfImplementations,
             ECallingConvention::Simple);
         TolowerUdf_ = New<TUserDefinedFunction>(
             "tolower_udf",
-            std::vector<EValueType>{EValueType::String},
+            std::vector<TType>{EValueType::String},
             EValueType::String,
-            TSharedRef::FromRefNonOwning(TRef(
-                test_udfs_bc,
-                test_udfs_bc_len)),
+            testUdfImplementations,
             ECallingConvention::Simple);
         IsNullUdf_ = New<TUserDefinedFunction>(
             "is_null_udf",
-            std::vector<EValueType>{EValueType::String},
+            std::vector<TType>{EValueType::String},
             EValueType::Boolean,
-            TSharedRef::FromRefNonOwning(TRef(
-                test_udfs_bc,
-                test_udfs_bc_len)),
+            testUdfImplementations,
             ECallingConvention::UnversionedValue);
+        SumUdf_ = New<TUserDefinedFunction>(
+            "sum_udf",
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Int64,
+            EValueType::Int64,
+            testUdfImplementations);
     }
 
     virtual void TearDown() override
@@ -2300,6 +2301,7 @@ protected:
     IFunctionDescriptorPtr StrtolUdf_;
     IFunctionDescriptorPtr TolowerUdf_;
     IFunctionDescriptorPtr IsNullUdf_;
+    IFunctionDescriptorPtr SumUdf_;
 };
 
 std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
@@ -3359,7 +3361,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
 
     auto invalidUdfDescriptor = New<TUserDefinedFunction>(
         "invalid_ir",
-        std::vector<EValueType>{EValueType::Int64},
+        std::vector<TType>{EValueType::Int64},
         EValueType::Int64,
         fileRef,
         ECallingConvention::Simple);
@@ -3388,7 +3390,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
 
     auto twoArgumentUdf = New<TUserDefinedFunction>(
         "abs_udf",
-        std::vector<EValueType>{EValueType::Int64, EValueType::Int64},
+        std::vector<TType>{EValueType::Int64, EValueType::Int64},
         EValueType::Int64,
         fileRef,
         ECallingConvention::Simple);
@@ -3417,7 +3419,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
 
     auto invalidArgumentUdf = New<TUserDefinedFunction>(
         "abs_udf",
-        std::vector<EValueType>{EValueType::Double},
+        std::vector<TType>{EValueType::Double},
         EValueType::Int64,
         fileRef,
         ECallingConvention::Simple);
@@ -3594,6 +3596,37 @@ TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestVarargUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1",
+        "a=2",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+        "x=2",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    EXPECT_CALL(*registry, FindFunction("sum_udf"))
+        .WillRepeatedly(Return(SumUdf_));
+
+    Evaluate("a as x FROM [//t] where sum_udf(10, a) in (11, 12)", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
 {
     auto split = MakeSplit({
@@ -3608,7 +3641,7 @@ TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
 
     auto mallocUdf = New<TUserDefinedFunction>(
         "malloc_udf",
-        std::vector<EValueType>{EValueType::Int64},
+        std::vector<TType>{EValueType::Int64},
         EValueType::Int64,
         TSharedRef::FromRefNonOwning(TRef(
             malloc_udf_bc,
@@ -3620,6 +3653,60 @@ TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
         .WillRepeatedly(Return(mallocUdf));
 
     EvaluateExpectingError("malloc_udf(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestSimpleHash)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+        {"c", EValueType::Boolean}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3;b=\"hello\";c=%true",
+        "a=54;c=%false"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=14233899715629335710u",
+        "x=5934953485792485966u"
+    }, resultSplit);
+
+    Evaluate("simple_hash(a, b, c) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestFarmHash)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+        {"c", EValueType::Boolean}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3;b=\"hello\";c=%true",
+        "a=54;c=%false"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=13185060272037541714u",
+        "x=1607147011416532415u"
+    }, resultSplit);
+
+    Evaluate("farm_hash(a, b, c) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     SUCCEED();
 }

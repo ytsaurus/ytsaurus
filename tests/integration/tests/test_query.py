@@ -8,7 +8,7 @@ from yt_commands import *
 from time import sleep
 from random import randint
 from random import shuffle
-
+from distutils.spawn import find_executable
 
 ##################################################################
 
@@ -277,27 +277,43 @@ class TestQuery(YTEnvSetup):
         expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in [10, 20, 30]]
         actual = sorted(select_rows("* from [//tmp/tc] where key in (10, 20, 30)"))
         self.assertItemsEqual(actual, expected)
-        
+
     def test_udf(self):
         registry_path =  "//tmp/udfs"
-        create("document", registry_path)
+        create("map_node", registry_path)
 
-        implementation_path = "//tmp/abs_udf.bc"
-        data = { "abs_udf": {
-            "name": "abs_udf",
-            "argument_types": [
-                "int64"],
-            "result_type": "int64",
-            "implementation_path": implementation_path,
-            "calling_convention": "simple"
-        }}
-        set(registry_path, data)
+        abs_path = os.path.join(registry_path, "abs_udf")
+        create("file", abs_path,
+            attributes = { "function_descriptor": {
+                "name": "abs_udf",
+                "argument_types": [{
+                    "tag": "concrete_type",
+                    "value": "int64"}],
+                "result_type": {
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                "calling_convention": "simple"}})
 
-        local_implementation_path = os.path.join(os.path.dirname(__file__), "../../../yt/unittests/udf/test_udfs.bc")
-        create("file", implementation_path)
-        upload_file(implementation_path, local_implementation_path)
+        sum_path = os.path.join(registry_path, "sum_udf")
+        create("file", sum_path,
+            attributes = { "function_descriptor": {
+                "name": "sum_udf",
+                "argument_types": [{
+                    "tag": "concrete_type",
+                    "value": "int64"}],
+                "repeated_argument_type": {
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                "result_type": {
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                "calling_convention": "unversioned_value"}})
+
+        local_implementation_path = find_executable("test_udfs.bc")
+        upload_file(abs_path, local_implementation_path)
+        upload_file(sum_path, local_implementation_path)
 
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
-        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u]")
+        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u] where sum_udf(b, 1, 2) = sum_udf(3, b)")
         assert expected == actual

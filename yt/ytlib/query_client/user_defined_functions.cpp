@@ -34,17 +34,32 @@ Stroka ToString(llvm::Type* tp)
     return Stroka(stream.str());
 }
 
+Type* GetOpaqueType(
+    TCGContext& builder,
+    const char* name)
+{
+    auto existingType = builder.Module
+        ->GetModule()
+        ->getTypeByName(name);
+
+    if (existingType) {
+        return existingType;
+    }
+
+    return StructType::create(
+        builder.getContext(),
+        name);
+}
+
 void PushExecutionContext(
     TCGContext& builder,
     std::vector<Value*>& argumentValues)
 {
     auto fullContext = builder.GetExecutionContextPtr();
-    auto baseContextType = StructType::create(
-        builder.getContext(),
-        ExecutionContextStructName);
+    auto contextType = GetOpaqueType(builder, ExecutionContextStructName);
     auto contextStruct = builder.CreateBitCast(
         fullContext,
-        PointerType::getUnqual(baseContextType));
+        PointerType::getUnqual(contextType));
     argumentValues.push_back(contextStruct);
 }
 
@@ -174,30 +189,38 @@ TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
 }
 
 void TSimpleCallingConvention::CheckResultType(
+    const Stroka& functionName,
     Type* llvmType,
-    EValueType resultType,
+    TType resultType,
     TCGContext& builder) const
 {
+    auto concreteResultType = resultType.As<EValueType>();
     auto expectedResultType = TDataTypeBuilder::get(
         builder.getContext(),
-        resultType);
-    if (IsStringLikeType(resultType) &&
+        concreteResultType);
+    if (IsStringLikeType(concreteResultType) &&
         llvmType != builder.getVoidTy())
     {
         THROW_ERROR_EXCEPTION(
-            "Wrong result type in LLVM bitcode: expected void, got %Qv",
-            llvmType);
-    } else if (!IsStringLikeType(resultType) &&
+            "Wrong result type in LLVM bitcode for function %Qv: expected void, got %Qv",
+            functionName,
+            ToString(llvmType));
+    } else if (!IsStringLikeType(concreteResultType) &&
         llvmType != expectedResultType)
     {
         THROW_ERROR_EXCEPTION(
             "Wrong result type in LLVM bitcode: expected %Qv, got %Qv",
-            expectedResultType,
-            llvmType);
+            ToString(expectedResultType),
+            ToString(llvmType));
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TUnversionedValueCallingConvention::TUnversionedValueCallingConvention(
+    int repeatedArgIndex)
+    : RepeatedArgIndex_(repeatedArgIndex)
+{ }
 
 TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     std::vector<TCodegenExpression> codegenArgs,
@@ -208,8 +231,8 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     return [=] (TCGContext& builder, Value* row) {
         auto unversionedValueType =
             llvm::TypeBuilder<TValue, false>::get(builder.getContext());
-        auto unversionedValueOpaqueType = StructType::create(
-            builder.getContext(),
+        auto unversionedValueOpaqueType = GetOpaqueType(
+            builder,
             UnversionedValueStructName);
 
         auto argumentValues = std::vector<Value*>();
@@ -222,7 +245,12 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
             PointerType::getUnqual(unversionedValueOpaqueType));
         argumentValues.push_back(castedResultPtr);
 
-        for (auto arg = codegenArgs.begin(); arg != codegenArgs.end(); arg++) {
+        int argIndex = 0;
+        auto arg = codegenArgs.begin();
+        for (;
+            arg != codegenArgs.end() && argIndex != RepeatedArgIndex_;
+            arg++, argIndex++) 
+        {
             auto valuePtr = builder.CreateAlloca(unversionedValueType);
             auto cgValue = (*arg)(builder, row);
             cgValue.StoreToValue(builder, valuePtr, 0);
@@ -231,6 +259,30 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
                 valuePtr,
                 PointerType::getUnqual(unversionedValueOpaqueType));
             argumentValues.push_back(castedValuePtr);
+        }
+
+        if (argIndex == RepeatedArgIndex_) {
+            auto varargSize = builder.getInt32(
+                codegenArgs.size() - RepeatedArgIndex_);
+
+            auto varargPtr = builder.CreateAlloca(
+                unversionedValueType,
+                varargSize);
+            auto castedVarargPtr = builder.CreateBitCast(
+                varargPtr,
+                PointerType::getUnqual(unversionedValueOpaqueType));
+
+            argumentValues.push_back(castedVarargPtr);
+            argumentValues.push_back(varargSize);
+
+            for (int varargIndex = 0; arg != codegenArgs.end(); arg++, varargIndex++) {
+                auto valuePtr = builder.CreateConstGEP1_32(
+                    varargPtr,
+                    varargIndex);
+                
+                auto cgValue = (*arg)(builder, row);
+                cgValue.StoreToValue(builder, valuePtr, 0);
+            }
         }
 
         codegenBody(argumentValues, builder);
@@ -243,14 +295,16 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 }
 
 void TUnversionedValueCallingConvention::CheckResultType(
+    const Stroka& functionName,
     Type* llvmType,
-    EValueType resultType,
+    TType resultType,
     TCGContext& builder) const
 {
     if (llvmType != builder.getVoidTy()) {
         THROW_ERROR_EXCEPTION(
-            "Wrong result type in LLVM bitcode: expected void, got %Qv",
-            llvmType);
+            "Wrong result type in LLVM bitcode for function %Qv: expected void, got %Qv",
+            functionName,
+            ToString(llvmType));
     }
 }
 
@@ -258,30 +312,65 @@ void TUnversionedValueCallingConvention::CheckResultType(
 
 TUserDefinedFunction::TUserDefinedFunction(
     const Stroka& functionName,
-    std::vector<EValueType> argumentTypes,
-    EValueType resultType,
+    std::vector<TType> argumentTypes,
+    TType repeatedArgType,
+    TType resultType,
     TSharedRef implementationFile,
-    ECallingConvention callingConvention)
+    ICallingConventionPtr callingConvention)
     : TTypedFunction(
         functionName,
         std::vector<TType>(argumentTypes.begin(), argumentTypes.end()),
+        repeatedArgType,
         resultType)
     , FunctionName_(functionName)
     , ImplementationFile_(implementationFile)
     , ResultType_(resultType)
     , ArgumentTypes_(argumentTypes)
+    , CallingConvention_(callingConvention)
+{ }
+
+ICallingConventionPtr GetCallingConvention(
+    ECallingConvention callingConvention)
 {
     switch (callingConvention) {
         case ECallingConvention::Simple:
-            CallingConvention_ = New<TSimpleCallingConvention>();
-            break;
+            return New<TSimpleCallingConvention>();
         case ECallingConvention::UnversionedValue:
-            CallingConvention_ = New<TUnversionedValueCallingConvention>();
-            break;
+            return New<TUnversionedValueCallingConvention>(-1);
         default:
             YUNREACHABLE();
     }
 }
+
+TUserDefinedFunction::TUserDefinedFunction(
+    const Stroka& functionName,
+    std::vector<TType> argumentTypes,
+    TType resultType,
+    TSharedRef implementationFile,
+    ECallingConvention callingConvention)
+    : TUserDefinedFunction(
+        functionName,
+        argumentTypes,
+        EValueType::Null,
+        resultType,
+        implementationFile,
+        GetCallingConvention(callingConvention))
+{ }
+
+TUserDefinedFunction::TUserDefinedFunction(
+    const Stroka& functionName,
+    std::vector<TType> argumentTypes,
+    TType repeatedArgType,
+    TType resultType,
+    TSharedRef implementationFile)
+    : TUserDefinedFunction(
+        functionName,
+        argumentTypes,
+        repeatedArgType,
+        resultType,
+        implementationFile,
+        New<TUnversionedValueCallingConvention>(argumentTypes.size()))
+{ }
 
 void TUserDefinedFunction::CheckCallee(
     llvm::Function* callee,
@@ -290,16 +379,18 @@ void TUserDefinedFunction::CheckCallee(
 {
     if (!callee) {
         THROW_ERROR_EXCEPTION(
-            "Could not find LLVM bitcode for %Qv",
+            "Could not find LLVM bitcode for function %Qv",
             FunctionName_);
     } else if (callee->arg_size() != argumentValues.size()) {
         THROW_ERROR_EXCEPTION(
-            "Wrong number of arguments in LLVM bitcode: expected %v, got %v",
+            "Wrong number of arguments in LLVM bitcode for function %Qv: expected %v, got %v",
+            FunctionName_,
             argumentValues.size(),
             callee->arg_size());
     }
 
     CallingConvention_->CheckResultType(
+        FunctionName_,
         callee->getReturnType(),
         ResultType_,
         builder);
@@ -313,10 +404,11 @@ void TUserDefinedFunction::CheckCallee(
     {
         if (actual->getType() != (*expected)->getType()) {
             THROW_ERROR_EXCEPTION(
-                "Wrong type for argument %v in LLVM bitcode: expected %Qv, got %Qv",
+                "Wrong type for argument %v in LLVM bitcode for function %Qv: expected %Qv, got %Qv",
                 i,
-                (*expected)->getType(),
-                actual->getType());
+                FunctionName_,
+                ToString((*expected)->getType()),
+                ToString(actual->getType()));
         }
     }
 }
@@ -336,11 +428,21 @@ Function* TUserDefinedFunction::GetLlvmFunction(
 
         if (!implModule) {
             THROW_ERROR_EXCEPTION(
-                "Error parsing LLVM bitcode")
+                "Error parsing LLVM bitcode for function %Qv",
+                FunctionName_)
                 << TError(Stroka(diag.getMessage().str()));
         }
 
-        Linker::LinkModules(module, implModule.get());
+        // Link two modules together, with the first module modified to be the
+        // composite of the two input modules.
+        auto linkError = Linker::LinkModules(module, implModule.get());
+
+        if (linkError) {
+            THROW_ERROR_EXCEPTION(
+                "Error linking LLVM bitcode for function %Qv",
+                FunctionName_);
+        }
+
         callee = module->getFunction(StringRef(FunctionName_));
         CheckCallee(callee, builder, argumentValues);
     }

@@ -74,7 +74,8 @@ public:
 private:
     const std::unordered_set<std::string> Whitelist_ = std::unordered_set<std::string>{
         "memcmp",
-        "__chkstk"
+        "__chkstk",
+        "tolower"
     };
 };
 
@@ -130,24 +131,12 @@ public:
         return Module_;
     }
 
-    llvm::Function* GetRoutine(const Stroka& symbol) const
+    llvm::Constant* GetRoutine(const Stroka& symbol) const
     {
         auto type = RoutineRegistry_->GetTypeBuilder(symbol)(
             const_cast<llvm::LLVMContext&>(Context_));
 
-        auto it = CachedRoutines_.find(symbol);
-        if (it == CachedRoutines_.end()) {
-            auto routine = llvm::Function::Create(
-                type,
-                llvm::Function::ExternalLinkage,
-                symbol.c_str(),
-                Module_);
-
-            it = CachedRoutines_.insert(std::make_pair(symbol, routine)).first;
-        }
-
-        YCHECK(it->second->getFunctionType() == type);
-        return it->second;
+        return Module_->getOrInsertFunction(symbol.c_str(), type);
     }
 
     uint64_t GetFunctionAddress(const Stroka& name)
@@ -277,8 +266,6 @@ private:
 
     std::unique_ptr<llvm::ExecutionEngine> Engine_;
 
-    mutable yhash_map<Stroka, llvm::Function*> CachedRoutines_;
-
     bool Compiled_ = false;
 
     // RoutineRegistry is supposed to be a static object.
@@ -304,7 +291,7 @@ llvm::Module* TCGModule::GetModule() const
     return Impl_->GetModule();
 }
 
-llvm::Function* TCGModule::GetRoutine(const Stroka& symbol) const
+llvm::Constant* TCGModule::GetRoutine(const Stroka& symbol) const
 {
     return Impl_->GetRoutine(symbol);
 }

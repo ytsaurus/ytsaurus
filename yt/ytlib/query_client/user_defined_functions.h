@@ -23,8 +23,9 @@ struct ICallingConvention
         const Stroka& name) const = 0;
 
     virtual void CheckResultType(
+        const Stroka& functionName,
         Type* llvmType,
-        EValueType resultType,
+        TType resultType,
         TCGContext& builder) const = 0;
 };
 
@@ -34,6 +35,8 @@ class TUnversionedValueCallingConvention
     : public ICallingConvention
 {
 public:
+    TUnversionedValueCallingConvention(int repeatedArgIndex);
+
     virtual TCodegenExpression MakeCodegenFunctionCall(
         std::vector<TCodegenExpression> codegenArgs,
         std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
@@ -41,9 +44,13 @@ public:
         const Stroka& name) const override;
 
     void CheckResultType(
+        const Stroka& functionName,
         Type* llvmType,
-        EValueType resultType,
+        TType resultType,
         TCGContext& builder) const override;
+
+private:
+    int RepeatedArgIndex_;
 };
 
 class TSimpleCallingConvention
@@ -57,8 +64,9 @@ public:
         const Stroka& name) const override;
 
     void CheckResultType(
+        const Stroka& functionName,
         Type* llvmType,
-        EValueType resultType,
+        TType resultType,
         TCGContext& builder) const override;
 };
 
@@ -69,10 +77,17 @@ class TUserDefinedFunction
 public:
     TUserDefinedFunction(
         const Stroka& functionName,
-        std::vector<EValueType> argumentTypes,
-        EValueType resultType,
+        std::vector<TType> argumentTypes,
+        TType resultType,
         TSharedRef implementationFile,
         ECallingConvention callingConvention);
+
+    TUserDefinedFunction(
+        const Stroka& functionName,
+        std::vector<TType> argumentTypes,
+        TType repeatedArgType,
+        TType resultType,
+        TSharedRef implementationFile);
 
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
@@ -82,9 +97,17 @@ public:
 private:
     Stroka FunctionName_;
     TSharedRef ImplementationFile_;
-    EValueType ResultType_;
-    std::vector<EValueType> ArgumentTypes_;
+    TType ResultType_;
+    std::vector<TType> ArgumentTypes_;
     ICallingConventionPtr CallingConvention_;
+
+    TUserDefinedFunction(
+        const Stroka& functionName,
+        std::vector<TType> argumentTypes,
+        TType repeatedArgType,
+        TType resultType,
+        TSharedRef implementationFile,
+        ICallingConventionPtr callingConvention);
 
     Function* GetLlvmFunction(
         TCGContext& builder,

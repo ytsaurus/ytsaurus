@@ -3,6 +3,8 @@
 #include "builtin_functions.h"
 #include "user_defined_functions.h"
 
+#include "udf/builtin_functions.h"
+
 #include <ytlib/api/public.h>
 #include <ytlib/api/client.h>
 #include <ytlib/api/file_reader.h>
@@ -17,6 +19,8 @@
 #include <core/concurrency/scheduler.h>
 
 #include <core/misc/error.h>
+
+#include <core/misc/serialize.h>
 
 #include <mutex>
 
@@ -62,17 +66,53 @@ IFunctionDescriptorPtr TFunctionRegistry::FindFunction(const Stroka& functionNam
 
 void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 {
+    auto builtinImplementations = TSharedRef::FromRefNonOwning(TRef(
+        builtin_functions_bc,
+        builtin_functions_bc_len));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "is_substr",
+        std::vector<TType>{EValueType::String, EValueType::String},
+        EValueType::Boolean,
+        builtinImplementations,
+        ECallingConvention::Simple));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "lower",
+        std::vector<TType>{EValueType::String},
+        EValueType::String,
+        builtinImplementations,
+        ECallingConvention::Simple));
+
+    TUnionType hashTypes = TUnionType{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Boolean,
+        EValueType::String};
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "simple_hash",
+        std::vector<TType>{},
+        hashTypes,
+        EValueType::Uint64,
+        builtinImplementations));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "farm_hash",
+        std::vector<TType>{},
+        hashTypes,
+        EValueType::Uint64,
+        builtinImplementations));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "is_null",
+        std::vector<TType>{0},
+        EValueType::Boolean,
+        builtinImplementations,
+        ECallingConvention::UnversionedValue));
+
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
-    registry->RegisterFunction(New<TIsSubstrFunction>());
-    registry->RegisterFunction(New<TLowerFunction>());
-    registry->RegisterFunction(New<THashFunction>(
-        "simple_hash",
-        "SimpleHash"));
-    registry->RegisterFunction(New<THashFunction>(
-        "farm_hash",
-        "FarmHash"));
-    registry->RegisterFunction(New<TIsNullFunction>());
     registry->RegisterFunction(New<TCastFunction>(
         EValueType::Int64,
         "int64"));
@@ -86,14 +126,83 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETypeCategory,
+    ((TypeArgument) (TType::TagOf<TTypeArgument>()))
+    ((UnionType)    (TType::TagOf<TUnionType>()))
+    ((ConcreteType) (TType::TagOf<EValueType>()))
+);
+
+struct TDescriptorType
+{
+    TType Type = EValueType::Min;
+};
+
+const Stroka TagKey = "tag";
+const Stroka ValueKey = "value";
+
+void Serialize(const TDescriptorType& value, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnBeginMap();
+
+    consumer->OnKeyedItem(TagKey);
+    NYT::NYTree::Serialize(ETypeCategory(value.Type.Tag()), consumer);
+
+    consumer->OnKeyedItem(ValueKey);
+    if (auto typeArg = value.Type.TryAs<TTypeArgument>()) {
+        NYT::NYTree::Serialize(*typeArg, consumer);
+    } else if (auto unionType = value.Type.TryAs<TUnionType>()) {
+        NYT::NYTree::Serialize(*unionType, consumer);
+    } else {
+        NYT::NYTree::Serialize(value.Type.As<EValueType>(), consumer);
+    }
+
+    consumer->OnEndMap();
+}
+
+void Deserialize(TDescriptorType& value, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+
+    auto tagNode = mapNode->GetChild(TagKey);
+    ETypeCategory tag;
+    Deserialize(tag, tagNode);
+
+    auto valueNode = mapNode->GetChild(ValueKey);
+    switch (tag) {
+        case ETypeCategory::TypeArgument:
+            {
+                TTypeArgument type;
+                Deserialize(type, valueNode);
+                value.Type = type;
+                break;
+            }
+        case ETypeCategory::UnionType:
+            {
+                TUnionType type;
+                Deserialize(type, valueNode);
+                value.Type = type;
+                break;
+            }
+        case ETypeCategory::ConcreteType: 
+            {
+                EValueType type;
+                Deserialize(type, valueNode);
+                value.Type = type;
+                break;
+            }
+        default:
+            YUNREACHABLE();
+    }
+}
+
 class TCypressFunctionDescriptor
     : public TYsonSerializable
 {
 public:
     Stroka Name;
-    std::vector<EValueType> ArgumentTypes;
-    EValueType ResultType;
-    Stroka ImplementationPath;
+    std::vector<TDescriptorType> ArgumentTypes;
+    TNullable<TDescriptorType> RepeatedArgumentType;
+    TDescriptorType ResultType;
     ECallingConvention CallingConvention;
 
     TCypressFunctionDescriptor()
@@ -102,9 +211,18 @@ public:
             .NonEmpty();
         RegisterParameter("argument_types", ArgumentTypes);
         RegisterParameter("result_type", ResultType);
-        RegisterParameter("implementation_path", ImplementationPath)
-            .NonEmpty();
         RegisterParameter("calling_convention", CallingConvention);
+        RegisterParameter("repeated_argument_type", RepeatedArgumentType)
+            .Default();
+    }
+
+    std::vector<TType> GetArgumentsTypes()
+    {
+        std::vector<TType> argumentTypes;
+        for (const auto& type: ArgumentTypes) {
+            argumentTypes.push_back(type.Type);
+        }
+        return argumentTypes;
     }
 };
 
@@ -167,10 +285,20 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
 {
     LOG_DEBUG("Looking for implementation of function %Qv in Cypress",
         functionName);
+    
+    const auto descriptorAttribute = "function_descriptor";
 
     auto functionPath = RegistryPath_ + "/" + ToYPathLiteral(to_lower(functionName));
 
-    auto cypressFunctionOrError = WaitFor(Client_->GetNode(functionPath));
+    auto getDescriptorOptions = NApi::TGetNodeOptions();
+    getDescriptorOptions.AttributeFilter = TAttributeFilter(
+        EAttributeFilterMode::MatchingOnly,
+        std::vector<Stroka>{descriptorAttribute});
+
+    auto cypressFunctionOrError = WaitFor(Client_->GetNode(
+        functionPath,
+        getDescriptorOptions));
+
     if (!cypressFunctionOrError.IsOK()) {
         LOG_DEBUG(cypressFunctionOrError, "Failed to find implementation of function %Qv in Cypress",
             functionName);
@@ -180,19 +308,42 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
     LOG_DEBUG("Found implementation of function %Qv in Cypress",
         functionName);
 
-    auto cypressFunction = ConvertTo<TCypressFunctionDescriptorPtr>(
-        cypressFunctionOrError.Value());
-
+    TCypressFunctionDescriptorPtr cypressFunction;
+    try {
+        cypressFunction = ConvertToNode(cypressFunctionOrError.Value())
+            ->Attributes()
+            .Get<TCypressFunctionDescriptorPtr>(descriptorAttribute);
+        
+        if (cypressFunction->CallingConvention == ECallingConvention::Simple && 
+            cypressFunction->RepeatedArgumentType)
+        {
+            THROW_ERROR_EXCEPTION("Function using the simple calling convention may not have repeated arguments");
+        }
+    } catch (const TErrorException& exception) {
+        THROW_ERROR_EXCEPTION(
+            "Error while deserializing UDF descriptor from Cypress")
+            << exception;
+    }
+  
     auto implementationFile = ReadFile(
-        cypressFunction->ImplementationPath,
+        functionPath,
         Client_);
 
-    UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
-        cypressFunction->Name,
-        cypressFunction->ArgumentTypes,
-        cypressFunction->ResultType,
-        implementationFile,
-        cypressFunction->CallingConvention));
+    if (!cypressFunction->RepeatedArgumentType) {
+        UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
+            cypressFunction->Name,
+            cypressFunction->GetArgumentsTypes(),
+            cypressFunction->ResultType.Type,
+            implementationFile,
+            cypressFunction->CallingConvention));
+    } else {
+        UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
+            cypressFunction->Name,
+            cypressFunction->GetArgumentsTypes(),
+            cypressFunction->RepeatedArgumentType->Type,
+            cypressFunction->ResultType.Type,
+            implementationFile));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

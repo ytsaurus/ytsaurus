@@ -28,6 +28,7 @@ namespace NQueryClient {
 namespace NRoutines {
 
 using namespace NConcurrency;
+using namespace NVersionedTableClient;
 
 static const auto& Logger = QueryClientLogger;
 
@@ -384,7 +385,7 @@ size_t StringHash(
 }
 
 // FarmHash and MurmurHash hybrid to hash TRow.
-ui64 SimpleHash(TRow row)
+ui64 SimpleHash(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     const ui64 MurmurHashConstant = 0xc6a4a7935bd1e995ULL;
 
@@ -427,23 +428,23 @@ ui64 SimpleHash(TRow row)
         return result;
     };
 
-    ui64 result = row.GetCount();
+    ui64 result = end - begin;
 
-    for (int index = 0; index < row.GetCount(); ++index) {
-        switch(row[index].Type) {
+    for (auto value = begin; value != end; value++) {
+        switch(value->Type) {
             case EValueType::Int64:
-                result = hash64(row[index].Data.Int64, result);
+                result = hash64(value->Data.Int64, result);
                 break;
             case EValueType::Uint64:
-                result = hash64(row[index].Data.Uint64, result);
+                result = hash64(value->Data.Uint64, result);
                 break;
             case EValueType::Boolean:
-                result = hash64(row[index].Data.Boolean, result);
+                result = hash64(value->Data.Boolean, result);
                 break;
             case EValueType::String:
                 result = hash(
-                    row[index].Data.String,
-                    row[index].Length,
+                    value->Data.String,
+                    value->Length,
                     result);
                 break;
             case EValueType::Null:
@@ -457,10 +458,11 @@ ui64 SimpleHash(TRow row)
     return result;
 }
 
-// Combined FarmHash for TRow.
-ui64 FarmHash(TRow row)
+ui64 FarmHash(
+    const TUnversionedValue* begin,
+    const TUnversionedValue* end)
 {
-    return GetFarmFingerprint(row);
+    return GetFarmFingerprint(begin, end);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -491,7 +493,6 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(GetRowsSize);
     REGISTER_ROUTINE(IsPrefix);
     REGISTER_ROUTINE(IsSubstr);
-    REGISTER_ROUTINE(ToLower);
     REGISTER_ROUTINE(IsRowInArray);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHash);
