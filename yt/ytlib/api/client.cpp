@@ -277,7 +277,9 @@ private:
 
         if (TypeFromId(objectId) == EObjectType::Table) {
             newSources = SplitTableFurther(objectId, ranges, std::move(nodeDirectory));
-            LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v", newSources.size(), objectId);
+            LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
+                newSources.size(),
+                objectId);
         }
 
         return newSources;
@@ -450,7 +452,10 @@ private:
                 Stroka address;
                 std::tie(subfragment->DataSources, address) = getSubsources(index);
                 
-                LOG_DEBUG("Delegating subquery (SubqueryId: %v) to %v", subquery->Id, address);
+                LOG_DEBUG("Delegating subquery (SubqueryId: %v, Address: %v)",
+                    subquery->Id,
+                    address);
+
                 return Delegate(subfragment, address);
             },
             [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
@@ -595,8 +600,6 @@ private:
 
             TRACE_ANNOTATION("serialization_time", serializationTime);
             TRACE_ANNOTATION("request_size", req->ByteSize());
-
-            LOG_DEBUG("Fragment serialization time is %v, size is %v", serializationTime, req->ByteSize());
 
             auto resultReader = New<TQueryResponseReader>(req->Invoke());
             return std::make_pair(resultReader, resultReader->GetQueryResult());
