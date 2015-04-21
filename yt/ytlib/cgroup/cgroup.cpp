@@ -11,7 +11,6 @@
 #include <core/tools/registry.h>
 
 #include <util/string/split.h>
-#include <util/folder/path.h>
 #include <util/system/yield.h>
 
 #ifdef _linux_
@@ -124,11 +123,11 @@ TNonOwningCGroup::TNonOwningCGroup(const Stroka& fullPath)
 { }
 
 TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
-    : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(
+    : FullPath_(NFS::CombinePaths({
         CGroupRootPath,
-        type),
-        GetParentFor(type)),
-        name))
+        type,
+        GetParentFor(type),
+        name}))
 { }
 
 TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
@@ -186,9 +185,7 @@ void TNonOwningCGroup::Append(const Stroka& name, const Stroka& value) const
 
 bool TNonOwningCGroup::IsRoot() const
 {
-    TFsPath path(FullPath_);
-    path.Fix();
-    return path.GetPath() == CGroupRootPath;
+    return FullPath_ == CGroupRootPath;
 }
 
 bool TNonOwningCGroup::IsNull() const
@@ -229,15 +226,9 @@ std::vector<TNonOwningCGroup> TNonOwningCGroup::GetChildren() const
         return result;
     }
 
-    TFsPath path(FullPath_);
-    if (path.Exists()) {
-        yvector<TFsPath> children;
-        path.List(children);
-        for (const auto& child : children) {
-            if (child.IsDirectory()) {
-                result.emplace_back(child.GetPath());
-            }
-        }
+    auto directories = NFS::EnumerateDirectories(FullPath_);
+    for (const auto& directory : directories) {
+        result.emplace_back(directory);
     }
     return result;
 }
@@ -370,7 +361,9 @@ void TNonOwningCGroup::DoKill() const
 
 void TNonOwningCGroup::DoRemove() const
 {
-    TFsPath(FullPath_).DeleteIfExists();
+    if (NFS::Exists(FullPath_)) {
+        NFS::Remove(FullPath_);
+    }
 }
 
 void TNonOwningCGroup::Traverse(
