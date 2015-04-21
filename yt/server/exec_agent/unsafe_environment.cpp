@@ -206,7 +206,7 @@ public:
         return OnExit;
     }
 
-    virtual void Kill(const TNonOwningCGroup& group, const TError& error) throw() override
+    virtual void Kill(const TNonOwningCGroup& group) override
     {
         LOG_INFO("Killing dummy job");
         OnExit.Get();

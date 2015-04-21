@@ -477,8 +477,8 @@ public:
         , RecordCounter_("/records")
         , ByteCounter_("/bytes")
     {
-        GetInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] () {
 #ifdef _linux_
+        GetInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] () {
             int result = syscall(
                 SYS_ioprio_get,
                 IOPRIO_WHO_PROCESS,
@@ -487,8 +487,8 @@ public:
             if (result == -1) {
                 LOG_ERROR(TError::FromSystem(), "Failed to set IO priority for changelog flush thread");
              }
-#endif
         }));
+#endif
         PeriodicExecutor_->Start();
     }
 
