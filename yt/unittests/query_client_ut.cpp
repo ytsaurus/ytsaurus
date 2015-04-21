@@ -37,6 +37,7 @@
 
 #define _MIN_ "<\"type\"=\"min\">#"
 #define _MAX_ "<\"type\"=\"max\">#"
+#define _NULL_ "<\"type\"=\"null\">#"
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -3880,12 +3881,10 @@ TEST_F(TComputedColumnTest, ComputedKeyInPredicate)
     auto query = Stroka("a from [//t] where (k,l) >= (10,20) ");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(result.size(), 1);
 
     EXPECT_EQ(BuildKey("10;20;"), result[0].first);
-    EXPECT_EQ(BuildKey("10;" _MAX_), result[0].second);
-    EXPECT_EQ(BuildKey("10;" _MAX_), result[1].first);
-    EXPECT_EQ(BuildKey(_MAX_), result[1].second);
+    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, ComputedColumnLast)
@@ -4006,21 +4005,171 @@ TEST_F(TComputedColumnTest, Modulo1)
     tableSchema.Columns().emplace_back("l", EValueType::Int64);
     tableSchema.Columns().emplace_back("a", EValueType::Int64);
 
+    TKeyColumns keyColumns{"k", "l", "m"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where l > 0 and l <= 2000");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 4);
+
+    EXPECT_EQ(BuildKey(_NULL_ ";0;" _MAX_), result[0].first);
+    EXPECT_EQ(BuildKey(_NULL_ ";2000;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("-1;0;" _MAX_), result[1].first);
+    EXPECT_EQ(BuildKey("-1;2000;" _MAX_), result[1].second);
+    EXPECT_EQ(BuildKey("0;0;" _MAX_), result[2].first);
+    EXPECT_EQ(BuildKey("0;2000;" _MAX_), result[2].second);
+    EXPECT_EQ(BuildKey("1;0;" _MAX_), result[3].first);
+    EXPECT_EQ(BuildKey("1;2000;" _MAX_), result[3].second);
+}
+
+TEST_F(TComputedColumnTest, Modulo2)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Uint64, Null, Stroka("n % 1u"));
+    tableSchema.Columns().emplace_back("l", EValueType::Uint64, Null, Stroka("n % 1u"));
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("n", EValueType::Uint64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where m = 1");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 4);
+
+    EXPECT_EQ(BuildKey(_NULL_ ";" _NULL_ ";1;"), result[0].first);
+    EXPECT_EQ(BuildKey(_NULL_ ";" _NULL_ ";1;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey(_NULL_ ";0u;1;"), result[1].first);
+    EXPECT_EQ(BuildKey(_NULL_ ";0u;1;" _MAX_), result[1].second);
+    EXPECT_EQ(BuildKey("0u;" _NULL_ ";1;"), result[2].first);
+    EXPECT_EQ(BuildKey("0u;" _NULL_ ";1;" _MAX_), result[2].second);
+    EXPECT_EQ(BuildKey("0u;0u;1;"), result[3].first);
+    EXPECT_EQ(BuildKey("0u;0u;1;" _MAX_), result[3].second);
+}
+
+TEST_F(TComputedColumnTest, Modulo3)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Uint64, Null, Stroka("m % 1u"));
+    tableSchema.Columns().emplace_back("l", EValueType::Uint64, Null, Stroka("m % 1u"));
+    tableSchema.Columns().emplace_back("m", EValueType::Uint64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t]");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 1);
+
+    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
+    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Divide1)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("l / 2"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
     TKeyColumns keyColumns{"k", "l"};
 
     SetSchema(tableSchema, keyColumns);
 
-    auto query = Stroka("a from [//t] where l > 3 and l <= 6");
+    auto query = Stroka("a from [//t] where l >= 3 and l < 6");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 3);
+    EXPECT_EQ(result.size(), 2);
 
-    EXPECT_EQ(BuildKey("-1;3;" _MAX_), result[0].first);
-    EXPECT_EQ(BuildKey("-1;6;" _MAX_), result[0].second);
-    EXPECT_EQ(BuildKey("0;3;" _MAX_), result[1].first);
-    EXPECT_EQ(BuildKey("0;6;" _MAX_), result[1].second);
-    EXPECT_EQ(BuildKey("1;3;" _MAX_), result[2].first);
-    EXPECT_EQ(BuildKey("1;6;" _MAX_), result[2].second);
+    EXPECT_EQ(BuildKey("1;3"), result[0].first);
+    EXPECT_EQ(BuildKey("1;4"), result[0].second);
+    EXPECT_EQ(BuildKey("2;4"), result[1].first);
+    EXPECT_EQ(BuildKey("2;6"), result[1].second);
+}
+
+TEST_F(TComputedColumnTest, Divide2)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("m / 3"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64, Null, Stroka("m / 4"));
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where m > 0 and m <= 6");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 4);
+
+    EXPECT_EQ(BuildKey("0;0;0;" _MAX_), result[0].first);
+    EXPECT_EQ(BuildKey("0;0;3"), result[0].second);
+    EXPECT_EQ(BuildKey("1;0;3"), result[1].first);
+    EXPECT_EQ(BuildKey("1;0;4"), result[1].second);
+    EXPECT_EQ(BuildKey("1;1;4"), result[2].first);
+    EXPECT_EQ(BuildKey("1;1;6"), result[2].second);
+    EXPECT_EQ(BuildKey("2;1;6"), result[3].first);
+    EXPECT_EQ(BuildKey("2;1;6;" _MAX_), result[3].second);
+}
+
+TEST_F(TComputedColumnTest, Divide3)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Uint64, Null, Stroka("m / 2u"));
+    tableSchema.Columns().emplace_back("l", EValueType::Uint64, Null, Stroka("n % 1u"));
+    tableSchema.Columns().emplace_back("m", EValueType::Uint64);
+    tableSchema.Columns().emplace_back("n", EValueType::Uint64);
+    tableSchema.Columns().emplace_back("a", EValueType::Uint64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where m >= 0u and m < 3u");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 4);
+
+    EXPECT_EQ(BuildKey("0u;" _NULL_ ";0u"), result[0].first);
+    EXPECT_EQ(BuildKey("0u;" _NULL_ ";2u"), result[0].second);
+    EXPECT_EQ(BuildKey("0u;0u;0u"), result[1].first);
+    EXPECT_EQ(BuildKey("0u;0u;2u"), result[1].second);
+    EXPECT_EQ(BuildKey("1u;" _NULL_ ";2u"), result[2].first);
+    EXPECT_EQ(BuildKey("1u;" _NULL_ ";3u"), result[2].second);
+    EXPECT_EQ(BuildKey("1u;0u;2u"), result[3].first);
+    EXPECT_EQ(BuildKey("1u;0u;3u"), result[3].second);
+}
+
+TEST_F(TComputedColumnTest, Divide4)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("l / -9223372036854775808"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where l >= -9223372036854775808 and l <= 9223372036854775807");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(result.size(), 2);
+
+    EXPECT_EQ(BuildKey("0;0;"), result[0].first);
+    EXPECT_EQ(BuildKey("0;9223372036854775807;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("1;-9223372036854775808"), result[1].first);
+    EXPECT_EQ(BuildKey("1;0;"), result[1].second);
 }
 
 TEST_P(TComputedColumnTest, Join)

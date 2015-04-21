@@ -565,24 +565,7 @@ std::vector<std::pair<TRow, TRow>> GetRangesFromTrieWithinRange(
 {
     std::vector<std::pair<TRow, TRow>> result;
     GetRangesFromTrieWithinRangeImpl(keyRange, trie, &result, rowBuffer);
-
-    if (!result.empty()) {
-        std::sort(result.begin(), result.end());
-        std::vector<std::pair<TRow, TRow>> mergedResult;
-        mergedResult.push_back(result.front());
-
-        for (size_t i = 1; i < result.size(); ++i) {
-            if (mergedResult.back().second == result[i].first) {
-                mergedResult.back().second = std::move(result[i].second);
-            } else {
-                mergedResult.push_back(std::move(result[i]));
-            }
-        }
-
-        result = std::move(mergedResult);
-    }
-
-    return result;
+    return MergeOverlappingRanges(std::move(result));
 }
 
 Stroka ToString(TKeyTriePtr node) {
