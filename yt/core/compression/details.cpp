@@ -6,6 +6,10 @@ namespace NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const NLogging::TLogger CompressionLogger("Compression");
+
+////////////////////////////////////////////////////////////////////////////////
+
 TVectorRefsSource::TVectorRefsSource(const std::vector<TSharedRef>& blocks)
     : Blocks_(blocks)
     , Available_(GetTotalSize(blocks))

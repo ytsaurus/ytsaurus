@@ -5,6 +5,8 @@
 
 #include <core/actions/callback.h>
 
+#include <core/logging/log.h>
+
 #include <contrib/libs/snappy/snappy.h>
 #include <contrib/libs/snappy/snappy-sinksource.h>
 
@@ -12,6 +14,10 @@
 
 namespace NYT {
 namespace NCompression {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger CompressionLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
