@@ -77,30 +77,26 @@ TSubprocessResult TSubprocess::Execute()
                 LOG_ERROR(error, "Failed to wait subprocess %v", Process_.GetProcessId());
             }
         }
-    });
 
-    try {
-        Process_.Spawn();
-
-        for (int index = 0; index < pipes.size(); ++index) {
-            auto& pipe = pipes[index];
-
-            SafeClose(pipe.WriteFD);
-            pipe.WriteFD = -1;
-            if (index == 0) {
-                SafeClose(pipe.ReadFD);
-                pipe.ReadFD = -1;
-            } else {
-                SafeMakeNonblocking(pipe.ReadFD);
-            }
-        }
-    } catch (const std::exception& ) {
         for (const auto& pipe : pipes) {
             TryClose(pipe.ReadFD);
             TryClose(pipe.WriteFD);
         }
+    });
 
-        throw;
+    Process_.Spawn();
+
+    for (int index = 0; index < pipes.size(); ++index) {
+        auto& pipe = pipes[index];
+
+        SafeClose(pipe.WriteFD);
+        pipe.WriteFD = TPipe::InvalidFD;
+        if (index == 0) {
+            SafeClose(pipe.ReadFD);
+            pipe.ReadFD = TPipe::InvalidFD;
+        } else {
+            SafeMakeNonblocking(pipe.ReadFD);
+        }
     }
 
     std::array<IAsyncZeroCopyInputStreamPtr, 2> processOutputs = {
@@ -132,7 +128,7 @@ TSubprocessResult TSubprocess::Execute()
     const auto& outputs = outputsOrError.Value();
     YCHECK(outputs.size() == 2);
 
-    // This can block indefinetely.
+    // This can block indefinitely.
     auto exitCode = Process_.Wait();
     return TSubprocessResult{outputs[0], outputs[1], exitCode};
 #else
