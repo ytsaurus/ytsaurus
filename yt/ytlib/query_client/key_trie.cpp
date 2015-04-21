@@ -373,7 +373,7 @@ TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 }
 
 void GetRangesFromTrieWithinRangeImpl(
-    const TKeyRange& keyRange,
+    const TRowRange& keyRange,
     TKeyTriePtr trie,
     std::vector<std::pair<TRow, TRow>>* result,
     TRowBuffer* rowBuffer, 
@@ -558,8 +558,8 @@ void GetRangesFromTrieWithinRangeImpl(
     }
 }
 
-std::vector<std::pair<TRow, TRow>> GetRangesFromTrieWithinRange(
-    const TKeyRange& keyRange,
+TRowRanges GetRangesFromTrieWithinRange(
+    const TRowRange& keyRange,
     TKeyTriePtr trie,
     TRowBuffer* rowBuffer)
 {

@@ -17,6 +17,8 @@
 
 #include <ytlib/tablet_client/public.h>
 
+#include <numeric>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -125,6 +127,7 @@ TGroupedRanges GetPrunedRanges(
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
     const TDataSources& sources,
+    TRowBuffer* rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
     ui64 rangeExpansionLimit,
@@ -141,7 +144,7 @@ TGroupedRanges GetPrunedRanges(
         rangeExpansionLimit,
         verboseLogging);
 
-    auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
+    auto keyRangeFormatter = [] (const TRowRange& range) -> Stroka {
         return Format("[%v .. %v]",
             range.first,
             range.second);
@@ -151,9 +154,11 @@ TGroupedRanges GetPrunedRanges(
 
     TGroupedRanges prunedSources;
     for (const auto& source : sources) {
+        prunedSources.emplace_back();
         const auto& originalRange = source.Range;
-        auto ranges = rangeInferrer(originalRange);
-        prunedSources.push_back(ranges);
+        auto ranges = rangeInferrer(originalRange, rowBuffer);
+        auto& group = prunedSources.back();
+        group.insert(group.end(), ranges.begin(), ranges.end());
 
         for (const auto& range : ranges) {
             LOG_DEBUG_IF(verboseLogging, "Narrowing source %v key range from %v to %v",
@@ -169,6 +174,7 @@ TGroupedRanges GetPrunedRanges(
 TGroupedRanges GetPrunedRanges(
     const TConstQueryPtr& query,
     const TDataSources& sources,
+    TRowBuffer* rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
     ui64 rangeExpansionLimit,
@@ -179,28 +185,24 @@ TGroupedRanges GetPrunedRanges(
         query->TableSchema,
         query->KeyColumns,
         sources,
+        rowBuffer,
         evaluatorCache,
         functionRegistry,
         rangeExpansionLimit,
         verboseLogging);
 }
 
-TKeyRange GetRange(const TDataSources& sources)
+TRowRange GetRange(const TDataSources& sources)
 {
-    if (sources.empty()) {
-        return TKeyRange();
-    }
-
-    auto keyRange = sources[0].Range;
-    for (int index = 1; index < sources.size(); ++index) {
-        keyRange = Unite(keyRange, sources[index].Range);
-    }
-    return keyRange;
+    YCHECK(!sources.empty());
+    return std::accumulate(sources.begin() + 1, sources.end(), sources.front().Range, [] (TRowRange keyRange, const TDataSource& source) -> TRowRange {
+        return Unite(keyRange, source.Range);
+    });
 }
 
-std::vector<TKeyRange> GetRanges(const std::vector<TDataSources>& groupedSplits)
+TRowRanges GetRanges(const std::vector<TDataSources>& groupedSplits)
 {
-    std::vector<TKeyRange> ranges(groupedSplits.size());
+    TRowRanges ranges(groupedSplits.size());
     for (int index = 0; index < groupedSplits.size(); ++index) {
         ranges[index] = GetRange(groupedSplits[index]);
     }

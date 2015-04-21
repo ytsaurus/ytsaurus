@@ -268,7 +268,8 @@ private:
 
     std::vector<std::pair<TDataSource, TChunkReplica>> Split(
         TGuid objectId,
-        const std::vector<TKeyRange>& ranges,
+        const std::vector<TRowRange>& ranges,
+        TRowBuffer* rowBuffer,
         TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
@@ -276,7 +277,7 @@ private:
         std::vector<std::pair<TDataSource, TChunkReplica>> newSources;
 
         if (TypeFromId(objectId) == EObjectType::Table) {
-            newSources = SplitTableFurther(objectId, ranges, std::move(nodeDirectory));
+            newSources = SplitTableFurther(objectId, ranges, rowBuffer, std::move(nodeDirectory));
             LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
                 newSources.size(),
                 objectId);
@@ -287,20 +288,22 @@ private:
 
     std::vector<std::pair<TDataSource, TChunkReplica>> SplitTableFurther(
         TGuid tableId,
-        const std::vector<TKeyRange>& ranges,
+        const std::vector<TRowRange>& ranges,
+        TRowBuffer* rowBuffer,
         TNodeDirectoryPtr nodeDirectory)
     {
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
         return tableInfo->Sorted
-            ? SplitSortedTableFurther(tableId, ranges, std::move(nodeDirectory))
-            : SplitUnsortedTableFurther(tableId, ranges, std::move(nodeDirectory), std::move(tableInfo));
+            ? SplitSortedTableFurther(tableId, ranges, rowBuffer, std::move(nodeDirectory))
+            : SplitUnsortedTableFurther(tableId, ranges, rowBuffer, std::move(nodeDirectory), std::move(tableInfo));
     }
 
     std::vector<std::pair<TDataSource, TChunkReplica>> SplitSortedTableFurther(
         TGuid tableId,
-        const std::vector<TKeyRange>& ranges,
+        const std::vector<TRowRange>& ranges,
+        TRowBuffer* rowBuffer,
         TNodeDirectoryPtr nodeDirectory)
     {
         // TODO(babenko): refactor and optimize
@@ -343,9 +346,12 @@ private:
             }
             auto replica = replicas[RandomNumber(replicas.size())];
 
+
+            auto keyRange = GetBothBoundsFromDataSplit(chunkSpec);
+
             result.emplace_back(TDataSource{
                 GetObjectIdFromDataSplit(chunkSpec),
-                GetBothBoundsFromDataSplit(chunkSpec)},
+                TRowRange(rowBuffer->Capture(keyRange.first.Get()), rowBuffer->Capture(keyRange.second.Get()))},
                 replica);
         }
 
@@ -354,7 +360,8 @@ private:
 
     std::vector<std::pair<TDataSource, TChunkReplica>> SplitUnsortedTableFurther(
         TGuid tableId,
-        const std::vector<TKeyRange>& ranges,
+        const std::vector<TRowRange>& ranges,
+        TRowBuffer* rowBuffer,
         TNodeDirectoryPtr nodeDirectory,
         TTableMountInfoPtr tableInfo)
     {
@@ -373,8 +380,8 @@ private:
                 tableInfo->Tablets.begin(),
                 tableInfo->Tablets.end(),
                 lowerBound,
-                [] (const TOwningKey& key, const TTabletInfoPtr& tabletInfo) {
-                    return key < tabletInfo->PivotKey;
+                [] (const TRow& key, const TTabletInfoPtr& tabletInfo) {
+                    return key < tabletInfo->PivotKey.Get();
                 }) - 1;
 
         
@@ -395,8 +402,8 @@ private:
                 auto pivotKey = tabletInfo->PivotKey;
                 auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
 
-                subsource.Range.first = std::max(lowerBound, pivotKey);
-                subsource.Range.second = std::min(upperBound, nextPivotKey);
+                subsource.Range.first = rowBuffer->Capture(std::max(lowerBound, pivotKey.Get()));
+                subsource.Range.second = rowBuffer->Capture(std::min(upperBound, nextPivotKey.Get()));
 
                 const auto& replicas = tabletInfo->Replicas;
 
@@ -421,13 +428,13 @@ private:
     TQueryStatistics DoCoordinateAndExecute(
         const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer,
-        const std::vector<TKeyRange>& ranges,
+        int subrangesCount,
         bool isOrdered,
         std::function<std::pair<TDataSources, Stroka>(int)> getSubsources)
     {
         auto Logger = BuildLogger(fragment->Query);
 
-        std::vector<TRefiner> refiners(ranges.size(), [] (
+        std::vector<TRefiner> refiners(subrangesCount, [] (
             const TConstExpressionPtr& expr,
             const TTableSchema& schema,
             const TKeyColumns& keyColumns) {
@@ -443,7 +450,7 @@ private:
                 auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = fragment->NodeDirectory;
                 subfragment->Timestamp = fragment->Timestamp;
-                subfragment->ForeignDataSource = fragment->ForeignDataSource;
+                subfragment->ForeignDataId = fragment->ForeignDataId;
                 subfragment->Query = subquery;
                 subfragment->RangeExpansionLimit = fragment->RangeExpansionLimit,
                 subfragment->VerboseLogging = fragment->VerboseLogging;
@@ -474,9 +481,11 @@ private:
 
         const auto& dataSources = fragment->DataSources;
 
+        TRowBuffer rowBuffer;
         auto prunedRanges = GetPrunedRanges(
             fragment->Query,
             dataSources,
+            &rowBuffer,
             Connection_->GetColumnEvaluatorCache(),
             FunctionRegistry_,
             fragment->RangeExpansionLimit,
@@ -490,7 +499,7 @@ private:
             auto id = dataSources[index].Id;
             const auto& ranges = prunedRanges[index];
 
-            auto splits = Split(id, ranges, nodeDirectory, Logger, fragment->VerboseLogging);
+            auto splits = Split(id, ranges, &rowBuffer, nodeDirectory, Logger, fragment->VerboseLogging);
             std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
         }
 
@@ -510,7 +519,7 @@ private:
         }
 
         std::vector<std::pair<TDataSources, Stroka>> groupedSplits;
-        std::vector<TKeyRange> ranges;
+        std::vector<TRowRange> ranges;
         for (const auto& group : groupsByLocation) {
             if (group.second.empty()) {
                 continue;
@@ -521,7 +530,7 @@ private:
 
         LOG_DEBUG("Regrouped into %v groups", groupsByLocation.size());
 
-        return DoCoordinateAndExecute(fragment, writer, ranges, false, [&] (int index) {
+        return DoCoordinateAndExecute(fragment, writer, ranges.size(), false, [&] (int index) {
             return groupedSplits[index];
         });
     }
@@ -535,9 +544,11 @@ private:
 
         const auto& dataSources = fragment->DataSources;
 
+        TRowBuffer rowBuffer;
         auto prunedRanges = GetPrunedRanges(
             fragment->Query,
             dataSources,
+            &rowBuffer,
             Connection_->GetColumnEvaluatorCache(),
             FunctionRegistry_,
             fragment->RangeExpansionLimit,
@@ -551,7 +562,7 @@ private:
             auto id = dataSources[index].Id;
             const auto& ranges = prunedRanges[index];
 
-            auto splits = Split(id, ranges, nodeDirectory, Logger, fragment->VerboseLogging);
+            auto splits = Split(id, ranges, &rowBuffer, nodeDirectory, Logger, fragment->VerboseLogging);
             std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
         }
 
@@ -561,12 +572,12 @@ private:
             return lhs.first.Range.first < rhs.first.Range.first;
         });
 
-        std::vector<TKeyRange> ranges;
+        std::vector<TRowRange> ranges;
         for (auto const& split : allSplits) {
             ranges.push_back(split.first.Range);
         }
 
-        return DoCoordinateAndExecute(fragment, writer, ranges, true, [&] (int index) {
+        return DoCoordinateAndExecute(fragment, writer, ranges.size(), true, [&] (int index) {
             auto descriptor = nodeDirectory->GetDescriptor(allSplits[index].second);
             const auto& address = descriptor.GetInterconnectAddress();
 

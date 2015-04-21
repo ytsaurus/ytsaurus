@@ -38,7 +38,7 @@ TConstExpressionPtr MakeAndExpression(const TConstExpressionPtr& lhs, const TCon
 TConstExpressionPtr MakeOrExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs);
 
 TConstExpressionPtr RefinePredicate(
-    const TKeyRange& keyRange,
+    const TRowRange& keyRange,
     const TConstExpressionPtr& expr,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,

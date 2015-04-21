@@ -16,13 +16,14 @@ typedef std::function<TConstExpressionPtr(
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns)> TRefiner;
 
-typedef std::vector<std::vector<TKeyRange>> TGroupedRanges;
+typedef std::vector<std::vector<TRowRange>> TGroupedRanges;
 
 TGroupedRanges GetPrunedRanges(
     const TConstExpressionPtr& predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
     const TDataSources& sources,
+    TRowBuffer* rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
     ui64 rangeExpansionLimit,
@@ -31,14 +32,15 @@ TGroupedRanges GetPrunedRanges(
 TGroupedRanges GetPrunedRanges(
     const TConstQueryPtr& query,
     const TDataSources& sources,
+    TRowBuffer* rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
     ui64 rangeExpansionLimit,
     bool verboseLogging);
 
-TKeyRange GetRange(const TDataSources& sources);
+TRowRange GetRange(const TDataSources& sources);
 
-std::vector<TKeyRange> GetRanges(const std::vector<TDataSources>& groupedSplits);
+TRowRanges GetRanges(const std::vector<TDataSources>& groupedSplits);
 
 typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResult;
 

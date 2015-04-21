@@ -14,7 +14,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<std::vector<TKeyRange>(const TKeyRange& keyRange)> TRangeInferrer;
+typedef std::function<std::vector<TRowRange>(const TRowRange& keyRange, TRowBuffer* rowBuffer)> TRangeInferrer;
 
 TRangeInferrer CreateRangeInferrer(
     const TConstExpressionPtr& predicate,
