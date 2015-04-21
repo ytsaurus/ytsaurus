@@ -301,6 +301,10 @@ public:
     void Enqueue(TLogEvent&& event)
     {
         if (ShutdownRequested_) {
+            if (event.Level == ELogLevel::Fatal) {
+                // Fatal events should not get out of this call.
+                Sleep(TDuration::Max());
+            }
             return;
         }
 
