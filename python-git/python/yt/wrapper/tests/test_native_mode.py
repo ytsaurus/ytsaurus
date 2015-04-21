@@ -3,6 +3,7 @@
 from yt.wrapper.client import Yt
 from yt.wrapper.common import parse_bool
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
+from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.environment import YTEnv
 import yt.yson as yson
 import yt.wrapper as yt
@@ -329,6 +330,26 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.write_table(table, ["x=1\n", "y=2\n"])
         yt.run_map(change_field, table, table)
         self.assertItemsEqual(["z=8\n", "z=8\n"], yt.read_table(table))
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_yamr_python_operations(self):
+        def yamr_func(key, records):
+            for rec in records:
+                pass
+            yield yt.Record("10", "20")
+
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, ["key=a\tvalue=b\n"])
+        yt.run_map_reduce(mapper=None, reducer=yamr_func,
+                          source_table=table, destination_table=output_table,
+                          reduce_by="key", format=yt.YamrFormat())
+        self.assertItemsEqual(["key=10\tvalue=20\n"], yt.read_table(output_table))
+
+        with pytest.raises(yt.YtError):
+            yt.run_map_reduce(mapper=None, reducer=yamr_func,
+                              source_table=table, destination_table=output_table,
+                              reduce_by="subkey", format=yt.YamrFormat())
 
     def test_binary_data_with_dsv(self):
         record = {"\tke\n\\\\y=": "\\x\\y\tz\n"}
