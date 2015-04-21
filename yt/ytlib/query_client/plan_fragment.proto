@@ -130,19 +130,14 @@ message TQuery
     optional TProjectClause project_clause = 10;
 }
 
-message TDataSource
-{
-    required NYT.NProto.TGuid id = 1;
-    required bytes lower_bound = 2;
-    required bytes upper_bound = 3; 
-}
-
 message TPlanFragment
 {
     required string source = 1;
     required uint64 timestamp = 2;
-    repeated TDataSource data_sources = 3;
-    required TDataSource foreign_data_source = 4;
+
+    repeated NYT.NProto.TGuid data_id = 3;
+    required bytes data_bounds = 8;
+    required NYT.NProto.TGuid foreign_data_id = 4;
 
     required TQuery query = 5;
     required bool ordered = 6;
