@@ -369,8 +369,7 @@ public:
         LOG_INFO("Operation suspended (OperationId: %v)",
             operation->GetId());
 
-
-        return VoidFuture;
+        return MasterConnector_->FlushOperationNode(operation);
     }
 
     TFuture<void> ResumeOperation(TOperationPtr operation)
@@ -387,7 +386,7 @@ public:
         LOG_INFO("Operation resumed (OperationId: %v)",
             operation->GetId());
 
-        return VoidFuture;
+        return MasterConnector_->FlushOperationNode(operation);
     }
 
     TFuture<TYsonString> Strace(const TJobId& jobId)
