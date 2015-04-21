@@ -281,6 +281,15 @@ def format_operation_stderrs(jobs_with_stderr):
 
     return output.getvalue()
 
+# TODO(ignat): make it public
+def add_failed_operation_stderrs_to_error_message(func):
+    def decorated_func(*args, **kwargs):
+        try:
+            func(*args, **kwargs)
+        except YtOperationFailedError as error:
+            error.message = error.message + format_operation_stderrs(error.attributes["stderrs"])
+            raise
+    return decorated_func
 
 def get_operation_result(operation, client=None):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
