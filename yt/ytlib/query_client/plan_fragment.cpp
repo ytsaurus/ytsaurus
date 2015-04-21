@@ -1625,31 +1625,21 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TDataSource* proto, const TDataSource& dataSource)
-{
-    ToProto(proto->mutable_id(), dataSource.Id);
-    ToProto(proto->mutable_lower_bound(), dataSource.Range.first);
-    ToProto(proto->mutable_upper_bound(), dataSource.Range.second);
-}
-
-TDataSource FromProto(const NProto::TDataSource& serialized)
-{
-    TDataSource dataSource;
-
-    FromProto(&dataSource.Id, serialized.id());
-    FromProto(&dataSource.Range.first, serialized.lower_bound());
-    FromProto(&dataSource.Range.second, serialized.upper_bound());
-
-    return dataSource;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ToProto(NProto::TPlanFragment* proto, const TConstPlanFragmentPtr& fragment)
 {
     ToProto(proto->mutable_query(), fragment->Query);
-    ToProto(proto->mutable_data_sources(), fragment->DataSources);
-    ToProto(proto->mutable_foreign_data_source(), fragment->ForeignDataSource);
+
+    NTabletClient::TWireProtocolWriter writer;
+    for (const auto& dataSource : fragment->DataSources) {
+        ToProto(proto->add_data_id(), dataSource.Id);
+        const auto& range = dataSource.Range;
+        writer.WriteUnversionedRow(range.first.Get());
+        writer.WriteUnversionedRow(range.second.Get());
+    }
+
+    ToProto(proto->mutable_data_bounds(), ToString(MergeRefs(writer.Flush())));
+
+    ToProto(proto->mutable_foreign_data_id(), fragment->ForeignDataSource.Id);
     proto->set_ordered(fragment->Ordered);
     proto->set_verbose_logging(fragment->VerboseLogging);
     
@@ -1668,13 +1658,20 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
     result->VerboseLogging = serialized.verbose_logging();
     result->Timestamp = serialized.timestamp();
 
-    result->DataSources.reserve(serialized.data_sources_size());
-    for (int i = 0; i < serialized.data_sources_size(); ++i) {
-        result->DataSources.push_back(FromProto(serialized.data_sources(i)));
+    NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.data_bounds()));
+    for (int i = 0; i < serialized.data_id_size(); ++i) {
+        TDataSource dataSource;
+        FromProto(&dataSource.Id, serialized.data_id(i));
+
+        TKey lowerBound(reader.ReadUnversionedRow());
+        TKey upperBound(reader.ReadUnversionedRow());
+
+        dataSource.Range = TKeyRange(lowerBound, upperBound);
+        result->DataSources.push_back(dataSource);
     }
 
-    result->ForeignDataSource = FromProto(serialized.foreign_data_source());
-
+    FromProto(&result->ForeignDataSource.Id, serialized.foreign_data_id());
+    result->ForeignDataSource.Range = TKeyRange(MinKey(), MaxKey());
     return result;
 }
 
