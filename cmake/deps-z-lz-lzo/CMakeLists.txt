@@ -50,6 +50,11 @@ include_directories(
   ${CMAKE_SOURCE_DIR}
 )
 
+add_library( ytext-zstd STATIC
+  ${BASE}/zstd/lib/fse.c
+  ${BASE}/zstd/lib/zstd.c
+)
+
 set_target_properties( ytext-zlib PROPERTIES
   COMPILE_DEFINITIONS BUILD_ZLIB
 )

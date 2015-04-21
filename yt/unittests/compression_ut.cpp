@@ -48,8 +48,8 @@ TEST_F(TCodecTest, VectorCompression)
             TSharedRef decompressed = codec->Decompress(compressed);
 
             EXPECT_EQ(
-                Stroka(decompressed.Begin(), decompressed.End()),
-                Stroka("hello world") + Stroka(10000, 'a') + Stroka(50000, 'b'));
+                Stroka("hello world") + Stroka(10000, 'a') + Stroka(50000, 'b'),
+                Stroka(decompressed.Begin(), decompressed.End()));
         }
 
         {

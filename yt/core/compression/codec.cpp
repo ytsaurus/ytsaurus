@@ -4,6 +4,7 @@
 #include "snappy.h"
 #include "zlib.h"
 #include "lz.h"
+#include "zstd.h"
 
 #include <core/tracing/trace_context.h>
 
@@ -265,6 +266,36 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TZstdCodec
+    : public TCodecBase
+{
+public:
+    TZstdCodec()
+    { }
+
+    virtual TSharedRef Compress(const TSharedRef& block) override
+    {
+        return Run<TCompressedBlockTag>(NCompression::ZstdCompress, true, block);
+    }
+
+    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TCompressedBlockTag>(NCompression::ZstdCompress, true, blocks);
+    }
+
+    virtual TSharedRef Decompress(const TSharedRef& block) override
+    {
+        return Run<TDecompressedBlockTag>(NCompression::ZstdDecompress, false, block);
+    }
+
+    virtual ECodec GetId() const override
+    {
+        return ECodec::Zstd;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 ICodec* GetCodec(ECodec id)
 {
     switch (id) {
@@ -300,6 +331,11 @@ ICodec* GetCodec(ECodec id)
 
         case ECodec::QuickLz: {
             static TQuickLzCodec result;
+            return &result;
+        }
+
+        case ECodec::Zstd: {
+            static TZstdCodec result;
             return &result;
         }
 
