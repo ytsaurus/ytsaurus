@@ -167,7 +167,7 @@ Value* CodegenValuesPtrFromRow(TCGIRBuilder& builder, Value* row)
 //
 
 TCodegenAggregate MakeCodegenAggregateFunction(
-    EAggregateFunction aggregateFunction,
+    const Stroka& aggregateFunction,
     EValueType type,
     Twine name)
 {
@@ -198,70 +198,64 @@ TCodegenAggregate MakeCodegenAggregateFunction(
 
                             // TODO(lukyan): support other types
 
-                            switch (aggregateFunction) {
-                                case EAggregateFunction::Sum:
-                                    switch (type) {
-                                        case EValueType::Int64:
-                                        case EValueType::Uint64:
-                                            resultData = builder.CreateAdd(
-                                                aggregateData,
-                                                newData);
-                                            break;
-                                        case EValueType::Double:
-                                            resultData = builder.CreateFAdd(
-                                                aggregateData,
-                                                newData);
-                                            break;
-                                        default:
-                                            YUNIMPLEMENTED();
-                                    }
-                                    break;
-                                case EAggregateFunction::Min:{
-                                    Value* compareResult = nullptr;
-                                    switch (type) {
-                                        case EValueType::Int64:
-                                            compareResult = builder.CreateICmpSLE(aggregateData, newData);
-                                            break;
-                                        case EValueType::Uint64:
-                                            compareResult = builder.CreateICmpULE(aggregateData, newData);
-                                            break;
-                                        case EValueType::Double:
-                                            compareResult = builder.CreateFCmpULE(aggregateData, newData);
-                                            break;
-                                        default:
-                                            YUNIMPLEMENTED();
-                                    }
-
-                                    resultData = builder.CreateSelect(
-                                        compareResult,
-                                        aggregateData,
-                                        newData);
-                                    break;
+                            if (aggregateFunction == "sum") {
+                                switch (type) {
+                                    case EValueType::Int64:
+                                    case EValueType::Uint64:
+                                        resultData = builder.CreateAdd(
+                                            aggregateData,
+                                            newData);
+                                        break;
+                                    case EValueType::Double:
+                                        resultData = builder.CreateFAdd(
+                                            aggregateData,
+                                            newData);
+                                        break;
+                                    default:
+                                        YUNIMPLEMENTED();
                                 }
-                                case EAggregateFunction::Max:{
-                                    Value* compareResult = nullptr;
-                                    switch (type) {
-                                        case EValueType::Int64:
-                                            compareResult = builder.CreateICmpSGE(aggregateData, newData);
-                                            break;
-                                        case EValueType::Uint64:
-                                            compareResult = builder.CreateICmpUGE(aggregateData, newData);
-                                            break;
-                                        case EValueType::Double:
-                                            compareResult = builder.CreateFCmpUGE(aggregateData, newData);
-                                            break;
-                                        default:
-                                            YUNIMPLEMENTED();
-                                    }
-
-                                    resultData = builder.CreateSelect(
-                                        compareResult,
-                                        aggregateData,
-                                        newData);
-                                    break;
+                            } else if (aggregateFunction == "min") {
+                                Value* compareResult = nullptr;
+                                switch (type) {
+                                    case EValueType::Int64:
+                                        compareResult = builder.CreateICmpSLE(aggregateData, newData);
+                                        break;
+                                    case EValueType::Uint64:
+                                        compareResult = builder.CreateICmpULE(aggregateData, newData);
+                                        break;
+                                    case EValueType::Double:
+                                        compareResult = builder.CreateFCmpULE(aggregateData, newData);
+                                        break;
+                                    default:
+                                        YUNIMPLEMENTED();
                                 }
-                                default:
-                                    YUNIMPLEMENTED();
+
+                                resultData = builder.CreateSelect(
+                                    compareResult,
+                                    aggregateData,
+                                    newData);
+                            } else if (aggregateFunction == "max") {
+                                Value* compareResult = nullptr;
+                                switch (type) {
+                                    case EValueType::Int64:
+                                        compareResult = builder.CreateICmpSGE(aggregateData, newData);
+                                        break;
+                                    case EValueType::Uint64:
+                                        compareResult = builder.CreateICmpUGE(aggregateData, newData);
+                                        break;
+                                    case EValueType::Double:
+                                        compareResult = builder.CreateFCmpUGE(aggregateData, newData);
+                                        break;
+                                    default:
+                                        YUNIMPLEMENTED();
+                                }
+
+                                resultData = builder.CreateSelect(
+                                    compareResult,
+                                    aggregateData,
+                                    newData);
+                            } else {
+                                YUNIMPLEMENTED();
                             }
 
                             return TCGValue::CreateFromValue(

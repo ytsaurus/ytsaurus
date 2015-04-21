@@ -291,7 +291,7 @@ public:
 
     // NOTE: result must be used before next call
     virtual const TColumnSchema* GetAggregateColumnPtr(
-        EAggregateFunction aggregateFunction,
+        const Stroka& aggregateFunction,
         const NAst::TExpression* arguments,
         Stroka subexprName,
         Stroka source,
@@ -593,21 +593,21 @@ protected:
         return &tableSchema->Columns().back();
     }
 
-    static TNullable<EAggregateFunction> GetAggregate(
+    static TNullable<Stroka> GetAggregate(
         const TStringBuf functionName,
         IFunctionRegistryPtr functionRegistry)
     {
         Stroka name(functionName);
         name.to_lower();
 
-        TNullable<EAggregateFunction> result;
+        TNullable<Stroka> result;
 
         if (name == "sum") {
-            result.Assign(EAggregateFunction::Sum);
+            result.Assign("sum");
         } else if (name == "min") {
-            result.Assign(EAggregateFunction::Min);
+            result.Assign("min");
         } else if (name == "max") {
-            result.Assign(EAggregateFunction::Max);
+            result.Assign("max");
         } else if (auto aggregate = functionRegistry->FindAggregateFunction(name)) {
             //TODO
             YUNIMPLEMENTED();
@@ -1035,7 +1035,7 @@ public:
     }
 
     virtual const TColumnSchema* GetAggregateColumnPtr(
-        EAggregateFunction aggregateFunction,
+        const Stroka& aggregateFunction,
         const NAst::TExpression* arguments,
         Stroka subexprName,
         Stroka source,
@@ -1578,7 +1578,7 @@ void ToProto(NProto::TNamedItem* serialized, const TNamedItem& original)
 void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
 {
     ToProto(serialized->mutable_expression(), original.Expression);
-    serialized->set_aggregate_function(static_cast<int>(original.AggregateFunction));
+    serialized->set_aggregate_function_name(original.AggregateFunction);
     ToProto(serialized->mutable_name(), original.Name);
 }
 
@@ -1649,7 +1649,7 @@ TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
 {
     return TAggregateItem(
         FromProto(serialized.expression()),
-        EAggregateFunction(serialized.aggregate_function()),
+        serialized.aggregate_function_name(),
         serialized.name());
 }
 

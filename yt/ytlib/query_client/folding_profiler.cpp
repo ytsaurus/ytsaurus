@@ -264,7 +264,7 @@ std::pair<TCodegenExpression, TCodegenAggregate> TFoldingProfiler::Profile(
     const TTableSchema& schema)
 {
     Fold(static_cast<int>(EFoldingObjectType::AggregateItem));
-    Fold(static_cast<int>(aggregateItem.AggregateFunction));
+    Fold(aggregateItem.AggregateFunction.c_str());
     Fold(aggregateItem.Name.c_str());
 
     return std::make_pair(

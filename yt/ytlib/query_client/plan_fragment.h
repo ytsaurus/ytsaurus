@@ -250,13 +250,13 @@ struct TAggregateItem
 
     TAggregateItem(
         TConstExpressionPtr expression,
-        EAggregateFunction aggregateFunction,
+        const Stroka& aggregateFunction,
         const Stroka& name)
         : TNamedItem(expression, name)
         , AggregateFunction(aggregateFunction)
     { }
 
-    EAggregateFunction AggregateFunction;
+    const Stroka AggregateFunction;
 };
 
 typedef std::vector<TAggregateItem> TAggregateItemList;
