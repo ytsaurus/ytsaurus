@@ -986,15 +986,6 @@ private:
             .ValueOrThrow();
     }
 
-    void SyncForgetTableInfo(const TYPath& path)
-    {
-        const auto& tableMountCache = Connection_->GetTableMountCache();
-        auto info = WaitFor(tableMountCache->GetTableInfo(path))
-            .ValueOrThrow();
-        tableMountCache->EraseTableInfo(FromObjectId(info->TableId));
-        tableMountCache->EraseTableInfo(path);
-    }
-
     static TTabletInfoPtr SyncGetTabletInfo(
         TTableMountInfoPtr tableInfo,
         NVersionedTableClient::TKey key)
@@ -1353,7 +1344,6 @@ private:
         const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
-        SyncForgetTableInfo(path);
     }
 
     void DoUnmountTable(
@@ -1372,7 +1362,6 @@ private:
         const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
-        SyncForgetTableInfo(path);
     }
 
     void DoRemountTable(
@@ -1390,7 +1379,6 @@ private:
         const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
-        SyncForgetTableInfo(path);
     }
 
     void DoReshardTable(
@@ -1410,7 +1398,6 @@ private:
         const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
-        SyncForgetTableInfo(path);
     }
 
 
