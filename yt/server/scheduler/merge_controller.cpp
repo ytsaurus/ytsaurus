@@ -977,7 +977,7 @@ protected:
 
         auto specKeyColumns = GetSpecKeyColumns();
         LOG_INFO("Spec key columns are %v",
-            specKeyColumns ? ~ConvertToYsonString(*specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
+            specKeyColumns ? ConvertToYsonString(*specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
 
         KeyColumns = CheckInputTablesSorted(specKeyColumns);
         LOG_INFO("Adjusted key columns are %v",
