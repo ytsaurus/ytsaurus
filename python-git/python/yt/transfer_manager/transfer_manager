@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import yt.transfer_manager.traceback_helpers as traceback_helpers
 from yt.transfer_manager.flask_helpers import process_gzip
 from yt.transfer_manager.logger import TaskIdLogger
 from yt.transfer_manager.pattern_matching import match_copy_pattern
@@ -35,7 +36,6 @@ import logging
 import logging.handlers
 import thread
 import argparse
-import traceback
 from copy import deepcopy
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -865,7 +865,7 @@ class Application(object):
                     "message": str(error),
                     "code": 1,
                     "attributes": {
-                        "details": traceback.format_exc()
+                        "details": traceback_helpers.format_exc()
                     }
                 }
             })
