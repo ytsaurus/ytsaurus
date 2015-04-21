@@ -269,6 +269,7 @@ set_target_properties(ytext-lfalloc-fake-impl PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-yajl PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-json PROPERTIES FOLDER "Contrib")
 set_target_properties(yt-contrib-benchmark PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-zstd PROPERTIES FOLDER "Contrib")
 
 set_target_properties(install-debian-yandex-yt PROPERTIES FOLDER "Misc")
 set_target_properties(install-debian-yandex-yt-http-proxy PROPERTIES FOLDER "Misc")

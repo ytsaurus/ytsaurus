@@ -275,6 +275,7 @@ target_link_libraries ( ytext-arcadia-util
   ytext-minilzo
   ytext-zlib
   ytext-quicklz
+  ytext-zstd
 )
 
 if (CMAKE_COMPILER_IS_GNUCXX)

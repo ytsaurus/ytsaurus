@@ -9,6 +9,7 @@ set( SRCS
   ${BASE}/public.cpp
   ${BASE}/snappy.cpp
   ${BASE}/zlib.cpp
+  ${BASE}/zstd.cpp
 )
 
 set( HDRS
@@ -19,6 +20,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/snappy.h
   ${BASE}/zlib.h
+  ${BASE}/zstd.h
 )
 
 list(APPEND YT_SOURCE_FILES
