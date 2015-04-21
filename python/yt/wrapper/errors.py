@@ -138,3 +138,4 @@ def pretty_format(error, indent=0):
             result += "\n" + format_error(inner_error, indent + 2)
 
     return result
+
