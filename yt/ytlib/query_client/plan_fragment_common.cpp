@@ -11,6 +11,7 @@ const char* GetUnaryOpcodeLexeme(EUnaryOp opcode)
     switch (opcode) {
         case EUnaryOp::Plus:           return "+";
         case EUnaryOp::Minus:          return "-";
+        case EUnaryOp::Not:            return "NOT";
     }
     YUNREACHABLE();
 }
@@ -35,16 +36,27 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
     YUNREACHABLE();
 }
 
-// Reverse binary opcode for compariosn operations.
 EBinaryOp GetReversedBinaryOpcode(EBinaryOp opcode)
 {
     switch (opcode) {
-        case EBinaryOp::Equal:          return EBinaryOp::Equal;
         case EBinaryOp::Less:           return EBinaryOp::Greater;
         case EBinaryOp::LessOrEqual:    return EBinaryOp::GreaterOrEqual;
         case EBinaryOp::Greater:        return EBinaryOp::Less;
         case EBinaryOp::GreaterOrEqual: return EBinaryOp::LessOrEqual;
         default:                        return opcode;
+    }
+}
+
+EBinaryOp GetInversedBinaryOpcode(EBinaryOp opcode)
+{
+    switch (opcode) {
+        case EBinaryOp::Equal:          return EBinaryOp::NotEqual;
+        case EBinaryOp::NotEqual:       return EBinaryOp::Equal;
+        case EBinaryOp::Less:           return EBinaryOp::Greater;
+        case EBinaryOp::LessOrEqual:    return EBinaryOp::GreaterOrEqual;
+        case EBinaryOp::Greater:        return EBinaryOp::Less;
+        case EBinaryOp::GreaterOrEqual: return EBinaryOp::LessOrEqual;
+        default:                        YUNREACHABLE();
     }
 }
 
