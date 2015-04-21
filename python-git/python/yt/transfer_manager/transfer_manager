@@ -1000,9 +1000,12 @@ class Application(object):
         if id not in self._tasks:
             return "Unknown task " + id, 400
 
+        tasks = {}
         with self._mutex:
-            tasks = deepcopy(self._tasks)
             pending_tasks = deepcopy(self._pending_tasks)
+            tasks[id] = self._tasks[id]
+            for id in pending_tasks:
+                tasks[id] = self._tasks[id]
 
         task = tasks[id]
         task_description = task.dict(hide_token=True)
