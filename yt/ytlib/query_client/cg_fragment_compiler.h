@@ -373,7 +373,7 @@ typedef std::function<void(TCGContext& builder, Value* row, Value* newRow, int i
 ////////////////////////////////////////////////////////////////////////////////
 
 TCodegenAggregate MakeCodegenAggregateFunction(
-    EAggregateFunction aggregateFunction,
+    const Stroka& aggregateFunction,
     EValueType type,
     Twine name = Twine());
 

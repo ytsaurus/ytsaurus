@@ -90,7 +90,7 @@ message TNamedItem
 message TAggregateItem
 {
     required TExpression expression = 1;
-    required int32 aggregate_function = 2; // EAggregateFunction
+    required string aggregate_function_name = 2;
     required string name = 3;
 }
 
