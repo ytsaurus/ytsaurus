@@ -274,6 +274,27 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns)
     }
 }
 
+void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumns& newKeyColumns)
+{
+    ValidateKeyColumns(newKeyColumns);
+
+    for (int index = 0; index < std::max(oldKeyColumns.size(), newKeyColumns.size()); ++index) {
+        if (index >= newKeyColumns.size()) {
+            THROW_ERROR_EXCEPTION("Missing original key column %Qv",
+                oldKeyColumns[index]);
+        } else if (index >= oldKeyColumns.size()) {
+            // This is fine; new key column is added
+        } else {
+            if (oldKeyColumns[index] != newKeyColumns[index]) {
+                THROW_ERROR_EXCEPTION("Key column mismatch in position %v: expected %Qv, got %Qv",
+                    index,
+                    oldKeyColumns[index],
+                    newKeyColumns[index]);
+            }
+        }
+    }
+}
+
 void ValidateTableSchema(const TTableSchema& schema)
 {
     // Check for duplicate column names.

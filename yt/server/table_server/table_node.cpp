@@ -202,13 +202,13 @@ protected:
         switch (mode) {
             case ENodeCloneMode::Copy:
                 if (sourceNode->IsDynamic()) {
-                    THROW_ERROR_EXCEPTION("Dynamic tables cannot be copied");
+                    THROW_ERROR_EXCEPTION("Cannot copy a dynamic table");
                 }
                 break;
 
             case ENodeCloneMode::Move:
                 if (sourceNode->HasMountedTablets()) {
-                    THROW_ERROR_EXCEPTION("Dynamic tables with mounted tablets cannot be moved");
+                    THROW_ERROR_EXCEPTION("Cannot move a dynamic table with mounted tablets");
                 }
                 break;
 

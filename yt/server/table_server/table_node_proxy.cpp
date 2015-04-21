@@ -163,26 +163,28 @@ private:
     bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
         if (key == "key_columns") {
+            auto keyColumns = ConvertTo<TKeyColumns>(value);
+
             ValidateNoTransaction();
 
             auto* table = LockThisTypedImpl();
-            if (!table->Tablets().empty()) {
-                THROW_ERROR_EXCEPTION("Table already has some configured tablets");
-            }
-
             auto* chunkList = table->GetChunkList();
-            if (!chunkList->Children().empty()) {
-                THROW_ERROR_EXCEPTION("Table is not empty");
+            if (table->IsDynamic()) {
+                if (table->HasMountedTablets()) {
+                    THROW_ERROR_EXCEPTION("Cannot change key columns of a dynamic table with mounted tablets");
+                }
+            } else {
+                if (!chunkList->Children().empty()) {
+                    THROW_ERROR_EXCEPTION("Cannot change key columns of a non-empty static table");
+                }
             }
 
-            if (!chunkList->Parents().empty()) {
-                THROW_ERROR_EXCEPTION("Table data is shared");
-            }
+            ValidateKeyColumnsUpdate(table->KeyColumns(), keyColumns);
 
-            auto keyColumns = ConvertTo<TKeyColumns>(value);
-            ValidateKeyColumns(keyColumns);
             table->KeyColumns() = keyColumns;
-            table->SetSorted(!table->KeyColumns().empty());
+            if (!table->IsDynamic() && !keyColumns.empty()) {
+                table->SetSorted(true);
+            }
             return true;
         }
 

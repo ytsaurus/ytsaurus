@@ -550,3 +550,41 @@ class TestTablets(YTEnvSetup):
 
     def test_in_memory_uncompressed(self):
         self._test_in_memory("uncompressed")
+
+    def test_update_key_columns_fail1(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+        with pytest.raises(YtError): set("//tmp/t/@key_columns", ["key", "key2"])
+
+    def test_update_key_columns_fail2(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        with pytest.raises(YtError): set("//tmp/t/@key_columns", ["key2", "key3"])
+
+    def test_update_key_columns_fail3(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        with pytest.raises(YtError): set("//tmp/t/@key_columns", [])
+
+    def test_update_key_columns_success(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        
+        self._sync_mount_table("//tmp/t")
+        rows1 = [{"key": i, "value": str(i)} for i in xrange(100)]
+        insert_rows("//tmp/t", rows1)
+        self._sync_unmount_table("//tmp/t")
+
+        set("//tmp/t/@key_columns", ["key", "key2"])
+        set("//tmp/t/@schema/after:0", {"name": "key2", "type": "int64"})
+        self._sync_mount_table("//tmp/t")
+
+        rows2 = [{"key": i, "key2": 0, "value": str(i)} for i in xrange(100)]
+        insert_rows("//tmp/t", rows2)
+        
+        assert lookup_rows("//tmp/t", [{"key" : 77}]) == [{"key": 77, "value": "77"}]
+        assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 1}]) == []
+        assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 0}]) == [{"key": 77, "key2": 0, "value": "77"}]
+        assert select_rows("sum(1) as s from [//tmp/t] where is_null(key2) group by 0") == [{"s": 100}]
+        
