@@ -28,7 +28,7 @@ public:
 
     llvm::Module* GetModule() const;
 
-    llvm::Function* GetRoutine(const Stroka& symbol) const;
+    llvm::Constant* GetRoutine(const Stroka& symbol) const;
 
     template <class TSignature>
     TCGFunction<TSignature> GetCompiledFunction(const Stroka& name);
