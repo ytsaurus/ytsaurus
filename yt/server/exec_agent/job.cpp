@@ -297,7 +297,6 @@ private:
 
     TNullable<TInstant> StartTime;
     TSlotPtr Slot;
-    TFuture<void> RunFuture;
 
     IProxyControllerPtr ProxyController;
 
