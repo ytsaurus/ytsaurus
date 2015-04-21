@@ -41,16 +41,19 @@ class TTabletReaderBase
     : public virtual TRefCounted
 {
 public:
+    // NB(lukyan): Do not use delegating constructors. It leads to incorrect generated code in Visual C++ and memory corruption.
     TTabletReaderBase(
         IInvokerPtr poolInvoker,
         TTabletSnapshotPtr tabletSnapshot,
         TOwningKey lowerBound,
         TOwningKey upperBound,
         TTimestamp timestamp)
-        : TTabletReaderBase(
-            std::move(poolInvoker),
-            std::move(tabletSnapshot),
-            timestamp)
+        : PoolInvoker_(std::move(poolInvoker))
+        , TabletSnapshot_(std::move(tabletSnapshot))
+        , PerformanceCounters_(TabletSnapshot_->PerformanceCounters)
+        , Timestamp_(timestamp)
+        , Pool_(TTabletReaderPoolTag())
+        , KeyComparer_(TabletSnapshot_->RowKeyComparer)
     {
         LowerBound_ = std::move(lowerBound);
         UpperBound_ = std::move(upperBound);
@@ -61,10 +64,12 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         const std::vector<TKey>& keys,
         TTimestamp timestamp)
-        : TTabletReaderBase(
-            std::move(poolInvoker),
-            std::move(tabletSnapshot),
-            timestamp)
+        : PoolInvoker_(std::move(poolInvoker))
+        , TabletSnapshot_(std::move(tabletSnapshot))
+        , PerformanceCounters_(TabletSnapshot_->PerformanceCounters)
+        , Timestamp_(timestamp)
+        , Pool_(TTabletReaderPoolTag())
+        , KeyComparer_(TabletSnapshot_->RowKeyComparer)
     {
         Keys_ = keys;
     }
@@ -91,7 +96,7 @@ protected:
         std::vector<TVersionedRow>::iterator CurrentRow;
     };
 
-    const std::function<bool(const TSession*, const TSession*)> SessionComparer_;
+    const std::function<bool(const TSession*, const TSession*)> SessionComparer_ = GetSessionComparer();
     const TDynamicRowKeyComparer KeyComparer_;
 
     SmallVector<TSession, TypicalStoresPerSession> Sessions_;
@@ -108,20 +113,6 @@ protected:
 
     std::atomic<bool> Opened_ = {false};
     std::atomic<bool> Refilling_ = {false};
-
-
-    TTabletReaderBase(
-        IInvokerPtr poolInvoker,
-        TTabletSnapshotPtr tabletSnapshot,
-        TTimestamp timestamp)
-        : PoolInvoker_(std::move(poolInvoker))
-        , TabletSnapshot_(std::move(tabletSnapshot))
-        , PerformanceCounters_(TabletSnapshot_->PerformanceCounters)
-        , Timestamp_(timestamp)
-        , Pool_(TTabletReaderPoolTag())
-        , SessionComparer_(GetSessionComparer())
-        , KeyComparer_(TabletSnapshot_->RowKeyComparer)
-    { }
 
     template <class TRow, class TRowMerger>
     bool DoRead(std::vector<TRow>* rows, TRowMerger* rowMerger)
