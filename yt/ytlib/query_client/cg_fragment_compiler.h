@@ -372,11 +372,6 @@ typedef std::function<void(TCGContext& builder, Value* row, Value* newRow, int i
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCodegenAggregate MakeCodegenAggregateFunction(
-    const Stroka& aggregateFunction,
-    EValueType type,
-    Twine name = Twine());
-
 TCodegenExpression MakeCodegenLiteralExpr(
     int index,
     EValueType type);
@@ -456,6 +451,13 @@ TResult CodegenIf(
     const std::function<TResult(TBuilder& builder)>& thenCodegen,
     const std::function<TResult(TBuilder& builder)>& elseCodegen,
     Twine name = Twine());
+
+template <class TBuilder>
+void CodegenIf(
+    TBuilder& builder,
+    Value* condition,
+    const std::function<void(TBuilder& builder)>& thenCodegen,
+    const std::function<void(TBuilder& builder)>& elseCodegen);
 
 TCGValue MakeBinaryFunctionCall(
     Stroka routineName,

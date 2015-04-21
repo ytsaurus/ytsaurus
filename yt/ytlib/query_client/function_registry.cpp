@@ -44,6 +44,13 @@ IFunctionDescriptorPtr IFunctionRegistry::GetFunction(const Stroka& functionName
     return function;
 }
 
+IAggregateFunctionDescriptorPtr IFunctionRegistry::GetAggregateFunction(const Stroka& functionName)
+{
+    auto function = FindAggregateFunction(functionName);
+    YCHECK(function);
+    return function;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TFunctionRegistry::RegisterFunction(IFunctionDescriptorPtr descriptor)
@@ -141,6 +148,10 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
     registry->RegisterFunction(New<TCastFunction>(
         EValueType::Double,
         "double"));
+
+    registry->RegisterAggregateFunction(New<TAggregateFunction>("sum"));
+    registry->RegisterAggregateFunction(New<TAggregateFunction>("min"));
+    registry->RegisterAggregateFunction(New<TAggregateFunction>("max"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
