@@ -602,15 +602,10 @@ protected:
 
         TNullable<Stroka> result;
 
-        if (name == "sum") {
-            result.Assign("sum");
-        } else if (name == "min") {
-            result.Assign("min");
-        } else if (name == "max") {
-            result.Assign("max");
-        } else if (auto aggregate = functionRegistry->FindAggregateFunction(name)) {
-            //TODO
-            YUNIMPLEMENTED();
+        if (name == "sum" || name == "min" || name == "max" ||
+            functionRegistry->FindAggregateFunction(name))
+        {
+            result.Assign(name);
         }
 
         return result;

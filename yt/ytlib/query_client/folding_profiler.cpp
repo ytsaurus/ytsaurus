@@ -267,12 +267,14 @@ std::pair<TCodegenExpression, TCodegenAggregate> TFoldingProfiler::Profile(
     Fold(aggregateItem.AggregateFunction.c_str());
     Fold(aggregateItem.Name.c_str());
 
+    auto function = FunctionRegistry_->GetAggregateFunction(
+        aggregateItem.AggregateFunction);
+
     return std::make_pair(
         Profile(aggregateItem.Expression, schema),
-        MakeCodegenAggregateFunction(
-            aggregateItem.AggregateFunction,
+        function->MakeCodegenAggregate(
             aggregateItem.Expression->Type,
-            aggregateItem.Name.c_str()));
+            aggregateItem.Name));
 }
 
 void TFoldingProfiler::Fold(int numeric)
