@@ -65,6 +65,8 @@ void TColumnEvaluator::PrepareEvaluator(int index)
 
 void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
 {
+    YCHECK(index < fullRow.GetCount());
+
 #ifdef YT_USE_LLVM
     PrepareEvaluator(index);
 

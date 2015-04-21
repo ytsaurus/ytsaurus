@@ -725,6 +725,28 @@ TConstExpressionPtr ExtractPredicateForColumnSubset(
         EValueType::Boolean,
         MakeUnversionedBooleanValue(true));
 }
+
+std::vector<std::pair<TRow, TRow>> MergeOverlappingRanges(
+    std::vector<std::pair<TRow, TRow>> ranges)
+{
+    int lastIndex = ranges.empty() ? -1 : 0;
+    std::sort(ranges.begin(), ranges.end());
+    for (int index = 1; index < ranges.size(); ++index) {
+        if (ranges[index].first <= ranges[lastIndex].second) {
+            ranges[lastIndex].second = std::move(ranges[index].second);
+        } else if (ranges[index].first == ranges[index].second) {
+            continue;
+        } else {
+            ++lastIndex;
+            if (lastIndex < index) {
+                ranges[lastIndex] = std::move(ranges[index]);
+            }
+        }
+    }
+    ranges.resize(lastIndex + 1);
+    return ranges;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
