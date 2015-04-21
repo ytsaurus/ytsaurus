@@ -305,7 +305,7 @@ public:
             KeyTrie_);
     }
 
-    virtual std::vector<TKeyRange> GetRangesWithinRange(const TKeyRange& keyRange)
+    virtual TRowRanges GetRangesWithinRange(const TRowRange& keyRange, TRowBuffer* rowBuffer)
     {
         auto ranges = GetRangesFromTrieWithinRange(keyRange, KeyTrie_, &Buffer_);
         std::vector<std::pair<TRow, TRow>> enrichedRanges;
@@ -318,13 +318,13 @@ public:
         }
         enrichedRanges = MergeOverlappingRanges(std::move(enrichedRanges));
 
-        std::vector<TKeyRange> owningRanges;
+        std::vector<TRowRange> result;
         for (auto range : enrichedRanges) {
-            owningRanges.emplace_back(TKey(range.first), TKey(range.second));
+            result.emplace_back(rowBuffer->Capture(range.first), rowBuffer->Capture(range.second));
         }
 
         Buffer_.Clear();
-        return owningRanges;
+        return result;
     }
 
 private:
@@ -781,8 +781,8 @@ TRangeInferrer CreateHeavyRangeInferrer(
         rangeExpansionLimit,
         verboseLogging);
 
-    return [MOVE(heavyInferrer)] (const TKeyRange& keyRange) mutable {
-        return heavyInferrer->GetRangesWithinRange(keyRange);
+    return [MOVE(heavyInferrer)] (const TRowRange& keyRange, TRowBuffer* rowBuffer) mutable {
+        return heavyInferrer->GetRangesWithinRange(keyRange, rowBuffer);
     };
 }
 
@@ -808,14 +808,8 @@ TRangeInferrer CreateLightRangeInferrer(
     return [
         MOVE(keyTrieBuffer),
         MOVE(keyTrie)
-    ] (const TKeyRange& keyRange) {
-        TRowBuffer rowBuffer;
-        auto unversionedRanges = GetRangesFromTrieWithinRange(keyRange, keyTrie, &rowBuffer);
-        std::vector<TKeyRange> ranges;
-        for (auto range : unversionedRanges) {
-            ranges.emplace_back(TKey(range.first), TKey(range.second));
-        }
-        return ranges;
+    ] (const TRowRange& keyRange, TRowBuffer* rowBuffer) {
+        return GetRangesFromTrieWithinRange(keyRange, keyTrie, rowBuffer);
     };
 }
 

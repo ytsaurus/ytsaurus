@@ -220,7 +220,12 @@ private:
                         auto planFragment = New<TPlanFragment>();
                         planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                         planFragment->Timestamp = fragment->Timestamp;
-                        planFragment->DataSources.push_back(fragment->ForeignDataSource);
+                        planFragment->DataSources.push_back({
+                                fragment->ForeignDataId, {
+                                    planFragment->KeyRangesRowBuffer.Capture(MinKey().Get()), 
+                                    planFragment->KeyRangesRowBuffer.Capture(MaxKey().Get())}
+                            });
+
                         planFragment->Query = subquery;
                         planFragment->VerboseLogging = fragment->VerboseLogging;
 
@@ -281,7 +286,7 @@ private:
                 upperBound[keySize].Type == EValueType::Max &&
                 CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
             {
-                keySources[source.Id].push_back(lowerBound.Get());
+                keySources[source.Id].push_back(lowerBound);
             } else {
                 rangeSources.push_back(source);
             }
@@ -289,7 +294,8 @@ private:
 
         LOG_DEBUG("Splitting %v sources", rangeSources.size());
 
-        auto splits = Split(rangeSources, nodeDirectory, true, Logger, fragment->VerboseLogging);
+        TRowBuffer rowBuffer;
+        auto splits = Split(rangeSources, &rowBuffer, nodeDirectory, true, Logger, fragment->VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
         std::vector<TDataSources> groupedSplits;
@@ -307,7 +313,7 @@ private:
         LOG_DEBUG("Grouped into %v groups", groupedSplits.size());
         auto ranges = GetRanges(groupedSplits);
 
-        LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v", JoinToString(ranges, [] (const TKeyRange& range) {
+        LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v", JoinToString(ranges, [] (const TRowRange& range) {
             return Format("[%v .. %v]", range.first, range.second);
         }));
 
@@ -366,7 +372,8 @@ private:
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto splits = Split(fragment->DataSources, nodeDirectory, true, Logger, fragment->VerboseLogging);
+        TRowBuffer rowBuffer;
+        auto splits = Split(fragment->DataSources, &rowBuffer, nodeDirectory, true, Logger, fragment->VerboseLogging);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
@@ -400,12 +407,13 @@ private:
 
     TDataSources Split(
         const TDataSources& splits,
+        TRowBuffer* rowBuffer,
         TNodeDirectoryPtr nodeDirectory,
         bool mergeRanges,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
-        yhash_map<TGuid, std::vector<TKeyRange>> rangesByTablet;
+        yhash_map<TGuid, std::vector<TRowRange>> rangesByTablet;
         TDataSources allSplits;
         for (const auto& split : splits) {
             auto objectId = split.Id;
@@ -426,7 +434,7 @@ private:
 
             YCHECK(!keyRanges.empty());
 
-            std::sort(keyRanges.begin(), keyRanges.end(), [] (const TKeyRange& lhs, const TKeyRange& rhs) {
+            std::sort(keyRanges.begin(), keyRanges.end(), [] (const TRowRange& lhs, const TRowRange& rhs) {
                 return lhs.first < rhs.first;
             });
 
@@ -435,7 +443,7 @@ private:
 
             securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
-            std::vector<TKeyRange> resultRanges;
+            std::vector<TRowRange> resultRanges;
             if (mergeRanges) {
                 int lastIndex = 0;
                 
@@ -491,7 +499,10 @@ private:
                     const auto& nextKey = (splitKeyIndex == splitKeys.size() - 1)
                         ? MaxKey()
                         : splitKeys[splitKeyIndex + 1];
-                    TDataSource subsource{tabletId, TKeyRange(std::max(range.first, thisKey), std::min(range.second, nextKey))};
+                    TDataSource subsource{tabletId, TRowRange(
+                        rowBuffer->Capture(std::max(range.first, thisKey.Get())), 
+                        rowBuffer->Capture(std::min(range.second, nextKey.Get()))
+                        )};
 
                     allSplits.push_back(std::move(subsource));
                 }
@@ -539,8 +550,8 @@ private:
 
     std::pair<int, int> GetBoundSampleKeys(
         TTabletSnapshotPtr tabletSnapshot,
-        const TOwningKey& lowerBound,
-        const TOwningKey& upperBound)
+        const TRow& lowerBound,
+        const TRow& upperBound)
     {
         auto findStartSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
             return std::upper_bound(
@@ -563,15 +574,15 @@ private:
             partitions.begin(),
             partitions.end(),
             lowerBound,
-            [] (const TOwningKey& lhs, const TPartitionSnapshotPtr& rhs) {
-                return lhs < rhs->PivotKey;
+            [] (const TRow& lhs, const TPartitionSnapshotPtr& rhs) {
+                return lhs < rhs->PivotKey.Get();
             }) - 1;
         auto endPartitionIt = std::lower_bound(
             startPartitionIt,
             partitions.end(),
             upperBound,
-            [] (const TPartitionSnapshotPtr& lhs, const TOwningKey& rhs) {
-                return lhs->PivotKey < rhs;
+            [] (const TPartitionSnapshotPtr& lhs, const TRow& rhs) {
+                return lhs->PivotKey.Get() < rhs;
             });
         int partitionCount = std::distance(startPartitionIt, endPartitionIt) - 1;
 
@@ -594,8 +605,8 @@ private:
 
     std::vector<TOwningKey> BuildSplitKeys(
         TTabletSnapshotPtr tabletSnapshot,
-        const TOwningKey& lowerBound,
-        const TOwningKey& upperBound,
+        const TRow& lowerBound,
+        const TRow& upperBound,
         int& nextSampleIndex,
         int& currentSampleCount,
         int totalSampleCount,
@@ -621,15 +632,15 @@ private:
             partitions.begin(),
             partitions.end(),
             lowerBound,
-            [] (const TOwningKey& lhs, const TPartitionSnapshotPtr& rhs) {
-                return lhs < rhs->PivotKey;
+            [] (const TRow& lhs, const TPartitionSnapshotPtr& rhs) {
+                return lhs < rhs->PivotKey.Get();
             }) - 1;
         auto endPartitionIt = std::lower_bound(
             startPartitionIt,
             partitions.end(),
             upperBound,
-            [] (const TPartitionSnapshotPtr& lhs, const TOwningKey& rhs) {
-                return lhs->PivotKey < rhs;
+            [] (const TPartitionSnapshotPtr& lhs, const TRow& rhs) {
+                return lhs->PivotKey.Get() < rhs;
             });
         int partitionCount = std::distance(startPartitionIt, endPartitionIt);
 
@@ -768,10 +779,10 @@ private:
         auto chunkMeta = WaitFor(chunkReader->GetMeta()).ValueOrThrow();
 
         TReadLimit lowerReadLimit;
-        lowerReadLimit.SetKey(lowerBound);
+        lowerReadLimit.SetKey(TOwningKey(lowerBound));
 
         TReadLimit upperReadLimit;
-        upperReadLimit.SetKey(upperBound);
+        upperReadLimit.SetKey(TOwningKey(upperBound));
 
         return CreateSchemafulChunkReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
@@ -796,14 +807,14 @@ private:
             auto securityManager = Bootstrap_->GetSecurityManager();
             securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
-            auto lowerBound = source.Range.first;
-            auto upperBound = source.Range.second;
+            TOwningKey lowerBound(source.Range.first);
+            TOwningKey upperBound(source.Range.second);
 
             return CreateSchemafulTabletReader(
                 Bootstrap_->GetQueryPoolInvoker(),
                 std::move(tabletSnapshot),
-                std::move(lowerBound),
-                std::move(upperBound),
+                lowerBound,
+                upperBound,
                 timestamp);
         } catch (const std::exception& ex) {
             auto futureReader = MakeFuture(TErrorOr<ISchemafulReaderPtr>(ex));

@@ -222,7 +222,7 @@ TConstExpressionPtr MakeOrExpression(const TConstExpressionPtr& lhs, const TCons
 }
 
 TConstExpressionPtr RefinePredicate(
-    const TKeyRange& keyRange,
+    const TRowRange& keyRange,
     const TConstExpressionPtr& expr,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
@@ -399,11 +399,11 @@ TConstExpressionPtr RefinePredicate(
                     }
 
                     auto cmpLower = CompareRows(
-                        keyRange.first.Get(),
+                        keyRange.first,
                         tempRow,
                         std::min(keyRange.first.GetCount(), rowSize));
                     auto cmpUpper = CompareRows(
-                        keyRange.second.Get(),
+                        keyRange.second,
                         tempRow,
                         std::min(keyRange.second.GetCount(), rowSize));
                     return cmpLower <= 0 && cmpUpper >= 0;
@@ -428,10 +428,10 @@ TConstExpressionPtr RefinePredicate(
                         return 0;
                     };
                     auto cmpLower = compareRows(
-                        keyRange.first.Get(),
+                        keyRange.first,
                         literalTuple);
                     auto cmpUpper = compareRows(
-                        keyRange.second.Get(),
+                        keyRange.second,
                         literalTuple);
                     return cmpLower <= 0 && cmpUpper >= 0;
                 };

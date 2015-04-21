@@ -453,12 +453,26 @@ protected:
 
         TDataSources sources;
         for (const auto& split : dataSplits) {
+            auto range = GetBothBoundsFromDataSplit(split);
+    
+            TRowRange rowRange(
+                planFragment->KeyRangesRowBuffer.Capture(range.first.Get()),
+                planFragment->KeyRangesRowBuffer.Capture(range.second.Get()));
+
             sources.push_back(TDataSource{
                 GetObjectIdFromDataSplit(split),
-                GetBothBoundsFromDataSplit(split)});
+                rowRange});
         }
 
-        auto groupedRanges = GetPrunedRanges(planFragment->Query, sources, ColumnEvaluatorCache_, CreateBuiltinFunctionRegistry(), 1000, true);
+        TRowBuffer rowBuffer;
+        auto groupedRanges = GetPrunedRanges(
+            planFragment->Query,
+            sources,
+            &rowBuffer,
+            ColumnEvaluatorCache_,
+            CreateBuiltinFunctionRegistry(),
+            1000,
+            true);
         int count = 0;
         for (const auto& group : groupedRanges) {
             count += group.size();
@@ -626,7 +640,10 @@ TKeyRange RefineKeyRange(
         &rowBuffer,
         CreateBuiltinFunctionRegistry());
 
-    auto result = GetRangesFromTrieWithinRange(keyRange, keyTrie, &rowBuffer);
+    auto result = GetRangesFromTrieWithinRange(
+        TRowRange(keyRange.first.Get(), keyRange.second.Get()),
+        keyTrie,
+        &rowBuffer);
 
     if (result.empty()) {
         return std::make_pair(EmptyKey(), EmptyKey());
@@ -1240,6 +1257,15 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 
     EXPECT_EQ(BuildKey("50"), result.first);
     EXPECT_EQ(BuildKey("50;" _MAX_), result.second);
+}
+
+
+TRowRanges GetRangesFromTrieWithinRange(
+    const TKeyRange& keyRange,
+    TKeyTriePtr trie,
+    TRowBuffer* rowBuffer)
+{
+    return GetRangesFromTrieWithinRange(TRowRange(keyRange.first.Get(), keyRange.second.Get()), trie, rowBuffer);
 }
 
 TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
@@ -2071,7 +2097,11 @@ struct TQueryExecutor
 
                 planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                 planFragment->Timestamp = fragment->Timestamp;
-                planFragment->DataSources.push_back(fragment->ForeignDataSource);
+                planFragment->DataSources.push_back({
+                        fragment->ForeignDataId, {
+                            planFragment->KeyRangesRowBuffer.Capture(MinKey().Get()), 
+                            planFragment->KeyRangesRowBuffer.Capture(MaxKey().Get())}
+                    });
                 planFragment->Query = subquery;
                 
                 auto subqueryResult = ExecuteCallback->Execute(planFragment, writer);
@@ -3818,9 +3848,11 @@ protected:
     std::vector<TKeyRange> Coordinate(const Stroka& source)
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
+        TRowBuffer rowBuffer;
         auto prunedSplits = GetPrunedRanges(
             planFragment->Query,
             planFragment->DataSources,
+            &rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry().Get(),
             1000,
@@ -3833,15 +3865,19 @@ protected:
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
 
-        TDataSources foreignSplits{planFragment->ForeignDataSource};
+        TDataSources foreignSplits{{planFragment->ForeignDataId, {
+                planFragment->KeyRangesRowBuffer.Capture(MinKey().Get()), 
+                planFragment->KeyRangesRowBuffer.Capture(MaxKey().Get())}
+            }};
 
         const auto& query = planFragment->Query;
-
+        TRowBuffer rowBuffer;
         auto prunedSplits = GetPrunedRanges(
             query->WhereClause,
             query->JoinClause->ForeignTableSchema,
             query->JoinClause->ForeignKeyColumns,
             foreignSplits,
+            &rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
             1000,
@@ -3900,7 +3936,9 @@ private:
         std::vector<TKeyRange> ranges;
 
         for (const auto& group : groupedRanges) {
-            ranges.insert(ranges.end(), group.begin(), group.end());
+            for (const auto& range : group) {
+                ranges.push_back(TKeyRange(TKey(range.first), TKey(range.second)));
+            }
         }
 
         std::sort(ranges.begin(), ranges.end());
@@ -4372,7 +4410,7 @@ protected:
         const TKeyColumns& keyColumns)
     {
         return RefinePredicate(
-            keyRange,
+            TRowRange(keyRange.first.Get(), keyRange.second.Get()),
             expr,
             tableSchema,
             keyColumns,

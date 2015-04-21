@@ -1202,17 +1202,21 @@ TPlanFragmentPtr PreparePlanFragment(
     }
 
     planFragment->Query = query;
-
     planFragment->Timestamp = timestamp;
+
+    auto range = GetBothBoundsFromDataSplit(selfDataSplit);
+    
+    TRowRange rowRange(
+        planFragment->KeyRangesRowBuffer.Capture(range.first.Get()),
+        planFragment->KeyRangesRowBuffer.Capture(range.second.Get()));
 
     planFragment->DataSources.push_back({
         GetObjectIdFromDataSplit(selfDataSplit),
-        GetBothBoundsFromDataSplit(selfDataSplit)});
+        rowRange
+    });
 
     if (query->JoinClause) {
-        planFragment->ForeignDataSource = {
-            GetObjectIdFromDataSplit(foreignDataSplit),
-            GetBothBoundsFromDataSplit(foreignDataSplit)};
+        planFragment->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
     }
     
     return planFragment;
@@ -1633,13 +1637,13 @@ void ToProto(NProto::TPlanFragment* proto, const TConstPlanFragmentPtr& fragment
     for (const auto& dataSource : fragment->DataSources) {
         ToProto(proto->add_data_id(), dataSource.Id);
         const auto& range = dataSource.Range;
-        writer.WriteUnversionedRow(range.first.Get());
-        writer.WriteUnversionedRow(range.second.Get());
+        writer.WriteUnversionedRow(range.first);
+        writer.WriteUnversionedRow(range.second);
     }
 
     ToProto(proto->mutable_data_bounds(), ToString(MergeRefs(writer.Flush())));
 
-    ToProto(proto->mutable_foreign_data_id(), fragment->ForeignDataSource.Id);
+    ToProto(proto->mutable_foreign_data_id(), fragment->ForeignDataId);
     proto->set_ordered(fragment->Ordered);
     proto->set_verbose_logging(fragment->VerboseLogging);
     
@@ -1659,19 +1663,21 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
     result->Timestamp = serialized.timestamp();
 
     NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.data_bounds()));
+
+    auto& rowBuffer = result->KeyRangesRowBuffer;
     for (int i = 0; i < serialized.data_id_size(); ++i) {
         TDataSource dataSource;
         FromProto(&dataSource.Id, serialized.data_id(i));
 
-        TKey lowerBound(reader.ReadUnversionedRow());
-        TKey upperBound(reader.ReadUnversionedRow());
+        auto lowerBound = rowBuffer.Capture(reader.ReadUnversionedRow());
+        auto upperBound = rowBuffer.Capture(reader.ReadUnversionedRow());
 
-        dataSource.Range = TKeyRange(lowerBound, upperBound);
+        dataSource.Range = TRowRange(lowerBound, upperBound);
         result->DataSources.push_back(dataSource);
     }
 
-    FromProto(&result->ForeignDataSource.Id, serialized.foreign_data_id());
-    result->ForeignDataSource.Range = TKeyRange(MinKey(), MaxKey());
+    FromProto(&result->ForeignDataId, serialized.foreign_data_id());
+
     return result;
 }
 

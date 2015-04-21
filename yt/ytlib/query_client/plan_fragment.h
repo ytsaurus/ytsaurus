@@ -404,8 +404,8 @@ DEFINE_REFCOUNTED_TYPE(TQuery)
 
 struct TDataSource
 {
-    NObjectClient::TObjectId Id;
-    TKeyRange Range;
+    TGuid Id;
+    TRowRange Range;
 };
 
 typedef std::vector<TDataSource> TDataSources;
@@ -423,8 +423,9 @@ struct TPlanFragment
     
     TTimestamp Timestamp;
 
+    TRowBuffer KeyRangesRowBuffer;
     TDataSources DataSources;
-    TDataSource ForeignDataSource;
+    TGuid ForeignDataId;
 
     TConstQueryPtr Query;
     bool Ordered = false;

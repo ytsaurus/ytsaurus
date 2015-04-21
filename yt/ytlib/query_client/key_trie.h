@@ -85,8 +85,8 @@ struct TKeyTrie
 
 DEFINE_REFCOUNTED_TYPE(TKeyTrie)
 
-std::vector<std::pair<TRow, TRow>> GetRangesFromTrieWithinRange(
-    const TKeyRange& keyRange,
+TRowRanges GetRangesFromTrieWithinRange(
+    const TRowRange& keyRange,
     TKeyTriePtr trie,
     TRowBuffer* rowBuffer);
 
