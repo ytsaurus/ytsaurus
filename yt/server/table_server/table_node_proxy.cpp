@@ -299,7 +299,7 @@ private:
 
         auto keyColumns = FromProto<Stroka>(request->key_columns());
         context->SetRequestInfo("KeyColumns: %v",
-            ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
+            ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
 
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
