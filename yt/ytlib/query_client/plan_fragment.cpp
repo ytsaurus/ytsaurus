@@ -73,7 +73,7 @@ Stroka InferName(TConstExpressionPtr expr)
         if (!canOmitParenthesis(unaryOp->Operand)) {
             rhsName = "(" + rhsName + ")";
         }
-        return Stroka() + GetUnaryOpcodeLexeme(unaryOp->Opcode) + rhsName;
+        return Stroka() + GetUnaryOpcodeLexeme(unaryOp->Opcode) + " " + rhsName;
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
         auto lhsName = InferName(binaryOp->Lhs);
         if (!canOmitParenthesis(binaryOp->Lhs)) {
@@ -162,6 +162,14 @@ EValueType InferUnaryExprType(EUnaryOp opCode, EValueType operandType, const TSt
             if (!IsArithmeticType(operandType)) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires either integral or floating-point operand",
+                    source)
+                    << TErrorAttribute("operand_type", ToString(operandType));
+            }
+            return operandType;
+        case EUnaryOp::Not:
+            if (operandType != EValueType::Boolean) {
+                THROW_ERROR_EXCEPTION(
+                    "Expression %Qv requires boolean operand",
                     source)
                     << TErrorAttribute("operand_type", ToString(operandType));
             }
@@ -309,10 +317,28 @@ public:
         const Stroka& source,
         IFunctionRegistry* functionRegistry)
     {
+        auto expressions = DoBuildTypedExpression(expr, source, functionRegistry);
+
+        for (auto& expr : expressions) {
+            expr = PropagateNotExpression(std::move(expr));
+        }
+
+        return expressions;
+    }
+
+private:
+    DEFINE_BYVAL_RO_PROPERTY(TTableSchema*, TableSchema);
+
+protected:
+    std::vector<TConstExpressionPtr> DoBuildTypedExpression(
+        const NAst::TExpression* expr,
+        const Stroka& source,
+        IFunctionRegistry* functionRegistry)
+    {
         std::vector<TConstExpressionPtr> result;
         if (auto commaExpr = expr->As<NAst::TCommaExpression>()) {
-            auto typedLhsExprs = BuildTypedExpression(commaExpr->Lhs.Get(), source, functionRegistry);
-            auto typedRhsExprs = BuildTypedExpression(commaExpr->Rhs.Get(), source, functionRegistry);
+            auto typedLhsExprs = DoBuildTypedExpression(commaExpr->Lhs.Get(), source, functionRegistry);
+            auto typedRhsExprs = DoBuildTypedExpression(commaExpr->Rhs.Get(), source, functionRegistry);
 
             result.insert(result.end(), typedLhsExprs.begin(), typedLhsExprs.end());
             result.insert(result.end(), typedRhsExprs.begin(), typedRhsExprs.end());
@@ -361,7 +387,7 @@ public:
             } else {
                 std::vector<EValueType> types;
 
-                auto typedOperands = BuildTypedExpression(functionExpr->Arguments.Get(), source, functionRegistry);
+                auto typedOperands = DoBuildTypedExpression(functionExpr->Arguments.Get(), source, functionRegistry);
 
                 for (const auto& typedOperand : typedOperands) {
                     types.push_back(typedOperand->Type);
@@ -374,7 +400,7 @@ public:
                     typedOperands));
             }
         } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
-            auto typedOperandExpr = BuildTypedExpression(unaryExpr->Operand.Get(), source, functionRegistry);
+            auto typedOperandExpr = DoBuildTypedExpression(unaryExpr->Operand.Get(), source, functionRegistry);
 
             for (const auto& operand : typedOperandExpr) {
                 if (auto foldedExpr = FoldConstants(unaryExpr, operand)) {
@@ -391,8 +417,8 @@ public:
                 }
             }
         } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
-            auto typedLhsExpr = BuildTypedExpression(binaryExpr->Lhs.Get(), source, functionRegistry);
-            auto typedRhsExpr = BuildTypedExpression(binaryExpr->Rhs.Get(), source, functionRegistry);
+            auto typedLhsExpr = DoBuildTypedExpression(binaryExpr->Lhs.Get(), source, functionRegistry);
+            auto typedRhsExpr = DoBuildTypedExpression(binaryExpr->Rhs.Get(), source, functionRegistry);
 
             auto makeBinaryExpr = [&] (EBinaryOp op, const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs) -> TConstExpressionPtr {
                 auto type = InferBinaryExprType(op, lhs->Type, rhs->Type, binaryExpr->GetSource(source));
@@ -453,7 +479,7 @@ public:
                 result.push_back(makeBinaryExpr(binaryExpr->Opcode, typedLhsExpr.front(), typedRhsExpr.front()));
             }
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
-            auto inExprOperands = BuildTypedExpression(inExpr->Expr.Get(), source, functionRegistry);
+            auto inExprOperands = DoBuildTypedExpression(inExpr->Expr.Get(), source, functionRegistry);
 
             std::unordered_set<Stroka> references;
             std::vector<EValueType> argTypes;
@@ -481,10 +507,89 @@ public:
         return result;
     }
 
-private:
-    DEFINE_BYVAL_RO_PROPERTY(TTableSchema*, TableSchema);
+    TConstExpressionPtr PropagateNotExpression(TConstExpressionPtr expr)
+    {
+        if (expr->As<TReferenceExpression>() ||
+            expr->As<TLiteralExpression>())
+        {
+            return expr;
+        } else if (auto inExpr = expr->As<TInOpExpression>()) {
+            TArguments propagatedArgumenst;
+            for (auto argument : inExpr->Arguments) {
+                propagatedArgumenst.push_back(PropagateNotExpression(argument));
+            }
+            return New<TInOpExpression>(
+                inExpr->SourceLocation,
+                std::move(propagatedArgumenst),
+                inExpr->Values);
+        } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
+            TArguments propagatedArgumenst;
+            for (auto argument : functionExpr->Arguments) {
+                propagatedArgumenst.push_back(PropagateNotExpression(argument));
+            }
+            return New<TFunctionExpression>(
+                functionExpr->SourceLocation,
+                functionExpr->Type,
+                functionExpr->FunctionName,
+                std::move(propagatedArgumenst));
+        } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
+            return New<TBinaryOpExpression>(
+                binaryOp->SourceLocation,
+                binaryOp->Type,
+                binaryOp->Opcode,
+                PropagateNotExpression(binaryOp->Lhs),
+                PropagateNotExpression(binaryOp->Rhs));
+        } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
+            auto& operand = unaryOp->Operand;
+            if (unaryOp->Opcode == EUnaryOp::Not) {
+                if (auto operandUnaryOp = operand->As<TUnaryOpExpression>()) {
+                    if (operandUnaryOp->Opcode == EUnaryOp::Not) {
+                        return PropagateNotExpression(operandUnaryOp->Operand);
+                    }
+                } else if (auto operandBinaryOp = operand->As<TBinaryOpExpression>()) {
+                    if (operandBinaryOp->Opcode == EBinaryOp::And) {
+                        return PropagateNotExpression(MakeOrExpression(
+                            New<TUnaryOpExpression>(
+                                operandBinaryOp->Lhs->SourceLocation,
+                                operandBinaryOp->Lhs->Type,
+                                EUnaryOp::Not,
+                                operandBinaryOp->Lhs),
+                            New<TUnaryOpExpression>(
+                                operandBinaryOp->Rhs->SourceLocation,
+                                operandBinaryOp->Rhs->Type,
+                                EUnaryOp::Not,
+                                operandBinaryOp->Rhs)));
+                    } else if (operandBinaryOp->Opcode == EBinaryOp::Or) {
+                        return PropagateNotExpression(MakeAndExpression(
+                            New<TUnaryOpExpression>(
+                                operandBinaryOp->Lhs->SourceLocation,
+                                operandBinaryOp->Lhs->Type,
+                                EUnaryOp::Not,
+                                operandBinaryOp->Lhs),
+                            New<TUnaryOpExpression>(
+                                operandBinaryOp->Rhs->SourceLocation,
+                                operandBinaryOp->Rhs->Type,
+                                EUnaryOp::Not,
+                                operandBinaryOp->Rhs)));
+                    } else if (IsBinaryOpCompare(operandBinaryOp->Opcode)) {
+                        return PropagateNotExpression(New<TBinaryOpExpression>(
+                            operandBinaryOp->SourceLocation,
+                            operandBinaryOp->Type,
+                            GetInversedBinaryOpcode(operandBinaryOp->Opcode),
+                            operandBinaryOp->Lhs,
+                            operandBinaryOp->Rhs));
+                    }
+                }
+            }
+            return New<TUnaryOpExpression>(
+                unaryOp->SourceLocation,
+                unaryOp->Type,
+                unaryOp->Opcode,
+                PropagateNotExpression(operand));
+        }
+        YUNREACHABLE();
+    }
 
-protected:
     static const TColumnSchema* AddColumn(TTableSchema* tableSchema, const TColumnSchema& column)
     {
         tableSchema->Columns().push_back(column);
@@ -565,6 +670,10 @@ protected:
                         default:
                             YUNREACHABLE();
                     }
+                    return value;
+                } else if (opcode == EUnaryOp::Not) {
+                    TUnversionedValue value = literalExpr->Value;
+                    value.Data.Boolean = !value.Data.Boolean;
                     return value;
                 }
             }

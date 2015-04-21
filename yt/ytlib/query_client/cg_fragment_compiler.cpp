@@ -788,8 +788,16 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                             default:
                                 YUNREACHABLE();
                         }
-
                         break;
+
+                    case EUnaryOp::Not:
+                        evalData = builder.CreateXor(
+                            builder.CreateZExtOrBitCast(
+                                builder.getTrue(),
+                                TDataTypeBuilder::TBoolean::get(builder.getContext())),
+                            operandData);
+                        break;
+
                     default:
                         YUNREACHABLE();
                 }

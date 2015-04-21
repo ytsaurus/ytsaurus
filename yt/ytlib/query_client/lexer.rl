@@ -32,12 +32,13 @@ typedef TParser::token_type TToken;
     kw_as = 'as'i;
     kw_and = 'and'i;
     kw_or = 'or'i;
+    kw_not = 'not'i;
     kw_between = 'between'i;
     kw_in = 'in'i;
     kw_false = 'false'i;
     kw_true = 'true'i;
 
-    keyword = kw_from | kw_where | kw_limit | kw_join | kw_using |kw_group_by | kw_order_by | kw_as | kw_and | kw_or | kw_between | kw_in |  kw_false | kw_true;
+    keyword = kw_from | kw_where | kw_limit | kw_join | kw_using |kw_group_by | kw_order_by | kw_as | kw_and | kw_or | kw_not | kw_between | kw_in |  kw_false | kw_true;
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
 
     fltexp = [Ee] [+\-]? digit+;
@@ -80,6 +81,7 @@ typedef TParser::token_type TToken;
         kw_as => { type = TToken::KwAs; fbreak; };
         kw_and => { type = TToken::KwAnd; fbreak; };
         kw_or => { type = TToken::KwOr; fbreak; };
+        kw_not => { type = TToken::KwNot; fbreak; };
         kw_between => { type = TToken::KwBetween; fbreak; };
         kw_in => { type = TToken::KwIn; fbreak; };
         kw_false => { type = TToken::KwFalse; fbreak; };

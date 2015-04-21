@@ -13,6 +13,7 @@ static const TSourceLocation NullSourceLocation(0, 0);
 DEFINE_ENUM(EUnaryOp,
     (Plus)
     (Minus)
+    (Not)
 );
 
 DEFINE_ENUM(EBinaryOp,
@@ -44,8 +45,11 @@ DEFINE_ENUM(EAggregateFunction,
 const char* GetUnaryOpcodeLexeme(EUnaryOp opcode);
 const char* GetBinaryOpcodeLexeme(EBinaryOp opcode);
 
-// Reverse binary opcode for compariosn operations.
+// Reverse binary opcode for comparison operations (for swapping arguments).
 EBinaryOp GetReversedBinaryOpcode(EBinaryOp opcode);
+
+// Inverse binary opcode for comparison operations (for inverting the operation).
+EBinaryOp GetInversedBinaryOpcode(EBinaryOp opcode);
 
 bool IsBinaryOpCompare(EBinaryOp opcode);
 

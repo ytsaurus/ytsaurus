@@ -31,14 +31,14 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/savrus/dev/yt/null/yt/ytlib/query_client/parser.hpp
+ ** \file /home/savrus/dev/yt/not/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::NAst::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_NULL_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_NULL_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_NOT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_NOT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
 
     #include "ast.h"
@@ -293,6 +293,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // expression
       // or-op-expr
       // and-op-expr
+      // not-op-expr
       // relational-op-expr
       // additive-op-expr
       // multiplicative-op-expr
@@ -374,15 +375,16 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         KwAs = 1009,
         KwAnd = 1010,
         KwOr = 1011,
-        KwBetween = 1012,
-        KwIn = 1013,
-        KwFalse = 1014,
-        KwTrue = 1015,
-        Identifier = 1016,
-        Int64Literal = 1017,
-        Uint64Literal = 1018,
-        DoubleLiteral = 1019,
-        StringLiteral = 1020,
+        KwNot = 1012,
+        KwBetween = 1013,
+        KwIn = 1014,
+        KwFalse = 1015,
+        KwTrue = 1016,
+        Identifier = 1017,
+        Int64Literal = 1018,
+        Uint64Literal = 1019,
+        DoubleLiteral = 1020,
+        StringLiteral = 1021,
         OpModulo = 37,
         LeftParenthesis = 40,
         RightParenthesis = 41,
@@ -392,11 +394,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         OpMinus = 45,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1021,
+        OpLessOrEqual = 1022,
         OpEqual = 61,
-        OpNotEqual = 1022,
+        OpNotEqual = 1023,
         OpGreater = 62,
-        OpGreaterOrEqual = 1023
+        OpGreaterOrEqual = 1024
       };
     };
 
@@ -581,6 +583,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
     static inline
     symbol_type
+    make_KwNot (const location_type& l);
+
+    static inline
+    symbol_type
     make_KwBetween (const location_type& l);
 
     static inline
@@ -756,7 +762,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const unsigned char yytable_[];
 
-  static const signed char yycheck_[];
+  static const unsigned char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -871,13 +877,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 123,     ///< Last index in yytable_.
-      yynnts_ = 34,  ///< Number of nonterminal symbols.
+      yylast_ = 134,     ///< Last index in yytable_.
+      yynnts_ = 35,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 32, ///< Termination state number.
+      yyfinal_ = 34, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 40  ///< Number of tokens.
+      yyntokens_ = 41  ///< Number of tokens.
     };
 
 
@@ -894,4 +900,4 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
 
-#endif // !YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_NULL_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_NOT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED

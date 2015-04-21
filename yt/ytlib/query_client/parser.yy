@@ -74,6 +74,7 @@
 
 %token KwAnd "keyword `AND`"
 %token KwOr "keyword `OR`"
+%token KwNot "keyword `NOT`"
 %token KwBetween "keyword `BETWEEN`"
 %token KwIn "keyword `IN`"
 
@@ -116,6 +117,7 @@
 %type <TNamedExpression> named-expression
 
 %type <TExpressionPtr> expression
+%type <TExpressionPtr> not-op-expr
 %type <TExpressionPtr> or-op-expr
 %type <TExpressionPtr> and-op-expr
 %type <TExpressionPtr> relational-op-expr
@@ -302,9 +304,18 @@ or-op-expr
 ;
 
 and-op-expr
-    : and-op-expr[lhs] KwAnd relational-op-expr[rhs]
+    : and-op-expr[lhs] KwAnd not-op-expr[rhs]
         {
             $$ = New<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
+        }
+    | not-op-expr
+        { $$ = $1; }
+;
+
+not-op-expr
+    : KwNot relational-op-expr[expr]
+        {
+            $$ = New<TUnaryOpExpression>(@$, EUnaryOp::Not, $expr);
         }
     | relational-op-expr
         { $$ = $1; }
