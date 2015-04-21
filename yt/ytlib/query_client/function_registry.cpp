@@ -135,6 +135,11 @@ DEFINE_ENUM(ETypeCategory,
 struct TDescriptorType
 {
     TType Type = EValueType::Min;
+
+    // NB(lukyan): For unknown reason Visual C++ does not create default constructor
+    // for this class. Moreover it does not create it if TDescriptorType() = default is written
+    TDescriptorType()
+    { }
 };
 
 const Stroka TagKey = "tag";
