@@ -87,8 +87,6 @@ public:
 
     TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path);
 
-    bool EraseTableInfo(const NYPath::TYPath& path);
-
     void Clear();
 
 private:
