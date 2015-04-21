@@ -368,7 +368,7 @@ public:
 
 typedef std::function<Value* (TCGIRBuilder& builder)> TCodegenBlock;
 typedef std::function<TCGValue(TCGContext& builder, Value* row)> TCodegenExpression;
-typedef std::function<void(TCGContext& builder, Value* row, Value* newRow, int index)> TCodegenAggregate;
+typedef std::function<void(TCGContext& builder, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -422,7 +422,7 @@ TCodegenSource MakeCodegenJoinOp(
 
 TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
-    std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
+    std::vector<std::pair<TCodegenExpression, TCodegenAggregateUpdate>> codegenAggregates,
     TCodegenSource codegenSource);
 
 TCodegenSource MakeCodegenOrderOp(

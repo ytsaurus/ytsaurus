@@ -37,7 +37,7 @@ struct IAggregateFunctionDescriptor
 {
     virtual Stroka GetName() const = 0;
 
-    virtual TCodegenAggregate MakeCodegenAggregate(
+    virtual TCodegenAggregateUpdate MakeCodegenAggregate(
         EValueType type,
         const Stroka& name) const = 0;
 };
