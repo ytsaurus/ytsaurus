@@ -52,16 +52,17 @@ struct TExecutionContext
     TRowBuffer* OutputBuffer;
     TRowBuffer* IntermediateBuffer;
 
-    std::vector<TRow>* Batch;
+    std::vector<TRow>* OutputBatchRows;
 
     TQueryStatistics* Statistics;
 
-    // TODO(lukyan): Rename to ReadRowLimit and WriteRowLimit
+    // These limits prevent full scan.
     i64 InputRowLimit;
     i64 OutputRowLimit;
     i64 GroupRowLimit;
     i64 JoinRowLimit;
 
+    // Limit from LIMIT clause.
     i64 Limit;
 
     // "char" type is to due LLVM interop.

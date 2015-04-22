@@ -62,7 +62,7 @@ void WriteRow(TRow row, TExecutionContext* executionContext)
     
     ++executionContext->Statistics->RowsWritten;
 
-    auto* batch = executionContext->Batch;
+    auto* batch = executionContext->OutputBatchRows;
     auto* writer = executionContext->Writer;
     auto* rowBuffer = executionContext->OutputBuffer;
 

@@ -100,8 +100,8 @@ public:
                 TRowBuffer outputBuffer;
                 TRowBuffer intermediateBuffer;
 
-                std::vector<TRow> batch;
-                batch.reserve(MaxRowsPerWrite);
+                std::vector<TRow> outputBatchRows;
+                outputBatchRows.reserve(MaxRowsPerWrite);
 
                 TExecutionContext executionContext;
                 executionContext.Reader = reader.Get();
@@ -112,7 +112,7 @@ public:
                 executionContext.OutputBuffer = &outputBuffer;
                 executionContext.IntermediateBuffer = &intermediateBuffer;
                 executionContext.Writer = writer.Get();
-                executionContext.Batch = &batch;
+                executionContext.OutputBatchRows = &outputBatchRows;
                 executionContext.Statistics = &statistics;
                 executionContext.InputRowLimit = query->InputRowLimit;
                 executionContext.OutputRowLimit = query->OutputRowLimit;
@@ -134,11 +134,11 @@ public:
                 CallCGQueryPtr(cgQuery, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext);
 
                 LOG_DEBUG("Flushing writer");
-                if (!batch.empty()) {
+                if (!outputBatchRows.empty()) {
                     bool shouldNotWait;
                     {
                         NProfiling::TAggregatingTimingGuard timingGuard(&statistics.WriteTime);
-                        shouldNotWait = writer->Write(batch);
+                        shouldNotWait = writer->Write(outputBatchRows);
                     }
 
                     if (!shouldNotWait) {
