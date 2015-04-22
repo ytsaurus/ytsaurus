@@ -2,6 +2,8 @@ import common
 
 USE_HOSTS = True
 HOSTS = "hosts"
+_BANNED_HOSTS = {}
+_HOST_BAN_PERIOD = 120000
 
 REMOVE_TEMP_FILES = True
 REMOVE_UPLOADED_FILES = False
