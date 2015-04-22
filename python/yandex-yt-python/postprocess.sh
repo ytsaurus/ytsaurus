@@ -19,7 +19,7 @@ make_link()
 # Upload python egg
 python setup.py bdist_egg
 EGG_FILEPATH=$(find dist/ -name "*.egg" | head -n 1)
-EGG_FILE="${EGG_FILE##*/}"
+EGG_FILE="${EGG_FILEPATH##*/}"
 cat "$EGG_FILE" | $YT upload "$DEST/$EGG_FILE"
 make_link "$DEST/$EGG_FILE" "$DEST/yandex-yt.egg"
 
