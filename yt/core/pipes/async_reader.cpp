@@ -105,14 +105,13 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return BIND([=, this_ = MakeStrong(this)] () {
-                if (State_ == EReaderState::Active) {
+                if (State_ == EReaderState::Active) { 
                     State_ = EReaderState::Aborted;
                     FDWatcher_.stop();
                     ReadResultPromise_.TrySet(TError(EErrorCode::Aborted, "Reader aborted")
                         << TErrorAttribute("fd", FD_));
+                    YCHECK(TryClose(FD_));
                 }
-
-                TryClose(FD_);
             })
             .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
             .Run();
@@ -170,6 +169,7 @@ private:
             LOG_ERROR(error);
 
             State_ = EReaderState::Failed;
+            YCHECK(TryClose(FD_));
             FDWatcher_.stop();
             ReadResultPromise_.Set(error);
             return;
@@ -179,6 +179,7 @@ private:
 
         if (size == 0) {
             State_ = EReaderState::EndOfStream;
+            YCHECK(TryClose(FD_));
             FDWatcher_.stop();
             ReadResultPromise_.Set(Position_);
         } else if (Position_ == Length_) {
