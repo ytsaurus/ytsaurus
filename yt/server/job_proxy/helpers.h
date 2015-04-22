@@ -18,8 +18,8 @@ class TContextPreservingInput
 {
 public:
     TContextPreservingInput(
-        NVersionedTableClient::ISchemalessMultiChunkReaderPtr reader, 
-        const NFormats::TFormat& format, 
+        NVersionedTableClient::ISchemalessMultiChunkReaderPtr reader,
+        const NFormats::TFormat& format,
         bool enableTableSwitch,
         bool enableKeySwitch);
 
@@ -29,26 +29,16 @@ public:
 
 private:
     NVersionedTableClient::ISchemalessMultiChunkReaderPtr Reader_;
-    NVersionedTableClient::ISchemalessWriterPtr Writer_;
-
-    bool EnableTableSwitch_;
-    int TableIndex_;
-
-    bool EnableKeySwitch_;
-    int KeyColumnCount_;
-    NVersionedTableClient::TOwningKey LastKey_;
-    NVersionedTableClient::TKey CurrentKey_;
+    NVersionedTableClient::ISchemalessMultiSourceWriterPtr Writer_;
 
     TBlobOutput CurrentBuffer_;
     TBlobOutput PreviousBuffer_;
 
     NYson::IYsonConsumer* Consumer_;
 
-
     void WriteRows(
-        const std::vector<NVersionedTableClient::TUnversionedRow>& rows, 
+        const std::vector<NVersionedTableClient::TUnversionedRow>& rows,
         TOutputStream* outputStream);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TContextPreservingInput);

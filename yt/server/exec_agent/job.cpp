@@ -25,6 +25,7 @@
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
+#include <ytlib/new_table_client/schemaless_writer.h>
 #include <ytlib/new_table_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -718,7 +719,7 @@ private:
 
             auto producer = [&] (TOutputStream* output) {
                 TBufferedOutput bufferedOutput(output);
-                auto writer = CreateSchemalessWriterForFormat(format, nameTable, &bufferedOutput);
+                auto writer = CreateSchemalessWriterForFormat(format, nameTable, &bufferedOutput, false, false, 0);
                 PipeReaderToWriter(reader, writer, 10000);
             };
 
