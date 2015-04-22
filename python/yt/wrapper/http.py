@@ -19,7 +19,7 @@ from socket import error as SocketError
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.requests import HTTPError, ConnectionError, Timeout
 from yt.packages.requests.packages.urllib3.packages.httplib import BadStatusLine, IncompleteRead
-RETRIABLE_ERRORS = (HTTPError, ConnectionError, Timeout, IncompleteRead, SocketError, BadStatusLine, YtRequestRateLimitExceeded, YtIncorrectResponse)
+RETRIABLE_ERRORS = (HTTPError, ConnectionError, Timeout, IncompleteRead, SocketError, BadStatusLine, YtRequestRateLimitExceeded, YtIncorrectResponse, YtProxyUnavailable)
 
 session_ = yt.packages.requests.Session()
 def get_session():
@@ -95,8 +95,8 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
         timeout = http_config.REQUEST_RETRY_TIMEOUT / 1000.0
 
     retriable_errors = list(RETRIABLE_ERRORS)
-    if retry_unavailable_proxy:
-        retriable_errors.append(YtProxyUnavailable)
+    if not retry_unavailable_proxy:
+        retriable_errors.remove(YtProxyUnavailable)
 
     for attempt in xrange(http_config.REQUEST_RETRY_COUNT):
         current_time = datetime.now()
