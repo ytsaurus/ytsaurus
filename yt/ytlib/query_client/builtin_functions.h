@@ -143,7 +143,19 @@ public:
 
     virtual Stroka GetName() const override;
 
+    virtual TCodegenAggregateInit MakeCodegenInit(
+        EValueType type,
+        const Stroka& name) const override;
+
     virtual TCodegenAggregateUpdate MakeCodegenAggregate(
+        EValueType type,
+        const Stroka& name) const override;
+
+    virtual TCodegenAggregateMerge MakeCodegenMerge(
+        EValueType type,
+        const Stroka& name) const override;
+
+    virtual TCodegenAggregateFinalize MakeCodegenFinalize(
         EValueType type,
         const Stroka& name) const override;
 
