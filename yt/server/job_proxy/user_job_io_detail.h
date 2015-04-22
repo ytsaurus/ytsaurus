@@ -30,7 +30,7 @@ public:
 
     virtual void CreateReader() override;
 
-    virtual NVersionedTableClient::TSchemalessReaderFactory GetReaderCreator() override;
+    virtual NVersionedTableClient::TSchemalessReaderFactory GetReaderFactory() override;
 
 protected:
     IJobHost* Host_;

@@ -163,6 +163,8 @@ class TUserJobSpec
 {
 public:
     Stroka Command;
+    TNullable<Stroka> Query;
+    TNullable<NVersionedTableClient::TTableSchema> InputSchema;
 
     std::vector<NYPath::TRichYPath> FilePaths;
 
@@ -190,6 +192,10 @@ public:
     {
         RegisterParameter("command", Command)
             .NonEmpty();
+        RegisterParameter("query", Query)
+            .Default();
+        RegisterParameter("input_schema", InputSchema)
+            .Default();
         RegisterParameter("file_paths", FilePaths)
             .Default();
         RegisterParameter("format", Format)
@@ -224,6 +230,12 @@ public:
             .Default(128)
             .GreaterThan(0)
             .LessThanOrEqual(1024);
+
+        RegisterValidator([&] () {
+            if (Query && !InputSchema) {
+                THROW_ERROR_EXCEPTION("Expected to see \"input_schema\" in job spec");
+            }
+        });
     }
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig)
@@ -424,6 +436,12 @@ public:
 
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 128 * 1024 * 1024;
+        });
+
+        RegisterValidator([&] () {
+            if (Reducer->Query || Reducer->InputSchema) {
+                THROW_ERROR_EXCEPTION("Queries are not supported in reduce operations");
+            }
         });
     }
 
@@ -649,6 +667,14 @@ public:
             MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
 
             SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+        });
+
+        RegisterValidator([&] () {
+            if (Reducer->Query || Reducer->InputSchema ||
+                (ReduceCombiner && (ReduceCombiner->Query || ReduceCombiner->InputSchema)))
+            {
+                THROW_ERROR_EXCEPTION("Queries are not supported in reduce operations");
+            }
         });
     }
 

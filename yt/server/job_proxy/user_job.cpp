@@ -18,6 +18,8 @@
 #include <ytlib/new_table_client/table_consumer.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
+#include <ytlib/new_table_client/schemaful_reader_adapter.h>
+#include <ytlib/new_table_client/schemaful_writer_adapter.h>
 
 #include <ytlib/scheduler/statistics.h>
 
@@ -26,6 +28,11 @@
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/cgroup/cgroup.h>
+
+#include <ytlib/query_client/public.h>
+#include <ytlib/query_client/evaluator.h>
+#include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/query_statistics.h>
 
 #include <core/pipes/async_reader.h>
 #include <core/pipes/async_writer.h>
@@ -40,6 +47,8 @@
 #include <core/tools/tools.h>
 
 #include <core/concurrency/action_queue.h>
+
+#include <core/misc/public.h>
 
 #include <util/folder/dirut.h>
 
@@ -61,6 +70,7 @@ using namespace NJobAgent;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NPipes;
+using namespace NQueryClient;
 
 using NJobTrackerClient::NProto::TJobResult;
 using NScheduler::NProto::TUserJobSpec;
@@ -539,29 +549,17 @@ private:
         return asyncInput;
     }
 
-    void PrepareInputTablePipe(TPipeFactory* pipeFactory)
+    void PrepareInputActionsPassthrough(
+        int jobDescriptor,
+        const TFormat& format,
+        TAsyncWriterPtr asyncOutput)
     {
-        YCHECK(pipeFactory);
-        auto pipe = pipeFactory->Create();
-        int jobDescriptor = 0;
-
         JobIO_->CreateReader();
         const auto& reader = JobIO_->GetReader();
-        auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
-
-        Process_.AddDup2FileAction(pipe.GetReadFD(), jobDescriptor);
-
-        Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
-
-        auto asyncOutput = pipe.CreateAsyncWriter();
-        TablePipeWriters_.push_back(asyncOutput);
-        auto output = CreateSyncAdapter(asyncOutput);
-        auto bufferRowCount = Config_->JobIO->BufferRowCount;
-
         auto writer = CreateSchemalessWriterForFormat(
             format,
             reader->GetNameTable(),
-            std::move(output),
+            CreateSyncAdapter(asyncOutput),
             true,
             Config_->JobIO->EnableInputTableIndex,
             JobIO_->IsKeySwitchEnabled(),
@@ -569,8 +567,7 @@ private:
 
         FormatWriters_.push_back(writer);
 
-        // NB: we do not bother to close it. Anyway, job proxy process would not live long.
-        auto readFD = pipe.ReleaseReadFD();
+        auto bufferRowCount = Config_->JobIO->BufferRowCount;
 
         InputActions_.push_back(BIND([=] () {
             try {
@@ -583,6 +580,72 @@ private:
                         << ex;
             }
         }));
+    }
+
+    void PrepareInputActionsQuery(
+        int jobDescriptor,
+        const TFormat& format,
+        TAsyncWriterPtr asyncOutput)
+    {
+        auto writerFactory = [=] (TNameTablePtr nameTable) {
+            YCHECK(!JobIO_->IsKeySwitchEnabled());
+
+            auto writer = CreateSchemalessWriterForFormat(
+                format,
+                nameTable,
+                CreateSyncAdapter(asyncOutput),
+                true,
+                Config_->JobIO->EnableInputTableIndex,
+                JobIO_->IsKeySwitchEnabled(),
+                0);
+
+            FormatWriters_.push_back(writer);
+
+            return writer;
+        };
+
+        auto reader = CreateSchemafulReaderAdapter(JobIO_->GetReaderFactory());
+        auto writer = CreateSchemafulWriterAdapter(writerFactory);
+
+        InputActions_.push_back(BIND([=] () {
+            try {
+                auto registry = CreateBuiltinFunctionRegistry();
+                auto queryString = FromProto<Stroka>(UserJobSpec_.query());
+                auto schema = FromProto<TTableSchema>(UserJobSpec_.input_schema());
+                auto query = PrepareJobQuery(queryString, schema, registry.Get());
+                auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
+                evaluator->Run(query, reader, writer, registry);
+                WaitFor(asyncOutput->Close())
+                    .ThrowOnError();
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Query evaluation failed")
+                    << TErrorAttribute("fd", jobDescriptor)
+                    << ex;
+            }
+        }));
+    }
+
+    void PrepareInputTablePipe(TPipeFactory* pipeFactory)
+    {
+        YCHECK(pipeFactory);
+        auto pipe = pipeFactory->Create();
+        int jobDescriptor = 0;
+
+        Process_.AddDup2FileAction(pipe.GetReadFD(), jobDescriptor);
+        Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
+
+        auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
+        auto asyncOutput = pipe.CreateAsyncWriter();
+        TablePipeWriters_.push_back(asyncOutput);
+
+        // NB: we do not bother to close it. Anyway, job proxy process would not live long.
+        auto readFD = pipe.ReleaseReadFD();
+
+        if (UserJobSpec_.has_query()) {
+            PrepareInputActionsQuery(jobDescriptor, format, asyncOutput);
+        } else {
+            PrepareInputActionsPassthrough(jobDescriptor, format, asyncOutput);
+        }
 
         if (!UserJobSpec_.check_input_fully_consumed()) {
             return;
