@@ -1423,6 +1423,36 @@ TEST_F(TRefineKeyRangeTest, RangeToPointCollapsing)
     EXPECT_EQ(BuildKey("1;1;" _MAX_), result.second);
 }
 
+TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
+{
+    auto expr = PrepareExpression(
+        "(k between 21 and 32) OR (k between 43 and 54)",   
+        GetSampleTableSchema());
+
+    TRowBuffer rowBuffer;
+
+    auto keyColumns = GetSampleKeyColumns();
+
+    auto keyTrie = ExtractMultipleConstraints(
+        expr,
+        keyColumns,
+        &rowBuffer,
+        CreateBuiltinFunctionRegistry());
+
+    auto result = GetRangesFromTrieWithinRange(
+        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        keyTrie,
+        &rowBuffer);
+
+    EXPECT_EQ(result.size(), 2);
+
+    EXPECT_EQ(BuildKey("21"), result[0].first);
+    EXPECT_EQ(BuildKey("32;" _MAX_), result[0].second);
+
+    EXPECT_EQ(BuildKey("43"), result[1].first);
+    EXPECT_EQ(BuildKey("54;" _MAX_), result[1].second);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCompareExpressionTest
