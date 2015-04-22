@@ -399,7 +399,7 @@ private:
         NYTree::INodeFactoryPtr factory,
         const NYPath::TYPath& path,
         NYTree::INodePtr value,
-        bool recursive);
+        bool recursive) override;
 
     virtual TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
