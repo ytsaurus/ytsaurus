@@ -56,6 +56,8 @@ TBlob ReadAll(TAsyncReaderPtr reader, bool useWaitFor)
             result = future.Get();
         }
 
+        EXPECT_TRUE(result.IsOK()) << ToString(result);
+
         if (result.Value() == 0) {
             break;
         }
@@ -79,12 +81,11 @@ TEST(TAsyncWriterTest, AsyncCloseFail)
             .AsyncVia(queue->GetInvoker())
             .Run();
 
-
     std::vector<char> buffer(200*1024, 'a');
-    ASSERT_TRUE(writer->Write(&buffer[0], buffer.size()).Get().IsOK());
+    auto error = writer->Write(&buffer[0], buffer.size()).Get();
+    ASSERT_TRUE(error.IsOK()) << ToString(error);
 
-    auto error = writer->Close();
-    auto closeStatus = error.Get();
+    auto closeStatus = writer->Close().Get();
 
     ASSERT_EQ(-1, close(pipefds[1]));
 }
