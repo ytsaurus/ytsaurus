@@ -345,6 +345,15 @@ Stroka TAggregateFunction::GetName() const
     return Name_;
 }
 
+TCodegenAggregateInit TAggregateFunction::MakeCodegenInit(
+    EValueType type,
+    const Stroka& name) const
+{
+    return [
+    ] (TCGContext& builder, Value* aggState) {
+    };
+}
+
 TCodegenAggregateUpdate TAggregateFunction::MakeCodegenAggregate(
     EValueType type,
     const Stroka& nameStroka) const
@@ -458,6 +467,24 @@ TCodegenAggregateUpdate TAggregateFunction::MakeCodegenAggregate(
 
                 });
         };
+}
+
+TCodegenAggregateMerge TAggregateFunction::MakeCodegenMerge(
+    EValueType type,
+    const Stroka& name) const
+{
+    return [
+    ] (TCGContext& builder, Value* dstAggState, Value* aggState) {
+    };
+}
+
+TCodegenAggregateFinalize TAggregateFunction::MakeCodegenFinalize(
+    EValueType type,
+    const Stroka& name) const
+{
+    return [
+    ] (TCGContext& builder, Value* result, Value* aggState) {
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
