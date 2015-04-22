@@ -182,17 +182,16 @@ TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
         }
     }
 
-    auto size = bounds.size();
-    while (size > 1) {
+    while (bounds.size() > 1) {
         size_t i = 0;
         while (2 * i + 1 < bounds.size()) {
             bounds[i] = UniteBounds(bounds[2 * i], bounds[2 * i + 1]);
             ++i;
         }
-        size = i;
+        bounds.resize(i);
     }
 
-    YCHECK(bounds.size () <= 1);
+    YCHECK(bounds.size() <= 1);
     if (!bounds.empty()) {
         std::vector<TBound> deletedPoints;
 
