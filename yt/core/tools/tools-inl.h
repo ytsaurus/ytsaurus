@@ -61,9 +61,9 @@ TResult RunTool(
     try {
         resultOrError = NYTree::ConvertTo<TErrorOr<TResult>>(serializedResultOrError);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to parse result of %v tool (Result: %Qv)",
-            name,
-            serializedResultOrError.Data())
+        THROW_ERROR_EXCEPTION("Failed to parse result of %v tool",
+            name)
+            << TErrorAttribute("result", serializedResultOrError.Data())
             << ex;
     }
 

@@ -22,7 +22,7 @@ TGenericTool Ysonize(std::function<TResult(const TArg&)> internal)
         try {
             arg = NYTree::ConvertTo<TArg>(serializedArg);
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to parse argument: %Qv", serializedArg.Data())
+            auto error = TError("Failed to parse argument %Qv", serializedArg.Data())
                 << ex;
             return NYTree::ConvertToYsonString(TErrorOr<TResult>(error));
         }
@@ -42,9 +42,9 @@ TGenericTool Ysonize(std::function<TResult(const TArg&)> internal)
 template <typename T, typename TArg = typename TFunctionTraits<T>::TArg, typename TResult = typename TFunctionTraits<T>::TResult>
 TGenericTool MakeGeneric(T internal)
 {
-    // TODO(tramsmm): Clean this mess
-    typedef typename std::remove_cv<typename std::remove_reference<TArg>::type>::type TCleanArg;
-    return Ysonize<TCleanArg, TResult>(internal);
+    return Ysonize<
+        typename std::decay<TArg>::type,
+        typename std::decay<TResult>::type>(internal);
 }
 
 template <typename TTool, const char* Name>
