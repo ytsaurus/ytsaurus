@@ -257,21 +257,36 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessWriterPtr CreateSchemalessWriterAdapter(
+ISchemalessMultiSourceWriterPtr CreateSchemalessWriterAdapter(
     std::unique_ptr<IYsonConsumer> consumer,
-    TNameTablePtr nameTable)
+    TNameTablePtr nameTable,
+    bool enableTableSwitch,
+    bool enableKeySwitch,
+    int keyColumnCount)
 {
-    return New<TSchemalessWriterAdapter>(std::move(consumer), nameTable);
+    return New<TSchemalessWriterAdapter>(
+        std::move(consumer),
+        nameTable,
+        enableTableSwitch,
+        enableKeySwitch,
+        keyColumnCount);
 }
 
-ISchemalessWriterPtr CreateSchemalessWriterForFormat(
+ISchemalessMultiSourceWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     TNameTablePtr nameTable,
-    TOutputStream* output)
+    TOutputStream* output,
+    bool enableTableSwitch,
+    bool enableKeySwitch,
+    int keyColumnCount)
 {
     return CreateSchemalessWriterAdapter(
         CreateConsumerForFormat(format, EDataType::Tabular, output),
-        nameTable);
+        nameTable,
+        enableTableSwitch,
+        enableKeySwitch,
+        keyColumnCount);
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -34,9 +34,6 @@ TContextPreservingInput::TContextPreservingInput(
     bool enableTableSwitch,
     bool enableKeySwitch)
     : Reader_(reader)
-    , EnableTableSwitch_(enableTableSwitch)
-    , TableIndex_(-1)
-    , EnableKeySwitch_(enableKeySwitch)
 {
     CurrentBuffer_.Reserve(BufferSize);
     PreviousBuffer_.Reserve(BufferSize);
@@ -46,11 +43,10 @@ TContextPreservingInput::TContextPreservingInput(
     Consumer_ = consumer.get();
     Writer_ = CreateSchemalessWriterAdapter(
         std::move(consumer),
-        Reader_->GetNameTable());
-
-    if (EnableKeySwitch_) {
-        KeyColumnCount_ = Reader_->GetKeyColumns().size();
-    }
+        Reader_->GetNameTable(),
+        enableTableSwitch,
+        enableKeySwitch,
+        Reader_->GetKeyColumns().size());
 }
 
 void TContextPreservingInput::PipeReaderToOutput(TOutputStream* outputStream)
@@ -63,16 +59,7 @@ void TContextPreservingInput::PipeReaderToOutput(TOutputStream* outputStream)
             continue;
         }
 
-        if (EnableTableSwitch_ && TableIndex_ != Reader_->GetTableIndex()) {
-            TableIndex_ = Reader_->GetTableIndex();
-            BuildYsonListFluently(Consumer_)
-                .Item()
-                .BeginAttributes()
-                    .Item("table_index").Value(TableIndex_)
-                .EndAttributes()
-                .Entity();
-        }
-
+        Writer_->SetTableIndex(Reader_->GetTableIndex());
         WriteRows(rows, outputStream);
     }
 
@@ -90,18 +77,6 @@ void TContextPreservingInput::WriteRows(const std::vector<TUnversionedRow>& rows
     for (auto row : rows) {
         oneRow[0] = row;
 
-        if (EnableKeySwitch_) {
-            if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
-                BuildYsonListFluently(Consumer_)
-                    .Item()
-                    .BeginAttributes()
-                        .Item("key_switch").Value(true)
-                    .EndAttributes()
-                    .Entity();
-            }
-            CurrentKey_ = row;
-        }
-
         if (!Writer_->Write(oneRow)) {
             WaitFor(Writer_->GetReadyEvent())
                 .ThrowOnError();
@@ -115,11 +90,6 @@ void TContextPreservingInput::WriteRows(const std::vector<TUnversionedRow>& rows
 
         swap(CurrentBuffer_, PreviousBuffer_);
         CurrentBuffer_.Clear();
-    }
-
-    if (EnableKeySwitch_ && CurrentKey_) {
-        LastKey_ = GetKeyPrefix(CurrentKey_, KeyColumnCount_);
-        CurrentKey_ = LastKey_.Get();
     }
 }
 

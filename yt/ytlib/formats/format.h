@@ -72,14 +72,20 @@ NVersionedTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& format,
     NConcurrency::IAsyncOutputStreamPtr output);
 
-NVersionedTableClient::ISchemalessWriterPtr CreateSchemalessWriterAdapter(
+NVersionedTableClient::ISchemalessMultiSourceWriterPtr CreateSchemalessWriterAdapter(
     std::unique_ptr<NYson::IYsonConsumer> consumer,
-    NVersionedTableClient::TNameTablePtr nameTable);
+    NVersionedTableClient::TNameTablePtr nameTable,
+    bool enableTableSwitch,
+    bool enableKeySwitch,
+    int keyColumnCount);
 
-NVersionedTableClient::ISchemalessWriterPtr CreateSchemalessWriterForFormat(
+NVersionedTableClient::ISchemalessMultiSourceWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     NVersionedTableClient::TNameTablePtr nameTable,
-    TOutputStream* output);
+    TOutputStream* output,
+    bool enableTableSwitch,
+    bool enableKeySwitch,
+    int keyColumnCount);
 
 NYTree::TYsonProducer CreateProducerForFormat(
     const TFormat& format,

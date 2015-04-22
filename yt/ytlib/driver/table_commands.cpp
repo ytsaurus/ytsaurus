@@ -67,7 +67,7 @@ void TReadTableCommand::DoExecute()
     TBufferedOutput bufferedOutput(output.get());
     auto format = Context_->GetOutputFormat();
 
-    auto writer = CreateSchemalessWriterForFormat(format, nameTable, &bufferedOutput);
+    auto writer = CreateSchemalessWriterForFormat(format, nameTable, &bufferedOutput, false, false, 0);
 
     PipeReaderToWriter(reader, writer, Context_->GetConfig()->ReadBufferRowCount);
 }
