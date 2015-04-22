@@ -169,6 +169,7 @@ private:
                         false,
                         NTracing::TTraceContext(),
                         nullptr,
+                        startTime,
                         TSharedRefArray());
                     NextRequest();
                     continue;
@@ -228,6 +229,7 @@ private:
                         mutating,
                         traceContextGuard.GetContext(),
                         &requestHeader,
+                        startTime,
                         asyncResponseMessage.Get());
                 } else {
                     LastMutationCommitted = asyncResponseMessage.Apply(BIND(
@@ -236,7 +238,8 @@ private:
                         CurrentRequestIndex,
                         mutating,
                         traceContextGuard.GetContext(),
-                        &requestHeader));
+                        &requestHeader,
+                        startTime));
                 }
 
                 NextRequest();
@@ -261,6 +264,7 @@ private:
         bool mutating,
         const NTracing::TTraceContext& traceContext,
         const TRequestHeader* requestHeader,
+        const TInstant startTime,
         const TErrorOr<TSharedRefArray>& responseMessageOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -284,10 +288,11 @@ private:
 
             auto error = FromProto<TError>(responseHeader.error());
 
-            LOG_DEBUG("Execute[%v] -> Error: %v (RequestId: %v)",
+            LOG_DEBUG("Execute[%v] -> Error: %v (RequestId: %v, Duration: %v)",
                 requestIndex,
                 error,
-                Context->GetRequestId());
+                Context->GetRequestId(),
+                (TInstant::Now() - startTime).MilliSeconds());
         }
 
         ResponseMessages[requestIndex] = std::move(responseMessage);
