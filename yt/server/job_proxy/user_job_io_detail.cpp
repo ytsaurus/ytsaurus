@@ -76,7 +76,7 @@ void TUserJobIOBase::CreateReader()
         .ThrowOnError();
 }
 
-TSchemalessReaderFactory TUserJobIOBase::GetReaderCreator()
+TSchemalessReaderFactory TUserJobIOBase::GetReaderFactory()
 {
     for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
         for (const auto& chunkSpec : inputSpec.chunks()) {

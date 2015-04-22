@@ -2,13 +2,20 @@
 #include "preprocess.h"
 #include "operation_tracker.h"
 
-#include <server/job_proxy/config.h>
-#include <ytlib/driver/driver.h>
 #include <core/ytree/ypath_proxy.h>
+
+#include <core/logging/log_manager.h>
+
+#include <ytlib/driver/driver.h>
+
 #include <ytlib/scheduler/scheduler_service_proxy.h>
 #include <ytlib/scheduler/helpers.h>
-#include <core/logging/log_manager.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
+
+#include <ytlib/new_table_client/schema.h>
+
+#include <server/job_proxy/config.h>
 
 #include <util/stream/format.h>
 
@@ -20,6 +27,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NScheduler;
 using namespace NConcurrency;
+using namespace NVersionedTableClient;
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -71,11 +79,15 @@ TMapExecutor::TMapExecutor()
     , OutArg("", "out", "output table path", false, "YPATH")
     , CommandArg("", "command", "mapper shell command", true, "", "STRING")
     , FileArg("", "file", "additional file path", false, "YPATH")
+    , QueryArg("", "query", "optional query", false, "", "STRING")
+    , InputSchemaArg("", "input_schema", "input table schema", false, "", "YSON")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
     CmdLine.add(CommandArg);
     CmdLine.add(FileArg);
+    CmdLine.add(QueryArg);
+    CmdLine.add(InputSchemaArg);
 }
 
 void TMapExecutor::BuildParameters(IYsonConsumer* consumer)
@@ -91,6 +103,13 @@ void TMapExecutor::BuildParameters(IYsonConsumer* consumer)
             .Item("mapper").BeginMap()
                 .Item("command").Value(CommandArg.getValue())
                 .Item("file_paths").Value(files)
+                .DoIf(!QueryArg.getValue().empty(), [=] (TFluentMap fluent) {
+                    fluent.Item("query").Value(QueryArg.getValue());
+                })
+                .DoIf(!InputSchemaArg.getValue().empty(), [=] (TFluentMap fluent) {
+                    fluent.Item("input_schema").Value(
+                        ConvertTo<TTableSchema>(TYsonString(InputSchemaArg.getValue(), EYsonType::Node)));
+                })
             .EndMap()
         .EndMap();
 

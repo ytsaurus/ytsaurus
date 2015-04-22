@@ -29,9 +29,9 @@ public:
 
     virtual TFuture<void> Open(const TTableSchema& schema, const TNullable<TKeyColumns>& keyColumns = Null) override
     {
+        YCHECK(!UnderlyingWriter_);
         auto nameTable = TNameTable::FromSchema(schema);
         UnderlyingWriter_ = CreateWriter_(nameTable);
-        YCHECK(UnderlyingWriter_);
         return UnderlyingWriter_->Open();
     }
 

@@ -27,7 +27,7 @@ struct IUserJobIO
 
     virtual void CreateReader() = 0;
 
-    virtual NVersionedTableClient::TSchemalessReaderFactory GetReaderCreator() = 0;
+    virtual NVersionedTableClient::TSchemalessReaderFactory GetReaderFactory() = 0;
 
     virtual ~IUserJobIO()
     { }

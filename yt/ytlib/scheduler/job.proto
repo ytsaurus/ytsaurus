@@ -39,6 +39,12 @@ message TUserJobSpec
     // The user command to be executed.
     required string shell_command = 2;
 
+    // Query to execute.
+    optional string query = 19;
+
+    // Schema for the query.
+    optional NYT.NVersionedTableClient.NProto.TTableSchemaExt input_schema = 20;
+
     // Input format description (in YSON).
     required string input_format = 3;
 
