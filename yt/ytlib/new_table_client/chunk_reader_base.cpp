@@ -37,17 +37,21 @@ TChunkReaderBase::TChunkReaderBase(
 
 TFuture<void> TChunkReaderBase::Open()
 {
-    auto blocks = GetBlockSequence();
-    if (blocks.empty()) {
-        return VoidFuture;
-    }
+    try {
+        auto blocks = GetBlockSequence();
+        if (blocks.empty()) {
+            return VoidFuture;
+        }
 
-    SequentialReader_ = New<TSequentialReader>(
-        Config_,
-        std::move(blocks),
-        UnderlyingReader_,
-        BlockCache_,
-        ECodec(Misc_.compression_codec()));
+        SequentialReader_ = New<TSequentialReader>(
+            Config_,
+            std::move(blocks),
+            UnderlyingReader_,
+            BlockCache_,
+            ECodec(Misc_.compression_codec()));
+    } catch (const std::exception& ex) {
+        return MakeFuture(TError(ex));
+    }
 
     YCHECK(SequentialReader_->HasMoreBlocks());
     ReadyEvent_ = SequentialReader_->FetchNextBlock();
