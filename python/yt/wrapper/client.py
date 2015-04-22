@@ -22,6 +22,7 @@ class Yt(object):
         if self.hosts is None:
             self.hosts = "hosts"
         self._transaction_stack = []
+        self._banned_hosts = {}
 
     def _add_transaction(self, transaction_id, ping_ancestor_transactions):
         self._transaction_stack.append((transaction_id, ping_ancestor_transactions))

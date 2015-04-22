@@ -3,7 +3,7 @@ import config
 import yt.logger as logger
 from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid, bool_to_string, get_value, get_version
-from errors import YtError, YtResponseError
+from errors import YtError, YtResponseError, YtProxyUnavailable
 from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api, get_proxy_url, parse_error_from_headers
 
 from yt.yson.convert import json_to_yson
@@ -11,6 +11,7 @@ import yt.yson as yson
 
 import sys
 import simplejson as json
+from datetime import datetime
 
 def escape_utf8(obj):
     def escape_symbol(sym):
@@ -125,10 +126,29 @@ def get_hosts(client=None):
 
     return make_get_request_with_retries("http://{0}/{1}".format(proxy, hosts))
 
-def get_heavy_proxy(client=None):
+def get_banned_hosts(client):
+    if client is not None:
+        return client._banned_hosts
+    else:
+        return config._BANNED_HOSTS
+
+def get_heavy_proxy(client):
+    def total_seconds(td):
+        return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
+
     client = get_value(client, config.CLIENT)
+    banned_hosts = get_banned_hosts(client=client)
+
+    now = datetime.now()
+    for host in banned_hosts.keys():
+        time = banned_hosts[host]
+        if total_seconds(now - time) * 1000 > config._HOST_BAN_PERIOD:
+            del banned_hosts[host]
     if config.USE_HOSTS:
         hosts = get_hosts(client=client)
+        for host in hosts:
+            if host not in banned_hosts:
+                return host
         if hosts:
             return hosts[0]
     if client is not None:
@@ -136,6 +156,8 @@ def get_heavy_proxy(client=None):
     else:
         return config.http.PROXY
 
+def ban_host(host, client):
+    get_banned_hosts(client=client)[host] = datetime.now()
 
 def make_request(command_name, params,
                  data=None, proxy=None,
@@ -250,16 +272,20 @@ def make_request(command_name, params,
 
     stream = (command.output_type in ["binary", "tabular"])
 
-    response = make_request_with_retries(
-        command.http_method(),
-        url,
-        make_retries=allow_retries,
-        retry_unavailable_proxy=retry_unavailable_proxy,
-        retry_action=retry_action,
-        headers=headers,
-        data=data,
-        stream=stream,
-        response_should_be_json=response_should_be_json)
+    try:
+        response = make_request_with_retries(
+            command.http_method(),
+            url,
+            make_retries=allow_retries,
+            retry_unavailable_proxy=retry_unavailable_proxy,
+            retry_action=retry_action,
+            headers=headers,
+            data=data,
+            stream=stream,
+            response_should_be_json=response_should_be_json)
+    except YtProxyUnavailable:
+        ban_host(proxy)
+        raise
 
     print_info("Response headers %r", response.headers)
 
