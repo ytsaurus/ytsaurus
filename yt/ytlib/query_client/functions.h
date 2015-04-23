@@ -37,19 +37,7 @@ struct IAggregateFunctionDescriptor
 {
     virtual Stroka GetName() const = 0;
 
-    virtual TCodegenAggregateInit MakeCodegenInit(
-        EValueType type,
-        const Stroka& name) const = 0;
-
-    virtual TCodegenAggregateUpdate MakeCodegenAggregate(
-        EValueType type,
-        const Stroka& name) const = 0;
-
-    virtual TCodegenAggregateMerge MakeCodegenMerge(
-        EValueType type,
-        const Stroka& name) const = 0;
-
-    virtual TCodegenAggregateFinalize MakeCodegenFinalize(
+    virtual const TCodegenAggregate MakeCodegenAggregate(
         EValueType type,
         const Stroka& name) const = 0;
 };
