@@ -234,7 +234,7 @@ struct TQuery
     i64 Limit = 0;
 };
 
-typedef TVariant<TQuery, TNamedExpression> TAstHead;
+typedef TVariant<TQuery, TExpressionPtr> TAstHead;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -144,9 +144,9 @@
 head
     : StrayWillParseQuery head-clause
     | StrayWillParseJobQuery head-clause
-    | StrayWillParseExpression named-expression[expression]
+    | StrayWillParseExpression expression[expr]
         {
-            head->As<TNamedExpression>() = $expression;
+            head->As<TExpressionPtr>() = $expr;
         }
 ;
 
