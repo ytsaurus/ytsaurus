@@ -39,8 +39,12 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     std::vector<TConstQueryPtr> subqueries;
 
+    auto subqueryInputRowLimit = refiners.empty()
+        ? 0
+        : 2 * std::min(query->InputRowLimit, std::numeric_limits<i64>::max() / 2) / refiners.size();
+
     auto subqueryPattern = New<TQuery>(
-        query->InputRowLimit,
+        subqueryInputRowLimit,
         query->OutputRowLimit);
 
     subqueryPattern->TableSchema = query->TableSchema;
