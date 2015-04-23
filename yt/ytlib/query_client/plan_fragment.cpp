@@ -474,7 +474,7 @@ public:
 
             result.push_back(New<TInOpExpression>(
                 inExpr->SourceLocation,
-                inExprOperands,
+                std::move(inExprOperands),
                 caturedRows));
         }
 

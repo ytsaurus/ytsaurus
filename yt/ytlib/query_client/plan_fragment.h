@@ -198,19 +198,10 @@ struct TInOpExpression
 
     TInOpExpression(
         const TSourceLocation& sourceLocation,
-        const TArguments& arguments,
+        TArguments arguments,
         const std::vector<TRow>& values)
         : TExpression(sourceLocation, EValueType::Boolean)
-        , Arguments(arguments)
-        , Values(RowBuffer.Capture(values))
-    { }
-
-    TInOpExpression(
-        const TSourceLocation& sourceLocation,
-        const TArguments& arguments,
-        std::vector<TRow>&& values)
-        : TExpression(sourceLocation, EValueType::Boolean)
-        , Arguments(arguments)
+        , Arguments(std::move(arguments))
         , Values(RowBuffer.Capture(values))
     { }
 
