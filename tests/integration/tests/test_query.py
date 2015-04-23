@@ -132,10 +132,10 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/jl",
             attributes = {
                 "schema": [
-                    {"name": "LogID", "type": "int64"},
-                    {"name": "OrderID", "type": "int64"},
-                    {"name": "UpdateTime", "type": "int64"}],
-                "key_columns": ["LogID", "OrderID"]
+                    {"name": "a", "type": "int64"},
+                    {"name": "b", "type": "int64"},
+                    {"name": "c", "type": "int64"}],
+                "key_columns": ["a", "b"]
             })
 
         mount_table("//tmp/jl")
@@ -144,59 +144,57 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/jr",
             attributes = {
                 "schema": [
-                    {"name": "UpdateTime", "type": "int64"},
-                    {"name": "LogID1", "type": "int64"},
-                    {"name": "OrderID1", "type": "int64"}],
-                "key_columns": ["UpdateTime"]
+                    {"name": "c", "type": "int64"},
+                    {"name": "d", "type": "int64"},
+                    {"name": "e", "type": "int64"}],
+                "key_columns": ["c"]
             })
 
         mount_table("//tmp/jr")
         self._wait_for_tablet_state("//tmp/jr", ["mounted"])
 
         data = [
-            {"LogID": 1, "OrderID": 2, "UpdateTime": 0 },
-            {"LogID": 1, "OrderID": 3, "UpdateTime": 1 },
-            {"LogID": 1, "OrderID": 4, "UpdateTime": 2 },
-            {"LogID": 2, "OrderID": 1, "UpdateTime": 3 },
-            {"LogID": 2, "OrderID": 2, "UpdateTime": 4 },
-            {"LogID": 2, "OrderID": 3, "UpdateTime": 5 },
-            {"LogID": 2, "OrderID": 4, "UpdateTime": 6 },
-            {"LogID": 3, "OrderID": 1, "UpdateTime": 7 }]
+            {"a": 1, "b": 2, "c": 0 },
+            {"a": 1, "b": 3, "c": 1 },
+            {"a": 1, "b": 4, "c": 2 },
+            {"a": 2, "b": 1, "c": 3 },
+            {"a": 2, "b": 2, "c": 4 },
+            {"a": 2, "b": 3, "c": 5 },
+            {"a": 2, "b": 4, "c": 6 },
+            {"a": 3, "b": 1, "c": 7 }]
 
         insert_rows("//tmp/jl", data)
 
         data = [
-            {"LogID1": 1, "OrderID1": 2, "UpdateTime": 0 },
-            {"LogID1": 1, "OrderID1": 3, "UpdateTime": 1 },
-            {"LogID1": 1, "OrderID1": 4, "UpdateTime": 2 },
-            {"LogID1": 2, "OrderID1": 1, "UpdateTime": 3 },
-            {"LogID1": 2, "OrderID1": 2, "UpdateTime": 4 },
-            {"LogID1": 2, "OrderID1": 3, "UpdateTime": 5 },
-            {"LogID1": 2, "OrderID1": 4, "UpdateTime": 6 },
-            {"LogID1": 3, "OrderID1": 1, "UpdateTime": 7 }]
+            {"d": 1, "e": 2, "c": 0 },
+            {"d": 1, "e": 3, "c": 1 },
+            {"d": 1, "e": 4, "c": 2 },
+            {"d": 2, "e": 1, "c": 3 },
+            {"d": 2, "e": 2, "c": 4 },
+            {"d": 2, "e": 3, "c": 5 },
+            {"d": 2, "e": 4, "c": 6 },
+            {"d": 3, "e": 1, "c": 7 }]
 
         insert_rows("//tmp/jr", data)
 
         expected = [
-            {"LogID": 1, "OrderID": 2, "UpdateTime": 0, "LogID1": 1, "OrderID1": 2},
-            {"LogID": 1, "OrderID": 3, "UpdateTime": 1, "LogID1": 1, "OrderID1": 3},
-            {"LogID": 1, "OrderID": 4, "UpdateTime": 2, "LogID1": 1, "OrderID1": 4},
-            {"LogID": 2, "OrderID": 1, "UpdateTime": 3, "LogID1": 2, "OrderID1": 1},
-            {"LogID": 2, "OrderID": 2, "UpdateTime": 4, "LogID1": 2, "OrderID1": 2},
-            {"LogID": 2, "OrderID": 3, "UpdateTime": 5, "LogID1": 2, "OrderID1": 3},
-            {"LogID": 2, "OrderID": 4, "UpdateTime": 6, "LogID1": 2, "OrderID1": 4},
-            {"LogID": 3, "OrderID": 1, "UpdateTime": 7, "LogID1": 3, "OrderID1": 1}]
+            {"a": 1, "b": 2, "c": 0, "d": 1, "e": 2},
+            {"a": 1, "b": 3, "c": 1, "d": 1, "e": 3},
+            {"a": 1, "b": 4, "c": 2, "d": 1, "e": 4},
+            {"a": 2, "b": 1, "c": 3, "d": 2, "e": 1},
+            {"a": 2, "b": 2, "c": 4, "d": 2, "e": 2},
+            {"a": 2, "b": 3, "c": 5, "d": 2, "e": 3},
+            {"a": 2, "b": 4, "c": 6, "d": 2, "e": 4},
+            {"a": 3, "b": 1, "c": 7, "d": 3, "e": 1}]
 
-        actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using UpdateTime where LogID < 4")
+        actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using c where a < 4")
         assert expected == actual
 
         expected = [
-            {"LogID": 2, "OrderID": 1, "UpdateTime": 3, "LogID1": 2, "OrderID1": 1}]
+            {"a": 2, "b": 1, "c": 3, "d": 2, "e": 1}]
 
-        actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using UpdateTime where (LogID, OrderID) IN ((2, 1))")
-
-
-
+        actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using c where (a, b) IN ((2, 1))")
+        assert expected == actual
 
     def test_types(self):
         create("table", "//tmp/t")
