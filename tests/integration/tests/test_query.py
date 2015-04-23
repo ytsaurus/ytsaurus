@@ -104,8 +104,11 @@ class TestQuery(YTEnvSetup):
 
         create("table", "//tmp/o1",
             attributes = {
-                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "int64"}],
-                "key_columns": ["key"]
+                "schema": [
+                    {"name": "k", "type": "int64"},
+                    {"name": "u", "type": "int64"},
+                    {"name": "v", "type": "int64"}],
+                "key_columns": ["k"]
             })
 
         mount_table("//tmp/o1")
@@ -115,14 +118,14 @@ class TestQuery(YTEnvSetup):
         shuffle(values)
 
         data = [
-            {"key": i, "value": values[i]}
+            {"k": i, "v": values[i], "u": randint(0, 1000)}
             for i in xrange(0, 100)]
         insert_rows("//tmp/o1", data)
 
-        expected = data[:]
-        expected = sorted(expected, cmp=lambda x, y: x['value'] - y['value'])[0:10]
+        expected = [{col: v for col, v in row.iteritems() if col in ['k', 'v']} for row in data if row['u'] > 500]
+        expected = sorted(expected, cmp=lambda x, y: x['v'] - y['v'])[0:10]
 
-        actual = select_rows("key, value from [//tmp/o1] order by value limit 10")
+        actual = select_rows("k, v from [//tmp/o1] where u > 500 order by v limit 10")
         assert expected == actual
 
     def test_join(self):

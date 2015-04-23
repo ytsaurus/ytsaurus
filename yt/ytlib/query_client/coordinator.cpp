@@ -45,33 +45,13 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     auto subqueryOutputRowLimit = query->OutputRowLimit;
 
-    for (const auto& refiner : refiners) {
-        // Set initial schema and key columns
-        auto subquery = New<TQuery>(
-            subqueryInputRowLimit,
-            subqueryOutputRowLimit);
+    auto subqueryPattern = New<TQuery>(
+        query->InputRowLimit,
+        query->OutputRowLimit);
 
-        subquery->TableSchema = query->TableSchema;
-        subquery->KeyColumns = query->KeyColumns;
-        subquery->JoinClause = query->JoinClause;
-
-        if (query->WhereClause) {
-            subquery->WhereClause = refiner(query->WhereClause, subquery->TableSchema, subquery->KeyColumns);
-        }
-
-        if (query->GroupClause) {
-            subquery->GroupClause = query->GroupClause;
-        } else {
-            if (query->OrderClause) {
-                subquery->OrderClause = query->OrderClause;            
-            } else {            
-                subquery->ProjectClause = query->ProjectClause;
-            }
-            subquery->Limit = query->Limit;
-        }
-
-        subqueries.push_back(subquery);
-    }
+    subqueryPattern->TableSchema = query->TableSchema;
+    subqueryPattern->KeyColumns = query->KeyColumns;
+    subqueryPattern->JoinClause = query->JoinClause;
 
     auto topQuery = New<TQuery>(
         query->InputRowLimit,
@@ -81,7 +61,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     topQuery->Limit = query->Limit;
     
     if (query->GroupClause) {
-        topQuery->TableSchema = query->GroupClause->GetTableSchema();
+        subqueryPattern->GroupClause = query->GroupClause;
         if (subqueries.size() > 1) {
             auto groupClause = New<TGroupClause>();
             groupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
@@ -112,12 +92,30 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
         topQuery->ProjectClause = query->ProjectClause;
     } else {
-        topQuery->TableSchema = query->GetTableSchema();
+        subqueryPattern->Limit = query->Limit;
+        
 
         if (query->OrderClause) {
+            subqueryPattern->OrderClause = query->OrderClause;
             topQuery->ProjectClause = query->ProjectClause;
+        } else {
+            subqueryPattern->ProjectClause = query->ProjectClause;
         }
     }
+
+    topQuery->TableSchema = subqueryPattern->GetTableSchema();
+
+    for (const auto& refiner : refiners) {
+        // Set initial schema and key columns
+        auto subquery = New<TQuery>(*subqueryPattern);
+        subquery->Id = TGuid::Create();
+
+        if (query->WhereClause) {
+            subquery->WhereClause = refiner(query->WhereClause, subquery->TableSchema, subquery->KeyColumns);
+        }
+
+        subqueries.push_back(subquery);
+    }    
 
     return std::make_pair(topQuery, subqueries);
 }
