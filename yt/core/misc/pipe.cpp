@@ -18,7 +18,7 @@ TPipeFactory::TPipeFactory(int minFD)
 TPipeFactory::~TPipeFactory()
 {
     for (int fd : ReservedFDs_) {
-        TryClose(fd);
+        YCHECK(TryClose(fd, false));
     }
 }
 
@@ -40,7 +40,7 @@ TPipe TPipeFactory::Create()
 void TPipeFactory::Clear()
 {
     for (int& fd : ReservedFDs_) {
-        SafeClose(fd);
+        YCHECK(TryClose(fd, false));
         fd = TPipe::InvalidFD;
     }
     ReservedFDs_.clear();

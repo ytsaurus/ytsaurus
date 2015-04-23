@@ -180,7 +180,7 @@ bool TryDup2(int oldFD, int newFD)
     }
 }
 
-bool TryClose(int fd)
+bool TryClose(int fd, bool ignoreBadFD)
 {
     while (true) {
         auto res = ::close(fd);
@@ -194,18 +194,18 @@ bool TryClose(int fd)
             // http://rb.yandex-team.ru/arc/r/44030/
             // before editing.
             case EINTR:
-            // If the descriptor is no longer valid, just ignore it.
-            case EBADF:
                 return true;
+            case EBADF:
+                return ignoreBadFD;
             default:
                 return false;
         }
     }
 }
 
-void SafeClose(int fd)
+void SafeClose(int fd, bool ignoreBadFD)
 {
-    if (!TryClose(fd)) {
+    if (!TryClose(fd, ignoreBadFD)) {
         THROW_ERROR TError::FromSystem();
     }
 }
@@ -294,12 +294,12 @@ void SafeSetUid(int uid)
 
 #else
 
-bool TryClose(int /* fd */)
+bool TryClose(int /* fd */, bool /* ignoreBadFD */)
 {
     YUNIMPLEMENTED();
 }
 
-void SafeClose(int /* fd */)
+void SafeClose(int /* fd */, bool /* ignoreBadFD */)
 {
     YUNIMPLEMENTED();
 }

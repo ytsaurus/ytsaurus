@@ -197,7 +197,7 @@ void TProcess::AddArguments(std::initializer_list<TStringBuf> args)
 void TProcess::AddCloseFileAction(int fd)
 {
     TSpawnAction action = {
-        std::bind(TryClose, fd),
+        std::bind(TryClose, fd, true),
         Format("Error closing %v file descriptor in the child", fd)
     };
 
@@ -274,7 +274,7 @@ void TProcess::Spawn()
     // This should not fail ever.
     YCHECK(TrySetSignalMask(&oldSignals, nullptr));
 
-    YCHECK(TryClose(Pipe_.WriteFD));
+    YCHECK(TryClose(Pipe_.WriteFD, false));
     Pipe_.WriteFD = TPipe::InvalidFD;
 
     ThrowOnChildError();
@@ -314,6 +314,9 @@ void TProcess::ThrowOnChildError()
 #ifdef _linux_
     int data[2];
     int res = ::read(Pipe_.ReadFD, &data, sizeof(data));
+    YCHECK(TryClose(Pipe_.ReadFD, false));
+    Pipe_.ReadFD = TPipe::InvalidFD;
+
     if (res == 0) {
         // Child successfully spawned or was killed by a signal.
         // But there is no way to ditinguish between two situations:
