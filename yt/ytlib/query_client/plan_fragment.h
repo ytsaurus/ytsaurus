@@ -451,7 +451,7 @@ TPlanFragmentPtr PreparePlanFragment(
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
 
-TPlanFragmentPtr PrepareJobPlanFragment(
+TQueryPtr PrepareJobQuery(
     const Stroka& source,
     const TTableSchema& initialTableSchema,
     IFunctionRegistry* functionRegistry);

@@ -106,11 +106,11 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
-%type <TNullableNamedExprs> select-clause
-%type <TExpressionPtr> where-clause
-%type <TNamedExpressionList> group-by-clause
-%type <TIdentifierList> order-by-clause
-%type <i64> limit-clause
+%type <TNullableNamedExprs> select-clause-impl
+%type <TExpressionPtr> where-clause-impl
+%type <TNamedExpressionList> group-by-clause-impl
+%type <TIdentifierList> order-by-clause-impl
+%type <i64> limit-clause-impl
 
 %type <TIdentifierList> identifier-list
 %type <TNamedExpressionList> named-expression-list
@@ -142,29 +142,30 @@
 %%
 
 head
-    : StrayWillParseQuery head-clause
-    | StrayWillParseJobQuery head-clause
-    | StrayWillParseExpression expression[expr]
+    : StrayWillParseQuery parse-query
+    | StrayWillParseJobQuery parse-job-query
+    | StrayWillParseExpression parse-expression
+;
+
+parse-query
+    : select-clause from-clause where-clause group-by-clause order-by-clause limit-clause
+;
+
+parse-job-query
+    : select-clause where-clause
+;
+
+parse-expression
+    : expression[expr]
         {
             head->As<TExpressionPtr>() = $expr;
         }
 ;
 
-head-clause
-    : select-clause[select] tail-clause-from
+select-clause
+    : select-clause-impl[select]
         {
             head->As<TQuery>().SelectExprs = $select;
-        }
-;
-
-select-clause
-    : named-expression-list[projections]
-        {
-            $$ = $projections;
-        }
-    | Asterisk
-        {
-            $$ = TNullableNamedExprs();
         }
 ;
 
@@ -179,50 +180,74 @@ from-clause
         }
 ;
 
-tail-clause-from
-    : from-clause
-    | from-clause tail-clause-where
-
-tail-clause-where
-    : where-clause[where]
+where-clause
+    : where-clause-impl[where]
         {
             head->As<TQuery>().WherePredicate = $where;
         }
-    | where-clause[where] tail-clause-group-by
-        {
-            head->As<TQuery>().WherePredicate = $where;
-        }
-    | tail-clause-group-by
+    |
 ;
 
-tail-clause-group-by
-    : group-by-clause[group]
+group-by-clause
+    : group-by-clause-impl[group]
         {
             head->As<TQuery>().GroupExprs = $group;
         }
-    | group-by-clause[group] tail-clause-order-by
-        {
-            head->As<TQuery>().GroupExprs = $group;
-        }
-    | tail-clause-order-by
+    |
 ;
 
-tail-clause-order-by
-    : order-by-clause[order]
+order-by-clause
+    : order-by-clause-impl[order]
         {
             head->As<TQuery>().OrderFields = $order;
         }
-    | order-by-clause[order] tail-clause-limit
-        {
-            head->As<TQuery>().OrderFields = $order;
-        }
-    | tail-clause-limit
+    |
 ;
 
-tail-clause-limit
-    : limit-clause[limit]
+limit-clause
+    : limit-clause-impl[limit]
         {
             head->As<TQuery>().Limit = $limit;
+        }
+    |
+;
+
+select-clause-impl
+    : named-expression-list[projections]
+        {
+            $$ = $projections;
+        }
+    | Asterisk
+        {
+            $$ = TNullableNamedExprs();
+        }
+;
+
+where-clause-impl
+    : KwWhere or-op-expr[predicate]
+        {
+            $$ = $predicate;
+        }
+;
+
+group-by-clause-impl
+    : KwGroupBy named-expression-list[exprs]
+        {
+            $$ = $exprs;
+        }
+;
+
+order-by-clause-impl
+    : KwOrderBy identifier-list[fields]
+        {
+            $$ = $fields;
+        }
+;
+
+limit-clause-impl
+    : KwLimit Int64Literal[limit]
+        {
+            $$ = $limit;
         }
 ;
 
@@ -235,34 +260,6 @@ identifier-list
     | Identifier[value]
         {
             $$.push_back(Stroka($value));
-        }
-;
-
-where-clause
-    : KwWhere or-op-expr[predicate]
-        {
-            $$ = $predicate;
-        }
-;
-
-group-by-clause
-    : KwGroupBy named-expression-list[exprs]
-        {
-            $$ = $exprs;
-        }
-;
-
-order-by-clause
-    : KwOrderBy identifier-list[fields]
-        {
-            $$ = $fields;
-        }
-;
-
-limit-clause
-    : KwLimit Int64Literal[limit]
-        {
-            $$ = $limit;
         }
 ;
 

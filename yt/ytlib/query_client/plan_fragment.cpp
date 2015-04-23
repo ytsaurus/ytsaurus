@@ -108,45 +108,38 @@ Stroka InferName(TConstExpressionPtr expr)
 
 Stroka InferName(TConstQueryPtr query)
 {
-    bool newBlock = true;
-    auto block = [&] {
-        bool isNewBlock = newBlock;
-        newBlock = false;
-        return Stroka(isNewBlock ? "" : " ");
+    auto namedItemFormatter = [] (const TNamedItem& item) {
+        return InferName(item.Expression) + " AS " + item.Name;
     };
 
-    bool newTuple = true;
-    auto comma = [&] {
-        bool isNewTuple = newTuple;
-        newTuple = false;
-        return Stroka(isNewTuple ? "" : ", ");
-    };
-
+    std::vector<Stroka> clauses;
     Stroka str;
 
-    str += block() + "SELECT ";
     if (query->ProjectClause) {
-        newTuple = true;
-        for (const auto& namedItem : query->ProjectClause->Projections) {
-            str += comma() + InferName(namedItem.Expression) + " AS " + namedItem.Name;
-        }
+        str = JoinToString(query->ProjectClause->Projections, namedItemFormatter);
     } else {
-        str += "*";
+        str = "*";
     }
-
-    if (query->GroupClause) {
-        str += block() + "GROUP BY ";
-        newTuple = true;
-        for (const auto& namedItem : query->GroupClause->GroupItems) {
-            str += comma() + InferName(namedItem.Expression) + " AS " + namedItem.Name;
-        }
-    }
+    clauses.emplace_back("SELECT " + str);
 
     if (query->WhereClause) {
-        str += block() + "WHERE " + InferName(query->WhereClause);
+        str = InferName(query->WhereClause);
+        clauses.push_back(Stroka("WHERE ") + str);
+    }
+    if (query->GroupClause) {
+        str = JoinToString(query->GroupClause->GroupItems, namedItemFormatter);
+        clauses.push_back(Stroka("GROUP BY ") + str);
+    }
+    if (query->OrderClause) {
+        str = JoinToString(query->OrderClause->OrderColumns);
+        clauses.push_back(Stroka("ORDER BY ") + str);
+    }
+    if (query->Limit < std::numeric_limits<i64>::max()) {
+        str = ToString(query->Limit);
+        clauses.push_back(Stroka("LIMIT ") + str);
     }
 
-    return str;
+    return JoinToString(clauses, Stroka(" "));
 }
 
 Stroka TExpression::GetName() const
@@ -1334,7 +1327,7 @@ TPlanFragmentPtr PreparePlanFragment(
     return planFragment;
 }
 
-TPlanFragmentPtr PrepareJobPlanFragment(
+TQueryPtr PrepareJobQuery(
     const Stroka& source,
     const TTableSchema& tableSchema,
     IFunctionRegistry* functionRegistry)
@@ -1360,9 +1353,8 @@ TPlanFragmentPtr PrepareJobPlanFragment(
     TSchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
 
     PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
-    planFragment->Query = query;
 
-    return planFragment;
+    return query;
 }
 
 TConstExpressionPtr PrepareExpression(
