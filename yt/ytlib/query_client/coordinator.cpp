@@ -39,12 +39,6 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     std::vector<TConstQueryPtr> subqueries;
 
-    auto subqueryInputRowLimit = refiners.empty()
-        ? 0
-        : 2 * std::min(query->InputRowLimit, std::numeric_limits<i64>::max() / 2) / refiners.size();
-
-    auto subqueryOutputRowLimit = query->OutputRowLimit;
-
     auto subqueryPattern = New<TQuery>(
         query->InputRowLimit,
         query->OutputRowLimit);
@@ -59,7 +53,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     topQuery->OrderClause = query->OrderClause;
     topQuery->Limit = query->Limit;
-    
+
     if (query->GroupClause) {
         subqueryPattern->GroupClause = query->GroupClause;
         if (subqueries.size() > 1) {
@@ -93,7 +87,6 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         topQuery->ProjectClause = query->ProjectClause;
     } else {
         subqueryPattern->Limit = query->Limit;
-        
 
         if (query->OrderClause) {
             subqueryPattern->OrderClause = query->OrderClause;
@@ -114,7 +107,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         }
 
         subqueries.push_back(subquery);
-    }    
+    }
 
     return std::make_pair(topQuery, subqueries);
 }
