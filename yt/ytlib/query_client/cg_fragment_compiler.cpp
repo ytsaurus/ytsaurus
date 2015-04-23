@@ -1305,7 +1305,7 @@ TCodegenSource MakeCodegenProjectOp(
 
 TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
-    std::vector<std::pair<TCodegenExpression, TCodegenAggregateUpdate>> codegenAggregates,
+    std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
     TCodegenSource codegenSource)
 {
     return [
@@ -1402,12 +1402,7 @@ TCodegenSource MakeCodegenGroupOp(
                     condition,
                     [&] (TCGContext& builder) {
                         for (int index = 0; index < aggregatesCount; index++) {
-                            builder.CreateStore(
-                                builder.getInt16(static_cast<ui16>(EValueType::Null)),
-                                builder.CreateStructGEP(
-                                    aggStates[index],
-                                    TTypeBuilder::Type));
-                            //codegenAggregateInits[index](builder, aggStates[index]);
+                            codegenAggregates[index].second.Initialize(builder, aggStates[index]);
                         }
                     },
                     [&] (TCGContext& builder) {
@@ -1417,7 +1412,7 @@ TCodegenSource MakeCodegenGroupOp(
                     auto newValue = builder.CreateConstInBoundsGEP1_32(
                         CodegenValuesPtrFromRow(builder, newRowRef),
                         keySize + index);
-                    codegenAggregates[index].second(
+                    codegenAggregates[index].second.Update(
                         builder,
                         aggStates[index],
                         newValue);

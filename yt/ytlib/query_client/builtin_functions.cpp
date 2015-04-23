@@ -345,20 +345,25 @@ Stroka TAggregateFunction::GetName() const
     return Name_;
 }
 
-TCodegenAggregateInit TAggregateFunction::MakeCodegenInit(
+TCodegenAggregateInit MakeCodegenInitialize(
     EValueType type,
-    const Stroka& name) const
+    const Stroka& name)
 {
     return [
     ] (TCGContext& builder, Value* aggState) {
+        builder.CreateStore(
+            builder.getInt16(static_cast<ui16>(EValueType::Null)),
+            builder.CreateStructGEP(
+                aggState,
+                TTypeBuilder::Type));
     };
 }
 
-TCodegenAggregateUpdate TAggregateFunction::MakeCodegenAggregate(
+TCodegenAggregateUpdate MakeCodegenUpdate(
+    const Stroka& aggregateFunction,
     EValueType type,
-    const Stroka& nameStroka) const
+    const Stroka& nameStroka)
 {
-    auto aggregateFunction = Name_;
     return [
             aggregateFunction,
             type,
@@ -469,22 +474,34 @@ TCodegenAggregateUpdate TAggregateFunction::MakeCodegenAggregate(
         };
 }
 
-TCodegenAggregateMerge TAggregateFunction::MakeCodegenMerge(
+TCodegenAggregateMerge MakeCodegenMerge(
     EValueType type,
-    const Stroka& name) const
+    const Stroka& name)
 {
     return [
     ] (TCGContext& builder, Value* dstAggState, Value* aggState) {
     };
 }
 
-TCodegenAggregateFinalize TAggregateFunction::MakeCodegenFinalize(
+TCodegenAggregateFinalize MakeCodegenFinalize(
     EValueType type,
-    const Stroka& name) const
+    const Stroka& name)
 {
     return [
     ] (TCGContext& builder, Value* result, Value* aggState) {
     };
+}
+
+const TCodegenAggregate TAggregateFunction::MakeCodegenAggregate(
+    EValueType type,
+    const Stroka& name) const
+{
+    TCodegenAggregate codegenAggregate;
+    codegenAggregate.Initialize = MakeCodegenInitialize(type, name);
+    codegenAggregate.Update = MakeCodegenUpdate(GetName(), type, name);
+    codegenAggregate.Merge = MakeCodegenMerge(type, name);
+    codegenAggregate.Finalize = MakeCodegenFinalize(type, name);
+    return codegenAggregate;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

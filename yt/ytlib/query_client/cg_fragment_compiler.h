@@ -379,6 +379,13 @@ typedef std::function<void(TCGContext& builder, Value* aggState, Value* newValue
 typedef std::function<void(TCGContext& builder, Value* dstAggState, Value* aggState)> TCodegenAggregateMerge;
 typedef std::function<void(TCGContext& builder, Value* result, Value* aggState)> TCodegenAggregateFinalize;
 
+struct TCodegenAggregate {
+    TCodegenAggregateInit Initialize;
+    TCodegenAggregateUpdate Update;
+    TCodegenAggregateMerge Merge;
+    TCodegenAggregateFinalize Finalize;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCodegenExpression MakeCodegenLiteralExpr(
@@ -431,7 +438,7 @@ TCodegenSource MakeCodegenJoinOp(
 
 TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
-    std::vector<std::pair<TCodegenExpression, TCodegenAggregateUpdate>> codegenAggregates,
+    std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
     TCodegenSource codegenSource);
 
 TCodegenSource MakeCodegenOrderOp(
