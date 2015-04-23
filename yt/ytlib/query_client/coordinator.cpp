@@ -108,7 +108,6 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     for (const auto& refiner : refiners) {
         // Set initial schema and key columns
         auto subquery = New<TQuery>(*subqueryPattern);
-        subquery->Id = TGuid::Create();
 
         if (query->WhereClause) {
             subquery->WhereClause = refiner(query->WhereClause, subquery->TableSchema, subquery->KeyColumns);
