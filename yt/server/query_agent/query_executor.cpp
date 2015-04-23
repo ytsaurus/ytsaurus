@@ -356,7 +356,12 @@ private:
             });
         }
 
-        return DoCoordinateAndExecute(fragment, std::move(writer), false, refiners, subreaderCreators);
+        return DoCoordinateAndExecute(
+            fragment,
+            std::move(writer),
+            false,
+            refiners,
+            subreaderCreators);
     }
 
     TQueryStatistics DoExecuteOrdered(
@@ -381,9 +386,10 @@ private:
             return lhs.Range.first < rhs.Range.first;
         });
         
-        LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v", JoinToString(splits, [] (const TDataSource& split) {
-            return Format("[%v .. %v]", split.Range.first, split.Range.second);
-        }));
+        LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v",
+            JoinToString(splits, [] (const TDataSource& split) {
+                return Format("[%v .. %v]", split.Range.first, split.Range.second);
+            }));
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             fragment->Query->TableSchema,
@@ -401,7 +407,12 @@ private:
             });
         }
 
-        return DoCoordinateAndExecute(fragment, std::move(writer), true, refiners, subreaderCreators);
+        return DoCoordinateAndExecute(
+            fragment,
+            std::move(writer),
+            true,
+            refiners,
+            subreaderCreators);
     }
 
 
@@ -499,12 +510,10 @@ private:
                     const auto& nextKey = (splitKeyIndex == splitKeys.size() - 1)
                         ? MaxKey()
                         : splitKeys[splitKeyIndex + 1];
-                    TDataSource subsource{tabletId, TRowRange(
-                        rowBuffer->Capture(std::max(range.first, thisKey.Get())), 
+                    allSplits.push_back({tabletId, TRowRange(
+                        rowBuffer->Capture(std::max(range.first, thisKey.Get())),
                         rowBuffer->Capture(std::min(range.second, nextKey.Get()))
-                        )};
-
-                    allSplits.push_back(std::move(subsource));
+                    )});
                 }
             }
         }
@@ -512,9 +521,9 @@ private:
         return allSplits;
     }
 
-    std::vector<std::vector<TRow>> SplitKeys(
+    std::vector<std::vector<TKey>> SplitKeys(
         TGuid tabletId,
-        std::vector<TRow> keys)
+        std::vector<TKey> keys)
     {
         std::sort(keys.begin(), keys.end());
 
@@ -523,7 +532,7 @@ private:
         const auto& partitions = tabletSnapshot->Partitions;
 
         // Group keys by partitions.
-        std::vector<std::vector<TRow>> resultKeys;
+        std::vector<std::vector<TKey>> resultKeys;
 
         auto it = keys.begin();
         while (it != keys.end()) {
@@ -707,7 +716,7 @@ private:
 
     ISchemafulReaderPtr GetReader(
         const NObjectClient::TObjectId& objectId,
-        const std::vector<TUnversionedRow>& keys,
+        const std::vector<TKey>& keys,
         TTimestamp timestamp)
     {
         ValidateReadTimestamp(timestamp);
@@ -824,7 +833,7 @@ private:
 
     ISchemafulReaderPtr GetTabletReader(
         const NObjectClient::TObjectId& tabletId,
-        const std::vector<TUnversionedRow>& keys,
+        const std::vector<TKey>& keys,
         TTimestamp timestamp)
     {
         try {
