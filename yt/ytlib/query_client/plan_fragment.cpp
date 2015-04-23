@@ -1757,8 +1757,7 @@ void ToProto(NProto::TPlanFragment* proto, const TConstPlanFragmentPtr& fragment
 
 TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
 {
-    auto result = New<TPlanFragment>(
-        serialized.source());
+    auto result = New<TPlanFragment>(serialized.source());
 
     result->NodeDirectory = New<TNodeDirectory>();
     result->Query = FromProto(serialized.query());

@@ -418,7 +418,7 @@ typedef std::vector<TDataSource> TDataSources;
 struct TPlanFragment
     : public TIntrinsicRefCounted
 {
-    explicit TPlanFragment(const TStringBuf& source = TStringBuf())
+    explicit TPlanFragment(const Stroka& source = Stroka())
         : Source(source)
     { }
 
