@@ -264,32 +264,34 @@ void AllocatePermanentRow(TExecutionContext* context, int valueCount, TRow* row)
     *row = TRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
 }
 
-const TRow* InsertGroupRow(
+i8 InsertGroupRow(
     TExecutionContext* context,
+    TRow* groupRow,
     TLookupRows* lookupRows,
     std::vector<TRow>* groupedRows,
-    TRow* rowPtr,
-    int valueCount)
+    TRow row,
+    int groupRowKeyCount,
+    int groupRowValueCount)
 {
     CHECK_STACK();
 
-    TRow row = *rowPtr;
-    auto inserted = lookupRows->insert(row);
+    auto foundRow = lookupRows->find(row);
+    
+    if (foundRow == lookupRows->end()) {
+        auto newRow = TRow::Allocate(context->PermanentBuffer->GetPool(), groupRowValueCount);
 
-    if (inserted.second) {
-        if (!UpdateAndCheckRowLimit(&context->GroupRowLimit, &context->StopFlag)) {
-            context->Statistics->IncompleteOutput = true;
-            return nullptr;
+        for (int index = 0; index < groupRowKeyCount; index++) {
+            newRow[index] = row[index];
         }
 
-        groupedRows->push_back(row);
-        for (int index = 0; index < valueCount; ++index) {
-            context->PermanentBuffer->Capture(&row[index]);
-        }
-        *rowPtr = TRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
-        return nullptr;
+        auto inserted = lookupRows->insert(newRow);
+        YCHECK(inserted.second);
+        groupedRows->push_back(newRow);
+        *groupRow = newRow;
+        return true;
     } else {
-        return &*inserted.first;
+        *groupRow = *foundRow;
+        return false;
     }
 }
 
