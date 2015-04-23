@@ -89,10 +89,10 @@ TSubprocessResult TSubprocess::Execute()
     for (int index = 0; index < pipes.size(); ++index) {
         auto& pipe = pipes[index];
 
-        SafeClose(pipe.WriteFD);
+        SafeClose(pipe.WriteFD, false);
         pipe.WriteFD = TPipe::InvalidFD;
         if (index == 0) {
-            SafeClose(pipe.ReadFD);
+            SafeClose(pipe.ReadFD, false);
             pipe.ReadFD = TPipe::InvalidFD;
         } else {
             SafeMakeNonblocking(pipe.ReadFD);

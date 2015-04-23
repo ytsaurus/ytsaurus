@@ -7,6 +7,7 @@
 
 #include <core/concurrency/thread_affinity.h>
 
+#include <core/misc/pipe.h>
 #include <core/misc/proc.h>
 
 #include <contrib/libev/ev++.h>
@@ -113,7 +114,8 @@ public:
 
             State_ = EWriterState::Closed;
             FDWatcher_.stop();
-            SafeClose(FD_);
+            SafeClose(FD_, false);
+            FD_ = TPipe::InvalidFD;
         })
         .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
         .Run();
@@ -132,7 +134,8 @@ public:
             WriteResultPromise_.TrySet(TError(EErrorCode::Aborted, "Writer aborted")
                << TErrorAttribute("fd", FD_));
 
-            YCHECK(TryClose(FD_));
+            YCHECK(TryClose(FD_, false));
+            FD_ = TPipe::InvalidFD;
         })
         .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
         .Run();
@@ -188,6 +191,9 @@ private:
                 << TErrorAttribute("fd", FD_)
                 << TError::FromSystem();
             LOG_ERROR(error);
+
+            YCHECK(TryClose(FD_, false));
+            FD_ = TPipe::InvalidFD;
 
             State_ = EWriterState::Failed;
             FDWatcher_.stop();

@@ -7,6 +7,7 @@
 
 #include <core/concurrency/thread_affinity.h>
 
+#include <core/misc/pipe.h>
 #include <core/misc/proc.h>
 
 #include <contrib/libev/ev++.h>
@@ -110,7 +111,7 @@ public:
                     FDWatcher_.stop();
                     ReadResultPromise_.TrySet(TError(EErrorCode::Aborted, "Reader aborted")
                         << TErrorAttribute("fd", FD_));
-                    YCHECK(TryClose(FD_));
+                    Close();
                 }
             })
             .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
@@ -163,13 +164,15 @@ private:
                 return;
             }
 
+            YCHECK(errno != EBADF);
+
             auto error = TError("Reader failed")
                 << TErrorAttribute("fd", FD_)
                 << TError::FromSystem();
             LOG_ERROR(error);
+            Close();
 
             State_ = EReaderState::Failed;
-            YCHECK(TryClose(FD_));
             FDWatcher_.stop();
             ReadResultPromise_.Set(error);
             return;
@@ -179,8 +182,8 @@ private:
 
         if (size == 0) {
             State_ = EReaderState::EndOfStream;
-            YCHECK(TryClose(FD_));
             FDWatcher_.stop();
+            Close();
             ReadResultPromise_.Set(Position_);
         } else if (Position_ == Length_) {
             ReadResultPromise_.Set(Length_);
@@ -190,6 +193,11 @@ private:
 #endif
     }
 
+    void Close()
+    {
+        YCHECK(TryClose(FD_, false));
+        FD_ = TPipe::InvalidFD;
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TAsyncReaderImpl);

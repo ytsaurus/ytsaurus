@@ -23,8 +23,8 @@ TError StatusToError(int status);
 
 void RemoveDirAsRoot(const Stroka& path);
 
-bool TryClose(int fd);
-void SafeClose(int fd);
+bool TryClose(int fd, bool ignoreBadFD = true);
+void SafeClose(int fd, bool ignoreBadFD = true);
 
 bool TryDup2(int oldFD, int newFD);
 void SafeDup2(int oldFD, int newFD);
