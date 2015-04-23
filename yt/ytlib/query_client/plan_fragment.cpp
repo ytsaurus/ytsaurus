@@ -1367,19 +1367,19 @@ TConstExpressionPtr PrepareExpression(
     TTableSchema tableSchema,
     IFunctionRegistry* functionRegistry)
 {
-    NAst::TAstHead astHead{TVariantTypeTag<NAst::TNamedExpression>()};
+    NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>()};
     NAst::TRowBuffer rowBuffer;
     ParseYqlString(&astHead, &rowBuffer, source, NAst::TParser::token::StrayWillParseExpression);
 
-    auto& expr = astHead.As<NAst::TNamedExpression>();
+    auto& expr = astHead.As<NAst::TExpressionPtr>();
 
     auto schemaProxy = New<TSimpleSchemaProxy>(&tableSchema);
 
-    auto typedExprs = schemaProxy->BuildTypedExpression(expr.first.Get(), source, functionRegistry);
+    auto typedExprs = schemaProxy->BuildTypedExpression(expr.Get(), source, functionRegistry);
 
     if (typedExprs.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
-            << TErrorAttribute("source", expr.first->GetSource(source));
+            << TErrorAttribute("source", expr->GetSource(source));
     }
 
     return typedExprs.front();

@@ -1590,7 +1590,9 @@ case 66:
 
     location->second = p - s;
 
-    if (cs == 0) {
+    if (cs == 
+0
+) {
         // TODO(sandello): Handle lexer failures.
         return TToken::Failure;
     } else {
