@@ -1371,34 +1371,57 @@ TCodegenSource MakeCodegenGroupOp(
                         .StoreToRow(builder, newRowRef, keySize + index, id);
                 }
 
-                Value* foundRowPtr = builder.CreateCall5(
-                    builder.Module->GetRoutine("InsertGroupRow"),
-                    executionContextPtrRef,
-                    lookupRef,
-                    groupedRowsRef,
-                    newRowPtrRef,
-                    builder.getInt32(keySize + aggregatesCount));
+                auto groupRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
-                Value* condition = builder.CreateICmpNE(
-                    foundRowPtr,
-                    llvm::ConstantPointerNull::get(newRowRef->getType()->getPointerTo()));
+                auto inserted = builder.CreateCall(
+                    builder.Module->GetRoutine("InsertGroupRow"),
+                    llvm::ArrayRef<Value*>(std::vector<Value*>{
+                        executionContextPtrRef,
+                        groupRowPtr,
+                        lookupRef,
+                        groupedRowsRef,
+                        newRowRef,
+                        builder.getInt32(keySize),
+                        builder.getInt32(keySize + aggregatesCount)}));
+
+                auto groupRow = builder.CreateLoad(groupRowPtr);
+
+                std::vector<Value*> aggStates;
+                for (int index = 0; index < aggregatesCount; ++index) {
+                    aggStates.push_back(builder.CreateConstInBoundsGEP1_32(
+                        CodegenValuesPtrFromRow(builder, groupRow),
+                        keySize + index));
+                }
+
+                auto condition = builder.CreateICmpEQ(
+                    inserted,
+                    builder.getInt8(true));
 
                 CodegenIf<TCGContext>(
                     builder,
                     condition,
                     [&] (TCGContext& builder) {
-                        Value* foundRow = builder.CreateLoad(foundRowPtr);
-                        for (int index = 0; index < aggregatesCount; ++index) {
-                            auto aggState = builder.CreateConstInBoundsGEP1_32(
-                                CodegenValuesPtrFromRow(builder, foundRow),
-                                keySize + index);
-                            auto newValue = builder.CreateConstInBoundsGEP1_32(
-                                CodegenValuesPtrFromRow(builder, newRowRef),
-                                keySize + index);
-                            codegenAggregates[index].second(builder, aggState, newValue);
+                        for (int index = 0; index < aggregatesCount; index++) {
+                            builder.CreateStore(
+                                builder.getInt16(static_cast<ui16>(EValueType::Null)),
+                                builder.CreateStructGEP(
+                                    aggStates[index],
+                                    TTypeBuilder::Type));
+                            //codegenAggregateInits[index](builder, aggStates[index]);
                         }
                     },
-                    [&] (TCGContext& builder) { });
+                    [&] (TCGContext& builder) {
+                    });
+
+                for (int index = 0; index < aggregatesCount; ++index) {
+                    auto newValue = builder.CreateConstInBoundsGEP1_32(
+                        CodegenValuesPtrFromRow(builder, newRowRef),
+                        keySize + index);
+                    codegenAggregates[index].second(
+                        builder,
+                        aggStates[index],
+                        newValue);
+                }
             });
 
         collectBuilder.CreateRetVoid();
