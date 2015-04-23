@@ -464,7 +464,7 @@ class SessionReader(object):
                 httputil.url_concat(
                     "/rt/session", dict(
                         ident=self._service_id,
-                        source_id=self._source_id,
+                        sourceid=self._source_id,
                         logtype=self._logtype)),
                 "HTTP/1.1"),
             httputil.HTTPHeaders({
