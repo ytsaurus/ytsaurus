@@ -365,6 +365,20 @@ struct TQuery
         , Id(id)
     { }
 
+    TQuery(const TQuery& other)
+        : InputRowLimit(other.InputRowLimit)
+        , OutputRowLimit(other.OutputRowLimit)
+        , Id(TGuid::Create())
+        , TableSchema(other.TableSchema)
+        , KeyColumns(other.KeyColumns)
+        , JoinClause(other.JoinClause)
+        , WhereClause(other.WhereClause)
+        , GroupClause(other.GroupClause)
+        , ProjectClause(other.ProjectClause)
+        , OrderClause(other.OrderClause)
+        , Limit(other.Limit)
+    { }
+
     i64 InputRowLimit;
     i64 OutputRowLimit;
     TGuid Id;
