@@ -157,5 +157,24 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAverageAggregateFunction
+    : public IAggregateFunctionDescriptor
+{
+public:
+    TAverageAggregateFunction();
+
+    virtual Stroka GetName() const override;
+
+    virtual const TCodegenAggregate MakeCodegenAggregate(
+        EValueType type,
+        const Stroka& name) const override;
+
+    virtual std::vector<TColumnSchema> GetStateSchema(
+        const Stroka& name,
+        EValueType type) const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT
