@@ -579,6 +579,13 @@ protected:
                             operandBinaryOp->Lhs,
                             operandBinaryOp->Rhs));
                     }
+                } else if (auto literal = operand->As<TLiteralExpression>()) {
+                    TUnversionedValue value = literal->Value;
+                    value.Data.Boolean = !value.Data.Boolean;
+                    return New<TLiteralExpression>(
+                        literal->SourceLocation,
+                        literal->Type,
+                        value);
                 }
             }
             return New<TUnaryOpExpression>(
@@ -670,10 +677,6 @@ protected:
                         default:
                             YUNREACHABLE();
                     }
-                    return value;
-                } else if (opcode == EUnaryOp::Not) {
-                    TUnversionedValue value = literalExpr->Value;
-                    value.Data.Boolean = !value.Data.Boolean;
                     return value;
                 }
             }
