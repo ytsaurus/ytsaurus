@@ -124,6 +124,7 @@ struct ISchedulingContext
         TOperationPtr operation,
         EJobType type,
         const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+        bool restarted,
         TJobSpecBuilder specBuilder) = 0;
 
     virtual void PreemptJob(TJobPtr job) = 0;

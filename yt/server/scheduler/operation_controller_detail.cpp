@@ -518,15 +518,17 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         }
     });
 
+    auto restarted = LostJobCookieMap.find(joblet->OutputCookie) != LostJobCookieMap.end();
     joblet->Job = context->StartJob(
         Controller->Operation,
         jobType,
         neededResources,
+        restarted,
         jobSpecBuilder);
 
     LOG_INFO(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
-        "Approximate: %v, DataSize: %v (%v local), RowCount: %v, ResourceLimits: {%v})",
+        "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, ResourceLimits: {%v})",
         joblet->Job->GetId(),
         Controller->Operation->GetId(),
         jobType,
@@ -538,6 +540,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         joblet->InputStripeList->TotalDataSize,
         joblet->InputStripeList->LocalDataSize,
         joblet->InputStripeList->TotalRowCount,
+        restarted,
         FormatResources(neededResources));
 
     // Prepare chunk lists.

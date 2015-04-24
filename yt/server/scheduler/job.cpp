@@ -18,12 +18,14 @@ TJob::TJob(
     TExecNodePtr node,
     TInstant startTime,
     const TNodeResources& resourceLimits,
+    bool restarted,
     TJobSpecBuilder specBuilder)
     : Id_(id)
     , Type_(type)
     , Operation_(operation.Get())
     , Node_(node)
     , StartTime_(startTime)
+    , Restarted_(restarted)
     , State_(EJobState::Waiting)
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)

@@ -35,6 +35,9 @@ public:
     //! The time when the job was started.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
+    //! True if this is a reincarnation of a lost job.
+    DEFINE_BYVAL_RO_PROPERTY(bool, Restarted);
+
     //! The time when the job was finished.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 
@@ -75,6 +78,7 @@ public:
         TExecNodePtr node,
         TInstant startTime,
         const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+        bool restarted,
         TJobSpecBuilder specBuilder);
 
 };
