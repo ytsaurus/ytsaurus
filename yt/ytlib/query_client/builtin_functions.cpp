@@ -515,5 +515,150 @@ std::vector<TColumnSchema> TAggregateFunction::GetStateSchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAverageAggregateFunction::TAverageAggregateFunction()
+{ }
+
+Stroka TAverageAggregateFunction::GetName() const
+{
+    return "avg";
+}
+
+TCodegenAggregateInit MakeCodegenAverageInitialize(
+    EValueType type,
+    const Stroka& name)
+{
+    return [
+    ] (TCGContext& builder, Value* aggState) {
+        auto sumValue = aggState;
+        auto countValue = builder.CreateConstInBoundsGEP1_32(aggState, 1);
+
+        builder.CreateStore(
+            builder.getInt16(static_cast<ui16>(EValueType::Int64)),
+            builder.CreateStructGEP(sumValue, TTypeBuilder::Type));
+        builder.CreateStore(
+            builder.getInt16(static_cast<ui16>(EValueType::Int64)),
+            builder.CreateStructGEP(countValue, TTypeBuilder::Type));
+
+        builder.CreateStore(
+            builder.getInt64(0),
+            builder.CreateStructGEP(sumValue, TTypeBuilder::Data));
+        builder.CreateStore(
+            builder.getInt64(0),
+            builder.CreateStructGEP(countValue, TTypeBuilder::Data));
+    };
+}
+
+TCodegenAggregateUpdate MakeCodegenAverageUpdate(
+    const Stroka& aggregateFunction,
+    EValueType type,
+    const Stroka& nameStroka)
+{
+    return [
+            aggregateFunction,
+            type,
+            MOVE(nameStroka)
+        ] (TCGContext& builder, Value* aggState, Value* newValue) {
+            auto sumValue = aggState;
+            auto countValue = builder.CreateConstInBoundsGEP1_32(aggState, 1);
+
+            auto resultSum = builder.CreateAdd(
+                builder.CreateLoad(
+                    builder.CreateStructGEP(sumValue, TTypeBuilder::Data)),
+                builder.CreateLoad(
+                    builder.CreateStructGEP(newValue, TTypeBuilder::Data)));
+
+            auto resultCount = builder.CreateAdd(
+                builder.CreateLoad(
+                    builder.CreateStructGEP(countValue, TTypeBuilder::Data)),
+                builder.getInt64(1));
+
+            builder.CreateStore(
+                resultSum,
+                builder.CreateStructGEP(sumValue, TTypeBuilder::Data));
+
+            builder.CreateStore(
+                resultCount,
+                builder.CreateStructGEP(countValue, TTypeBuilder::Data));
+        };
+}
+
+TCodegenAggregateMerge MakeCodegenAverageMerge(
+    EValueType type,
+    const Stroka& name)
+{
+    return [
+    ] (TCGContext& builder, Value* dstAggState, Value* aggState) {
+        auto dstSumValue = dstAggState;
+        auto dstCountValue = builder.CreateConstInBoundsGEP1_32(dstAggState, 1);
+
+        auto sumValue = aggState;
+        auto countValue = builder.CreateConstInBoundsGEP1_32(aggState, 1);
+
+        auto resultSum = builder.CreateAdd(
+            builder.CreateLoad(
+                builder.CreateStructGEP(dstSumValue, TTypeBuilder::Data)),
+            builder.CreateLoad(
+                builder.CreateStructGEP(sumValue, TTypeBuilder::Data)));
+
+        auto resultCount = builder.CreateAdd(
+            builder.CreateLoad(
+                builder.CreateStructGEP(dstCountValue, TTypeBuilder::Data)),
+            builder.CreateLoad(
+                builder.CreateStructGEP(countValue, TTypeBuilder::Data)));
+
+        builder.CreateStore(
+            resultSum,
+            builder.CreateStructGEP(dstSumValue, TTypeBuilder::Data));
+
+        builder.CreateStore(
+            resultCount,
+            builder.CreateStructGEP(dstCountValue, TTypeBuilder::Data));
+    };
+}
+
+TCodegenAggregateFinalize MakeCodegenAverageFinalize(
+    EValueType type,
+    const Stroka& name)
+{
+    return [
+    ] (TCGContext& builder, Value* result, Value* aggState) {
+        auto sumValue = aggState;
+        auto countValue = builder.CreateConstInBoundsGEP1_32(aggState, 1);
+
+        auto resultValue = builder.CreateFDiv(sumValue, countValue);
+        builder.CreateStore(
+            builder.getInt16(static_cast<ui16>(EValueType::Double)),
+            builder.CreateStructGEP(result, TTypeBuilder::Type));
+        builder.CreateStore(
+            resultValue,
+            builder.CreateStructGEP(result, TTypeBuilder::Data));
+
+    };
+}
+
+const TCodegenAggregate TAverageAggregateFunction::MakeCodegenAggregate(
+    EValueType type,
+    const Stroka& name) const
+{
+    TCodegenAggregate codegenAggregate;
+    codegenAggregate.Initialize = MakeCodegenAverageInitialize(type, name);
+    codegenAggregate.Update = MakeCodegenAverageUpdate(GetName(), type, name);
+    codegenAggregate.Merge = MakeCodegenAverageMerge(type, name);
+    codegenAggregate.Finalize = MakeCodegenAverageFinalize(type, name);
+    return codegenAggregate;
+}
+
+std::vector<TColumnSchema> TAverageAggregateFunction::GetStateSchema(
+    const Stroka& name,
+    EValueType type) const
+{
+    return std::vector<TColumnSchema>{
+        TColumnSchema("sum", EValueType::Int64),
+        TColumnSchema("count", EValueType::Int64)
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT
