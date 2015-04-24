@@ -11,6 +11,7 @@ import itertools as it
 from StringIO import StringIO
 from time import sleep
 from copy import deepcopy
+from random import randint
 
 yt.config.VERSION = "v3"
 
@@ -20,10 +21,16 @@ CONFIG_FILE_NAME = "copy-table.config"
 MAX_ROWS_PER_INSERT = 20000
 # Maximum number of output rows
 OUTPUT_ROW_LIMIT = 100000000
+# Maximum number of input rows
+INPUT_ROW_LIMIT = 100000000
 # Mapper job options.
 JOB_COUNT = 20
 JOB_MEMORY_LIMIT = "4GB"
 MAX_FAILDED_JOB_COUNT = 10
+# Maximum number of retries to call YT command
+MAX_RETRY_COUNT = 10
+# Sleep interval between retries
+SLEEP_INTERVAL = 60
 
 # Simple transformation class - just copy everything.
 class Copy:
@@ -111,6 +118,28 @@ def tablets_mapper(tablet):
         for partition in yson.loads(partitions):
             yield {"pivot_key": partition["pivot_key"]}
 
+# Call subprocess with retries
+def call_subprocess(command, stdin, max_retry_count, sleep_interval):
+    errors = []
+    def single_call():
+        p = sp.Popen(command, stdin=sp.PIPE if stdin is not None else None, stdout=sp.PIPE, stderr=sp.PIPE)
+        out, err = p.communicate(stdin)
+        return p.returncode, out, err
+    attempt = 0
+    ret, out, err = single_call()
+    errors.append((attempt, ret, out, err))
+    while attempt < max_retry_count and ret != 0:
+        sleep(randint(1, sleep_interval))
+        ret, out, err = single_call()
+        errors.append((attempt, ret, out, err))
+    if ret == 0:
+        return out
+    else:
+        errors = ["try: %s\nreturn code: %s\nstdout:\n%s\n\nstderr:\n%s\n" % (attempt, ret, out, err) for attempt, ret, out, err in errors]
+        stderr = "\n\n===================================================================\n\n".join(errors)
+        print >> sys.stderr, stderr
+        raise sp.CalledProcessError(ret, " ".join(command), errors)
+
 # Mapper - copy content with keys between r["left"] and r["right"].
 def regions_mapper(r):
     # Read config.
@@ -129,17 +158,15 @@ def regions_mapper(r):
         bounds = [x for x in [left, right, config.get("select_where")] if x is not None]
         where = (" where " + " and ".join(bounds)) if len(bounds) > 0 else ""
         query = "%s from [%s]%s" % (config["select_columns"], config["source"], where)
-        return sp.check_output(["yt", "select_rows", "--output_row_limit", str(config["output_row_limit"]),"--format", "<format=text>yson",  query]) 
+        select_cmd = ["yt", "select_rows", "--output_row_limit", str(config["output_row_limit"]),"--format", "<format=text>yson",  query]
+        return call_subprocess(select_cmd, None, config["max_retry_count"], config["sleep_interval"]) 
     raw_data = StringIO(query(r["left"], r["right"]))
 
     # Insert data into destination table.
     insert_cmd = ["yt", config["command"], "--format", "<format=text>yson", config["destination"]]
     new_data = []
     def dump_data():
-        p = sp.Popen(insert_cmd, stdin=sp.PIPE)
-        p.communicate(prepare(new_data))
-        if p.returncode != 0:
-            raise sp.CalledProcessError(p.returncode, insert_cmd, p.stdout)
+        call_subprocess(insert_cmd, prepare(new_data), config["max_retry_count"], config["sleep_interval"])
         del new_data[:]
 
     # Process data.
@@ -163,7 +190,10 @@ if __name__ == "__main__":
     parser.add_argument("--max_failed_job_count", type=int, default=MAX_FAILDED_JOB_COUNT, help="Maximum number of failed jobs")
     parser.add_argument("--memory_limit", type=parse_size, default=JOB_MEMORY_LIMIT, help="Memory limit for a copy task")
     parser.add_argument("--insert_size", type=int, default=MAX_ROWS_PER_INSERT, help="Number of rows passed to 'yt insert' call")
+    parser.add_argument("--input_row_limit", type=int, default=INPUT_ROW_LIMIT, help="Limit the input of 'yt select' call")
     parser.add_argument("--output_row_limit", type=int, default=OUTPUT_ROW_LIMIT, help="Limit the output of 'yt select' call")
+    parser.add_argument("--max_retry_count", type=int, default=MAX_RETRY_COUNT, help="Maximum number of 'yt' call retries")
+    parser.add_argument("--sleep_interval", type=int, default=SLEEP_INTERVAL, help="Sleep interval between 'yt' call retries")
     parser.add_argument("--where", type=str, help="Additional predicate for 'yt select'")
     args = parser.parse_args()
 
@@ -243,7 +273,10 @@ if __name__ == "__main__":
         "key_columns": deepcopy(key_columns),
         "source": src,
         "rows_per_insert": args.insert_size,
-        "output_row_limit": args.output_row_limit}
+        "input_row_limit": args.input_row_limit,
+        "output_row_limit": args.output_row_limit,
+        "max_retry_count": args.max_retry_count,
+        "sleep_interval": args.sleep_interval}
     if (args.where): config["select_where"] = args.where
     def write_config(config):
         with open(CONFIG_FILE_NAME, "w") as config_file: config_file.write(yson.dumps(config))
