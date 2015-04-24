@@ -4,7 +4,6 @@
 
 #include "config.h"
 #include "job_detail.h"
-#include "helpers.h"
 #include "private.h"
 #include "stderr_output.h"
 #include "table_output.h"
@@ -225,7 +224,7 @@ private:
     std::vector<TAsyncReaderPtr> TablePipeReaders_;
     std::vector<TAsyncWriterPtr> TablePipeWriters_;
 
-    std::vector<TContextPreservingInputPtr> ContextPreservingInputs_;
+    std::vector<ISchemalessFormatWriterPtr> ContextPreservingInputs_;
 
     std::vector<TCallback<void()>> InputActions_;
     std::vector<TCallback<void()>> OutputActions_;
@@ -533,8 +532,13 @@ private:
         return asyncInput;
     }
 
-    void PrepareInputTablePipe(TPipe pipe, int jobDescriptor, TContextPreservingInputPtr input)
+    void PrepareInputTablePipe(
+        TPipe pipe,
+        int jobDescriptor,
+        ISchemalessMultiChunkReaderPtr reader,
+        const TFormat& format)
     {
+
         Process_.AddDup2FileAction(pipe.ReadFD, jobDescriptor);
 
         Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
@@ -542,10 +546,22 @@ private:
         SafeMakeNonblocking(pipe.WriteFD);
         auto asyncOutput = New<TAsyncWriter>(pipe.WriteFD);
         TablePipeWriters_.push_back(asyncOutput);
+        auto output = CreateSyncAdapter(asyncOutput);
+        auto bufferRowCount = JobIO_->GetConfig()->BufferRowCount;
+
+        auto writer = CreateSchemalessWriterForFormat(
+            format,
+            reader->GetNameTable(),
+            std::move(output),
+            Config_->JobIO->EnableInputTableIndex,
+            JobIO_->IsKeySwitchEnabled(),
+            reader->GetKeyColumns().size());
+
+        ContextPreservingInputs_.push_back(writer);
 
         InputActions_.push_back(BIND([=] () {
-            auto output = CreateSyncAdapter(asyncOutput);
-            input->PipeReaderToOutput(output.get());
+            PipeReaderToWriter(reader, writer, bufferRowCount);
+
             auto error = WaitFor(asyncOutput->Close());
             if (!error.IsOK()) {
                 THROW_ERROR_EXCEPTION("Table input pipe failed")
@@ -578,14 +594,7 @@ private:
         YCHECK(!UserJobSpec_.use_yamr_descriptors() || readers.size() == 1);
 
         for (int i = 0; i < readers.size(); ++i) {
-            auto input = New<TContextPreservingInput>(
-                readers[i],
-                format,
-                Config_->JobIO->EnableInputTableIndex,
-                JobIO_->IsKeySwitchEnabled());
-
-            ContextPreservingInputs_.push_back(input);
-            PrepareInputTablePipe(pipeFactory->Create(), 3 * i, input);
+            PrepareInputTablePipe(pipeFactory->Create(), 3 * i, readers[i], format);
         }
     }
 

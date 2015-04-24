@@ -37,6 +37,12 @@ void PipeReaderToWriter(
     int bufferRowCount,
     bool validateValues = false);
 
+void PipeReaderToWriter(
+    ISchemalessMultiChunkReaderPtr reader,
+    ISchemalessFormatWriterPtr writer,
+    int bufferRowCount,
+    bool validateValues = false);
+
 void PipeInputToOutput(
     TInputStream* input,
     TOutputStream* output,

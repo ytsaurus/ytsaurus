@@ -4,6 +4,7 @@
 
 #include "schemaless_reader.h"
 #include "schemaless_writer.h"
+#include "schemaless_chunk_reader.h"
 
 #include <ytlib/formats/parser.h>
 
@@ -75,6 +76,47 @@ void PipeReaderToWriter(
                 .ThrowOnError();
         }
     }
+
+    WaitFor(writer->Close())
+        .ThrowOnError();
+
+    YCHECK(rows.empty());
+}
+
+void PipeReaderToWriter(
+    ISchemalessMultiChunkReaderPtr reader,
+    ISchemalessFormatWriterPtr writer,
+    int bufferRowCount,
+    bool validateValues)
+{
+    std::vector<TUnversionedRow> rows;
+    rows.reserve(bufferRowCount);
+
+    while (reader->Read(&rows)) {
+        if (rows.empty()) {
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
+            continue;
+        }
+
+        if (validateValues) {
+            for (const auto& row : rows) {
+                for (int i = 0; i < row.GetCount(); ++i) {
+                    ValidateDataValue(row[i]);
+                }
+            }
+        }
+
+        writer->SetTableIndex(reader->GetTableIndex());
+
+        if (!writer->Write(rows)) {
+            WaitFor(writer->GetReadyEvent())
+                .ThrowOnError();
+        }
+    }
+
+    WaitFor(writer->Close())
+        .ThrowOnError();
 
     YCHECK(rows.empty());
 }

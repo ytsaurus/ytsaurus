@@ -1,7 +1,6 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/job_proxy )
 set( SRCS
-  ${BASE}/helpers.cpp
   ${BASE}/job_detail.cpp
   ${BASE}/job_prober_service.cpp
   ${BASE}/job_proxy.cpp
@@ -24,7 +23,6 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/config.h
-  ${BASE}/helpers.h
   ${BASE}/job.h
   ${BASE}/job_detail.h
   ${BASE}/job_prober_service.h

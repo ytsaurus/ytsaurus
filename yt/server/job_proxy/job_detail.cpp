@@ -84,9 +84,6 @@ TJobResult TSimpleJobBase::Run()
 
         LOG_INFO("Finalizing");
         {
-            auto error = WaitFor(Writer_->Close());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-
             TJobResult result;
             ToProto(result.mutable_error(), TError());
 

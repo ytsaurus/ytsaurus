@@ -16,6 +16,8 @@
 #include <ytlib/api/transaction.h>
 #include <ytlib/api/rowset.h>
 
+#include <core/misc/public.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -64,10 +66,10 @@ void TReadTableCommand::DoExecute()
         .Item("approximate_row_count").Value(reader->GetTotalRowCount());
 
     auto output = CreateSyncAdapter(Context_->Request().OutputStream);
-    TBufferedOutput bufferedOutput(output.get());
+    auto bufferedOutput = std::make_unique<TBufferedOutput>(output.get());
     auto format = Context_->GetOutputFormat();
 
-    auto writer = CreateSchemalessWriterForFormat(format, nameTable, &bufferedOutput, false, false, 0);
+    auto writer = CreateSchemalessWriterForFormat(format, nameTable, std::move(bufferedOutput), false, false, 0);
 
     PipeReaderToWriter(reader, writer, Context_->GetConfig()->ReadBufferRowCount);
 }
