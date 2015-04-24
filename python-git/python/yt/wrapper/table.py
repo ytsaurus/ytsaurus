@@ -77,6 +77,9 @@ class TablePath(object):
             self.name.attributes = attributes
 
         attributes = self.name.attributes
+        if "channel" in attributes:
+            attributes["columns"] = attributes["channel"]
+            del attributes["channel"]
         if append is not None:
             self.append = append
         else:
@@ -84,7 +87,7 @@ class TablePath(object):
         if sorted_by is not None:
             attributes["sorted_by"] = sorted_by
         if columns is not None:
-            attributes["channel"] = columns
+            attributes["columns"] = columns
 
         has_index = start_index is not None or end_index is not None
         has_key = lower_key is not None or upper_key is not None
@@ -116,7 +119,7 @@ class TablePath(object):
 
     def has_delimiters(self):
         """Check attributes for delimiters (channel, lower or upper limits)"""
-        return any(key in self.name.attributes for key in ["channel", "lower_limit", "upper_limit"])
+        return any(key in self.name.attributes for key in ["columns", "lower_limit", "upper_limit"])
 
     def get_json(self):
         """Get path in JSON representation (dict)"""
