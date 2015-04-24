@@ -155,6 +155,7 @@ if __name__ == "__main__":
     parser.add_argument("--force", action="store_true", help="Overwrite destination table if it exists")
     parser.add_argument("--proxy", type=yt.config.set_proxy, help="YT proxy")
     parser.add_argument("--job_count", type=int, default=JOB_COUNT, help="Numbser of jobs in copy task")
+    parser.add_argument("--user_slots", type=int, help="Maximum number of simultaneous jobs running")
     parser.add_argument("--max_failed_job_count", type=int, default=MAX_FAILDED_JOB_COUNT, help="Maximum number of failed jobs")
     parser.add_argument("--memory_limit", type=parse_size, default=JOB_MEMORY_LIMIT, help="Memory limit for a copy task")
     parser.add_argument("--insert_size", type=int, default=MAX_ROWS_PER_INSERT, help="Number of rows passed to 'yt insert' call")
@@ -246,7 +247,8 @@ if __name__ == "__main__":
         "job_count": args.job_count,
         "max_failed_job_count": args.max_failed_job_count,
         "job_proxy_memory_control": False,
-        "mapper": { "memory_limit": args.memory_limit }}
+        "mapper": {"memory_limit": args.memory_limit}}
+    if args.user_slots: spec["resource_limits"] = {"user_slots": args.user_slots}
     
     # Copy tablet pivot keys from source table.
     pivot_keys = sorted([tablet["pivot_key"] for tablet in tablets])
