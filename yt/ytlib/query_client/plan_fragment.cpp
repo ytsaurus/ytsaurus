@@ -1106,6 +1106,7 @@ TConstGroupClausePtr BuildGroupClause(
     IFunctionRegistry* functionRegistry)
 {
     auto groupClause = New<TGroupClause>();
+    groupClause->IsFinal = false;
     TTableSchema& tableSchema = groupClause->GroupedTableSchema;
 
     for (const auto& expr : expressionsAst.Get()) {
@@ -1588,6 +1589,7 @@ void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
 {
     ToProto(proto->mutable_group_items(), original->GroupItems);
     ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
+    proto->set_is_final(original->IsFinal);
 }
 
 void ToProto(NProto::TProjectClause* proto, TConstProjectClausePtr original)
@@ -1691,6 +1693,7 @@ TGroupClausePtr FromProto(const NProto::TGroupClause& serialized)
     for (int i = 0; i < serialized.aggregate_items_size(); ++i) {
         result->AddAggregateItem(FromProto(serialized.aggregate_items(i)));
     }
+    result->IsFinal = serialized.is_final();
 
     return result;
 }
