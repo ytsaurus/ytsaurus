@@ -28,7 +28,9 @@ private:
 
     virtual size_t DoRead(void* buf, size_t len) override
     {
-        auto result = WaitFor(UnderlyingStream_->Read(buf, len));
+        TRef ref(buf, len);
+        auto sharedRef = TSharedRef::FromRefNonOwning(ref);
+        auto result = WaitFor(UnderlyingStream_->Read(sharedRef));
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
         return result.Value();
     }
@@ -52,14 +54,14 @@ public:
         YCHECK(UnderlyingStream_);
     }
     
-    virtual TFuture<size_t> Read(void* buf, size_t len) override
+    virtual TFuture<size_t> Read(TSharedRef buffer) override
     {
         if (Failed_) {
             return Result_;
         }
 
         try {
-            return MakeFuture<size_t>(UnderlyingStream_->Read(buf, len));
+            return MakeFuture<size_t>(UnderlyingStream_->Read(const_cast<char*>(buffer.Begin()), buffer.Size()));
         } catch (const std::exception& ex) {
             Result_ = MakeFuture<size_t>(TError(ex));
             Failed_ = true;
@@ -98,13 +100,13 @@ public:
 private:
     const IAsyncOutputStreamPtr UnderlyingStream_;
 
-
     virtual void DoWrite(const void* buf, size_t len) override
     {
-        auto result = WaitFor(UnderlyingStream_->Write(buf, len));
+        TRef ref(const_cast<void *>(buf), len);
+        auto buffer = TSharedRef::FromRefNonOwning(ref);
+        auto result = WaitFor(UnderlyingStream_->Write(buffer));
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
-
 };
 
 std::unique_ptr<TOutputStream> CreateSyncAdapter(IAsyncOutputStreamPtr underlyingStream)
@@ -124,14 +126,14 @@ public:
         YCHECK(UnderlyingStream_);
     }
     
-    virtual TFuture<void> Write(const void* buf, size_t len) override
+    virtual TFuture<void> Write(const TSharedRef& buffer) override
     {
         if (Failed_) {
             return Result_;
         }
 
         try {
-            UnderlyingStream_->Write(buf, len);
+            UnderlyingStream_->Write(buffer.Begin(), buffer.Size());
         } catch (const std::exception& ex) {
             Result_ = MakeFuture<void>(TError(ex));
             Failed_ = true;
@@ -193,7 +195,9 @@ private:
             return;
         }
 
-        UnderlyingStream_->Read(block.Begin() + offset, block.Size() - offset).Subscribe(
+        TRef sliceRef(block.Begin() + offset, block.Size() - offset);
+        auto slice = block.Slice(sliceRef);
+        UnderlyingStream_->Read(slice).Subscribe(
             BIND(&TZeroCopyInputStreamAdapter::OnRead, MakeStrong(this), promise, block, offset));
     }
 
@@ -238,13 +242,15 @@ public:
         YCHECK(UnderlyingStream_);
     }
 
-    virtual TFuture<size_t> Read(void* buf, size_t len) override
+    virtual TFuture<size_t> Read(TSharedRef buffer) override
     {
         if (CurrentBlock_) {
-            return MakeFuture<size_t>(DoCopy(buf, len));
+            // NB(psushin): no swapping here, it's a _copying_ adapter!
+            // Also, #buffer may be constructed via FromNonOwningRef.
+            return MakeFuture<size_t>(DoCopy(buffer.Begin(), buffer.Size()));
         } else {
             return UnderlyingStream_->Read().Apply(
-                BIND(&TCopyingInputStreamAdapter::OnRead, MakeStrong(this), buf, len));
+                BIND(&TCopyingInputStreamAdapter::OnRead, MakeStrong(this), buffer));
         }
     }
 
@@ -268,10 +274,10 @@ private:
         return bytes;
     }
 
-    size_t OnRead(void* buf, size_t len, const TSharedRef& block)
+    size_t OnRead(TSharedRef buffer, const TSharedRef& block)
     {
         CurrentBlock_ = block;
-        return DoCopy(buf, len);
+        return DoCopy(buffer.Begin(), buffer.Size());
     }
 
 };
@@ -329,7 +335,7 @@ private:
 
     void WriteMore(const TSharedRef& data)
     {
-        UnderlyingStream_->Write(data.Begin(), data.Size()).Subscribe(
+        UnderlyingStream_->Write(data).Subscribe(
             BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
     }
 
@@ -374,11 +380,11 @@ public:
         YCHECK(UnderlyingStream_);
     }
 
-    virtual TFuture<void> Write(const void* buf, size_t len) override
+    virtual TFuture<void> Write(const TSharedRef& buffer) override
     {
         struct TCopyingOutputStreamAdapterBlockTag { };
-        auto block = TSharedRef::Allocate<TCopyingOutputStreamAdapterBlockTag>(len, false);
-        ::memcpy(block.Begin(), buf, len);
+        auto block = TSharedRef::Allocate<TCopyingOutputStreamAdapterBlockTag>(buffer.Size(), false);
+        ::memcpy(block.Begin(), buffer.Begin(), buffer.Size());
         return UnderlyingStream_->Write(block);
     }
 

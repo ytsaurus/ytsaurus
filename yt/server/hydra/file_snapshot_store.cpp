@@ -283,11 +283,11 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> Write(const void* buf, size_t len) override
+    virtual TFuture<void> Write(const TSharedRef& buffer) override
     {
         return BIND(&TFileSnapshotWriter::DoWrite, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
-            .Run(buf, len);
+            .Run(buffer);
     }
 
     virtual TFuture<void> Close() override
@@ -329,10 +329,10 @@ private:
     NLogging::TLogger Logger = HydraLogger;
 
 
-    void DoWrite(const void* buf, size_t len)
+    void DoWrite(const TSharedRef& buffer)
     {
         YCHECK(IsOpened_ && !IsClosed_);
-        FacadeOutput_->Write(buf, len);
+        FacadeOutput_->Write(buffer.Begin(), buffer.Size());
     }
 
     void DoOpen()

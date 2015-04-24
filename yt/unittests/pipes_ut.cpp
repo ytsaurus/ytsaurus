@@ -44,12 +44,12 @@ TEST(TPipeIOHolder, CanInstantiate)
 
 TBlob ReadAll(TAsyncReaderPtr reader, bool useWaitFor)
 {
-    auto buffer = TBlob(TDefaultBlobTag(), 1024 * 1024);
+    auto buffer = TSharedRef::Allocate(1024 * 1024, false);
     auto whole = TBlob(TDefaultBlobTag());
 
     while (true)  {
         TErrorOr<size_t> result;
-        auto future = reader->Read(buffer.Begin(), buffer.Size());
+        auto future = reader->Read(buffer);
         if (useWaitFor) {
             result = WaitFor(future);
         } else {
@@ -79,9 +79,11 @@ TEST(TAsyncWriterTest, AsyncCloseFail)
             .AsyncVia(queue->GetInvoker())
             .Run();
 
-    std::vector<char> buffer(200*1024, 'a');
+    int length = 200*1024;
+    auto buffer = TSharedRef::Allocate(length);
+    ::memset(buffer.Begin(), 'a', buffer.Size());
 
-    auto writeResult = writer->Write(&buffer[0], buffer.size()).Get();
+    auto writeResult = writer->Write(buffer).Get();
 
     EXPECT_TRUE(writeResult.IsOK())
         << ToString(writeResult);
@@ -123,15 +125,16 @@ protected:
 TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
 {
     Stroka message("Hello pipe!\n");
-    Writer->Write(message.c_str(), message.size()).Get();
+    auto buffer = TSharedRef::FromString(std::move(message));
+    Writer->Write(buffer).Get();
     Writer->Close();
 
-    auto data = TBlob(TDefaultBlobTag(), 1);
+    auto data = TSharedRef::Allocate(1);
     auto whole = TBlob(TDefaultBlobTag());
 
     while (true)
     {
-        auto result = Reader->Read(data.Begin(), data.Size()).Get();
+        auto result = Reader->Read(data).Get();
         if (result.ValueOrThrow() == 0) {
             break;
         }
@@ -144,7 +147,8 @@ TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
 TEST_F(TPipeReadWriteTest, ReadSomethingWait)
 {
     Stroka message("Hello pipe!\n");
-    Writer->Write(message.c_str(), message.size()).Get();
+    auto buffer = TSharedRef::FromString(std::move(message));
+    Writer->Write(buffer).Get();
     Writer->Close();
 
     auto whole = ReadAll(Reader, false);
@@ -155,7 +159,8 @@ TEST_F(TPipeReadWriteTest, ReadSomethingWait)
 TEST_F(TPipeReadWriteTest, ReadWrite)
 {
     Stroka text("Hello cruel world!\n");
-    Writer->Write(text.c_str(), text.size()).Get();
+    auto buffer = TSharedRef::FromString(std::move(text));
+    Writer->Write(buffer).Get();
     auto errorsOnClose = Writer->Close();
 
     auto textFromPipe = ReadAll(Reader, false);
@@ -169,7 +174,9 @@ void WriteAll(TAsyncWriterPtr writer, const char* data, size_t size, size_t bloc
 {
     while (size > 0) {
         const size_t currentBlockSize = std::min(blockSize, size);
-        auto error = WaitFor(writer->Write(data, currentBlockSize));
+        TRef ref(const_cast<char*>(data), currentBlockSize);
+        auto buffer = TSharedRef::FromRefNonOwning(ref);
+        auto error = WaitFor(writer->Write(buffer));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
         size -= currentBlockSize;
         data += currentBlockSize;

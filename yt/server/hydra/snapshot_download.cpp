@@ -76,7 +76,7 @@ void DoDownloadSnapshot(
                 downloadedLength,
                 block.Size());
 
-            WaitFor(writer->Write(block.Begin(), block.Size()))
+            WaitFor(writer->Write(block))
                 .ThrowOnError();
 
             downloadedLength += block.Size();
