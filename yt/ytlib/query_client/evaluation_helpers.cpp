@@ -145,7 +145,7 @@ TJoinEvaluator GetJoinEvaluator(
     auto foreignPredicate = ExtractPredicateForColumnSubset(predicate, foreignTableSchema);
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
-    TQueryPtr subquery = New<TQuery>(std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    auto subquery = New<TQuery>(std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     subquery->TableSchema = foreignTableSchema;
     subquery->KeyColumns = foreignKeyColumns;
