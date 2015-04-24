@@ -32,7 +32,7 @@ public:
 
     void Finish();
 
-    virtual TFuture<void> Write(const void* buf, size_t len) override;
+    virtual TFuture<void> Write(const TSharedRef& buffer) override;
 
 private:
     using EState = EBufferedStreamState;

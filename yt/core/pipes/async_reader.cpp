@@ -56,10 +56,10 @@ public:
         return FD_;
     }
 
-    TFuture<size_t> Read(void* buffer, int length)
+    TFuture<size_t> Read(TSharedRef buffer)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(length > 0);
+        YCHECK(buffer.Size() > 0);
 
         auto promise = NewPromise<size_t>();
 
@@ -84,7 +84,6 @@ public:
 
                 case EReaderState::Active:
                     Buffer_ = buffer;
-                    Length_ = length;
                     Position_ = 0;
                     if (!FDWatcher_.is_active()) {
                         FDWatcher_.start();
@@ -128,8 +127,7 @@ private:
 
     EReaderState State_ = EReaderState::Active;
 
-    void* Buffer_ = nullptr;
-    int Length_ = 0;
+    TSharedRef Buffer_;
     int Position_ = 0;
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
@@ -142,7 +140,7 @@ private:
 
         YCHECK(State_ == EReaderState::Active);
 
-        if (Position_ < Length_) {
+        if (Position_ < Buffer_.Size()) {
             DoRead();
         } else {
             FDWatcher_.stop();
@@ -152,11 +150,11 @@ private:
     void DoRead()
     {
 #ifndef _win_
-        YCHECK(Position_ < Length_);
+        YCHECK(Position_ < Buffer_.Size());
 
         int size;
         do {
-            size = ::read(FD_, static_cast<char *>(Buffer_) + Position_, Length_ - Position_);
+            size = ::read(FD_, Buffer_.Begin() + Position_, Buffer_.Size() - Position_);
         } while (size == -1 && errno == EINTR);
 
         if (size == -1) {
@@ -185,8 +183,8 @@ private:
             FDWatcher_.stop();
             Close();
             ReadResultPromise_.Set(Position_);
-        } else if (Position_ == Length_) {
-            ReadResultPromise_.Set(Length_);
+        } else if (Position_ == Buffer_.Size()) {
+            ReadResultPromise_.Set(Buffer_.Size());
         }
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
@@ -223,9 +221,9 @@ int TAsyncReader::GetHandle() const
     return Impl_->GetHandle();
 }
 
-TFuture<size_t> TAsyncReader::Read(void* buf, size_t len)
+TFuture<size_t> TAsyncReader::Read(TSharedRef buffer)
 {
-    return Impl_->Read(buf, len);
+    return Impl_->Read(buffer);
 }
 
 TFuture<void> TAsyncReader::Abort()

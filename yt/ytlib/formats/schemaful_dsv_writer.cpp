@@ -290,7 +290,9 @@ bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
         WriteRaw('\n');
     }
 
-    Result_ = Stream_->Write(Buffer_.Begin(), Buffer_.Size());
+    auto buffer = TSharedRef::FromBlob(std::move(Buffer_));
+    Result_ = Stream_->Write(buffer);
+
     return Result_.IsSet() && Result_.Get().IsOK();
 }
 
