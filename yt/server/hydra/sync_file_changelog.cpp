@@ -407,7 +407,7 @@ public:
         DataFile_->Seek(0, sEnd);
         DataFile_->Write(memoryOutput.Begin(), memoryOutput.Size());
 
-        // Process written records (update index, et c).
+        // Process written records (update index etc).
         for (int i = 0; i < records.size(); ++i) {
             ProcessRecord(currentRecordCount + i, recordSizes[i]);
         }
@@ -612,12 +612,14 @@ private:
         IndexFile_->Seek(0, sEnd);
     }
 
-    //! Processes currently read or written record to changelog.
-    /*! Checks correctness of record id, updates the index, record count,
+    //! Processes records that are being or written.
+    /*!
+     *  Checks record id for correctness, updates index, record count,
      *  current block size and current file position.
      */
     void ProcessRecord(int recordId, int readSize)
     {
+        YCHECK(RecordCount_ == recordId);
         if (CurrentBlockSize_ >= Config_->IndexBlockSize || RecordCount_ == 0) {
             // Add index record in two cases:
             // 1) processing first record;
