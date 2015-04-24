@@ -83,6 +83,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
                     aggregateItem.Name);
             }
 
+            groupClause->IsFinal = true;
+
             topQuery->GroupClause = groupClause;
         }
 
