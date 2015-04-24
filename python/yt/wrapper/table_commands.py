@@ -361,8 +361,6 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
         if has_attribute(table_name, "_format"):
             format_name = get(table_name + "/@_format", format=YsonFormat())
             return create_format(format_name)
-        if "channel" in table_name.attributes:
-            return create_format("<line_prefix=tskv>dsv")
         return None
     formats = map(extract_format, tables_to_extract)
 
