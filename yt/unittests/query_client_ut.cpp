@@ -3783,6 +3783,34 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestAverageUdaf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3",
+        "a=53",
+        "a=8",
+        "a=24",
+        "a=33"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Double}
+    });
+
+    auto result = BuildRows({
+        "x=24.2",
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(New<TAverageAggregateFunction>());
+
+    Evaluate("avg(a) as x from [//t] group by 1", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEvaluateExpressionTest
