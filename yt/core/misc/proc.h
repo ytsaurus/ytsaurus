@@ -33,6 +33,8 @@ bool TryExecve(const char* path, char* const argv[], char* const env[]);
 
 // Returns a pipe with CLOSE_EXEC flag.
 void SafePipe(int fd[2]);
+
+bool TryMakeNonblocking(int fd);
 void SafeMakeNonblocking(int fd);
 
 void SafeSetUid(int uid);
