@@ -11,6 +11,13 @@ const int TPipe::InvalidFD = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka ToString(const TPipe& pipe)
+{
+    return Format("ReadFD: %v, WriteFD: %v", pipe.ReadFD, pipe.WriteFD);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPipeFactory::TPipeFactory(int minFD)
     : MinFD_(minFD)
 { }
