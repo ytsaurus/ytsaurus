@@ -22,6 +22,8 @@ public:
     TProcess(const TProcess& other) = delete;
     TProcess(TProcess&& other);
 
+    Stroka GetPath() const;
+
     static TProcess CreateCurrentProcessSpawner();
 
     void AddArgument(TStringBuf arg);
