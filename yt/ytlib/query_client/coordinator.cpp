@@ -35,8 +35,6 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 {
     auto Logger = BuildLogger(query);
 
-    std::vector<TConstQueryPtr> subqueries;
-
     auto subqueryInputRowLimit = refiners.empty()
         ? 0
         : 2 * std::min(query->InputRowLimit, std::numeric_limits<i64>::max() / 2) / refiners.size();
@@ -60,7 +58,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     
     if (query->GroupClause) {
         subqueryPattern->GroupClause = query->GroupClause;
-        if (subqueries.size() > 1) {
+        if (refiners.size() > 1) {
             auto groupClause = New<TGroupClause>();
             groupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
 
@@ -102,6 +100,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     }
 
     topQuery->TableSchema = subqueryPattern->GetTableSchema();
+    
+    std::vector<TConstQueryPtr> subqueries;
 
     for (const auto& refiner : refiners) {
         // Set initial schema and key columns
