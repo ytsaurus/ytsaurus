@@ -216,6 +216,11 @@ void TProcess::AddDup2FileAction(int oldFD, int newFD)
     SpawnActions_.push_back(action);
 }
 
+Stroka TProcess::GetPath() const
+{
+    return Path_;
+}
+
 void TProcess::Spawn()
 {
 #ifdef _linux_
@@ -226,7 +231,11 @@ void TProcess::Spawn()
     Pipe_ = pipeFactory.Create();
     pipeFactory.Clear();
 
-    LOG_DEBUG("Process arguments: [%v], environment: [%v]", JoinToString(Args_), JoinToString(Env_));
+    LOG_DEBUG("Spawning new process (Path: %v, ErrorPipe: [%v],  Arguments: [%v], Environment: [%v]", 
+        Path_,
+        Pipe_,
+        JoinToString(Args_), 
+        JoinToString(Env_));
 
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
