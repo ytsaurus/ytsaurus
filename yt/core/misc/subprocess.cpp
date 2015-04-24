@@ -64,73 +64,73 @@ TSubprocessResult TSubprocess::Execute()
         Process_.AddDup2FileAction(FD, index);
     }
 
-    TFinallyGuard finallyGuard([&] () {
-        if (Process_.Started() && !Process_.Finished()) {
-            try {
-                Process_.Kill(9);
-            } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Failed to kill subprocess %v", Process_.GetProcessId());
-            }
-
-            auto error = Process_.Wait();
-            if (!error.IsOK()) {
-                LOG_ERROR(error, "Failed to wait subprocess %v", Process_.GetProcessId());
-            }
-        }
-
+    try {
+        Process_.Spawn();
+    } catch (...) {
         for (const auto& pipe : pipes) {
-            TryClose(pipe.ReadFD);
-            TryClose(pipe.WriteFD);
+            YCHECK(TryClose(pipe.ReadFD, false));
+            YCHECK(TryClose(pipe.WriteFD, false));
         }
-    });
-
-    Process_.Spawn();
+        throw;
+    }
 
     for (int index = 0; index < pipes.size(); ++index) {
         auto& pipe = pipes[index];
 
-        SafeClose(pipe.WriteFD, false);
+        YCHECK(TryClose(pipe.WriteFD, false));
         pipe.WriteFD = TPipe::InvalidFD;
         if (index == 0) {
-            SafeClose(pipe.ReadFD, false);
+            YCHECK(TryClose(pipe.ReadFD, false));
             pipe.ReadFD = TPipe::InvalidFD;
         } else {
-            SafeMakeNonblocking(pipe.ReadFD);
+            YCHECK(TryMakeNonblocking(pipe.ReadFD));
         }
     }
 
-    std::array<IAsyncZeroCopyInputStreamPtr, 2> processOutputs = {
-        CreateZeroCopyAdapter(New<TAsyncReader>(pipes[1].ReadFD), PipeBlockSize),
-        CreateZeroCopyAdapter(New<TAsyncReader>(pipes[2].ReadFD), PipeBlockSize)
+    auto outputStream = New<TAsyncReader>(pipes[1].ReadFD);
+    auto errorStream = New<TAsyncReader>(pipes[2].ReadFD);
+
+    auto readIntoBlob = [] (IAsyncInputStreamPtr stream) {
+        TBlob output;
+        auto buffer = TSharedRef::Allocate(PipeBlockSize, false);
+        while (true) {
+            auto size = WaitFor(stream->Read(buffer))
+                .ValueOrThrow();
+
+            if (size == 0)
+                break;
+
+            // ToDo(psushin): eliminate copying.
+            output.Append(buffer.Begin(), size);
+        }
+        return TSharedRef::FromBlob(std::move(output));
     };
-    std::vector<TFuture<TSharedRef>> futures(2);
 
-    for (int i = 0; i < processOutputs.size(); ++i) {
-        auto processOutput = processOutputs[i];
-        futures[i] = BIND([processOutput] () {
-            TBlob output;
-            while (true) {
-                auto block = WaitFor(processOutput->Read())
-                    .ValueOrThrow();
+    std::vector<TFuture<TSharedRef>> futures = {
+        BIND(readIntoBlob, outputStream).AsyncVia(GetCurrentInvoker()).Run(),
+        BIND(readIntoBlob, errorStream).AsyncVia(GetCurrentInvoker()).Run(),
+    };
 
-                if (!block)
-                    break;
+    try {
+        auto outputsOrError = WaitFor(Combine(futures));
+        THROW_ERROR_EXCEPTION_IF_FAILED(outputsOrError, "IO error occured during subprocess call");
 
-                output.Append(block);
-            }
-            return TSharedRef::FromBlob(std::move(output));
-        }).AsyncVia(GetCurrentInvoker()).Run();
+        const auto& outputs = outputsOrError.Value();
+        YCHECK(outputs.size() == 2);
+
+        // This can block indefinitely.
+        auto exitCode = Process_.Wait();
+        return TSubprocessResult{outputs[0], outputs[1], exitCode};
+    } catch (...) {
+        // Cleanup: trying to kill and wait for completion is case of errors.
+        try {
+            Process_.Kill(9);
+        } catch (...) { }
+        if (!Process_.Finished()) {
+            Process_.Wait();
+        }
+        throw;
     }
-
-    auto outputsOrError = WaitFor(Combine(futures));
-    THROW_ERROR_EXCEPTION_IF_FAILED(outputsOrError, "IO error occured during subprocess call");
-
-    const auto& outputs = outputsOrError.Value();
-    YCHECK(outputs.size() == 2);
-
-    // This can block indefinitely.
-    auto exitCode = Process_.Wait();
-    return TSubprocessResult{outputs[0], outputs[1], exitCode};
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
