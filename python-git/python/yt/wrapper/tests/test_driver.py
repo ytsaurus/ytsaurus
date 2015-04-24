@@ -18,3 +18,7 @@ def test_heavy_proxies():
     time.sleep(0.01)
     
     assert yt.wrapper.driver.get_heavy_proxy(client=None) == "host2"
+
+def teardown_function(function):
+    reload(yt.wrapper.driver)
+    reload(yt.wrapper.config)
