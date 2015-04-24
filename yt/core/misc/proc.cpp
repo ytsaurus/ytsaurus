@@ -267,19 +267,27 @@ void SafePipe(int fd[2])
 #endif
 }
 
-void SafeMakeNonblocking(int fd)
+bool TryMakeNonblocking(int fd)
 {
     auto res = fcntl(fd, F_GETFL);
 
     if (res == -1) {
-        THROW_ERROR_EXCEPTION("fcntl failed to get descriptor flags")
-            << TError::FromSystem();
+        return false;
     }
 
     res = fcntl(fd, F_SETFL, res | O_NONBLOCK);
 
     if (res == -1) {
-        THROW_ERROR_EXCEPTION("fcntl failed to set descriptor flags")
+        return false;
+    }
+
+    return true;
+}
+
+void SafeMakeNonblocking(int fd)
+{
+    if (!TryMakeNonblocking(fd)) {
+        THROW_ERROR_EXCEPTION("Failed to set nonblocking mode for descriptor %v", fd)
             << TError::FromSystem();
     }
 }
@@ -340,6 +348,11 @@ void SetPermissions(int /* fd */, int /* permissions */)
 }
 
 void SafePipe(int /* fd */ [2])
+{
+    YUNIMPLEMENTED();
+}
+
+bool TryMakeNonblocking(int /* fd */)
 {
     YUNIMPLEMENTED();
 }
