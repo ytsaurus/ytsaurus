@@ -40,6 +40,10 @@ struct IAggregateFunctionDescriptor
     virtual const TCodegenAggregate MakeCodegenAggregate(
         EValueType type,
         const Stroka& name) const = 0;
+
+    virtual std::vector<TColumnSchema> GetStateSchema(
+        const Stroka& name,
+        EValueType type) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAggregateFunctionDescriptor)

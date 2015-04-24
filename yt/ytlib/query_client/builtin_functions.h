@@ -147,6 +147,10 @@ public:
         EValueType type,
         const Stroka& name) const override;
 
+    virtual std::vector<TColumnSchema> GetStateSchema(
+        const Stroka& name,
+        EValueType type) const override;
+
 private:
     const Stroka Name_;
 };

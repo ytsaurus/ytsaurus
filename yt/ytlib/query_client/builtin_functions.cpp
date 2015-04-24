@@ -504,6 +504,15 @@ const TCodegenAggregate TAggregateFunction::MakeCodegenAggregate(
     return codegenAggregate;
 }
 
+std::vector<TColumnSchema> TAggregateFunction::GetStateSchema(
+    const Stroka& name,
+    EValueType type) const
+{
+    return std::vector<TColumnSchema>{
+        TColumnSchema(name, type)
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
