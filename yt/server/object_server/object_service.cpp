@@ -292,7 +292,7 @@ private:
                 requestIndex,
                 error,
                 Context->GetRequestId(),
-                (TInstant::Now() - startTime).MilliSeconds());
+                TInstant::Now() - startTime);
         }
 
         ResponseMessages[requestIndex] = std::move(responseMessage);

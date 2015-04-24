@@ -494,11 +494,8 @@ protected:
         //! The number of currently queued requests.
         NProfiling::TAggregateCounter QueueSizeCounter;
 
-        //! Time spent while handling the request synchronously.
-        NProfiling::TAggregateCounter SyncTimeCounter;
-
-        //! Time spent while handling the request asynchronously.
-        NProfiling::TAggregateCounter AsyncTimeCounter;
+        //! Time spent while handling the request.
+        NProfiling::TAggregateCounter ExecutionTimeCounter;
 
         //! Time spent at the caller's side before the request arrived into the server queue.
         NProfiling::TAggregateCounter RemoteWaitTimeCounter;
