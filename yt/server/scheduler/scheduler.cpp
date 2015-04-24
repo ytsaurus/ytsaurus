@@ -2114,6 +2114,7 @@ public:
         TOperationPtr operation,
         EJobType type,
         const TNodeResources& resourceLimits,
+        bool restarted,
         TJobSpecBuilder specBuilder) override
     {
         auto id = TJobId::Create();
@@ -2125,6 +2126,7 @@ public:
             Node_,
             startTime,
             resourceLimits,
+            restarted,
             specBuilder);
         StartedJobs_.push_back(job);
         Owner_->RegisterJob(job);
