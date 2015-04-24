@@ -34,13 +34,15 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessWriter)
  *  Writes unversioned rowset with schema and variable columns.
  *  Useful for: mapreduce jobs, write command.
  */
-struct ISchemalessMultiSourceWriter
+struct ISchemalessFormatWriter
     : public ISchemalessWriter
 {
     virtual void SetTableIndex(int tableIndex) = 0;
+
+    virtual TBlob GetContext() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ISchemalessMultiSourceWriter)
+DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

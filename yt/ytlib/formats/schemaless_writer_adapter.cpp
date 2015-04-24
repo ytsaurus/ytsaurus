@@ -1,4 +1,4 @@
-#include "stdafx.h" 
+#include "stdafx.h"
 
 #include "schemaless_writer_adapter.h"
 
@@ -21,18 +21,29 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const size_t BufferSize = 1024 * 1024;
+static const int BufferRowCount = 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSchemalessWriterAdapter::TSchemalessWriterAdapter(
-    std::unique_ptr<NYson::IYsonConsumer> consumer,
+    const TFormat& format,
     TNameTablePtr nameTable,
+    std::unique_ptr<TOutputStream> outputStream,
     bool enableTableSwitch,
     bool enableKeySwitch,
     int keyColumnCount)
-    : Consumer_(std::move(consumer))
-    , NameTable_(nameTable)
+    : NameTable_(nameTable)
+    , OutputStream_(std::move(outputStream))
     , EnableTableSwitch_(enableTableSwitch)
     , EnableKeySwitch_(enableKeySwitch)
     , KeyColumnCount_(keyColumnCount)
-{ }
+{
+    CurrentBuffer_.Reserve(BufferSize);
+    PreviousBuffer_.Reserve(BufferSize);
+
+    Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, &CurrentBuffer_);
+}
 
 TFuture<void> TSchemalessWriterAdapter::Open()
 {
@@ -56,6 +67,10 @@ bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
             }
 
             ConsumeRow(row);
+
+            if (CurrentBuffer_.Size() >= BufferSize) {
+                FlushBuffer();
+            }
         }
 
         if (EnableKeySwitch_ && CurrentKey_) {
@@ -77,6 +92,13 @@ TFuture<void> TSchemalessWriterAdapter::GetReadyEvent()
 
 TFuture<void> TSchemalessWriterAdapter::Close()
 {
+    try {
+        FlushBuffer();
+        OutputStream_->Finish();
+    } catch (const std::exception& ex) {
+        Error_ = TError(ex);
+    }
+
     return MakeFuture(Error_);
 }
 
@@ -101,6 +123,14 @@ void TSchemalessWriterAdapter::SetTableIndex(int tableIndex)
             .Entity();
         TableIndex_ = tableIndex;
     }
+}
+
+TBlob TSchemalessWriterAdapter::GetContext() const
+{
+    TBlob result;
+    result.Append(TRef::FromBlob(PreviousBuffer_.Blob()));
+    result.Append(TRef::FromBlob(CurrentBuffer_.Blob()));
+    return result;
 }
 
 void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)
@@ -142,6 +172,12 @@ void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)
     Consumer_->OnEndMap();
 }
 
+void TSchemalessWriterAdapter::FlushBuffer()
+{
+    OutputStream_->Write(CurrentBuffer_.Begin(), CurrentBuffer_.Size());
+    swap(CurrentBuffer_, PreviousBuffer_);
+    CurrentBuffer_.Clear();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -36,6 +36,8 @@ public:
 
     NApi::TFileWriterConfigPtr ErrorFileWriter;
 
+    i64 BufferRowCount;
+
     bool EnableInputTableIndex;
 
     TJobIOConfig()
@@ -47,6 +49,9 @@ public:
 
         RegisterParameter("error_file_writer", ErrorFileWriter)
             .DefaultNew();
+
+        RegisterParameter("buffer_row_count", BufferRowCount)
+            .Default((i64) 10000);
 
         RegisterParameter("enable_input_table_index", EnableInputTableIndex)
             .Default(false);

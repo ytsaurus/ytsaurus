@@ -704,8 +704,8 @@ private:
             WaitFor(reader->Open()).ThrowOnError();
 
             auto producer = [&] (TOutputStream* output) {
-                TBufferedOutput bufferedOutput(output);
-                auto writer = CreateSchemalessWriterForFormat(format, nameTable, &bufferedOutput, false, false, 0);
+                auto bufferedOutput = std::make_unique<TBufferedOutput>(output);
+                auto writer = CreateSchemalessWriterForFormat(format, nameTable, std::move(bufferedOutput), false, false, 0);
                 PipeReaderToWriter(reader, writer, 10000);
             };
 

@@ -1,12 +1,16 @@
 #pragma once 
 
 #include "public.h"
+#include "format.h"
 
+#include <ytlib/new_table_client/public.h>
 #include <ytlib/new_table_client/schemaless_writer.h>
 
 #include <core/yson/public.h>
 
-#include <core/misc/nullable.h>
+#include <core/misc/blob_output.h>
+
+#include <memory>
 
 namespace NYT {
 namespace NFormats {
@@ -14,12 +18,13 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessWriterAdapter
-    : public NVersionedTableClient::ISchemalessMultiSourceWriter
+    : public NVersionedTableClient::ISchemalessFormatWriter
 {
 public:
     TSchemalessWriterAdapter(
-        std::unique_ptr<NYson::IYsonConsumer> consumer,
+        const TFormat& format,
         NVersionedTableClient::TNameTablePtr nameTable,
+        std::unique_ptr<TOutputStream> outputStream,
         bool enableTableSwitch,
         bool enableKeySwitch,
         int keyColumnCount);
@@ -38,9 +43,15 @@ public:
 
     virtual void SetTableIndex(int tableIndex) override;
 
+    virtual TBlob GetContext() const override;
+
 private:
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;
     NVersionedTableClient::TNameTablePtr NameTable_;
+
+    std::unique_ptr<TOutputStream> OutputStream_;
+    TBlobOutput CurrentBuffer_;
+    TBlobOutput PreviousBuffer_;
 
     bool EnableTableSwitch_;
     int TableIndex_ = -1;
@@ -54,6 +65,7 @@ private:
     TError Error_;
 
     void ConsumeRow(const NVersionedTableClient::TUnversionedRow& row);
+    void FlushBuffer();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

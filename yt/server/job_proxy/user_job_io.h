@@ -5,6 +5,7 @@
 #include <ytlib/new_table_client/public.h>
 
 #include <ytlib/scheduler/job.pb.h>
+#include <ytlib/scheduler/public.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -22,6 +23,8 @@ struct IUserJobIO
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) = 0;
 
     virtual bool IsKeySwitchEnabled() const = 0;
+
+    virtual NScheduler::TJobIOConfigPtr GetConfig() const = 0;
 
     virtual ~IUserJobIO()
     { }

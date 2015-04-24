@@ -30,6 +30,8 @@ public:
 
     virtual bool IsKeySwitchEnabled() const override;
 
+    virtual NScheduler::TJobIOConfigPtr GetConfig() const override;
+
 protected:
     IJobHost* Host_;
 
