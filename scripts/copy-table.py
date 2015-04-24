@@ -95,6 +95,10 @@ def prepare(value):
     # remove surrounding [ ]
     return yson.dumps(value)[1:-1]
 
+# Check that table is mounted
+def mounted(path):
+    return all(x["state"] == "mounted" for x in yt.get(src + "/@tablets"))
+
 # Mapper - get tablet partition pivot keys.
 def tablets_mapper(tablet):
     yield {"pivot_key":tablet["pivot_key"]}
@@ -172,9 +176,10 @@ if __name__ == "__main__":
         else:
             raise Exception("Destination table exists. Use --force")
 
-    yt.mount_table(src)
-    while not all(x["state"] == "mounted" for x in yt.get(src + "/@tablets")):
-        sleep(1)
+    if not mounted(src):
+        yt.mount_table(src)
+        while not mounted(src):
+            sleep(1)
 
     tablets = yt.get(src + "/@tablets")
 
