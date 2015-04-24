@@ -50,8 +50,7 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     : Descriptor(descriptor)
     , RequestCounter("/request_count", tagIds)
     , QueueSizeCounter("/request_queue_size", tagIds)
-    , SyncTimeCounter("/request_time/sync", tagIds)
-    , AsyncTimeCounter("/request_time/async", tagIds)
+    , ExecutionTimeCounter("/request_time/execution", tagIds)
     , RemoteWaitTimeCounter("/request_time/remote_wait", tagIds)
     , LocalWaitTimeCounter("/request_time/local_wait", tagIds)
     , TotalTimeCounter("/request_time/total", tagIds)
@@ -170,8 +169,7 @@ private:
     bool Finalized_ = false;
     TClosure Canceler_;
     NProfiling::TCpuInstant ArrivalTime_;
-    NProfiling::TCpuInstant SyncStartTime_ = -1;
-    NProfiling::TCpuInstant SyncStopTime_ = -1;
+    NProfiling::TCpuInstant StartTime_ = -1;
 
 
     void Initialize()
@@ -231,10 +229,10 @@ private:
         // No need for a lock here.
         RunningSync_ = true;
         Started_ = true;
-        SyncStartTime_ = GetCpuInstant();
+        StartTime_ = GetCpuInstant();
 
         if (Profiler.GetEnabled()) {
-            auto value = CpuDurationToValue(SyncStartTime_ - ArrivalTime_);
+            auto value = CpuDurationToValue(StartTime_ - ArrivalTime_);
             Profiler.Update(RuntimeInfo_->LocalWaitTimeCounter, value);
         }
     }
@@ -287,17 +285,9 @@ private:
         YASSERT(RunningSync_);
         RunningSync_ = false;
 
-        if (Profiler.GetEnabled()) {
-            if (!Completed_) {
-                SyncStopTime_ = GetCpuInstant();
-                auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);
-                Profiler.Update(RuntimeInfo_->SyncTimeCounter, value);
-            }
-
-            if (RuntimeInfo_->Descriptor.OneWay) {
-                auto value = CpuDurationToValue(SyncStopTime_ - ArrivalTime_);
-                Profiler.Update(RuntimeInfo_->TotalTimeCounter, value);
-            }
+        if (Profiler.GetEnabled() && RuntimeInfo_->Descriptor.OneWay) {
+            auto value = CpuDurationToValue(GetCpuInstant() - ArrivalTime_);
+            Profiler.Update(RuntimeInfo_->TotalTimeCounter, value);
         }
     }
 
@@ -312,11 +302,11 @@ private:
 
         auto timeout = TDuration(RequestHeader_->timeout());
         auto deadlineTime = ArrivalTime_ + DurationToCpuDuration(timeout);
-        if (deadlineTime < SyncStartTime_) {
+        if (deadlineTime < StartTime_) {
             return TDuration::Zero();
         }
 
-        return CpuDurationToDuration(deadlineTime - SyncStartTime_);
+        return CpuDurationToDuration(deadlineTime - StartTime_);
     }
 
 
@@ -341,15 +331,9 @@ private:
             if (Profiler.GetEnabled()) {
                 auto now = GetCpuInstant();
 
-                if (RunningSync_) {
-                    SyncStopTime_ = now;
-                    auto value = CpuDurationToValue(SyncStopTime_ - SyncStartTime_);
-                    Profiler.Update(RuntimeInfo_->SyncTimeCounter, value);
-                }
-
                 {
-                    auto value = CpuDurationToValue(now - SyncStopTime_);
-                    Profiler.Update(RuntimeInfo_->AsyncTimeCounter, value);
+                    auto value = CpuDurationToValue(now - StartTime_);
+                    Profiler.Update(RuntimeInfo_->ExecutionTimeCounter, value);
                 }
 
                 {
@@ -391,10 +375,6 @@ private:
             AppendInfo(&builder, "Timeout: %v", TDuration(RequestHeader_->timeout()));
         }
 
-        if (!RequestInfo_.empty()) {
-            AppendInfo(&builder, "%v", RequestInfo_);
-        }
-
         LOG_EVENT(Logger, LogLevel_, "%v <- %v",
             GetMethod(),
             builder.Flush());
@@ -412,6 +392,12 @@ private:
 
         if (!ResponseInfo_.empty()) {
             AppendInfo(&builder, "%v", ResponseInfo_);
+        }
+
+        if (Profiler.GetEnabled()) {
+            AppendInfo(&builder, "ExecutionTime: %v, TotalTime: %v",
+                RuntimeInfo_->ExecutionTimeCounter.Current,
+                RuntimeInfo_->TotalTimeCounter.Current);
         }
 
         LOG_EVENT(Logger, LogLevel_, "%v -> %v",
@@ -463,7 +449,7 @@ void TServiceBase::Init(
     ProtocolVersion_ = protocolVersion;
 
     ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
-    
+
     {
         NProfiling::TTagIdList tagIds;
         tagIds.push_back(ServiceTagId_);

@@ -295,6 +295,12 @@ IMPLEMENT_FORMAT_VALUE_STD(float,           float,              STRINGBUF("f"))
 
 #undef IMPLEMENT_STD_FORMAT_VALUE
 
+// TDuration (specialize for performance reasons)
+inline void FormatValue(TStringBuilder* builder, const TDuration& value, const TStringBuf& format)
+{
+    FormatValue(builder, value.MilliSeconds(), format);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TArgFormatter>
