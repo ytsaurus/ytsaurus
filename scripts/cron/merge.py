@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from yt.wrapper.operation_commands import format_operation_stderrs
 from yt.tools.atomic import process_tasks_from_list
 
 import yt.logger as logger
@@ -76,6 +77,10 @@ def merge(table):
                         yt.run_merge(temp_table, table, mode=mode)
                     else:
                         logger.info("Table %s has changed while merge", table)
+        except yt.YtOperationFailedError as error:
+            if "stderrs" in error.attributes:
+                error.message = error.message + format_operation_stderrs(error.attributes["stderrs"])
+            raise
         finally:
             yt.remove(temp_table, force=True)
 
