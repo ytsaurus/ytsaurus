@@ -287,7 +287,8 @@ def add_failed_operation_stderrs_to_error_message(func):
         try:
             func(*args, **kwargs)
         except YtOperationFailedError as error:
-            error.message = error.message + format_operation_stderrs(error.attributes["stderrs"])
+            if "stderrs" in error.attributes:
+                error.message = error.message + format_operation_stderrs(error.attributes["stderrs"])
             raise
     return decorated_func
 
