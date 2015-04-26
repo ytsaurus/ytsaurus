@@ -185,7 +185,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
         KeyColumns.size(),
         0,
         schemaIdMapping,
-        AsyncAllCommittedTimestamp);
+        AllCommittedTimestamp);
 
     TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 3, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);

@@ -284,7 +284,7 @@ private:
             auto reader = store->CreateReader(
                 MinKey(),
                 MaxKey(),
-                AsyncAllCommittedTimestamp,
+                AllCommittedTimestamp,
                 TColumnFilter());
         
             // NB: Memory store reader is always synchronous.

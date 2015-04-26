@@ -84,7 +84,7 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
     YCHECK(CachedChunkMeta_->Misc().sorted());
     YCHECK(EChunkType(CachedChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
     YCHECK(ETableChunkFormat(CachedChunkMeta_->ChunkMeta().version()) == ETableChunkFormat::VersionedSimple);
-    YCHECK(Timestamp_ != AsyncAllCommittedTimestamp || columnFilter.All);
+    YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
     YCHECK(PerformanceCounters_);
 
     if (columnFilter.All) {
