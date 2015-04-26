@@ -7,7 +7,7 @@
 #include "nullable.h"
 #include "mpl.h"
 #include "serialize.h"
-#include "array_ref.h"
+#include "range.h"
 
 #include <core/misc/protobuf_helpers.pb.h>
 #include <core/misc/guid.pb.h>
@@ -149,7 +149,7 @@ inline void ToProto(
 template <class TSerialized, class TOriginal>
 inline void ToProto(
     ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const TArrayRef<TOriginal>& originalArray,
+    const TRange<TOriginal>& originalArray,
     bool clear = true)
 {
     ToProtoArrayImpl(serializedArray, originalArray);
@@ -158,7 +158,7 @@ inline void ToProto(
 template <class TSerialized, class TOriginal>
 inline void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const TArrayRef<TOriginal>& originalArray,
+    const TRange<TOriginal>& originalArray,
     bool clear = true)
 {
     ToProtoArrayImpl(serializedArray, originalArray);
