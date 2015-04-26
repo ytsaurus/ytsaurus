@@ -51,11 +51,11 @@ void WriteRow(TRow row, TExecutionContext* executionContext)
 {
     CHECK_STACK();
 
-    if (executionContext->StopFlag = CountRow(&executionContext->Limit)) {
+    if (!UpdateAndCheckRowLimit(&executionContext->Limit, &executionContext->StopFlag)) {
         return;
     }
 
-    if (executionContext->StopFlag = CountRow(&executionContext->OutputRowLimit)) {
+    if (!UpdateAndCheckRowLimit(&executionContext->OutputRowLimit, &executionContext->StopFlag)) {
         executionContext->Statistics->IncompleteOutput = true;
         return;
     }
@@ -269,7 +269,7 @@ const TRow* InsertGroupRow(
     auto inserted = lookupRows->insert(row);
 
     if (inserted.second) {
-        if (executionContext->StopFlag = CountRow(&executionContext->GroupRowLimit)) {
+        if (!UpdateAndCheckRowLimit(&executionContext->GroupRowLimit, &executionContext->StopFlag)) {
             executionContext->Statistics->IncompleteOutput = true;
             return nullptr;
         }

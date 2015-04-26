@@ -187,7 +187,7 @@ using TCGExpressionCallback = NCodegen::TCGFunction<TCGExpressionSignature>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CountRow(i64* limit);
+bool UpdateAndCheckRowLimit(i64* limit, char* flag);
 
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,
