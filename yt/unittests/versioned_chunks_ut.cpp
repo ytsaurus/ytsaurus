@@ -531,7 +531,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
             TReadLimit(),
             TColumnFilter(),
             New<TChunkReaderPerformanceCounters>(),
-            AsyncAllCommittedTimestamp);
+            AllCommittedTimestamp);
 
         EXPECT_TRUE(chunkReader->Open().Get().IsOK());
         CheckResult(expected, chunkReader);
@@ -555,7 +555,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
             TReadLimit(),
             TColumnFilter(),
             New<TChunkReaderPerformanceCounters>(),
-            AsyncAllCommittedTimestamp);
+            AllCommittedTimestamp);
 
         EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
@@ -618,7 +618,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
             sharedKeys,
             TColumnFilter(),
             New<TChunkReaderPerformanceCounters>(),
-            AsyncAllCommittedTimestamp);
+            AllCommittedTimestamp);
 
         EXPECT_TRUE(chunkReader->Open().Get().IsOK());
         CheckResult(expected, chunkReader);

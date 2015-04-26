@@ -38,7 +38,7 @@ using NTransactionClient::MinTimestamp;
 using NTransactionClient::MaxTimestamp;
 using NTransactionClient::SyncLastCommittedTimestamp;
 using NTransactionClient::AsyncLastCommittedTimestamp;
-using NTransactionClient::AsyncAllCommittedTimestamp;
+using NTransactionClient::AllCommittedTimestamp;
 using NTransactionClient::NotPreparedTimestamp;
 
 using TKeyColumns = std::vector<Stroka>;

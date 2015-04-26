@@ -153,7 +153,7 @@ public:
         , Pool_(TDynamicMemoryStoreFetcherPoolTag(), TabletReaderPoolSize)
         , FixedValueListSnapshots_(SchemaColumnCount_)
     {
-        YCHECK(Timestamp_ != AsyncAllCommittedTimestamp || ColumnFilter_.All);
+        YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);
 
         if (columnFilter.All) {
             LockMask_ = TDynamicRow::AllLocksMask;
@@ -506,7 +506,7 @@ private:
     {
         auto dynamicRow = Iterator_.GetCurrent();
         return
-            Timestamp_ == AsyncAllCommittedTimestamp
+            Timestamp_ == AllCommittedTimestamp
             ? ProduceAllRowVersions(dynamicRow)
             : ProduceSingleRowVersion(dynamicRow);
     }
