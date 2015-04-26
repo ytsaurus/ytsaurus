@@ -13,6 +13,7 @@ set( SRCS
   ${BASE}/checkpointable_stream.cpp
   ${BASE}/checksum.cpp
   ${BASE}/chunked_memory_pool.cpp
+  ${BASE}/chunked_memory_allocator.cpp
   ${BASE}/chunked_output_stream.cpp
   ${BASE}/crash_handler.cpp
   ${BASE}/demangle.cpp
@@ -66,6 +67,8 @@ set( HDRS
   ${BASE}/checksum.h
   ${BASE}/chunked_memory_pool.h
   ${BASE}/chunked_memory_pool-inl.h
+  ${BASE}/chunked_memory_allocator.h
+  ${BASE}/chunked_memory_allocator-inl.h
   ${BASE}/chunked_output_stream.h
   ${BASE}/collection_helpers-inl.h
   ${BASE}/collection_helpers.h
