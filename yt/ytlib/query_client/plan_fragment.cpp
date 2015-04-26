@@ -419,7 +419,7 @@ protected:
                 }
             };
 
-            std::function<TConstExpressionPtr(size_t, size_t, EBinaryOp)> gen = [&] (size_t offset, size_t keySize, EBinaryOp op) -> TConstExpressionPtr {
+            std::function<TConstExpressionPtr(int, int, EBinaryOp)> gen = [&] (int offset, int keySize, EBinaryOp op) -> TConstExpressionPtr {
                 if (offset + 1 < keySize) {
                     auto next = gen(offset + 1, keySize, op);
                     auto eq = MakeAndExpression(
@@ -454,9 +454,8 @@ protected:
                         << TErrorAttribute("source", binaryExpr->Rhs->GetSource(source));
                 }
 
-                size_t keySize = typedLhsExpr.size();
-
-                result.push_back(gen(0, keySize, binaryExpr->Opcode));            
+                int keySize = typedLhsExpr.size();
+                result.push_back(gen(0, keySize, binaryExpr->Opcode));
             } else {
                 if (typedLhsExpr.size() != 1) {
                     THROW_ERROR_EXCEPTION("Expecting scalar expression")
@@ -626,7 +625,7 @@ protected:
                     << TErrorAttribute("source", source);
             }
 
-            for (size_t i = 0; i < tuple.size(); ++i) {
+            for (int i = 0; i < tuple.size(); ++i) {
                 if (tuple[i].Type != argTypes[i]) {
                     THROW_ERROR_EXCEPTION("IN operator types mismatch")
                         << TErrorAttribute("source", source)
@@ -905,21 +904,22 @@ class TSimpleSchemaProxy
     : public TSchemaProxy
 {
 public:
-    explicit TSimpleSchemaProxy(
-        TTableSchema* tableSchema)
+    explicit TSimpleSchemaProxy(TTableSchema* tableSchema)
         : TSchemaProxy(tableSchema)
     { }
     
     TSimpleSchemaProxy(
         TTableSchema* tableSchema,
         const TTableSchema& sourceTableSchema,
-        size_t keyColumnCount = 0)
+        int keyColumnCount = 0)
         : TSchemaProxy(tableSchema)
         , SourceTableSchema_(sourceTableSchema)
     {
         const auto& columns = sourceTableSchema.Columns();
-        size_t count = std::min(sourceTableSchema.HasComputedColumns() ? keyColumnCount : 0, columns.size());
-        for (size_t i = 0; i < count; ++i) {
+        int count = std::min(
+            sourceTableSchema.HasComputedColumns() ? keyColumnCount : 0,
+            static_cast<int>(columns.size()));
+        for (int i = 0; i < count; ++i) {
             AddColumn(GetTableSchema(), columns[i]);
         }
     }
@@ -948,7 +948,7 @@ public:
     }
 
 private:
-    TNullable<TTableSchema> SourceTableSchema_;
+    const TNullable<TTableSchema> SourceTableSchema_;
 
 };
 
