@@ -636,7 +636,8 @@ i64 GetDataWeight(TUnversionedRow row)
 
 TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* alignedPool, int valueCount)
 {
-    auto* header = reinterpret_cast<TUnversionedRowHeader*>(alignedPool->AllocateAligned(GetUnversionedRowDataSize(valueCount)));
+    auto* header = reinterpret_cast<TUnversionedRowHeader*>(alignedPool->AllocateAligned(
+        GetUnversionedRowDataSize(valueCount)));
     header->Count = valueCount;
     header->Padding = 0;
     return TUnversionedRow(header);
