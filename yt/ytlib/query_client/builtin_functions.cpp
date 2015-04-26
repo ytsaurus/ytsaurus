@@ -290,7 +290,7 @@ TKeyTriePtr TIsPrefixFunction::ExtractKeyRange(
             }
 
             if (length > 0) {
-                char* newValue = rowBuffer->GetUnalignedPool()->AllocateUnaligned(length);
+                char* newValue = rowBuffer->GetPool()->AllocateUnaligned(length);
                 memcpy(newValue, value.Data.String, length);
                 ++newValue[length - 1];
 

@@ -78,8 +78,7 @@ class TTableMountConfig
 public:
     int MaxMemoryStoreKeyCount;
     int MaxMemoryStoreValueCount;
-    i64 MaxMemoryStoreAlignedPoolSize;
-    i64 MaxMemoryStoreUnalignedPoolSize;
+    i64 MaxMemoryStorePoolSize;
     TDuration MemoryStoreAutoFlushPeriod;
 
     i64 MaxPartitionDataSize;
@@ -118,10 +117,7 @@ public:
         RegisterParameter("max_memory_store_value_count", MaxMemoryStoreValueCount)
             .GreaterThan(0)
             .Default(10000000);
-        RegisterParameter("max_memory_store_aligned_pool_size", MaxMemoryStoreAlignedPoolSize)
-            .GreaterThan(0)
-            .Default((i64) 1024 * 1024 * 1024);
-        RegisterParameter("max_memory_store_unaligned_pool_size", MaxMemoryStoreUnalignedPoolSize)
+        RegisterParameter("max_memory_store_pool_size", MaxMemoryStorePoolSize)
             .GreaterThan(0)
             .Default((i64) 1024 * 1024 * 1024);
         RegisterParameter("memory_store_auto_flush_period", MemoryStoreAutoFlushPeriod)
@@ -237,8 +233,7 @@ class TTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    i64 AlignedPoolChunkSize;
-    i64 UnalignedPoolChunkSize;
+    i64 PoolChunkSize;
     double MaxPoolSmallBlockRatio;
 
     TDuration ErrorBackoffTime;
@@ -249,10 +244,7 @@ public:
 
     TTabletManagerConfig()
     {
-        RegisterParameter("aligned_pool_chunk_size", AlignedPoolChunkSize)
-            .GreaterThan(0)
-            .Default(64 * 1024);
-        RegisterParameter("unaligned_pool_chunk_size", UnalignedPoolChunkSize)
+        RegisterParameter("pool_chunk_size", PoolChunkSize)
             .GreaterThan(0)
             .Default(64 * 1024);
         RegisterParameter("max_pool_small_block_ratio", MaxPoolSmallBlockRatio)

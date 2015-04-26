@@ -158,9 +158,9 @@ void InsertJoinRow(
     if (inserted.second) {
         rows->push_back(row);
         for (int index = 0; index < valueCount; ++index) {
-            CaptureValue(&row[index], executionContext->PermanentBuffer->GetUnalignedPool());
+            executionContext->PermanentBuffer->Capture(&row[index]);
         }
-        *rowPtr = TRow::Allocate(executionContext->PermanentBuffer->GetAlignedPool(), valueCount);
+        *rowPtr = TRow::Allocate(executionContext->PermanentBuffer->GetPool(), valueCount);
     }
 }
 
@@ -253,7 +253,7 @@ void AllocatePermanentRow(TExecutionContext* executionContext, int valueCount, T
 {
     CHECK_STACK();
 
-    *row = TRow::Allocate(executionContext->PermanentBuffer->GetAlignedPool(), valueCount);
+    *row = TRow::Allocate(executionContext->PermanentBuffer->GetPool(), valueCount);
 }
 
 const TRow* InsertGroupRow(
@@ -276,9 +276,9 @@ const TRow* InsertGroupRow(
 
         groupedRows->push_back(row);
         for (int index = 0; index < valueCount; ++index) {
-            CaptureValue(&row[index], executionContext->PermanentBuffer->GetUnalignedPool());
+            executionContext->PermanentBuffer->Capture(&row[index]);
         }
-        *rowPtr = TRow::Allocate(executionContext->PermanentBuffer->GetAlignedPool(), valueCount);
+        *rowPtr = TRow::Allocate(executionContext->PermanentBuffer->GetPool(), valueCount);
         return nullptr;
     } else {
         return &*inserted.first;
@@ -289,7 +289,7 @@ void AllocateRow(TExecutionContext* executionContext, int valueCount, TRow* row)
 {
     CHECK_STACK();
 
-    *row = TRow::Allocate(executionContext->IntermediateBuffer->GetAlignedPool(), valueCount);
+    *row = TRow::Allocate(executionContext->IntermediateBuffer->GetPool(), valueCount);
 }
 
 TRow* GetRowsData(std::vector<TRow>* groupedRows)
@@ -332,7 +332,7 @@ char* AllocateBytes(TExecutionContext* executionContext, size_t byteCount)
 
     return executionContext
         ->IntermediateBuffer
-        ->GetUnalignedPool()
+        ->GetPool()
         ->AllocateUnaligned(byteCount);
 }
 
@@ -366,7 +366,7 @@ char* ToLower(
     const char* data,
     ui32 length)
 {
-    char* result = executionContext->IntermediateBuffer->GetUnalignedPool()->AllocateUnaligned(length);
+    char* result = executionContext->IntermediateBuffer->GetPool()->AllocateUnaligned(length);
 
     for (ui32 index = 0; index < length; ++index) {
         result[index] = tolower(data[index]);

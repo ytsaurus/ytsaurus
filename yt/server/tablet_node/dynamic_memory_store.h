@@ -103,11 +103,8 @@ public:
     int GetValueCount() const;
     int GetKeyCount() const;
     
-    i64 GetAlignedPoolSize() const;
-    i64 GetAlignedPoolCapacity() const;
-
-    i64 GetUnalignedPoolSize() const;
-    i64 GetUnalignedPoolCapacity() const;
+    i64 GetPoolSize() const;
+    i64 GetPoolCapacity() const;
 
     // IStore implementation.
     virtual EStoreType GetType() const override;

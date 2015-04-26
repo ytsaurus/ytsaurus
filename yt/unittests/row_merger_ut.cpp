@@ -151,7 +151,7 @@ class TSchemafulRowMergerTest
 
 TEST_F(TSchemafulRowMergerTest, Simple1)
 {
-    TSchemafulRowMerger merger(Buffer_->GetAlignedPool(), 4, 1, TColumnFilter());
+    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
 
     merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
     merger.AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
@@ -164,7 +164,7 @@ TEST_F(TSchemafulRowMergerTest, Simple1)
 
 TEST_F(TSchemafulRowMergerTest, Simple2)
 {
-    TSchemafulRowMerger merger(Buffer_->GetAlignedPool(), 4, 1, TColumnFilter());
+    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
 
     merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
     merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
@@ -177,7 +177,7 @@ TEST_F(TSchemafulRowMergerTest, Simple2)
 
 TEST_F(TSchemafulRowMergerTest, Delete1)
 {
-    TSchemafulRowMerger merger(Buffer_->GetAlignedPool(), 4, 1, TColumnFilter());
+    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
 
     merger.AddPartialRow(BuildVersionedRow("0", "", { 100 }));
 
@@ -188,7 +188,7 @@ TEST_F(TSchemafulRowMergerTest, Delete1)
 
 TEST_F(TSchemafulRowMergerTest, Delete2)
 {
-    TSchemafulRowMerger merger(Buffer_->GetAlignedPool(), 4, 1, TColumnFilter());
+    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
 
     merger.AddPartialRow(BuildVersionedRow("0", "", { 100 }));
     merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
@@ -200,7 +200,7 @@ TEST_F(TSchemafulRowMergerTest, Delete2)
 
 TEST_F(TSchemafulRowMergerTest, Delete3)
 {
-    TSchemafulRowMerger merger(Buffer_->GetAlignedPool(), 4, 1, TColumnFilter());
+    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
 
     merger.AddPartialRow(BuildVersionedRow("0", "", { 100 }));
     merger.AddPartialRow(BuildVersionedRow("0", "", { 300 }));
@@ -213,7 +213,7 @@ TEST_F(TSchemafulRowMergerTest, Delete3)
 
 TEST_F(TSchemafulRowMergerTest, Delete4)
 {
-    TSchemafulRowMerger merger(Buffer_->GetAlignedPool(), 4, 1, TColumnFilter());
+    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
 
     merger.AddPartialRow(BuildVersionedRow("0", "", { 100 }));
     merger.AddPartialRow(BuildVersionedRow("0", "", { 300 }));
@@ -228,7 +228,7 @@ TEST_F(TSchemafulRowMergerTest, Delete4)
 TEST_F(TSchemafulRowMergerTest, Filter1)
 {
     TColumnFilter filter { 0 };
-    TSchemafulRowMerger merger(Buffer_->GetAlignedPool(), 4, 1, filter);
+    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, filter);
 
     merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
     merger.AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
@@ -242,7 +242,7 @@ TEST_F(TSchemafulRowMergerTest, Filter1)
 TEST_F(TSchemafulRowMergerTest, Filter2)
 {
     TColumnFilter filter { 1, 2 };
-    TSchemafulRowMerger merger(Buffer_->GetAlignedPool(), 4, 1, filter);
+    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, filter);
 
     merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
     merger.AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));

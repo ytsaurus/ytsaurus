@@ -524,7 +524,7 @@ private:
     TRow Copy(TRow source, int size = std::numeric_limits<int>::max())
     {
         size = std::min(size, source.GetCount());
-        auto row = TUnversionedRow::Allocate(Buffer_->GetAlignedPool(), size);
+        auto row = TUnversionedRow::Allocate(Buffer_->GetPool(), size);
         for (int index = 0; index < size; ++index) {
             row[index] = source[index];
         }
@@ -656,8 +656,8 @@ private:
         int maxReferenceIndex = std::max(
             GetMaxReferenceIndex(exactlyComputedColumns),
             GetMaxReferenceIndex(enumerableColumns));
-        auto lowerRow = TUnversionedRow::Allocate(Buffer_->GetAlignedPool(), KeySize_ + 1);
-        auto upperRow = TUnversionedRow::Allocate(Buffer_->GetAlignedPool(), KeySize_ + 1);
+        auto lowerRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeySize_ + 1);
+        auto upperRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeySize_ + 1);
         int lowerSize = ExpandKey(lowerRow, range.first, std::max(shrinkSize, maxReferenceIndex + 1));
         int upperSize = ExpandKey(upperRow, range.second, std::max(shrinkSize, maxReferenceIndex + 1));
 
