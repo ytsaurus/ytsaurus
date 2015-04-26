@@ -72,7 +72,7 @@ public:
     TRoutineRegistry* RoutineRegistry;
 
 private:
-    const std::unordered_set<std::string> Whitelist_ = std::unordered_set<std::string>{
+    const std::unordered_set<std::string> Whitelist_ = {
         "memcmp",
         "__chkstk",
         "tolower"
