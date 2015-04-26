@@ -5,23 +5,23 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const size_t TChunkedMemoryPool::DefaultChunkSize = 4096;
+const i64 TChunkedMemoryPool::DefaultChunkSize = 4096;
 const double TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio = 0.25;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkedMemoryPool::TChunkedMemoryPool(
-    size_t chunkSize,
+    i64 chunkSize,
     double maxSmallBlockSizeRatio,
     TRefCountedTypeCookie tagCookie)
     : ChunkSize_(chunkSize)
-    , MaxSmallBlockSize_(static_cast<size_t>(ChunkSize_ * maxSmallBlockSizeRatio))
+    , MaxSmallBlockSize_(static_cast<i64>(ChunkSize_ * maxSmallBlockSizeRatio))
     , TagCookie_(tagCookie)
 {
     SetupFreeZone();
 }
 
-char* TChunkedMemoryPool::AllocateUnalignedSlow(size_t size)
+char* TChunkedMemoryPool::AllocateUnalignedSlow(i64 size)
 {
     auto* large = AllocateSlowCore(size);
     if (large) {
@@ -30,7 +30,7 @@ char* TChunkedMemoryPool::AllocateUnalignedSlow(size_t size)
     return AllocateUnaligned(size);
 }
 
-char* TChunkedMemoryPool::AllocateAlignedSlow(size_t size, size_t align)
+char* TChunkedMemoryPool::AllocateAlignedSlow(i64 size, int align)
 {
     // NB: Do not rely on any particular alignment of chunks.
     auto* large = AllocateSlowCore(size + align);
@@ -40,7 +40,7 @@ char* TChunkedMemoryPool::AllocateAlignedSlow(size_t size, size_t align)
     return AllocateAligned(size, align);
 }
 
-char* TChunkedMemoryPool::AllocateSlowCore(size_t size)
+char* TChunkedMemoryPool::AllocateSlowCore(i64 size)
 {
     if (size > MaxSmallBlockSize_) {
         return AllocateLargeBlock(size).Begin();
@@ -104,7 +104,7 @@ void TChunkedMemoryPool::SetupFreeZone()
     }
 }
 
-TSharedRef TChunkedMemoryPool::AllocateLargeBlock(size_t size)
+TSharedRef TChunkedMemoryPool::AllocateLargeBlock(i64 size)
 {
     auto block = TSharedRef::Allocate(size, false, TagCookie_);
     LargeBlocks_.push_back(block);

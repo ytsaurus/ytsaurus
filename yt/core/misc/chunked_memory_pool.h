@@ -13,18 +13,18 @@ class TChunkedMemoryPool
     : private TNonCopyable
 {
 public:
-    static const size_t DefaultChunkSize;
+    static const i64 DefaultChunkSize;
     static const double DefaultMaxSmallBlockSizeRatio;
 
     explicit TChunkedMemoryPool(
-        size_t chunkSize = DefaultChunkSize,
+        i64 chunkSize = DefaultChunkSize,
         double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio,
         TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TDefaultChunkedMemoryPoolTag>());
 
     template <class TTag>
     explicit TChunkedMemoryPool(
         TTag tag = TTag(),
-        size_t chunkSize = DefaultChunkSize,
+        i64 chunkSize = DefaultChunkSize,
         double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio)
         : TChunkedMemoryPool(
             chunkSize,
@@ -33,14 +33,14 @@ public:
     { }
 
     //! Allocates #sizes bytes without any alignment.
-    char* AllocateUnaligned(size_t size);
+    char* AllocateUnaligned(i64 size);
 
     //! Allocates #size bytes aligned with 8-byte granularity.
-    char* AllocateAligned(size_t size, size_t align = 8);
+    char* AllocateAligned(i64 size, int align = 8);
 
     //! Allocates #n uninitialized instances of #T.
     template <class T>
-    T* AllocateUninitialized(size_t n, size_t align = alignof(T));
+    T* AllocateUninitialized(int n, int align = alignof(T));
 
     //! Marks all previously allocated small chunks as free for subsequent allocations but
     //! does not deallocate them.
@@ -54,8 +54,8 @@ public:
     i64 GetCapacity() const;
 
 private:
-    const size_t ChunkSize_;
-    const size_t MaxSmallBlockSize_;
+    const i64 ChunkSize_;
+    const i64 MaxSmallBlockSize_;
     const TRefCountedTypeCookie TagCookie_;
 
     int CurrentChunkIndex_ = 0;
@@ -75,17 +75,17 @@ private:
     std::vector<TSharedRef> Chunks_;
     std::vector<TSharedRef> LargeBlocks_;
 
-    static char* AlignPtr(char* ptr, size_t align);
+    static char* AlignPtr(char* ptr, int align);
 
-    char* AllocateUnalignedSlow(size_t size);
-    char* AllocateAlignedSlow(size_t size, size_t align);
-    char* AllocateSlowCore(size_t size);
+    char* AllocateUnalignedSlow(i64 size);
+    char* AllocateAlignedSlow(i64 size, int align);
+    char* AllocateSlowCore(i64 size);
 
     void AllocateChunk();
     void SwitchChunk();
     void SetupFreeZone();
 
-    TSharedRef AllocateLargeBlock(size_t size);
+    TSharedRef AllocateLargeBlock(i64 size);
 
 };
 
