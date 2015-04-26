@@ -102,7 +102,7 @@ void LoadRowKeys(
     TLoadContext& context,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    TChunkedMemoryPool* alignedPool,
+    TChunkedMemoryPool* pool,
     TDynamicRow row)
 {
     ui32 nullKeyMask = Load<ui32>(context);
@@ -135,7 +135,7 @@ void LoadRowKeys(
                 case EValueType::String:
                 case EValueType::Any: {
                     ui32 length = Load<ui32>(context);
-                    key->String = reinterpret_cast<TDynamicString*>(alignedPool->AllocateAligned(
+                    key->String = reinterpret_cast<TDynamicString*>(pool->AllocateAligned(
                         length + sizeof(ui32),
                         sizeof(ui32)));
                     key->String->Length = length;
@@ -154,7 +154,7 @@ void LoadRowKeys(
     TLoadContext& context,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    TChunkedMemoryPool* unalignedPool,
+    TChunkedMemoryPool* pool,
     TUnversionedRowBuilder* builder)
 {
     ui32 nullKeyMask = Load<ui32>(context);
@@ -190,7 +190,7 @@ void LoadRowKeys(
                 case EValueType::String:
                 case EValueType::Any:
                     value.Length = Load<ui32>(context);
-                    value.Data.String = unalignedPool->AllocateUnaligned(value.Length);
+                    value.Data.String = pool->AllocateUnaligned(value.Length);
                     TRangeSerializer::Load(context, TRef(const_cast<char*>(value.Data.String), value.Length));
                     break;
 

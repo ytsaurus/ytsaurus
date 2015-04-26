@@ -634,9 +634,9 @@ i64 GetDataWeight(TUnversionedRow row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* alignedPool, int valueCount)
+TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* pool, int valueCount)
 {
-    auto* header = reinterpret_cast<TUnversionedRowHeader*>(alignedPool->AllocateAligned(
+    auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->AllocateAligned(
         GetUnversionedRowDataSize(valueCount)));
     header->Count = valueCount;
     header->Padding = 0;
@@ -1053,13 +1053,12 @@ void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRo
     ui32 valueCount;
     current += ReadVarUint32(current, &valueCount);
 
-    *row = TUnversionedRow::Allocate(rowBuffer->GetAlignedPool(), valueCount);
+    *row = TUnversionedRow::Allocate(rowBuffer->GetPool(), valueCount);
 
     auto* values = row->Begin();
-    for (int index = 0; index < valueCount; ++index) {
-        TUnversionedValue* value = values + index;
+    for (auto* value = values; value < values + valueCount; ++value) {
         current += ReadValue(current, value);
-        CaptureValue(value, rowBuffer->GetUnalignedPool());
+        rowBuffer->Capture(value);
     }
 }
 

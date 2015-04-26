@@ -380,7 +380,7 @@ TConstExpressionPtr RefinePredicate(
             std::function<bool(TRow)> inRange;
 
             if (tableSchema.HasComputedColumns()) {
-                auto tempRow = TUnversionedRow::Allocate(rowBuffer->GetAlignedPool(), keyColumns.size());
+                auto tempRow = TUnversionedRow::Allocate(rowBuffer->GetPool(), keyColumns.size());
 
                 inRange = [&, tempRow] (TRow literalTuple) mutable {
                     for (int tupleIndex = 0; tupleIndex < idMapping.size(); ++tupleIndex) {

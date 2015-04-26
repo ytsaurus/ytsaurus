@@ -495,14 +495,14 @@ void LoadRowKeys(
     TLoadContext& context,
     const NVersionedTableClient::TTableSchema& schema,
     const NVersionedTableClient::TKeyColumns& keyColumns,
-    TChunkedMemoryPool* alignedPool,
+    TChunkedMemoryPool* pool,
     TDynamicRow row);
 
 void LoadRowKeys(
     TLoadContext& context,
     const NVersionedTableClient::TTableSchema& schema,
     const NVersionedTableClient::TKeyColumns& keyColumns,
-    TChunkedMemoryPool* unalignedPool,
+    TChunkedMemoryPool* pool,
     NVersionedTableClient::TUnversionedRowBuilder* builder);
 
 ////////////////////////////////////////////////////////////////////////////////

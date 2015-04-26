@@ -12,6 +12,7 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
+#include <ytlib/new_table_client/row_buffer.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
 namespace NYT {
@@ -21,19 +22,18 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t ReaderAlignedChunkSize = 16384;
-static const size_t ReaderUnalignedChunkSize = 16384;
+struct TWireProtocolReaderPoolTag { };
+static const size_t ReaderChunkSize = 16384;
 
+struct TWireProtocolWriterChunkTag { };
 static const size_t WriterInitialBufferCapacity = 1024;
+static const size_t PreallocateBlockSize = 4096;
 
 static_assert(sizeof (i64) == SerializationAlignment, "Wrong serialization alignment");
 static_assert(sizeof (double) == SerializationAlignment, "Wrong serialization alignment");
 static_assert(sizeof (TUnversionedValue) == 2 * sizeof (i64), "Wrong TUnversionedValue size");
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TWireProtocolWriterChunkTag { };
-static const size_t PreallocateBlockSize = 4096;
 
 class TWireProtocolWriter::TImpl
     : public TIntrinsicRefCounted
@@ -329,9 +329,6 @@ ISchemafulWriterPtr TWireProtocolWriter::CreateSchemafulRowsetWriter()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAlignedWireProtocolReaderPoolTag { };
-struct TUnalignedWireProtocolReaderPoolTag { };
-
 class TWireProtocolReader::TImpl
     : public TIntrinsicRefCounted
 {
@@ -339,12 +336,6 @@ public:
     explicit TImpl(const TSharedRef& data)
         : Data_(data)
         , Current_(Data_.Begin())
-        , AlignedPool_(
-            TAlignedWireProtocolReaderPoolTag(),
-            ReaderAlignedChunkSize)
-        , UnalignedPool_(
-            TUnalignedWireProtocolReaderPoolTag(),
-            ReaderUnalignedChunkSize)
     { }
 
     bool IsFinished() const
@@ -404,20 +395,22 @@ public:
         int rowCount = ReadInt32();
         ValidateRowCount(rowCount);
 
-        auto* rows = AlignedPool_.AllocateUninitialized<TUnversionedRow>(rowCount);
+        auto* rows = RowBuffer_->GetPool()->AllocateUninitialized<TUnversionedRow>(rowCount);
         for (int index = 0; index != rowCount; ++index) {
             rows[index] = ReadRow();
         }
 
-        return TSharedRange<TUnversionedRow>(rows, rows + rowCount, this);
+        return TSharedRange<TUnversionedRow>(rows, rows + rowCount, RowBuffer_);
     }
 
 private:
     TSharedRef Data_;
     const char* Current_;
 
-    TChunkedMemoryPool AlignedPool_;
-    TChunkedMemoryPool UnalignedPool_;
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(
+        ReaderChunkSize,
+        TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio,
+        GetRefCountedTypeCookie<TWireProtocolReaderPoolTag>());
 
 
     i64 ReadInt64()
@@ -473,7 +466,7 @@ private:
                         value->Length,
                         MaxStringValueLength);
                 }
-                value->Data.String = UnalignedPool_.AllocateUnaligned(value->Length);
+                value->Data.String = RowBuffer_->GetPool()->AllocateUnaligned(value->Length);
                 ReadRaw(const_cast<char*>(value->Data.String), value->Length);
                 break;
 
@@ -491,7 +484,7 @@ private:
 
         ValidateRowValueCount(valueCount);
 
-        auto row = TUnversionedRow::Allocate(&AlignedPool_, valueCount);
+        auto row = TUnversionedRow::Allocate(RowBuffer_->GetPool(), valueCount);
         for (int index = 0; index < valueCount; ++index) {
             ReadRowValue(&row[index]);
         }

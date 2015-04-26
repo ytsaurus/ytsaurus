@@ -598,11 +598,10 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , FlushState_(EStoreFlushState::None)
     , Config_(config)
     , RowBuffer_(New<TRowBuffer>(
-        Config_->AlignedPoolChunkSize,
-        Config_->UnalignedPoolChunkSize,
+        Config_->PoolChunkSize,
         Config_->MaxPoolSmallBlockRatio))
     , Rows_(new TSkipList<TDynamicRow, TDynamicRowKeyComparer>(
-        RowBuffer_->GetAlignedPool(),
+        RowBuffer_->GetPool(),
         tablet->GetRowKeyComparer()))
 {
     StoreState_ = EStoreState::ActiveDynamic;
@@ -957,7 +956,7 @@ void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
 TDynamicRow TDynamicMemoryStore::AllocateRow()
 {
     return TDynamicRow::Allocate(
-        RowBuffer_->GetAlignedPool(),
+        RowBuffer_->GetPool(),
         KeyColumnCount_,
         ColumnLockCount_,
         SchemaColumnCount_);
@@ -1071,7 +1070,7 @@ TValueList TDynamicMemoryStore::AddUncommittedFixedValue(TDynamicRow row, const 
     YASSERT(value.Id >= KeyColumnCount_ && value.Id < SchemaColumnCount_);
 
     auto list = row.GetFixedValueList(value.Id, KeyColumnCount_, ColumnLockCount_);
-    if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetAlignedPool())) {
+    if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetPool())) {
         row.SetFixedValueList(value.Id, list, KeyColumnCount_, ColumnLockCount_);
     }
 
@@ -1084,7 +1083,7 @@ TValueList TDynamicMemoryStore::AddUncommittedFixedValue(TDynamicRow row, const 
 void TDynamicMemoryStore::AddTimestamp(TDynamicRow row, TTimestamp timestamp, ETimestampListKind kind)
 {
     auto timestampList = row.GetTimestampList(kind, KeyColumnCount_, ColumnLockCount_);
-    if (AllocateListForPushIfNeeded(&timestampList, RowBuffer_->GetAlignedPool())) {
+    if (AllocateListForPushIfNeeded(&timestampList, RowBuffer_->GetPool())) {
         row.SetTimestampList(timestampList, kind, KeyColumnCount_, ColumnLockCount_);
     }
     timestampList.Push(timestamp);
@@ -1131,7 +1130,7 @@ void TDynamicMemoryStore::CaptureValue(TVersionedValue* dst, const TVersionedVal
 void TDynamicMemoryStore::CaptureValueData(TUnversionedValue* dst, const TUnversionedValue& src)
 {
     if (IsStringLikeType(EValueType(src.Type))) {
-        dst->Data.String = RowBuffer_->GetUnalignedPool()->AllocateUnaligned(src.Length);
+        dst->Data.String = RowBuffer_->GetPool()->AllocateUnaligned(src.Length);
         ::memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
     }
 }
@@ -1140,7 +1139,7 @@ TDynamicValueData TDynamicMemoryStore::CaptureStringValue(TDynamicValueData src)
 {
     ui32 length = src.String->Length;
     TDynamicValueData dst;
-    dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_->GetAlignedPool()->AllocateAligned(
+    dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_->GetPool()->AllocateAligned(
         sizeof(ui32) + length,
         sizeof(ui32)));
     ::memcpy(dst.String, src.String, sizeof(ui32) + length);
@@ -1152,7 +1151,7 @@ TDynamicValueData TDynamicMemoryStore::CaptureStringValue(const TUnversionedValu
     YASSERT(IsStringLikeType(EValueType(src.Type)));
     ui32 length = src.Length;
     TDynamicValueData dst;
-    dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_->GetAlignedPool()->AllocateAligned(
+    dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_->GetPool()->AllocateAligned(
         sizeof(ui32) + length,
         sizeof(ui32)));
     dst.String->Length = length;
@@ -1170,24 +1169,14 @@ int TDynamicMemoryStore::GetKeyCount() const
     return Rows_->GetSize();
 }
 
-i64 TDynamicMemoryStore::GetAlignedPoolSize() const
+i64 TDynamicMemoryStore::GetPoolSize() const
 {
-    return RowBuffer_->GetAlignedPool()->GetSize();
+    return RowBuffer_->GetSize();
 }
 
-i64 TDynamicMemoryStore::GetAlignedPoolCapacity() const
+i64 TDynamicMemoryStore::GetPoolCapacity() const
 {
-    return RowBuffer_->GetAlignedPool()->GetCapacity();
-}
-
-i64 TDynamicMemoryStore::GetUnalignedPoolSize() const
-{
-    return RowBuffer_->GetUnalignedPool()->GetSize();
-}
-
-i64 TDynamicMemoryStore::GetUnalignedPoolCapacity() const
-{
-    return RowBuffer_->GetUnalignedPool()->GetCapacity();
+    return RowBuffer_->GetCapacity();
 }
 
 EStoreType TDynamicMemoryStore::GetType() const
@@ -1197,7 +1186,7 @@ EStoreType TDynamicMemoryStore::GetType() const
 
 i64 TDynamicMemoryStore::GetUncompressedDataSize() const
 {
-    return GetUnalignedPoolCapacity() + GetAlignedPoolCapacity();
+    return GetPoolCapacity();
 }
 
 i64 TDynamicMemoryStore::GetRowCount() const
@@ -1342,14 +1331,14 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
         auto row = AllocateRow();
 
         // Keys.
-        LoadRowKeys(context, Schema_, KeyColumns_, RowBuffer_->GetAlignedPool(), row);
+        LoadRowKeys(context, Schema_, KeyColumns_, RowBuffer_->GetPool(), row);
 
         // Values.
         for (int columnIndex = KeyColumnCount_; columnIndex < SchemaColumnCount_; ++columnIndex) {
             int valueCount = Load<i32>(context);
             for (int valueIndex = 0; valueIndex < valueCount; ++valueIndex) {
                 TVersionedValue value;
-                NVersionedTableClient::Load(context, value, RowBuffer_->GetUnalignedPool());
+                NVersionedTableClient::Load(context, value, RowBuffer_->GetPool());
                 auto list = AddUncommittedFixedValue(row, value);
                 list.Commit();
             }
@@ -1382,15 +1371,13 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("key_count").Value(GetKeyCount())
         .Item("lock_count").Value(GetLockCount())
         .Item("value_count").Value(GetValueCount())
-        .Item("aligned_pool_size").Value(GetAlignedPoolSize())
-        .Item("aligned_pool_capacity").Value(GetAlignedPoolCapacity())
-        .Item("unaligned_pool_size").Value(GetUnalignedPoolSize())
-        .Item("unaligned_pool_capacity").Value(GetUnalignedPoolCapacity());
+        .Item("pool_size").Value(GetPoolSize())
+        .Item("pool_capacity").Value(GetPoolCapacity());
 }
 
 void TDynamicMemoryStore::OnMemoryUsageUpdated()
 {
-    SetMemoryUsage(GetAlignedPoolCapacity() + GetUnalignedPoolCapacity());
+    SetMemoryUsage(GetUncompressedDataSize());
 }
 
 TOwningKey TDynamicMemoryStore::RowToKey(TDynamicRow row)

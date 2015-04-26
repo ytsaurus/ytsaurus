@@ -144,7 +144,7 @@ TRow TColumnEvaluator::EvaluateKeys(
     }
 
     columnCount += KeySize_;
-    auto fullRow = TUnversionedRow::Allocate(buffer->GetAlignedPool(), columnCount);
+    auto fullRow = TUnversionedRow::Allocate(buffer->GetPool(), columnCount);
 
     for (int index = 0; index < KeySize_; ++index) {
         fullRow[index].Type = EValueType::Null;

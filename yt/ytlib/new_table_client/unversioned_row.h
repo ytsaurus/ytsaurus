@@ -330,7 +330,7 @@ public:
     { }
 
     static TUnversionedRow Allocate(
-        TChunkedMemoryPool* alignedPool, 
+        TChunkedMemoryPool* pool,
         int valueCount);
     
 

@@ -272,7 +272,7 @@ TVersionedRow TVersionedRowBuilder::FinishRow()
         DeleteTimestamps_.end());
 
     auto row = TVersionedRow::Allocate(
-        Buffer_->GetAlignedPool(), Keys_.size(), 
+        Buffer_->GetPool(), Keys_.size(),
         Values_.size(), 
         WriteTimestamps_.size(), 
         DeleteTimestamps_.size());
