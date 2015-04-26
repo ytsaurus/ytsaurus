@@ -65,6 +65,7 @@ set( HDRS
   ${BASE}/checkpointable_stream.h
   ${BASE}/checksum.h
   ${BASE}/chunked_memory_pool.h
+  ${BASE}/chunked_memory_pool-inl.h
   ${BASE}/chunked_output_stream.h
   ${BASE}/collection_helpers-inl.h
   ${BASE}/collection_helpers.h
