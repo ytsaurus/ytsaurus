@@ -41,6 +41,10 @@ public:
      */
     char* AllocateAligned(size_t size, size_t align = 8);
 
+    //! Allocates #n uninitialized instances of #T.
+    template <class T>
+    T* AllocateUninitialized(size_t n, size_t align = alignof(T));
+
     //! Marks all previously allocated small chunks as free for subsequent allocations but
     //! does not deallocate them.
     //! Disposes all large blocks.
@@ -100,6 +104,12 @@ inline char* TChunkedMemoryPool::AllocateAligned(size_t size, size_t align)
 {
     CurrentPtr_ = reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(CurrentPtr_) + align - 1) & ~(align - 1));
     return AllocateUnaligned(size);
+}
+
+template <class T>
+inline T* TChunkedMemoryPool::AllocateUninitialized(size_t n, size_t align)
+{
+    return reinterpret_cast<T*>(AllocateAligned(sizeof(T) * n, align));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
