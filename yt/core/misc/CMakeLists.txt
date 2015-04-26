@@ -51,7 +51,7 @@ set( HDRS
   ${BASE}/align_of.h
   ${BASE}/any-inl.h
   ${BASE}/any.h
-  ${BASE}/array_ref.h
+  ${BASE}/range.h
   ${BASE}/assert.h
   ${BASE}/async_cache-inl.h
   ${BASE}/async_cache.h

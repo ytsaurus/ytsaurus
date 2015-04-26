@@ -7,7 +7,6 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/row_buffer.h>
 
-#include <core/misc/array_ref.h>
 #include <core/misc/variant.h>
 
 namespace NYT {

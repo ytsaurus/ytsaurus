@@ -197,7 +197,7 @@ void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
                 }
                 case ColumnSeparatorToken:
                 case EndColumnSelectorToken:
-                    channel.AddRange(TRange(begin));
+                    channel.AddRange(TColumnRange(begin));
                     break;
                 default:
                     ThrowUnexpectedToken(tokenizer.CurrentToken());
