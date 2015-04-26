@@ -7,14 +7,18 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline char* TChunkedMemoryPool::AlignPtr(char* ptr, size_t align)
+{
+    return reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(ptr) + align - 1) & ~(align - 1));
+}
+
 inline char* TChunkedMemoryPool::AllocateUnaligned(size_t size)
 {
     // Fast path.
-    if (CurrentPtr_ + size <= EndPtr_) {
-        char* result = CurrentPtr_;
-        CurrentPtr_ += size;
+    if (FreeZoneEnd_ >= FreeZoneBegin_ + size) {
+        FreeZoneEnd_ -= size;
         Size_ += size;
-        return result;
+        return FreeZoneEnd_;
     }
 
     // Slow path.
@@ -23,8 +27,19 @@ inline char* TChunkedMemoryPool::AllocateUnaligned(size_t size)
 
 inline char* TChunkedMemoryPool::AllocateAligned(size_t size, size_t align)
 {
-    CurrentPtr_ = reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(CurrentPtr_) + align - 1) & ~(align - 1));
-    return AllocateUnaligned(size);
+    // NB: This can lead to FreeZoneBegin_ >= FreeZoneEnd_ in which case the chunk is full.
+    FreeZoneBegin_ = AlignPtr(FreeZoneBegin_, align);
+
+    // Fast path.
+    if (FreeZoneBegin_ + size <= FreeZoneEnd_) {
+        char* result = FreeZoneBegin_;
+        Size_ += size;
+        FreeZoneBegin_ += size;
+        return result;
+    }
+
+    // Slow path.
+    return AllocateAlignedSlow(size, align);
 }
 
 template <class T>

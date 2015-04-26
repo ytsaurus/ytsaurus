@@ -14,14 +14,33 @@ TChunkedMemoryPool::TChunkedMemoryPool(
     size_t chunkSize,
     double maxSmallBlockSizeRatio,
     TRefCountedTypeCookie tagCookie)
-    : ChunkSize_ ((chunkSize + 7) & ~7) // must be aligned
+    : ChunkSize_(chunkSize)
     , MaxSmallBlockSize_(static_cast<size_t>(ChunkSize_ * maxSmallBlockSizeRatio))
     , TagCookie_(tagCookie)
 {
-    SetupPointers();
+    SetupFreeZone();
 }
 
 char* TChunkedMemoryPool::AllocateUnalignedSlow(size_t size)
+{
+    auto* large = AllocateSlowCore(size);
+    if (large) {
+        return large;
+    }
+    return AllocateUnaligned(size);
+}
+
+char* TChunkedMemoryPool::AllocateAlignedSlow(size_t size, size_t align)
+{
+    // NB: Do not rely on any particular alignment of chunks.
+    auto* large = AllocateSlowCore(size + align);
+    if (large) {
+        return AlignPtr(large, size);
+    }
+    return AllocateAligned(size, align);
+}
+
+char* TChunkedMemoryPool::AllocateSlowCore(size_t size)
 {
     if (size > MaxSmallBlockSize_) {
         return AllocateLargeBlock(size).Begin();
@@ -33,14 +52,14 @@ char* TChunkedMemoryPool::AllocateUnalignedSlow(size_t size)
         SwitchChunk();
     }
 
-    return AllocateUnaligned(size);
+    return nullptr;
 }
 
 void TChunkedMemoryPool::Clear()
 {
     CurrentChunkIndex_ = 0;
     Size_ = 0;
-    SetupPointers();
+    SetupFreeZone();
 
     for (const auto& block : LargeBlocks_) {
         Capacity_ -= block.Size();
@@ -61,35 +80,33 @@ i64 TChunkedMemoryPool::GetCapacity() const
 void TChunkedMemoryPool::AllocateChunk()
 {
     auto chunk = TSharedRef::Allocate(ChunkSize_, false, TagCookie_);
-    YCHECK((reinterpret_cast<intptr_t>(chunk.Begin()) & 7) == 0);
     Chunks_.push_back(chunk);
     Capacity_ += ChunkSize_;
     CurrentChunkIndex_ = static_cast<int>(Chunks_.size()) - 1;
-    SetupPointers();
+    SetupFreeZone();
 }
 
 void TChunkedMemoryPool::SwitchChunk()
 {
     ++CurrentChunkIndex_;
-    SetupPointers();
+    SetupFreeZone();
 }
 
-void TChunkedMemoryPool::SetupPointers()
+void TChunkedMemoryPool::SetupFreeZone()
 {
     if (CurrentChunkIndex_ >= Chunks_.size()) {
-        CurrentPtr_ = nullptr;
-        EndPtr_ = nullptr;
+        FreeZoneBegin_ = nullptr;
+        FreeZoneEnd_ = nullptr;
     } else {
         auto& chunk = Chunks_[CurrentChunkIndex_];
-        CurrentPtr_ = chunk.Begin();
-        EndPtr_ = chunk.End();    
+        FreeZoneBegin_ = chunk.Begin();
+        FreeZoneEnd_ = chunk.End();
     }
 }
 
 TSharedRef TChunkedMemoryPool::AllocateLargeBlock(size_t size)
 {
     auto block = TSharedRef::Allocate(size, false, TagCookie_);
-    YCHECK((reinterpret_cast<intptr_t>(block.Begin()) & 7) == 0);
     LargeBlocks_.push_back(block);
     Capacity_ += size;
     return block;
