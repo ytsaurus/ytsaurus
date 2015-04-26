@@ -227,7 +227,7 @@ private:
             partition->GetTablet()->GetTabletId(),
             JoinToString(ConvertToStrings(
                 tablet->Partitions().begin() + firstPartitionIndex,
-                tablet->Partitions().begin() + lastPartitionIndex,
+                tablet->Partitions().begin() + lastPartitionIndex + 1,
                 [] (const std::unique_ptr<TPartition>& partition) {
                      return ToString(partition->GetId());
                 })));
