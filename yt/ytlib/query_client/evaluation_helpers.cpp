@@ -122,13 +122,14 @@ void TTopCollector::AddRow(TRow row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CountRow(i64* limit)
+bool UpdateAndCheckRowLimit(i64* limit, char* flag)
 {
     if (*limit > 0) {
-        --*limit;
-        return false;
-    } else {
+        --(*limit);
         return true;
+    } else {
+        *flag = true;
+        return false;
     }
 }
 
@@ -258,7 +259,7 @@ TJoinEvaluator GetJoinEvaluator(
                         rowBuilder.AddValue(columnIndex.first ? row[columnIndex.second] : foreignRow[columnIndex.second]);
                     }
 
-                    if (executionContext->StopFlag = CountRow(&executionContext->JoinRowLimit)) {
+                    if (!UpdateAndCheckRowLimit(&executionContext->JoinRowLimit, &executionContext->StopFlag)) {
                         executionContext->Statistics->IncompleteOutput = true;
                         return;
                     }
