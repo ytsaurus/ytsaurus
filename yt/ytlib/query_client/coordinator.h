@@ -23,7 +23,7 @@ TGroupedRanges GetPrunedRanges(
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
     const TDataSources& sources,
-    TRowBuffer* rowBuffer,
+    const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
     ui64 rangeExpansionLimit,
@@ -32,7 +32,7 @@ TGroupedRanges GetPrunedRanges(
 TGroupedRanges GetPrunedRanges(
     const TConstQueryPtr& query,
     const TDataSources& sources,
-    TRowBuffer* rowBuffer,
+    const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
     ui64 rangeExpansionLimit,

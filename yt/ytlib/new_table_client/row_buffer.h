@@ -9,6 +9,8 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! If #value has some externally stored data, copies the latter into #pool
+//! and updates #value.
 void CaptureValue(TUnversionedValue* value, TChunkedMemoryPool* pool);
 
 //! Holds data for a bunch of rows.
@@ -17,6 +19,7 @@ void CaptureValue(TUnversionedValue* value, TChunkedMemoryPool* pool);
  *  data (row headers and row values) and another for unaligned data (string values).
  */
 class TRowBuffer
+    : public TIntrinsicRefCounted
 {
 public:
     explicit TRowBuffer(
@@ -46,6 +49,8 @@ private:
     TChunkedMemoryPool UnalignedPool_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TRowBuffer)
 
 ////////////////////////////////////////////////////////////////////////////////
 

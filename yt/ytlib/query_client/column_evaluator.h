@@ -26,16 +26,16 @@ public:
 
     void EvaluateKey(
         TRow fullRow,
-        NVersionedTableClient::TRowBuffer& buffer,
+        const TRowBufferPtr& buffer,
         int index);
 
     void EvaluateKeys(
         TRow fullRow,
-        NVersionedTableClient::TRowBuffer& buffer);
+        const TRowBufferPtr& buffer);
 
     TRow EvaluateKeys(
-        NVersionedTableClient::TRowBuffer& buffer,
-        const TRow partialRow,
+        TRow partialRow,
+        const TRowBufferPtr& buffer,
         const NVersionedTableClient::TNameTableToSchemaIdMapping& idMapping);
 
     const std::vector<int>& GetReferenceIds(int index);

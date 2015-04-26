@@ -40,57 +40,55 @@ std::pair<TRow, int> TTopCollector::Capture(TRow row)
                 buffersToRows[Rows_[rowId].second].push_back(rowId);
             }
 
-            auto temp = std::make_unique<TRowBuffer>(PoolChunkSize, PoolChunkSize);
+            auto buffer = New<TRowBuffer>(PoolChunkSize, PoolChunkSize);
 
             TotalMemorySize_ = 0;
             AllocatedMemorySize_ = 0;
             GarbageMemorySize_ = 0;
 
             for (size_t bufferId = 0; bufferId < buffersToRows.size(); ++bufferId) {
-                auto& buffer = *temp;
-
                 for (auto rowId : buffersToRows[bufferId]) {
                     auto& row = Rows_[rowId].first;
                     
-                    auto savedSize = buffer.GetSize();
-                    row = buffer.Capture(row);
-                    AllocatedMemorySize_ += buffer.GetSize() - savedSize;
+                    auto savedSize = buffer->GetSize();
+                    row = buffer->Capture(row);
+                    AllocatedMemorySize_ += buffer->GetSize() - savedSize;
                 }
 
-                TotalMemorySize_ += buffer.GetCapacity();
+                TotalMemorySize_ += buffer->GetCapacity();
 
-                temp.swap(Buffers_[bufferId]);
-                temp->Clear();
+                std::swap(buffer, Buffers_[bufferId]);
+                buffer->Clear();
 
-                if (buffer.GetSize() < BufferLimit) {
+                if (buffer->GetSize() < BufferLimit) {
                     EmptyBufferIds_.push_back(bufferId);
                 }
             }
         } else {
             // Allocate buffer and add to emptyBufferIds.
             EmptyBufferIds_.push_back(Buffers_.size());
-            Buffers_.push_back(std::make_unique<TRowBuffer>(PoolChunkSize, PoolChunkSize));
+            Buffers_.push_back(New<TRowBuffer>(PoolChunkSize, PoolChunkSize));
         }
     }
 
     YCHECK(!EmptyBufferIds_.empty());
 
     auto bufferId = EmptyBufferIds_.back();
-    auto& buffer = *Buffers_[bufferId];
+    auto buffer = Buffers_[bufferId];
 
-    auto savedSize = buffer.GetSize();
-    auto savedCapacity = buffer.GetCapacity();
+    auto savedSize = buffer->GetSize();
+    auto savedCapacity = buffer->GetCapacity();
 
-    auto captured = buffer.Capture(row);
+    auto capturedRow = buffer->Capture(row);
 
-    AllocatedMemorySize_ += buffer.GetSize() - savedSize;
-    TotalMemorySize_ += buffer.GetCapacity() - savedCapacity;
+    AllocatedMemorySize_ += buffer->GetSize() - savedSize;
+    TotalMemorySize_ += buffer->GetCapacity() - savedCapacity;
 
-    if (buffer.GetSize() >= BufferLimit) {
+    if (buffer->GetSize() >= BufferLimit) {
         EmptyBufferIds_.pop_back();
     }
 
-    return std::make_pair(captured, bufferId);
+    return std::make_pair(capturedRow, bufferId);
 }
 
 void TTopCollector::AccountGarbage(TRow row)

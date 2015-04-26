@@ -17,8 +17,8 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
 TKeyTriePtr ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
-    TRowBuffer* rowBuffer,
-    const IFunctionRegistryPtr functionRegistry);
+    const TRowBufferPtr& rowBuffer,
+    const IFunctionRegistryPtr& functionRegistry);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -38,8 +38,8 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
 TKeyTriePtr ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
-    TRowBuffer* rowBuffer,
-    const IFunctionRegistryPtr functionRegistry)
+    const TRowBufferPtr& rowBuffer,
+    const IFunctionRegistryPtr& functionRegistry)
 {
     if (!expr) {
         return TKeyTrie::Universal();
@@ -377,11 +377,11 @@ TConstExpressionPtr RefinePredicate(
                 }
             }
 
-            TRowBuffer buffer;
+            auto rowBuffer = New<TRowBuffer>();
             std::function<bool(TRow)> inRange;
 
             if (tableSchema.HasComputedColumns()) {
-                auto tempRow = TUnversionedRow::Allocate(buffer.GetAlignedPool(), keyColumns.size());
+                auto tempRow = TUnversionedRow::Allocate(rowBuffer->GetAlignedPool(), keyColumns.size());
 
                 inRange = [&, tempRow] (TRow literalTuple) mutable {
                     for (int tupleIndex = 0; tupleIndex < idMapping.size(); ++tupleIndex) {
@@ -394,7 +394,7 @@ TConstExpressionPtr RefinePredicate(
 
                     for (int index = 0; index < rowSize; ++index) {
                         if (reverseIdMapping[index] == -1) {
-                            columnEvaluator->EvaluateKey(tempRow, buffer, index);
+                            columnEvaluator->EvaluateKey(tempRow, rowBuffer, index);
                         }
                     }
 
@@ -448,7 +448,7 @@ TConstExpressionPtr RefinePredicate(
                 return New<TInOpExpression>(
                     NullSourceLocation,
                     inExpr->Arguments,
-                    std::move(filteredValues));
+                    filteredValues);
             } else {
                 return falseLiteral;
             }

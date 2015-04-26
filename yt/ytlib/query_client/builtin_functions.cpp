@@ -173,7 +173,7 @@ EValueType TTypedFunction::TypingFunction(
 TKeyTriePtr TUniversalRangeFunction::ExtractKeyRange(
     const TIntrusivePtr<const TFunctionExpression>& expr,
     const TKeyColumns& keyColumns,
-    TRowBuffer* rowBuffer) const
+    const TRowBufferPtr& rowBuffer) const
 {
     return TKeyTrie::Universal();
 }
@@ -265,7 +265,7 @@ TCGValue TIsPrefixFunction::CodegenValue(
 TKeyTriePtr TIsPrefixFunction::ExtractKeyRange(
     const TIntrusivePtr<const TFunctionExpression>& expr,
     const TKeyColumns& keyColumns,
-    TRowBuffer* rowBuffer) const
+    const TRowBufferPtr& rowBuffer) const
 {
     auto result = TKeyTrie::Universal();
     auto lhsExpr = expr->Arguments[0];

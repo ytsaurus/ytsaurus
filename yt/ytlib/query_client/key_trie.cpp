@@ -375,7 +375,7 @@ void GetRangesFromTrieWithinRangeImpl(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
     std::vector<std::pair<TRow, TRow>>* result,
-    TRowBuffer* rowBuffer, 
+    TRowBufferPtr rowBuffer,
     std::vector<TValue> prefix = std::vector<TValue>(),
     bool refineLower = true,
     bool refineUpper = true)
@@ -560,7 +560,7 @@ void GetRangesFromTrieWithinRangeImpl(
 TRowRanges GetRangesFromTrieWithinRange(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
-    TRowBuffer* rowBuffer)
+    TRowBufferPtr rowBuffer)
 {
     std::vector<std::pair<TRow, TRow>> result;
     GetRangesFromTrieWithinRangeImpl(keyRange, trie, &result, rowBuffer);

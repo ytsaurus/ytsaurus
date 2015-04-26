@@ -6,7 +6,7 @@
 
 #include <ytlib/new_table_client/public.h>
 
-// FIXME: try to fix in new visual studio
+// FIXME(lukyan): try to fix in new visual studio
 #ifdef _win_
 #define MOVE(name) name
 #else
@@ -15,10 +15,6 @@
 
 namespace NYT {
 namespace NQueryClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-using NVersionedTableClient::TRowBuffer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -91,6 +91,7 @@ using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 
 using NVersionedTableClient::TRowBuffer;
+using NVersionedTableClient::TRowBufferPtr;
 
 using NNodeTrackerClient::TNodeDirectoryPtr;
 

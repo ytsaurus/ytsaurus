@@ -14,7 +14,7 @@
 
 %parse-param {TLexer& lexer}
 %parse-param {TAstHead* head}
-%parse-param {TRowBuffer* rowBuffer}
+%parse-param {TRowBufferPtr rowBuffer}
 %parse-param {const Stroka& source}
 
 %code requires {
@@ -106,7 +106,7 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
-%type <TNullableNamedExprs> select-clause-impl
+%type <TNullableNamedExpressionList> select-clause-impl
 %type <TExpressionPtr> where-clause-impl
 %type <TNamedExpressionList> group-by-clause-impl
 %type <TIdentifierList> order-by-clause-impl
@@ -219,7 +219,7 @@ select-clause-impl
         }
     | Asterisk
         {
-            $$ = TNullableNamedExprs();
+            $$ = TNullableNamedExpressionList();
         }
 ;
 

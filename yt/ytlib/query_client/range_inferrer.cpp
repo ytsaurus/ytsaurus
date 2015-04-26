@@ -295,7 +295,7 @@ public:
         KeyTrie_ = ExtractMultipleConstraints(
             predicate,
             depletedKeyColumns,
-            &KeyTrieBuffer_,
+            KeyTrieBuffer_,
             functionRegistry);
 
         LOG_DEBUG_IF(
@@ -305,9 +305,9 @@ public:
             KeyTrie_);
     }
 
-    virtual TRowRanges GetRangesWithinRange(const TRowRange& keyRange, TRowBuffer* rowBuffer)
+    virtual TRowRanges GetRangesWithinRange(const TRowRange& keyRange, TRowBufferPtr rowBuffer)
     {
-        auto ranges = GetRangesFromTrieWithinRange(keyRange, KeyTrie_, &Buffer_);
+        auto ranges = GetRangesFromTrieWithinRange(keyRange, KeyTrie_, Buffer_);
         std::vector<std::pair<TRow, TRow>> enrichedRanges;
         RangeExpansionLeft_ = (RangeExpansionLimit_ > ranges.size())
             ? RangeExpansionLimit_ - ranges.size()
@@ -323,23 +323,28 @@ public:
             result.emplace_back(rowBuffer->Capture(range.first), rowBuffer->Capture(range.second));
         }
 
-        Buffer_.Clear();
+        Buffer_->Clear();
         return result;
     }
 
 private:
+    const TTableSchema Schema_;
+    const int KeySize_;
+    const ui64 RangeExpansionLimit_;
+    const bool VerboseLogging_;
+
     TColumnEvaluatorPtr Evaluator_;
     TKeyTriePtr KeyTrie_ = TKeyTrie::Universal();
-    TRowBuffer KeyTrieBuffer_;
-    TRowBuffer Buffer_;
+
+    const TRowBufferPtr KeyTrieBuffer_ = New<TRowBuffer>();
+    // TODO(babenko): rename this
+    const TRowBufferPtr Buffer_ = New<TRowBuffer>();
     std::vector<int> DepletedToSchemaMapping_;
     std::vector<int> ComputedColumnIndexes_;
     std::vector<int> SchemaToDepletedMapping_;
-    TTableSchema Schema_;
-    int KeySize_;
-    ui64 RangeExpansionLimit_;
+
     ui64 RangeExpansionLeft_;
-    bool VerboseLogging_;
+
 
     TKeyColumns BuildDepletedIdMapping(const yhash_set<Stroka>& references)
     {
@@ -519,7 +524,7 @@ private:
     TRow Copy(TRow source, int size = std::numeric_limits<int>::max())
     {
         size = std::min(size, source.GetCount());
-        auto row = TUnversionedRow::Allocate(Buffer_.GetAlignedPool(), size);
+        auto row = TUnversionedRow::Allocate(Buffer_->GetAlignedPool(), size);
         for (int index = 0; index < size; ++index) {
             row[index] = source[index];
         }
@@ -651,8 +656,8 @@ private:
         int maxReferenceIndex = std::max(
             GetMaxReferenceIndex(exactlyComputedColumns),
             GetMaxReferenceIndex(enumerableColumns));
-        auto lowerRow = TUnversionedRow::Allocate(Buffer_.GetAlignedPool(), KeySize_ + 1);
-        auto upperRow = TUnversionedRow::Allocate(Buffer_.GetAlignedPool(), KeySize_ + 1);
+        auto lowerRow = TUnversionedRow::Allocate(Buffer_->GetAlignedPool(), KeySize_ + 1);
+        auto upperRow = TUnversionedRow::Allocate(Buffer_->GetAlignedPool(), KeySize_ + 1);
         int lowerSize = ExpandKey(lowerRow, range.first, std::max(shrinkSize, maxReferenceIndex + 1));
         int upperSize = ExpandKey(upperRow, range.second, std::max(shrinkSize, maxReferenceIndex + 1));
 
@@ -755,12 +760,6 @@ private:
     }
 };
 
-struct TRefCountedRowBuffer
-    : public TRefCounted
-{
-    TRowBuffer RowBuffer;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TRangeInferrer CreateHeavyRangeInferrer(
@@ -781,7 +780,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
         rangeExpansionLimit,
         verboseLogging);
 
-    return [MOVE(heavyInferrer)] (const TRowRange& keyRange, TRowBuffer* rowBuffer) mutable {
+    return [MOVE(heavyInferrer)] (const TRowRange& keyRange, const TRowBufferPtr& rowBuffer) mutable {
         return heavyInferrer->GetRangesWithinRange(keyRange, rowBuffer);
     };
 }
@@ -792,11 +791,11 @@ TRangeInferrer CreateLightRangeInferrer(
     const IFunctionRegistryPtr functionRegistry,
     bool verboseLogging)
 {
-    auto keyTrieBuffer = New<TRefCountedRowBuffer>();
+    auto keyTrieBuffer = New<TRowBuffer>();
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         keyColumns,
-        &keyTrieBuffer->RowBuffer,
+        keyTrieBuffer,
         functionRegistry);
 
     LOG_DEBUG_IF(
@@ -808,7 +807,7 @@ TRangeInferrer CreateLightRangeInferrer(
     return [
         MOVE(keyTrieBuffer),
         MOVE(keyTrie)
-    ] (const TRowRange& keyRange, TRowBuffer* rowBuffer) {
+    ] (const TRowRange& keyRange, const TRowBufferPtr& rowBuffer) {
         return GetRangesFromTrieWithinRange(keyRange, keyTrie, rowBuffer);
     };
 }
@@ -824,7 +823,7 @@ TRangeInferrer CreateRangeInferrer(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const IFunctionRegistryPtr functionRegistry,
+    const IFunctionRegistryPtr& functionRegistry,
     ui64 rangeExpansionLimit,
     bool verboseLogging)
 {

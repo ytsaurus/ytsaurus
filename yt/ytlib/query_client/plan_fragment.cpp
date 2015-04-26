@@ -488,8 +488,8 @@ protected:
                 }
             }
 
-            TRowBuffer rowBuffer;
-            auto caturedRows = CaptureRows(inExpr->Values, argTypes, &rowBuffer, inExpr->GetSource(source));
+            auto rowBuffer = New<TRowBuffer>();
+            auto caturedRows = CaptureRows(inExpr->Values, argTypes, rowBuffer, inExpr->GetSource(source));
 
             result.push_back(New<TInOpExpression>(
                 inExpr->SourceLocation,
@@ -617,7 +617,7 @@ protected:
     static std::vector<TRow> CaptureRows(
         const NAst::TValueTupleList& literalTuples,
         const std::vector<EValueType>& argTypes,
-        TRowBuffer* rowBuffer,
+        TRowBufferPtr rowBuffer,
         const TStringBuf& source)
     {
         TUnversionedRowBuilder rowBuilder;
@@ -1195,7 +1195,7 @@ void PrepareQuery(
 
 void ParseYqlString(
     NAst::TAstHead* astHead,
-    TRowBuffer* rowBuffer,
+    TRowBufferPtr rowBuffer,
     const Stroka& source,
     NAst::TParser::token::yytokentype strayToken)
 {
@@ -1219,8 +1219,12 @@ TPlanFragmentPtr PreparePlanFragment(
     TTimestamp timestamp)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
-    NAst::TRowBuffer rowBuffer;
-    ParseYqlString(&astHead, &rowBuffer, source, NAst::TParser::token::StrayWillParseQuery);
+    auto rowBuffer = New<TRowBuffer>();
+    ParseYqlString(
+        &astHead,
+        rowBuffer,
+        source,
+        NAst::TParser::token::StrayWillParseQuery);
 
     auto& ast = astHead.As<NAst::TQuery>();
     
@@ -1312,8 +1316,8 @@ TPlanFragmentPtr PreparePlanFragment(
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
     
     TRowRange rowRange(
-        planFragment->KeyRangesRowBuffer.Capture(range.first.Get()),
-        planFragment->KeyRangesRowBuffer.Capture(range.second.Get()));
+        planFragment->KeyRangesRowBuffer->Capture(range.first.Get()),
+        planFragment->KeyRangesRowBuffer->Capture(range.second.Get()));
 
     planFragment->DataSources.push_back({
         GetObjectIdFromDataSplit(selfDataSplit),
@@ -1333,8 +1337,12 @@ TQueryPtr PrepareJobQuery(
     IFunctionRegistry* functionRegistry)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
-    NAst::TRowBuffer rowBuffer;
-    ParseYqlString(&astHead, &rowBuffer, source, NAst::TParser::token::StrayWillParseJobQuery);
+    auto rowBuffer = New<TRowBuffer>();
+    ParseYqlString(
+        &astHead,
+        rowBuffer,
+        source,
+        NAst::TParser::token::StrayWillParseJobQuery);
 
     auto& ast = astHead.As<NAst::TQuery>();
 
@@ -1363,8 +1371,12 @@ TConstExpressionPtr PrepareExpression(
     IFunctionRegistry* functionRegistry)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>()};
-    NAst::TRowBuffer rowBuffer;
-    ParseYqlString(&astHead, &rowBuffer, source, NAst::TParser::token::StrayWillParseExpression);
+    auto rowBuffer = New<TRowBuffer>();
+    ParseYqlString(
+        &astHead,
+        rowBuffer,
+        source,
+        NAst::TParser::token::StrayWillParseExpression);
 
     auto& expr = astHead.As<NAst::TExpressionPtr>();
 
@@ -1546,7 +1558,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
 
             NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(data.values()));
             reader.ReadUnversionedRowset(&typedResult->Values);
-            typedResult->Values = typedResult->RowBuffer.Capture(typedResult->Values);
+            typedResult->Values = typedResult->RowBuffer->Capture(typedResult->Values);
 
             return typedResult;
         } 
@@ -1772,8 +1784,8 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
         TDataSource dataSource;
         FromProto(&dataSource.Id, serialized.data_id(i));
 
-        auto lowerBound = rowBuffer.Capture(reader.ReadUnversionedRow());
-        auto upperBound = rowBuffer.Capture(reader.ReadUnversionedRow());
+        auto lowerBound = rowBuffer->Capture(reader.ReadUnversionedRow());
+        auto upperBound = rowBuffer->Capture(reader.ReadUnversionedRow());
 
         dataSource.Range = TRowRange(lowerBound, upperBound);
         result->DataSources.push_back(dataSource);

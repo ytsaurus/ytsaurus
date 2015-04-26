@@ -202,13 +202,12 @@ struct TInOpExpression
         const std::vector<TRow>& values)
         : TExpression(sourceLocation, EValueType::Boolean)
         , Arguments(std::move(arguments))
-        , Values(RowBuffer.Capture(values))
+        , Values(RowBuffer->Capture(values))
     { }
 
-    TInOpExpression(const TInOpExpression&) = delete;
-
     TArguments Arguments;
-    TRowBuffer RowBuffer;
+    // TODO(babenko): replace this with shared range
+    const TRowBufferPtr RowBuffer = New<TRowBuffer>();
     std::vector<TRow> Values;
 
 };
@@ -226,7 +225,7 @@ struct TNamedItem
     TNamedItem()
     { }
 
-    TNamedItem(const TConstExpressionPtr& expression, Stroka name)
+    TNamedItem(const TConstExpressionPtr& expression, const Stroka& name)
         : Expression(expression)
         , Name(name)
     { }
@@ -428,7 +427,7 @@ struct TPlanFragment
     
     TTimestamp Timestamp;
 
-    TRowBuffer KeyRangesRowBuffer;
+    const TRowBufferPtr KeyRangesRowBuffer = New<TRowBuffer>();
     TDataSources DataSources;
     TGuid ForeignDataId;
 

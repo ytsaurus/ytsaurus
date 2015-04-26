@@ -64,7 +64,7 @@ void WriteRow(TRow row, TExecutionContext* executionContext)
 
     auto* batch = executionContext->OutputBatchRows;
     auto* writer = executionContext->Writer;
-    auto* rowBuffer = executionContext->OutputBuffer;
+    const auto& rowBuffer = executionContext->OutputBuffer;
 
     YASSERT(batch->size() < batch->capacity());
     batch->push_back(rowBuffer->Capture(row));

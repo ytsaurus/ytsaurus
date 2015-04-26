@@ -48,9 +48,9 @@ struct TExecutionContext
 
     std::vector<std::vector<TRow>>* LiteralRows;
     
-    TRowBuffer* PermanentBuffer;
-    TRowBuffer* OutputBuffer;
-    TRowBuffer* IntermediateBuffer;
+    TRowBufferPtr PermanentBuffer;
+    TRowBufferPtr OutputBuffer;
+    TRowBufferPtr IntermediateBuffer;
 
     std::vector<TRow>* OutputBatchRows;
 
@@ -164,7 +164,7 @@ private:
 
     TComparer Comparer_;
 
-    std::vector<std::unique_ptr<TRowBuffer>> Buffers_;
+    std::vector<TRowBufferPtr> Buffers_;
     std::vector<int> EmptyBufferIds_;
     std::vector<std::pair<TRow, int>> Rows_;
     

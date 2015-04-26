@@ -10,8 +10,6 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NVersionedTableClient::TRowBuffer;
-
 struct TBound
 {    
     TValue Value;
@@ -88,7 +86,7 @@ DEFINE_REFCOUNTED_TYPE(TKeyTrie)
 TRowRanges GetRangesFromTrieWithinRange(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
-    TRowBuffer* rowBuffer);
+    TRowBufferPtr rowBuffer);
 
 Stroka ToString(TKeyTriePtr node);
 

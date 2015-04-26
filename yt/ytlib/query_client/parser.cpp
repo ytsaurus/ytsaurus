@@ -191,7 +191,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
   /// Build a parser object.
-  TParser::TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, TRowBuffer* rowBuffer_yyarg, const Stroka& source_yyarg)
+  TParser::TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, TRowBufferPtr rowBuffer_yyarg, const Stroka& source_yyarg)
     :
 #if YT_QL_YYDEBUG
       yydebug_ (false),
@@ -276,7 +276,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 52: // select-clause-impl
-        value.copy< TNullableNamedExprs > (other.value);
+        value.copy< TNullableNamedExpressionList > (other.value);
         break;
 
       case 22: // "identifier"
@@ -369,7 +369,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 52: // select-clause-impl
-        value.copy< TNullableNamedExprs > (v);
+        value.copy< TNullableNamedExpressionList > (v);
         break;
 
       case 22: // "identifier"
@@ -467,7 +467,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   {}
 
   template <typename Base>
-  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNullableNamedExprs v, const location_type& l)
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNullableNamedExpressionList v, const location_type& l)
     : Base (t)
     , value (v)
     , location (l)
@@ -581,7 +581,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 52: // select-clause-impl
-        value.template destroy< TNullableNamedExprs > ();
+        value.template destroy< TNullableNamedExpressionList > ();
         break;
 
       case 22: // "identifier"
@@ -671,7 +671,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 52: // select-clause-impl
-        value.move< TNullableNamedExprs > (s.value);
+        value.move< TNullableNamedExpressionList > (s.value);
         break;
 
       case 22: // "identifier"
@@ -1063,7 +1063,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 52: // select-clause-impl
-        value.move< TNullableNamedExprs > (that.value);
+        value.move< TNullableNamedExpressionList > (that.value);
         break;
 
       case 22: // "identifier"
@@ -1154,7 +1154,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 52: // select-clause-impl
-        value.copy< TNullableNamedExprs > (that.value);
+        value.copy< TNullableNamedExpressionList > (that.value);
         break;
 
       case 22: // "identifier"
@@ -1460,7 +1460,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 52: // select-clause-impl
-        yylhs.value.build< TNullableNamedExprs > ();
+        yylhs.value.build< TNullableNamedExpressionList > ();
         break;
 
       case 22: // "identifier"
@@ -1518,7 +1518,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 8:
     {
-            head->As<TQuery>().SelectExprs = yystack_[0].value.as< TNullableNamedExprs > ();
+            head->As<TQuery>().SelectExprs = yystack_[0].value.as< TNullableNamedExpressionList > ();
         }
     break;
 
@@ -1560,13 +1560,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 19:
     {
-            yylhs.value.as< TNullableNamedExprs > () = yystack_[0].value.as< TNamedExpressionList > ();
+            yylhs.value.as< TNullableNamedExpressionList > () = yystack_[0].value.as< TNamedExpressionList > ();
         }
     break;
 
   case 20:
     {
-            yylhs.value.as< TNullableNamedExprs > () = TNullableNamedExprs();
+            yylhs.value.as< TNullableNamedExpressionList > () = TNullableNamedExpressionList();
         }
     break;
 

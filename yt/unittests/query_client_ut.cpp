@@ -456,19 +456,19 @@ protected:
             auto range = GetBothBoundsFromDataSplit(split);
     
             TRowRange rowRange(
-                planFragment->KeyRangesRowBuffer.Capture(range.first.Get()),
-                planFragment->KeyRangesRowBuffer.Capture(range.second.Get()));
+                planFragment->KeyRangesRowBuffer->Capture(range.first.Get()),
+                planFragment->KeyRangesRowBuffer->Capture(range.second.Get()));
 
             sources.push_back(TDataSource{
                 GetObjectIdFromDataSplit(split),
                 rowRange});
         }
 
-        TRowBuffer rowBuffer;
+        auto rowBuffer = New<TRowBuffer>();
         auto groupedRanges = GetPrunedRanges(
             planFragment->Query,
             sources,
-            &rowBuffer,
+            rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
             1000,
@@ -632,18 +632,18 @@ TKeyRange RefineKeyRange(
     const TKeyRange& keyRange,
     const TConstExpressionPtr& predicate)
 {
-    TRowBuffer rowBuffer;
+    auto rowBuffer = New<TRowBuffer>();
 
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         keyColumns,
-        &rowBuffer,
+        rowBuffer,
         CreateBuiltinFunctionRegistry());
 
     auto result = GetRangesFromTrieWithinRange(
         TRowRange(keyRange.first.Get(), keyRange.second.Get()),
         keyTrie,
-        &rowBuffer);
+        rowBuffer);
 
     if (result.empty()) {
         return std::make_pair(EmptyKey(), EmptyKey());
@@ -1263,18 +1263,18 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 TRowRanges GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,
     TKeyTriePtr trie,
-    TRowBuffer* rowBuffer)
+    TRowBufferPtr rowBuffer)
 {
     return GetRangesFromTrieWithinRange(TRowRange(keyRange.first.Get(), keyRange.second.Get()), trie, rowBuffer);
 }
 
 TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
 {
-    TRowBuffer rowBuffer;
+    auto rowBuffer = New<TRowBuffer>();
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey(_MIN_), BuildKey(_MAX_)),
         TKeyTrie::Empty(),
-        &rowBuffer);
+        rowBuffer);
 
     EXPECT_EQ(0, result.size());
 }
@@ -1285,20 +1285,20 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
         "k = 50 and m = 50 or k = 75 and m = 50",
         GetSampleTableSchema());
 
-    TRowBuffer rowBuffer;
+    auto rowBuffer = New<TRowBuffer>();
 
     auto keyColumns = GetSampleKeyColumns();
 
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer,
+        rowBuffer,
         CreateBuiltinFunctionRegistry());
 
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
         keyTrie,
-        &rowBuffer);
+        rowBuffer);
 
     EXPECT_EQ(2, result.size());
 
@@ -1315,20 +1315,20 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
         "(k = 50 and l != 50) and (l > 40 and l < 60)",
         GetSampleTableSchema());
 
-    TRowBuffer rowBuffer;
+    auto rowBuffer = New<TRowBuffer>();
 
     auto keyColumns = GetSampleKeyColumns();
 
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer,
+        rowBuffer,
         CreateBuiltinFunctionRegistry());
 
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
         keyTrie,
-        &rowBuffer);
+        rowBuffer);
 
     EXPECT_EQ(2, result.size());
 
@@ -1345,20 +1345,20 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
         "(k = 40 or k = 50 or k = 60) and (l = 40 or l = 50 or l = 60)",
         GetSampleTableSchema());
 
-    TRowBuffer rowBuffer;
+    auto rowBuffer = New<TRowBuffer>();
 
     auto keyColumns = GetSampleKeyColumns();
 
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer,
+        rowBuffer,
         CreateBuiltinFunctionRegistry());
 
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
         keyTrie,
-        &rowBuffer);
+        rowBuffer);
 
     EXPECT_EQ(9, result.size());
 
@@ -1396,20 +1396,20 @@ TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
         "(k, m) in ((2, 3), (4, 6)) and l in (2, 3)",
         GetSampleTableSchema());
 
-    TRowBuffer rowBuffer;
+    auto rowBuffer = New<TRowBuffer>();
 
     auto keyColumns = GetSampleKeyColumns();
 
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer,
+        rowBuffer,
         CreateBuiltinFunctionRegistry());
 
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
         keyTrie,
-        &rowBuffer);
+        rowBuffer);
 
     EXPECT_EQ(4, result.size());
 
@@ -1492,20 +1492,20 @@ TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
         "(k between 21 and 32) OR (k between 43 and 54)",   
         GetSampleTableSchema());
 
-    TRowBuffer rowBuffer;
+    auto rowBuffer = New<TRowBuffer>();
 
     auto keyColumns = GetSampleKeyColumns();
 
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer,
+        rowBuffer,
         CreateBuiltinFunctionRegistry());
 
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
         keyTrie,
-        &rowBuffer);
+        rowBuffer);
 
     EXPECT_EQ(2, result.size());
 
@@ -1778,16 +1778,16 @@ TEST_P(TArithmeticTest, Evaluate)
     auto row = NVersionedTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, keyColumns, schema, true);
 
     TQueryStatistics statistics;
-    TRowBuffer permanentBuffer;
-    TRowBuffer outputBuffer;
-    TRowBuffer intermediateBuffer;
+    auto permanentBuffer = New<TRowBuffer>();
+    auto outputBuffer = New<TRowBuffer>();
+    auto intermediateBuffer = New<TRowBuffer>();
 
     TExecutionContext executionContext;
     executionContext.Schema = &schema;
     executionContext.LiteralRows = &variables.LiteralRows;
-    executionContext.PermanentBuffer = &permanentBuffer;
-    executionContext.OutputBuffer = &outputBuffer;
-    executionContext.IntermediateBuffer = &intermediateBuffer;
+    executionContext.PermanentBuffer = permanentBuffer;
+    executionContext.OutputBuffer = outputBuffer;
+    executionContext.IntermediateBuffer = intermediateBuffer;
     executionContext.Statistics = &statistics;
 #ifndef NDEBUG
     volatile int dummy;
@@ -1857,15 +1857,15 @@ TEST_P(TCompareWithNullTest, Simple)
     auto keyColumns = GetSampleKeyColumns();
 
     TQueryStatistics statistics;
-    TRowBuffer permanentBuffer;
-    TRowBuffer outputBuffer;
-    TRowBuffer intermediateBuffer;
+    auto permanentBuffer = New<TRowBuffer>();
+    auto outputBuffer = New<TRowBuffer>();
+    auto intermediateBuffer = New<TRowBuffer>();
 
     TExecutionContext executionContext;
     executionContext.Schema = &schema;
-    executionContext.PermanentBuffer = &permanentBuffer;
-    executionContext.OutputBuffer = &outputBuffer;
-    executionContext.IntermediateBuffer = &intermediateBuffer;
+    executionContext.PermanentBuffer = permanentBuffer;
+    executionContext.OutputBuffer = outputBuffer;
+    executionContext.IntermediateBuffer = intermediateBuffer;
     executionContext.Statistics = &statistics;
 #ifndef NDEBUG
     volatile int dummy;
@@ -2142,9 +2142,9 @@ struct TQueryExecutor
                 planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                 planFragment->Timestamp = fragment->Timestamp;
                 planFragment->DataSources.push_back({
-                        fragment->ForeignDataId, {
-                            planFragment->KeyRangesRowBuffer.Capture(MinKey().Get()), 
-                            planFragment->KeyRangesRowBuffer.Capture(MaxKey().Get())}
+                    fragment->ForeignDataId, {
+                        planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
+                        planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())}
                     });
                 planFragment->Query = subquery;
                 
@@ -3816,16 +3816,16 @@ TEST_P(TEvaluateExpressionTest, Basic)
     TUnversionedValue result;
 
     TQueryStatistics statistics;
-    TRowBuffer permanentBuffer;
-    TRowBuffer outputBuffer;
-    TRowBuffer intermediateBuffer;
+    auto permanentBuffer = New<TRowBuffer>();
+    auto outputBuffer = New<TRowBuffer>();
+    auto intermediateBuffer = New<TRowBuffer>();
 
     TExecutionContext executionContext;
     executionContext.Schema = &schema;
     executionContext.LiteralRows = &variables.LiteralRows;
-    executionContext.PermanentBuffer = &permanentBuffer;
-    executionContext.OutputBuffer = &outputBuffer;
-    executionContext.IntermediateBuffer = &intermediateBuffer;
+    executionContext.PermanentBuffer = permanentBuffer;
+    executionContext.OutputBuffer = outputBuffer;
+    executionContext.IntermediateBuffer = intermediateBuffer;
     executionContext.Statistics = &statistics;
 #ifndef NDEBUG
     volatile int dummy;
@@ -3892,11 +3892,11 @@ protected:
     std::vector<TKeyRange> Coordinate(const Stroka& source)
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
-        TRowBuffer rowBuffer;
+        auto rowBuffer = New<TRowBuffer>();
         auto prunedSplits = GetPrunedRanges(
             planFragment->Query,
             planFragment->DataSources,
-            &rowBuffer,
+            rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry().Get(),
             1000,
@@ -3910,18 +3910,18 @@ protected:
         auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
 
         TDataSources foreignSplits{{planFragment->ForeignDataId, {
-                planFragment->KeyRangesRowBuffer.Capture(MinKey().Get()), 
-                planFragment->KeyRangesRowBuffer.Capture(MaxKey().Get())}
+                planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
+                planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())}
             }};
 
         const auto& query = planFragment->Query;
-        TRowBuffer rowBuffer;
+        auto rowBuffer = New<TRowBuffer>();
         auto prunedSplits = GetPrunedRanges(
             query->WhereClause,
             query->JoinClause->ForeignTableSchema,
             query->JoinClause->ForeignKeyColumns,
             foreignSplits,
-            &rowBuffer,
+            rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
             1000,

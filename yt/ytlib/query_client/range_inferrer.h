@@ -14,14 +14,16 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<std::vector<TRowRange>(const TRowRange& keyRange, TRowBuffer* rowBuffer)> TRangeInferrer;
+using TRangeInferrer = std::function<std::vector<TRowRange>(
+    const TRowRange& keyRange,
+    const TRowBufferPtr& rowBuffer)>;
 
 TRangeInferrer CreateRangeInferrer(
     const TConstExpressionPtr& predicate,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const IFunctionRegistryPtr functionRegistry,
+    const IFunctionRegistryPtr& functionRegistry,
     ui64 rangeExpansionLimit,
     bool verboseLogging);
 

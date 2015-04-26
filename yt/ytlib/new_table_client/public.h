@@ -134,17 +134,17 @@ class TKeyComparer;
 struct TColumnSchema;
 class TTableSchema;
 
-DECLARE_REFCOUNTED_CLASS(TNameTable)
-
-class TRowBuffer;
-
-struct  IBlockWriter;
+struct IBlockWriter;
 
 class TBlockWriter;
 
 class THorizontalSchemalessBlockReader;
 
 struct IPartitioner;
+
+DECLARE_REFCOUNTED_CLASS(TNameTable)
+
+DECLARE_REFCOUNTED_CLASS(TRowBuffer)
 
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
 DECLARE_REFCOUNTED_CLASS(TChunkSplitsFetcher)
