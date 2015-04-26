@@ -88,7 +88,7 @@ public:
         DispatcherThread_->AsyncRegister(Connection_);
     }
 
-    virtual TYsonString GetEndpointDescription() const
+    virtual TYsonString GetEndpointDescription() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetEndpointDescription();
