@@ -22,12 +22,12 @@ TBloomFilter::TBloomFilter(i64 capacity, double falsePositiveRate)
 
 TBloomFilter::TBloomFilter(i64 capacity, int hashCount, double bitsPerItem)
     : TBloomFilter(
-        TSharedRef::Allocate<TBloomFilterTag>(1ULL << Log2(capacity * bitsPerItem / 8)),
+        TSharedMutableRef::Allocate<TBloomFilterTag>(1ULL << Log2(capacity * bitsPerItem / 8)),
         hashCount,
         bitsPerItem)
 { }
 
-TBloomFilter::TBloomFilter(TSharedRef data, int hashCount, double bitsPerItem)
+TBloomFilter::TBloomFilter(TSharedMutableRef data, int hashCount, double bitsPerItem)
     : HashCount_(hashCount)
     , BitsPerItem_(bitsPerItem)
     , LogSize_(Log2(data.Size()))
@@ -56,7 +56,7 @@ int TBloomFilter::GetVersion()
 
 TSharedRef TBloomFilter::Bitmap() const
 {
-    return Data_.Trim(Size());
+    return Data_.Slice(0, Size());
 }
 
 bool TBloomFilter::Contains(TFingerprint fingerprint) const
@@ -193,9 +193,9 @@ void FromProto(TBloomFilter* bloomFilter, const NProto::TBloomFilter& protoBloom
             protoBloomFilter.version());
     }
 
-    *bloomFilter = TBloomFilter(
-        TSharedRef::FromString<TBloomFilterTag>(protoBloomFilter.bitmap()),
-        protoBloomFilter.hash_count());
+    auto data = TSharedMutableRef::Allocate(protoBloomFilter.bitmap().size());
+    ::memcpy(data.Begin(), protoBloomFilter.bitmap().data(), protoBloomFilter.bitmap().size());
+    *bloomFilter = TBloomFilter(std::move(data), protoBloomFilter.hash_count());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

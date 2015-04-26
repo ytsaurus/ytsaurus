@@ -139,7 +139,7 @@ void LoadRowKeys(
                         length + sizeof(ui32),
                         sizeof(ui32)));
                     key->String->Length = length;
-                    TRangeSerializer::Load(context, TRef(key->String->Data, length));
+                    TRangeSerializer::Load(context, TMutableRef(key->String->Data, length));
                     break;
                 }
 
@@ -191,7 +191,7 @@ void LoadRowKeys(
                 case EValueType::Any:
                     value.Length = Load<ui32>(context);
                     value.Data.String = pool->AllocateUnaligned(value.Length);
-                    TRangeSerializer::Load(context, TRef(const_cast<char*>(value.Data.String), value.Length));
+                    TRangeSerializer::Load(context, TMutableRef(const_cast<char*>(value.Data.String), value.Length));
                     break;
 
                 default:

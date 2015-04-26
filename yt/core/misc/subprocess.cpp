@@ -92,7 +92,7 @@ TSubprocessResult TSubprocess::Execute()
 
     auto readIntoBlob = [] (IAsyncInputStreamPtr stream) {
         TBlob output;
-        auto buffer = TSharedRef::Allocate(PipeBlockSize, false);
+        auto buffer = TSharedMutableRef::Allocate(PipeBlockSize, false);
         while (true) {
             auto size = WaitFor(stream->Read(buffer))
                 .ValueOrThrow();

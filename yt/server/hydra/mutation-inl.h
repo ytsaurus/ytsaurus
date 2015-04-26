@@ -106,7 +106,7 @@ TMutationPtr TMutation::SetAction(TCallback<TResponse()> action)
 template <class TRequest>
 TMutationPtr TMutation::SetRequestData(const TRequest& request)
 {
-    TSharedRef requestData;
+    TSharedMutableRef requestData;
     YCHECK(SerializeToProtoWithEnvelope(request, &requestData));
     Request_.Data = std::move(requestData);
     Request_.Type = request.GetTypeName();

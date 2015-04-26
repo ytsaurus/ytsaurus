@@ -824,12 +824,12 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
         size_t size = std::min(fragment.Size(), bytesAvailable);
 #ifdef _win_
         WSABUF item;
-        item.buf = fragment.Begin();
+        item.buf = const_cast<char*>(fragment.Begin());
         item.len = static_cast<ULONG>(size);
         SendVector_.push_back(item);
 #else
         struct iovec item;
-        item.iov_base = fragment.Begin();
+        item.iov_base = const_cast<char*>(fragment.Begin());
         item.iov_len = size;
         SendVector_.push_back(item);
 #endif

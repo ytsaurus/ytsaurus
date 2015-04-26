@@ -142,7 +142,7 @@ TKeyTriePtr ExtractMultipleConstraints(
         }
 
         std::vector<TKeyTriePtr> keyTries;
-        for (int rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
+        for (int rowIndex = 0; rowIndex < inExpr->Values.Size(); ++rowIndex) {
             auto literalTuple = inExpr->Values[rowIndex];
 
             auto rowConstraint = TKeyTrie::Universal();
@@ -567,10 +567,10 @@ TConstExpressionPtr RefinePredicate(
                 return 0;
             };
 
-            std::vector<TRow> sortedValues(inExpr->Values.begin(), inExpr->Values.end());
+            std::vector<TRow> sortedValues(inExpr->Values.Begin(), inExpr->Values.End());
             std::sort(sortedValues.begin(), sortedValues.end(), compareValues);
 
-            std::vector<TRow> sortedKeys(lookupKeys.begin(), lookupKeys.end());
+            std::vector<TRow> sortedKeys(lookupKeys.Begin(), lookupKeys.End());
             std::sort(sortedKeys.begin(), sortedKeys.end(), compareKeys);
 
             auto canOmitInExpr = [&] () {

@@ -95,12 +95,12 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, ReadSnapshot)
     auto copyingReader = CreateCopyingAdapter(reader);
 
     struct TSnapshotBlockTag { };
-    auto buffer = TSharedRef::Allocate<TSnapshotBlockTag>(length, false);
+    auto buffer = TSharedMutableRef::Allocate<TSnapshotBlockTag>(length, false);
 
     auto bytesRead = WaitFor(copyingReader->Read(buffer))
         .ValueOrThrow();
 
-    response->Attachments().push_back(buffer.Trim(bytesRead));
+    response->Attachments().push_back(buffer.Slice(0, bytesRead));
 
     context->SetResponseInfo("BytesRead: %v", bytesRead);
     context->Reply();

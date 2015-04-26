@@ -187,7 +187,7 @@ private:
         const TSharedRange<TKey>& keys,
         TWireProtocolWriter* writer)
     {
-        if (keys.empty()) {
+        if (keys.Empty()) {
             return;
         }
 
@@ -210,7 +210,7 @@ private:
         std::vector<TReadSession> sessions;
         CreateReadSessions(&sessions, partitionSnapshot, keys);
 
-        for (int index = 0; index < keys.size(); ++index) {
+        for (int index = 0; index < keys.Size(); ++index) {
             processSessions(sessions);
             processSessions(EdenSessions_);
 
@@ -225,7 +225,7 @@ private:
 
         TPartitionSnapshotPtr currentPartitionSnapshot;
         int currentPartitionStartOffset = 0;
-        for (int index = 0; index < LookupKeys_.size(); ++index) {
+        for (int index = 0; index < LookupKeys_.Size(); ++index) {
             auto key = LookupKeys_[index];
             ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
             auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
@@ -241,7 +241,7 @@ private:
 
         LookupInPartition(
             currentPartitionSnapshot,
-            LookupKeys_.Slice(currentPartitionStartOffset, LookupKeys_.size()),
+            LookupKeys_.Slice(currentPartitionStartOffset, LookupKeys_.Size()),
             writer);
     }
 };
@@ -277,10 +277,10 @@ void LookupRows(
 {
     auto session = ObjectPool<TLookupSession>().Allocate();
     session->Prepare(tabletSnapshot, timestamp, reader);
-    LOG_DEBUG("Looking up %v keys (TabletId: %v, CellId: %v, Session: %v)",
-        session->GetLookupKeys().size(),
+    LOG_DEBUG("Performing tablet lookup (TabletId: %v, CellId: %v, KeyCount: %v, Session: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->Slot ? tabletSnapshot->Slot->GetCellId() : NullCellId,
+        session->GetLookupKeys().Size(),
         session.get());
 
     auto resultHolder = session->Run(std::move(poolInvoker), writer);

@@ -367,7 +367,7 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
         std::move(performanceCounters),
         timestamp)
     , Keys_(keys)
-    , KeyFilterTest_(Keys_.size(), true)
+    , KeyFilterTest_(Keys_.Size(), true)
 { }
 
 std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlockSequence()
@@ -376,11 +376,11 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlock
     const auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
 
     std::vector<TSequentialReader::TBlockInfo> blocks;
-    if (Keys_.empty()) {
+    if (Keys_.Empty()) {
         return blocks;
     }
 
-    for (int keyIndex = 0; keyIndex < Keys_.size(); ++keyIndex) {
+    for (int keyIndex = 0; keyIndex < Keys_.Size(); ++keyIndex) {
         auto& key = Keys_[keyIndex];
         if (!CachedChunkMeta_->KeyFilter().Contains(key)) {
             KeyFilterTest_[keyIndex] = false;
@@ -445,11 +445,11 @@ bool TVersionedLookupChunkReader::Read(std::vector<TVersionedRow>* rows)
 
     if (!BlockReader_) {
         // Nothing to read from chunk.
-        if (RowCount_ == Keys_.size()) {
+        if (RowCount_ == Keys_.Size()) {
             return false;
         }
 
-        while (rows->size() < rows->capacity() && RowCount_ < Keys_.size()) {
+        while (rows->size() < rows->capacity() && RowCount_ < Keys_.Size()) {
             rows->push_back(TVersionedRow());
             ++RowCount_;
         }
@@ -464,7 +464,7 @@ bool TVersionedLookupChunkReader::Read(std::vector<TVersionedRow>* rows)
     }
 
     while (rows->size() < rows->capacity()) {
-        if (RowCount_ == Keys_.size()) {
+        if (RowCount_ == Keys_.Size()) {
             BlockEnded_ = true;
             PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
             return true;

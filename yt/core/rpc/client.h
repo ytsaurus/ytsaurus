@@ -205,7 +205,7 @@ private:
 
     virtual TSharedRef SerializeBody() override
     {
-        TSharedRef data;
+        TSharedMutableRef data;
         YCHECK(SerializeToProtoWithEnvelope(*this, &data, Codec_));
         return data;
     }

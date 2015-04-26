@@ -640,10 +640,10 @@ private:
 
     friend class TUnversionedOwningRowBuilder;
 
-    TSharedRef RowData_; // TRowHeader plus TValue-s
-    Stroka StringData_;  // Holds string data
+    TSharedMutableRef RowData_; // TRowHeader plus TValue-s
+    Stroka StringData_;         // Holds string data
 
-    TUnversionedOwningRow(TSharedRef rowData, Stroka stringData)
+    TUnversionedOwningRow(TSharedMutableRef rowData, Stroka stringData)
         : RowData_(std::move(rowData))
         , StringData_(std::move(stringData))
     { }

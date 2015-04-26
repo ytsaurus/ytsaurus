@@ -30,30 +30,8 @@ public:
     typedef const T* const_iterator;
     typedef size_t size_type;
 
-    typedef std::reverse_iterator<iterator> reverse_iterator;
-
-private:
-    //! The start of the array, in an external buffer.
-    const T* Data_;
-
-    //! The number of elements.
-    size_type Length_;
-
-public:
-    //! Constructs an empty TRange.
+    //! Constructs a null TRange.
     TRange()
-        : Data_(nullptr)
-        , Length_(0)
-    { }
-
-    //! Constructs an empty TRange from nullptr.
-    TRange(decltype(nullptr))
-        : Data_(nullptr)
-        , Length_(0)
-    { }
-
-    //! Constructs an empty TRange from Null.
-    TRange(TNull)
         : Data_(nullptr)
         , Length_(0)
     { }
@@ -99,65 +77,43 @@ public:
     { }
 
 
-    const_iterator begin() const
+    const_iterator Begin() const
     {
         return Data_;
     }
 
-    const_iterator end() const
+    const_iterator End() const
     {
         return Data_ + Length_;
     }
 
-    reverse_iterator rbegin() const
-    {
-        return reverse_iterator(end());
-    }
-
-    reverse_iterator rend() const
-    {
-        return reverse_iterator(begin());
-    }
-
-    bool empty() const
+    bool Empty() const
     {
         return Length_ == 0;
     }
 
-    const T* data() const
+    explicit operator bool() const
     {
-        return Data_;
+        return Data_ != nullptr;
     }
 
-    size_t size() const
+    size_t Size() const
     {
         return Length_;
     }
 
-    const T& front() const
-    {
-        YASSERT(!empty());
-        return Data_[0];
-    }
-
-    const T& back() const
-    {
-        YASSERT(!empty());
-        return Data_[Length_ - 1];
-    }
-
     const T& operator[](size_t index) const
     {
-        YASSERT(index < size());
+        YASSERT(index < Size());
         return Data_[index];
     }
 
 
     TRange<T> Slice(size_t startOffset, size_t endOffset) const
     {
-        YASSERT(startOffset <= size());
-        YASSERT(endOffset >= startOffset && endOffset <= size());
-        return TRange<T>(begin() + startOffset, endOffset - startOffset);
+        YASSERT(startOffset <= Size());
+        YASSERT(endOffset >= startOffset && endOffset <= Size());
+        return TRange<T>(Begin() + startOffset, endOffset - startOffset);
     }
 
     std::vector<T> ToVector() const
@@ -165,7 +121,27 @@ public:
         return std::vector<T>(Data_, Data_ + Length_);
     }
 
+protected:
+    //! The start of the array, in an external buffer.
+    const T* Data_;
+
+    //! The number of elements.
+    size_t Length_;
+
 };
+
+// STL interop.
+template <class T>
+typename TRange<T>::const_iterator begin(const TRange<T>& ref)
+{
+    return ref.Begin();
+}
+
+template <class T>
+typename TRange<T>::const_iterator end(const TRange<T>& ref)
+{
+    return ref.End();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -234,19 +210,8 @@ class TMutableRange
 public:
     typedef T* iterator;
 
-    //! Constructs an empty TMutableRange.
+    //! Constructs a null TMutableRange.
     TMutableRange()
-        : TMutableRange()
-    { }
-
-    //! Constructs an empty TMutableRange from nullptr.
-    TMutableRange(decltype(nullptr))
-        : TRange<T>()
-    { }
-
-    //! Constructs an empty TMutableRange from Null.
-    TMutableRange(TNull)
-        : TRange<T>()
     { }
 
     //! Constructs a TMutableRange from a single element.
@@ -280,47 +245,45 @@ public:
         : TRange<T>(elements)
     { }
 
-    T* data() const
+    
+    iterator Begin() const
     {
-        return const_cast<T*>(TRange<T>::data());
+        return const_cast<T*>(this->Data_);
     }
 
-    iterator begin() const
+    iterator End() const
     {
-        return this->data();
-    }
-
-    iterator end() const
-    {
-        return this->data() + this->size();
-    }
-
-    T& front() const
-    {
-        YASSERT(!this->empty());
-        return this->data()[0];
-    }
-
-    T& back() const
-    {
-        YASSERT(!this->empty());
-        return this->data()[this->size() - 1];
+        return this->Begin() + this->Size();
     }
 
     T& operator[](size_t index) const
     {
-        YASSERT(index <= this->size());
-        return this->data()[index];
+        YASSERT(index <= this->Size());
+        return this->Begin()[index];
     }
 
 
-    TMutableRange<T> Slice(size_t startOffset, size_t endOffset) const
+    TMutableRange<T> Slice(T* begin, T* end) const
     {
-        YASSERT(startOffset <= TRange<T>::size());
-        YASSERT(endOffset >= startOffset && endOffset <= TRange<T>::size());
-        return TMutableRange<T>(begin() + startOffset, endOffset - startOffset);
+        YASSERT(begin >= Begin());
+        YASSERT(end <= End());
+        return TMutableRange<T>(begin, end);
     }
+
 };
+
+// STL interop.
+template <class T>
+typename TMutableRange<T>::iterator begin(const TMutableRange<T>& ref)
+{
+    return ref.Begin();
+}
+
+template <class T>
+typename TMutableRange<T>::iterator end(const TMutableRange<T>& ref)
+{
+    return ref.End();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,22 +293,10 @@ class TSharedRange
     : public TRange<T>
 {
 public:
-    typedef TIntrinsicRefCounted THolder;
-    typedef TIntrusivePtr<THolder> THolderPtr;
+    typedef TIntrusivePtr<TIntrinsicRefCounted> THolderPtr;
 
-    //! Constructs an empty TMutableRange.
+    //! Constructs a null TMutableRange.
     TSharedRange()
-        : TRange<T>()
-    { }
-
-    //! Constructs an empty TSharedRange from nullptr.
-    TSharedRange(decltype(nullptr))
-        : TRange<T>()
-    { }
-
-    //! Constructs an empty TSharedRange from Null.
-    TSharedRange(TNull)
-        : TRange<T>()
     { }
 
     //! Constructs a TSharedRange from TRange.
@@ -392,14 +343,28 @@ public:
     { }
 
 
-    TSharedRange<T> Slice(size_t startOffset, size_t endOffset) const
+    void Reset()
     {
-        YASSERT(startOffset <= TRange<T>::size());
-        YASSERT(endOffset >= startOffset && endOffset <= TRange<T>::size());
-        return TSharedRange<T>(TRange<T>::begin() + startOffset, endOffset - startOffset, Holder_);
+        TRange<T>::Data_ = nullptr;
+        TRange<T>::Length_ = 0;
+        Holder_.Reset();
     }
 
-private:
+    TSharedRange<T> Slice(size_t startOffset, size_t endOffset) const
+    {
+        YASSERT(startOffset <= this->Size());
+        YASSERT(endOffset >= startOffset && endOffset <= this->Size());
+        return TSharedRange<T>(this->Begin() + startOffset, endOffset - startOffset, Holder_);
+    }
+
+    TSharedRange<T> Slice(const T* begin, const T* end) const
+    {
+        YASSERT(begin >= this->Begin());
+        YASSERT(end <= this->End());
+        return TSharedRange<T>(begin, end, Holder_);
+    }
+
+protected:
     THolderPtr Holder_;
 
 };
@@ -439,76 +404,85 @@ TSharedRange<T> MakeSharedRange(const std::vector<T>& elements, THolders&&... ho
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! TMutableRange with ownership semantics. Use with caution :)
+//! TMutableRange with ownership semantics.
+//! Use with caution :)
 template <class T>
 class TSharedMutableRange
     : public TMutableRange<T>
 {
 public:
-    typedef TIntrinsicRefCounted THolder;
-    typedef TIntrusivePtr<THolder> THolderPtr;
+    typedef TIntrusivePtr<TIntrinsicRefCounted> THolderPtr;
 
-    //! Constructs an empty TSharedMutableRange.
+    //! Constructs a null TSharedMutableRange.
     TSharedMutableRange()
-        : TMutableRange<T>()
     { }
 
-    //! Constructs an empty TSharedMutableRange from nullptr.
-    TSharedMutableRange(decltype(nullptr))
-        : TMutableRange<T>()
-    { }
-
-    //! Constructs an empty TSharedMutableRange from Null.
-    TSharedMutableRange(TNull)
-        : TMutableRange<T>()
+    //! Constructs a TSharedMutableRange from TMutableRange.
+    TSharedMutableRange(const TMutableRange<T>& range, THolderPtr holder)
+        : TMutableRange<T>(range)
+        , Holder_(std::move(holder))
     { }
 
     //! Constructs a TSharedMutableRange from a single element.
-    TSharedMutableRange(THolderPtr holder, T& element)
+    TSharedMutableRange(T& element, THolderPtr holder)
         : TMutableRange<T>(element)
         , Holder_(std::move(holder))
     { }
 
     //! Constructs a TSharedMutableRange from a pointer and length.
-    TSharedMutableRange(THolderPtr holder, T* data, size_t length)
+    TSharedMutableRange(T* data, size_t length, THolderPtr holder)
         : TMutableRange<T>(data, length)
         , Holder_(std::move(holder))
     { }
 
     //! Constructs a TSharedMutableRange from a range.
-    TSharedMutableRange(THolderPtr holder, T* begin, T* end)
+    TSharedMutableRange(T* begin, T* end, THolderPtr holder)
         : TMutableRange<T>(begin, end)
         , Holder_(std::move(holder))
     { }
 
     //! Constructs a TSharedMutableRange from a SmallVector.
-    TSharedMutableRange(THolderPtr holder, SmallVectorImpl<T>& elements)
+    TSharedMutableRange(SmallVectorImpl<T>& elements, THolderPtr holder)
         : TMutableRange<T>(elements)
         , Holder_(std::move(holder))
     { }
 
     //! Constructs a TSharedMutableRange from an std::vector.
-    TSharedMutableRange(THolderPtr holder,  std::vector<T>& elements)
+    TSharedMutableRange(std::vector<T>& elements, THolderPtr holder)
         : TMutableRange<T>(elements)
         , Holder_(std::move(holder))
     { }
 
     //! Constructs a TSharedMutableRange from a C array.
     template <size_t N>
-    TSharedMutableRange(THolderPtr holder, T (& elements)[N])
+    TSharedMutableRange(T (& elements)[N], THolderPtr holder)
         : TMutableRange<T>(elements)
         , Holder_(std::move(holder))
     { }
 
 
-    TSharedMutableRange<T> Slice(size_t startOffset, size_t endOffset) const
+    void Reset()
     {
-        YASSERT(startOffset <= TMutableRange<T>::size());
-        YASSERT(endOffset >= startOffset && endOffset <= TMutableRange<T>::size());
-        return TSharedMutableRange<T>(TMutableRange<T>::begin() + startOffset, endOffset - startOffset, Holder_);
+        TRange<T>::Data_ = nullptr;
+        TRange<T>::Length_ = 0;
+        Holder_.Reset();
     }
 
-private:
+    TSharedMutableRange<T> Slice(size_t startOffset, size_t endOffset) const
+    {
+        YASSERT(startOffset <= this->Size());
+        YASSERT(endOffset >= startOffset && endOffset <= this->Size());
+        return TSharedMutableRange<T>(this->Begin() + startOffset, endOffset - startOffset, Holder_);
+    }
+
+    TSharedMutableRange<T> Slice(T* begin, T* end) const
+    {
+        YASSERT(begin >= this->Begin());
+        YASSERT(end <= this->End());
+        return TSharedMutableRange<T>(begin, end, Holder_);
+    }
+
+protected:
     THolderPtr Holder_;
 
 };

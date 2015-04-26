@@ -79,7 +79,7 @@ i64 TChunkedMemoryPool::GetCapacity() const
 
 void TChunkedMemoryPool::AllocateChunk()
 {
-    auto chunk = TSharedRef::Allocate(ChunkSize_, false, TagCookie_);
+    auto chunk = TSharedMutableRef::Allocate(ChunkSize_, false, TagCookie_);
     Chunks_.push_back(chunk);
     Capacity_ += ChunkSize_;
     CurrentChunkIndex_ = static_cast<int>(Chunks_.size()) - 1;
@@ -104,9 +104,9 @@ void TChunkedMemoryPool::SetupFreeZone()
     }
 }
 
-TSharedRef TChunkedMemoryPool::AllocateLargeBlock(i64 size)
+TSharedMutableRef TChunkedMemoryPool::AllocateLargeBlock(i64 size)
 {
-    auto block = TSharedRef::Allocate(size, false, TagCookie_);
+    auto block = TSharedMutableRef::Allocate(size, false, TagCookie_);
     LargeBlocks_.push_back(block);
     Capacity_ += size;
     return block;

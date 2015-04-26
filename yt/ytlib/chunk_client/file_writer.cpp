@@ -119,7 +119,7 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
     ChunkMeta_.CopyFrom(chunkMeta);
     SetProtoExtension(ChunkMeta_.mutable_extensions(), BlocksExt_);
 
-    TSharedRef metaData;
+    TSharedMutableRef metaData;
     YCHECK(SerializeToProtoWithEnvelope(ChunkMeta_, &metaData));
 
     TChunkMetaHeader header;

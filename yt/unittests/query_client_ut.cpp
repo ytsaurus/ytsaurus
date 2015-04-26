@@ -1564,11 +1564,11 @@ protected:
         } else if (auto inLhs = lhs->As<TInOpExpression>()) {
             auto inRhs = rhs->As<TInOpExpression>();
             if (inRhs == nullptr
-                || inLhs->Values.size() != inRhs->Values.size()
+                || inLhs->Values.Size() != inRhs->Values.Size()
                 || inLhs->Arguments.size() != inRhs->Arguments.size()) {
                 return false;
             }
-            for (int index = 0; index < inLhs->Values.size(); ++index) {
+            for (int index = 0; index < inLhs->Values.Size(); ++index) {
                 if (inLhs->Values[index] != inRhs->Values[index]) {
                     return false;
                 }

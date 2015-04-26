@@ -137,7 +137,7 @@ TStracerResult Strace(const std::vector<int>& pids)
 
         if (!tracerResult.Status.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to strace %v", pid)
-                << TErrorAttribute("stderr", tracerResult.Error)
+                << TErrorAttribute("stderr", ToString(tracerResult.Error))
                 << tracerResult.Status;
         }
 

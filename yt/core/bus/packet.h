@@ -52,19 +52,17 @@ template <class TDerived>
 class TPacketTranscoderBase
 {
 public:
-    TPacketTranscoderBase();
-
-    TRef GetFragment();
+    TMutableRef GetFragment();
     bool IsFinished() const;
 
 protected:
-    EPacketPhase Phase;
-    char* Fragment;
-    size_t FragmentRemaining;
+    EPacketPhase Phase = EPacketPhase::Unstarted;
+    char* Fragment = nullptr;
+    size_t FragmentRemaining = 0;
     TPacketHeader Header;
     SmallVector<i32, TypicalPacketPartCount> PartSizes;
-    i32 PartCount;
-    int PartIndex;
+    i32 PartCount = -1;
+    int PartIndex = -1;
     TSharedRefArray Message;
 
     void BeginPhase(EPacketPhase phase, void* fragment, size_t size);
@@ -94,8 +92,8 @@ public:
 private:
     friend class TPacketTranscoderBase<TPacketDecoder>;
 
-    TSharedRef SmallChunk;
-    size_t SmallChunkUsed;
+    TSharedMutableRef SmallChunk;
+    size_t SmallChunkUsed = 0;
 
     std::vector<TSharedRef> Parts;
 
@@ -106,7 +104,7 @@ private:
     bool EndPartSizesPhase();
     bool EndMessagePartPhase();
     void NextMessagePartPhase();
-    TSharedRef AllocatePart(size_t partSize);
+    TSharedMutableRef AllocatePart(size_t partSize);
 
 };
 
@@ -147,18 +145,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TDerived>
-TPacketTranscoderBase<TDerived>::TPacketTranscoderBase()
-    : Phase(EPacketPhase::Unstarted)
-    , Fragment(NULL)
-    , FragmentRemaining(0)
-    , PartCount(-1)
-    , PartIndex(-1)
-{ }
-
-template <class TDerived>
-TRef TPacketTranscoderBase<TDerived>::GetFragment()
+TMutableRef TPacketTranscoderBase<TDerived>::GetFragment()
 {
-    return TRef(Fragment, FragmentRemaining);
+    return TMutableRef(Fragment, FragmentRemaining);
 }
 
 template <class TDerived>
@@ -179,7 +168,7 @@ template <class TDerived>
 void TPacketTranscoderBase<TDerived>::SetFinished()
 {
     Phase = EPacketPhase::Finished;
-    Fragment = NULL;
+    Fragment = nullptr;
     FragmentRemaining = 0;
 }
 

@@ -69,7 +69,7 @@ private:
     TUnversionedRowBuilder KeyBuilder_;
     TKey Key_;
 
-    char* KeyDataPtr_;
+    const char* KeyDataPtr_;
     i64 TimestampOffset_;
     i64 ValueOffset_;
     ui16 WriteTimestampCount_;
@@ -84,11 +84,11 @@ private:
     TTimestamp ReadValueTimestamp(int valueIndex, int id);
     void ReadKeyValue(TUnversionedValue* value, int id);
 
-    void ReadInt64(TUnversionedValue* value, char* ptr);
-    void ReadUint64(TUnversionedValue* value, char* ptr);
-    void ReadDouble(TUnversionedValue* value, char* ptr);
-    void ReadBoolean(TUnversionedValue* value, char* ptr);
-    void ReadStringLike(TUnversionedValue* value, char* ptr);
+    void ReadInt64(TUnversionedValue* value, const char* ptr);
+    void ReadUint64(TUnversionedValue* value, const char* ptr);
+    void ReadDouble(TUnversionedValue* value, const char* ptr);
+    void ReadBoolean(TUnversionedValue* value, const char* ptr);
+    void ReadStringLike(TUnversionedValue* value, const char* ptr);
 
     ui32 GetColumnValueCount(int schemaColumnId) const;
 

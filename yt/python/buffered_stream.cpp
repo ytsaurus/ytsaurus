@@ -9,7 +9,7 @@ namespace NPython {
 TBufferedStream::TBufferedStream(size_t bufferSize)
     : Size_(0)
     , AllowedSize_(bufferSize / 2)
-    , Data_(TSharedRef::Allocate(bufferSize))
+    , Data_(TSharedMutableRef::Allocate(bufferSize))
     , Begin_(Data_.Begin())
     , End_(Data_.Begin())
     , State_(EState::Normal)
@@ -109,7 +109,7 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& buffer)
 
 void TBufferedStream::Reallocate(size_t len)
 {
-    auto newData = TSharedRef::Allocate(len);
+    auto newData = TSharedMutableRef::Allocate(len);
     Move(newData.Begin());
     std::swap(Data_, newData);
 }
@@ -127,7 +127,7 @@ TSharedRef TBufferedStream::ExtractChunk(size_t size)
 
     size = std::min(size, static_cast<size_t>(End_ - Begin_));
 
-    auto result = Data_.Slice(TRef(Begin_, size));
+    auto result = Data_.Slice(Begin_, Begin_ + size);
     Begin_ += size;
 
     Size_ -= size;

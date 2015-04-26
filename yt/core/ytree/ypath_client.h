@@ -87,7 +87,7 @@ public:
 protected:
     virtual TSharedRef SerializeBody() override
     {
-        TSharedRef data;
+        TSharedMutableRef data;
         YCHECK(SerializeToProtoWithEnvelope(*this, &data));
         return data;
     }

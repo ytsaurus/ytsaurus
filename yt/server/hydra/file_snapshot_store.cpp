@@ -133,7 +133,7 @@ private:
                         Header_.CompressedLength);
                 }
 
-                auto serializedMeta = TSharedRef::Allocate(Header_.MetaSize, false);
+                auto serializedMeta = TSharedMutableRef::Allocate(Header_.MetaSize, false);
                 ReadPadded(input, serializedMeta);
                 YCHECK(DeserializeFromProto(&Meta_, serializedMeta));
 
@@ -217,9 +217,9 @@ private:
 
     TSharedRef DoRead()
     {
-        auto block = TSharedRef::Allocate(ReaderBlockSize, false);
+        auto block = TSharedMutableRef::Allocate(ReaderBlockSize, false);
         size_t length = FacadeInput_->Load(block.Begin(), block.Size());
-        return length == 0 ? TSharedRef() : block.Slice(TRef(block.Begin(), length));
+        return length == 0 ? TSharedRef() : block.Slice(0, length);
     }
 
 };
@@ -312,7 +312,7 @@ private:
     const TSnapshotMeta Meta_;
     const bool IsRaw_;
 
-    TSharedRef SerializedMeta_;
+    TSharedMutableRef SerializedMeta_;
 
     bool IsOpened_ = false;
     bool IsClosed_ = false;

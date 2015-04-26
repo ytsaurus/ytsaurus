@@ -206,7 +206,7 @@ inline std::vector<TOriginal> FromProto(
 //! Returns |true| iff everything went well.
 bool SerializeToProto(
     const google::protobuf::MessageLite& message,
-    TSharedRef* data);
+    TSharedMutableRef* data);
 
 //! Deserializes a chunk of memory into a protobuf message.
 //! Returns |true| iff everything went well.
@@ -219,7 +219,7 @@ bool DeserializeFromProto(
 //! Returns |true| iff everything went well.
 bool SerializeToProtoWithEnvelope(
     const google::protobuf::MessageLite& message,
-    TSharedRef* data,
+    TSharedMutableRef* data,
     NCompression::ECodec codecId = NCompression::ECodec::None);
 
 //! Unwraps a chunk of memory obtained from #SerializeToProtoWithEnvelope

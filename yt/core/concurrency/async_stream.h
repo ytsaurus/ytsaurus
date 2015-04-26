@@ -25,7 +25,7 @@ struct IAsyncInputStream
      *  One must not call #Read again before the previous call is complete.
      *  Returns number of bytes read or an error.
      */
-    virtual TFuture<size_t> Read(TSharedRef buffer) = 0;
+    virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAsyncInputStream)

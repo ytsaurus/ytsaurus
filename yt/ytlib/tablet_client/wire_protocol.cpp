@@ -69,24 +69,24 @@ public:
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
         if (row) {
-            WriteRowValues(row.Begin(), row.End(), idMapping);
+            WriteRowValues(TRange<TUnversionedValue>(row.Begin(), row.End()), idMapping);
         } else {
-            WriteRowValues(nullptr, nullptr, idMapping);
+            WriteRowValues(TRange<TUnversionedValue>(), idMapping);
         }
     }
 
     void WriteUnversionedRow(
-        const TRange<TUnversionedValue>& row,
+        const TRange<TUnversionedValue>& values,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
-        WriteRowValues(row.data(), row.data() + row.size(), idMapping);
+        WriteRowValues(values, idMapping);
     }
 
     void WriteUnversionedRowset(
         const TRange<TUnversionedRow>& rowset,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
-        int rowCount = static_cast<int>(rowset.size());
+        int rowCount = static_cast<int>(rowset.Size());
         ValidateRowCount(rowCount);
         WriteInt64(rowCount);
         for (auto row : rowset) {
@@ -191,22 +191,21 @@ private:
     }
 
     void WriteRowValues(
-        const TUnversionedValue* begin,
-        const TUnversionedValue* end,
+        const TRange<TUnversionedValue>& values,
         const TNameTableToSchemaIdMapping* idMapping)
     {
-        if (!begin) {
+        if (!values) {
             WriteInt64(-1);
             return;
         }
 
-        int valueCount = end - begin;
+        int valueCount = values.Size();
         WriteInt64(valueCount);
 
         if (idMapping) {
             PooledValues_.resize(valueCount);
             for (int index = 0; index < valueCount; ++index) {
-                const auto& srcValue = begin[index];
+                const auto& srcValue = values[index];
                 auto& dstValue = PooledValues_[index];
                 dstValue = srcValue;
                 dstValue.Id = (*idMapping)[srcValue.Id];
@@ -223,8 +222,8 @@ private:
                 WriteRowValue(PooledValues_[index]);
             }
         } else {
-            for (const auto* current = begin; current != end; ++current) {
-                WriteRowValue(*current);
+            for (const auto& value : values) {
+                WriteRowValue(value);
             }
         }
     }
@@ -345,12 +344,12 @@ public:
 
     TSharedRef GetConsumedPart() const
     {
-        return Data_.Slice(TRef(const_cast<char*>(Data_.Begin()), const_cast<char*>(Current_)));
+        return Data_.Slice(Data_.Begin(), Current_);
     }
 
     TSharedRef GetRemainingPart() const
     {
-        return Data_.Slice(TRef(const_cast<char*>(Current_), const_cast<char*>(Data_.End())));
+        return Data_.Slice(Current_, Data_.End());
     }
 
     const char* GetCurrent() const
@@ -526,7 +525,7 @@ public:
 
             // TODO(babenko): fixme
             auto sharedRows = Reader_->ReadUnversionedRowset();
-            rows->reserve(rows->size() + sharedRows.size());
+            rows->reserve(rows->size() + sharedRows.Size());
             for (auto row : sharedRows) {
                 rows->push_back(row);
             }

@@ -29,11 +29,13 @@ std::vector<TSharedRef> CompressWithEnvelope(
         envelope.set_codec(static_cast<int>(codecId));
     }
 
-    std::vector<TSharedRef> compressedData(2);
-    YCHECK(SerializeToProto(envelope, &compressedData[0]));
+    TSharedMutableRef header;
+    YCHECK(SerializeToProto(envelope, &header));
+
     auto* codec = GetCodec(codecId);
-    compressedData[1] = codec->Compress(uncompressedData);
-    return compressedData;
+    auto body = codec->Compress(uncompressedData);
+
+    return {header, body};
 }
 
 TSharedRef DecompressWithEnvelope(const std::vector<TSharedRef>& compressedData)

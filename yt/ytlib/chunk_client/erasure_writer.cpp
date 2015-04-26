@@ -80,38 +80,34 @@ public:
         YCHECK(start >= 0);
         YCHECK(start <= end);
 
-        TSharedRef result;
+        TSharedMutableRef result;
 
         i64 pos = 0;
         i64 resultSize = end - start;
 
         // We use lazy initialization.
-        bool initialized = false;
         auto initialize = [&] () {
-            if (!initialized) {
+            if (!result) {
                 struct TErasureWriterSliceTag { };
-                result = TSharedRef::Allocate<TErasureWriterSliceTag>(resultSize);
-                initialized = true;
+                result = TSharedMutableRef::Allocate<TErasureWriterSliceTag>(resultSize);
             }
         };
 
         i64 currentStart = 0;
 
-        for (auto block : Blocks_) {
-            i64 innerStart = std::max((i64)0, start - currentStart);
-            i64 innerEnd = std::min((i64)block.Size(), end - currentStart);
+        for (const auto& block : Blocks_) {
+            i64 innerStart = std::max(static_cast<i64>(0), start - currentStart);
+            i64 innerEnd = std::min(static_cast<i64>(block.Size()), end - currentStart);
 
             if (innerStart < innerEnd) {
-                auto slice = TRef(block.Begin() + innerStart, block.Begin() + innerEnd);
-
-                if (resultSize == slice.Size()) {
-                    return block.Slice(slice);
+                if (resultSize == innerEnd - innerStart) {
+                    return block.Slice(innerStart, innerEnd);
                 }
 
                 initialize();
-                std::copy(slice.Begin(), slice.End(), result.Begin() + pos);
+                std::copy(block.Begin() + innerStart, block.Begin() + innerEnd, result.Begin() + pos);
 
-                pos += slice.Size();
+                pos += (innerEnd - innerStart);
             }
             currentStart += block.Size();
 

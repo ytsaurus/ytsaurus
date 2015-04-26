@@ -344,7 +344,7 @@ public:
     void RefreshBlock()
     {
         YCHECK(BeginPtr_ == EndPtr_);
-        auto blob = TSharedRef::Allocate<TInputStreamBlobTag>(BlockSize_);
+        auto blob = TSharedMutableRef::Allocate<TInputStreamBlobTag>(BlockSize_);
         auto size = Stream_->Load(blob.Begin(), blob.Size());
         if (size != BlockSize_) {
             Finished_ = true;
@@ -374,12 +374,12 @@ public:
             PrefixStart_ = Blobs_.front().Begin();
         }
 
-        TSharedRef result;
+        TSharedMutableRef result;
 
         if (Blobs_.size() == 1) {
-            result = Blobs_[0].Slice(TRef(PrefixStart_, BeginPtr_));
+            result = Blobs_[0].Slice(PrefixStart_, BeginPtr_);
         } else {
-            result = TSharedRef::Allocate<TInputStreamBlobTag>(ReadByteCount_);
+            result = TSharedMutableRef::Allocate<TInputStreamBlobTag>(ReadByteCount_);
 
             size_t index = 0;
             auto append = [&] (const char* begin, const char* end) {
@@ -407,7 +407,7 @@ public:
 private:
     TInputStream* Stream_;
 
-    std::deque<TSharedRef> Blobs_;
+    std::deque<TSharedMutableRef> Blobs_;
 
     char* BeginPtr_ = nullptr;
     char* EndPtr_ = nullptr;
@@ -483,7 +483,7 @@ public:
         if (hasRow) {
             auto prefix = Lexer_.ExtractPrefix();
             YCHECK(*(prefix.End() - 1) != NYson::NDetail::ListItemSeparatorSymbol);
-            auto result = TSharedRef::Allocate(prefix.Size() + 1);
+            auto result = TSharedMutableRef::Allocate(prefix.Size() + 1);
             std::copy(prefix.Begin(), prefix.End(), result.Begin());
             *(result.End() - 1) = ';';
             return result;
