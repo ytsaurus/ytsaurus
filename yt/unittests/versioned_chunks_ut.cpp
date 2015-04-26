@@ -565,7 +565,6 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
 
     {
         std::vector<TOwningKey> owningKeys;
-        std::vector<TKey> keys;
         TUnversionedOwningRowBuilder builder;
         expected.clear();
 
@@ -574,7 +573,6 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
         builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 1));
         builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
         owningKeys.push_back(builder.FinishRow());
-        keys.push_back(owningKeys.back().Get());
         expected.push_back(TVersionedRow());
 
         // The first key.
@@ -582,7 +580,6 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
         builder.AddValue(MakeUnversionedInt64Value(0, 1));
         builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
         owningKeys.push_back(builder.FinishRow());
-        keys.push_back(owningKeys.back().Get());
         expected.push_back(CreateSingleRow(0));
 
         // Somewhere in the middle.
@@ -590,7 +587,6 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
         builder.AddValue(MakeUnversionedInt64Value(150000, 1));
         builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
         owningKeys.push_back(builder.FinishRow());
-        keys.push_back(owningKeys.back().Get());
         expected.push_back(CreateSingleRow(150000));
 
         // After the last key.
@@ -598,7 +594,6 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
         builder.AddValue(MakeUnversionedInt64Value(350000, 1));
         builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
         owningKeys.push_back(builder.FinishRow());
-        keys.push_back(owningKeys.back().Get());
         expected.push_back(TVersionedRow());
 
         // After the previous key, that was after the last.
@@ -606,15 +601,21 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
         builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 1));
         builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
         owningKeys.push_back(builder.FinishRow());
-        keys.push_back(owningKeys.back().Get());
         expected.push_back(TVersionedRow());
+
+        std::vector<TKey> keys;
+        for (const auto& owningKey : owningKeys) {
+            keys.push_back(owningKey.Get());
+        }
+
+        auto sharedKeys = MakeSharedRange(std::move(keys), std::move(owningKeys));
 
         auto chunkReader = CreateVersionedChunkReader(
             New<TChunkReaderConfig>(),
             MemoryReader,
             GetNullBlockCache(),
             chunkMeta,
-            keys,
+            sharedKeys,
             TColumnFilter(),
             New<TChunkReaderPerformanceCounters>(),
             AsyncAllCommittedTimestamp);

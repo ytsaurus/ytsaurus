@@ -514,7 +514,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
 }
 
 IVersionedReaderPtr TChunkStore::CreateReader(
-    const std::vector<TKey>& keys,
+    const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {

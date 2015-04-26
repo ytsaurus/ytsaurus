@@ -200,7 +200,8 @@ protected:
     TUnversionedOwningRow LookupRow(IStorePtr store, const TOwningKey& key, TTimestamp timestamp)
     {
         std::vector<TKey> lookupKeys(1, key.Get());
-        auto lookupReader = store->CreateReader(lookupKeys, timestamp, TColumnFilter());
+        auto sharedLookupKeys = MakeSharedRange(std::move(lookupKeys), key);
+        auto lookupReader = store->CreateReader(sharedLookupKeys, timestamp, TColumnFilter());
 
         std::vector<TVersionedRow> rows;
         rows.reserve(1);

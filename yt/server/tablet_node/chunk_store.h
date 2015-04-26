@@ -75,7 +75,7 @@ public:
         const TColumnFilter& columnFilter) override;
 
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
-        const std::vector<TKey>& keys,
+        const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 

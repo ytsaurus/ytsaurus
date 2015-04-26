@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/range.h>
+
 #include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/api/public.h>
@@ -47,7 +49,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     NChunkClient::IChunkReaderPtr chunkReader,
     NChunkClient::IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
-    const std::vector<TKey>& keys,
+    const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp = SyncLastCommittedTimestamp);

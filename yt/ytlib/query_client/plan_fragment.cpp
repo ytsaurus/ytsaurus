@@ -319,7 +319,6 @@ public:
         return expressions;
     }
 
-private:
     DEFINE_BYVAL_RO_PROPERTY(TTableSchema*, TableSchema);
 
 protected:
@@ -342,7 +341,6 @@ protected:
                 literalExpr->Value));
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
             const auto* column = GetColumnPtr(referenceExpr->ColumnName);
-
             if (!column) {
                 THROW_ERROR_EXCEPTION("Undefined reference %Qv", referenceExpr->ColumnName);
             }
@@ -372,16 +370,15 @@ protected:
                         aggregateColumn->Name));
 
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Failed creating aggregate")
+                    THROW_ERROR_EXCEPTION("Error creating aggregate")
                         << TErrorAttribute("source", functionExpr->GetSource(source))
                         << ex;
                 }
 
             } else {
-                std::vector<EValueType> types;
-
                 auto typedOperands = DoBuildTypedExpression(functionExpr->Arguments.Get(), source, functionRegistry);
 
+                std::vector<EValueType> types;
                 for (const auto& typedOperand : typedOperands) {
                     types.push_back(typedOperand->Type);
                 }
@@ -451,7 +448,9 @@ protected:
                 || binaryExpr->Opcode == EBinaryOp::Equal) {
 
                 if (typedLhsExpr.size() != typedRhsExpr.size()) {
-                    THROW_ERROR_EXCEPTION("Expecting tuples of same size")
+                    THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
+                        typedLhsExpr.size(),
+                        typedRhsExpr.size())
                         << TErrorAttribute("source", binaryExpr->Rhs->GetSource(source));
                 }
 
@@ -488,13 +487,11 @@ protected:
                 }
             }
 
-            auto rowBuffer = New<TRowBuffer>();
-            auto caturedRows = CaptureRows(inExpr->Values, argTypes, rowBuffer, inExpr->GetSource(source));
-
+            auto capturedRows = TupleListsToRows(inExpr->Values, argTypes, inExpr->GetSource(source));
             result.push_back(New<TInOpExpression>(
                 inExpr->SourceLocation,
                 std::move(inExprOperands),
-                caturedRows));
+                std::move(capturedRows)));
         }
 
         return result;
@@ -590,13 +587,14 @@ protected:
         YUNREACHABLE();
     }
 
+protected:
     static const TColumnSchema* AddColumn(TTableSchema* tableSchema, const TColumnSchema& column)
     {
         tableSchema->Columns().push_back(column);
         return &tableSchema->Columns().back();
     }
 
-    static TNullable<EAggregateFunction> GetAggregate(TStringBuf functionName)
+    static TNullable<EAggregateFunction> GetAggregate(const TStringBuf& functionName)
     {
         Stroka name(functionName);
         name.to_lower();
@@ -614,15 +612,14 @@ protected:
         return result;
     };
 
-    static std::vector<TRow> CaptureRows(
+    static TSharedRange<TRow> TupleListsToRows(
         const NAst::TValueTupleList& literalTuples,
         const std::vector<EValueType>& argTypes,
-        TRowBufferPtr rowBuffer,
         const TStringBuf& source)
     {
+        auto rowBuffer = New<TRowBuffer>();
         TUnversionedRowBuilder rowBuilder;
-
-        std::vector<TRow> result;
+        std::vector<TRow> rows;
         for (const auto & tuple : literalTuples) {
             if (tuple.size() != argTypes.size()) {
                 THROW_ERROR_EXCEPTION("IN operator arguments size mismatch")
@@ -639,12 +636,12 @@ protected:
 
                 rowBuilder.AddValue(tuple[i]);
             }
-            result.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
+            rows.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
             rowBuilder.Reset();
         }
-        std::sort(result.begin(), result.end());
 
-        return result;
+        std::sort(rows.begin(), rows.end());
+        return MakeSharedRange(std::move(rows), std::move(rowBuffer));
     }
 
     TConstExpressionPtr FoldConstants(
@@ -1104,7 +1101,7 @@ TConstExpressionPtr BuildWhereClause(
 }
 
 TConstGroupClausePtr BuildGroupClause(
-    NAst::TNullableNamedExprs& expressionsAst,
+    NAst::TNullableNamedExpressionList& expressionsAst,
     const Stroka& source,
     TSchemaProxyPtr& schemaProxy,
     IFunctionRegistry* functionRegistry)
@@ -1135,7 +1132,7 @@ TConstGroupClausePtr BuildGroupClause(
 }
 
 TConstProjectClausePtr BuildProjectClause(
-    NAst::TNullableNamedExprs& expressionsAst,
+    NAst::TNullableNamedExpressionList& expressionsAst,
     const Stroka& source,
     TSchemaProxyPtr& schemaProxy,
     IFunctionRegistry* functionRegistry)
@@ -1321,8 +1318,7 @@ TPlanFragmentPtr PreparePlanFragment(
 
     planFragment->DataSources.push_back({
         GetObjectIdFromDataSplit(selfDataSplit),
-        rowRange
-    });
+        rowRange});
 
     if (query->JoinClause) {
         planFragment->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
@@ -1557,8 +1553,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
             }
 
             NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(data.values()));
-            reader.ReadUnversionedRowset(&typedResult->Values);
-            typedResult->Values = typedResult->RowBuffer->Capture(typedResult->Values);
+            typedResult->Values = reader.ReadUnversionedRowset();
 
             return typedResult;
         } 
@@ -1779,7 +1774,7 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
 
     NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.data_bounds()));
 
-    auto& rowBuffer = result->KeyRangesRowBuffer;
+    const auto& rowBuffer = result->KeyRangesRowBuffer;
     for (int i = 0; i < serialized.data_id_size(); ++i) {
         TDataSource dataSource;
         FromProto(&dataSource.Id, serialized.data_id(i));
