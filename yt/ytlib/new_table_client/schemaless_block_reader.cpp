@@ -99,7 +99,7 @@ bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
 
     RowIndex_ = rowIndex;
 
-    ui32 offset = *reinterpret_cast<ui32*>(Offsets_.Begin() + rowIndex * sizeof(ui32));
+    ui32 offset = *reinterpret_cast<const ui32*>(Offsets_.Begin() + rowIndex * sizeof(ui32));
     CurrentPointer_ = Data_.Begin() + offset;
 
     CurrentPointer_ += ReadVarUint32(CurrentPointer_, &ValueCount_);

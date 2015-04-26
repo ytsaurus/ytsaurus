@@ -14,11 +14,11 @@ using namespace google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SerializeToProto(const google::protobuf::MessageLite& message, TSharedRef* data)
+bool SerializeToProto(const google::protobuf::MessageLite& message, TSharedMutableRef* data)
 {
     size_t size = message.ByteSize();
     struct TSerializedMessageTag { };
-    *data = TSharedRef::Allocate<TSerializedMessageTag>(size, false);
+    *data = TSharedMutableRef::Allocate<TSerializedMessageTag>(size, false);
     return message.SerializePartialToArray(data->Begin(), size);
 }
 
@@ -41,7 +41,7 @@ struct TSerializedMessageFixedHeader
 
 bool SerializeToProtoWithEnvelope(
     const google::protobuf::MessageLite& message,
-    TSharedRef* data,
+    TSharedMutableRef* data,
     NCompression::ECodec codecId)
 {
     NProto::TSerializedMessageEnvelope envelope;
@@ -51,7 +51,7 @@ bool SerializeToProtoWithEnvelope(
 
     size_t messageSize = message.ByteSize();
     struct TSerializedMessageTag { };
-    auto serializedMessage = TSharedRef::Allocate<TSerializedMessageTag>(messageSize, false);
+    auto serializedMessage = TSharedMutableRef::Allocate<TSerializedMessageTag>(messageSize, false);
     if (!message.SerializePartialToArray(serializedMessage.Begin(), messageSize)) {
         return false;
     }
@@ -68,7 +68,7 @@ bool SerializeToProtoWithEnvelope(
         fixedHeader.HeaderSize +
         fixedHeader.MessageSize;
 
-    *data = TSharedRef::Allocate<TSerializedMessageTag>(totalSize, false);
+    *data = TSharedMutableRef::Allocate<TSerializedMessageTag>(totalSize, false);
 
     char* targetFixedHeader = data->Begin();
     char* targetHeader = targetFixedHeader + sizeof (TSerializedMessageFixedHeader);
@@ -102,10 +102,7 @@ bool DeserializeFromProtoWithEnvelope(
         return false;
     }
 
-    // TODO(babenko): get rid of const_cast here
-    auto compressedMessage = TSharedRef::FromRefNonOwning(TRef(
-        const_cast<char*>(sourceMessage),
-        fixedHeader->MessageSize));
+    auto compressedMessage = TSharedRef::FromRefNonOwning(TRef(sourceMessage, fixedHeader->MessageSize));
 
     auto codecId = NCompression::ECodec(envelope.codec());
     auto codec = NCompression::GetCodec(codecId);
@@ -134,7 +131,7 @@ bool DeserializeFromProtoWithEnvelope(
 
 void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::protobuf::Message& message)
 {
-    TSharedRef data;
+    TSharedMutableRef data;
     YCHECK(SerializeToProtoWithEnvelope(message, &data));
     TSizeSerializer::Save(context, data.Size());
     TRangeSerializer::Save(context, data);
@@ -156,7 +153,7 @@ Stroka DumpProto(::google::protobuf::Message& message)
 void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobuf::Message& message)
 {
     size_t size = TSizeSerializer::LoadSuspended(context);
-    auto data = TSharedRef::Allocate(size, false);
+    auto data = TSharedMutableRef::Allocate(size, false);
 
     SERIALIZATION_DUMP_SUSPEND(context) {
         TRangeSerializer::Load(context, data);

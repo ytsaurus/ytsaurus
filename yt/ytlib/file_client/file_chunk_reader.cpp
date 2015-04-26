@@ -242,7 +242,7 @@ TSharedRef TFileChunkReader::GetBlock()
     StartOffset_ = std::max(StartOffset_ - static_cast<i64>(block.Size()), (i64)0);
     EndOffset_ = std::max(EndOffset_ - static_cast<i64>(block.Size()), (i64)0);
 
-    return block.Slice(TRef(begin, end));
+    return block.Slice(begin, end);
 }
 
 TFuture<void> TFileChunkReader::GetFetchingCompletedEvent()

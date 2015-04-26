@@ -56,14 +56,14 @@ public:
         return FD_;
     }
 
-    TFuture<size_t> Read(TSharedRef buffer)
+    TFuture<size_t> Read(const TSharedMutableRef& buffer)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(buffer.Size() > 0);
 
         auto promise = NewPromise<size_t>();
 
-        BIND([=, this_ = MakeStrong(this)] () {
+        TIODispatcher::Get()->Impl_->GetInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] () {
             YCHECK(ReadResultPromise_.IsSet());
             ReadResultPromise_ = promise;
 
@@ -93,9 +93,7 @@ public:
                 default:
                     YUNREACHABLE();
             };
-        })
-        .Via(TIODispatcher::Get()->Impl_->GetInvoker())
-        .Run();
+        }));
 
         return promise.ToFuture();
     }
@@ -127,7 +125,7 @@ private:
 
     EReaderState State_ = EReaderState::Active;
 
-    TSharedRef Buffer_;
+    TSharedMutableRef Buffer_;
     int Position_ = 0;
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
@@ -221,7 +219,7 @@ int TAsyncReader::GetHandle() const
     return Impl_->GetHandle();
 }
 
-TFuture<size_t> TAsyncReader::Read(TSharedRef buffer)
+TFuture<size_t> TAsyncReader::Read(const TSharedMutableRef& buffer)
 {
     return Impl_->Read(buffer);
 }

@@ -297,7 +297,7 @@ private:
 
     TFuture<void> DoAppendMultiplexedRecord(const TMultiplexedRecord& record)
     {
-        auto multiplexedData = TSharedRef::Allocate(
+        auto multiplexedData = TSharedMutableRef::Allocate(
             record.Data.Size() +
             sizeof (TMultiplexedRecordHeader));
         std::copy(
@@ -699,9 +699,7 @@ private:
             return;
 
         YCHECK(recordCount == header.RecordId);
-        auto splitRecord = record.Slice(TRef(
-            const_cast<char*>(record.Begin() + sizeof (TMultiplexedRecordHeader)),
-            const_cast<char*>(record.End())));
+        auto splitRecord = record.Slice(sizeof (TMultiplexedRecordHeader), record.Size());
         splitEntry->Changelog->Append(splitRecord);
         ++splitEntry->RecordsAdded;
     }

@@ -28,8 +28,8 @@ private:
 
     virtual size_t DoRead(void* buf, size_t len) override
     {
-        TRef ref(buf, len);
-        auto sharedRef = TSharedRef::FromRefNonOwning(ref);
+        auto ref = TMutableRef(buf, len);
+        auto sharedRef = TSharedMutableRef::FromRefNonOwning(ref);
         auto result = WaitFor(UnderlyingStream_->Read(sharedRef));
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
         return result.Value();
@@ -54,14 +54,14 @@ public:
         YCHECK(UnderlyingStream_);
     }
     
-    virtual TFuture<size_t> Read(TSharedRef buffer) override
+    virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         if (Failed_) {
             return Result_;
         }
 
         try {
-            return MakeFuture<size_t>(UnderlyingStream_->Read(const_cast<char*>(buffer.Begin()), buffer.Size()));
+            return MakeFuture<size_t>(UnderlyingStream_->Read(buffer.Begin(), buffer.Size()));
         } catch (const std::exception& ex) {
             Result_ = MakeFuture<size_t>(TError(ex));
             Failed_ = true;
@@ -102,9 +102,9 @@ private:
 
     virtual void DoWrite(const void* buf, size_t len) override
     {
-        TRef ref(const_cast<void *>(buf), len);
-        auto buffer = TSharedRef::FromRefNonOwning(ref);
-        auto result = WaitFor(UnderlyingStream_->Write(buffer));
+        auto ref = TRef(buf, len);
+        auto sharedRef = TSharedRef::FromRefNonOwning(ref);
+        auto result = WaitFor(UnderlyingStream_->Write(sharedRef));
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 };
@@ -174,7 +174,7 @@ public:
     virtual TFuture<TSharedRef> Read() override
     {
         struct TZeroCopyInputStreamAdapterBlockTag { };
-        auto block = TSharedRef::Allocate<TZeroCopyInputStreamAdapterBlockTag>(BlockSize_, false);
+        auto block = TSharedMutableRef::Allocate<TZeroCopyInputStreamAdapterBlockTag>(BlockSize_, false);
         auto promise = NewPromise<TSharedRef>();
         DoRead(promise, block, 0);
         return promise;
@@ -187,7 +187,7 @@ private:
 
     void DoRead(
         TPromise<TSharedRef> promise,
-        TSharedRef block,
+        const TSharedMutableRef& block,
         size_t offset)
     {
         if (block.Size() == offset) {
@@ -195,15 +195,14 @@ private:
             return;
         }
 
-        TRef sliceRef(block.Begin() + offset, block.Size() - offset);
-        auto slice = block.Slice(sliceRef);
+        auto slice = block.Slice(offset, block.Size());
         UnderlyingStream_->Read(slice).Subscribe(
             BIND(&TZeroCopyInputStreamAdapter::OnRead, MakeStrong(this), promise, block, offset));
     }
 
     void OnRead(
         TPromise<TSharedRef> promise,
-        TSharedRef block,
+        const TSharedMutableRef& block,
         size_t offset,
         const TErrorOr<size_t>& result)
     {
@@ -214,7 +213,7 @@ private:
 
         auto bytes = result.Value();
         if (bytes == 0) {
-            promise.Set(offset == 0 ? TSharedRef() : block.Trim(offset));
+            promise.Set(offset == 0 ? TSharedRef() : block.Slice(0, offset));
             return;
         }
 
@@ -242,12 +241,12 @@ public:
         YCHECK(UnderlyingStream_);
     }
 
-    virtual TFuture<size_t> Read(TSharedRef buffer) override
+    virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         if (CurrentBlock_) {
             // NB(psushin): no swapping here, it's a _copying_ adapter!
             // Also, #buffer may be constructed via FromNonOwningRef.
-            return MakeFuture<size_t>(DoCopy(buffer.Begin(), buffer.Size()));
+            return MakeFuture<size_t>(DoCopy(buffer));
         } else {
             return UnderlyingStream_->Read().Apply(
                 BIND(&TCopyingInputStreamAdapter::OnRead, MakeStrong(this), buffer));
@@ -261,11 +260,11 @@ private:
     i64 CurrentOffset_ = 0;
 
 
-    size_t DoCopy(void* buf, size_t len)
+    size_t DoCopy(const TMutableRef& buffer)
     {
         size_t remaining = CurrentBlock_.Size() - CurrentOffset_;
-        size_t bytes = std::min(len, remaining);
-        ::memcpy(buf, CurrentBlock_.Begin() + CurrentOffset_, bytes);
+        size_t bytes = std::min(buffer.Size(), remaining);
+        ::memcpy(buffer.Begin(), CurrentBlock_.Begin() + CurrentOffset_, bytes);
         CurrentOffset_ += bytes;
         if (CurrentOffset_ == CurrentBlock_.Size()) {
             CurrentBlock_.Reset();
@@ -274,10 +273,10 @@ private:
         return bytes;
     }
 
-    size_t OnRead(TSharedRef buffer, const TSharedRef& block)
+    size_t OnRead(const TSharedMutableRef& buffer, const TSharedRef& block)
     {
         CurrentBlock_ = block;
-        return DoCopy(buffer.Begin(), buffer.Size());
+        return DoCopy(buffer);
     }
 
 };
@@ -383,7 +382,7 @@ public:
     virtual TFuture<void> Write(const TSharedRef& buffer) override
     {
         struct TCopyingOutputStreamAdapterBlockTag { };
-        auto block = TSharedRef::Allocate<TCopyingOutputStreamAdapterBlockTag>(buffer.Size(), false);
+        auto block = TSharedMutableRef::Allocate<TCopyingOutputStreamAdapterBlockTag>(buffer.Size(), false);
         ::memcpy(block.Begin(), buffer.Begin(), buffer.Size());
         return UnderlyingStream_->Write(block);
     }

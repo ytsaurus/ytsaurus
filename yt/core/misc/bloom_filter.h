@@ -20,7 +20,7 @@ public:
     TBloomFilter() = default;
     TBloomFilter(i64 capacity, double falsePositiveRate);
     TBloomFilter(i64 capacity, int hashCount, double bitsPerItem);
-    TBloomFilter(TSharedRef data, int hashCount, double bitsPerItem = -1);
+    TBloomFilter(TSharedMutableRef data, int hashCount, double bitsPerItem = -1);
 
     TBloomFilter& operator=(TBloomFilter&& other);
 
@@ -40,7 +40,7 @@ public:
 protected:
     int InsertionCount_ = 0;
     int LogSize_;
-    TSharedRef Data_;
+    TSharedMutableRef Data_;
 
     int BitPosition(int position) const;
     int BytePosition(int position) const;

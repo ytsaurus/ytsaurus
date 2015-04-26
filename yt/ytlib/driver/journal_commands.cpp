@@ -267,7 +267,7 @@ void TWriteJournalCommand::DoExecute()
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);
 
     struct TWriteBufferTag { };
-    auto buffer = TSharedRef::Allocate<TWriteBufferTag>(Context_->GetConfig()->WriteBufferSize, false);
+    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(Context_->GetConfig()->WriteBufferSize, false);
 
     auto input = Context_->Request().InputStream;
 

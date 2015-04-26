@@ -44,7 +44,7 @@ TEST(TPipeIOHolder, CanInstantiate)
 
 TBlob ReadAll(TAsyncReaderPtr reader, bool useWaitFor)
 {
-    auto buffer = TSharedRef::Allocate(1024 * 1024, false);
+    auto buffer = TSharedMutableRef::Allocate(1024 * 1024, false);
     auto whole = TBlob(TDefaultBlobTag());
 
     while (true)  {
@@ -80,7 +80,7 @@ TEST(TAsyncWriterTest, AsyncCloseFail)
             .Run();
 
     int length = 200*1024;
-    auto buffer = TSharedRef::Allocate(length);
+    auto buffer = TSharedMutableRef::Allocate(length);
     ::memset(buffer.Begin(), 'a', buffer.Size());
 
     auto writeResult = writer->Write(buffer).Get();
@@ -129,7 +129,7 @@ TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
     Writer->Write(buffer).Get();
     Writer->Close();
 
-    auto data = TSharedRef::Allocate(1);
+    auto data = TSharedMutableRef::Allocate(1);
     auto whole = TBlob(TDefaultBlobTag());
 
     while (true)
@@ -174,8 +174,7 @@ void WriteAll(TAsyncWriterPtr writer, const char* data, size_t size, size_t bloc
 {
     while (size > 0) {
         const size_t currentBlockSize = std::min(blockSize, size);
-        TRef ref(const_cast<char*>(data), currentBlockSize);
-        auto buffer = TSharedRef::FromRefNonOwning(ref);
+        auto buffer = TSharedRef(data, currentBlockSize, nullptr);
         auto error = WaitFor(writer->Write(buffer));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
         size -= currentBlockSize;

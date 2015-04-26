@@ -40,7 +40,7 @@ TSharedRef SerializeMutationRecord(
         recordHeader.DataSize;
 
     struct TMutationRecordTag { };
-    auto recordData = TSharedRef::Allocate<TMutationRecordTag>(recordSize, false);
+    auto recordData = TSharedMutableRef::Allocate<TMutationRecordTag>(recordSize, false);
     YASSERT(recordData.Size() >= recordSize);
 
     std::copy(
@@ -65,14 +65,13 @@ void DeserializeMutationRecord(
 {
     auto* recordHeader = reinterpret_cast<const TFixedMutationHeader*>(recordData.Begin());
 
-    YCHECK(DeserializeFromProto(
-        mutationHeader,
-        TRef(const_cast<char*>(recordData.Begin()) + sizeof (TFixedMutationHeader), recordHeader->HeaderSize)));
+    size_t headerStartOffset = sizeof (TFixedMutationHeader);
+    size_t headerEndOffset = headerStartOffset + recordHeader->HeaderSize;
+    YCHECK(DeserializeFromProto(mutationHeader, recordData.Slice(headerStartOffset, headerEndOffset)));
 
-    TRef recordRef(
-        const_cast<char*>(recordData.Begin()) + sizeof (TFixedMutationHeader) + recordHeader->HeaderSize,
-        recordHeader->DataSize);
-    *mutationData = recordData.Slice(recordRef);
+    size_t dataStartOffset = headerEndOffset;
+    size_t dataEndOffset = dataStartOffset + recordHeader->DataSize;
+    *mutationData = recordData.Slice(dataStartOffset, dataEndOffset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

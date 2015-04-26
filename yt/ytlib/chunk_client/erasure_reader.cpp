@@ -301,7 +301,7 @@ private:
     {
         // Allocate the resulting window filling it with zeros (used as padding).
         struct TRepairWindowTag { };
-        auto result = TSharedRef::Allocate<TRepairWindowTag>(windowSize);
+        auto result = TSharedMutableRef::Allocate<TRepairWindowTag>(windowSize);
 
         i64 resultPosition = 0;
         while (!Blocks_.empty()) {
@@ -382,13 +382,13 @@ private:
         CompletedOffset_ = 0;
 
         struct TRepairBlockTag { };
-        CurrentBlock_ = TSharedRef::Allocate<TRepairBlockTag>(BlockSizes_[BlockIndex_]);
+        CurrentBlock_ = TSharedMutableRef::Allocate<TRepairBlockTag>(BlockSizes_[BlockIndex_]);
     }
 
     int BlockIndex_;
     std::vector<i64> BlockSizes_;
 
-    TSharedRef CurrentBlock_;
+    TSharedMutableRef CurrentBlock_;
     i64 CompletedOffset_;
 
 };

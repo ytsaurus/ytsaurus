@@ -210,7 +210,7 @@ public:
 private:
     void SerializeResponseAndReply()
     {
-        TSharedRef data;
+        TSharedMutableRef data;
         YCHECK(SerializeToProtoWithEnvelope(*Response_, &data, this->Options_.ResponseCodec));
         this->UnderlyingContext_->SetResponseBody(std::move(data));
         this->UnderlyingContext_->Reply(TError());

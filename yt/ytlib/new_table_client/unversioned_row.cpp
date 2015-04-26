@@ -1004,7 +1004,7 @@ TUnversionedOwningRow DeserializeFromString(const Stroka& data)
     current += ReadVarUint32(current, &valueCount);
 
     size_t fixedSize = GetUnversionedRowDataSize(valueCount);
-    auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
+    auto rowData = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, false);
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(rowData.Begin());
 
     header->Count = static_cast<i32>(valueCount);
@@ -1318,7 +1318,7 @@ TUnversionedValue* TUnversionedOwningRowBuilder::EndValues()
 TUnversionedOwningRow TUnversionedOwningRowBuilder::FinishRow()
 {
     auto row = TUnversionedOwningRow(
-        TSharedRef::FromBlob(std::move(RowData_)),
+        TSharedMutableRef::FromBlob(std::move(RowData_)),
         std::move(StringData_));
     Reset();
     return row;
@@ -1350,7 +1350,7 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
     int count = std::distance(begin, end);
 
     size_t fixedSize = GetUnversionedRowDataSize(count);
-    RowData_ = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
+    RowData_ = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, false);
     auto* header = GetHeader();
 
     header->Count = count;

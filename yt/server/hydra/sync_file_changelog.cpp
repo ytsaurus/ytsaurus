@@ -72,7 +72,7 @@ TNullable<TRecordInfo> ReadRecord(TInput& input)
     }
 
     struct TSyncChangelogRecordTag { };
-    auto data = TSharedRef::Allocate<TSyncChangelogRecordTag>(header.DataSize, false);
+    auto data = TSharedMutableRef::Allocate<TSyncChangelogRecordTag>(header.DataSize, false);
     if (input.Avail() < header.DataSize) {
         return Null;
     }
@@ -238,7 +238,7 @@ public:
         ValidateSignature(header);
 
         // Read meta.
-        SerializedMeta_ = TSharedRef::Allocate(header.MetaSize);
+        SerializedMeta_ = TSharedMutableRef::Allocate(header.MetaSize);
         ReadPadded(*DataFile_, SerializedMeta_);
         YCHECK(DeserializeFromProto(&Meta_, SerializedMeta_));
 
@@ -473,7 +473,9 @@ public:
             YCHECK(header.RecordId == recordId);
 
             // Save and pad data.
-            auto data = envelope.Blob.Slice(TRef(const_cast<char*>(inputStream.Buf()), header.DataSize));
+            i64 startOffset = inputStream.Buf() - envelope.Blob.Begin();
+            i64 endOffset = startOffset + header.DataSize;
+            auto data = envelope.Blob.Slice(startOffset, endOffset);
             inputStream.Skip(AlignUp(header.DataSize));
 
             // Add data to the records.
@@ -589,7 +591,7 @@ private:
 
         TChangelogIndexRecord LowerBound;
         TChangelogIndexRecord UpperBound;
-        TSharedRef Blob;
+        TSharedMutableRef Blob;
     };
 
 
@@ -729,7 +731,7 @@ private:
                 TChangelogIndexRecord(RecordCount_, CurrentFilePosition_);
 
         struct TSyncChangelogEnvelopeTag { };
-        result.Blob = TSharedRef::Allocate<TSyncChangelogEnvelopeTag>(result.GetLength(), false);
+        result.Blob = TSharedMutableRef::Allocate<TSyncChangelogEnvelopeTag>(result.GetLength(), false);
 
         size_t bytesRead = DataFile_->Pread(
             result.Blob.Begin(),
@@ -804,7 +806,7 @@ private:
     TInstant LastFlushed_;
 
     TChangelogMeta Meta_;
-    TSharedRef SerializedMeta_;
+    TSharedMutableRef SerializedMeta_;
 
     std::vector<TChangelogIndexRecord> Index_;
 

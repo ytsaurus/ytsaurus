@@ -72,8 +72,8 @@ private:
     char* FreeZoneBegin_;
     char* FreeZoneEnd_;
 
-    std::vector<TSharedRef> Chunks_;
-    std::vector<TSharedRef> LargeBlocks_;
+    std::vector<TSharedMutableRef> Chunks_;
+    std::vector<TSharedMutableRef> LargeBlocks_;
 
     static char* AlignPtr(char* ptr, int align);
 
@@ -85,7 +85,7 @@ private:
     void SwitchChunk();
     void SetupFreeZone();
 
-    TSharedRef AllocateLargeBlock(i64 size);
+    TSharedMutableRef AllocateLargeBlock(i64 size);
 
 };
 

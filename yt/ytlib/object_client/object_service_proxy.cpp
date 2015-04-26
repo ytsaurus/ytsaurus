@@ -99,7 +99,7 @@ TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody()
         }
     }
 
-    TSharedRef data;
+    TSharedMutableRef data;
     YCHECK(SerializeToProtoWithEnvelope(req, &data));
     return data;
 }

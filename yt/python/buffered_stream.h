@@ -40,7 +40,7 @@ private:
     size_t Size_;
     size_t AllowedSize_;
 
-    TSharedRef Data_;
+    TSharedMutableRef Data_;
     char* Begin_;
     char* End_;
 

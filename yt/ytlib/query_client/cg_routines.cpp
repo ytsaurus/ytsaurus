@@ -383,7 +383,7 @@ char IsRowInArray(
 {
     // TODO(lukyan): check null
     const auto& rows = (*executionContext->LiteralRows)[index];
-    return std::binary_search(rows.begin(), rows.end(), row, comparer);
+    return std::binary_search(rows.Begin(), rows.End(), row, comparer);
 }
 
 size_t StringHash(

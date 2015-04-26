@@ -150,8 +150,6 @@ Stroka JoinToString(
 
 //! Joins a collection of given items into a string intermixing them with the delimiter.
 /*!
- *  The function assume the presence of begin()- and end()-like methods in the collection.
- *
  *  \param collection A collection containing the items to be joined.
  *  \param delimiter A delimiter to be inserted between items. By default equals ", ".
  *  \return The resulting combined string.
@@ -162,7 +160,9 @@ Stroka JoinToString(
     const TFormatter& formatter,
     const Stroka& delimiter = ", ")
 {
-    return JoinToString(items.begin(), items.end(), formatter, delimiter);
+    using std::begin;
+    using std::end;
+    return JoinToString(begin(items), end(items), formatter, delimiter);
 }
 
 //! A handy shortcut with default formatter.
@@ -209,7 +209,9 @@ std::vector<Stroka> ConvertToStrings(
     const TFormatter& formatter,
     size_t maxSize = std::numeric_limits<size_t>::max())
 {
-    return ConvertToStrings(collection.begin(), collection.end(), formatter, maxSize);
+    using std::begin;
+    using std::end;
+    return ConvertToStrings(begin(collection), end(collection), formatter, maxSize);
 }
 
 //! A handy shortcut with default formatter.

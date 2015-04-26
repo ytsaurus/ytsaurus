@@ -555,7 +555,7 @@ public:
         auto keyComparer = Store_->GetTablet()->GetRowKeyComparer();
 
         while (rows->size() < rows->capacity()) {
-            if (RowCount_ == Keys_.size())
+            if (RowCount_ == Keys_.Size())
                 break;
 
             auto iterator = Store_->Rows_->FindEqualTo(TKeyWrapper{Keys_[RowCount_]});

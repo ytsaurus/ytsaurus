@@ -497,7 +497,7 @@ public:
     }
 
 private:
-    TSharedRef Data_;
+    TSharedMutableRef Data_;
 
     TVersionedRowHeader* GetHeader()
     {

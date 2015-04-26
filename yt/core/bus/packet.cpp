@@ -14,7 +14,6 @@ static const size_t SmallPartSize  =  4 * 1024;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPacketDecoder::TPacketDecoder()
-    : SmallChunkUsed(0)
 {
     Restart();
 }
@@ -160,20 +159,20 @@ void TPacketDecoder::NextMessagePartPhase()
     SetFinished();
 }
 
-TSharedRef TPacketDecoder::AllocatePart(size_t partSize)
+TSharedMutableRef TPacketDecoder::AllocatePart(size_t partSize)
 {
     if (partSize <= SmallPartSize) {
         if (SmallChunkUsed + partSize > SmallChunk.Size()) {
             struct TSmallReceivedMessagePartTag { };
-            SmallChunk = TSharedRef::Allocate<TSmallReceivedMessagePartTag>(SmallChunkSize, false);
+            SmallChunk = TSharedMutableRef::Allocate<TSmallReceivedMessagePartTag>(SmallChunkSize, false);
             SmallChunkUsed = 0;            
         }
-        auto part = SmallChunk.Slice(TRef(SmallChunk.Begin() + SmallChunkUsed, partSize));
+        auto part = SmallChunk.Slice(SmallChunkUsed, SmallChunkUsed + partSize);
         SmallChunkUsed += partSize;
         return part;
     } else {
         struct TLargeReceivedMessagePartTag { };
-        return TSharedRef::Allocate<TLargeReceivedMessagePartTag>(partSize, false);
+        return TSharedMutableRef::Allocate<TLargeReceivedMessagePartTag>(partSize, false);
     }
 }
 

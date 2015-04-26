@@ -115,11 +115,11 @@ std::vector<TSharedRef> ScheduleEncode(
         dataPointers.push_back(const_cast<char*>(block.Begin()));
     }
     
-    std::vector<TSharedRef> parities(parityCount);
+    std::vector<TSharedMutableRef> parities(parityCount);
     std::vector<char*> parityPointers(parityCount);
     for (int i = 0; i < parityCount; ++i) {
         struct TJerasureTag {};
-        parities[i] = TSharedRef::Allocate<TJerasureTag>(blockLength, false);
+        parities[i] = TSharedMutableRef::Allocate<TJerasureTag>(blockLength, false);
         parityPointers[i] = parities[i].Begin();
     }
 
@@ -133,7 +133,7 @@ std::vector<TSharedRef> ScheduleEncode(
         blockLength,
         sizeof(long));
 
-    return parities;
+    return std::vector<TSharedRef>(parities.begin(), parities.end());
 }
 
 std::vector<TSharedRef> BitMatrixDecode(
@@ -154,7 +154,7 @@ std::vector<TSharedRef> BitMatrixDecode(
         YCHECK(blocks[i].Size() == blockLength);
     }
     
-    std::vector<TSharedRef> repaired(erasedIndices.size());
+    std::vector<TSharedMutableRef> repaired(erasedIndices.size());
 
     std::vector<char*> blockPointers;
     std::vector<char*> parityPointers;
@@ -162,19 +162,19 @@ std::vector<TSharedRef> BitMatrixDecode(
     int blockNumber = 0;
     int erasureNumber = 0;
     for (int i = 0; i < blockCount + parityCount; ++i) {
-        char* ref;
+        char* ptr;
         if (erasureNumber < erasedIndices.size() && i == erasedIndices[erasureNumber]) {
             struct TJerasureTag {};
-            repaired[erasureNumber] = TSharedRef::Allocate<TJerasureTag>(blockLength, false);
-            ref = repaired[erasureNumber].Begin();
+            repaired[erasureNumber] = TSharedMutableRef::Allocate<TJerasureTag>(blockLength, false);
+            ptr = repaired[erasureNumber].Begin();
             erasureNumber += 1;
         } else {
-            ref = const_cast<char*>(blocks[blockNumber++].Begin());
+            ptr = const_cast<char*>(blocks[blockNumber++].Begin());
         }
         if (i < blockCount) {
-            blockPointers.push_back(ref);
+            blockPointers.push_back(ptr);
         } else {
-            parityPointers.push_back(ref);
+            parityPointers.push_back(ptr);
         }
     }
     YCHECK(erasureNumber == erasedIndices.size());
@@ -198,7 +198,7 @@ std::vector<TSharedRef> BitMatrixDecode(
         1);
     YCHECK(res == 0);
     
-    return repaired;
+    return std::vector<TSharedRef>(repaired.begin(), repaired.end());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
