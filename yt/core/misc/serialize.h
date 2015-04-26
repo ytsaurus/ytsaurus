@@ -43,9 +43,14 @@ FORCED_INLINE size_t GetPaddingSize(size_t size)
 }
 
 //! Rounds up #size to the nearest factor of #SerializationAlignment.
-FORCED_INLINE size_t AlignUp(size_t size)
+FORCED_INLINE size_t AlignUp(size_t size, size_t align = SerializationAlignment)
 {
-    return (size + SerializationAlignment - 1) & ~(SerializationAlignment - 1);
+    return (size + align - 1) & ~(align - 1);
+}
+
+FORCED_INLINE char* AlignUp(char* ptr, size_t align = SerializationAlignment)
+{
+    return reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(ptr) + align - 1) & ~(align - 1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
