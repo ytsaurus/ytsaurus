@@ -35,10 +35,7 @@ public:
     //! Allocates #sizes bytes without any alignment.
     char* AllocateUnaligned(size_t size);
 
-    //! Allocates #size bytes aligned with #align-byte granularity.
-    /*!
-     *  #align must be a power of two.
-     */
+    //! Allocates #size bytes aligned with 8-byte granularity.
     char* AllocateAligned(size_t size, size_t align = 8);
 
     //! Allocates #n uninitialized instances of #T.
@@ -66,18 +63,27 @@ private:
     i64 Size_ = 0;
     i64 Capacity_ = 0;
 
-    char* CurrentPtr_;
-    char* EndPtr_;
+    // Chunk memory layout:
+    //   |AAAA|....|UUUU|
+    // Legend:
+    //   A aligned allocations
+    //   U unaligned allocations
+    //   . free zone
+    char* FreeZoneBegin_;
+    char* FreeZoneEnd_;
 
     std::vector<TSharedRef> Chunks_;
     std::vector<TSharedRef> LargeBlocks_;
 
+    static char* AlignPtr(char* ptr, size_t align);
 
     char* AllocateUnalignedSlow(size_t size);
+    char* AllocateAlignedSlow(size_t size, size_t align);
+    char* AllocateSlowCore(size_t size);
 
     void AllocateChunk();
     void SwitchChunk();
-    void SetupPointers();
+    void SetupFreeZone();
 
     TSharedRef AllocateLargeBlock(size_t size);
 
