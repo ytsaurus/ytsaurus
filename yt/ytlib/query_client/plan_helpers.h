@@ -4,6 +4,8 @@
 #include "key_trie.h"
 #include "function_registry.h"
 
+#include <core/misc/range.h>
+
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/row_buffer.h>
 
@@ -12,8 +14,10 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Computes key index for a given column name.
 int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName);
 
+//! Descends down to conjuncts and disjuncts and extract all constraints.
 TKeyTriePtr ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
@@ -45,7 +49,7 @@ TConstExpressionPtr RefinePredicate(
     TColumnEvaluatorPtr columnEvaluator);
 
 TConstExpressionPtr RefinePredicate(
-    const std::vector<TRow>& lookupKeys,
+    const TRange<TRow>& lookupKeys,
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns);
 

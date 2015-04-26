@@ -10,6 +10,7 @@
 
 #include <core/misc/property.h>
 #include <core/misc/guid.h>
+#include <core/misc/range.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -199,16 +200,14 @@ struct TInOpExpression
     TInOpExpression(
         const TSourceLocation& sourceLocation,
         TArguments arguments,
-        const std::vector<TRow>& values)
+        TSharedRange<TRow> values)
         : TExpression(sourceLocation, EValueType::Boolean)
         , Arguments(std::move(arguments))
-        , Values(RowBuffer->Capture(values))
+        , Values(std::move(values))
     { }
 
     TArguments Arguments;
-    // TODO(babenko): replace this with shared range
-    const TRowBufferPtr RowBuffer = New<TRowBuffer>();
-    std::vector<TRow> Values;
+    TSharedRange<TRow> Values;
 
 };
 
@@ -225,7 +224,9 @@ struct TNamedItem
     TNamedItem()
     { }
 
-    TNamedItem(const TConstExpressionPtr& expression, const Stroka& name)
+    TNamedItem(
+        const TConstExpressionPtr& expression,
+        const Stroka& name)
         : Expression(expression)
         , Name(name)
     { }
@@ -247,7 +248,10 @@ struct TAggregateItem
     TAggregateItem()
     { }
 
-    TAggregateItem(const TConstExpressionPtr& expression, EAggregateFunction aggregateFunction, Stroka name)
+    TAggregateItem(
+        const TConstExpressionPtr& expression,
+        EAggregateFunction aggregateFunction,
+        const Stroka& name)
         : TNamedItem(expression, name)
         , AggregateFunction(aggregateFunction)
     { }
@@ -273,7 +277,6 @@ struct TJoinClause
     {
         return JoinedTableSchema;
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoinClause)
@@ -311,7 +314,6 @@ struct TOrderClause
     : public TIntrinsicRefCounted
 {
     std::vector<Stroka> OrderColumns;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderClause)
@@ -401,7 +403,6 @@ struct TQuery
 
         return TableSchema;
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)

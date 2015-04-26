@@ -34,7 +34,6 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
     return -1;
 }
 
-//! Descends down to conjuncts and disjuncts and extract all constraints.
 TKeyTriePtr ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns,
@@ -440,17 +439,17 @@ TConstExpressionPtr RefinePredicate(
             std::vector<TRow> filteredValues;
             for (auto value : inExpr->Values) {
                 if (inRange(value)) {
-                    filteredValues.emplace_back(std::move(value));
+                    filteredValues.push_back(value);
                 }
             }
 
-            if (filteredValues.size() > 0) {
+            if (filteredValues.empty()) {
+                return falseLiteral;
+            } else {
                 return New<TInOpExpression>(
                     NullSourceLocation,
                     inExpr->Arguments,
-                    filteredValues);
-            } else {
-                return falseLiteral;
+                    MakeSharedRange(std::move(filteredValues), MakeHolder(inExpr->Values)));
             }
         }
 
@@ -461,15 +460,15 @@ TConstExpressionPtr RefinePredicate(
 }
 
 TConstExpressionPtr RefinePredicate(
-    const std::vector<TRow>& lookupKeys,
+    const TRange<TRow>& lookupKeys,
     const TConstExpressionPtr& expr,
     const TKeyColumns& keyColumns)
 {
-    auto trueLiteral = New<TLiteralExpression>(
+    static auto trueLiteral = New<TLiteralExpression>(
         NullSourceLocation,
         EValueType::Boolean,
         MakeUnversionedBooleanValue(true));
-    auto falseLiteral = New<TLiteralExpression>(
+    static auto falseLiteral = New<TLiteralExpression>(
         NullSourceLocation,
         EValueType::Boolean,
         MakeUnversionedBooleanValue(false));
@@ -515,9 +514,6 @@ TConstExpressionPtr RefinePredicate(
             for (int index = 0; index < idMapping.size(); ++index) {
                 reverseIdMapping[idMapping[index]] = index;
             }
-
-            auto values = inExpr->Values;
-
             auto compareValues = [&] (const TRow& lhs, const TRow& rhs) {
                 for (int index = 0; index < reverseIdMapping.size(); ++index) {
                     if (reverseIdMapping[index] != -1) {
@@ -571,13 +567,17 @@ TConstExpressionPtr RefinePredicate(
                 return 0;
             };
 
-            auto keys = lookupKeys;
+            std::vector<TRow> sortedValues(inExpr->Values.begin(), inExpr->Values.end());
+            std::sort(sortedValues.begin(), sortedValues.end(), compareValues);
+
+            std::vector<TRow> sortedKeys(lookupKeys.begin(), lookupKeys.end());
+            std::sort(sortedKeys.begin(), sortedKeys.end(), compareKeys);
 
             auto canOmitInExpr = [&] () {
                 int keyIndex = 0;
                 int tupleIndex = 0;
-                while (keyIndex < keys.size() && tupleIndex < values.size()) {
-                    int result = compareKeyAndValue(keys[keyIndex], values[tupleIndex]);
+                while (keyIndex < sortedKeys.size() && tupleIndex < sortedValues.size()) {
+                    int result = compareKeyAndValue(sortedKeys[keyIndex], sortedValues[tupleIndex]);
                     if (result < 0) {
                         return false;
                     } else if (result == 0) {
@@ -586,11 +586,8 @@ TConstExpressionPtr RefinePredicate(
                         ++tupleIndex;
                     }
                 }
-                return keyIndex == keys.size();
+                return keyIndex == sortedKeys.size();
             };
-
-            std::sort(values.begin(), values.end(), compareValues);
-            std::sort(keys.begin(), keys.end(), compareKeys);
 
             if (canOmitInExpr()) {
                 return trueLiteral;

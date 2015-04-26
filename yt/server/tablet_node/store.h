@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/range.h>
+
 #include <core/actions/signal.h>
 
 #include <core/yson/public.h>
@@ -77,7 +79,7 @@ struct IStore
     *  Thread affinity: any
     */
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
-        const std::vector<TKey>& keys,
+        const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) = 0;
 

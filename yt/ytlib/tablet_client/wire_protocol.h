@@ -4,6 +4,7 @@
 
 #include <core/misc/enum.h>
 #include <core/misc/ref.h>
+#include <core/misc/range.h>
 
 #include <ytlib/new_table_client/public.h>
 
@@ -74,10 +75,10 @@ public:
         NVersionedTableClient::TUnversionedRow row,
         const NVersionedTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     void WriteUnversionedRow(
-        const std::vector<NVersionedTableClient::TUnversionedValue>& row,
+        const TRange<NVersionedTableClient::TUnversionedValue>& row,
         const NVersionedTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     void WriteUnversionedRowset(
-        const std::vector<NVersionedTableClient::TUnversionedRow>& rowset,
+        const TRange<NVersionedTableClient::TUnversionedRow>& rowset,
         const NVersionedTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     NVersionedTableClient::ISchemafulWriterPtr CreateSchemafulRowsetWriter();
 
@@ -116,7 +117,7 @@ public:
     void ReadMessage(::google::protobuf::MessageLite* message);
 
     NVersionedTableClient::TUnversionedRow ReadUnversionedRow();
-    void ReadUnversionedRowset(std::vector<NVersionedTableClient::TUnversionedRow>* rowset);
+    TSharedRange<NVersionedTableClient::TUnversionedRow> ReadUnversionedRowset();
     NVersionedTableClient::ISchemafulReaderPtr CreateSchemafulRowsetReader();
 
 private:

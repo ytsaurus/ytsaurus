@@ -76,14 +76,14 @@ public:
     }
 
     void WriteUnversionedRow(
-        const std::vector<TUnversionedValue>& row,
+        const TRange<TUnversionedValue>& row,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
         WriteRowValues(row.data(), row.data() + row.size(), idMapping);
     }
 
     void WriteUnversionedRowset(
-        const std::vector<TUnversionedRow>& rowset,
+        const TRange<TUnversionedRow>& rowset,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
         int rowCount = static_cast<int>(rowset.size());
@@ -309,14 +309,14 @@ void TWireProtocolWriter::WriteUnversionedRow(
 }
 
 void TWireProtocolWriter::WriteUnversionedRow(
-    const std::vector<TUnversionedValue>& row,
+    const TRange<TUnversionedValue>& row,
     const TNameTableToSchemaIdMapping* idMapping)
 {
     Impl_->WriteUnversionedRow(row, idMapping);
 }
 
 void TWireProtocolWriter::WriteUnversionedRowset(
-    const std::vector<TUnversionedRow>& rowset,
+    const TRange<TUnversionedRow>& rowset,
     const TNameTableToSchemaIdMapping* idMapping)
 {
     Impl_->WriteUnversionedRowset(rowset, idMapping);
@@ -399,14 +399,17 @@ public:
         return ReadRow();
     }
 
-    void ReadUnversionedRowset(std::vector<TUnversionedRow>* rowset)
+    TSharedRange<TUnversionedRow> ReadUnversionedRowset()
     {
         int rowCount = ReadInt32();
         ValidateRowCount(rowCount);
-        rowset->reserve(rowset->size() + rowCount);
+
+        auto* rows = AlignedPool_.AllocateUninitialized<TUnversionedRow>(rowCount);
         for (int index = 0; index != rowCount; ++index) {
-            rowset->push_back(ReadRow());
+            rows[index] = ReadRow();
         }
+
+        return TSharedRange<TUnversionedRow>(rows, rows + rowCount, this);
     }
 
 private:
@@ -527,7 +530,13 @@ public:
             if (command == EWireProtocolCommand::EndOfRowset)
                 break;
             YCHECK(command == EWireProtocolCommand::RowsetChunk);
-            Reader_->ReadUnversionedRowset(rows);
+
+            // TODO(babenko): fixme
+            auto sharedRows = Reader_->ReadUnversionedRowset();
+            rows->reserve(rows->size() + sharedRows.size());
+            for (auto row : sharedRows) {
+                rows->push_back(row);
+            }
         }
         Finished_ = true;
         return true;
@@ -598,9 +607,9 @@ TUnversionedRow TWireProtocolReader::ReadUnversionedRow()
     return Impl_->ReadUnversionedRow();
 }
 
-void TWireProtocolReader::ReadUnversionedRowset(std::vector<TUnversionedRow>* rowset)
+TSharedRange<TUnversionedRow> TWireProtocolReader::ReadUnversionedRowset()
 {
-    Impl_->ReadUnversionedRowset(rowset);
+    return Impl_->ReadUnversionedRowset();
 }
 
 ISchemafulReaderPtr TWireProtocolReader::CreateSchemafulRowsetReader()

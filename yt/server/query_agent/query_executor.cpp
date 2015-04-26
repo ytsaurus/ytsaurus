@@ -311,12 +311,14 @@ private:
             }
         }
 
-        LOG_DEBUG("Grouped into %v groups", groupedSplits.size());
+        LOG_DEBUG("Got %v split groups", groupedSplits.size());
+
         auto ranges = GetRanges(groupedSplits);
 
-        LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v", JoinToString(ranges, [] (const TRowRange& range) {
-            return Format("[%v .. %v]", range.first, range.second);
-        }));
+        LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v",
+            JoinToString(ranges, [] (const TRowRange& range) {
+                return Format("[%v .. %v]", range.first, range.second);
+            }));
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             fragment->Query->TableSchema,
@@ -332,9 +334,10 @@ private:
             subreaderCreators.push_back([&] () {
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
 
-                LOG_DEBUG_IF(fragment->VerboseLogging, "Creating reader for ranges %v", JoinToString(groupedSplit, [] (const TDataSource& source) {
-                    return Format("[%v .. %v]", source.Range.first, source.Range.second);
-                }));
+                LOG_DEBUG_IF(fragment->VerboseLogging, "Creating reader for ranges %v",
+                    JoinToString(groupedSplit, [] (const TDataSource& source) {
+                        return Format("[%v .. %v]", source.Range.first, source.Range.second);
+                    }));
 
                 for (const auto& dataSplit : groupedSplit) {
                     bottomSplitReaders.push_back(GetReader(dataSplit, timestamp, nodeDirectory));
@@ -349,8 +352,10 @@ private:
             });
             subreaderCreators.push_back([&] () {
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
-                for (const auto& keys : SplitKeys(keySource.first, keySource.second)) {
-                    LOG_DEBUG_IF(fragment->VerboseLogging, "Creating lookup reader for %v keys %v", keys.size(), JoinToString(keys));
+                auto groupedKeys = GroupKeysByPartition(keySource.first, keySource.second);
+                for (const auto& keys : groupedKeys) {
+                    LOG_DEBUG_IF(fragment->VerboseLogging, "Creating lookup reader for keys %v",
+                        JoinToString(keys));
                     bottomSplitReaders.push_back(GetReader(keySource.first, keys, timestamp));
                 }
                 return CreateUnorderedSchemafulReader(bottomSplitReaders);
@@ -522,8 +527,8 @@ private:
         return allSplits;
     }
 
-    std::vector<std::vector<TRow>> SplitKeys(
-        TGuid tabletId,
+    std::vector<TSharedRange<TRow>> GroupKeysByPartition(
+        const TTabletId& tabletId,
         std::vector<TRow> keys)
     {
         std::sort(keys.begin(), keys.end());
@@ -533,29 +538,34 @@ private:
         const auto& partitions = tabletSnapshot->Partitions;
 
         // Group keys by partitions.
-        std::vector<std::vector<TRow>> resultKeys;
+        std::vector<TSharedRange<TRow>> result;
+        auto addRange = [&] (std::vector<TRow>::iterator begin, std::vector<TRow>::iterator end) {
+            std::vector<TRow> selectedKeys(begin, end);
+            // TODO(babenko): fixme, data ownership?
+            result.emplace_back(MakeSharedRange(std::move(selectedKeys)));
+        };
 
-        auto it = keys.begin();
-        while (it != keys.end()) {
+        auto currentIt = keys.begin();
+        while (currentIt != keys.end()) {
             auto nextPartition = std::upper_bound(
                 partitions.begin(),
                 partitions.end(),
-                *it,
-                [] (const TRow& lhs, const TPartitionSnapshotPtr& rhs) {
+                *currentIt,
+                [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
                     return lhs < rhs->PivotKey.Get();
                 });
 
             if (nextPartition == partitions.end()) {
-                resultKeys.emplace_back(it, keys.end());
+                addRange(currentIt, keys.end());
                 break;
             }
 
-            auto nextIt = std::lower_bound(it, keys.end(), (*nextPartition)->PivotKey.Get());
-            resultKeys.emplace_back(it, nextIt);
-            it = nextIt;
+            auto nextIt = std::lower_bound(currentIt, keys.end(), (*nextPartition)->PivotKey.Get());
+            addRange(currentIt, nextIt);
+            currentIt = nextIt;
         }
 
-        return resultKeys;
+        return result;
     }
 
     std::pair<int, int> GetBoundSampleKeys(
@@ -717,7 +727,7 @@ private:
 
     ISchemafulReaderPtr GetReader(
         const NObjectClient::TObjectId& objectId,
-        const std::vector<TRow>& keys,
+        const TSharedRange<TRow>& keys,
         TTimestamp timestamp)
     {
         ValidateReadTimestamp(timestamp);
@@ -834,7 +844,7 @@ private:
 
     ISchemafulReaderPtr GetTabletReader(
         const NObjectClient::TObjectId& tabletId,
-        const std::vector<TRow>& keys,
+        const TSharedRange<TRow>& keys,
         TTimestamp timestamp)
     {
         try {

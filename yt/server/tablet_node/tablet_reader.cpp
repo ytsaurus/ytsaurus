@@ -52,27 +52,27 @@ public:
         , TabletSnapshot_(std::move(tabletSnapshot))
         , PerformanceCounters_(TabletSnapshot_->PerformanceCounters)
         , Timestamp_(timestamp)
+        , LowerBound_(std::move(lowerBound))
+        , UpperBound_(std::move(upperBound))
         , Pool_(TTabletReaderPoolTag())
         , KeyComparer_(TabletSnapshot_->RowKeyComparer)
-    {
-        LowerBound_ = std::move(lowerBound);
-        UpperBound_ = std::move(upperBound);
-    }
+    { }
 
     TTabletReaderBase(
         IInvokerPtr poolInvoker,
         TTabletSnapshotPtr tabletSnapshot,
-        const std::vector<TKey>& keys,
+        const TSharedRange<TKey>& keys,
         TTimestamp timestamp)
         : PoolInvoker_(std::move(poolInvoker))
         , TabletSnapshot_(std::move(tabletSnapshot))
         , PerformanceCounters_(TabletSnapshot_->PerformanceCounters)
         , Timestamp_(timestamp)
+        , LowerBound_(EmptyKey())
+        , UpperBound_(EmptyKey())
+        , Keys_(keys)
         , Pool_(TTabletReaderPoolTag())
         , KeyComparer_(TabletSnapshot_->RowKeyComparer)
-    {
-        Keys_ = keys;
-    }
+    {  }
 
 protected:
     const IInvokerPtr PoolInvoker_;
@@ -81,11 +81,11 @@ protected:
     const TTimestamp Timestamp_;
 
     // For range reads.
-    TOwningKey LowerBound_ = EmptyKey();
-    TOwningKey UpperBound_ = EmptyKey();
+    const TOwningKey LowerBound_;
+    const TOwningKey UpperBound_;
 
     // For set reads.
-    std::vector<TKey> Keys_;
+    const TSharedRange<TKey> Keys_;
 
     TChunkedMemoryPool Pool_;
 
@@ -342,12 +342,12 @@ public:
     TSchemafulTabletReader(
         IInvokerPtr poolInvoker,
         TTabletSnapshotPtr tabletSnapshot,
-        const std::vector<TKey>& keys,
+        const TSharedRange<TKey>& keys,
         TTimestamp timestamp)
         : TTabletReaderBase(
             std::move(poolInvoker),
             std::move(tabletSnapshot),
-            keys,
+            std::move(keys),
             timestamp)
     { }
 
@@ -457,13 +457,13 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 ISchemafulReaderPtr CreateSchemafulTabletReader(
     IInvokerPtr poolInvoker,
     TTabletSnapshotPtr tabletSnapshot,
-    const std::vector<TKey>& keys,
+    const TSharedRange<TKey>& keys,
     TTimestamp timestamp)
 {
     return New<TSchemafulTabletReader>(
         std::move(poolInvoker),
         std::move(tabletSnapshot),
-        keys,
+        std::move(keys),
         timestamp);
 }
 

@@ -522,7 +522,7 @@ class TDynamicMemoryStore::TLookupReader
 public:
     TLookupReader(
         TDynamicMemoryStorePtr store,
-        const std::vector<TKey>& keys,
+        const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter)
         : TReaderBase(
@@ -580,7 +580,7 @@ public:
     }
 
 private:
-    const std::vector<TKey> Keys_;
+    const TSharedRange<TKey> Keys_;
     i64 RowCount_  = 0;
     bool Finished_ = false;
 
@@ -1240,7 +1240,7 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
 }
 
 IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
-    const std::vector<TKey>& keys,
+    const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {

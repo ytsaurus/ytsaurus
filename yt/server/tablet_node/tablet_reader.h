@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/range.h>
+
 #include <core/actions/public.h>
 
 #include <ytlib/new_table_client/public.h>
@@ -23,7 +25,7 @@ NVersionedTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
 NVersionedTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     IInvokerPtr poolInvoker,
     TTabletSnapshotPtr tabletSnapshot,
-    const std::vector<TKey>& keys,
+    const TSharedRange<TKey>& keys,
     TTimestamp timestamp);
 
 //! Creates a reader that merges data from all given #stores and

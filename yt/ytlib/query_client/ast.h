@@ -159,6 +159,7 @@ struct TInExpression
     { }
 
     TExpressionPtr Expr;
+    // TODO(babenko): TSharedRange here?
     TValueTupleList Values;
 
 };
@@ -169,10 +170,10 @@ Stroka InferName(const TExpression* expr);
 
 typedef std::pair<TExpressionPtr, Stroka> TNamedExpression;
 typedef std::vector<TNamedExpression> TNamedExpressionList;
-typedef TNullable<TNamedExpressionList> TNullableNamedExprs;
-typedef std::vector<Stroka> TIdentifierList;
+typedef TNullable<TNamedExpressionList> TNullableNamedExpressionList;
 
-typedef TNullable<TIdentifierList> TNullableIdentifiers;
+typedef std::vector<Stroka> TIdentifierList;
+typedef TNullable<TIdentifierList> TNullableIdentifierList;
 
 struct TSource
     : public TIntrinsicRefCounted
@@ -226,10 +227,10 @@ struct TJoinSource
 struct TQuery
 {
     TSourcePtr Source;
-    TNullableNamedExprs SelectExprs;
+    TNullableNamedExpressionList SelectExprs;
     TExpressionPtr WherePredicate;
-    TNullableNamedExprs GroupExprs;
-    TNullableIdentifiers OrderFields;
+    TNullableNamedExpressionList GroupExprs;
+    TNullableIdentifierList OrderFields;
     i64 Limit = 0;
 };
 

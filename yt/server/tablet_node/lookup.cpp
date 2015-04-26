@@ -68,7 +68,7 @@ public:
 
         ValidateColumnFilter(ColumnFilter_, SchemaColumnCount_);
 
-        reader->ReadUnversionedRowset(&LookupKeys_);
+        LookupKeys_ = reader->ReadUnversionedRowset();
     }
 
     TFutureHolder<void> Run(
@@ -87,7 +87,7 @@ public:
         }
     }
 
-    const std::vector<TUnversionedRow>& GetLookupKeys() const
+    const TSharedRange<TUnversionedRow>& GetLookupKeys() const
     {
         return LookupKeys_;
     }
@@ -95,7 +95,7 @@ public:
     void Clean()
     {
         MemoryPool_.Clear();
-        LookupKeys_.clear();
+        LookupKeys_ = TSharedRange<TUnversionedRow>();
         EdenSessions_.clear();
     }
 
@@ -142,7 +142,7 @@ private:
     };
 
     TChunkedMemoryPool MemoryPool_;
-    std::vector<TUnversionedRow> LookupKeys_;
+    TSharedRange<TUnversionedRow> LookupKeys_;
     std::vector<TReadSession> EdenSessions_;
 
     TTabletSnapshotPtr TabletSnapshot_;
@@ -157,7 +157,7 @@ private:
     void CreateReadSessions(
         std::vector<TReadSession>* sessions,
         const TPartitionSnapshotPtr partitionSnapshot,
-        const std::vector<TKey>& keys)
+        const TSharedRange<TKey>& keys)
     {
         sessions->clear();
         if (!partitionSnapshot) {
@@ -184,7 +184,7 @@ private:
 
     void LookupInPartition(
         const TPartitionSnapshotPtr partitionSnapshot,
-        const std::vector<TKey>& keys,
+        const TSharedRange<TKey>& keys,
         TWireProtocolWriter* writer)
     {
         if (keys.empty()) {
@@ -224,21 +224,25 @@ private:
         CreateReadSessions(&EdenSessions_, TabletSnapshot_->Eden, LookupKeys_);
 
         TPartitionSnapshotPtr currentPartitionSnapshot;
-        std::vector<TUnversionedRow> partitionKeys;
-
-        for (auto key : LookupKeys_) {
+        int currentPartitionStartOffset = 0;
+        for (int index = 0; index < LookupKeys_.size(); ++index) {
+            auto key = LookupKeys_[index];
             ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
             auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
             if (partitionSnapshot != currentPartitionSnapshot) {
-                LookupInPartition(currentPartitionSnapshot, partitionKeys, writer);
-
+                LookupInPartition(
+                    currentPartitionSnapshot,
+                    LookupKeys_.Slice(currentPartitionStartOffset, index),
+                    writer);
                 currentPartitionSnapshot = std::move(partitionSnapshot);
-                partitionKeys.clear();
+                currentPartitionStartOffset = index;
             }
-            partitionKeys.push_back(key);
         }
 
-        LookupInPartition(currentPartitionSnapshot, partitionKeys, writer);
+        LookupInPartition(
+            currentPartitionSnapshot,
+            LookupKeys_.Slice(currentPartitionStartOffset, LookupKeys_.size()),
+            writer);
     }
 };
 

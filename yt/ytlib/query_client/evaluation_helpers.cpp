@@ -180,7 +180,6 @@ TJoinEvaluator GetJoinEvaluator(
             column));
     }
 
-
     std::vector<std::pair<bool, int>> columnMapping;
 
     for (const auto& column : joinedTableSchema.Columns()) {
@@ -204,7 +203,8 @@ TJoinEvaluator GetJoinEvaluator(
             subquery->WhereClause = New<TInOpExpression>(
                 NullSourceLocation,
                 joinKeyExprs,
-                keys);
+                // TODO(babenko): fixme
+                TSharedRange<TRow>(MakeRange(keys), nullptr));
 
             if (foreignPredicate) {
                 subquery->WhereClause = MakeAndExpression(

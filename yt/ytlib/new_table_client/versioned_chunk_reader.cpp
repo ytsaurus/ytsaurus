@@ -327,7 +327,7 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
-        const std::vector<TKey>& keys,
+        const TSharedRange<TKey>& keys,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp);
@@ -335,7 +335,7 @@ public:
     virtual bool Read(std::vector<TVersionedRow>* rows) override;
 
 private:
-    const std::vector<TKey> Keys_;
+    const TSharedRange<TKey> Keys_;
     std::vector<bool> KeyFilterTest_;
     std::vector<int> BlockIndexes_;
 
@@ -352,7 +352,7 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
     TCachedVersionedChunkMetaPtr chunkMeta,
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
-    const std::vector<TKey>& keys,
+    const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
@@ -503,7 +503,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     NChunkClient::IChunkReaderPtr chunkReader,
     NChunkClient::IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
-    const std::vector<TKey>& keys,
+    const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)

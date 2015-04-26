@@ -24,18 +24,21 @@ namespace NQueryClient {
 
 static const size_t InitialGroupOpHashtableCapacity = 1024;
 
-typedef ui64 (*THasherFunction)(TRow);
-typedef char (*TComparerFunction)(TRow, TRow);
+using THasherFunction = ui64 (*)(TRow);
+using TComparerFunction = char (*)(TRow, TRow);
 
 struct TExecutionContext;
 
-typedef std::function<void(
+using TJoinEvaluator = std::function<void(
     TExecutionContext* executionContext,
-    THasherFunction,
-    TComparerFunction,
+    THasherFunction hasher,
+    TComparerFunction comparer,
+    // TODO(babenko): TSharedRange?
     const std::vector<TRow>& keys,
+    // TODO(babenko): TSharedRange?
     const std::vector<TRow>& allRows,
-    std::vector<TRow>* joinedRows)> TJoinEvaluator;
+    // TODO(babenko): TSharedRange?
+    std::vector<TRow>* joinedRows)>;
 
 struct TExecutionContext
 {
@@ -46,12 +49,13 @@ struct TExecutionContext
     ISchemafulReader* Reader;
     ISchemafulWriter* Writer;
 
-    std::vector<std::vector<TRow>>* LiteralRows;
+    std::vector<TSharedRange<TRow>>* LiteralRows;
     
     TRowBufferPtr PermanentBuffer;
     TRowBufferPtr OutputBuffer;
     TRowBufferPtr IntermediateBuffer;
 
+    // TODO(babenko): TSharedRange?
     std::vector<TRow>* OutputBatchRows;
 
     TQueryStatistics* Statistics;
@@ -73,7 +77,7 @@ struct TExecutionContext
 
 namespace NDetail {
 
-typedef ui64 (*THasherFunc)(TRow);
+using THasherFunc = ui64 (*)(TRow);
 struct TGroupHasher
 {
     THasherFunc Ptr_;
@@ -87,7 +91,7 @@ struct TGroupHasher
     }
 };
 
-typedef char (*TComparerFunc)(TRow, TRow);
+using TComparerFunc = char (*)(TRow, TRow);
 struct TRowComparer
 {
 public:
@@ -106,22 +110,22 @@ private:
 
 } // namespace NDetail
 
-typedef
-    google::sparsehash::dense_hash_set
-    <TRow, NDetail::TGroupHasher, NDetail::TRowComparer>
-    TLookupRows;
-
-typedef std::unordered_multiset<
+using TLookupRows = google::sparsehash::dense_hash_set<
     TRow,
     NDetail::TGroupHasher,
-    NDetail::TRowComparer> TJoinLookupRows;
+    NDetail::TRowComparer>;
+
+using TJoinLookupRows = std::unordered_multiset<
+    TRow,
+    NDetail::TGroupHasher,
+    NDetail::TRowComparer>;
 
 class TTopCollector
 {
     class TComparer
     {
     public:
-        TComparer(NDetail::TComparerFunc ptr)
+        explicit TComparer(NDetail::TComparerFunc ptr)
             : Ptr_(ptr)
         { }
 
@@ -136,21 +140,21 @@ class TTopCollector
         }
 
     private:
-        NDetail::TComparerFunc Ptr_;
+        const NDetail::TComparerFunc Ptr_;
     };
 
 public:
     TTopCollector(i64 limit, NDetail::TComparerFunc comparer);
 
+    // TODO(babenko): TSharedRange?
     std::vector<TRow> GetRows() const
     {
         std::vector<TRow> result;
-        std::transform(Rows_.begin(), Rows_.end(), std::back_inserter(result), [] (const std::pair<TRow, int>& value) {
-            return value.first;
-        });
-
+        result.reserve(Rows_.size());
+        for (const auto& pair : Rows_) {
+            result.push_back(pair.first);
+        }
         std::sort(result.begin(), result.end(), Comparer_);
-
         return result;
     }
 
@@ -177,7 +181,7 @@ private:
 struct TCGVariables
 {
     TRowBuilder ConstantsRowBuilder;
-    std::vector<std::vector<TRow>> LiteralRows;
+    std::vector<TSharedRange<TRow>> LiteralRows;
 };
 
 typedef void (TCGQuerySignature)(TRow, TExecutionContext*);
