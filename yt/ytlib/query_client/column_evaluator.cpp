@@ -63,7 +63,7 @@ void TColumnEvaluator::PrepareEvaluator(int index)
 #endif
 }
 
-void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
+void TColumnEvaluator::EvaluateKey(TRow fullRow, const TRowBufferPtr& buffer, int index)
 {
     YCHECK(index < fullRow.GetCount());
 
@@ -74,9 +74,9 @@ void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
     TExecutionContext executionContext;
     executionContext.Schema = &Schema_;
     executionContext.LiteralRows = &Variables_[index].LiteralRows;
-    executionContext.PermanentBuffer = &buffer;
-    executionContext.OutputBuffer = &buffer;
-    executionContext.IntermediateBuffer = &buffer;
+    executionContext.PermanentBuffer = buffer;
+    executionContext.OutputBuffer = buffer;
+    executionContext.IntermediateBuffer = buffer;
     executionContext.Statistics = &statistics;
 #ifndef NDEBUG
     int dummy;
@@ -95,7 +95,7 @@ void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
 #endif
 }
 
-void TColumnEvaluator::EvaluateKeys(TRow fullRow, TRowBuffer& buffer)
+void TColumnEvaluator::EvaluateKeys(TRow fullRow, const TRowBufferPtr& buffer)
 {
     for (int index = 0; index < KeySize_; ++index) {
         if (Schema_.Columns()[index].Expression) {
@@ -105,8 +105,8 @@ void TColumnEvaluator::EvaluateKeys(TRow fullRow, TRowBuffer& buffer)
 }
 
 TRow TColumnEvaluator::EvaluateKeys(
-    TRowBuffer& buffer,
-    const TRow partialRow,
+    TRow partialRow,
+    const TRowBufferPtr& buffer,
     const TNameTableToSchemaIdMapping& idMapping)
 {
     bool keyColumnSeen[MaxKeyColumnCount] {};
@@ -144,7 +144,7 @@ TRow TColumnEvaluator::EvaluateKeys(
     }
 
     columnCount += KeySize_;
-    auto fullRow = TUnversionedRow::Allocate(buffer.GetAlignedPool(), columnCount);
+    auto fullRow = TUnversionedRow::Allocate(buffer->GetAlignedPool(), columnCount);
 
     for (int index = 0; index < KeySize_; ++index) {
         fullRow[index].Type = EValueType::Null;

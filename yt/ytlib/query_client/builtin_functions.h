@@ -71,7 +71,7 @@ class TUniversalRangeFunction
     virtual TKeyTriePtr ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
-        TRowBuffer* rowBuffer) const override;
+        const TRowBufferPtr& rowBuffer) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,7 +109,7 @@ public:
     virtual TKeyTriePtr ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
-        TRowBuffer* rowBuffer) const override;
+        const TRowBufferPtr& rowBuffer) const override;
 };
 
 class TCastFunction

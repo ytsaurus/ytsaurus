@@ -597,12 +597,12 @@ TDynamicMemoryStore::TDynamicMemoryStore(
         tablet)
     , FlushState_(EStoreFlushState::None)
     , Config_(config)
-    , RowBuffer_(
+    , RowBuffer_(New<TRowBuffer>(
         Config_->AlignedPoolChunkSize,
         Config_->UnalignedPoolChunkSize,
-        Config_->MaxPoolSmallBlockRatio)
+        Config_->MaxPoolSmallBlockRatio))
     , Rows_(new TSkipList<TDynamicRow, TDynamicRowKeyComparer>(
-        RowBuffer_.GetAlignedPool(),
+        RowBuffer_->GetAlignedPool(),
         tablet->GetRowKeyComparer()))
 {
     StoreState_ = EStoreState::ActiveDynamic;
@@ -957,7 +957,7 @@ void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
 TDynamicRow TDynamicMemoryStore::AllocateRow()
 {
     return TDynamicRow::Allocate(
-        RowBuffer_.GetAlignedPool(),
+        RowBuffer_->GetAlignedPool(),
         KeyColumnCount_,
         ColumnLockCount_,
         SchemaColumnCount_);
@@ -1071,7 +1071,7 @@ TValueList TDynamicMemoryStore::AddUncommittedFixedValue(TDynamicRow row, const 
     YASSERT(value.Id >= KeyColumnCount_ && value.Id < SchemaColumnCount_);
 
     auto list = row.GetFixedValueList(value.Id, KeyColumnCount_, ColumnLockCount_);
-    if (AllocateListForPushIfNeeded(&list, RowBuffer_.GetAlignedPool())) {
+    if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetAlignedPool())) {
         row.SetFixedValueList(value.Id, list, KeyColumnCount_, ColumnLockCount_);
     }
 
@@ -1084,7 +1084,7 @@ TValueList TDynamicMemoryStore::AddUncommittedFixedValue(TDynamicRow row, const 
 void TDynamicMemoryStore::AddTimestamp(TDynamicRow row, TTimestamp timestamp, ETimestampListKind kind)
 {
     auto timestampList = row.GetTimestampList(kind, KeyColumnCount_, ColumnLockCount_);
-    if (AllocateListForPushIfNeeded(&timestampList, RowBuffer_.GetAlignedPool())) {
+    if (AllocateListForPushIfNeeded(&timestampList, RowBuffer_->GetAlignedPool())) {
         row.SetTimestampList(timestampList, kind, KeyColumnCount_, ColumnLockCount_);
     }
     timestampList.Push(timestamp);
@@ -1131,7 +1131,7 @@ void TDynamicMemoryStore::CaptureValue(TVersionedValue* dst, const TVersionedVal
 void TDynamicMemoryStore::CaptureValueData(TUnversionedValue* dst, const TUnversionedValue& src)
 {
     if (IsStringLikeType(EValueType(src.Type))) {
-        dst->Data.String = RowBuffer_.GetUnalignedPool()->AllocateUnaligned(src.Length);
+        dst->Data.String = RowBuffer_->GetUnalignedPool()->AllocateUnaligned(src.Length);
         ::memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
     }
 }
@@ -1140,7 +1140,7 @@ TDynamicValueData TDynamicMemoryStore::CaptureStringValue(TDynamicValueData src)
 {
     ui32 length = src.String->Length;
     TDynamicValueData dst;
-    dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_.GetAlignedPool()->AllocateAligned(
+    dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_->GetAlignedPool()->AllocateAligned(
         sizeof(ui32) + length,
         sizeof(ui32)));
     ::memcpy(dst.String, src.String, sizeof(ui32) + length);
@@ -1152,7 +1152,7 @@ TDynamicValueData TDynamicMemoryStore::CaptureStringValue(const TUnversionedValu
     YASSERT(IsStringLikeType(EValueType(src.Type)));
     ui32 length = src.Length;
     TDynamicValueData dst;
-    dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_.GetAlignedPool()->AllocateAligned(
+    dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_->GetAlignedPool()->AllocateAligned(
         sizeof(ui32) + length,
         sizeof(ui32)));
     dst.String->Length = length;
@@ -1172,22 +1172,22 @@ int TDynamicMemoryStore::GetKeyCount() const
 
 i64 TDynamicMemoryStore::GetAlignedPoolSize() const
 {
-    return RowBuffer_.GetAlignedPool()->GetSize();
+    return RowBuffer_->GetAlignedPool()->GetSize();
 }
 
 i64 TDynamicMemoryStore::GetAlignedPoolCapacity() const
 {
-    return RowBuffer_.GetAlignedPool()->GetCapacity();
+    return RowBuffer_->GetAlignedPool()->GetCapacity();
 }
 
 i64 TDynamicMemoryStore::GetUnalignedPoolSize() const
 {
-    return RowBuffer_.GetUnalignedPool()->GetSize();
+    return RowBuffer_->GetUnalignedPool()->GetSize();
 }
 
 i64 TDynamicMemoryStore::GetUnalignedPoolCapacity() const
 {
-    return RowBuffer_.GetUnalignedPool()->GetCapacity();
+    return RowBuffer_->GetUnalignedPool()->GetCapacity();
 }
 
 EStoreType TDynamicMemoryStore::GetType() const
@@ -1342,14 +1342,14 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
         auto row = AllocateRow();
 
         // Keys.
-        LoadRowKeys(context, Schema_, KeyColumns_, RowBuffer_.GetAlignedPool(), row);
+        LoadRowKeys(context, Schema_, KeyColumns_, RowBuffer_->GetAlignedPool(), row);
 
         // Values.
         for (int columnIndex = KeyColumnCount_; columnIndex < SchemaColumnCount_; ++columnIndex) {
             int valueCount = Load<i32>(context);
             for (int valueIndex = 0; valueIndex < valueCount; ++valueIndex) {
                 TVersionedValue value;
-                NVersionedTableClient::Load(context, value, RowBuffer_.GetUnalignedPool());
+                NVersionedTableClient::Load(context, value, RowBuffer_->GetUnalignedPool());
                 auto list = AddUncommittedFixedValue(row, value);
                 list.Commit();
             }

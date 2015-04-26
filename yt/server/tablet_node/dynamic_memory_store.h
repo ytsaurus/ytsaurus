@@ -154,7 +154,7 @@ private:
     int StoreLockCount_ = 0;
     int StoreValueCount_ = 0;
 
-    NVersionedTableClient::TRowBuffer RowBuffer_;
+    NVersionedTableClient::TRowBufferPtr RowBuffer_;
     std::unique_ptr<TSkipList<TDynamicRow, TDynamicRowKeyComparer>> Rows_;
 
     TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;

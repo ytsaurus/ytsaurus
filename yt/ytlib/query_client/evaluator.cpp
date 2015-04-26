@@ -96,9 +96,9 @@ public:
                         .ThrowOnError();
                 }
 
-                TRowBuffer permanentBuffer;
-                TRowBuffer outputBuffer;
-                TRowBuffer intermediateBuffer;
+                auto permanentBuffer = New<TRowBuffer>();
+                auto outputBuffer = New<TRowBuffer>();
+                auto intermediateBuffer = New<TRowBuffer>();
 
                 std::vector<TRow> outputBatchRows;
                 outputBatchRows.reserve(MaxRowsPerWrite);
@@ -108,9 +108,9 @@ public:
                 executionContext.Schema = &query->TableSchema;
 
                 executionContext.LiteralRows = &fragmentParams.LiteralRows;
-                executionContext.PermanentBuffer = &permanentBuffer;
-                executionContext.OutputBuffer = &outputBuffer;
-                executionContext.IntermediateBuffer = &intermediateBuffer;
+                executionContext.PermanentBuffer = permanentBuffer;
+                executionContext.OutputBuffer = outputBuffer;
+                executionContext.IntermediateBuffer = intermediateBuffer;
                 executionContext.Writer = writer.Get();
                 executionContext.OutputBatchRows = &outputBatchRows;
                 executionContext.Statistics = &statistics;
@@ -159,9 +159,9 @@ public:
                     "PermanentBufferCapacity: %v, "
                     "OutputBufferCapacity: %v, "
                     "IntermediateBufferCapacity: %v)",
-                    permanentBuffer.GetCapacity(),
-                    outputBuffer.GetCapacity(),
-                    intermediateBuffer.GetCapacity());
+                    permanentBuffer->GetCapacity(),
+                    outputBuffer->GetCapacity(),
+                    intermediateBuffer->GetCapacity());
 
                 LOG_DEBUG("Query statistics (%v)", statistics);
             } catch (const std::exception& ex) {

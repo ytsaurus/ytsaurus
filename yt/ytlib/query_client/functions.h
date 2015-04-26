@@ -25,7 +25,7 @@ struct IFunctionDescriptor
     virtual TKeyTriePtr ExtractKeyRange(
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
-        TRowBuffer* rowBuffer) const = 0;
+        const TRowBufferPtr& rowBuffer) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFunctionDescriptor)

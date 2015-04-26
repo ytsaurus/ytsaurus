@@ -1037,7 +1037,7 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
     *row = DeserializeFromString(protoRow);
 }
 
-void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, TRowBuffer* rowBuffer)
+void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer)
 {
     if (protoRow == SerializedNullRow) {
         *row = TUnversionedRow();

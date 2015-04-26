@@ -48,20 +48,19 @@ public:
 public:
     void Write(const std::vector<TUnversionedRow>& rows)
     {
-        auto capturedRows = RowBuffer_.Capture(rows);
-
+        auto capturedRows = RowBuffer_->Capture(rows);
         Rows_.insert(Rows_.end(), capturedRows.begin(), capturedRows.end());
     }
 
     void Clear()
     {
         Rows_.clear();
-        RowBuffer_.Clear();
+        RowBuffer_->Clear();
     }
 
     i64 GetSize() const
     {
-        return RowBuffer_.GetSize();
+        return RowBuffer_->GetSize();
     }
 
     bool IsEmpty() const
@@ -70,7 +69,7 @@ public:
     }
 
 private:
-    TRowBuffer RowBuffer_;
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
 };
 

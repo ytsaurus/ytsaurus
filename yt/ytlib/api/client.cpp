@@ -269,7 +269,7 @@ private:
     std::vector<std::pair<TDataSource, TChunkReplica>> Split(
         TGuid objectId,
         const std::vector<TRowRange>& ranges,
-        TRowBuffer* rowBuffer,
+        TRowBufferPtr rowBuffer,
         TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
@@ -289,7 +289,7 @@ private:
     std::vector<std::pair<TDataSource, TChunkReplica>> SplitTableFurther(
         TGuid tableId,
         const std::vector<TRowRange>& ranges,
-        TRowBuffer* rowBuffer,
+        TRowBufferPtr rowBuffer,
         TNodeDirectoryPtr nodeDirectory)
     {
         auto tableMountCache = Connection_->GetTableMountCache();
@@ -303,7 +303,7 @@ private:
     std::vector<std::pair<TDataSource, TChunkReplica>> SplitSortedTableFurther(
         TGuid tableId,
         const std::vector<TRowRange>& ranges,
-        TRowBuffer* rowBuffer,
+        TRowBufferPtr rowBuffer,
         TNodeDirectoryPtr nodeDirectory)
     {
         // TODO(babenko): refactor and optimize
@@ -361,7 +361,7 @@ private:
     std::vector<std::pair<TDataSource, TChunkReplica>> SplitUnsortedTableFurther(
         TGuid tableId,
         const std::vector<TRowRange>& ranges,
-        TRowBuffer* rowBuffer,
+        TRowBufferPtr rowBuffer,
         TNodeDirectoryPtr nodeDirectory,
         TTableMountInfoPtr tableInfo)
     {
@@ -481,11 +481,11 @@ private:
 
         const auto& dataSources = fragment->DataSources;
 
-        TRowBuffer rowBuffer;
+        auto rowBuffer = New<TRowBuffer>();
         auto prunedRanges = GetPrunedRanges(
             fragment->Query,
             dataSources,
-            &rowBuffer,
+            rowBuffer,
             Connection_->GetColumnEvaluatorCache(),
             FunctionRegistry_,
             fragment->RangeExpansionLimit,
@@ -499,7 +499,7 @@ private:
             auto id = dataSources[index].Id;
             const auto& ranges = prunedRanges[index];
 
-            auto splits = Split(id, ranges, &rowBuffer, nodeDirectory, Logger, fragment->VerboseLogging);
+            auto splits = Split(id, ranges, rowBuffer, nodeDirectory, Logger, fragment->VerboseLogging);
             std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
         }
 
@@ -544,11 +544,11 @@ private:
 
         const auto& dataSources = fragment->DataSources;
 
-        TRowBuffer rowBuffer;
+        auto rowBuffer = New<TRowBuffer>();
         auto prunedRanges = GetPrunedRanges(
             fragment->Query,
             dataSources,
-            &rowBuffer,
+            rowBuffer,
             Connection_->GetColumnEvaluatorCache(),
             FunctionRegistry_,
             fragment->RangeExpansionLimit,
@@ -562,7 +562,7 @@ private:
             auto id = dataSources[index].Id;
             const auto& ranges = prunedRanges[index];
 
-            auto splits = Split(id, ranges, &rowBuffer, nodeDirectory, Logger, fragment->VerboseLogging);
+            auto splits = Split(id, ranges, rowBuffer, nodeDirectory, Logger, fragment->VerboseLogging);
             std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
         }
 
@@ -1232,7 +1232,7 @@ private:
         std::vector<std::pair<NVersionedTableClient::TKey, int>> sortedKeys;
         sortedKeys.reserve(keys.size());
 
-        TRowBuffer buffer;
+        auto rowBuffer = New<TRowBuffer>();
 
         if (tableInfo->NeedKeyEvaluation) {
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
@@ -1240,7 +1240,7 @@ private:
 
             for (int index = 0; index < keys.size(); ++index) {
                 ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema);
-                evaluator->EvaluateKeys(keys[index], buffer);
+                evaluator->EvaluateKeys(keys[index], rowBuffer);
                 sortedKeys.push_back(std::make_pair(keys[index], index));
             }
         } else {
@@ -2139,15 +2139,15 @@ private:
             };
 
             if (TableInfo_->NeedKeyEvaluation) {
-                TRowBuffer buffer;
+                auto rowBuffer = New<TRowBuffer>();
                 auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
                 auto evaluator = evaluatorCache->Find(TableInfo_->Schema, keyColumnCount);
 
                 for (auto row : rows) {
                     validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
-                    evaluator->EvaluateKeys(row, buffer);
+                    evaluator->EvaluateKeys(row, rowBuffer);
                     writeRequest(row);
-                    buffer.Clear();
+                    rowBuffer->Clear();
                 }
             } else {
                 for (auto row : rows) {

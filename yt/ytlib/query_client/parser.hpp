@@ -314,7 +314,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       char dummy7[sizeof(TNamedExpressionList)];
 
       // select-clause-impl
-      char dummy8[sizeof(TNullableNamedExprs)];
+      char dummy8[sizeof(TNullableNamedExpressionList)];
 
       // "identifier"
       char dummy9[sizeof(TStringBuf)];
@@ -447,7 +447,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   basic_symbol (typename Base::kind_type t, const TNamedExpressionList v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TNullableNamedExprs v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TNullableNamedExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
 
@@ -679,7 +679,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
     /// Build a parser object.
-    TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, TRowBuffer* rowBuffer_yyarg, const Stroka& source_yyarg);
+    TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, TRowBufferPtr rowBuffer_yyarg, const Stroka& source_yyarg);
     virtual ~TParser ();
 
     /// Parse.
@@ -890,7 +890,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     // User arguments.
     TLexer& lexer;
     TAstHead* head;
-    TRowBuffer* rowBuffer;
+    TRowBufferPtr rowBuffer;
     const Stroka& source;
   };
 

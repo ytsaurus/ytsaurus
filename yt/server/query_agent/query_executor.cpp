@@ -221,10 +221,11 @@ private:
                         planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                         planFragment->Timestamp = fragment->Timestamp;
                         planFragment->DataSources.push_back({
-                                fragment->ForeignDataId, {
-                                    planFragment->KeyRangesRowBuffer.Capture(MinKey().Get()), 
-                                    planFragment->KeyRangesRowBuffer.Capture(MaxKey().Get())}
-                            });
+                            fragment->ForeignDataId,
+                            {
+                                planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
+                                planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
+                            }});
 
                         planFragment->Query = subquery;
                         planFragment->VerboseLogging = fragment->VerboseLogging;
@@ -294,8 +295,8 @@ private:
 
         LOG_DEBUG("Splitting %v sources", rangeSources.size());
 
-        TRowBuffer rowBuffer;
-        auto splits = Split(rangeSources, &rowBuffer, nodeDirectory, true, Logger, fragment->VerboseLogging);
+        auto rowBuffer = New<TRowBuffer>();
+        auto splits = Split(rangeSources, rowBuffer, nodeDirectory, true, Logger, fragment->VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
         std::vector<TDataSources> groupedSplits;
@@ -377,8 +378,8 @@ private:
         auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        TRowBuffer rowBuffer;
-        auto splits = Split(fragment->DataSources, &rowBuffer, nodeDirectory, true, Logger, fragment->VerboseLogging);
+        auto rowBuffer = New<TRowBuffer>();
+        auto splits = Split(fragment->DataSources, rowBuffer, nodeDirectory, true, Logger, fragment->VerboseLogging);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
@@ -418,7 +419,7 @@ private:
 
     TDataSources Split(
         const TDataSources& splits,
-        TRowBuffer* rowBuffer,
+        TRowBufferPtr rowBuffer,
         TNodeDirectoryPtr nodeDirectory,
         bool mergeRanges,
         const NLogging::TLogger& Logger,
@@ -521,9 +522,9 @@ private:
         return allSplits;
     }
 
-    std::vector<std::vector<TKey>> SplitKeys(
+    std::vector<std::vector<TRow>> SplitKeys(
         TGuid tabletId,
-        std::vector<TKey> keys)
+        std::vector<TRow> keys)
     {
         std::sort(keys.begin(), keys.end());
 
@@ -532,7 +533,7 @@ private:
         const auto& partitions = tabletSnapshot->Partitions;
 
         // Group keys by partitions.
-        std::vector<std::vector<TKey>> resultKeys;
+        std::vector<std::vector<TRow>> resultKeys;
 
         auto it = keys.begin();
         while (it != keys.end()) {
@@ -716,7 +717,7 @@ private:
 
     ISchemafulReaderPtr GetReader(
         const NObjectClient::TObjectId& objectId,
-        const std::vector<TKey>& keys,
+        const std::vector<TRow>& keys,
         TTimestamp timestamp)
     {
         ValidateReadTimestamp(timestamp);
@@ -833,7 +834,7 @@ private:
 
     ISchemafulReaderPtr GetTabletReader(
         const NObjectClient::TObjectId& tabletId,
-        const std::vector<TKey>& keys,
+        const std::vector<TRow>& keys,
         TTimestamp timestamp)
     {
         try {

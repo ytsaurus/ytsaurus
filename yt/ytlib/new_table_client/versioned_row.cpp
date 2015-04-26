@@ -220,8 +220,8 @@ Stroka ToString(const TVersionedOwningRow& row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersionedRowBuilder::TVersionedRowBuilder(TRowBuffer* buffer)
-    : Buffer_(buffer)
+TVersionedRowBuilder::TVersionedRowBuilder(TRowBufferPtr buffer)
+    : Buffer_(std::move(buffer))
 { }
 
 void TVersionedRowBuilder::AddKey(const TUnversionedValue& value)
