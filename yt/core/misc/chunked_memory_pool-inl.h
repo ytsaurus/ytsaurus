@@ -3,14 +3,11 @@
 #endif
 #undef CHUNKED_MEMORY_POOL_INL_H_
 
+#include "serialize.h"
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-inline char* TChunkedMemoryPool::AlignPtr(char* ptr, int align)
-{
-    return reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(ptr) + align - 1) & ~(align - 1));
-}
 
 inline char* TChunkedMemoryPool::AllocateUnaligned(i64 size)
 {
@@ -28,7 +25,7 @@ inline char* TChunkedMemoryPool::AllocateUnaligned(i64 size)
 inline char* TChunkedMemoryPool::AllocateAligned(i64 size, int align)
 {
     // NB: This can lead to FreeZoneBegin_ >= FreeZoneEnd_ in which case the chunk is full.
-    FreeZoneBegin_ = AlignPtr(FreeZoneBegin_, align);
+    FreeZoneBegin_ = AlignUp(FreeZoneBegin_, align);
 
     // Fast path.
     if (FreeZoneBegin_ + size <= FreeZoneEnd_) {

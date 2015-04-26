@@ -75,17 +75,11 @@ private:
     std::vector<TSharedMutableRef> Chunks_;
     std::vector<TSharedMutableRef> LargeBlocks_;
 
-    static char* AlignPtr(char* ptr, int align);
-
     char* AllocateUnalignedSlow(i64 size);
     char* AllocateAlignedSlow(i64 size, int align);
     char* AllocateSlowCore(i64 size);
 
-    void AllocateChunk();
-    void SwitchChunk();
     void SetupFreeZone();
-
-    TSharedMutableRef AllocateLargeBlock(i64 size);
 
 };
 
