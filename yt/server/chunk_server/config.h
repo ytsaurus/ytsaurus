@@ -48,7 +48,7 @@ public:
      *  This limit is approximate and is only maintained when scheduling balancing jobs.
      *  This makes sense since balancing jobs specifically target nodes with lowest fill factor
      *  and thus risk overloading them.
-     *  Replication jobs distribute data evenly across he cluster and thus pose no threat.
+     *  Replication jobs distribute data evenly across the cluster and thus pose no threat.
      */
     int MaxReplicationWriteSessions;
 
