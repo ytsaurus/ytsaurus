@@ -439,6 +439,7 @@ public:
     TReorderingSchemalessMultiChunkWriter(
         const TKeyColumns& keyColumns,
         TNameTablePtr nameTable,
+        TOwningKey lastKey,
         ISchemalessMultiChunkWriterPtr underlyingWriter);
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
@@ -475,19 +476,14 @@ private:
 TReorderingSchemalessMultiChunkWriter::TReorderingSchemalessMultiChunkWriter(
     const TKeyColumns& keyColumns,
     TNameTablePtr nameTable,
+    TOwningKey lastKey,
     ISchemalessMultiChunkWriterPtr underlyingWriter)
     : MemoryPool_(TReorderingSchemalessWriterPoolTag())
     , RowReorderer_(nameTable, keyColumns)
     , UnderlyingWriter_(underlyingWriter)
+    , LastKey_(lastKey)
     , KeyColumnCount_(keyColumns.size())
-{ 
-    if (IsSorted()) {
-        std::vector<TUnversionedValue> key(
-            KeyColumnCount_,
-            MakeUnversionedSentinelValue(EValueType::Min, 0));
-        LastKey_ = TOwningKey(key.data(), key.data() + KeyColumnCount_);
-    }
-}
+{ }
 
 bool TReorderingSchemalessMultiChunkWriter::CheckSortOrder(TUnversionedRow lhs, TUnversionedRow rhs)
 {
@@ -502,7 +498,7 @@ bool TReorderingSchemalessMultiChunkWriter::CheckSortOrder(TUnversionedRow lhs, 
 
     Error_ = TError(
         EErrorCode::SortOrderViolation,
-        "Sort order violation: %v >= %v", 
+        "Sort order violation: %v > %v",
         leftBuilder.FinishRow().Get(), 
         rightBuilder.FinishRow().Get());
     return false;
@@ -645,6 +641,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
+    TOwningKey lastKey,
     IChannelPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
@@ -682,7 +679,11 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
         blockCache);
 
     if (reorderValues && isSorted) {
-        return New<TReorderingSchemalessMultiChunkWriter>(keyColumns, nameTable, writer);
+        return New<TReorderingSchemalessMultiChunkWriter>(
+            keyColumns,
+            nameTable,
+            lastKey,
+            writer);
     } else {
         return writer;
     }
@@ -738,6 +739,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     return New<TReorderingSchemalessMultiChunkWriter>(
         keyColumns,
         nameTable,
+        TOwningKey(),
         writer);
 }
 
@@ -785,6 +787,8 @@ private:
 
     TTransactionPtr UploadTransaction_;
     TChunkListId ChunkListId_;
+
+    TOwningKey LastKey_;
 
     ISchemalessWriterPtr UnderlyingWriter_;
 
@@ -898,7 +902,8 @@ void TSchemalessTableWriter::FetchTableInfo()
     LOG_INFO("Requesting table info");
 
     auto path = RichPath_.GetPath();
-    bool clear = !KeyColumns_.empty() || !RichPath_.GetAppend();
+    bool append = RichPath_.GetAppend();
+    bool sorted = !KeyColumns_.empty();
 
     TObjectServiceProxy objectProxy(MasterChannel_);
     auto batchReq = objectProxy.ExecuteBatch();
@@ -914,8 +919,9 @@ void TSchemalessTableWriter::FetchTableInfo()
         attributeFilter.Keys.push_back("account");
         attributeFilter.Keys.push_back("vital");
 
-        if (!KeyColumns_.empty()) {
+        if (sorted) {
             attributeFilter.Keys.push_back("row_count");
+            attributeFilter.Keys.push_back("sorted_by");
         }
 
         ToProto(req->mutable_attribute_filter(), attributeFilter);
@@ -926,9 +932,11 @@ void TSchemalessTableWriter::FetchTableInfo()
         auto req = TTableYPathProxy::PrepareForUpdate(path);
         SetTransactionId(req, UploadTransaction_);
         GenerateMutationId(req);
-        req->set_mode(clear 
-            ? static_cast<int>(EUpdateMode::Overwrite) 
-            : static_cast<int>(EUpdateMode::Append));
+        req->set_update_mode(static_cast<int>(append ? EUpdateMode::Append : EUpdateMode::Overwrite));
+        req->set_lock_mode(static_cast<int>((append && !sorted) ? ELockMode::Shared : ELockMode::Exclusive));
+        if (append && sorted) {
+            req->set_fetch_last_key(true);
+        }
         batchReq->AddRequest(req, "prepare_for_update");
     }
 
@@ -953,11 +961,26 @@ void TSchemalessTableWriter::FetchTableInfo()
                 type);
         }
 
-        // TODO(psushin): Keep in sync with OnInputsReceived (operation_controller_detail.cpp).
-        if (!KeyColumns_.empty() && RichPath_.GetAppend()) {
-            if (attributes.Get<i64>("row_count") > 0) {
-                THROW_ERROR_EXCEPTION("Cannot write sorted data into a non-empty table %v",
-                    path);
+        if (append && sorted && attributes.Get<i64>("row_count") > 0) {
+            auto tableKeyColumns = attributes.Get<TKeyColumns>("sorted_by", TKeyColumns());
+
+            bool areKeyColumnsCompatible = true;
+            if (tableKeyColumns.size() < KeyColumns_.size()) {
+                areKeyColumnsCompatible = false;
+            } else {
+                for (int i = 0; i < KeyColumns_.size(); ++i) {
+                    if (tableKeyColumns[i] != KeyColumns_[i]) {
+                        areKeyColumnsCompatible = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!areKeyColumnsCompatible) {
+                THROW_ERROR_EXCEPTION(
+                    "Key columns mismatch while trying to append sorted data into a non-empty table %v", path)
+                    << TErrorAttribute("append_key_columns", KeyColumns_)
+                    << TErrorAttribute("current_key_columns", tableKeyColumns);
             }
         }
 
@@ -971,6 +994,14 @@ void TSchemalessTableWriter::FetchTableInfo()
     {
         auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
         ChunkListId_ = FromProto<TChunkListId>(rspOrError.Value()->chunk_list_id());
+
+        if (append && sorted) {
+            auto lastKey = FromProto<TOwningKey>(rspOrError.Value()->last_key());
+            if (lastKey) {
+                YCHECK(lastKey.GetCount() >= KeyColumns_.size());
+                LastKey_ = TOwningKey(lastKey.Begin(), lastKey.Begin() + KeyColumns_.size());
+            }
+        }
     }
 
     LOG_INFO("Table info received (ChunkListId: %v)",
@@ -987,6 +1018,7 @@ void TSchemalessTableWriter::DoOpen()
         Options_,
         NameTable_,
         KeyColumns_,
+        LastKey_,
         MasterChannel_,
         UploadTransaction_->GetId(),
         ChunkListId_,

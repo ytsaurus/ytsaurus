@@ -372,7 +372,8 @@ private:
 
             {
                 auto req = TJournalYPathProxy::PrepareForUpdate(Path_);
-                req->set_mode(static_cast<int>(EUpdateMode::Append));
+                req->set_update_mode(static_cast<int>(EUpdateMode::Append));
+                req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
                 GenerateMutationId(req);
                 SetTransactionId(req, UploadTransaction_->GetId());
                 batchReq->AddRequest(req, "prepare_for_update");

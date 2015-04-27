@@ -6,6 +6,7 @@
 #include "chunk_manager.h"
 #include "chunk_tree_traversing.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <core/concurrency/scheduler.h>
 
@@ -714,28 +715,43 @@ void TChunkOwnerNodeProxy::ValidatePrepareForUpdate()
 void TChunkOwnerNodeProxy::ValidateFetch()
 { }
 
+bool TChunkOwnerNodeProxy::IsSorted()
+{
+    return false;
+}
+
+void TChunkOwnerNodeProxy::ResetSorted()
+{ }
+
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 {
     DeclareMutating();
 
-    auto mode = EUpdateMode(request->mode());
-    YCHECK(mode == EUpdateMode::Append || mode == EUpdateMode::Overwrite);
+    auto updateMode = EUpdateMode(request->update_mode());
+    YCHECK(updateMode == EUpdateMode::Append ||
+           updateMode == EUpdateMode::Overwrite);
 
-    context->SetRequestInfo("Mode: %v", mode);
+    auto lockMode = ELockMode(request->lock_mode());
+    YCHECK(lockMode == ELockMode::Shared ||
+           lockMode == ELockMode::Exclusive);
+
+    context->SetRequestInfo("UpdateMode: %v, LockMode: %v",
+        updateMode,
+        lockMode);
 
     ValidateTransaction();
     ValidatePermission(
         EPermissionCheckScope::This,
         NSecurityServer::EPermission::Write);
 
-    auto* node = LockThisTypedImpl<TChunkOwnerBase>(GetLockMode(mode));
+    auto* node = LockThisTypedImpl<TChunkOwnerBase>(lockMode);
     ValidatePrepareForUpdate();
 
     auto chunkManager = Bootstrap_->GetChunkManager();
     auto objectManager = Bootstrap_->GetObjectManager();
 
     TChunkList* resultChunkList;
-    switch (mode) {
+    switch (updateMode) {
         case EUpdateMode::Append: {
             auto* snapshotChunkList = node->GetChunkList();
 
@@ -754,6 +770,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
             objectManager->UnrefObject(snapshotChunkList);
 
             resultChunkList = deltaChunkList;
+
+            if (request->fetch_last_key()) {
+                TOwningKey lastKey;
+                if (IsSorted() && !snapshotChunkList->Children().empty()) {
+                    lastKey = GetMaxKey(snapshotChunkList);
+                }
+                ToProto(response->mutable_last_key(), lastKey);
+            }
 
             LOG_DEBUG_UNLESS(
                 IsRecovery(),
@@ -792,7 +816,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
             YUNREACHABLE();
     }
 
-    node->SetUpdateMode(mode);
+    node->SetUpdateMode(updateMode);
+
+    ResetSorted();
 
     SetModified();
 

@@ -253,13 +253,6 @@ private:
         table->SetSorted(false);
     }
 
-    virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override
-    {
-        return updateMode == EUpdateMode::Append
-            ? ELockMode::Shared
-            : ELockMode::Exclusive;
-    }
-
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
@@ -293,6 +286,19 @@ private:
         }
     }
 
+    virtual bool IsSorted() override
+    {
+        const auto* table = GetThisTypedImpl();
+        return table->GetSorted();
+    }
+
+    virtual void ResetSorted() override
+    {
+        auto* table = GetThisTypedImpl();
+        table->KeyColumns().clear();
+        table->SetSorted(false);
+    }
+
     DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, SetSorted)
     {
         DeclareMutating();
@@ -305,8 +311,8 @@ private:
 
         auto* table = LockThisTypedImpl();
 
-        if (table->GetUpdateMode() != EUpdateMode::Overwrite) {
-            THROW_ERROR_EXCEPTION("Table must be in \"overwrite\" mode");
+        if (table->GetUpdateMode() == EUpdateMode::None) {
+            THROW_ERROR_EXCEPTION("Table must not be in \"none\" mode");
         }
 
         ValidateKeyColumns(keyColumns);

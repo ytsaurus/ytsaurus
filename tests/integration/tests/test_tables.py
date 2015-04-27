@@ -39,18 +39,67 @@ class TestTables(YTEnvSetup):
 
         write("//tmp/table", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}], sorted_by="key")
 
-        assert get("//tmp/table/@sorted") ==  True
-        assert get("//tmp/table/@sorted_by") ==  ["key"]
-        assert get("//tmp/table/@row_count") ==  4
+        assert get("//tmp/table/@sorted")
+        assert get("//tmp/table/@sorted_by") == ["key"]
+        assert get("//tmp/table/@row_count") == 4
 
-        # sorted flag is discarded when writing to sorted table
+        # sorted flag is discarded when writing unsorted data to sorted table
         write("<append=true>//tmp/table", {"key": 4})
         assert not get("//tmp/table/@sorted")
         with pytest.raises(YtError): get("//tmp/table/@sorted_by")
 
+    def test_append_sorted_simple(self):
+        create("table", "//tmp/table")
+        write("//tmp/table", [{"a": 0, "b": 0}, {"a": 0, "b": 1}, {"a": 1, "b": 0}], sorted_by=["a", "b"])
+        write("<append=true>//tmp/table", [{"a": 1, "b": 0}, {"a": 2, "b": 0}], sorted_by=["a", "b"])
+
+        assert get("//tmp/table/@sorted")
+        assert get("//tmp/table/@sorted_by") == ["a", "b"]
+        assert get("//tmp/table/@row_count") == 5
+
+    def test_append_sorted_with_less_key_columns(self):
+        create("table", "//tmp/table")
+        write("//tmp/table", [{"a": 0, "b": 0}, {"a": 0, "b": 1}, {"a": 1, "b": 0}], sorted_by=["a", "b"])
+        write("<append=true>//tmp/table", [{"a": 1, "b": 1}, {"a": 2, "b": 0}], sorted_by=["a"])
+
+        assert get("//tmp/table/@sorted")
+        assert get("//tmp/table/@sorted_by") == ["a"]
+        assert get("//tmp/table/@row_count") == 5
+
+    def test_append_sorted_order_violated(self):
+        create("table", "//tmp/table");
+        write("//tmp/table", [{"a": 1}, {"a": 2}], sorted_by=["a"])
+        with pytest.raises(YtError):
+            write("<append=true>//tmp/table", [{"a": 0}], sorted_by=["a"])
+
+    def test_append_sorted_to_unsorted(self):
+        create("table", "//tmp/table")
+        write("//tmp/table", [{"a": 2}, {"a": 1}, {"a": 0}])
+        with pytest.raises(YtError):
+            write("<append=true>//tmp/table", [{"a": 2}, {"a": 3}], sorted_by=["a"])
+
+    def test_append_sorted_with_more_key_columns(self):
+        create("table", "//tmp/table")
+        write("//tmp/table", [{"a": 0}, {"a": 1}, {"a": 2}], sorted_by=["a"])
+        with pytest.raises(YtError):
+            write("<append=true>//tmp/table", [{"a": 2, "b": 1}, {"a": 3, "b": 0}], sorted_by=["a", "b"])
+
+    def test_append_sorted_with_different_key_columns(self):
+        create("table", "//tmp/table")
+        write("//tmp/table", [{"a": 0}, {"a": 1}, {"a": 2}], sorted_by=["a"])
+        with pytest.raises(YtError):
+            write("<append=true>//tmp/table", [{"b": 0}, {"b": 1}], sorted_by=["b"])
+
+    def test_append_sorted_concurrently(self):
+        create("table", "//tmp/table")
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        write("<append=true>//tmp/table", [{"a": 0}, {"a": 1}], sorted_by=["a"], tx=tx1)
+        with pytest.raises(YtError):
+            write("<append=true>//tmp/table", [{"a": 1}, {"a": 2}], sorted_by=["a"], tx=tx2)
+
     def test_append_overwrite_write(self):
-        # Default (append).
-        # COMPAT(ignat): When migrating to overwrite semantics, change this to 1.
+        # Default (overwrite)
         create("table", "//tmp/table1")
         assert get("//tmp/table1/@row_count") == 0
         write("//tmp/table1", {"a": 0})
@@ -81,12 +130,6 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError): write("<append=true>//tmp/table", yson.loads("string"))
         with pytest.raises(YtError): write("<append=true>//tmp/table", yson.loads("100"))
         with pytest.raises(YtError): write("<append=true>//tmp/table", yson.loads("3.14"))
-
-        # we can write sorted data only to empty table
-        write("<append=true>//tmp/table", {"foo": "bar"}, sorted_by="foo")
-        with pytest.raises(YtError):
-            write("<append=true>" + "//tmp/table", {"foo": "zzz_bar"}, sorted_by="foo")
-
 
         content = "some_data"
         create("file", "//tmp/file")

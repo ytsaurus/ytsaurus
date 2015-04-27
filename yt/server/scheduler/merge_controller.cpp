@@ -795,12 +795,12 @@ private:
             }
         }
 
-        // ...and the output table must be cleared (regardless of "overwrite" attribute).
+        // ...and the output table must be cleared (regardless of requested "append" attribute).
         {
             auto& table = OutputTables[0];
-            table.Clear = true;
-            table.Overwrite = true;
+            table.UpdateMode = EUpdateMode::Overwrite;
             table.LockMode = ELockMode::Exclusive;
+            table.AppendRequested = false;
         }
     }
 
@@ -1332,7 +1332,7 @@ private:
         TSortedMergeControllerBase::DoInitialize();
 
         auto& table = OutputTables[0];
-        table.Clear = true;
+        table.UpdateMode = EUpdateMode::Overwrite;
         table.LockMode = ELockMode::Exclusive;
     }
 

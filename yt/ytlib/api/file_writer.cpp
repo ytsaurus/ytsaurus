@@ -160,7 +160,8 @@ private:
 
         {
             auto req = TFileYPathProxy::PrepareForUpdate(Path_);
-            req->set_mode(static_cast<int>(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
+            req->set_update_mode(static_cast<int>(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
+            req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
             GenerateMutationId(req);
             SetTransactionId(req, UploadTransaction_);
             batchReq->AddRequest(req, "prepare_for_update");
