@@ -33,7 +33,8 @@ static const auto& Logger = QueryClientLogger;
 
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     TConstQueryPtr query,
-    const std::vector<TRefiner>& refiners)
+    const std::vector<TRefiner>& refiners,
+    IFunctionRegistryPtr functionRegistry)
 {
     auto Logger = BuildLogger(query);
 
@@ -211,7 +212,8 @@ TQueryStatistics CoordinateAndExecute(
     const std::vector<TRefiner>& refiners,
     bool isOrdered,
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
-    std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop)
+    std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
+    IFunctionRegistryPtr functionRegistry)
 {
     auto nodeDirectory = fragment->NodeDirectory;
     auto query = fragment->Query;
@@ -221,7 +223,7 @@ TQueryStatistics CoordinateAndExecute(
 
     TConstQueryPtr topQuery;
     std::vector<TConstQueryPtr> subqueries;
-    std::tie(topQuery, subqueries) = CoordinateQuery(query, refiners);
+    std::tie(topQuery, subqueries) = CoordinateQuery(query, refiners, functionRegistry);
 
     LOG_DEBUG("Finished coordinating query");
 

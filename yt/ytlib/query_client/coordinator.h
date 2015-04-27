@@ -50,7 +50,8 @@ TQueryStatistics CoordinateAndExecute(
     const std::vector<TRefiner>& ranges,
     bool isOrdered,
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
-    std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop);
+    std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
+    IFunctionRegistryPtr functionRegistry);
 
 ////////////////////////////////////////////////////////////////////////////////
 

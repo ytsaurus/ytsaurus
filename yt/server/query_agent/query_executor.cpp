@@ -256,7 +256,8 @@ private:
                 auto result = WaitFor(asyncQueryStatisticsOrError);
                 LOG_DEBUG(result, "Finished evaluating topQuery (TopQueryId: %v)", topQuery->Id);
                 return result.ValueOrThrow();
-            });
+            },
+            FunctionRegistry_);
     }
 
     TQueryStatistics DoExecute(
