@@ -167,6 +167,9 @@ public:
         return NonePermissions;
     }
 
+    virtual void ResetAllObjects() override
+    { }
+
 private:
     virtual Stroka DoGetName(TMasterObject* /*object*/) override
     {

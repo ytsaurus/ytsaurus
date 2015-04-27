@@ -180,8 +180,6 @@ private:
     void DestroyNode(TCypressNodeBase* trunkNode);
 
     // TAutomatonPart overrides.
-    virtual void OnRecoveryComplete() override;
-
     void DoClear();
     virtual void Clear() override;
 

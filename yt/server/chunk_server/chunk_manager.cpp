@@ -182,6 +182,13 @@ protected:
 
     virtual void DoUnstage(TChunk* chunk, bool recursive) override;
 
+    virtual void DoReset(TChunk* chunk) override
+    {
+        chunk->SetRefreshScheduled(false);
+        chunk->SetPropertiesUpdateScheduled(false);
+        chunk->SetSealScheduled(false);
+        chunk->SetRepairQueueIterator(Null);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -299,7 +306,6 @@ private:
     }
 
     virtual void DoUnstage(TChunkList* chunkList, bool recursive) override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1244,21 +1250,6 @@ private:
     virtual void OnRecoveryComplete() override
     {
         Profiler.SetEnabled(true);
-
-        // Reset runtime info.
-        for (const auto& pair : ChunkMap_) {
-            auto* chunk = pair.second;
-            chunk->SetRefreshScheduled(false);
-            chunk->SetPropertiesUpdateScheduled(false);
-            chunk->SetSealScheduled(false);
-            chunk->ResetWeakRefCounter();
-            chunk->SetRepairQueueIterator(Null);
-        }
-
-        for (const auto& pair : ChunkListMap_) {
-            auto* chunkList = pair.second;
-            chunkList->ResetWeakRefCounter();
-        }
 
         if (NeedToRecomputeStatistics_) {
             RecomputeStatistics();
