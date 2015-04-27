@@ -2,6 +2,8 @@
 
 #include <util/generic/hash.h>
 
+#include <util/random/random.h>
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Combines a pair of hash values.
@@ -27,5 +29,31 @@ struct hash<std::pair<T1, T2>>
         return THash<T1>()(pair.first) + 1877 * THash<T2>()(pair.second);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NYT {
+
+//! Provides a hasher that randomizes the results of another one.
+template <class TElement, class TUnderlying = ::THash<TElement>>
+class TRandomizedHash
+{
+public:
+    TRandomizedHash()
+        : Seed_(RandomNumber<size_t>())
+    { }
+
+    size_t operator () (const TElement& element) const
+    {
+        return Underlying_(element) + Seed_;
+    }
+
+private:
+    const size_t Seed_;
+    TUnderlying Underlying_;
+
+};
+
+} // namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
