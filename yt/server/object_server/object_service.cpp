@@ -205,13 +205,14 @@ private:
                     return;
                 }
 
-                LOG_DEBUG("Execute[%v] <- %v:%v %v (RequestId: %v, Mutating: %v)",
+                LOG_DEBUG("Execute[%v] <- %v:%v %v (RequestId: %v, Mutating: %v, TransactionId: %v)",
                     CurrentRequestIndex,
                     requestHeader.service(),
                     requestHeader.method(),
                     path,
                     Context->GetRequestId(),
-                    mutating);
+                    mutating,
+                    GetTransactionId(Context_));
 
                 NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateChildTraceContext());
                 NTracing::TraceEvent(
