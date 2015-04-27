@@ -236,6 +236,11 @@ class EventLog(object):
         except errors.YtError:
             self.log.error("Failed to update last saved ts. Unhandled exception", exc_info=True)
 
+    def get_last_saved_ts(self):
+        serialized_ts = self.yt.get(self._last_saved_ts)
+        dt = datetime.datetime.strptime(serialized_ts, misc.LOGBROKER_TIMESTAMP_FORMAT)
+        return dt
+
     def _check_invariant(self):
         try:
             archive_row_count = self.get_archive_row_count()
@@ -821,21 +826,19 @@ def print_last_seqno(logbroker_url, service_id, source_id, **kwargs):
         sys.stderr.write("Internal error\n")
 
 
-def monitor(proxy_path, table_name, threshold, logbroker_url, service_id, source_id, **kwargs):
+def monitor(proxy_path, table_name, threshold, **kwargs):
     try:
-        last_seqno = get_last_seqno(logbroker_url=logbroker_url, service_id=service_id, source_id=source_id)
         set_proxy(proxy_path)
         event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
-        row_count = event_log.get_row_count()
+        lag = datetime.datetime.utcnow() - event_log.get_last_saved_ts()
     except Exception:
         log.error("Failed to run monitoring. Unhandled exception", exc_info=True)
         sys.stdout.write("2; Internal error\n")
     else:
-        lag = row_count - last_seqno
-        if lag > threshold:
-            sys.stdout.write("2; Lag equals to: %d\n" % (lag,))
+        if lag.total_seconds() > threshold * 3600:
+            sys.stdout.write("2; Lag equals to: %s\n" % (lag,))
         else:
-            sys.stdout.write("0; Lag equals to: %d\n" % (lag,))
+            sys.stdout.write("0; Lag equals to: %s\n" % (lag,))
 
 
 def init(table_name, proxy_path, **kwargs):
@@ -880,7 +883,7 @@ def run():
     options.define("service_id", default="yt", help="[logbroker] service id")
     options.define("source_id", help="[logbroker] source id")
 
-    options.define("threshold", default=10**6, help="threshold of lag size to generate error")
+    options.define("threshold", default=48, help="threshold of lag size in hours to generate error")
     options.define("count", default=10**6, help="row count to archive")
 
     options.define("init", default=False, help="init and exit")
