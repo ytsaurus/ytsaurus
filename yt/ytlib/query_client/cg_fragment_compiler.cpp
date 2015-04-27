@@ -1307,13 +1307,14 @@ TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
     std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
     TCodegenSource codegenSource,
+    bool isMerge,
     bool isFinal)
 {
     return [
         MOVE(codegenGroupExprs),
         MOVE(codegenAggregates),
         codegenSource = std::move(codegenSource),
-        isFinal
+        isMerge
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         auto module = builder.Module->GetModule();
 
@@ -1414,7 +1415,7 @@ TCodegenSource MakeCodegenGroupOp(
                     auto newValue = builder.CreateConstInBoundsGEP1_32(
                         CodegenValuesPtrFromRow(builder, newRowRef),
                         keySize + index);
-                    if (isFinal) {
+                    if (isMerge) {
                         codegenAggregates[index].second.Merge(
                             builder,
                             aggStates[index],
