@@ -14,6 +14,8 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <ytlib/cypress_client/rpc_helpers.h>
+
 #include <server/transaction_server/transaction.h>
 #include <server/transaction_server/transaction_manager.h>
 
@@ -37,6 +39,7 @@ using namespace NRpc::NProto;
 using namespace NBus;
 using namespace NYTree;
 using namespace NYTree::NProto;
+using namespace NCypressClient;
 using namespace NCypressServer;
 using namespace NTransactionServer;
 using namespace NSecurityClient;
@@ -212,7 +215,7 @@ private:
                     path,
                     Context->GetRequestId(),
                     mutating,
-                    GetTransactionId(Context_));
+                    GetTransactionId(Context));
 
                 NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateChildTraceContext());
                 NTracing::TraceEvent(
