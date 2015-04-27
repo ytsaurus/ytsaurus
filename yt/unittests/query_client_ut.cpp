@@ -1276,7 +1276,7 @@ TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
         TKeyTrie::Empty(),
         &rowBuffer);
 
-    EXPECT_EQ(result.size(), 0);
+    EXPECT_EQ(0, result.size());
 }
 
 TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
@@ -1300,7 +1300,7 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
         keyTrie,
         &rowBuffer);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(2, result.size());
 
     EXPECT_EQ(BuildKey("50"), result[0].first);
     EXPECT_EQ(BuildKey("50;" _MAX_), result[0].second);
@@ -1330,7 +1330,7 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
         keyTrie,
         &rowBuffer);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(2, result.size());
 
     EXPECT_EQ(BuildKey("50;40;" _MAX_), result[0].first);
     EXPECT_EQ(BuildKey("50;50"), result[0].second);
@@ -1360,7 +1360,7 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
         keyTrie,
         &rowBuffer);
 
-    EXPECT_EQ(result.size(), 9);
+    EXPECT_EQ(9, result.size());
 
     EXPECT_EQ(BuildKey("40;40"), result[0].first);
     EXPECT_EQ(BuildKey("40;40;" _MAX_), result[0].second);
@@ -1411,7 +1411,7 @@ TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
         keyTrie,
         &rowBuffer);
 
-    EXPECT_EQ(result.size(), 4);
+    EXPECT_EQ(4, result.size());
 
     EXPECT_EQ(BuildKey("2;2;3"), result[0].first);
     EXPECT_EQ(BuildKey("2;2;3;" _MAX_), result[0].second);
@@ -1507,7 +1507,7 @@ TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
         keyTrie,
         &rowBuffer);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(2, result.size());
 
     EXPECT_EQ(BuildKey("21"), result[0].first);
     EXPECT_EQ(BuildKey("32;" _MAX_), result[0].second);
@@ -4002,7 +4002,7 @@ TEST_F(TComputedColumnTest, Simple)
     auto query = Stroka("a from [//t] where l = 10");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey("20;10;"), result[0].first);
     EXPECT_EQ(BuildKey("20;10;" _MAX_), result[0].second);
@@ -4013,7 +4013,7 @@ TEST_F(TComputedColumnTest, Inequality)
     auto query = Stroka("a from [//t] where l < 10");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey(""), result[0].first);
     EXPECT_EQ(BuildKey(_MAX_), result[0].second);
@@ -4024,7 +4024,7 @@ TEST_F(TComputedColumnTest, Composite)
     auto query = Stroka("a from [//t] where l = 10 and m > 0 and m < 50");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey("20;10;0;" _MAX_), result[0].first);
     EXPECT_EQ(BuildKey("20;10;50;"), result[0].second);
@@ -4035,7 +4035,7 @@ TEST_F(TComputedColumnTest, Vector)
     auto query = Stroka("a from [//t] where l in (1,2,3)");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 3);
+    EXPECT_EQ(3, result.size());
 
     EXPECT_EQ(BuildKey("2;1;"), result[0].first);
     EXPECT_EQ(BuildKey("2;1;" _MAX_), result[0].second);
@@ -4050,7 +4050,7 @@ TEST_F(TComputedColumnTest, ComputedKeyInPredicate)
     auto query = Stroka("a from [//t] where (k,l) >= (10,20) ");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey("10;20;"), result[0].first);
     EXPECT_EQ(BuildKey(_MAX_), result[0].second);
@@ -4070,7 +4070,7 @@ TEST_F(TComputedColumnTest, ComputedColumnLast)
     auto query = Stroka("a from [//t] where k = 10");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey("10;13;"), result[0].first);
     EXPECT_EQ(BuildKey("10;13;" _MAX_), result[0].second);
@@ -4093,7 +4093,7 @@ TEST_F(TComputedColumnTest, Complex1)
     auto query = Stroka("a from [//t] where k = 10 and n = 20");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey("10;21;"), result[0].first);
     EXPECT_EQ(BuildKey("10;21;" _MAX_), result[0].second);
@@ -4116,7 +4116,7 @@ TEST_F(TComputedColumnTest, Complex2)
     auto query = Stroka("a from [//t] where (k,n) in ((10,20),(50,60))");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(2, result.size());
 
     EXPECT_EQ(BuildKey("10;21;"), result[0].first);
     EXPECT_EQ(BuildKey("10;21;" _MAX_), result[0].second);
@@ -4141,7 +4141,7 @@ TEST_F(TComputedColumnTest, Complex3)
     auto query = Stroka("a from [//t] where k = 10 and n = 20");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey("10;"), result[0].first);
     EXPECT_EQ(BuildKey("10;" _MAX_), result[0].second);
@@ -4161,7 +4161,7 @@ TEST_F(TComputedColumnTest, NoComputedColumns)
     auto query = Stroka("a from [//t] where a = 0");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey(_MIN_), result[0].first);
     EXPECT_EQ(BuildKey(_MAX_), result[0].second);
@@ -4181,7 +4181,7 @@ TEST_F(TComputedColumnTest, Modulo1)
     auto query = Stroka("a from [//t] where l > 0 and l <= 2000");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 4);
+    EXPECT_EQ(4, result.size());
 
     EXPECT_EQ(BuildKey(_NULL_ ";0;" _MAX_), result[0].first);
     EXPECT_EQ(BuildKey(_NULL_ ";2000;" _MAX_), result[0].second);
@@ -4209,7 +4209,7 @@ TEST_F(TComputedColumnTest, Modulo2)
     auto query = Stroka("a from [//t] where m = 1");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 4);
+    EXPECT_EQ(4, result.size());
 
     EXPECT_EQ(BuildKey(_NULL_ ";" _NULL_ ";1;"), result[0].first);
     EXPECT_EQ(BuildKey(_NULL_ ";" _NULL_ ";1;" _MAX_), result[0].second);
@@ -4236,7 +4236,7 @@ TEST_F(TComputedColumnTest, Modulo3)
     auto query = Stroka("a from [//t]");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey(_MIN_), result[0].first);
     EXPECT_EQ(BuildKey(_MAX_), result[0].second);
@@ -4256,7 +4256,7 @@ TEST_F(TComputedColumnTest, Divide1)
     auto query = Stroka("a from [//t] where l >= 3 and l < 6");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(2, result.size());
 
     EXPECT_EQ(BuildKey("1;3"), result[0].first);
     EXPECT_EQ(BuildKey("1;4"), result[0].second);
@@ -4279,7 +4279,7 @@ TEST_F(TComputedColumnTest, Divide2)
     auto query = Stroka("a from [//t] where m > 0 and m <= 6");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 4);
+    EXPECT_EQ(4, result.size());
 
     EXPECT_EQ(BuildKey("0;0;0;" _MAX_), result[0].first);
     EXPECT_EQ(BuildKey("0;0;3"), result[0].second);
@@ -4307,7 +4307,7 @@ TEST_F(TComputedColumnTest, Divide3)
     auto query = Stroka("a from [//t] where m >= 0u and m < 3u");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 4);
+    EXPECT_EQ(4, result.size());
 
     EXPECT_EQ(BuildKey("0u;" _NULL_ ";0u"), result[0].first);
     EXPECT_EQ(BuildKey("0u;" _NULL_ ";2u"), result[0].second);
@@ -4333,7 +4333,7 @@ TEST_F(TComputedColumnTest, Divide4)
     auto query = Stroka("a from [//t] where l >= -9223372036854775808 and l <= 9223372036854775807");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(2, result.size());
 
     EXPECT_EQ(BuildKey("0;0;"), result[0].first);
     EXPECT_EQ(BuildKey("0;9223372036854775807;" _MAX_), result[0].second);
@@ -4365,7 +4365,8 @@ TEST_P(TComputedColumnTest, Join)
     auto query = Stroka("l from [//t] join [//t1] using l where l in (0, 1)");
     auto result = CoordinateForeign(query);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(2, result.size());
+
     EXPECT_EQ(BuildKey(args[4]), result[0].first);
     EXPECT_EQ(BuildKey(args[5]), result[0].second);
     EXPECT_EQ(BuildKey(args[6]), result[1].first);
