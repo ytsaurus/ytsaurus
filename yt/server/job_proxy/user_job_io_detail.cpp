@@ -107,11 +107,6 @@ bool TUserJobIOBase::IsKeySwitchEnabled() const
     return false;
 }
 
-NScheduler::TJobIOConfigPtr TUserJobIOBase::GetConfig() const
-{
-    return JobIOConfig_;
-}
-
 ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
     TTableWriterOptionsPtr options,
     const TChunkListId& chunkListId,

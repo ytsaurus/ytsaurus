@@ -16,8 +16,6 @@
 #include <ytlib/api/transaction.h>
 #include <ytlib/api/rowset.h>
 
-#include <core/misc/public.h>
-
 namespace NYT {
 namespace NDriver {
 

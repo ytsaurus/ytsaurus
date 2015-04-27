@@ -24,8 +24,6 @@ struct IUserJobIO
 
     virtual bool IsKeySwitchEnabled() const = 0;
 
-    virtual NScheduler::TJobIOConfigPtr GetConfig() const = 0;
-
     virtual ~IUserJobIO()
     { }
 };
