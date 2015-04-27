@@ -128,10 +128,6 @@ class EventLog(object):
     def archive(self, count):
         self._check_invariant()
 
-        desired_chunk_size = 2 * 1024 ** 3
-        approximate_gzip_compression_ratio = 0.137
-        data_size_per_job = max(1, int(desired_chunk_size / approximate_gzip_compression_ratio))
-
         self.log.info("Archive %s rows from event log", count)
         if count == 0:
             self.log.warning("Do not archive 0 rows. Exit")
@@ -153,44 +149,34 @@ class EventLog(object):
             },
             ignore_existing=True)
 
-        tries = 0
-        finished = False
-        backoff_time = 5
-        while not finished:
-            try:
-                with self.yt.Transaction():
-                    self.log.info("Run merge; source table: %s", partition.to_yson_type())
-                    self.yt.run_merge(
-                        source_table=partition,
-                        destination_table=table.TablePath(self._archive_table_name, append=True),
-                        mode="ordered",
-                        compression_codec="gzip_best_compression",
-                        spec={
-                            "combine_chunks": "true",
-                            "force_transform": "true",
-                            "data_size_per_job": data_size_per_job,
-                            "job_io": {
-                                "table_writer": {
-                                    "desired_chunk_size": desired_chunk_size
-                                }
-                            }
-                        }
-                    )
-                    finished = True
-            except errors.YtError:
-                self.log.error("Failed to combine chunks. Unhandled exception", exc_info=True)
-
-                if tries > 20:
-                    self.log.error("Too many retries. Reraise")
-                    raise
-
-                self.log.info("Retry again in %d seconds...", backoff_time)
-                time.sleep(backoff_time)
-                tries += 1
-                backoff_time = min(backoff_time * 2, 600)
+        self._perform_with_retries(lambda: self._do_archive(partition))
 
         self._truncate(self._table_name, count)
         self._check_invariant()
+
+    def _do_archive(self, partition):
+        desired_chunk_size = 2 * 1024 ** 3
+        approximate_gzip_compression_ratio = 0.137
+        data_size_per_job = max(1, int(desired_chunk_size / approximate_gzip_compression_ratio))
+
+        self.log.info("Run merge; source table: %s", partition.to_yson_type())
+        self.yt.run_merge(
+            source_table=partition,
+            destination_table=table.TablePath(self._archive_table_name, append=True),
+            mode="ordered",
+            compression_codec="gzip_best_compression",
+            spec={
+                "combine_chunks": "true",
+                "force_transform": "true",
+                "data_size_per_job": data_size_per_job,
+                "job_io": {
+                    "table_writer": {
+                        "desired_chunk_size": desired_chunk_size
+                    }
+                }
+            }
+        )
+
 
     def truncate_archive(self, count):
         self._truncate(self._archive_table_name, count)
@@ -200,25 +186,31 @@ class EventLog(object):
         if row_count < count:
             raise RuntimeError("Unable to truncate %d rows from %s: there is only %d rows" %(count, table_name, row_count))
 
+        self._perform_with_retries(lambda: self._do_truncate(table_name, count))
+
+    def _do_truncate(self, table_name, count):
         partition = table.TablePath(
             table_name,
             start_index=0,
             end_index=count)
 
+        self.log.info("Truncate %d rows from %s...", count, table_name)
+        first_row = self.yt.get("{0}/@number_of_first_row".format(table_name))
+        first_row += count
+        self.yt.run_erase(partition)
+        self.yt.set("{0}/@number_of_first_row".format(table_name), first_row)
+
+    def _perform_with_retries(self, func):
         tries = 0
         finished = False
         backoff_time = 5
         while not finished:
             try:
                 with self.yt.Transaction():
-                    self.log.info("Truncate %d rows from %s...", count, table_name)
-                    first_row = self.yt.get("{0}/@number_of_first_row".format(table_name))
-                    first_row += count
-                    self.yt.run_erase(partition)
-                    self.yt.set("{0}/@number_of_first_row".format(table_name), first_row)
+                    func()
                 finished = True
             except errors.YtError:
-                self.log.error("Failed to truncate event log. Unhandled exception", exc_info=True)
+                self.log.error("Failed to perform %s. Unhandled exception", func.__name__, exc_info=True)
 
                 if tries > 20:
                     self.log.error("Too many retries. Reraise")
