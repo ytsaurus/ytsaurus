@@ -49,8 +49,7 @@ private:
 
     virtual size_t DoRead(void* buf, size_t len) override
     {
-        auto ref = TMutableRef(buf, len);
-        auto buffer = TSharedMutableRef::FromRefNonOwning(ref);
+        auto buffer = TSharedMutableRef(buf, len, nullptr);
         return UnderlyingStream_->Read(buffer)
             .Get()
             .ValueOrThrow();

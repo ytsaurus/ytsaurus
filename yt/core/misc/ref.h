@@ -168,12 +168,6 @@ public:
     }
 
 
-    //! Creates a non-owning TSharedRef from a TRef. Use it with caution!
-    static TSharedRef FromRefNonOwning(const TRef& ref)
-    {
-        return TSharedRef(ref, nullptr);
-    }
-
     //! Creates a TSharedRef from a string.
     //! Since strings are ref-counted, no data is copied.
     //! The memory is marked with a given tag.
@@ -319,13 +313,6 @@ public:
     {
         auto blob = TBlob(tagCookie, size, initializeStorage);
         return FromBlob(std::move(blob));
-    }
-
-    //! Creates a non-owning TSharedMutableRef from a TRef.
-    //! Use with caution :)
-    static TSharedMutableRef FromRefNonOwning(const TMutableRef& ref)
-    {
-        return TSharedMutableRef(ref, nullptr);
     }
 
     //! Creates a TSharedMutableRef for the whole blob taking ownership of its content.

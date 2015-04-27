@@ -28,9 +28,8 @@ private:
 
     virtual size_t DoRead(void* buf, size_t len) override
     {
-        auto ref = TMutableRef(buf, len);
-        auto sharedRef = TSharedMutableRef::FromRefNonOwning(ref);
-        auto result = WaitFor(UnderlyingStream_->Read(sharedRef));
+        auto buffer = TSharedMutableRef(buf, len, nullptr);
+        auto result = WaitFor(UnderlyingStream_->Read(buffer));
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
         return result.Value();
     }
@@ -102,9 +101,8 @@ private:
 
     virtual void DoWrite(const void* buf, size_t len) override
     {
-        auto ref = TRef(buf, len);
-        auto sharedRef = TSharedRef::FromRefNonOwning(ref);
-        auto result = WaitFor(UnderlyingStream_->Write(sharedRef));
+        auto buffer = TSharedRef(buf, len, nullptr);
+        auto result = WaitFor(UnderlyingStream_->Write(buffer));
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 };
