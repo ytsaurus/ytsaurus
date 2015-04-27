@@ -1307,6 +1307,7 @@ TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
     std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
     TCodegenSource codegenSource,
+    TTableSchema outputSchema,
     bool isMerge,
     bool isFinal)
 {
@@ -1314,7 +1315,9 @@ TCodegenSource MakeCodegenGroupOp(
         MOVE(codegenGroupExprs),
         MOVE(codegenAggregates),
         codegenSource = std::move(codegenSource),
-        isMerge
+        outputSchema,
+        isMerge,
+        isFinal
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         auto module = builder.Module->GetModule();
 
@@ -1394,6 +1397,7 @@ TCodegenSource MakeCodegenGroupOp(
                     aggStates.push_back(builder.CreateConstInBoundsGEP1_32(
                         CodegenValuesPtrFromRow(builder, groupRow),
                         keySize + index));
+                    //TODO: offset is not keySize + index in general
                 }
 
                 auto condition = builder.CreateICmpEQ(
@@ -1448,12 +1452,48 @@ TCodegenSource MakeCodegenGroupOp(
             &builder,
             consumeClosure);
 
+        auto codegenFinalizingConsumer = [
+            MOVE(codegenConsumer),
+            MOVE(codegenAggregates),
+            aggregatesCount,
+            outputSchema,
+            keySize,
+            isFinal
+        ] (TCGContext& builder, Value* row) {
+            if (isFinal) {
+                auto unversionedValueType =
+                    llvm::TypeBuilder<TValue, false>::get(builder.getContext());
+                auto result = builder.CreateAlloca(unversionedValueType);
+                for (int index = 0; index < aggregatesCount; ++index) {
+                    codegenAggregates[index].second.Finalize(
+                        builder,
+                        result,
+                        builder.CreateConstInBoundsGEP1_32(
+                            CodegenValuesPtrFromRow(builder, row),
+                            keySize + index));
+                    auto resultType = outputSchema.Columns()[keySize + index].Type;
+                    auto resultValue = TCGValue::CreateFromLlvmValue(
+                        builder,
+                        result,
+                        resultType);
+                    //TODO: offset is not keySize + index in general
+                    resultValue.StoreToRow(
+                        builder,
+                        row,
+                        keySize + index,
+                        keySize + index);
+                }
+            }
+
+            codegenConsumer(builder, row);
+        };
+
         CodegenForEachRow(
             consumeBuilder,
             consumeBuilder.CreateCall(builder.Module->GetRoutine("GetRowsData"), finalGroupedRows),
             consumeBuilder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), finalGroupedRows),
             stopFlag,
-            codegenConsumer);
+            codegenFinalizingConsumer);
 
         consumeBuilder.CreateRetVoid();
 
