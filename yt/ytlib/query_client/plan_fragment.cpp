@@ -1588,6 +1588,7 @@ void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
 {
     ToProto(proto->mutable_group_items(), original->GroupItems);
     ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
+    proto->set_is_merge(original->IsMerge);
     proto->set_is_final(original->IsFinal);
 }
 
@@ -1692,6 +1693,7 @@ TGroupClausePtr FromProto(const NProto::TGroupClause& serialized)
     for (int i = 0; i < serialized.aggregate_items_size(); ++i) {
         result->AddAggregateItem(FromProto(serialized.aggregate_items(i)));
     }
+    result->IsMerge = serialized.is_merge();
     result->IsFinal = serialized.is_final();
 
     return result;

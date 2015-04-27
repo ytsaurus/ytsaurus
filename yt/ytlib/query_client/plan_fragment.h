@@ -286,6 +286,7 @@ struct TGroupClause
 {
     TNamedItemList GroupItems;
     TAggregateItemList AggregateItems;
+    bool IsMerge;
     bool IsFinal;
 
     // TODO: Use ITableSchemaInterface
