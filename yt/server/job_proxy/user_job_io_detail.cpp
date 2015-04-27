@@ -119,6 +119,7 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
         options,
         nameTable,
         keyColumns,
+        TOwningKey(),
         Host_->GetMasterChannel(),
         transactionId,
         chunkListId,

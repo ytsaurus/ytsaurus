@@ -6,6 +6,9 @@
 
 #include <ytlib/object_client/public.h>
 
+#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
+
 #include <server/cypress_server/cypress_manager.h>
 
 namespace NYT {
@@ -15,6 +18,8 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NObjectClient;
 using namespace NCypressServer;
+using namespace NVersionedTableClient;
+using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -184,6 +189,88 @@ void SerializeOwningNodesPaths(
                     .Value(path);
             }
         });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOwningKey GetMaxKey(const TChunk* chunk)
+{
+    TOwningKey key;
+    auto chunkFormat = ETableChunkFormat(chunk->ChunkMeta().version());
+    if (chunkFormat == ETableChunkFormat::Old) {
+        // Deprecated chunks.
+        auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
+            chunk->ChunkMeta().extensions());
+        FromProto(&key, boundaryKeysExt.end());
+    } else {
+        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
+            chunk->ChunkMeta().extensions());
+        FromProto(&key, boundaryKeysExt.max());
+    }
+
+    return GetKeySuccessor(key.Get());
+}
+
+TOwningKey GetMaxKey(const TChunkList* chunkList)
+{
+    const auto& children = chunkList->Children();
+    YASSERT(!children.empty());
+    return GetMaxKey(children.back());
+}
+
+TOwningKey GetMaxKey(const TChunkTree* chunkTree)
+{
+    switch (chunkTree->GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+            return GetMaxKey(chunkTree->AsChunk());
+
+        case EObjectType::ChunkList:
+            return GetMaxKey(chunkTree->AsChunkList());
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+TOwningKey GetMinKey(const TChunk* chunk)
+{
+    TOwningKey key;
+    auto chunkFormat = ETableChunkFormat(chunk->ChunkMeta().version());
+    if (chunkFormat == ETableChunkFormat::Old) {
+        // Deprecated chunks.
+        auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
+            chunk->ChunkMeta().extensions());
+        FromProto(&key, boundaryKeysExt.start());
+    } else {
+        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
+            chunk->ChunkMeta().extensions());
+        FromProto(&key, boundaryKeysExt.min());
+    }
+
+    return key;
+}
+
+TOwningKey GetMinKey(const TChunkList* chunkList)
+{
+    const auto& children = chunkList->Children();
+    YASSERT(!children.empty());
+    return GetMinKey(children.front());
+}
+
+TOwningKey GetMinKey(const TChunkTree* chunkTree)
+{
+    switch (chunkTree->GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+            return GetMinKey(chunkTree->AsChunk());
+
+        case EObjectType::ChunkList:
+            return GetMinKey(chunkTree->AsChunkList());
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

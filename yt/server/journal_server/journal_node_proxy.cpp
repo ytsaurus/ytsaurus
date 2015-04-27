@@ -46,11 +46,6 @@ private:
         return JournalServerLogger;
     }
 
-    virtual ELockMode GetLockMode(EUpdateMode updateMode) override
-    {
-        return ELockMode::Exclusive;
-    }
-
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back("read_quorum");
@@ -182,7 +177,7 @@ private:
     {
         DeclareMutating();
 
-        auto mode = EUpdateMode(request->mode());
+        auto mode = EUpdateMode(request->update_mode());
         if (mode != EUpdateMode::Append) {
             THROW_ERROR_EXCEPTION("Journals only support %Qlv update mode",
                 EUpdateMode::Append);
