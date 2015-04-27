@@ -61,6 +61,7 @@ TGroupClausePtr CopyGroupClause(TConstGroupClausePtr originalGroupClause)
 
     groupClause->IsFinal = originalGroupClause->IsFinal;
 
+    return groupClause;
 }
 
 TTableSchema GetIntermediateSchema(
@@ -83,6 +84,8 @@ TTableSchema GetIntermediateSchema(
             schema.Columns().push_back(column);
         }
     }
+
+    return schema;
 }
 
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(

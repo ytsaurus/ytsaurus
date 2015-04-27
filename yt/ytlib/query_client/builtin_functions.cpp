@@ -489,6 +489,12 @@ TCodegenAggregateFinalize MakeCodegenFinalize(
 {
     return [
     ] (TCGContext& builder, Value* result, Value* aggState) {
+        builder.CreateStore(
+            builder.CreateStructGEP(aggState, TTypeBuilder::Type),
+            builder.CreateStructGEP(result, TTypeBuilder::Type));
+        builder.CreateStore(
+            builder.CreateStructGEP(aggState, TTypeBuilder::Data),
+            builder.CreateStructGEP(result, TTypeBuilder::Data));
     };
 }
 
@@ -622,15 +628,27 @@ TCodegenAggregateFinalize MakeCodegenAverageFinalize(
 {
     return [
     ] (TCGContext& builder, Value* result, Value* aggState) {
-        auto sumValue = aggState;
-        auto countValue = builder.CreateConstInBoundsGEP1_32(aggState, 1);
+        auto sumValue = builder.CreateLoad(
+            builder.CreateStructGEP(aggState, TTypeBuilder::Data));
+        auto countValue = builder.CreateLoad(
+            builder.CreateStructGEP(
+                builder.CreateConstInBoundsGEP1_32(aggState, 1),
+                TTypeBuilder::Data));
 
-        auto resultValue = builder.CreateFDiv(sumValue, countValue);
+        auto resultValue = builder.CreateFDiv(
+            builder.CreateSIToFP(sumValue, builder.getDoubleTy()),
+            builder.CreateSIToFP(countValue, builder.getDoubleTy()));
+
+        auto dataType = TDataTypeBuilder::get(builder.getContext());
+        auto resultData = builder.CreateBitCast(
+            resultValue,
+            dataType);
+
         builder.CreateStore(
             builder.getInt16(static_cast<ui16>(EValueType::Double)),
             builder.CreateStructGEP(result, TTypeBuilder::Type));
         builder.CreateStore(
-            resultValue,
+            resultData,
             builder.CreateStructGEP(result, TTypeBuilder::Data));
 
     };
