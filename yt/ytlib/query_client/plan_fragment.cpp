@@ -1049,6 +1049,10 @@ public:
                     aggregateFunction);
             }
 
+            auto resultType = functionRegistry
+                ->GetAggregateFunction(aggregateFunction)
+                ->InferResultType(typedOperands.front()->Type, source);
+
             CheckExpressionDepth(typedOperands.front());
 
             AggregateItems_->emplace_back(
@@ -1056,7 +1060,7 @@ public:
                 aggregateFunction,
                 subexprName);
 
-            aggregateColumn = AddColumn(GetTableSchema(), TColumnSchema(subexprName, typedOperands.front()->Type));
+            aggregateColumn = AddColumn(GetTableSchema(), TColumnSchema(subexprName, resultType));
         }
 
         return aggregateColumn;

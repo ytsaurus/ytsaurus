@@ -151,6 +151,10 @@ public:
         const Stroka& name,
         EValueType type) const override;
 
+    virtual EValueType InferResultType(
+        EValueType argumentType,
+        const TStringBuf& source) const override;
+
 private:
     const Stroka Name_;
 };
@@ -172,6 +176,10 @@ public:
     virtual std::vector<TColumnSchema> GetStateSchema(
         const Stroka& name,
         EValueType type) const override;
+
+    virtual EValueType InferResultType(
+        EValueType argumentType,
+        const TStringBuf& source) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

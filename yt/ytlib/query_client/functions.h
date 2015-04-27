@@ -44,6 +44,10 @@ struct IAggregateFunctionDescriptor
     virtual std::vector<TColumnSchema> GetStateSchema(
         const Stroka& name,
         EValueType type) const = 0;
+
+    virtual EValueType InferResultType(
+        EValueType argumentType,
+        const TStringBuf& source) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAggregateFunctionDescriptor)
