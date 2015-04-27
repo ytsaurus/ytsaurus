@@ -503,8 +503,12 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
 
     auto chunkManager = Bootstrap_->GetChunkManager();
 
-    for (auto replica : node->StoredReplicas()) {
+    while (true) {
+        auto replica = node->PickRandomReplica();
         auto* chunk = replica.GetPtr();
+        if (!chunk) {
+            break;
+        }
         if (static_cast<int>(result.size()) >= replicaCount) {
             break;
         }

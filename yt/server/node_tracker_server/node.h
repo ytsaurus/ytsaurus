@@ -124,6 +124,7 @@ public:
     bool AddReplica(TChunkPtrWithIndex replica, bool cached);
     void RemoveReplica(TChunkPtrWithIndex replica, bool cached);
     bool HasReplica(TChunkPtrWithIndex, bool cached) const;
+    TChunkPtrWithIndex PickRandomReplica();
 
     void AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp);
     bool HasUnapprovedReplica(TChunkPtrWithIndex replica) const;
@@ -165,10 +166,20 @@ private:
     int HintedReplicationSessionCount_;
     int HintedRepairSessionCount_;
 
+    TReplicaSet::iterator RandomReplicaIt_;
+
     void Init();
 
     static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndex replica);
     static NChunkClient::TChunkIdWithIndex ToGeneric(const NChunkClient::TChunkIdWithIndex& replica);
+
+    bool DoAddStoredReplica(TChunkPtrWithIndex replica);
+    bool DoRemoveStoredReplica(TChunkPtrWithIndex replica);
+    bool DoContainsStoredReplica(TChunkPtrWithIndex replica) const;
+
+    bool DoAddCachedReplica(TChunkPtrWithIndex replica);
+    bool DoRemoveCachedReplica(TChunkPtrWithIndex replica);
+    bool DoContainsCachedReplica(TChunkPtrWithIndex replica) const;
 
 };
 
