@@ -77,9 +77,12 @@ class EventLog(object):
         self.yt = yt
         self._table_name = table_name
         self._archive_table_name = self._table_name + ".archive"
+        self._last_saved_ts = "{0}/@last_saved_ts".format(self._table_name)
+
         self._number_of_first_row_attr = "{0}/@number_of_first_row".format(self._table_name)
         self._row_count_attr = "{0}/@row_count".format(self._table_name)
-        self._last_saved_ts = "{0}/@last_saved_ts".format(self._table_name)
+
+        self._archive_number_of_first_row_attr = "{0}/@number_of_first_row".format(self._archive_table_name)
         self._archive_row_count_attr = "{0}/@row_count".format(self._archive_table_name)
 
     def get_row_count(self):
@@ -89,7 +92,10 @@ class EventLog(object):
             return row_count + first_row
 
     def get_archive_row_count(self):
-        return self.yt.get(self._number_of_first_row_attr)
+        with self.yt.Transaction():
+            first_row = self.yt.get(self._archive_number_of_first_row_attr)
+            row_count = self.yt.get(self._archive_row_count_attr)
+            return row_count + first_row
 
     def get_data(self, begin, count):
         with self.yt.Transaction():
@@ -99,7 +105,7 @@ class EventLog(object):
             result = []
             if begin < 0:
                 self.log.error("Table index is less then 0: %d. Use archive table", begin)
-                archive_row_count = self.yt.get(self._archive_row_count_attr)
+                archive_row_count = self.yt.get(self.get_archive_row_count())
                 archive_begin = archive_row_count + begin
                 result.extend(self.yt.read_table(table.TablePath(
                     self._archive_table_name,
@@ -153,7 +159,7 @@ class EventLog(object):
         while not finished:
             try:
                 with self.yt.Transaction():
-                    self.log.info("Run merge; source table: %s", partition.get_json())
+                    self.log.info("Run merge; source table: %s", partition.to_yson_type())
                     self.yt.run_merge(
                         source_table=partition,
                         destination_table=table.TablePath(self._archive_table_name, append=True),
@@ -183,17 +189,33 @@ class EventLog(object):
                 tries += 1
                 backoff_time = min(backoff_time * 2, 600)
 
+        self._truncate(self._table_name, count)
+        self._check_invariant()
+
+    def truncate_archive(self, count):
+        self._truncate(self._archive_table_name, count)
+
+    def _truncate(self, table_name, count):
+        row_count = self.yt.get("{0}/@row_count".format(table_name))
+        if row_count < count:
+            raise RuntimeError("Unable to truncate %d rows from %s: there is only %d rows" %(count, table_name, row_count))
+
+        partition = table.TablePath(
+            table_name,
+            start_index=0,
+            end_index=count)
+
         tries = 0
         finished = False
         backoff_time = 5
         while not finished:
             try:
                 with self.yt.Transaction():
-                    self.log.info("Truncate %d rows from event log...", count)
-                    first_row = self.yt.get(self._number_of_first_row_attr)
+                    self.log.info("Truncate %d rows from %s...", count, table_name)
+                    first_row = self.yt.get("{0}/@number_of_first_row".format(table_name))
                     first_row += count
                     self.yt.run_erase(partition)
-                    self.yt.set(self._number_of_first_row_attr, first_row)
+                    self.yt.set("{0}/@number_of_first_row".format(table_name), first_row)
                 finished = True
             except errors.YtError:
                 self.log.error("Failed to truncate event log. Unhandled exception", exc_info=True)
@@ -207,7 +229,6 @@ class EventLog(object):
                 tries += 1
                 backoff_time = min(backoff_time * 2, 600)
 
-        self._check_invariant()
 
     def update_last_saved_ts(self, value):
         try:
@@ -217,22 +238,26 @@ class EventLog(object):
 
     def _check_invariant(self):
         try:
-            archive_row_count = self.yt.get(self._archive_row_count_attr)
+            archive_row_count = self.get_archive_row_count()
             self.log.debug("Archive table has %d rows", archive_row_count)
         except Exception:
+            self.log.error("Unhandled exception while getting archive row count", exc_info=True)
             archive_row_count = 0
 
         try:
             number_of_first_row = self.yt.get(self._number_of_first_row_attr)
             self.log.debug("Number of first row: %d", number_of_first_row)
         except Exception:
-            pass
-        assert number_of_first_row == archive_row_count
+            self.log.error("Unhandled exception while getting number of first row", exc_info=True)
+
+        assert number_of_first_row == archive_row_count, "%d != %d" % (number_of_first_row, archive_row_count)
 
     def initialize(self):
         with self.yt.Transaction():
             if not self.yt.exists(self._number_of_first_row_attr):
                 self.yt.set(self._number_of_first_row_attr, 0)
+            if not self.yt.exists(self._archive_number_of_first_row_attr):
+                self.yt.set(self._archive_number_of_first_row_attr, 0)
 
 
 class ChunkTooBigError(Exception):
@@ -834,6 +859,12 @@ def archive(table_name, proxy_path, logbroker_url, service_id, source_id, **kwar
     event_log.archive(count)
 
 
+def truncate(table_name, proxy_path, count, **kwargs):
+    set_proxy(proxy_path)
+    event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
+    event_log.truncate_archive(count)
+
+
 def run():
     options.define("table_name",
         metavar="PATH",
@@ -857,6 +888,7 @@ def run():
     options.define("version", default=False, help="output version and exit")
     options.define("archive", default=False, help="archive and exit")
     options.define("print_last_seqno", default=False, help="print last seqno and exit")
+    options.define("truncate", default=False, help="truncate archive table and exit")
 
     options.define("log_dir", metavar="PATH", default="/var/log/fennel", help="log directory")
 
@@ -889,6 +921,8 @@ def run():
         func = archive
     elif options.options.print_last_seqno:
         func = print_last_seqno
+    elif options.options.truncate:
+        func = truncate
     else:
         func = main
 
