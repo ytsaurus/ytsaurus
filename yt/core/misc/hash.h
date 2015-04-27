@@ -49,7 +49,7 @@ public:
     }
 
 private:
-    const size_t Seed_;
+    size_t Seed_;
     TUnderlying Underlying_;
 
 };
