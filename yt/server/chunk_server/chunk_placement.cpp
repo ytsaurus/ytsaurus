@@ -65,16 +65,11 @@ public:
         return true;
     }
 
-    bool TryAddNode(TNode* node, bool enableRackAwareness)
+    void AddNode(TNode* node)
     {
-        if (!CheckNode(node, enableRackAwareness)) {
-            return false;
-        }
-
         IncreaseRackUsage(node);
         AddedNodes_.push_back(node);
         ForbiddenNodes_.push_back(node);
-        return true;
     }
 
     const TNodeList& GetAddedNodes() const
@@ -185,8 +180,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         desiredCount,
         minCount,
         forbiddenNodes,
-        preferredHostName,
-        EWriteSessionType::User);
+        preferredHostName);
 
     for (auto* target : targetNodes) {
         AddSessionHint(target, sessionType);
@@ -269,14 +263,13 @@ TNodeList TChunkPlacement::GetWriteTargets(
     int desiredCount,
     int minCount,
     const TNodeList* forbiddenNodes,
-    const TNullable<Stroka>& preferredHostName,
-    EWriteSessionType sessionType)
+    const TNullable<Stroka>& preferredHostName)
 {
     TTargetCollector collector(chunk, forbiddenNodes);
 
     auto tryAdd = [&] (TNode* node, bool enableRackAwareness) {
-        if (IsValidWriteTarget(node, chunk, sessionType)) {
-            collector.TryAddNode(node, enableRackAwareness);
+        if (IsValidWriteTarget(node, chunk->GetType(), &collector, enableRackAwareness)) {
+            collector.AddNode(node);
         }
     };
 
@@ -312,8 +305,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     auto targetNodes = GetWriteTargets(
         chunk,
         desiredCount,
-        minCount,
-        sessionType);
+        minCount);
 
     for (auto* target : targetNodes) {
         AddSessionHint(target, sessionType);
@@ -325,8 +317,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
 TNodeList TChunkPlacement::GetWriteTargets(
     TChunk* chunk,
     int desiredCount,
-    int minCount,
-    EWriteSessionType sessionType)
+    int minCount)
 {
     auto nodeTracker = Bootstrap_->GetNodeTracker();
     auto chunkManager = Bootstrap_->GetChunkManager();
@@ -352,8 +343,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
         desiredCount,
         minCount,
         &forbiddenNodes,
-        Null,
-        sessionType);
+        Null);
 }
 
 TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex)
@@ -412,10 +402,10 @@ bool TChunkPlacement::HasBalancingTargets(double maxFillFactor)
 }
 
 TNode* TChunkPlacement::AllocateBalancingTarget(
-    TChunkPtrWithIndex chunkWithIndex,
+    TChunk* chunk,
     double maxFillFactor)
 {
-    auto* target = GetBalancingTarget(chunkWithIndex, maxFillFactor);
+    auto* target = GetBalancingTarget(chunk, maxFillFactor);
 
     if (target) {
         AddSessionHint(target, EWriteSessionType::Replication);
@@ -425,17 +415,17 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
 }
 
 TNode* TChunkPlacement::GetBalancingTarget(
-    TChunkPtrWithIndex chunkWithIndex,
+    TChunk* chunk,
     double maxFillFactor)
 {
-    TTargetCollector collector(chunkWithIndex.GetPtr(), nullptr);
+    TTargetCollector collector(chunk, nullptr);
 
     for (const auto& pair : FillFactorToNode_) {
         auto* node = pair.second;
         if (GetFillFactor(node) > maxFillFactor) {
             break;
         }
-        if (IsValidBalancingTarget(node, chunkWithIndex) && collector.CheckNode(node, true)) {
+        if (IsValidBalancingTarget(node, chunk->GetType(), &collector, true)) {
             return node;
         }
     }
@@ -445,8 +435,9 @@ TNode* TChunkPlacement::GetBalancingTarget(
 
 bool TChunkPlacement::IsValidWriteTarget(
     TNode* node,
-    TChunk* chunk,
-    EWriteSessionType sessionType)
+    EObjectType chunkType,
+    TTargetCollector* collector,
+    bool enableRackAwareness)
 {
     if (node->GetState() != ENodeState::Online) {
         // Do not write anything to a node before its first heartbeat or after it is unregistered.
@@ -458,13 +449,18 @@ bool TChunkPlacement::IsValidWriteTarget(
         return false;
     }
 
-    if (!IsAcceptedChunkType(node, chunk->GetType())) {
-        // Do not write anything to full nodes.
+    if (!IsAcceptedChunkType(node, chunkType)) {
+        // Do not write anything to nodes not accepting this type of chunks.
         return false;
     }
 
     if (node->GetDecommissioned()) {
         // Do not write anything to decommissioned nodes.
+        return false;
+    }
+
+    if (!collector->CheckNode(node, enableRackAwareness)) {
+        // The collector does not like this node.
         return false;
     }
 
@@ -474,24 +470,18 @@ bool TChunkPlacement::IsValidWriteTarget(
 
 bool TChunkPlacement::IsValidBalancingTarget(
     TNode* node,
-    TChunkPtrWithIndex chunkWithIndex) const
+    NObjectClient::EObjectType chunkType,
+    TTargetCollector* collector,
+    bool enableRackAwareness)
 {
-    if (!IsValidWriteTarget(node, chunkWithIndex.GetPtr(), EWriteSessionType::Replication)) {
-        // Balancing implies upload, after all.
+    // Balancing implies write, after all.
+    if (!IsValidWriteTarget(node, chunkType, collector, enableRackAwareness)) {
         return false;
     }
 
-    if (node->StoredReplicas().find(chunkWithIndex) != node->StoredReplicas().end())  {
-        // Do not balance to a node already having the chunk.
+    if (node->GetSessionCount(EWriteSessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
+        // Do not write anything to a node with too many write sessions.
         return false;
-    }
-
-    auto chunkManager = Bootstrap_->GetChunkManager();
-    for (const auto& job : node->Jobs()) {
-        if (job->GetChunkIdWithIndex().Id == chunkWithIndex.GetPtr()->GetId()) {
-            // Do not balance to a node already having a job associated with this chunk.
-            return false;
-        }
     }
 
     // Seems OK :)

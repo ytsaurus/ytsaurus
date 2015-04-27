@@ -634,14 +634,12 @@ bool TChunkReplicator::CreateBalancingJob(
     double maxFillFactor,
     TJobPtr* job)
 {
-    TChunkIdWithIndex chunkIdWithIndex(chunkWithIndex.GetPtr()->GetId(), chunkWithIndex.GetIndex());
     auto* chunk = chunkWithIndex.GetPtr();
-
     if (chunk->GetRefreshScheduled()) {
         return true;
     }
 
-    auto* targetNode = ChunkPlacement_->AllocateBalancingTarget(chunkWithIndex, maxFillFactor);
+    auto* targetNode = ChunkPlacement_->AllocateBalancingTarget(chunk, maxFillFactor);
     if (!targetNode) {
         return false;
     }
@@ -649,6 +647,7 @@ bool TChunkReplicator::CreateBalancingJob(
     TNodeResources resourceUsage;
     resourceUsage.set_replication_slots(1);
 
+    TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), chunkWithIndex.GetIndex());
     *job = TJob::CreateReplicate(
         chunkIdWithIndex,
         sourceNode,

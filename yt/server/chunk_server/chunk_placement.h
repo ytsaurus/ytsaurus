@@ -57,7 +57,7 @@ public:
         int replicaCount);
 
     TNode* AllocateBalancingTarget(
-        TChunkPtrWithIndex chunkWithIndex,
+        TChunk* chunk,
         double maxFillFactor);
 
 private:
@@ -84,17 +84,15 @@ private:
         int desiredCount,
         int minCount,
         const TNodeList* forbiddenNodes,
-        const TNullable<Stroka>& preferredHostName,
-        NChunkClient::EWriteSessionType sessionType);
+        const TNullable<Stroka>& preferredHostName);
 
     TNodeList GetWriteTargets(
         TChunk* chunk,
         int desiredCount,
-        int minCount,
-        NChunkClient::EWriteSessionType sessionType);
+        int minCount);
 
     TNode* GetBalancingTarget(
-        TChunkPtrWithIndex chunkWithIndex,
+        TChunk* chunk,
         double maxFillFactor);
 
     static bool IsFull(TNode* node);
@@ -103,15 +101,18 @@ private:
         TNode* node,
         NObjectClient::EObjectType type);
 
-    static bool IsValidWriteTarget(
+    bool IsValidWriteTarget(
         TNode* node,
-        TChunk* chunk,
-        NChunkClient::EWriteSessionType sessionType);
+        NObjectClient::EObjectType chunkType,
+        TTargetCollector* collector,
+        bool enableRackAwareness);
     
     bool IsValidBalancingTarget(
         TNode* node,
-        TChunkPtrWithIndex chunkWithIndex) const;
-    
+        NObjectClient::EObjectType chunkType,
+        TTargetCollector* collector,
+        bool enableRackAwareness);
+
     bool IsValidRemovalTarget(TNode* node);
 
     void AddSessionHint(
