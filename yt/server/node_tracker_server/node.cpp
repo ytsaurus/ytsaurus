@@ -65,6 +65,7 @@ void TNode::Init()
     Transaction_ = nullptr;
     Decommissioned_ = Config_->Decommissioned;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
+    RandomReplicaIt_ = StoredReplicas_.end();
     ResetSessionHints();
 }
 
@@ -133,15 +134,15 @@ bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
     auto* chunk = replica.GetPtr();
     if (cached) {
         YASSERT(!chunk->IsJournal());
-        return CachedReplicas_.insert(replica).second;
+        return DoAddCachedReplica(replica);
     } else  {
         if (chunk->IsJournal()) {
-            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
-            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
-            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
+            DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
+            DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
+            DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
         } 
         // NB: For journal chunks result is always true.
-        return StoredReplicas_.insert(replica).second;
+        return DoAddStoredReplica(replica);
     }
 }
 
@@ -150,14 +151,14 @@ void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
     auto* chunk = replica.GetPtr();
     if (cached) {
         YASSERT(!chunk->IsJournal());
-        CachedReplicas_.erase(replica);
+        DoRemoveCachedReplica(replica);
     } else {
         if (chunk->IsJournal()) {
-            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
-            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
-            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
+            DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
+            DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
+            DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
         } else {
-            StoredReplicas_.erase(replica);
+            DoRemoveStoredReplica(replica);
         }
 
         auto genericReplica = ToGeneric(replica);
@@ -178,17 +179,30 @@ bool TNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
     auto* chunk = replica.GetPtr();
     if (cached) {
         YASSERT(!chunk->IsJournal());
-        return CachedReplicas_.find(replica) != CachedReplicas_.end();
+        return DoContainsCachedReplica(replica);
     } else {
         if (chunk->IsJournal()) {
             return
-                StoredReplicas_.find(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex)) != StoredReplicas_.end() ||
-                StoredReplicas_.find(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex)) != StoredReplicas_.end() ||
-                StoredReplicas_.find(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex)) != StoredReplicas_.end();
+                DoContainsStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex)) ||
+                DoContainsStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex)) ||
+                DoContainsStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
         } else {
-            return StoredReplicas_.find(replica) != StoredReplicas_.end();
+            return DoContainsStoredReplica(replica);
         }
     }
+}
+
+TChunkPtrWithIndex TNode::PickRandomReplica()
+{
+    if (StoredReplicas_.empty()) {
+        return TChunkPtrWithIndex();
+    }
+
+    if (RandomReplicaIt_ == StoredReplicas_.end()) {
+        RandomReplicaIt_ = StoredReplicas_.begin();
+    }
+
+    return *(RandomReplicaIt_++);
 }
 
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp)
@@ -210,10 +224,10 @@ void TNode::ApproveReplica(TChunkPtrWithIndex replica)
     YCHECK(UnapprovedReplicas_.erase(ToGeneric(replica)) == 1);
     auto* chunk = replica.GetPtr();
     if (chunk->IsJournal()) {
-        StoredReplicas_.erase(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
-        StoredReplicas_.erase(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
-        StoredReplicas_.erase(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
-        YCHECK(StoredReplicas_.insert(replica).second);
+        DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
+        DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
+        DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
+        YCHECK(DoAddStoredReplica(replica));
     }
 }
 
@@ -364,6 +378,45 @@ TChunkIdWithIndex TNode::ToGeneric(const TChunkIdWithIndex& replica)
     return TypeFromId(replica.Id) == EObjectType::JournalChunk
         ? TChunkIdWithIndex(replica.Id, GenericChunkReplicaIndex)
         : replica;
+}
+
+bool TNode::DoAddStoredReplica(TChunkPtrWithIndex replica)
+{
+    auto pair = StoredReplicas_.insert(replica);
+    if (pair.second) {
+        RandomReplicaIt_ = pair.first;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool TNode::DoRemoveStoredReplica(TChunkPtrWithIndex replica)
+{
+    if (RandomReplicaIt_ != StoredReplicas_.end() && *RandomReplicaIt_ == replica) {
+        ++RandomReplicaIt_;
+    }
+    return StoredReplicas_.erase(replica) == 1;
+}
+
+bool TNode::DoContainsStoredReplica(TChunkPtrWithIndex replica) const
+{
+    return CachedReplicas_.find(replica) != CachedReplicas_.end();
+}
+
+bool TNode::DoAddCachedReplica(TChunkPtrWithIndex replica)
+{
+    return CachedReplicas_.insert(replica).second;
+}
+
+bool TNode::DoRemoveCachedReplica(TChunkPtrWithIndex replica)
+{
+    return CachedReplicas_.erase(replica) == 1;
+}
+
+bool TNode::DoContainsCachedReplica(TChunkPtrWithIndex replica) const
+{
+    return CachedReplicas_.find(replica) != CachedReplicas_.end();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
