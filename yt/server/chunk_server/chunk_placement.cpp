@@ -41,7 +41,7 @@ public:
         }
 
         for (auto replica : chunk->StoredReplicas()) {
-            auto*   p  node = replica.GetPtr();
+            auto* node = replica.GetPtr();
             IncreaseRackUsage(node);
             ForbiddenNodes_.push_back(node);
         }
