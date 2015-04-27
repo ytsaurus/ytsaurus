@@ -501,6 +501,7 @@ void TObjectManager::UnrefObject(TObjectBase* object)
 void TObjectManager::WeakRefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YASSERT(object->IsTrunk());
 
     int weakRefCounter = object->WeakRefObject();
     if (weakRefCounter == 1) {
@@ -648,6 +649,13 @@ void TObjectManager::OnRecoveryStarted()
 
     GarbageCollector_->UnlockAll();
     LockedObjectCount_ = 0;
+
+    for (auto type : RegisteredTypes_) {
+        auto handler = GetHandler(type);
+        LOG_INFO("Started resetting objects (Type: %v)", type);
+        handler->ResetAllObjects();
+        LOG_INFO("Finished resetting objects (Type: %v)", type);
+    }
 }
 
 void TObjectManager::OnRecoveryComplete()

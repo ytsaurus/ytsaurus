@@ -306,6 +306,14 @@ public:
             EPermission::Administer);
     }
 
+    virtual void ResetAllObjects() override
+    {
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        for (const auto& pair : cypressManager->Nodes()) {
+            DoReset(pair.second);
+        }
+    }
+
 private:
     EObjectType Type;
 
@@ -338,6 +346,11 @@ private:
     virtual TObjectBase* DoGetParent(TCypressNodeBase* node) override
     {
         return node->GetParent();
+    }
+
+    void DoReset(TCypressNodeBase* node)
+    {
+        node->ResetWeakRefCounter();
     }
 
 };
@@ -1383,16 +1396,6 @@ void TCypressManager::Clear()
 
     DoClear();
     InitBuiltin();
-}
-
-void TCypressManager::OnRecoveryComplete()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    for (const auto& pair : NodeMap) {
-        auto* node = pair.second;
-        node->ResetWeakRefCounter();
-    }
 }
 
 TCypressNodeBase* TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> nodeHolder)

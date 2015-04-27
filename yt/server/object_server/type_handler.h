@@ -118,6 +118,13 @@ struct IObjectTypeHandler
     //! Returns the set of all permissions supported by this object type.
     virtual NYTree::EPermissionSet GetSupportedPermissions() const = 0;
 
+    //! Resets the transient state of all managed objects.
+    /*!
+     *  This is called upon recovery startup.
+     *  Among other things, the handler must reset weak ref counters to zero.
+     */
+    virtual void ResetAllObjects() = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectTypeHandler)
