@@ -519,6 +519,20 @@ std::vector<TColumnSchema> TAggregateFunction::GetStateSchema(
     };
 }
 
+EValueType TAggregateFunction::InferResultType(
+    EValueType argumentType,
+    const TStringBuf& source) const
+{
+    if (argumentType == EValueType::Int64
+        || argumentType == EValueType::Uint64
+        || argumentType == EValueType::Double) {
+        return argumentType;
+    }
+    THROW_ERROR_EXCEPTION(
+        "Aggregate function %Qv must have an integer or double argument",
+        GetName());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TAverageAggregateFunction::TAverageAggregateFunction()
@@ -674,6 +688,13 @@ std::vector<TColumnSchema> TAverageAggregateFunction::GetStateSchema(
         TColumnSchema("sum", EValueType::Int64),
         TColumnSchema("count", EValueType::Int64)
     };
+}
+
+EValueType TAverageAggregateFunction::InferResultType(
+    EValueType argumentType,
+    const TStringBuf& source) const
+{
+    return EValueType::Double;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
