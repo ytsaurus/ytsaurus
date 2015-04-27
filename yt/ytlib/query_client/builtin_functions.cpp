@@ -490,10 +490,12 @@ TCodegenAggregateFinalize MakeCodegenFinalize(
     return [
     ] (TCGContext& builder, Value* result, Value* aggState) {
         builder.CreateStore(
-            builder.CreateStructGEP(aggState, TTypeBuilder::Type),
+            builder.CreateLoad(
+                builder.CreateStructGEP(aggState, TTypeBuilder::Type)),
             builder.CreateStructGEP(result, TTypeBuilder::Type));
         builder.CreateStore(
-            builder.CreateStructGEP(aggState, TTypeBuilder::Data),
+            builder.CreateLoad(
+                builder.CreateStructGEP(aggState, TTypeBuilder::Data)),
             builder.CreateStructGEP(result, TTypeBuilder::Data));
     };
 }
