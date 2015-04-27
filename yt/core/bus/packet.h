@@ -2,8 +2,8 @@
 
 #include "private.h"
 
-#include <core/misc/ref.h>
 #include <core/misc/small_vector.h>
+#include <core/misc/chunked_memory_allocator.h>
 
 namespace NYT {
 namespace NBus {
@@ -92,8 +92,7 @@ public:
 private:
     friend class TPacketTranscoderBase<TPacketDecoder>;
 
-    TSharedMutableRef SmallChunk;
-    size_t SmallChunkUsed = 0;
+    TChunkedMemoryAllocator Allocator;
 
     std::vector<TSharedRef> Parts;
 
@@ -104,7 +103,6 @@ private:
     bool EndPartSizesPhase();
     bool EndMessagePartPhase();
     void NextMessagePartPhase();
-    TSharedMutableRef AllocatePart(size_t partSize);
 
 };
 

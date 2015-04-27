@@ -8,12 +8,16 @@ namespace NBus {
 
 static const auto& Logger = BusLogger;
 
-static const size_t SmallChunkSize = 16 * 1024;
-static const size_t SmallPartSize  =  4 * 1024;
+static const i64 PacketDecoderChunkSize = 16 * 1024;
+struct TPacketDecoderTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TPacketDecoder::TPacketDecoder()
+    : Allocator(
+        PacketDecoderChunkSize,
+        TChunkedMemoryAllocator::DefaultMaxSmallBlockSizeRatio,
+        GetRefCountedTypeCookie<TPacketDecoderTag>())
 {
     Restart();
 }
@@ -146,7 +150,7 @@ void TPacketDecoder::NextMessagePartPhase()
 
         size_t partSize = PartSizes[PartIndex];
         if (partSize != 0) {
-            auto part = AllocatePart(partSize);
+            auto part = Allocator.AllocateAligned(partSize);
             BeginPhase(EPacketPhase::MessagePart, part.Begin(), part.Size());            
             Parts.push_back(std::move(part));
             return;
@@ -157,23 +161,6 @@ void TPacketDecoder::NextMessagePartPhase()
 
     Message = TSharedRefArray(std::move(Parts));
     SetFinished();
-}
-
-TSharedMutableRef TPacketDecoder::AllocatePart(size_t partSize)
-{
-    if (partSize <= SmallPartSize) {
-        if (SmallChunkUsed + partSize > SmallChunk.Size()) {
-            struct TSmallReceivedMessagePartTag { };
-            SmallChunk = TSharedMutableRef::Allocate<TSmallReceivedMessagePartTag>(SmallChunkSize, false);
-            SmallChunkUsed = 0;            
-        }
-        auto part = SmallChunk.Slice(SmallChunkUsed, SmallChunkUsed + partSize);
-        SmallChunkUsed += partSize;
-        return part;
-    } else {
-        struct TLargeReceivedMessagePartTag { };
-        return TSharedMutableRef::Allocate<TLargeReceivedMessagePartTag>(partSize, false);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
