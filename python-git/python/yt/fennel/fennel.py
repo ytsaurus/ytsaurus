@@ -41,11 +41,6 @@ import collections
 import random
 
 
-DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
-DEFAULT_CHUNK_SIZE = 4000
-DEFAULT_SERVICE_ID = "yt"
-DEFAULT_LOG_NAME = "yt-scheduler-log"
-
 log = logging.getLogger("Fennel")
 
 
@@ -842,16 +837,16 @@ def archive(table_name, proxy_path, logbroker_url, service_id, source_id, **kwar
 def run():
     options.define("table_name",
         metavar="PATH",
-        default=DEFAULT_TABLE_NAME,
+        default="//sys/scheduler/event_log",
         help="[yt] path to scheduler event log")
     options.define("proxy_path", metavar="URL", help="[yt] url to proxy")
-    options.define("chunk_size", default=DEFAULT_CHUNK_SIZE, help="size of chunk in rows")
+    options.define("chunk_size", default=4000, help="size of chunk in rows")
 
     options.define("cluster_name", default="", help="[logbroker] name of source cluster")
-    options.define("log_name", default=DEFAULT_LOG_NAME, help="[logbroker] name of source cluster")
+    options.define("log_name", default="yt-scheduler-log", help="[logbroker] name of source cluster")
     options.define("logtype", default="", help="[logbroker] log type")
     options.define("logbroker_url", default="", help="[logbroker] url to get adviced kafka endpoint")
-    options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
+    options.define("service_id", default="yt", help="[logbroker] service id")
     options.define("source_id", help="[logbroker] source id")
 
     options.define("threshold", default=10**6, help="threshold of lag size to generate error")
