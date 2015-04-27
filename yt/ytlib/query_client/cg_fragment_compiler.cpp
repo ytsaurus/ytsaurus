@@ -1306,12 +1306,14 @@ TCodegenSource MakeCodegenProjectOp(
 TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
     std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
-    TCodegenSource codegenSource)
+    TCodegenSource codegenSource,
+    bool isFinal)
 {
     return [
         MOVE(codegenGroupExprs),
         MOVE(codegenAggregates),
-        codegenSource = std::move(codegenSource)
+        codegenSource = std::move(codegenSource),
+        isFinal
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         auto module = builder.Module->GetModule();
 
@@ -1412,10 +1414,17 @@ TCodegenSource MakeCodegenGroupOp(
                     auto newValue = builder.CreateConstInBoundsGEP1_32(
                         CodegenValuesPtrFromRow(builder, newRowRef),
                         keySize + index);
-                    codegenAggregates[index].second.Update(
-                        builder,
-                        aggStates[index],
-                        newValue);
+                    if (isFinal) {
+                        codegenAggregates[index].second.Merge(
+                            builder,
+                            aggStates[index],
+                            newValue);
+                    } else {
+                        codegenAggregates[index].second.Update(
+                            builder,
+                            aggStates[index],
+                            newValue);
+                    }
                 }
             });
 

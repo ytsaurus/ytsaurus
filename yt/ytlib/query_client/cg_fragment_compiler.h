@@ -439,7 +439,8 @@ TCodegenSource MakeCodegenJoinOp(
 TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
     std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
-    TCodegenSource codegenSource);
+    TCodegenSource codegenSource,
+    bool isFinal);
 
 TCodegenSource MakeCodegenOrderOp(
     std::vector<Stroka> orderColumns,
