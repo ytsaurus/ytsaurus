@@ -110,11 +110,19 @@ public:
 
     virtual void Abort(const TError& error) override
     {
-        if (JobState_ != EJobState::Running)
-            return;
+        switch (JobState_) {
+            case EJobState::Waiting:
+                SetAborted(error);
+                return;
 
-        JobFuture_.Cancel();
-        SetAborted(error);
+            case EJobState::Running:
+                JobFuture_.Cancel();
+                SetAborted(error);
+                return;
+
+            default:
+                return;
+        }
     }
 
     virtual const TJobId& GetId() const override
@@ -262,8 +270,10 @@ private:
         JobState_ = finalState;
         ToProto(Result_.mutable_error(), error);
         ToProto(Result_.mutable_statistics(), GetJobStatistics());
+        auto deltaResources = ZeroNodeResources() - ResourceLimits_;
         ResourceLimits_ = ZeroNodeResources();
         JobFuture_.Reset();
+        ResourcesUpdated_.Fire(deltaResources);
     }
 
 };
