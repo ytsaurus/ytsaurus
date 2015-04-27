@@ -401,7 +401,7 @@ bool TNode::DoRemoveStoredReplica(TChunkPtrWithIndex replica)
 
 bool TNode::DoContainsStoredReplica(TChunkPtrWithIndex replica) const
 {
-    return CachedReplicas_.find(replica) != CachedReplicas_.end();
+    return StoredReplicas_.find(replica) != StoredReplicas_.end();
 }
 
 bool TNode::DoAddCachedReplica(TChunkPtrWithIndex replica)
