@@ -41,7 +41,7 @@ public:
         }
 
         for (auto replica : chunk->StoredReplicas()) {
-            auto* node = replica.GetPtr();
+            auto*   p  node = replica.GetPtr();
             IncreaseRackUsage(node);
             ForbiddenNodes_.push_back(node);
         }
@@ -522,6 +522,9 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
             continue;
         }
         if (!chunk->IsSealed()) {
+            continue;
+        }
+        if (chunk->GetRefreshScheduled()) {
             continue;
         }
         if (chunkManager->FindJobList(chunk)) {
