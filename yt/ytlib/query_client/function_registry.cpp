@@ -66,9 +66,10 @@ IFunctionDescriptorPtr TFunctionRegistry::FindFunction(const Stroka& functionNam
 
 void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 {
-    auto builtinImplementations = TSharedRef::FromRefNonOwning(TRef(
+    auto builtinImplementations = TSharedRef(
         builtin_functions_bc,
-        builtin_functions_bc_len));
+        builtin_functions_bc_len,
+        nullptr);
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "is_substr",

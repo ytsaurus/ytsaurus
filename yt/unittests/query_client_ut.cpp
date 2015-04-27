@@ -2167,10 +2167,10 @@ protected:
 
         ActionQueue_ = New<TActionQueue>("Test");
 
-        auto testUdfImplementations =
-            TSharedRef::FromRefNonOwning(TRef(
-                test_udfs_bc,
-                test_udfs_bc_len));
+        auto testUdfImplementations = TSharedRef(
+            test_udfs_bc,
+            test_udfs_bc_len,
+            nullptr);
 
         AbsUdf_ = New<TUserDefinedFunction>(
             "abs_udf",
@@ -3429,9 +3429,10 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
         "a=1;b=10",
     };
 
-    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
+    auto fileRef = TSharedRef(
         invalid_ir_bc,
-        invalid_ir_bc_len));
+        invalid_ir_bc_len,
+        nullptr);
 
     auto invalidUdfDescriptor = New<TUserDefinedFunction>(
         "invalid_ir",
@@ -3458,9 +3459,10 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
         "a=1;b=10",
     };
 
-    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
+    auto fileRef = TSharedRef(
         test_udfs_bc,
-        test_udfs_bc_len));
+        test_udfs_bc_len,
+        nullptr);
 
     auto twoArgumentUdf = New<TUserDefinedFunction>(
         "abs_udf",
@@ -3487,9 +3489,10 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
         "a=1;b=10",
     };
 
-    auto fileRef = TSharedRef::FromRefNonOwning(TRef(
+    auto fileRef = TSharedRef(
         test_udfs_bc,
-        test_udfs_bc_len));
+        test_udfs_bc_len,
+        nullptr);
 
     auto invalidArgumentUdf = New<TUserDefinedFunction>(
         "abs_udf",
@@ -3717,9 +3720,10 @@ TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
         "malloc_udf",
         std::vector<TType>{EValueType::Int64},
         EValueType::Int64,
-        TSharedRef::FromRefNonOwning(TRef(
+        TSharedRef(
             malloc_udf_bc,
-            malloc_udf_bc_len)),
+            malloc_udf_bc_len,
+            nullptr),
         ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();

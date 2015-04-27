@@ -102,7 +102,7 @@ bool DeserializeFromProtoWithEnvelope(
         return false;
     }
 
-    auto compressedMessage = TSharedRef::FromRefNonOwning(TRef(sourceMessage, fixedHeader->MessageSize));
+    auto compressedMessage = TSharedRef(sourceMessage, fixedHeader->MessageSize, nullptr);
 
     auto codecId = NCompression::ECodec(envelope.codec());
     auto codec = NCompression::GetCodec(codecId);
