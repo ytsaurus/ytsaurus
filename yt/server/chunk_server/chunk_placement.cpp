@@ -503,7 +503,8 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
 
     auto chunkManager = Bootstrap_->GetChunkManager();
 
-    while (true) {
+    // Let's bound the number of iterations somehow.
+    for (int index = 0; index < replicaCount * 2; ++index) {
         auto replica = node->PickRandomReplica();
         auto* chunk = replica.GetPtr();
         if (!chunk) {
