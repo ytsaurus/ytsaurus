@@ -1106,7 +1106,6 @@ TConstGroupClausePtr BuildGroupClause(
     IFunctionRegistry* functionRegistry)
 {
     auto groupClause = New<TGroupClause>();
-    groupClause->IsFinal = false;
     TTableSchema& tableSchema = groupClause->GroupedTableSchema;
 
     for (const auto& expr : expressionsAst.Get()) {

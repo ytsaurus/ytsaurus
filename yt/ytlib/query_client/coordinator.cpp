@@ -6,6 +6,7 @@
 #include "plan_helpers.h"
 #include "plan_fragment.h"
 #include "range_inferrer.h"
+#include "functions.h"
 
 #include <core/logging/log.h>
 
@@ -30,6 +31,59 @@ using namespace NVersionedTableClient;
 static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TGroupClausePtr CopyGroupClause(TConstGroupClausePtr originalGroupClause)
+{
+    auto groupClause = New<TGroupClause>();
+
+    groupClause->GroupedTableSchema = originalGroupClause->GroupedTableSchema;
+
+    auto& finalGroupItems = groupClause->GroupItems;
+    for (const auto& groupItem : originalGroupClause->GroupItems) {
+        auto referenceExpr = New<TReferenceExpression>(
+            NullSourceLocation,
+            groupItem.Expression->Type,
+            groupItem.Name);
+        finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
+    }
+
+    auto& finalAggregateItems = groupClause->AggregateItems;
+    for (const auto& aggregateItem : originalGroupClause->AggregateItems) {
+        auto referenceExpr = New<TReferenceExpression>(
+            NullSourceLocation,
+            aggregateItem.Expression->Type,
+            aggregateItem.Name);
+        finalAggregateItems.emplace_back(
+            std::move(referenceExpr),
+            aggregateItem.AggregateFunction,
+            aggregateItem.Name);
+    }
+
+    groupClause->IsFinal = originalGroupClause->IsFinal;
+
+}
+
+TTableSchema GetIntermediateSchema(
+    TConstGroupClausePtr groupClause,
+    IFunctionRegistryPtr functionRegistry)
+{
+    auto schema = TTableSchema();
+
+    for (auto item : groupClause->GroupItems) {
+        schema.Columns().emplace_back(
+            item.Name,
+            item.Expression->Type);
+    }
+
+    for (auto item : groupClause->AggregateItems) {
+        auto intermediateSchema = functionRegistry
+            ->GetAggregateFunction(item.AggregateFunction)
+            ->GetStateSchema(item.Name, item.Expression->Type);
+        for (auto column : intermediateSchema) {
+            schema.Columns().push_back(column);
+        }
+    }
+}
 
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     TConstQueryPtr query,
@@ -58,35 +112,21 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     topQuery->Limit = query->Limit;
 
     if (query->GroupClause) {
-        subqueryPattern->GroupClause = query->GroupClause;
         if (refiners.size() > 1) {
-            auto groupClause = New<TGroupClause>();
-            groupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
+            auto subqueryGroupClause = CopyGroupClause(query->GroupClause);
+            subqueryGroupClause->IsFinal = false;
+            subqueryGroupClause->GroupedTableSchema = GetIntermediateSchema(
+                query->GroupClause,
+                functionRegistry);
+            subqueryPattern->GroupClause = subqueryGroupClause;
 
-            auto& finalGroupItems = groupClause->GroupItems;
-            for (const auto& groupItem : query->GroupClause->GroupItems) {
-                auto referenceExpr = New<TReferenceExpression>(
-                    NullSourceLocation,
-                    groupItem.Expression->Type,
-                    groupItem.Name);
-                finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
-            }
-
-            auto& finalAggregateItems = groupClause->AggregateItems;
-            for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
-                auto referenceExpr = New<TReferenceExpression>(
-                    NullSourceLocation,
-                    aggregateItem.Expression->Type,
-                    aggregateItem.Name);
-                finalAggregateItems.emplace_back(
-                    std::move(referenceExpr),
-                    aggregateItem.AggregateFunction,
-                    aggregateItem.Name);
-            }
-
+            auto topGroupClause = CopyGroupClause(query->GroupClause);
+            topGroupClause->IsFinal = true;
+            topQuery->GroupClause = topGroupClause;
+        } else {
+            auto groupClause = CopyGroupClause(query->GroupClause);
             groupClause->IsFinal = true;
-
-            topQuery->GroupClause = groupClause;
+            subqueryPattern->GroupClause = groupClause;
         }
 
         topQuery->ProjectClause = query->ProjectClause;
