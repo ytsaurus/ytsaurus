@@ -547,7 +547,7 @@ private:
         auto asyncOutput = New<TAsyncWriter>(pipe.WriteFD);
         TablePipeWriters_.push_back(asyncOutput);
         auto output = CreateSyncAdapter(asyncOutput);
-        auto bufferRowCount = JobIO_->GetConfig()->BufferRowCount;
+        auto bufferRowCount = Config_->JobIO->BufferRowCount;
 
         auto writer = CreateSchemalessWriterForFormat(
             format,

@@ -6,8 +6,6 @@
 
 #include <ytlib/new_table_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
-
 #include <core/logging/log.h>
 
 namespace NYT {
@@ -29,8 +27,6 @@ public:
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) override;
 
     virtual bool IsKeySwitchEnabled() const override;
-
-    virtual NScheduler::TJobIOConfigPtr GetConfig() const override;
 
 protected:
     IJobHost* Host_;
