@@ -591,7 +591,7 @@ class TestCypressCommands(YTEnvSetup):
         link("//tmp/a", "//tmp/b")
         tx = start_transaction()
         remove("//tmp/a", tx=tx)
-        create("//tmp/a", tx=tx)
+        create("table", "//tmp/a", tx=tx)
         assert not exists("//tmp/b", tx=tx)
         abort_transaction(tx)
         remove("//tmp/a")
