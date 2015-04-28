@@ -117,6 +117,13 @@ void ScanOpHelper(
             hasMoreData = reader->Read(&rows);
         }
 
+        // Remove null rows.
+        rows.erase(
+            std::remove_if(rows.begin(), rows.end(), [] (TRow row) {
+                return !row;
+            }),
+            rows.end());
+
         bool shouldWait = rows.empty();
 
         if (context->InputRowLimit < rows.size()) {
