@@ -67,7 +67,7 @@ void TReadTableCommand::DoExecute()
     auto bufferedOutput = std::make_unique<TBufferedOutput>(output.get());
     auto format = Context_->GetOutputFormat();
 
-    auto writer = CreateSchemalessWriterForFormat(format, nameTable, std::move(bufferedOutput), false, false, 0);
+    auto writer = CreateSchemalessWriterForFormat(format, nameTable, std::move(bufferedOutput), false, false, false, 0);
 
     PipeReaderToWriter(reader, writer, Context_->GetConfig()->ReadBufferRowCount);
 }

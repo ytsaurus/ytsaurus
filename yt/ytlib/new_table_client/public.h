@@ -161,8 +161,6 @@ DECLARE_REFCOUNTED_STRUCT(ISchemalessChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkWriter)
 
-DECLARE_REFCOUNTED_STRUCT(ISchemalessFormatWriter)
-
 DECLARE_REFCOUNTED_CLASS(TPartitionChunkReader)
 DECLARE_REFCOUNTED_CLASS(TPartitionMultiChunkReader)
 

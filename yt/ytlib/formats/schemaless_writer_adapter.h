@@ -18,13 +18,14 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessWriterAdapter
-    : public NVersionedTableClient::ISchemalessFormatWriter
+    : public ISchemalessFormatWriter
 {
 public:
     TSchemalessWriterAdapter(
         const TFormat& format,
         NVersionedTableClient::TNameTablePtr nameTable,
         std::unique_ptr<TOutputStream> outputStream,
+        bool enableContextSaving,
         bool enableTableSwitch,
         bool enableKeySwitch,
         int keyColumnCount);
@@ -50,6 +51,8 @@ private:
     NVersionedTableClient::TNameTablePtr NameTable_;
 
     std::unique_ptr<TOutputStream> OutputStream_;
+
+    bool EnableContextSaving_;
     TBlobOutput CurrentBuffer_;
     TBlobOutput PreviousBuffer_;
 

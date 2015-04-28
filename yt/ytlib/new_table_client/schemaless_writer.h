@@ -29,21 +29,6 @@ struct ISchemalessWriter
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessWriter)
 
-//! Writes a schemaless unversioned rowset with table_index swithces.
-/*!
- *  Writes unversioned rowset with schema and variable columns.
- *  Useful for: mapreduce jobs, write command.
- */
-struct ISchemalessFormatWriter
-    : public ISchemalessWriter
-{
-    virtual void SetTableIndex(int tableIndex) = 0;
-
-    virtual TBlob GetContext() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

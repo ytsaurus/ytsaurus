@@ -261,6 +261,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     TNameTablePtr nameTable,
     std::unique_ptr<TOutputStream> outputStream,
+    bool enableContextSaving,
     bool enableTableSwitch,
     bool enableKeySwitch,
     int keyColumnCount)
@@ -269,6 +270,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
         format,
         nameTable,
         std::move(outputStream),
+        enableContextSaving,
         enableTableSwitch,
         enableKeySwitch,
         keyColumnCount);
