@@ -168,15 +168,17 @@ private:
             int sampleCount = static_cast<int>(samples.size());
             int minSampleCount = std::max(Config_->MinPartitioningSampleCount, splitFactor);
             if (sampleCount < minSampleCount) {
-                THROW_ERROR_EXCEPTION("Too few samples fetched: %v < %v",
-                    sampleCount,
-                    minSampleCount);
+                THROW_ERROR_EXCEPTION("Too few samples fetched: need %v, got %v",
+                    minSampleCount,
+                    sampleCount);
             }
 
             std::vector<TOwningKey> pivotKeys;
+            // Take the pivot of the partition.
             pivotKeys.push_back(partition->GetPivotKey());
-            for (int i = 0; i < splitFactor; ++i) {
-                int j = static_cast<int>(i * sampleCount / splitFactor);
+            // And add |splitFactor - 1| more keys from samples.
+            for (int i = 0; i < splitFactor - 1; ++i) {
+                int j = (i + 1) * sampleCount / splitFactor - 1;
                 const auto& key = samples[j];
                 if (key > pivotKeys.back()) {
                     pivotKeys.push_back(key);
