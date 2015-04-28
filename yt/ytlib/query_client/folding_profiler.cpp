@@ -150,7 +150,6 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
             std::move(codegenAggregates),
             aggregateStateOffsets,
             std::move(codegenSource),
-            groupClause->GroupedTableSchema,
             groupClause->IsMerge,
             groupClause->IsFinal);
 
