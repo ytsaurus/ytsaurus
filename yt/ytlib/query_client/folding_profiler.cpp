@@ -38,8 +38,8 @@ class TFoldingProfiler
 public:
     TFoldingProfiler(const IFunctionRegistryPtr functionRegistry);
 
-    TCodegenSource Profile(const TConstQueryPtr& query);
-    TCodegenExpression Profile(const TConstExpressionPtr& expr, const TTableSchema& tableSchema);
+    TCodegenSource Profile(TConstQueryPtr query);
+    TCodegenExpression Profile(TConstExpressionPtr expr, const TTableSchema& tableSchema);
     void Profile(const TTableSchema& tableSchema, int keySize = std::numeric_limits<int>::max());
 
     TFoldingProfiler& Set(llvm::FoldingSetNodeID* id);
@@ -85,7 +85,7 @@ TFoldingProfiler& TFoldingProfiler::Set(yhash_set<Stroka>* references)
     return *this;
 }
 
-TCodegenSource TFoldingProfiler::Profile(const TConstQueryPtr& query)
+TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 {
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
     Profile(query->TableSchema);
@@ -164,7 +164,7 @@ TCodegenSource TFoldingProfiler::Profile(const TConstQueryPtr& query)
     return codegenSource;
 }
 
-TCodegenExpression TFoldingProfiler::Profile(const TConstExpressionPtr& expr, const TTableSchema& schema)
+TCodegenExpression TFoldingProfiler::Profile(TConstExpressionPtr expr, const TTableSchema& schema)
 {
     Fold(static_cast<ui16>(expr->Type));
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
@@ -299,7 +299,7 @@ void TFoldingProfiler::Refer(const TReferenceExpression* referenceExpr)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCGQueryCallbackGenerator Profile(
-    const TConstQueryPtr& query,
+    TConstQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     yhash_set<Stroka>* references,
@@ -318,7 +318,7 @@ TCGQueryCallbackGenerator Profile(
 }
 
 TCGExpressionCallbackGenerator Profile(
-    const TConstExpressionPtr& expr,
+    TConstExpressionPtr expr,
     const TTableSchema& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,

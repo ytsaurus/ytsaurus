@@ -20,7 +20,7 @@ namespace NQueryClient {
 
 extern const NLogging::TLogger QueryClientLogger;
 
-NLogging::TLogger BuildLogger(const TConstQueryPtr& query);
+NLogging::TLogger BuildLogger(TConstQueryPtr query);
 
 ////////////////////////////////////////////////////////////////////////////////
 

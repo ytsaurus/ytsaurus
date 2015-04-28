@@ -67,7 +67,7 @@ public:
     { }
 
     TQueryStatistics Run(
-        const TConstQueryPtr& query,
+        TConstQueryPtr query,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
         TExecuteQuery executeCallback,
@@ -187,7 +187,7 @@ public:
 
 private:
     TCGQueryCallback Codegen(
-        const TConstQueryPtr& query,
+        TConstQueryPtr query,
         TCGVariables& variables,
         const IFunctionRegistryPtr functionRegistry)
     {
@@ -251,7 +251,7 @@ TEvaluator::~TEvaluator()
 { }
 
 TQueryStatistics TEvaluator::RunWithExecutor(
-    const TConstQueryPtr& query,
+    TConstQueryPtr query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
     TExecuteQuery executeCallback,
@@ -265,7 +265,7 @@ TQueryStatistics TEvaluator::RunWithExecutor(
 }
 
 TQueryStatistics TEvaluator::Run(
-    const TConstQueryPtr& query,
+    TConstQueryPtr query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
     const IFunctionRegistryPtr functionRegistry)

@@ -19,7 +19,7 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
 
 //! Descends down to conjuncts and disjuncts and extract all constraints.
 TKeyTriePtr ExtractMultipleConstraints(
-    const TConstExpressionPtr& expr,
+    TConstExpressionPtr expr,
     const TKeyColumns& keyColumns,
     const TRowBufferPtr& rowBuffer,
     const IFunctionRegistryPtr& functionRegistry);
@@ -38,23 +38,23 @@ TRowRange Intersect(const TRowRange& first, const TRowRange& second);
 bool IsEmpty(const TKeyRange& keyRange);
 bool IsEmpty(const TRowRange& keyRange);
 
-TConstExpressionPtr MakeAndExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs);
-TConstExpressionPtr MakeOrExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs);
+TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs);
+TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs);
 
 TConstExpressionPtr RefinePredicate(
     const TRowRange& keyRange,
-    const TConstExpressionPtr& expr,
+    TConstExpressionPtr expr,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
     TColumnEvaluatorPtr columnEvaluator);
 
 TConstExpressionPtr RefinePredicate(
     const TRange<TRow>& lookupKeys,
-    const TConstExpressionPtr& expr,
+    TConstExpressionPtr expr,
     const TKeyColumns& keyColumns);
 
 TConstExpressionPtr ExtractPredicateForColumnSubset(
-    const TConstExpressionPtr& expr,
+    TConstExpressionPtr expr,
     const TTableSchema& tableSchema);
 
 std::vector<std::pair<TRow, TRow>> MergeOverlappingRanges(

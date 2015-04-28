@@ -17,14 +17,14 @@ public:
     ~TEvaluator();
 
     TQueryStatistics RunWithExecutor(
-        const TConstQueryPtr& fragment,
+        TConstQueryPtr fragment,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
         TExecuteQuery executeCallback,
         const IFunctionRegistryPtr functionRegistry);
 
     TQueryStatistics Run(
-        const TConstQueryPtr& fragment,
+        TConstQueryPtr fragment,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
         const IFunctionRegistryPtr functionRegistry);

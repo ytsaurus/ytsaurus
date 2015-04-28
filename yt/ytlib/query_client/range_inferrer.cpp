@@ -273,7 +273,7 @@ class TRangeInferrerHeavy
 {
 public:
     TRangeInferrerHeavy(
-        const TConstExpressionPtr& predicate,
+        TConstExpressionPtr predicate,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns,
         const TColumnEvaluatorCachePtr& evaluatorCache,
@@ -378,8 +378,8 @@ private:
         one.Type = Schema_.Columns()[keyIndex].Type;
         one.Data.Int64 = 1;
 
-        std::function<TDivisors(const TConstExpressionPtr& expr)> getDivisors =
-            [&] (const TConstExpressionPtr& expr)
+        std::function<TDivisors(TConstExpressionPtr expr)> getDivisors =
+            [&] (TConstExpressionPtr expr)
         {
             if (auto referenceExpr = expr->As<TReferenceExpression>()) {
                 return (referenceExpr->ColumnName == name) ? TDivisors{one} : TDivisors();
@@ -763,7 +763,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TRangeInferrer CreateHeavyRangeInferrer(
-    const TConstExpressionPtr& predicate,
+    TConstExpressionPtr predicate,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
@@ -786,7 +786,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
 }
 
 TRangeInferrer CreateLightRangeInferrer(
-    const TConstExpressionPtr& predicate,
+    TConstExpressionPtr predicate,
     const TKeyColumns& keyColumns,
     const IFunctionRegistryPtr functionRegistry,
     bool verboseLogging)
@@ -819,7 +819,7 @@ TRangeInferrer CreateLightRangeInferrer(
 ////////////////////////////////////////////////////////////////////////////////
 
 TRangeInferrer CreateRangeInferrer(
-    const TConstExpressionPtr& predicate,
+    TConstExpressionPtr predicate,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,

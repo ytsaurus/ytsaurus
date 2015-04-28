@@ -136,7 +136,7 @@ public:
     { }
 
     virtual TFuture<TQueryStatistics> Execute(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer) override
     {
         auto executor = Bootstrap_->GetMasterClient()->GetQueryExecutor();
@@ -166,7 +166,7 @@ public:
 
     // IExecutor implementation.
     virtual TFuture<TQueryStatistics> Execute(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer) override
     {
         auto securityManager = Bootstrap_->GetSecurityManager();
@@ -192,7 +192,7 @@ private:
     typedef std::function<ISchemafulReaderPtr()> TSubreaderCreator;
 
     TQueryStatistics DoCoordinateAndExecute(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer,
         bool isOrdered,
         const std::vector<TRefiner>& refiners,
@@ -205,7 +205,7 @@ private:
             writer,
             refiners,
             isOrdered,
-            [&] (const TConstQueryPtr& subquery, int index) {
+            [&] (TConstQueryPtr subquery, int index) {
                 auto mergingReader = subreaderCreators[index]();
 
                 auto pipe = New<TSchemafulPipe>();
@@ -246,7 +246,7 @@ private:
 
                 return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
-            [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+            [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating topquery (TopqueryId: %v)", topQuery->Id);
 
                 auto asyncQueryStatisticsOrError = BIND(&TEvaluator::Run, Evaluator_)
@@ -260,7 +260,7 @@ private:
     }
 
     TQueryStatistics DoExecute(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
     {
@@ -328,7 +328,7 @@ private:
         std::vector<TSubreaderCreator> subreaderCreators;
 
         for (const auto& groupedSplit : groupedSplits) {
-            refiners.push_back([&] (const TConstExpressionPtr& expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
+            refiners.push_back([&] (TConstExpressionPtr expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
                 return RefinePredicate(GetRange(groupedSplit), expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
@@ -347,7 +347,7 @@ private:
         }
 
         for (const auto& keySource : keySources) {
-            refiners.push_back([&] (const TConstExpressionPtr& expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
+            refiners.push_back([&] (TConstExpressionPtr expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
                 return RefinePredicate(keySource.second, expr, keyColumns);
             });
             subreaderCreators.push_back([&] () {
@@ -371,7 +371,7 @@ private:
     }
 
     TQueryStatistics DoExecuteOrdered(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
     {
@@ -405,7 +405,7 @@ private:
         std::vector<TSubreaderCreator> subreaderCreators;
 
         for (const auto& dataSplit : splits) {
-            refiners.push_back([&] (const TConstExpressionPtr& expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
+            refiners.push_back([&] (TConstExpressionPtr expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
                 return RefinePredicate(dataSplit.Range, expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {

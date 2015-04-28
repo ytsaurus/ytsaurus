@@ -252,7 +252,7 @@ EValueType InferFunctionExprType(
     }
 }
 
-void CheckExpressionDepth(const TConstExpressionPtr& op, int depth = 0)
+void CheckExpressionDepth(TConstExpressionPtr op, int depth = 0)
 {
     if (depth > PlanFragmentDepthLimit) {
         THROW_ERROR_EXCEPTION("Plan fragment depth limit exceeded");
@@ -410,7 +410,7 @@ protected:
             auto typedLhsExpr = DoBuildTypedExpression(binaryExpr->Lhs.Get(), source, functionRegistry);
             auto typedRhsExpr = DoBuildTypedExpression(binaryExpr->Rhs.Get(), source, functionRegistry);
 
-            auto makeBinaryExpr = [&] (EBinaryOp op, const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs) -> TConstExpressionPtr {
+            auto makeBinaryExpr = [&] (EBinaryOp op, TConstExpressionPtr lhs, TConstExpressionPtr rhs) -> TConstExpressionPtr {
                 auto type = InferBinaryExprType(op, lhs->Type, rhs->Type, binaryExpr->GetSource(source));
                 if (auto foldedExpr = FoldConstants(binaryExpr, lhs, rhs)) {
                     return foldedExpr;
@@ -645,9 +645,9 @@ protected:
 
     TConstExpressionPtr FoldConstants(
         const NAst::TUnaryOpExpression* unaryExpr,
-        const TConstExpressionPtr& operand)
+        TConstExpressionPtr operand)
     {
-        auto foldConstants = [] (EUnaryOp opcode, const TConstExpressionPtr& operand) -> TNullable<TUnversionedValue> {
+        auto foldConstants = [] (EUnaryOp opcode, TConstExpressionPtr operand) -> TNullable<TUnversionedValue> {
             if (auto literalExpr = operand->As<TLiteralExpression>()) {
                 if (opcode == EUnaryOp::Plus) {
                     return static_cast<TUnversionedValue>(literalExpr->Value);
@@ -684,13 +684,13 @@ protected:
 
     TConstExpressionPtr FoldConstants(
         const NAst::TBinaryOpExpression* binaryExpr,
-        const TConstExpressionPtr& lhsExpr,
-        const TConstExpressionPtr& rhsExpr)
+        TConstExpressionPtr lhsExpr,
+        TConstExpressionPtr rhsExpr)
     {
         auto foldConstants = [] (
             EBinaryOp opcode,
-            const TConstExpressionPtr& lhsExpr,
-            const TConstExpressionPtr& rhsExpr)
+            TConstExpressionPtr lhsExpr,
+            TConstExpressionPtr rhsExpr)
             -> TNullable<TUnversionedValue>
         {
             auto lhsLiteral = lhsExpr->As<TLiteralExpression>();
@@ -1390,7 +1390,7 @@ TConstExpressionPtr PrepareExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& original)
+void ToProto(NProto::TExpression* serialized, TConstExpressionPtr original)
 {
     serialized->set_type(static_cast<int>(original->Type));
     serialized->set_location_begin(original->SourceLocation.first);
@@ -1577,7 +1577,7 @@ void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
     ToProto(serialized->mutable_name(), original.Name);
 }
 
-void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
+void ToProto(NProto::TJoinClause* proto, TConstJoinClausePtr original)
 {
     ToProto(proto->mutable_join_columns(), original->JoinColumns);
     ToProto(proto->mutable_joined_table_schema(), original->JoinedTableSchema);
@@ -1585,23 +1585,23 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     ToProto(proto->mutable_foreign_key_columns(), original->ForeignKeyColumns);
 }
 
-void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
+void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
 {
     ToProto(proto->mutable_group_items(), original->GroupItems);
     ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
 }
 
-void ToProto(NProto::TProjectClause* proto, const TConstProjectClausePtr& original)
+void ToProto(NProto::TProjectClause* proto, TConstProjectClausePtr original)
 {
     ToProto(proto->mutable_projections(), original->Projections);
 }
 
-void ToProto(NProto::TOrderClause* proto, const TConstOrderClausePtr& original)
+void ToProto(NProto::TOrderClause* proto, TConstOrderClausePtr original)
 {
     ToProto(proto->mutable_order_columns(), original->OrderColumns);
 }
 
-void ToProto(NProto::TQuery* proto, const TConstQueryPtr& original)
+void ToProto(NProto::TQuery* proto, TConstQueryPtr original)
 {
     proto->set_input_row_limit(original->InputRowLimit);
     proto->set_output_row_limit(original->OutputRowLimit);
@@ -1740,7 +1740,7 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TPlanFragment* proto, const TConstPlanFragmentPtr& fragment)
+void ToProto(NProto::TPlanFragment* proto, TConstPlanFragmentPtr fragment)
 {
     ToProto(proto->mutable_query(), fragment->Query);
 

@@ -150,7 +150,7 @@ struct TUnaryOpExpression
         const TSourceLocation& sourceLocation,
         EValueType type,
         EUnaryOp opcode,
-        const TConstExpressionPtr& operand)
+        TConstExpressionPtr operand)
         : TExpression(sourceLocation, type)
         , Opcode(opcode)
         , Operand(operand)
@@ -174,8 +174,8 @@ struct TBinaryOpExpression
         const TSourceLocation& sourceLocation,
         EValueType type,
         EBinaryOp opcode,
-        const TConstExpressionPtr& lhs,
-        const TConstExpressionPtr& rhs)
+        TConstExpressionPtr lhs,
+        TConstExpressionPtr rhs)
         : TExpression(sourceLocation, type)
         , Opcode(opcode)
         , Lhs(lhs)
@@ -225,7 +225,7 @@ struct TNamedItem
     { }
 
     TNamedItem(
-        const TConstExpressionPtr& expression,
+        TConstExpressionPtr expression,
         const Stroka& name)
         : Expression(expression)
         , Name(name)
@@ -249,7 +249,7 @@ struct TAggregateItem
     { }
 
     TAggregateItem(
-        const TConstExpressionPtr& expression,
+        TConstExpressionPtr expression,
         EAggregateFunction aggregateFunction,
         const Stroka& name)
         : TNamedItem(expression, name)
@@ -332,7 +332,7 @@ struct TProjectClause
         ProjectTableSchema.Columns().emplace_back(namedItem.Name, namedItem.Expression->Type);
     }
 
-    void AddProjection(const TConstExpressionPtr& expression, Stroka name)
+    void AddProjection(TConstExpressionPtr expression, Stroka name)
     {
         AddProjection(TNamedItem(expression, name));
     }
@@ -440,7 +440,7 @@ struct TPlanFragment
 
 DEFINE_REFCOUNTED_TYPE(TPlanFragment)
 
-void ToProto(NProto::TPlanFragment* serialized, const TConstPlanFragmentPtr& fragment);
+void ToProto(NProto::TPlanFragment* serialized, TConstPlanFragmentPtr fragment);
 TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized);
 
 TPlanFragmentPtr PreparePlanFragment(

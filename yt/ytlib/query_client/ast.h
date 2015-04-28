@@ -81,8 +81,8 @@ struct TCommaExpression
 {
     TCommaExpression(
         const TSourceLocation& sourceLocation,
-        const TExpressionPtr& lhs,
-        const TExpressionPtr& rhs)
+        TExpressionPtr lhs,
+        TExpressionPtr rhs)
         : TExpression(sourceLocation)
         , Lhs(lhs)
         , Rhs(rhs)
@@ -98,7 +98,7 @@ struct TFunctionExpression
     TFunctionExpression(
         const TSourceLocation& sourceLocation,
         const TStringBuf& functionName,
-        const TExpressionPtr& arguments)
+        TExpressionPtr arguments)
         : TExpression(sourceLocation)
         , FunctionName(functionName)
         , Arguments(arguments)
@@ -115,7 +115,7 @@ struct TUnaryOpExpression
     TUnaryOpExpression(
         const TSourceLocation& sourceLocation,
         EUnaryOp opcode,
-        const TExpressionPtr& operand)
+        TExpressionPtr operand)
         : TExpression(sourceLocation)
         , Opcode(opcode)
         , Operand(operand)
@@ -132,8 +132,8 @@ struct TBinaryOpExpression
     TBinaryOpExpression(
         const TSourceLocation& sourceLocation,
         EBinaryOp opcode,
-        const TExpressionPtr& lhs,
-        const TExpressionPtr& rhs)
+        TExpressionPtr lhs,
+        TExpressionPtr rhs)
         : TExpression(sourceLocation)
         , Opcode(opcode)
         , Lhs(lhs)
@@ -151,7 +151,7 @@ struct TInExpression
 {
     TInExpression(
         const TSourceLocation& sourceLocation,
-        const TExpressionPtr& expression,
+        TExpressionPtr expression,
         const TValueTupleList& values)
         : TExpression(sourceLocation)
         , Expr(expression)
