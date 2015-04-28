@@ -26,7 +26,6 @@ class TBlockIndexesExt;
 class TBlockMetaExt;
 class TBlockMeta;
 class TSimpleVersionedBlockMeta;
-class TKeyFilterExt;
 
 } // namespace NProto
 

@@ -6,7 +6,6 @@
 #include "versioned_block_writer.h"
 #include "versioned_writer.h"
 #include "unversioned_row.h"
-#include "key_filter.h"
 
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -79,7 +78,9 @@ private:
     TTimestamp MinTimestamp_;
     TTimestamp MaxTimestamp_;
 
-    TKeyFilter KeyFilter_;
+#if 0
+    TBloomFilterBuilder KeyFilter_;
+#endif
 
     void WriteRow(
         TVersionedRow row,
@@ -140,12 +141,13 @@ bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
         EmitSample(rows.front());
     }
 
-    KeyFilter_.Insert(rows.front().BeginKeys(), rows.front().EndKeys());
+    //FIXME: insert key into bloom filter.
+    //KeyFilter_.Insert(GetFarmFingerprint(rows.front().BeginKeys(), rows.front().EndKeys()));
     WriteRow(rows.front(), LastKey_.Begin(), LastKey_.End());
     FinishBlockIfLarge(rows.front());
 
     for (int i = 1; i < rows.size(); ++i) {
-        KeyFilter_.Insert(rows[i].BeginKeys(), rows[i].EndKeys());
+        //KeyFilter_.Insert(GetFarmFingerprint(rows[i].BeginKeys(), rows[i].EndKeys()));
         WriteRow(rows[i], rows[i - 1].BeginKeys(), rows[i - 1].EndKeys());
         FinishBlockIfLarge(rows[i]);
     }
@@ -174,7 +176,7 @@ TFuture<void> TVersionedChunkWriter::GetReadyEvent()
 i64 TVersionedChunkWriter::GetMetaSize() const
 {
     // Other meta parts are negligible.
-    return BlockMetaExtSize_ + SamplesExtSize_ + KeyFilter_.EstimateSize();
+    return BlockMetaExtSize_ + SamplesExtSize_;
 }
 
 i64 TVersionedChunkWriter::GetDataSize() const
@@ -276,10 +278,12 @@ void TVersionedChunkWriter::DoClose()
     SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
     SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
 
+#if 0
     if (KeyFilter_.IsValid()) {
         KeyFilter_.Shrink();
-        SetProtoExtension(meta.mutable_extensions(), ToProto<TKeyFilterExt>(KeyFilter_));
+        //FIXME: write bloom filter to chunk.
     }
+#endif
 
     auto& miscExt = EncodingChunkWriter_->MiscExt();
     miscExt.set_sorted(true);

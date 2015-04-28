@@ -58,11 +58,6 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
 
         BlockIndexKeys_.reserve(BlockMeta_.blocks_size());
 
-        auto keyFilterExt = FindProtoExtension<TKeyFilterExt>(ChunkMeta_.extensions());
-        if (keyFilterExt) {
-            FromProto(&KeyFilter_, keyFilterExt.Get());
-        }
-
         // COMPAT(psushin): newer chunks store index inside TBlockMeta.
         auto blockIndexExt = FindProtoExtension<TBlockIndexExt>(ChunkMeta_.extensions());
         if (blockIndexExt) {
