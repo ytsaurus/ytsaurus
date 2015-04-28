@@ -58,6 +58,9 @@ CHUNK_SIZE = 512 * common.MB
 
 USE_SHORT_OPERATION_INFO = False
 
+OPERATION_LINK_PATTERN = "http://{proxy}/#page=operation&mode=detail&id={id}&tab=details"
+PRINT_LINK_TO_OPERATION = False
+
 MIN_CHUNK_COUNT_FOR_MERGE_WARNING = 1000
 MAX_CHUNK_SIZE_FOR_MERGE_WARNING = 32 * common.MB
 
