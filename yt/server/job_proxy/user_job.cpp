@@ -278,7 +278,7 @@ private:
 
     void CleanupCGroups()
     {
-        if (!UserJobSpec_.enable_accounting() && !Config_->ForceEnableAccounting) {
+        if (!Config_->ForceEnableAccounting) {
             return;
         }
 
@@ -640,7 +640,7 @@ private:
 
     void PrepareCGroups()
     {
-        if (!UserJobSpec_.enable_accounting() && !Config_->ForceEnableAccounting) {
+        if (!Config_->ForceEnableAccounting) {
             return;
         }
 
