@@ -32,7 +32,7 @@ static const auto& Logger = QueryClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
-    const TConstQueryPtr& query,
+    TConstQueryPtr query,
     const std::vector<TRefiner>& refiners)
 {
     auto Logger = BuildLogger(query);
@@ -117,7 +117,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 }
 
 TGroupedRanges GetPrunedRanges(
-    const TConstExpressionPtr& predicate,
+    TConstExpressionPtr predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
     const TDataSources& sources,
@@ -166,7 +166,7 @@ TGroupedRanges GetPrunedRanges(
 }
 
 TGroupedRanges GetPrunedRanges(
-    const TConstQueryPtr& query,
+    TConstQueryPtr query,
     const TDataSources& sources,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
@@ -204,12 +204,12 @@ TRowRanges GetRanges(const std::vector<TDataSources>& groupedSplits)
 }
 
 TQueryStatistics CoordinateAndExecute(
-    const TPlanFragmentPtr& fragment,
+    TPlanFragmentPtr fragment,
     ISchemafulWriterPtr writer,
     const std::vector<TRefiner>& refiners,
     bool isOrdered,
-    std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
-    std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop)
+    std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
+    std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop)
 {
     auto nodeDirectory = fragment->NodeDirectory;
     auto query = fragment->Query;

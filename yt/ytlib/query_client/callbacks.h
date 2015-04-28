@@ -21,7 +21,7 @@ struct IExecutor
     : public virtual TRefCounted
 {
     virtual TFuture<TQueryStatistics> Execute(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer) = 0;
 
 };

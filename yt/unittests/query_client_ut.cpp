@@ -70,7 +70,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintTo(const TConstExpressionPtr& expr, ::std::ostream* os)
+void PrintTo(TConstExpressionPtr expr, ::std::ostream* os)
 {
     *os << InferName(expr);
 }
@@ -630,7 +630,7 @@ static TValue MakeString(const TStringBuf& value)
 TKeyRange RefineKeyRange(
     const TKeyColumns& keyColumns,
     const TKeyRange& keyRange,
-    const TConstExpressionPtr& predicate)
+    TConstExpressionPtr predicate)
 {
     auto rowBuffer = New<TRowBuffer>();
 
@@ -1918,7 +1918,7 @@ protected:
 
     TConstExpressionPtr Refine(
         std::vector<TKey>& lookupKeys,
-        const TConstExpressionPtr& expr,
+        TConstExpressionPtr expr,
         const TKeyColumns& keyColumns)
     {
         std::vector<TRow> keys;
@@ -2096,7 +2096,7 @@ struct TQueryExecutor
     TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_;
 
     virtual TFuture<TQueryStatistics> Execute(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer)
     {
         std::vector<TOwningRow> owningSource;
@@ -4454,7 +4454,7 @@ protected:
 
     TConstExpressionPtr Refine(
         const TKeyRange& keyRange,
-        const TConstExpressionPtr& expr,
+        TConstExpressionPtr expr,
         const TTableSchema& tableSchema,
         const TKeyColumns& keyColumns)
     {

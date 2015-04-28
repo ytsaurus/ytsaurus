@@ -227,7 +227,7 @@ public:
     // IExecutor implementation.
 
     virtual TFuture<TQueryStatistics> Execute(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer) override
     {
         TRACE_CHILD("QueryClient", "Execute") {
@@ -426,7 +426,7 @@ private:
 
 
     TQueryStatistics DoCoordinateAndExecute(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer,
         int subrangesCount,
         bool isOrdered,
@@ -435,7 +435,7 @@ private:
         auto Logger = BuildLogger(fragment->Query);
 
         std::vector<TRefiner> refiners(subrangesCount, [] (
-            const TConstExpressionPtr& expr,
+            TConstExpressionPtr expr,
             const TTableSchema& schema,
             const TKeyColumns& keyColumns) {
                 return expr;
@@ -446,7 +446,7 @@ private:
             writer,
             refiners,
             isOrdered,
-            [&] (const TConstQueryPtr& subquery, int index) {
+            [&] (TConstQueryPtr subquery, int index) {
                 auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = fragment->NodeDirectory;
                 subfragment->Timestamp = fragment->Timestamp;
@@ -465,7 +465,7 @@ private:
 
                 return Delegate(subfragment, address);
             },
-            [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+            [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
                 return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
@@ -473,7 +473,7 @@ private:
     }
 
     TQueryStatistics DoExecute(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer)
     {
         auto nodeDirectory = fragment->NodeDirectory;
@@ -536,7 +536,7 @@ private:
     }
 
     TQueryStatistics DoExecuteOrdered(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer)
     {
         auto nodeDirectory = fragment->NodeDirectory;
@@ -587,7 +587,7 @@ private:
     }
 
    std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         const Stroka& address)
     {
         auto Logger = BuildLogger(fragment->Query);

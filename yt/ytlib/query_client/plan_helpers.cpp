@@ -35,7 +35,7 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
 }
 
 TKeyTriePtr ExtractMultipleConstraints(
-    const TConstExpressionPtr& expr,
+    TConstExpressionPtr expr,
     const TKeyColumns& keyColumns,
     const TRowBufferPtr& rowBuffer,
     const IFunctionRegistryPtr& functionRegistry)
@@ -164,7 +164,7 @@ TKeyTriePtr ExtractMultipleConstraints(
     return TKeyTrie::Universal();
 }
 
-TConstExpressionPtr MakeAndExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs)
+TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
 {
     if (auto literalExpr = lhs->As<TLiteralExpression>()) {
         TValue value = literalExpr->Value;
@@ -192,7 +192,7 @@ TConstExpressionPtr MakeAndExpression(const TConstExpressionPtr& lhs, const TCon
         rhs);
 }
 
-TConstExpressionPtr MakeOrExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs)
+TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
 {
     if (auto literalExpr = lhs->As<TLiteralExpression>()) {
         TValue value = literalExpr->Value;
@@ -222,7 +222,7 @@ TConstExpressionPtr MakeOrExpression(const TConstExpressionPtr& lhs, const TCons
 
 TConstExpressionPtr RefinePredicate(
     const TRowRange& keyRange,
-    const TConstExpressionPtr& expr,
+    TConstExpressionPtr expr,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
     TColumnEvaluatorPtr columnEvaluator)
@@ -245,8 +245,8 @@ TConstExpressionPtr RefinePredicate(
         }
     }
 
-    std::function<TConstExpressionPtr(const TConstExpressionPtr& expr)> refinePredicate =
-        [&] (const TConstExpressionPtr& expr)->TConstExpressionPtr
+    std::function<TConstExpressionPtr(TConstExpressionPtr expr)> refinePredicate =
+        [&] (TConstExpressionPtr expr)->TConstExpressionPtr
     {
         if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
             auto opcode = binaryOpExpr->Opcode;
@@ -461,7 +461,7 @@ TConstExpressionPtr RefinePredicate(
 
 TConstExpressionPtr RefinePredicate(
     const TRange<TRow>& lookupKeys,
-    const TConstExpressionPtr& expr,
+    TConstExpressionPtr expr,
     const TKeyColumns& keyColumns)
 {
     static auto trueLiteral = New<TLiteralExpression>(
@@ -473,8 +473,8 @@ TConstExpressionPtr RefinePredicate(
         EValueType::Boolean,
         MakeUnversionedBooleanValue(false));
 
-    std::function<TConstExpressionPtr(const TConstExpressionPtr& expr)> refinePredicate =
-        [&] (const TConstExpressionPtr& expr)->TConstExpressionPtr
+    std::function<TConstExpressionPtr(TConstExpressionPtr expr)> refinePredicate =
+        [&] (TConstExpressionPtr expr)->TConstExpressionPtr
     {
         if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
             auto opcode = binaryOpExpr->Opcode;
@@ -669,7 +669,7 @@ bool IsEmpty(const TRowRange& keyRange)
     return keyRange.first >= keyRange.second;
 }
 
-bool AreAllReferencesInSchema(const TConstExpressionPtr& expr, const TTableSchema& tableSchema)
+bool AreAllReferencesInSchema(TConstExpressionPtr expr, const TTableSchema& tableSchema)
 {
     if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         return tableSchema.FindColumn(referenceExpr->ColumnName);
@@ -695,7 +695,7 @@ bool AreAllReferencesInSchema(const TConstExpressionPtr& expr, const TTableSchem
 }
 
 TConstExpressionPtr ExtractPredicateForColumnSubset(
-    const TConstExpressionPtr& expr,
+    TConstExpressionPtr expr,
     const TTableSchema& tableSchema)
 {
     if (!expr) {
