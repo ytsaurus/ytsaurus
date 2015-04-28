@@ -224,7 +224,7 @@ private:
     std::vector<TAsyncReaderPtr> TablePipeReaders_;
     std::vector<TAsyncWriterPtr> TablePipeWriters_;
 
-    std::vector<ISchemalessFormatWriterPtr> ContextPreservingInputs_;
+    std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
 
     std::vector<TCallback<void()>> InputActions_;
     std::vector<TCallback<void()>> OutputActions_;
@@ -412,7 +412,7 @@ private:
     {
         std::vector<TBlob> result;
 
-        for (const auto& input : ContextPreservingInputs_) {
+        for (const auto& input : FormatWriters_) {
             result.push_back(input->GetContext());
         }
 
@@ -553,11 +553,12 @@ private:
             format,
             reader->GetNameTable(),
             std::move(output),
+            true,
             Config_->JobIO->EnableInputTableIndex,
             JobIO_->IsKeySwitchEnabled(),
             reader->GetKeyColumns().size());
 
-        ContextPreservingInputs_.push_back(writer);
+        FormatWriters_.push_back(writer);
 
         InputActions_.push_back(BIND([=] () {
             PipeReaderToWriter(reader, writer, bufferRowCount);

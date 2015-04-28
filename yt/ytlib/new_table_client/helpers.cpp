@@ -85,7 +85,7 @@ void PipeReaderToWriter(
 
 void PipeReaderToWriter(
     ISchemalessMultiChunkReaderPtr reader,
-    ISchemalessFormatWriterPtr writer,
+    NFormats::ISchemalessFormatWriterPtr writer,
     int bufferRowCount,
     bool validateValues)
 {

@@ -30,19 +30,24 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
     const TFormat& format,
     TNameTablePtr nameTable,
     std::unique_ptr<TOutputStream> outputStream,
+    bool enableContextSaving,
     bool enableTableSwitch,
     bool enableKeySwitch,
     int keyColumnCount)
     : NameTable_(nameTable)
     , OutputStream_(std::move(outputStream))
+    , EnableContextSaving_(enableContextSaving)
     , EnableTableSwitch_(enableTableSwitch)
     , EnableKeySwitch_(enableKeySwitch)
     , KeyColumnCount_(keyColumnCount)
 {
-    CurrentBuffer_.Reserve(BufferSize);
-    PreviousBuffer_.Reserve(BufferSize);
-
-    Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, &CurrentBuffer_);
+    if (EnableContextSaving_) {
+        CurrentBuffer_.Reserve(BufferSize);
+        PreviousBuffer_.Reserve(BufferSize);
+        Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, &CurrentBuffer_);
+    } else {
+        Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, OutputStream_.get());
+    }
 }
 
 TFuture<void> TSchemalessWriterAdapter::Open()
@@ -174,9 +179,11 @@ void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)
 
 void TSchemalessWriterAdapter::FlushBuffer()
 {
-    OutputStream_->Write(CurrentBuffer_.Begin(), CurrentBuffer_.Size());
-    swap(CurrentBuffer_, PreviousBuffer_);
-    CurrentBuffer_.Clear();
+    if (EnableContextSaving_) {
+        OutputStream_->Write(CurrentBuffer_.Begin(), CurrentBuffer_.Size());
+        swap(CurrentBuffer_, PreviousBuffer_);
+        CurrentBuffer_.Clear();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

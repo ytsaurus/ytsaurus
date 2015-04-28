@@ -12,6 +12,7 @@
 #include <core/concurrency/public.h>
 
 #include <ytlib/new_table_client/public.h>
+#include <ytlib/new_table_client/schemaless_writer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -63,19 +64,32 @@ void Deserialize(TFormat& value, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ISchemalessFormatWriter
+    : public NVersionedTableClient::ISchemalessWriter
+{
+    virtual void SetTableIndex(int tableIndex) = 0;
+
+    virtual TBlob GetContext() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::unique_ptr<NYson::IYsonConsumer> CreateConsumerForFormat(
     const TFormat& format,
     EDataType dataType,
     TOutputStream* output);
 
 NVersionedTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
-    const TFormat& format,
+    const TFormat& Format,
     NConcurrency::IAsyncOutputStreamPtr output);
 
-NVersionedTableClient::ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
+ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     NVersionedTableClient::TNameTablePtr nameTable,
     std::unique_ptr<TOutputStream> outputStream,
+    bool enableContextSaving,
     bool enableTableSwitch,
     bool enableKeySwitch,
     int keyColumnCount);

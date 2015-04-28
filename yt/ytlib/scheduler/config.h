@@ -51,7 +51,8 @@ public:
             .DefaultNew();
 
         RegisterParameter("buffer_row_count", BufferRowCount)
-            .Default((i64) 10000);
+            .Default((i64) 10000)
+            .GreaterThan(0);
 
         RegisterParameter("enable_input_table_index", EnableInputTableIndex)
             .Default(false);
