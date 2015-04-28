@@ -5,8 +5,7 @@ parameters, and then by kwargs options.
 """
 
 import format_config
-from common import get_value, require, filter_dict, merge_dicts
-from errors import YtError, YtFormatError
+from common import get_value, require, filter_dict, merge_dicts, YtError
 from yamr_record import Record, SimpleRecord, SubkeyedRecord
 import yt.yson as yson
 import yt.logger as logger
@@ -23,6 +22,9 @@ try:
 except ImportError:
     cjson = None
 
+class YtFormatError(YtError):
+    """Wrong format"""
+    pass
 
 class Format(object):
     """ YT data representations.

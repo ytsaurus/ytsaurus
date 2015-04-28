@@ -1,6 +1,7 @@
 """YT usage errors"""
 
 import errors_config
+import config
 from yt.common import YtError
 
 from copy import deepcopy
@@ -13,7 +14,22 @@ def hide_token(headers):
 
 class YtOperationFailedError(YtError):
     """Operation failed during WaitStrategy.process_operation."""
-    pass
+    def __init__(self, id, state, error, stderrs, url):
+        message = "Operation {0} {1}".format(id, state)
+        if config.PRINT_LINK_TO_OPERATION:
+            message += ": " + url
+
+        attributes = {
+            "id": id,
+            "state": state,
+            "stderrs": stderrs,
+            "url": url}
+
+        inner_errors = []
+        if error is not None:
+            inner_errors.append(error)
+
+        super(YtOperationFailedError, self).__init__(message, attributes=attributes, inner_errors=inner_errors)
 
 class YtTimeoutError(YtError):
     """WaitStrategy timeout expired."""
@@ -77,10 +93,6 @@ class YtIncorrectResponse(YtError):
 
 class YtTokenError(YtError):
     """Some problem occurred with authentication token."""
-    pass
-
-class YtFormatError(YtError):
-    """Wrong format"""
     pass
 
 def format_error(error, indent=0):

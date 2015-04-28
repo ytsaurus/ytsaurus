@@ -2,6 +2,7 @@ import config
 from common import require, prefix, get_value
 from errors import YtError, YtOperationFailedError, YtResponseError, format_error, YtTimeoutError
 from driver import make_request
+from http import get_proxy_url
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from tree_commands import get_attribute, exists, search, get
 from file_commands import download_file
@@ -292,13 +293,12 @@ def add_failed_operation_stderrs_to_error_message(func):
             raise
     return decorated_func
 
-def get_operation_result(operation, client=None):
+def get_operation_error(operation, client=None):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     result = get_attribute(operation_path, "result", client=client)
-    if "error" in result:
-        return format_error(result["error"])
-    else:
-        return result
+    if "error" in result and result["error"]["code"] != 0:
+        return result["error"]
+    return None
 
 class Operation(object):
     """Holds information about started operation."""
@@ -307,6 +307,9 @@ class Operation(object):
         self.id = id
         self.finalize = finalize
         self.client = client
+        self.url = \
+            config.OPERATION_LINK_PATTERN.format(proxy=get_proxy_url(client=self.client),
+                                                 id=self.id)
 
     def suspend(self):
         suspend_operation(self.id, client=self.client)
@@ -337,6 +340,10 @@ class Operation(object):
         :param print_progress: (bool)
         :param timeout: (double) timeout of operation in sec. ``None`` means operation is endlessly waited for.
         """
+
+        if config.PRINT_LINK_TO_OPERATION:
+            logger.info("Operation started: %s", self.url)
+
         finalize = self.finalize if self.finalize else lambda state: None
         time_watcher = TimeWatcher(min_interval=config.OPERATION_STATE_UPDATE_PERIOD / 5.0,
                                    max_interval=config.OPERATION_STATE_UPDATE_PERIOD,
@@ -358,17 +365,9 @@ class Operation(object):
                 raise YtTimeoutError
 
         if check_result and state.is_unsuccessfully_finished():
-            operation_result = get_operation_result(self.id, client=self.client)
             stderrs = get_stderrs(self.id, only_failed_jobs=True, client=self.client)
-            message = "Operation {0} {1}. Result: {2}"\
-                .format(self.id, str(state), operation_result)
-
-            attributes = {}
-            if stderrs:
-                attributes["stderrs"] = stderrs
-            attributes["operation_id"] = self.id
-            attributes["state"] = state.name
-            raise YtOperationFailedError(message, attributes=attributes)
+            error = get_operation_error(self.id, client=self.client)
+            raise YtOperationFailedError(id=self.id, state=state, error=error, stderrs=stderrs, url=self.url)
 
         stderr_level = logging._levelNames[config.STDERR_LOGGING_LEVEL]
         if logger.LOGGER.isEnabledFor(stderr_level):
