@@ -19,6 +19,18 @@ T TBaseStatistics<T>::Get(const NYPath::TYPath& name) const
 }
 
 template <class T>
+typename TBaseStatistics<T>::THash::const_iterator TBaseStatistics<T>::begin() const
+{
+    return Data_.begin();
+}
+
+template <class T>
+typename TBaseStatistics<T>::THash::const_iterator TBaseStatistics<T>::end() const
+{
+    return Data_.end();
+}
+
+template <class T>
 void Serialize(const TBaseStatistics<T>& statistics, NYson::IYsonConsumer* consumer)
 {
     auto root = NYTree::GetEphemeralNodeFactory()->CreateMap();

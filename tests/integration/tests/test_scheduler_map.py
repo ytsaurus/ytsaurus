@@ -317,6 +317,7 @@ class TestUserStatistics(YTEnvSetup):
         op_id = map(
             in_="//tmp/t1",
             out="//tmp/t2",
+            spec={"mapper":{"custom_statistics_count_limit": 3}},
             command=(
                 r'cat; python -c "'
                 r'import os; '
@@ -326,6 +327,41 @@ class TestUserStatistics(YTEnvSetup):
         statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op_id))
         assert get_statistics(statistics, "custom.cpu.k1.$.completed.map.max") == 4
         assert get_statistics(statistics, "custom.k2.$.completed.map.count") == 1
+
+    def test_name_is_too_long(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write("//tmp/t1", {"a": "b"})
+
+        long_name = 'a'*2048;
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"max_failed_job_count": 1},
+            command='cat; echo "{ ' + long_name + '=42};">&5')
+
+        with pytest.raises(YtError):
+            track_op(op_id)
+
+    def test_too_many_custom_statistics(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write("//tmp/t1", {"a": "b"})
+
+        write_line = ""
+        for i in range(17):
+            write_line += 'echo "{ name' + str(i) + '=42};">&5;'
+
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"max_failed_job_count": 1, "mapper":{"custom_statistics_count_limit": 16}},
+            command="cat; " + write_line)
+
+        with pytest.raises(YtError):
+            track_op(op_id)
 
     def test_multiple_job_statistics(self):
         create("table", "//tmp/t1")
