@@ -55,20 +55,6 @@ struct TUnversionedValue
 
 class TUnversionedOwningValue
 {
-private:
-    TUnversionedValue Value_;
-
-    void assign(const TUnversionedValue& other)
-    {
-        
-        Value_ = other;
-        if (Value_.Type == EValueType::Any || Value_.Type == EValueType::String) {
-            auto newString = new char[Value_.Length];
-            ::memcpy(newString, Value_.Data.String, Value_.Length);
-            Value_.Data.String = newString;                
-        }
-    }
-
 public:
     TUnversionedOwningValue()
     {
@@ -78,12 +64,12 @@ public:
 
     TUnversionedOwningValue(const TUnversionedOwningValue& other)
     {
-        assign(other);
+        Assign(other);
     }
 
     TUnversionedOwningValue(const TUnversionedValue& other)
     {
-        assign(other);
+        Assign(other);
     }
 
     operator TUnversionedValue() const
@@ -93,29 +79,45 @@ public:
 
     TUnversionedOwningValue& operator = (const TUnversionedValue& other)
     {
-        clear();
-        assign(other);
+        Clear();
+        Assign(other);
         return *this;
     }
 
     TUnversionedOwningValue& operator = (const TUnversionedOwningValue& other)
     {
-        clear();
-        assign(other);
+        Clear();
+        Assign(other);
         return *this;
     }
 
-    void clear()
+    void Clear()
     {
         if (Value_.Type == EValueType::Any || Value_.Type == EValueType::String) {
             delete [] Value_.Data.String;
         }
+        Value_.Type = EValueType::TheBottom;
+        Value_.Length = 0;
     }
 
     ~TUnversionedOwningValue()
     {
-        clear();
+        Clear();
     }
+
+private:
+    TUnversionedValue Value_;
+
+    void Assign(const TUnversionedValue& other)
+    {
+        Value_ = other;
+        if (Value_.Type == EValueType::Any || Value_.Type == EValueType::String) {
+            auto newString = new char[Value_.Length];
+            ::memcpy(newString, Value_.Data.String, Value_.Length);
+            Value_.Data.String = newString;                
+        }
+    }
+    
 };
 
 static_assert(
