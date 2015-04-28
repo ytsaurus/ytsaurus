@@ -19,7 +19,8 @@ message TExpression
 
 message TLiteralExpression
 {
-    extend TExpression {
+    extend TExpression
+    {
         optional TLiteralExpression literal_expression = 103;
     }
 
@@ -32,7 +33,8 @@ message TLiteralExpression
 
 message TReferenceExpression
 {
-    extend TExpression {
+    extend TExpression
+    {
         optional TReferenceExpression reference_expression = 104;
     }
     required string column_name = 1;
@@ -40,7 +42,8 @@ message TReferenceExpression
 
 message TFunctionExpression
 {
-    extend TExpression {
+    extend TExpression
+    {
         optional TFunctionExpression function_expression = 105;
     }
     required string function_name = 1;
@@ -49,7 +52,8 @@ message TFunctionExpression
 
 message TUnaryOpExpression
 {
-    extend TExpression {
+    extend TExpression
+    {
         optional TUnaryOpExpression unary_op_expression = 106;
     }
     required int32 opcode = 1; // EUnaryOp
@@ -58,7 +62,8 @@ message TUnaryOpExpression
 
 message TBinaryOpExpression
 {
-    extend TExpression {
+    extend TExpression
+    {
         optional TBinaryOpExpression binary_op_expression = 107;
     }
     required int32 opcode = 1; // EBinaryOp
@@ -68,7 +73,8 @@ message TBinaryOpExpression
 
 message TInOpExpression
 {
-    extend TExpression {
+    extend TExpression
+    {
         optional TInOpExpression in_op_expression = 108;
     }
     repeated TExpression arguments = 1;
