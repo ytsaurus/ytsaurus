@@ -40,20 +40,27 @@ using TJoinEvaluator = std::function<void(
     // TODO(babenko): TSharedRange?
     std::vector<TRow>* joinedRows)>;
 
-struct TExecutionContext
+struct TExpressionContext
 {
 #ifndef NDEBUG
     size_t StackSizeGuardHelper;
 #endif
     const TTableSchema* Schema;
-    ISchemafulReader* Reader;
-    ISchemafulWriter* Writer;
 
     std::vector<TSharedRange<TRow>>* LiteralRows;
     
+    TRowBufferPtr IntermediateBuffer;
+    
+};
+
+struct TExecutionContext
+    : public TExpressionContext
+{
+    ISchemafulReaderPtr Reader;
+    ISchemafulWriterPtr Writer;
+
     TRowBufferPtr PermanentBuffer;
     TRowBufferPtr OutputBuffer;
-    TRowBufferPtr IntermediateBuffer;
 
     // TODO(babenko): TSharedRange?
     std::vector<TRow>* OutputBatchRows;
@@ -185,7 +192,7 @@ struct TCGVariables
 };
 
 typedef void (TCGQuerySignature)(TRow, TExecutionContext*);
-typedef void (TCGExpressionSignature)(TValue*, TRow, TRow, TExecutionContext*);
+typedef void (TCGExpressionSignature)(TValue*, TRow, TRow, TExpressionContext*);
 using TCGQueryCallback = NCodegen::TCGFunction<TCGQuerySignature>;
 using TCGExpressionCallback = NCodegen::TCGFunction<TCGExpressionSignature>;
 

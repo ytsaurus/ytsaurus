@@ -38,7 +38,7 @@ static const auto& Logger = QueryClientLogger;
 #define CHECK_STACK() \
     { \
         int dummy; \
-        size_t currentStackSize = executionContext->StackSizeGuardHelper - reinterpret_cast<intptr_t>(&dummy); \
+        size_t currentStackSize = context->StackSizeGuardHelper - reinterpret_cast<intptr_t>(&dummy); \
         YCHECK(currentStackSize < 10000); \
     }
 #else
@@ -47,37 +47,38 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteRow(TRow row, TExecutionContext* executionContext)
+void WriteRow(TRow row, TExecutionContext* context)
 {
     CHECK_STACK();
 
-    if (!UpdateAndCheckRowLimit(&executionContext->Limit, &executionContext->StopFlag)) {
+    if (!UpdateAndCheckRowLimit(&context->Limit, &context->StopFlag)) {
         return;
     }
 
-    if (!UpdateAndCheckRowLimit(&executionContext->OutputRowLimit, &executionContext->StopFlag)) {
-        executionContext->Statistics->IncompleteOutput = true;
+    if (!UpdateAndCheckRowLimit(&context->OutputRowLimit, &context->StopFlag)) {
+        context->Statistics->IncompleteOutput = true;
         return;
     }
     
-    ++executionContext->Statistics->RowsWritten;
+    ++context->Statistics->RowsWritten;
 
-    auto* batch = executionContext->OutputBatchRows;
-    auto* writer = executionContext->Writer;
-    const auto& rowBuffer = executionContext->OutputBuffer;
+    auto* batch = context->OutputBatchRows;
+    
+    const auto& rowBuffer = context->OutputBuffer;
 
     YASSERT(batch->size() < batch->capacity());
     batch->push_back(rowBuffer->Capture(row));
 
     if (batch->size() == batch->capacity()) {
+        auto& writer = context->Writer;
         bool shouldNotWait;
         {
-            NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->WriteTime);
+            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->WriteTime);
             shouldNotWait = writer->Write(*batch);
         }
 
         if (!shouldNotWait) {
-            NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
+            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
             auto error = WaitFor(writer->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
@@ -87,17 +88,17 @@ void WriteRow(TRow row, TExecutionContext* executionContext)
 }
 
 void ScanOpHelper(
-    TExecutionContext* executionContext,
+    TExecutionContext* context,
     int dataSplitsIndex,
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRow* rows, int size, char* stopFlag))
 {
-    auto* reader = executionContext->Reader;
+    auto& reader = context->Reader;
 
     {
         LOG_DEBUG("Started opening reader");
-        NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
-        WaitFor(reader->Open(*executionContext->Schema))
+        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+        WaitFor(reader->Open(*context->Schema))
             .ThrowOnError();
         LOG_DEBUG("Finished opening reader");
     }
@@ -105,37 +106,37 @@ void ScanOpHelper(
     std::vector<TRow> rows;
     rows.reserve(MaxRowsPerRead);
 
-    executionContext->StopFlag = false;
+    context->StopFlag = false;
 
     while (true) {
-        executionContext->IntermediateBuffer->Clear();
+        context->IntermediateBuffer->Clear();
 
         bool hasMoreData;
         {
-            NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->ReadTime);
+            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->ReadTime);
             hasMoreData = reader->Read(&rows);
         }
 
         bool shouldWait = rows.empty();
 
-        if (executionContext->InputRowLimit < rows.size()) {
-            rows.resize(executionContext->InputRowLimit);
-            executionContext->Statistics->IncompleteInput = true;
+        if (context->InputRowLimit < rows.size()) {
+            rows.resize(context->InputRowLimit);
+            context->Statistics->IncompleteInput = true;
             hasMoreData = false;
         }
-        executionContext->InputRowLimit -= rows.size();
-        executionContext->Statistics->RowsRead += rows.size();
+        context->InputRowLimit -= rows.size();
+        context->Statistics->RowsRead += rows.size();
 
-        consumeRows(consumeRowsClosure, rows.data(), rows.size(), &executionContext->StopFlag);
+        consumeRows(consumeRowsClosure, rows.data(), rows.size(), &context->StopFlag);
         rows.clear();
 
-        if (!hasMoreData || executionContext->StopFlag) {
+        if (!hasMoreData || context->StopFlag) {
             break;
         }
 
         if (shouldWait) {
             LOG_DEBUG("Started waiting for more rows");
-            NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
+            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
             LOG_DEBUG("Finished waiting for more rows");
@@ -144,7 +145,7 @@ void ScanOpHelper(
 }
 
 void InsertJoinRow(
-    TExecutionContext* executionContext,
+    TExecutionContext* context,
     TLookupRows* lookupRows,
     std::vector<TRow>* rows,
     TRow* rowPtr,
@@ -158,24 +159,24 @@ void InsertJoinRow(
     if (inserted.second) {
         rows->push_back(row);
         for (int index = 0; index < valueCount; ++index) {
-            executionContext->PermanentBuffer->Capture(&row[index]);
+            context->PermanentBuffer->Capture(&row[index]);
         }
-        *rowPtr = TRow::Allocate(executionContext->PermanentBuffer->GetPool(), valueCount);
+        *rowPtr = TRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
     }
 }
 
 void SaveJoinRow(
-    TExecutionContext* executionContext,
+    TExecutionContext* context,
     std::vector<TRow>* rows,
     TRow row)
 {
     CHECK_STACK();
 
-    rows->push_back(executionContext->PermanentBuffer->Capture(row));
+    rows->push_back(context->PermanentBuffer->Capture(row));
 }
 
 void JoinOpHelper(
-    TExecutionContext* executionContext,
+    TExecutionContext* context,
     ui64 (*groupHasher)(TRow),
     char (*groupComparer)(TRow, TRow),
     void** collectRowsClosure,
@@ -202,8 +203,8 @@ void JoinOpHelper(
         allRows.size());
 
     std::vector<TRow> joinedRows;
-    executionContext->JoinEvaluator(
-        executionContext,
+    context->JoinEvaluator(
+        context,
         groupHasher,
         groupComparer,
         keys,
@@ -214,12 +215,12 @@ void JoinOpHelper(
         joinedRows.size());
 
     // Consume joined rows.
-    executionContext->StopFlag = false;
-    consumeRows(consumeRowsClosure, &joinedRows, &executionContext->StopFlag);
+    context->StopFlag = false;
+    consumeRows(consumeRowsClosure, &joinedRows, &context->StopFlag);
 }
 
 void GroupOpHelper(
-    TExecutionContext* executionContext,
+    TExecutionContext* context,
     ui64 (*groupHasher)(TRow),
     char (*groupComparer)(TRow, TRow),
     void** collectRowsClosure,
@@ -237,11 +238,11 @@ void GroupOpHelper(
 
     collectRows(collectRowsClosure, &groupedRows, &lookupRows);
 
-    executionContext->StopFlag = false;
-    consumeRows(consumeRowsClosure, &groupedRows, &executionContext->StopFlag);
+    context->StopFlag = false;
+    consumeRows(consumeRowsClosure, &groupedRows, &context->StopFlag);
 }
 
-const TRow* FindRow(TExecutionContext* executionContext, TLookupRows* rows, TRow row)
+const TRow* FindRow(TExpressionContext* context, TLookupRows* rows, TRow row)
 {
     CHECK_STACK();
 
@@ -249,15 +250,15 @@ const TRow* FindRow(TExecutionContext* executionContext, TLookupRows* rows, TRow
     return it != rows->end()? &*it : nullptr;
 }
 
-void AllocatePermanentRow(TExecutionContext* executionContext, int valueCount, TRow* row)
+void AllocatePermanentRow(TExecutionContext* context, int valueCount, TRow* row)
 {
     CHECK_STACK();
 
-    *row = TRow::Allocate(executionContext->PermanentBuffer->GetPool(), valueCount);
+    *row = TRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
 }
 
 const TRow* InsertGroupRow(
-    TExecutionContext* executionContext,
+    TExecutionContext* context,
     TLookupRows* lookupRows,
     std::vector<TRow>* groupedRows,
     TRow* rowPtr,
@@ -269,27 +270,27 @@ const TRow* InsertGroupRow(
     auto inserted = lookupRows->insert(row);
 
     if (inserted.second) {
-        if (!UpdateAndCheckRowLimit(&executionContext->GroupRowLimit, &executionContext->StopFlag)) {
-            executionContext->Statistics->IncompleteOutput = true;
+        if (!UpdateAndCheckRowLimit(&context->GroupRowLimit, &context->StopFlag)) {
+            context->Statistics->IncompleteOutput = true;
             return nullptr;
         }
 
         groupedRows->push_back(row);
         for (int index = 0; index < valueCount; ++index) {
-            executionContext->PermanentBuffer->Capture(&row[index]);
+            context->PermanentBuffer->Capture(&row[index]);
         }
-        *rowPtr = TRow::Allocate(executionContext->PermanentBuffer->GetPool(), valueCount);
+        *rowPtr = TRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
         return nullptr;
     } else {
         return &*inserted.first;
     }
 }
 
-void AllocateRow(TExecutionContext* executionContext, int valueCount, TRow* row)
+void AllocateRow(TExpressionContext* context, int valueCount, TRow* row)
 {
     CHECK_STACK();
 
-    *row = TRow::Allocate(executionContext->IntermediateBuffer->GetPool(), valueCount);
+    *row = TRow::Allocate(context->IntermediateBuffer->GetPool(), valueCount);
 }
 
 TRow* GetRowsData(std::vector<TRow>* groupedRows)
@@ -308,29 +309,29 @@ void AddRow(TTopCollector* topN, TRow row)
 }
 
 void OrderOpHelper(
-    TExecutionContext* executionContext,
+    TExecutionContext* context,
     char (*comparer)(TRow, TRow),
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TTopCollector* topN),
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag))
 {
-    auto limit = executionContext->Limit;
+    auto limit = context->Limit;
 
     TTopCollector topN(limit, comparer);
     collectRows(collectRowsClosure, &topN);
     auto rows = topN.GetRows();
 
     // Consume joined rows.
-    executionContext->StopFlag = false;
-    consumeRows(consumeRowsClosure, &rows, &executionContext->StopFlag);
+    context->StopFlag = false;
+    consumeRows(consumeRowsClosure, &rows, &context->StopFlag);
 }
 
-char* AllocateBytes(TExecutionContext* executionContext, size_t byteCount)
+char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 {
     CHECK_STACK();
 
-    return executionContext
+    return context
         ->IntermediateBuffer
         ->GetPool()
         ->AllocateUnaligned(byteCount);
@@ -362,11 +363,11 @@ char IsSubstr(
 }
 
 char* ToLower(
-    TExecutionContext* executionContext,
+    TExpressionContext* context,
     const char* data,
     ui32 length)
 {
-    char* result = executionContext->IntermediateBuffer->GetPool()->AllocateUnaligned(length);
+    char* result = context->IntermediateBuffer->GetPool()->AllocateUnaligned(length);
 
     for (ui32 index = 0; index < length; ++index) {
         result[index] = tolower(data[index]);
@@ -376,13 +377,13 @@ char* ToLower(
 }
 
 char IsRowInArray(
-    TExecutionContext* executionContext,
+    TExpressionContext* context,
     char (*comparer)(TRow, TRow),
     TRow row,
     int index)
 {
     // TODO(lukyan): check null
-    const auto& rows = (*executionContext->LiteralRows)[index];
+    const auto& rows = (*context->LiteralRows)[index];
     return std::binary_search(rows.Begin(), rows.End(), row, comparer);
 }
 
