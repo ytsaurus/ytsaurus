@@ -996,7 +996,7 @@ bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transac
             if (parentNode) {
                 const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
                 auto it = parentMapNode->KeyToChild().find(*key);
-                if (it != parentMapNode->KeyToChild().end() && !it->second) {
+                if (it != parentMapNode->KeyToChild().end() && it->second != childTrunkNode) {
                     return false;
                 }
             }
