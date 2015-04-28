@@ -104,14 +104,14 @@ public:
                 outputBatchRows.reserve(MaxRowsPerWrite);
 
                 TExecutionContext executionContext;
-                executionContext.Reader = reader.Get();
+                executionContext.Reader = reader;
                 executionContext.Schema = &query->TableSchema;
 
                 executionContext.LiteralRows = &fragmentParams.LiteralRows;
                 executionContext.PermanentBuffer = permanentBuffer;
                 executionContext.OutputBuffer = outputBuffer;
                 executionContext.IntermediateBuffer = intermediateBuffer;
-                executionContext.Writer = writer.Get();
+                executionContext.Writer = writer;
                 executionContext.OutputBatchRows = &outputBatchRows;
                 executionContext.Statistics = &statistics;
                 executionContext.InputRowLimit = query->InputRowLimit;

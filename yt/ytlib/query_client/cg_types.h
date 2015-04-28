@@ -9,16 +9,27 @@ namespace llvm {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NYT::NQueryClient::TExpressionContext;
+using NYT::NQueryClient::TExecutionContext;
 using NYT::NQueryClient::TRow;
 using NYT::NQueryClient::TRowHeader;
 using NYT::NQueryClient::TValue;
 using NYT::NQueryClient::TValueData;
 using NYT::NQueryClient::TLookupRows;
 using NYT::NQueryClient::TJoinLookupRows;
-using NYT::NQueryClient::TExecutionContext;
 using NYT::NQueryClient::TTopCollector;
 
 // Opaque types
+
+template <bool Cross>
+class TypeBuilder<TExpressionContext*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
+template <bool Cross>
+class TypeBuilder<TExecutionContext*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
 
 template <bool Cross>
 class TypeBuilder<std::vector<TRow>*, Cross>
@@ -37,11 +48,6 @@ class TypeBuilder<TLookupRows*, Cross>
 
 template <bool Cross>
 class TypeBuilder<TJoinLookupRows*, Cross>
-    : public TypeBuilder<void*, Cross>
-{ };
-
-template <bool Cross>
-class TypeBuilder<TExecutionContext*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 
