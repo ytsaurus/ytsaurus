@@ -72,7 +72,10 @@ public:
     TRoutineRegistry* RoutineRegistry;
 
 private:
-    const std::unordered_set<std::string> Whitelist_ = {
+    // XXX(lukyan): Visual C++: error C2797:
+    // list initialization inside member initializer list or
+    // non-static data member initializer is not implemented
+    const std::unordered_set<std::string> Whitelist_ = std::unordered_set<std::string>{
         "memcmp",
         "__chkstk",
         "tolower"
