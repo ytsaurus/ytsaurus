@@ -4,7 +4,6 @@
 #include "chunk_meta_extensions.h"
 #include "schema.h"
 #include "unversioned_row.h"
-#include "key_filter.h"
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -32,7 +31,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TKeyColumns, KeyColumns);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
-    DEFINE_BYREF_RO_PROPERTY(TKeyFilter, KeyFilter);
     // Chunk key column count.
     DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);
     // Size of padded key column suffix, filled with null.

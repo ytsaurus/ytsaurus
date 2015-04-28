@@ -382,10 +382,13 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlock
 
     for (int keyIndex = 0; keyIndex < Keys_.Size(); ++keyIndex) {
         auto& key = Keys_[keyIndex];
+#if 0
+        //FIXME use bloom filter here.
         if (!CachedChunkMeta_->KeyFilter().Contains(key)) {
             KeyFilterTest_[keyIndex] = false;
             continue;
         }
+#endif
         int blockIndex = GetBlockIndexByKey(
             key, 
             blockIndexKeys, 
