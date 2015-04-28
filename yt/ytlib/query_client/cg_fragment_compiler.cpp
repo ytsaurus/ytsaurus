@@ -1306,6 +1306,7 @@ TCodegenSource MakeCodegenProjectOp(
 TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
     std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
+    std::vector<int> aggregateStateOffsets,
     TCodegenSource codegenSource,
     TTableSchema outputSchema,
     bool isMerge,
@@ -1314,6 +1315,7 @@ TCodegenSource MakeCodegenGroupOp(
     return [
         MOVE(codegenGroupExprs),
         MOVE(codegenAggregates),
+        MOVE(aggregateStateOffsets),
         codegenSource = std::move(codegenSource),
         outputSchema,
         isMerge,
@@ -1369,7 +1371,7 @@ TCodegenSource MakeCodegenGroupOp(
                     value.StoreToRow(builder, newRowRef, index, id);
                 }
 
-                std::vector<EValueType> aggregateTypes;
+                //TODO: this is probably wrong when merging?
                 for (int index = 0; index < aggregatesCount; ++index) {
                     auto id = keySize + index;
 
@@ -1388,7 +1390,7 @@ TCodegenSource MakeCodegenGroupOp(
                         groupedRowsRef,
                         newRowRef,
                         builder.getInt32(keySize),
-                        builder.getInt32(keySize + aggregatesCount)}));
+                        builder.getInt32(aggregateStateOffsets[aggregatesCount])}));
 
                 auto groupRow = builder.CreateLoad(groupRowPtr);
 
@@ -1396,8 +1398,7 @@ TCodegenSource MakeCodegenGroupOp(
                 for (int index = 0; index < aggregatesCount; ++index) {
                     aggStates.push_back(builder.CreateConstInBoundsGEP1_32(
                         CodegenValuesPtrFromRow(builder, groupRow),
-                        keySize + index));
-                    //TODO: offset is not keySize + index in general
+                        aggregateStateOffsets[index]));
                 }
 
                 auto condition = builder.CreateICmpEQ(
@@ -1418,7 +1419,7 @@ TCodegenSource MakeCodegenGroupOp(
                 for (int index = 0; index < aggregatesCount; ++index) {
                     auto newValue = builder.CreateConstInBoundsGEP1_32(
                         CodegenValuesPtrFromRow(builder, newRowRef),
-                        keySize + index);
+                        aggregateStateOffsets[index]);
                     if (isMerge) {
                         codegenAggregates[index].second.Merge(
                             builder,
@@ -1455,9 +1456,9 @@ TCodegenSource MakeCodegenGroupOp(
         auto codegenFinalizingConsumer = [
             MOVE(codegenConsumer),
             MOVE(codegenAggregates),
+            MOVE(aggregateStateOffsets),
             aggregatesCount,
             outputSchema,
-            keySize,
             isFinal
         ] (TCGContext& builder, Value* row) {
             if (isFinal) {
@@ -1465,23 +1466,23 @@ TCodegenSource MakeCodegenGroupOp(
                     llvm::TypeBuilder<TValue, false>::get(builder.getContext());
                 auto result = builder.CreateAlloca(unversionedValueType);
                 for (int index = 0; index < aggregatesCount; ++index) {
+                    auto id = aggregateStateOffsets[index];
                     codegenAggregates[index].second.Finalize(
                         builder,
                         result,
                         builder.CreateConstInBoundsGEP1_32(
                             CodegenValuesPtrFromRow(builder, row),
-                            keySize + index));
-                    auto resultType = outputSchema.Columns()[keySize + index].Type;
+                            aggregateStateOffsets[index]));
+                    auto resultType = outputSchema.Columns()[id].Type;
                     auto resultValue = TCGValue::CreateFromLlvmValue(
                         builder,
                         result,
                         resultType);
-                    //TODO: offset is not keySize + index in general
                     resultValue.StoreToRow(
                         builder,
                         row,
-                        keySize + index,
-                        keySize + index);
+                        aggregateStateOffsets[index],
+                        id);
                 }
             }
 
