@@ -290,7 +290,7 @@ typename TMutableRange<T>::iterator end(const TMutableRange<T>& ref)
 //! TRange with ownership semantics.
 template <class T>
 class TSharedRange
-    : public TRange<T>
+    : public NYT::TRange<T>
 {
 public:
     typedef TIntrusivePtr<TIntrinsicRefCounted> THolderPtr;
