@@ -3783,7 +3783,7 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestAverageUdaf)
+TEST_F(TQueryEvaluateTest, TestAverageAgg)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64}
@@ -3809,6 +3809,46 @@ TEST_F(TQueryEvaluateTest, TestAverageUdaf)
     registry->WithFunction(New<TAverageAggregateFunction>());
 
     Evaluate("avg(a) as x from [//t] group by 1", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestAverageAgg2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3;b=3;c=1",
+        "a=53;b=2;c=3",
+        "a=8;b=5;c=32",
+        "a=24;b=7;c=4",
+        "a=33;b=4;c=9",
+        "a=33;b=3;c=43",
+        "a=23;b=0;c=0",
+        "a=33;b=8;c=2"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"r1", EValueType::Double},
+        {"x", EValueType::Int64},
+        {"r2", EValueType::Int64},
+        {"r3", EValueType::Double},
+        {"r4", EValueType::Int64},
+    });
+
+    auto result = BuildRows({
+        "r1=17.0;x=1;r2=43;r3=20.0;r4=3",
+        "r1=35.5;x=0;r2=9;r3=3.5;r4=23"
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(New<TAverageAggregateFunction>());
+    registry->WithFunction(New<TAggregateFunction>("max"));
+    registry->WithFunction(New<TAggregateFunction>("min"));
+
+    Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

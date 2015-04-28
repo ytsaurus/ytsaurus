@@ -1308,7 +1308,6 @@ TCodegenSource MakeCodegenGroupOp(
     std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
     std::vector<int> aggregateStateOffsets,
     TCodegenSource codegenSource,
-    TTableSchema outputSchema,
     bool isMerge,
     bool isFinal)
 {
@@ -1317,7 +1316,6 @@ TCodegenSource MakeCodegenGroupOp(
         MOVE(codegenAggregates),
         MOVE(aggregateStateOffsets),
         codegenSource = std::move(codegenSource),
-        outputSchema,
         isMerge,
         isFinal
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
@@ -1419,7 +1417,7 @@ TCodegenSource MakeCodegenGroupOp(
                 for (int index = 0; index < aggregatesCount; ++index) {
                     auto newValue = builder.CreateConstInBoundsGEP1_32(
                         CodegenValuesPtrFromRow(builder, newRowRef),
-                        aggregateStateOffsets[index]);
+                        keySize + index);
                     if (isMerge) {
                         codegenAggregates[index].second.Merge(
                             builder,
@@ -1458,31 +1456,16 @@ TCodegenSource MakeCodegenGroupOp(
             MOVE(codegenAggregates),
             MOVE(aggregateStateOffsets),
             aggregatesCount,
-            outputSchema,
+            keySize,
             isFinal
         ] (TCGContext& builder, Value* row) {
             if (isFinal) {
-                auto unversionedValueType =
-                    llvm::TypeBuilder<TValue, false>::get(builder.getContext());
-                auto result = builder.CreateAlloca(unversionedValueType);
+                auto valuesPtr = CodegenValuesPtrFromRow(builder, row);
                 for (int index = 0; index < aggregatesCount; ++index) {
-                    auto id = aggregateStateOffsets[index];
                     codegenAggregates[index].second.Finalize(
                         builder,
-                        result,
-                        builder.CreateConstInBoundsGEP1_32(
-                            CodegenValuesPtrFromRow(builder, row),
-                            aggregateStateOffsets[index]));
-                    auto resultType = outputSchema.Columns()[id].Type;
-                    auto resultValue = TCGValue::CreateFromLlvmValue(
-                        builder,
-                        result,
-                        resultType);
-                    resultValue.StoreToRow(
-                        builder,
-                        row,
-                        aggregateStateOffsets[index],
-                        id);
+                        builder.CreateConstInBoundsGEP1_32(valuesPtr, keySize + index),
+                        builder.CreateConstInBoundsGEP1_32(valuesPtr, aggregateStateOffsets[index]));
                 }
             }
 
