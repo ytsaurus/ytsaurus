@@ -1,5 +1,5 @@
 import yt.logger as logger
-from yt.wrapper.errors import YtOperationFailedError, YtError
+from yt.wrapper.errors import YtOperationFailedError, YtError, format_error
 from yt.wrapper.operation_commands import format_operation_stderrs
 
 import os
@@ -38,14 +38,14 @@ def run_main(main_func):
     except KeyboardInterrupt:
         die("Shutdown requested... exiting")
     except YtOperationFailedError as error:
-        print >>sys.stderr, str(error)
-        if "stderrs" in error.attributes:
+        print >>sys.stderr, format_error(error)
+        if "stderrs" in error.attributes and error.attributes["stderrs"]:
             print >>sys.stderr
             print >>sys.stderr, "Stderrs of failed jobs:"
             print >>sys.stderr, format_operation_stderrs(error.attributes["stderrs"])
         die()
     except YtError as error:
-        die(str(error), error.code)
+        die(format_error(error), error.code)
     except Exception:
         traceback.print_exc(file=sys.stderr)
         die()
