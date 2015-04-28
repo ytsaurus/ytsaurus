@@ -75,6 +75,8 @@ static const char* CGroupPrefix = "user_jobs/yt-job-";
 
 static const int BufferSize = 1024 * 1024;
 
+static const size_t MaxCustomStatisticNameLength = 512;
+
 static TNullOutput NullOutput;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -670,6 +672,27 @@ private:
     {
         TGuard<TSpinLock> guard(StatisticsLock_);
         Statistics_.Merge(statistics);
+
+        size_t customStatisticsCount = 0;
+        for (const auto& pair : Statistics_) {
+            if (pair.first.has_prefix("/custom")) {
+                if (pair.first.size() > MaxCustomStatisticNameLength)
+                {
+                    THROW_ERROR_EXCEPTION(
+                        "Custom statistics name is too long: %v > %v",
+                        pair.first.size(),
+                        MaxCustomStatisticNameLength);
+                }
+                ++customStatisticsCount;
+            }
+        }
+
+        if (customStatisticsCount > UserJobSpec_.custom_statistics_count_limit()) {
+            THROW_ERROR_EXCEPTION(
+                "Custom statistics count exceeded: %v > %v. Increate custom statistics count limit in the job spec",
+                customStatisticsCount,
+                UserJobSpec_.custom_statistics_count_limit());
+        }
     }
 
     template <class T>

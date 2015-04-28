@@ -18,11 +18,17 @@ namespace NScheduler {
 template <class T>
 class TBaseStatistics
 {
+protected:
+    typedef yhash_map<NYPath::TYPath, T> THash;
+
 public:
     T Get(const NYPath::TYPath& name) const;
 
+    typename THash::const_iterator begin() const;
+    typename THash::const_iterator end() const;
+
 protected:
-    yhash_map<NYPath::TYPath, T> Data_;
+    THash Data_;
 
     template <class U>
     friend void Serialize(const TBaseStatistics<U>& statistics, NYson::IYsonConsumer* consumer);

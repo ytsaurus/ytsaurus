@@ -70,6 +70,8 @@ message TUserJobSpec
     optional bool check_input_fully_consumed = 16 [default = false];
 
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 17;
+
+    required int64 custom_statistics_count_limit = 18 [default = 128];
 }
 
 // User code result.

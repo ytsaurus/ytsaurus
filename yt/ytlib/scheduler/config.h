@@ -178,6 +178,8 @@ public:
 
     i64 MaxStderrSize;
 
+    i64 CustomStatisticsCountLimit;
+
     TUserJobSpec()
     {
         RegisterParameter("command", Command)
@@ -212,6 +214,10 @@ public:
             .Default((i64)5 * 1024 * 1024) // 5MB
             .GreaterThan(0)
             .LessThanOrEqual((i64)1024 * 1024 * 1024);
+        RegisterParameter("custom_statistics_count_limit", CustomStatisticsCountLimit)
+            .Default(128)
+            .GreaterThan(0)
+            .LessThanOrEqual(1024);
     }
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig)

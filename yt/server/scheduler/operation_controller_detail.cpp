@@ -3521,6 +3521,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_check_input_fully_consumed(config->CheckInputStreamFullyConsumed);
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
+    jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
 
     {
         // Set input and output format.
