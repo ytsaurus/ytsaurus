@@ -228,7 +228,7 @@ std::vector<TNonOwningCGroup> TNonOwningCGroup::GetChildren() const
 
     auto directories = NFS::EnumerateDirectories(FullPath_);
     for (const auto& directory : directories) {
-        result.emplace_back(directory);
+        result.emplace_back(NFS::CombinePaths(FullPath_, directory));
     }
     return result;
 }
