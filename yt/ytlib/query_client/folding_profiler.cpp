@@ -48,7 +48,10 @@ public:
 
 private:
     TCodegenExpression Profile(const TNamedItem& namedExpression, const TTableSchema& schema);
-    std::pair<TCodegenExpression, TCodegenAggregate> Profile(const TAggregateItem& aggregateItem, const TTableSchema& schema);
+    std::pair<TCodegenExpression, TCodegenAggregate> Profile(
+        const TAggregateItem& aggregateItem,
+        IAggregateFunctionDescriptorPtr aggregateFunction,
+        const TTableSchema& schema);
 
     void Fold(int numeric);
     void Fold(const char* str);
@@ -122,18 +125,30 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 
         std::vector<TCodegenExpression> codegenGroupExprs;
         std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates;
+        std::vector<int> aggregateStateOffsets;
 
         for (const auto& groupItem : groupClause->GroupItems) {
             codegenGroupExprs.push_back(Profile(groupItem, schema));
         }
 
+        int offset = groupClause->GroupItems.size();
+        aggregateStateOffsets.push_back(offset);
         for (const auto& aggregateItem : groupClause->AggregateItems) {
-            codegenAggregates.push_back(Profile(aggregateItem, schema));
+            auto aggregateFunction = FunctionRegistry_->GetAggregateFunction(aggregateItem.AggregateFunction);
+
+            codegenAggregates.push_back(Profile(aggregateItem, aggregateFunction, schema));
+
+            auto stateSize = aggregateFunction->GetStateSchema(
+                aggregateItem.Name,
+                aggregateItem.Expression->Type).size();
+            offset += stateSize;
+            aggregateStateOffsets.push_back(offset);
         }
 
         codegenSource = MakeCodegenGroupOp(
             std::move(codegenGroupExprs),
             std::move(codegenAggregates),
+            aggregateStateOffsets,
             std::move(codegenSource),
             groupClause->GroupedTableSchema,
             groupClause->IsMerge,
@@ -264,18 +279,16 @@ TCodegenExpression TFoldingProfiler::Profile(const TNamedItem& namedExpression, 
 
 std::pair<TCodegenExpression, TCodegenAggregate> TFoldingProfiler::Profile(
     const TAggregateItem& aggregateItem,
+    IAggregateFunctionDescriptorPtr aggregateFunction,
     const TTableSchema& schema)
 {
     Fold(static_cast<int>(EFoldingObjectType::AggregateItem));
     Fold(aggregateItem.AggregateFunction.c_str());
     Fold(aggregateItem.Name.c_str());
 
-    auto function = FunctionRegistry_->GetAggregateFunction(
-        aggregateItem.AggregateFunction);
-
     return std::make_pair(
         Profile(aggregateItem.Expression, schema),
-        function->MakeCodegenAggregate(
+        aggregateFunction->MakeCodegenAggregate(
             aggregateItem.Expression->Type,
             aggregateItem.Name));
 }
