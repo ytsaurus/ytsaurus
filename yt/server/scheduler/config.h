@@ -207,9 +207,6 @@ public:
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
 
-    //! Whether to enable user job accounting.
-    bool EnableAccounting;
-
     //! Don't check resource demand for sanity if the number of online
     //! nodes is less than this bound.
     int SafeOnlineNodeCount;
@@ -310,7 +307,7 @@ public:
         RegisterParameter("max_chunk_count_per_fetch", MaxChunkCountPerFetch)
             .Default(100000)
             .GreaterThan(0);
-        
+
         RegisterParameter("max_chunk_stripes_per_job", MaxChunkStripesPerJob)
             .Default(50000)
             .GreaterThan(0);
@@ -362,9 +359,6 @@ public:
         RegisterParameter("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
             .Default()
             .GreaterThan(0);
-
-        RegisterParameter("enable_accounting", EnableAccounting)
-            .Default(false);
 
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)
