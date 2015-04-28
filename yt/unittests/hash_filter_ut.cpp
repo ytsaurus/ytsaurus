@@ -2,6 +2,7 @@
 #include "framework.h"
 
 #include <core/misc/bloom_filter.h>
+#include <core/misc/bloom_filter.pb.h>
 #include <core/misc/farm_hash.h>
 
 #include <vector>
@@ -21,9 +22,18 @@ ui64 Random()
     return uniform(generator);
 }
 
+TBloomFilter FromBuilder(const TBloomFilterBuilder& bloomBuilder)
+{
+    NProto::TBloomFilter bloomProto;
+    TBloomFilter bloomFilter;
+    ToProto(&bloomProto, bloomBuilder);
+    FromProto(&bloomFilter, bloomProto);
+    return bloomFilter;
+}
+
 TEST(TBloomFilterTest, Null)
 {
-    TBloomFilter bloom(65636, 0.03);
+    auto bloom = FromBuilder(TBloomFilterBuilder(65636, 0.03));
 
     for (int index = 0; index < 1000; ++index){
         EXPECT_FALSE(bloom.Contains(Random()));
@@ -32,21 +42,25 @@ TEST(TBloomFilterTest, Null)
 
 TEST(TBloomFilterTest, Simple)
 {
-    TBloomFilter bloom(65636, 0.03);
+    TBloomFilterBuilder bloomBuilder(65636, 0.03);
     auto items = std::vector<ui64>{0,1,2};
 
     for (const auto item : items) {
-        bloom.Insert(item);
+        bloomBuilder.Insert(item);
     }
+
+    auto bloom = FromBuilder(bloomBuilder);
 
     for (const auto item : items) {
         EXPECT_TRUE(bloom.Contains(item));
     }
 
-    auto size = bloom.EstimateSize();
+    auto size = bloomBuilder.EstimateSize();
     EXPECT_EQ(size, 4);
-    bloom.Shrink();
-    EXPECT_EQ(bloom.Size(), size);
+    bloomBuilder.Shrink();
+    EXPECT_EQ(bloomBuilder.Size(), size);
+
+    bloom = FromBuilder(bloomBuilder);
 
     for (const auto item : items) {
         EXPECT_TRUE(bloom.Contains(item));
@@ -55,18 +69,22 @@ TEST(TBloomFilterTest, Simple)
 
 TEST(TBloomFilterTest, FalsePositiveRate)
 {
-    TBloomFilter bloom(65636, 0.03);
+    TBloomFilterBuilder bloomBuilder(65636, 0.03);
     auto items = std::unordered_set<ui64>();
 
     for (int index = 0; index < 1000; ++index){
         auto item = Random();
         items.insert(item);
-        bloom.Insert(item);
+        bloomBuilder.Insert(item);
     }
+
+    auto bloom = FromBuilder(bloomBuilder);
 
     for (const auto item : items) {
         EXPECT_TRUE(bloom.Contains(item));
     }
+
+    bloom = FromBuilder(bloomBuilder);
 
     int falsePositiveCount = 0;
     int lookupCount = 10000;
@@ -79,9 +97,11 @@ TEST(TBloomFilterTest, FalsePositiveRate)
 
     EXPECT_LT(static_cast<double>(falsePositiveCount) / lookupCount, 0.05);
 
-    bloom.Shrink();
+    bloomBuilder.Shrink();
 
-    EXPECT_LE(bloom.Size(), 8192);
+    EXPECT_LE(bloomBuilder.Size(), 8192);
+
+    bloom = FromBuilder(bloomBuilder);
 
     falsePositiveCount = 0;
     lookupCount = 10000;

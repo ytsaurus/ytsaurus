@@ -58,6 +58,7 @@ struct ICheckpointableOutputStream;
 DECLARE_REFCOUNTED_CLASS(TSlruCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TExpiringCacheConfig)
 
+class TBloomFilterBuilder;
 class TBloomFilter;
 
 using TChecksum = ui64;
