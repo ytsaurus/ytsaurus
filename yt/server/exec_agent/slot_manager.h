@@ -36,7 +36,7 @@ private:
 
     std::vector<TSlotPtr> Slots;
 
-    NConcurrency::TThreadPoolPtr ThreadPool;
+    NConcurrency::TActionQueuePtr ActionQueue;
 
     bool IsEnabled;
 

@@ -41,7 +41,7 @@ TSlot::TSlot(
     , NodeId_(nodeId)
     , SlotIndex_(slotIndex)
     , UserId_(userId)
-    , Invoker_(CreateSerializedInvoker(std::move(invoker)))
+    , Invoker_(std::move(invoker))
     , ProcessGroup_("freezer", GetSlotProcessGroup(slotIndex))
     , NullCGroup_()
     , Logger(ExecAgentLogger)
