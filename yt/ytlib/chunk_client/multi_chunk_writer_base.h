@@ -38,17 +38,17 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override;
 
-    void SetProgress(double progress);
+    virtual void SetProgress(double progress) override;
 
     /*!
      *  To get consistent data, should be called only when the writer is closed.
      */
-    const std::vector<NProto::TChunkSpec>& GetWrittenChunks() const;
+    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunks() const override    ;
 
     //! Provides node id to descriptor mapping for chunks returned via #GetWrittenChunks.
-    NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const;
+    virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
 
-    NProto::TDataStatistics GetDataStatistics() const;
+    virtual NProto::TDataStatistics GetDataStatistics() const override;
 
 protected:
     NLogging::TLogger Logger;
