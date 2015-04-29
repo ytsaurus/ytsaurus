@@ -696,6 +696,11 @@ EValueType TAverageAggregateFunction::InferResultType(
     EValueType argumentType,
     const TStringBuf& source) const
 {
+    if (argumentType != EValueType::Int64) {
+        THROW_ERROR_EXCEPTION(
+            "Aggregate function %Qv must have a signed integer argument",
+            GetName());
+    }
     return EValueType::Double;
 }
 
