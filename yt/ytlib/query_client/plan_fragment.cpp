@@ -602,8 +602,7 @@ protected:
 
         TNullable<Stroka> result;
 
-        if (functionRegistry->FindAggregateFunction(name))
-        {
+        if (functionRegistry->FindAggregateFunction(name)) {
             result.Assign(name);
         }
 
