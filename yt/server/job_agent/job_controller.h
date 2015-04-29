@@ -88,7 +88,7 @@ private:
     void ScheduleStart();
     void OnJobFinished(IJobPtr job);
     void OnResourcesUpdated(
-        IJobPtr job, 
+        TWeakPtr<IJob> job, 
         const NNodeTrackerClient::NProto::TNodeResources& resourceDelta);
     void StartWaitingJobs();
 
