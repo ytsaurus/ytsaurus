@@ -36,6 +36,7 @@ import logging
 import logging.handlers
 import thread
 import argparse
+import traceback
 from copy import deepcopy
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -71,6 +72,8 @@ class SafeThread(Thread):
                 time.sleep(0.5)
                 os.kill(self._parent_pid, signal.SIGTERM)
             except:
+                print >>sys.stderr, "Unknown exception"
+                print >>sys.stderr, traceback.format_exc()
                 logger.exception("Unknown exception")
                 os.kill(self._parent_pid, signal.SIGINT)
                 time.sleep(0.5)
