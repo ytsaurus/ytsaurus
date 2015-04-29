@@ -412,7 +412,7 @@ private:
 
         // Execute as many callbacks as possible to minimize context switches.
         TClosure callback;
-        while (Queue_.Dequeue(&callback)) {
+        if (Queue_.Dequeue(&callback)) {
             callback.Run();
         }
     }
