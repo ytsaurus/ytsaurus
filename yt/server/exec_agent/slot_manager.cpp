@@ -30,7 +30,7 @@ TSlotManager::TSlotManager(
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
-    , ThreadPool(New<TThreadPool>(Config->PoolSize, "ExecSlot"))
+    , ActionQueue(New<TActionQueue>("ExecSlots"))
     , IsEnabled(true)
 {
     YCHECK(config);
@@ -69,7 +69,7 @@ void TSlotManager::Initialize(int slotCount)
                 Config, 
                 slotPath, 
                 Format("yt-node-%v", nodeRpcPort), 
-                ThreadPool->GetInvoker(), 
+                ActionQueue->GetInvoker(), 
                 slotId, 
                 userId);
             slot->Initialize();
