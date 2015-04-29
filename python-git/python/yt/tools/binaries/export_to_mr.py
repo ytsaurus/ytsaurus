@@ -119,7 +119,7 @@ if __name__ == "__main__":
     try:
         main()
     except yt.YtError as error:
-        die(yt.errors.format_error(error))
+        die(str(error))
     except Exception:
         traceback.print_exc(file=sys.stderr)
         die()
