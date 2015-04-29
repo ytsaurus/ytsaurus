@@ -3851,6 +3851,22 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg2)
     Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
 
+TEST_F(TQueryEvaluateTest, WronglyTypedAggregate)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"\""
+    };
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(New<TAverageAggregateFunction>());
+
+    EvaluateExpectingError("avg(a) from [//t] group by 1", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEvaluateExpressionTest
