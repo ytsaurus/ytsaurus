@@ -77,7 +77,7 @@ public:
             BIND(&TImpl::OnLocationDisabled, Unretained(this))
                 .Via(Bootstrap_->GetControlInvoker()));
 
-        auto descriptors = Location_->Initialize();
+        auto descriptors = Location_->Scan();
         for (const auto& descriptor : descriptors) {
             TInsertCookie cookie(descriptor.Id);
             YCHECK(BeginInsert(&cookie));
@@ -85,6 +85,8 @@ public:
             auto chunk = CreateChunk(Location_, descriptor);
             cookie.EndInsert(chunk);
         }
+
+        Location_->Prepare();
 
         LOG_INFO("Chunk cache initialized, %v chunks total",
             GetSize());

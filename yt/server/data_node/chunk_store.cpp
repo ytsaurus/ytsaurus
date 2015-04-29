@@ -8,6 +8,7 @@
 #include "master_connector.h"
 #include "session_manager.h"
 #include "session.h"
+#include "journal_manager.h"
 
 #include <core/misc/fs.h>
 
@@ -61,13 +62,17 @@ void TChunkStore::Initialize()
             BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location)
                 .Via(Bootstrap_->GetControlInvoker()));
             
-        auto descriptors = location->Initialize();
+        auto descriptors = location->Scan();
         for (const auto& descriptor : descriptors) {
             auto chunk = CreateFromDescriptor(location, descriptor);
             RegisterExistingChunk(chunk);
         }
 
         Locations_.push_back(location);
+    }
+
+    for (auto location : Locations_) {
+        location->Prepare();
     }
 
     LOG_INFO("Chunk store initialized, %v chunks total",
@@ -339,14 +344,14 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
             .Via(Bootstrap_->GetControlInvoker()));
 }
 
-TLocationPtr TChunkStore::GetNewChunkLocation()
+TLocationPtr TChunkStore::GetNewChunkLocation(EObjectType chunkType)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     std::vector<TLocationPtr> candidates;
     int minCount = std::numeric_limits<int>::max();
     for (const auto& location : Locations_) {
-        if (location->IsFull() || !location->IsEnabled()) {
+        if (location->IsFull() || !location->IsEnabled() || !location->IsChunkTypeAccepted(chunkType)) {
             continue;
         }
         int count = location->GetSessionCount();
@@ -366,27 +371,6 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
     }
 
     return candidates[RandomNumber(candidates.size())];
-}
-
-TLocationPtr TChunkStore::GetReplayedChunkLocation()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    TLocationPtr candidate;
-    for (const auto& location : Locations_) {
-        if (!location->IsEnabled()) {
-            continue;
-        }
-        if (!candidate || location->GetAvailableSpace() > candidate->GetAvailableSpace()) {
-            candidate = location;
-        }
-    }
-
-    if (!candidate) {
-        THROW_ERROR_EXCEPTION("All locations are disabled");
-    }
-
-    return candidate;
 }
 
 void TChunkStore::OnLocationDisabled(TLocationPtr location, const TError& reason)

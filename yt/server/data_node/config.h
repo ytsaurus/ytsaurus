@@ -62,6 +62,12 @@ public:
     //! starting from the eldest ones.
     i64 TrashCleanupWatermark;
 
+    //! Controls if blob chunks are enabled for this location.
+    bool EnableBlobs;
+
+    //! Controls if journal chunks are enabled for this location.
+    bool EnableJournals;
+
     TLocationConfig()
     {
         RegisterParameter("path", Path)
@@ -83,6 +89,10 @@ public:
         RegisterParameter("trash_cleanup_watermark", TrashCleanupWatermark)
             .GreaterThanOrEqual(0)
             .Default((i64) 40 * 1024 * 1024 * 1024); // 40 Gb
+        RegisterParameter("enable_blobs", EnableBlobs)
+            .Default(true);
+        RegisterParameter("enable_journals", EnableJournals)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (HighWatermark > LowWatermark) {
@@ -129,9 +139,6 @@ class TMultiplexedChangelogConfig
     , public NHydra::TFileChangelogDispatcherConfig
 {
 public:
-    //! A path where multiplexed changelogs are stored.
-    Stroka Path;
-
     //! Multiplexed changelog record count limit.
     /*!
      *  When this limit is reached, the current multiplexed changelog is rotated.
@@ -157,8 +164,6 @@ public:
 
     TMultiplexedChangelogConfig()
     {
-        RegisterParameter("path", Path)
-            .NonEmpty();
         RegisterParameter("max_record_count", MaxRecordCount)
             .Default(1000000)
             .GreaterThan(0);

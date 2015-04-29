@@ -91,19 +91,12 @@ public:
 
     //! Finds a suitable storage location for a new chunk.
     /*!
-     *  Among enabled locations that are not full returns a random one with the minimum number
-     *  of active sessions. Throws exception if all locations are full.
+     *  Among enabled locations that are not full and support chunks of a given type,
+     *  returns a random one with the minimum number of active sessions.
+     *
+     *  Throws exception if no suitable location could be found.
      */
-    TLocationPtr GetNewChunkLocation();
-
-    //! Finds a suitable storage location for a chunk (typically a journal) that needs
-    //! to be created during replay.
-    /*!
-     *  Among enabled locations returns the one with the maximum available disk space.
-     *  Note that this location may be full but we still hope for the best.
-     *  Throws exception if all locations are disabled.
-     */
-    TLocationPtr GetReplayedChunkLocation();
+    TLocationPtr GetNewChunkLocation(NObjectClient::EObjectType chunkType);
 
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);

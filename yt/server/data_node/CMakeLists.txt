@@ -16,6 +16,7 @@ set( SRCS
   ${BASE}/job.cpp
   ${BASE}/journal_chunk.cpp
   ${BASE}/journal_dispatcher.cpp
+  ${BASE}/journal_manager.cpp
   ${BASE}/journal_session.cpp
   ${BASE}/local_chunk_reader.cpp
   ${BASE}/location.cpp
@@ -44,6 +45,7 @@ set( HDRS
   ${BASE}/job.h
   ${BASE}/journal_chunk.h
   ${BASE}/journal_dispatcher.h
+  ${BASE}/journal_manager.h
   ${BASE}/journal_session.h
   ${BASE}/local_chunk_reader.h
   ${BASE}/location.h
