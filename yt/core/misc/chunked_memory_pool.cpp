@@ -36,7 +36,7 @@ char* TChunkedMemoryPool::AllocateAlignedSlow(i64 size, int align)
     // NB: Do not rely on any particular alignment of chunks.
     auto* large = AllocateSlowCore(size + align);
     if (large) {
-        return AlignUp(large, size);
+        return AlignUp(large, align);
     }
     return AllocateAligned(size, align);
 }
@@ -46,6 +46,7 @@ char* TChunkedMemoryPool::AllocateSlowCore(i64 size)
     if (size > MaxSmallBlockSize_) {
         auto block = TSharedMutableRef::Allocate(size, false, TagCookie_);
         LargeBlocks_.push_back(block);
+        Size_ += size;
         Capacity_ += size;
         return block.Begin();
     }
