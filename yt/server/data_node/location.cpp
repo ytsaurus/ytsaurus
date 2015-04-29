@@ -8,6 +8,7 @@
 #include "disk_health_checker.h"
 #include "master_connector.h"
 #include "journal_dispatcher.h"
+#include "journal_manager.h"
 
 #include <core/misc/fs.h>
 
@@ -44,6 +45,7 @@ using namespace NHydra;
 static const int ChunkFilesPermissions = 0751;
 
 static const auto TrashDirectory = Stroka("trash");
+static const auto MultiplexedDirectory = Stroka("multiplexed");
 static const auto TrashCheckPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +69,10 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(static_cast<int>(ELocationQueue::Meta))))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("Write:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
+    , JournalManager_(New<TJournalManager>(
+        Bootstrap_->GetConfig()->DataNode,
+        this,
+        Bootstrap_))
     , HealthChecker_(New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
         GetPath(),
@@ -78,7 +84,7 @@ TLocation::TLocation(
         EPeriodicExecutorMode::Manual))
 {
     Logger = DataNodeLogger;
-    Logger.AddTag("Path: %v", Config_->Path);
+    Logger.AddTag("LocationId: %v", Id_);
 
     NProfiling::TTagIdList tagIds;
     auto* profilingManager = TProfileManager::Get();
@@ -98,6 +104,26 @@ ELocationType TLocation::GetType() const
 const Stroka& TLocation::GetId() const
 {
     return Id_;
+}
+
+TLocationConfigPtr TLocation::GetConfig() const
+{
+    return Config_;
+}
+
+bool TLocation::IsChunkTypeAccepted(EObjectType chunkType)
+{
+    switch (chunkType) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+            return Config_->EnableBlobs;
+
+        case EObjectType::JournalChunk:
+            return Config_->EnableJournals;
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 const NProfiling::TProfiler& TLocation::GetProfiler()
@@ -271,6 +297,11 @@ IInvokerPtr TLocation::GetWritePoolInvoker()
     return WritePoolInvoker_;
 }
 
+TJournalManagerPtr TLocation::GetJournalManager()
+{
+    return JournalManager_;
+}
+
 bool TLocation::IsEnabled() const
 {
     return Enabled_.load();
@@ -304,12 +335,12 @@ void TLocation::DoDisable(const TError& reason)
     Disabled_.Fire(reason);
 }
 
-std::vector<TChunkDescriptor> TLocation::Initialize()
+std::vector<TChunkDescriptor> TLocation::Scan()
 {
     std::vector<TChunkDescriptor> result;
 
     try {
-        result = DoInitialize();
+        result = DoScan();
         Enabled_.store(true);
     } catch (const std::exception& ex) {
         auto error = TError("Location has failed to initialize") << ex;
@@ -322,7 +353,7 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
     return result;
 }
 
-std::vector<TChunkDescriptor> TLocation::DoInitialize()
+std::vector<TChunkDescriptor> TLocation::DoScan()
 {
     if (Config_->MinDiskSpace) {
         i64 minSpace = *Config_->MinDiskSpace;
@@ -359,6 +390,10 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
 
             // Skip trash directory.
             if (fileName.has_prefix(TrashDirectory + LOCSLASH_S))
+                continue;
+
+            // Skip multiplexed directory.
+            if (fileName.has_prefix(MultiplexedDirectory + LOCSLASH_S))
                 continue;
 
             TChunkId chunkId;
@@ -427,6 +462,20 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
 
     LOG_INFO("Done, %v trash chunks found", trashChunkIds.size());
 
+    // Run first health check before initialization is complete to sort out read-only drives.
+    HealthChecker_->RunCheck()
+        .Get()
+        .ThrowOnError();
+
+    return descriptors;
+}
+
+void TLocation::Prepare()
+{
+    if (Type_ == ELocationType::Store) {
+        JournalManager_->Initialize();
+    }
+
     auto cellIdPath = NFS::CombinePaths(GetPath(), CellIdFileName);
     if (NFS::Exists(cellIdPath)) {
         TFileInput cellIdFile(cellIdPath);
@@ -448,16 +497,10 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         cellIdFile.Write(ToString(Bootstrap_->GetCellId()));
     }
 
-    // Run first health check before initialization is complete to sort out read-only drives.
-    HealthChecker_->RunCheck()
-        .Get()
-        .ThrowOnError();
-
     // Start health checker.
     HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker_->Start();
 
-    return descriptors;
 }
 
 TNullable<TChunkDescriptor> TLocation::RepairBlobChunk(const TChunkId& chunkId)
@@ -519,7 +562,7 @@ TNullable<TChunkDescriptor> TLocation::RepairJournalChunk(const TChunkId& chunkI
 
     if (hasData) {
         auto dispatcher = Bootstrap_->GetJournalDispatcher();
-        // NB: This also creates the (possibly missing) index file.
+        // NB: This also forces the index file.
         auto changelog = dispatcher->OpenChangelog(this, chunkId, false)
             .Get()
             .ValueOrThrow();

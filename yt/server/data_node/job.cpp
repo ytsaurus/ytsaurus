@@ -606,7 +606,13 @@ private:
 
     virtual void DoRun() override
     {
-        if (Chunk_->IsActive()) {
+        if (Chunk_->GetType() != EObjectType::JournalChunk) {
+            THROW_ERROR_EXCEPTION("Cannot seal a non-journal chunk %v",
+                ChunkId_);
+        }
+
+        auto journalChunk = Chunk_->AsJournalChunk();
+        if (journalChunk->IsActive()) {
             THROW_ERROR_EXCEPTION("Cannot seal an active journal chunk %v",
                 ChunkId_);
         }
@@ -618,13 +624,11 @@ private:
         }
 
         auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
-        auto location = Chunk_->GetLocation();
-
+        auto location = journalChunk->GetLocation();
         auto changelogOrError = WaitFor(journalDispatcher->OpenChangelog(location, ChunkId_, false));
         THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
         auto changelog = changelogOrError.Value();
 
-        auto journalChunk = Chunk_->AsJournalChunk();
         if (journalChunk->HasAttachedChangelog()) {
             THROW_ERROR_EXCEPTION("Journal chunk %v is already being written to",
                 ChunkId_);

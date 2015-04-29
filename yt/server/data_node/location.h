@@ -47,12 +47,23 @@ public:
     //! Returns string id.
     const Stroka& GetId() const;
 
+    //! Returns the location's configuration.
+    TLocationConfigPtr GetConfig() const;
+
+    //! Returns |true| if the location accepts new chunks of a given type.
+    bool IsChunkTypeAccepted(NObjectClient::EObjectType chunkType);
+
     //! Returns the profiler tagged with location id.
     const NProfiling::TProfiler& GetProfiler();
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     //! If the scan fails, the location becomes disabled, |Disabled| signal is raised, and an empty list is returned.
-    std::vector<TChunkDescriptor> Initialize();
+    std::vector<TChunkDescriptor> Scan();
+
+    //! Prepares the locations to accept new writes.
+    //! Replays multiplexed journals.
+    //! Must be called when all locations are scanned and all existing chunks are registered.
+    void Prepare();
 
     //! Updates #UsedSpace and #AvailalbleSpace
     void UpdateUsedSpace(i64 size);
@@ -122,6 +133,9 @@ public:
     //! Returns an invoker for writing chunks.
     IInvokerPtr GetWritePoolInvoker();
 
+    //! Returns Journal Manager accociated with this location.
+    TJournalManagerPtr GetJournalManager();
+
     //! Returns |true| iff the location is enabled.
     bool IsEnabled() const;
 
@@ -162,6 +176,8 @@ private:
     const NConcurrency::TThreadPoolPtr WriteThreadPool_;
     const IInvokerPtr WritePoolInvoker_;
 
+    const TJournalManagerPtr JournalManager_;
+
     const TDiskHealthCheckerPtr HealthChecker_;
 
     struct TTrashChunkEntry
@@ -178,7 +194,7 @@ private:
     mutable NLogging::TLogger Logger;
 
 
-    std::vector<TChunkDescriptor> DoInitialize();
+    std::vector<TChunkDescriptor> DoScan();
     TNullable<TChunkDescriptor> RepairBlobChunk(const TChunkId& chunkId);
     TNullable<TChunkDescriptor> RepairJournalChunk(const TChunkId& chunkId);
 

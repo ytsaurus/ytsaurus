@@ -240,6 +240,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     bool full = true;
 
     auto chunkStore = Bootstrap_->GetChunkStore();
+    yhash_set<EObjectType> acceptedChunkTypes;
     for (auto location : chunkStore->Locations()) {
         auto* locationStatistics = result.add_locations();
 
@@ -259,6 +260,16 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
         totalUsedSpace += location->GetUsedSpace();
         totalChunkCount += location->GetChunkCount();
         totalSessionCount += location->GetSessionCount();
+
+        for (auto type : {EObjectType::Chunk, EObjectType::ErasureChunk, EObjectType::JournalChunk}) {
+            if (location->IsChunkTypeAccepted(type)) {
+                acceptedChunkTypes.insert(type);
+            }
+        }
+    }
+
+    for (auto type : acceptedChunkTypes) {
+        result.add_accepted_chunk_types(static_cast<int>(type));
     }
 
     result.set_total_available_space(totalAvailableSpace);
@@ -275,14 +286,6 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     auto slotManager = Bootstrap_->GetTabletSlotManager();
     result.set_available_tablet_slots(slotManager->GetAvailableTabletSlotCount());
     result.set_used_tablet_slots(slotManager->GetUsedTableSlotCount());
-    
-    result.add_accepted_chunk_types(static_cast<int>(EObjectType::Chunk));
-    result.add_accepted_chunk_types(static_cast<int>(EObjectType::ErasureChunk));
-    
-    auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
-    if (journalDispatcher->AcceptsChunks()) {
-        result.add_accepted_chunk_types(static_cast<int>(EObjectType::JournalChunk));
-    }
 
     return result;
 }

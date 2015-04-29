@@ -202,7 +202,7 @@ void TBootstrap::DoRun()
 
     BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
 
-    JournalDispatcher = New<TJournalDispatcher>(this, Config->DataNode);
+    JournalDispatcher = New<TJournalDispatcher>(Config->DataNode, this);
 
     ChunkRegistry = New<TChunkRegistry>(this);
 
@@ -388,7 +388,6 @@ void TBootstrap::DoRun()
     TabletSlotManager->Initialize();
     ChunkStore->Initialize();
     ChunkCache->Initialize();
-    JournalDispatcher->Initialize();
     ExecSlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
     monitoringManager->Start();
     PeerBlockUpdater->Start();

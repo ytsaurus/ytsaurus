@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/ref.h>
+
 #include <server/hydra/public.h>
 
 #include <server/cell_node/public.h>
@@ -11,48 +13,47 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Provides access to changelogs corresponding to journals stored at node.
-class TJournalDispatcher
+//! Manages journal chunks stored at some specific location.
+class TJournalManager
     : public TRefCounted
 {
 public:
-    TJournalDispatcher(
+    TJournalManager(
         TDataNodeConfigPtr config,
+        TLocation* location,
         NCellNode::TBootstrap* bootstrap);
-    ~TJournalDispatcher();
+    ~TJournalManager();
 
-    //! Returns |true| if journal chunks are supported by any location.
+    void Initialize();
+
+    //! Returns |true| if journal chunks are supported for this location.
     bool IsEnabled() const;
 
-    //! Asynchronously opens (or returns a cached) changelog corresponding
-    //! to a given journal chunk.
     TFuture<NHydra::IChangelogPtr> OpenChangelog(
-        TLocationPtr location,
         const TChunkId& chunkId,
         bool enableMultiplexing);
 
-    //! Asynchronously creates a new changelog corresponding to a given journal chunk.
     TFuture<NHydra::IChangelogPtr> CreateChangelog(
-        TLocationPtr location,
         const TChunkId& chunkId,
         bool enableMultiplexing);
 
-    //! Asynchronously removes files of a given journal chunk.
     TFuture<void> RemoveChangelog(TJournalChunkPtr chunk);
 
-private:
-    class TCachedChangelog;
-    typedef TIntrusivePtr<TCachedChangelog> TCachedChangelogPtr;
+    TFuture<void> AppendMultiplexedRecord(
+        const TChunkId& chunkId,
+        int recordId,
+        const TSharedRef& recordData,
+        TFuture<void> flushResult);
 
-    class
-        TImpl;
+private:
+    class TImpl;
     typedef TIntrusivePtr<TImpl> TImplPtr;
 
     const TIntrusivePtr<TImpl> Impl_;
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TJournalDispatcher)
+DEFINE_REFCOUNTED_TYPE(TJournalManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

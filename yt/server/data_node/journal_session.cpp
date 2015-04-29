@@ -51,7 +51,7 @@ TFuture<void> TJournalSession::DoStart()
         TChunkDescriptor(ChunkId_));
 
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    auto asyncChangelog = dispatcher->CreateChangelog(Chunk_, Options_.OptimizeForLatency);
+    auto asyncChangelog = dispatcher->CreateChangelog(Location_, ChunkId_, Options_.OptimizeForLatency);
 
     auto chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(Chunk_);

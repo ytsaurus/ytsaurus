@@ -2,8 +2,15 @@
 #include "chunk.h"
 #include "journal_chunk.h"
 
+#include <ytlib/object_client/helpers.h>
+
+#include <ytlib/chunk_client/chunk_replica.h>
+
 namespace NYT {
 namespace NDataNode {
+
+using namespace NObjectClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +38,11 @@ TRefCountedChunkMeta::TRefCountedChunkMeta(NChunkClient::NProto::TChunkMeta&& ot
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+EObjectType IChunk::GetType() const
+{
+    return TypeFromId(DecodeChunkId(GetId()).Id);
+}
 
 TJournalChunkPtr IChunk::AsJournalChunk()
 {
