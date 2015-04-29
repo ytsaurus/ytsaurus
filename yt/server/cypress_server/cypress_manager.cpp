@@ -970,18 +970,35 @@ bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transac
     auto transactions = transactionManager->GetTransactionPath(transaction);
 
     auto hasChild = [&] (TCypressNodeBase* parentTrunkNode, TCypressNodeBase* childTrunkNode) {
-        // Compute child key.
+        // Compute child key or index.
         TNullable<Stroka> key;
         for (const auto* currentTransaction : transactions) {
             TVersionedNodeId versionedId(parentTrunkNode->GetId(), GetObjectId(currentTransaction));
             const auto* parentNode = FindNode(versionedId);
             if (parentNode) {
-                const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
-                auto it = parentMapNode->ChildToKey().find(childTrunkNode);
-                if (it != parentMapNode->ChildToKey().end()) {
-                    key = it->second;
-                    break;
+                switch (parentNode->GetType()) {
+                    case EObjectType::MapNode: {
+                        const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
+                        auto it = parentMapNode->ChildToKey().find(childTrunkNode);
+                        if (it != parentMapNode->ChildToKey().end()) {
+                            key = it->second;
+                        }
+                        break;        
+                    }
+
+                    case EObjectType::ListNode: {
+                        const auto* parentListNode = static_cast<const TListNode*>(parentNode);
+                        auto it = parentListNode->ChildToIndex().find(childTrunkNode);
+                        if (it != parentListNode->ChildToIndex().end()) {
+                            return true;
+                        }
+                        break;        
+                    }
                 }
+                
+            }
+            if (key) {
+                break;
             }
         }
 
@@ -994,6 +1011,7 @@ bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transac
             TVersionedNodeId versionedId(parentTrunkNode->GetId(), GetObjectId(currentTransaction));
             const auto* parentNode = FindNode(versionedId);
             if (parentNode) {
+                // NB: List parents are already handled above.
                 const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
                 auto it = parentMapNode->KeyToChild().find(*key);
                 if (it != parentMapNode->KeyToChild().end() && it->second != childTrunkNode) {
