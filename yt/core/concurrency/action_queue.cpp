@@ -410,7 +410,6 @@ private:
 
         LockReleased_ = false;
 
-        // Execute as many callbacks as possible to minimize context switches.
         TClosure callback;
         if (Queue_.Dequeue(&callback)) {
             callback.Run();
