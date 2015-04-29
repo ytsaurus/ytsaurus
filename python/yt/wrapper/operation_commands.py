@@ -1,6 +1,7 @@
 import config
+from yt.common import format_error
 from common import require, prefix, get_value
-from errors import YtError, YtOperationFailedError, YtResponseError, format_error, YtTimeoutError
+from errors import YtError, YtOperationFailedError, YtResponseError, YtTimeoutError
 from driver import make_request
 from http import get_proxy_url
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
@@ -244,7 +245,7 @@ def get_stderrs(operation, only_failed_jobs, limit=None, client=None):
         job_with_stderr["host"] = get_attribute(path, "address", client=client)
 
         if only_failed_jobs:
-            job_with_stderr["error"] = format_error(path.attributes["error"])
+            job_with_stderr["error"] = path.attributes["error"]
 
         try:
             stderr_path = os.path.join(path, "stderr")
@@ -274,7 +275,7 @@ def format_operation_stderrs(jobs_with_stderr):
 
         if "error" in job:
             output.write("Error:\n")
-            output.write(job["error"])
+            output.write(format_error(job["error"]))
             output.write("\n")
 
         output.write(job["stderr"])
@@ -341,8 +342,7 @@ class Operation(object):
         :param timeout: (double) timeout of operation in sec. ``None`` means operation is endlessly waited for.
         """
 
-        if config.PRINT_LINK_TO_OPERATION:
-            logger.info("Operation started: %s", self.url)
+        logger.info("Operation started: %s", self.url)
 
         finalize = self.finalize if self.finalize else lambda state: None
         time_watcher = TimeWatcher(min_interval=config.OPERATION_STATE_UPDATE_PERIOD / 5.0,
