@@ -240,7 +240,7 @@ public:
     TErasureWriterConfig()
     {
         RegisterParameter("erasure_window_size", ErasureWindowSize)
-            .Default((i64)8 * 1024 * 1024)
+            .Default((i64) 8 * 1024 * 1024)
             .GreaterThan(0);
     }
 };
@@ -333,11 +333,11 @@ public:
     {
         RegisterParameter("desired_chunk_size", DesiredChunkSize)
             .GreaterThan(0)
-            .Default(1024 * 1024 * 1024);
+            .Default((i64) 1024 * 1024 * 1024);
         RegisterParameter("max_meta_size", MaxMetaSize)
             .GreaterThan(0)
-            .LessThanOrEqual(64 * 1024 * 1024)
-            .Default(30 * 1024 * 1024);
+            .LessThanOrEqual((i64) 64 * 1024 * 1024)
+            .Default((i64) 30 * 1024 * 1024);
         RegisterParameter("chunks_movable", ChunksMovable)
             .Default(true);
         RegisterParameter("sync_chunk_switch", SyncChunkSwitch)
