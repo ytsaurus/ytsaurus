@@ -12,7 +12,7 @@ make_link()
     src="$1"
     dst="$2"
     # TODO(ignat): make atomic
-    $YT remove "$dst"
+    $YT remove "$dst" --force
     $YT link "$src" "$dst"
 }
 
