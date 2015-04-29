@@ -43,7 +43,7 @@ static const int InitialEditListCapacity = 2;
 static const int EditListCapacityMultiplier = 2;
 static const int MaxEditListCapacity = 256;
 static const int TypicalEditListCount = 16;
-static const int TabletReaderPoolSize = 1024;
+static const int TabletReaderPoolSize = 16 * 1024;
 
 struct TDynamicMemoryStoreFetcherPoolTag { };
 
