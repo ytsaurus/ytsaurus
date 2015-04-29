@@ -1339,7 +1339,7 @@ class TLinkNodeProxy::TDoesNotExistService
     , public TSupportsExists
 {
 private:
-    bool DoInvoke(NRpc::IServiceContextPtr context)
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Exists);
         return TYPathServiceBase::DoInvoke(context);
