@@ -109,6 +109,16 @@ class ResponseStream(object):
     def close(self):
         self._close()
 
+class EmptyResponseStream(object):
+    def read(self, length=None):
+        return ""
+
+    def readline(self):
+        return ""
+
+    def close(self):
+        pass
+
 def read_content(get_response, iter_content, raw, format=None):
     if raw:
         return ResponseStream(get_response, iter_content)
