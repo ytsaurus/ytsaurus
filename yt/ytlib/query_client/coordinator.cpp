@@ -49,7 +49,9 @@ TTableSchema GetIntermediateSchema(
             ->GetAggregateFunction(item.AggregateFunction)
             ->GetStateSchema(item.Name, item.Expression->Type);
         for (auto column : intermediateSchema) {
-            schema.Columns().push_back(column);
+            schema.Columns().emplace_back(
+                item.Name,
+                column.Type);
         }
     }
 

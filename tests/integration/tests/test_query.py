@@ -93,6 +93,32 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("k, sum(b) as s from [//tmp/g2] group by a % 2 as k")
         self.assertItemsEqual(actual, expected)
 
+    def test_merging_group_by(self):
+        self._sample_data(path="//tmp/g2")
+        expected = [{"k": 0, "s": 200}, {"k": 1, "s": 250}]
+        actual = select_rows("avg(b) as s from [//tmp/g2] group by 1")
+        #self.assertItemsEqual(actual, expected)
+        #self._sync_create_cells(3, 1)
+
+        #create("table", "//tmp/mg",
+        #    attributes = {
+        #        "schema": [
+        #            {"name": "a", "type": "int64"},
+        #            {"name": "b", "type": "int64"}],
+        #        "key_columns": ["a"]
+        #    })
+
+        #mount_table("//tmp/mg")
+
+        #self._wait_for_tablet_state("//tmp/mg", ["mounted"])
+
+        #data = [{"a" : i, "b" : i * 10} for i in xrange(0,10)]
+        #insert_rows("//tmp/mg", data)
+
+        #expected = [{"s": 4.5}]
+        #actual = select_rows("avg(a) as s from [//tmp/mg] group by 1")
+        #assert expected == actual
+
     def test_limit(self):
         self._sample_data(path="//tmp/l1")
         expected = [{"a": 1, "b": 10}]

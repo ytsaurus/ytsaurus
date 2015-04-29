@@ -292,18 +292,6 @@ struct TGroupClause
     // TODO: Use ITableSchemaInterface
     TTableSchema GroupedTableSchema;
 
-    void AddGroupItem(const TNamedItem& namedItem)
-    {
-        GroupItems.push_back(namedItem);
-        GroupedTableSchema.Columns().emplace_back(namedItem.Name, namedItem.Expression->Type);
-    }
-
-    void AddAggregateItem(const TAggregateItem& aggregateItem)
-    {
-        AggregateItems.push_back(aggregateItem);
-        GroupedTableSchema.Columns().emplace_back(aggregateItem.Name, aggregateItem.Expression->Type);
-    }
-
     TTableSchema GetTableSchema() const
     {
         return GroupedTableSchema;

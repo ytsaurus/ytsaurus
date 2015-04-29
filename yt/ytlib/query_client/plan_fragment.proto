@@ -107,6 +107,7 @@ message TGroupClause
 {
     repeated TNamedItem group_items = 1;
     repeated TAggregateItem aggregate_items = 2;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt grouped_table_schema = 5;
     required bool is_merge = 3;
     required bool is_final = 4;
 }
