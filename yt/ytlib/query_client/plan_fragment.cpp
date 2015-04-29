@@ -1,3 +1,4 @@
+#include <iostream>
 #include "stdafx.h"
 
 #include "function_registry.h"
@@ -342,6 +343,10 @@ protected:
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
             const auto* column = GetColumnPtr(referenceExpr->ColumnName);
             if (!column) {
+                std::cout << "SCHEMA:" << std::endl;
+                for (auto column : GetTableSchema()->Columns()) {
+                    std::cout << column.Name << std::endl;
+                }
                 THROW_ERROR_EXCEPTION("Undefined reference %Qv", referenceExpr->ColumnName);
             }
 
@@ -1593,6 +1598,7 @@ void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
 {
     ToProto(proto->mutable_group_items(), original->GroupItems);
     ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
+    ToProto(proto->mutable_grouped_table_schema(), original->GroupedTableSchema);
     proto->set_is_merge(original->IsMerge);
     proto->set_is_final(original->IsFinal);
 }
@@ -1690,16 +1696,18 @@ TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
 TGroupClausePtr FromProto(const NProto::TGroupClause& serialized)
 {
     auto result = New<TGroupClause>();
+    FromProto(&result->GroupedTableSchema, serialized.grouped_table_schema());
+    result->IsMerge = serialized.is_merge();
+    result->IsFinal = serialized.is_final();
+
     result->GroupItems.reserve(serialized.group_items_size());
     for (int i = 0; i < serialized.group_items_size(); ++i) {
-        result->AddGroupItem(FromProto(serialized.group_items(i)));
+        result->GroupItems.push_back(FromProto(serialized.group_items(i)));
     }
     result->AggregateItems.reserve(serialized.aggregate_items_size());
     for (int i = 0; i < serialized.aggregate_items_size(); ++i) {
-        result->AddAggregateItem(FromProto(serialized.aggregate_items(i)));
+        result->AggregateItems.push_back(FromProto(serialized.aggregate_items(i)));
     }
-    result->IsMerge = serialized.is_merge();
-    result->IsFinal = serialized.is_final();
 
     return result;
 }
