@@ -295,7 +295,7 @@ class Application(object):
             try:
                 return func(*args, **kwargs)
             except RequestFailed as error:
-                logger.exception(yt.errors.format_error(error))
+                logger.exception(str(error))
                 return json.dumps(error.simplify()), 400
             except Exception as error:
                 logger.exception(error)
@@ -315,7 +315,7 @@ class Application(object):
                         logger.info("Failed to take lock")
                         time.sleep(self._lock_timeout)
                         continue
-                    logger.exception(yt.errors.format_error(err))
+                    logger.exception(str(err))
                     return
 
             logger.info("Lock acquired")
@@ -852,7 +852,7 @@ class Application(object):
             except Exception:
                 logger.exception("Task failed with error:")
                 raise
-            logger.exception("Task {} failed with error {}".format(task.id, yt.errors.format_error(error)))
+            logger.exception("Task {} failed with error {}".format(task.id, str(error)))
             message_queue.put({
                 "type": "error",
                 "error": error.simplify()

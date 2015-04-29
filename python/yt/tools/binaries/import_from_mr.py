@@ -65,7 +65,7 @@ def import_table(object, args):
         logger.exception(error.message)
         return REPEAT
     except YamrError as error:
-        logger.exception("Yamr failed: " + yt.errors.format_error(error))
+        logger.exception("Yamr failed: " + str(error))
         return REPEAT
     except:
         logger.exception("Unknown error occurred while import")

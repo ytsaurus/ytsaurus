@@ -25,8 +25,62 @@ class YtError(Exception):
         return result
 
     def __str__(self):
-        return self.message
+        return format_error(self)
 
+def _pretty_format(error, attribute_length_limit=None, indent=0):
+    def format_attribute(name, value):
+        value = str(value)
+        if attribute_length_limit is not None and len(value) > attribute_length_limit:
+            value = value[:attribute_length_limit] + "...message truncated..."
+        value = value.replace("\n", "\\n")
+        return (" " * (indent + 4)) + "%-15s %s" % (name, value)
+
+    if isinstance(error, YtError):
+        error = error.simplify()
+    elif isinstance(error, Exception):
+        error = {"code": 1, "message": str(error)}
+
+    lines = []
+    if "message" in error:
+        lines.append(error["message"])
+
+    if "code" in error and int(error["code"]) != 1:
+        lines.append(format_attribute("code", error["code"]))
+
+    attributes = error.get("attributes", {})
+
+    origin_keys = ["host", "datetime", "pid", "tid", "fid"]
+    if all(key in attributes for key in origin_keys):
+        lines.append(
+            format_attribute(
+                "origin",
+                "%s in %s (pid %d, tid %x, fid %x)" % (
+                    attributes["host"],
+                    attributes["datetime"],
+                    attributes["pid"],
+                    attributes["tid"],
+                    attributes["fid"])))
+
+    location_keys = ["file", "line"]
+    if all(key in attributes for key in location_keys):
+        lines.append(format_attribute("location", "%s:%d" % (attributes["file"], attributes["line"])))
+
+    for key, value in attributes.items():
+        if key in origin_keys or key in location_keys:
+            continue
+        lines.append(format_attribute(key, value))
+
+    result = " " * indent + (" " * (indent + 4) + "\n").join(lines)
+    if "inner_errors" in error:
+        for inner_error in error["inner_errors"]:
+            # NB: here we should pass indent=indent + 2 as in C++ version, but historically there was a bug here.
+            # We don't want fix it, because current format is enough pretty for users.
+            result += "\n" + _pretty_format(inner_error, attribute_length_limit=attribute_length_limit, indent=indent)
+
+    return result
+
+def format_error(error, attribute_length_limit=150):
+    return _pretty_format(error, attribute_length_limit)
 
 def which(name, flags=os.X_OK):
     """ Return list of files in system paths with given name. """

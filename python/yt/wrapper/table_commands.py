@@ -51,7 +51,7 @@ import config
 import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
                    compose, bool_to_string, chunk_iter_lines, get_version, MB, EMPTY_GENERATOR
-from errors import YtIncorrectResponse, YtError, format_error
+from errors import YtIncorrectResponse, YtError
 from driver import make_request, ResponseStream, EmptyResponseStream
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
@@ -557,7 +557,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             except RETRIABLE_ERRORS as err:
                 if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                     raise
-                logger.warning(format_error(err))
+                logger.warning(str(err))
                 logger.warning("New retry (%d) ...", attempt + 2)
 
 
@@ -591,7 +591,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                     except RETRIABLE_ERRORS as err:
                         if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                             raise
-                        logger.warning(format_error(err))
+                        logger.warning(str(err))
                         logger.warning("New retry (%d) ...", attempt + 2)
             except exceptions.GeneratorExit:
                 tx.__exit__(None, None, None)
