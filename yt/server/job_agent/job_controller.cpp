@@ -136,7 +136,7 @@ void TJobController::StartWaitingJobs()
                 LOG_INFO("Starting job (JobId: %v)", job->GetId());
 
                 job->SubscribeResourcesUpdated(
-                    BIND(&TJobController::OnResourcesUpdated, MakeWeak(this), job)
+                    BIND(&TJobController::OnResourcesUpdated, MakeWeak(this), MakeWeak(job))
                         .Via(Bootstrap_->GetControlInvoker()));
 
                 job->Start();
@@ -211,13 +211,16 @@ void TJobController::RemoveJob(IJobPtr job)
     YCHECK(Jobs_.erase(job->GetId()) == 1);
 }
 
-void TJobController::OnResourcesUpdated(IJobPtr job, const TNodeResources& resourceDelta)
+void TJobController::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeResources& resourceDelta)
 {
     if (!CheckResourceUsageDelta(resourceDelta)) {
-        job->Abort(TError(
-            NExecAgent::EErrorCode::ResourceOverdraft,
-            "Failed to increase resource usage (ResourceDelta: {%v})",
-            FormatResources(resourceDelta)));
+        auto job_ = job.Lock();
+        if (job_) {
+            job_->Abort(TError(
+                NExecAgent::EErrorCode::ResourceOverdraft,
+                "Failed to increase resource usage (ResourceDelta: {%v})",
+                FormatResources(resourceDelta)));
+        }
         return;
     }
 
