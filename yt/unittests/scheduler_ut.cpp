@@ -517,6 +517,39 @@ TEST_F(TSchedulerTest, CancelInAdjacentThread)
     EXPECT_TRUE(asyncResult2.IsOK());
 }
 
+TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
+{
+    std::atomic<bool> flag(false);
+
+    auto threadPool = New<TThreadPool>(3, "MyPool");
+    auto serializedInvoker = CreateSerializedInvoker(threadPool->GetInvoker());
+
+    auto promise = NewPromise<void>();
+
+    BIND([&] () {
+        WaitFor(VoidFuture);
+        WaitFor(VoidFuture);
+        promise.Set();
+
+        Sleep(TDuration::MilliSeconds(10));
+        flag = true;
+    })
+    .Via(serializedInvoker)
+    .Run();
+
+    promise.ToFuture().Get();
+
+    auto result = BIND([&] () -> bool {
+        return flag;
+    })
+    .AsyncVia(serializedInvoker)
+    .Run()
+    .Get()
+    .ValueOrThrow();
+
+    EXPECT_TRUE(result);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
