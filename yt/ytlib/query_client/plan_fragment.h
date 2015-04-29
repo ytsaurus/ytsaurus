@@ -256,7 +256,7 @@ struct TAggregateItem
         , AggregateFunction(aggregateFunction)
     { }
 
-    const Stroka AggregateFunction;
+    Stroka AggregateFunction;
 };
 
 typedef std::vector<TAggregateItem> TAggregateItemList;

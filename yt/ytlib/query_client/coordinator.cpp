@@ -32,38 +32,6 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGroupClausePtr CopyGroupClause(TConstGroupClausePtr originalGroupClause)
-{
-    auto groupClause = New<TGroupClause>();
-
-    groupClause->GroupedTableSchema = originalGroupClause->GroupedTableSchema;
-
-    auto& finalGroupItems = groupClause->GroupItems;
-    for (const auto& groupItem : originalGroupClause->GroupItems) {
-        auto referenceExpr = New<TReferenceExpression>(
-            NullSourceLocation,
-            groupItem.Expression->Type,
-            groupItem.Name);
-        finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
-    }
-
-    auto& finalAggregateItems = groupClause->AggregateItems;
-    for (const auto& aggregateItem : originalGroupClause->AggregateItems) {
-        auto referenceExpr = New<TReferenceExpression>(
-            NullSourceLocation,
-            aggregateItem.Expression->Type,
-            aggregateItem.Name);
-        finalAggregateItems.emplace_back(
-            std::move(referenceExpr),
-            aggregateItem.AggregateFunction,
-            aggregateItem.Name);
-    }
-
-    groupClause->IsFinal = originalGroupClause->IsFinal;
-
-    return groupClause;
-}
-
 TTableSchema GetIntermediateSchema(
     TConstGroupClausePtr groupClause,
     IFunctionRegistryPtr functionRegistry)
@@ -116,18 +84,50 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     if (query->GroupClause) {
         if (refiners.size() > 1) {
-            auto subqueryGroupClause = CopyGroupClause(query->GroupClause);
-            subqueryGroupClause->IsFinal = false;
+            auto subqueryGroupClause = New<TGroupClause>();
             subqueryGroupClause->GroupedTableSchema = GetIntermediateSchema(
                 query->GroupClause,
                 functionRegistry);
+            subqueryGroupClause->GroupItems = query->GroupClause->GroupItems;
+            subqueryGroupClause->AggregateItems = query->GroupClause->AggregateItems;
+            subqueryGroupClause->IsMerge = false;
+            subqueryGroupClause->IsFinal = false;
             subqueryPattern->GroupClause = subqueryGroupClause;
 
-            auto topGroupClause = CopyGroupClause(query->GroupClause);
+            auto topGroupClause = New<TGroupClause>();
+
+            topGroupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
+
+            auto& finalGroupItems = topGroupClause->GroupItems;
+            for (const auto& groupItem : query->GroupClause->GroupItems) {
+                auto referenceExpr = New<TReferenceExpression>(
+                    NullSourceLocation,
+                    groupItem.Expression->Type,
+                    groupItem.Name);
+                finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
+            }
+
+            auto& finalAggregateItems = topGroupClause->AggregateItems;
+            for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
+                auto referenceExpr = New<TReferenceExpression>(
+                    NullSourceLocation,
+                    aggregateItem.Expression->Type,
+                    aggregateItem.Name);
+                finalAggregateItems.emplace_back(
+                    std::move(referenceExpr),
+                    aggregateItem.AggregateFunction,
+                    aggregateItem.Name);
+            }
+
+            topGroupClause->IsMerge = true;
             topGroupClause->IsFinal = true;
             topQuery->GroupClause = topGroupClause;
         } else {
-            auto groupClause = CopyGroupClause(query->GroupClause);
+            auto groupClause = New<TGroupClause>();
+            groupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
+            groupClause->GroupItems = query->GroupClause->GroupItems;
+            groupClause->AggregateItems = query->GroupClause->AggregateItems;
+            groupClause->IsMerge = false;
             groupClause->IsFinal = true;
             subqueryPattern->GroupClause = groupClause;
         }
