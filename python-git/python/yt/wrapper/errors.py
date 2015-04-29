@@ -1,7 +1,5 @@
 """YT usage errors"""
 
-import errors_config
-import config
 from yt.common import YtError
 
 from copy import deepcopy
@@ -16,9 +14,6 @@ class YtOperationFailedError(YtError):
     """Operation failed during WaitStrategy.process_operation."""
     def __init__(self, id, state, error, stderrs, url):
         message = "Operation {0} {1}".format(id, state)
-        if config.PRINT_LINK_TO_OPERATION:
-            message += ": " + url
-
         attributes = {
             "id": id,
             "state": state,
@@ -45,9 +40,6 @@ class YtResponseError(YtError):
         self.message = "Received an error while requesting {0}. Request headers are {1}"\
             .format(url, json.dumps(hide_token(self.headers), indent=4, sort_keys=True))
         self.inner_errors = [self.error]
-
-    def __str__(self):
-        return format_error(self)
 
     def is_resolve_error(self):
         """Resolving error."""
@@ -95,59 +87,4 @@ class YtTokenError(YtError):
     """Some problem occurred with authentication token."""
     pass
 
-def format_error(error, indent=0):
-    if isinstance(error, YtError):
-        error = error.simplify()
-    elif isinstance(error, Exception):
-        error = {"code": 1, "message": str(error)}
-
-    if errors_config.ERROR_FORMAT == "json":
-        return json.dumps(error)
-    elif errors_config.ERROR_FORMAT == "json_pretty":
-        return json.dumps(error, indent=2)
-    elif errors_config.ERROR_FORMAT == "text":
-        return pretty_format(error)
-    else:
-        raise YtError("Incorrect error format: " + errors_config.ERROR_FORMAT)
-
-def pretty_format(error, indent=0):
-    def format_attribute(name, value):
-        return (" " * (indent + 4)) + "%-15s %s" % (name, value)
-
-    lines = []
-    if "message" in error:
-        lines.append(error["message"])
-
-    if "code" in error and int(error["code"]) != 1:
-        lines.append(format_attribute("code", error["code"]))
-
-    attributes = error.get("attributes", {})
-
-    origin_keys = ["host", "datetime", "pid", "tid", "fid"]
-    if all(key in attributes for key in origin_keys):
-        lines.append(
-            format_attribute(
-                "origin",
-                "%s in %s (pid %d, tid %x, fid %x)" % (
-                    attributes["host"],
-                    attributes["datetime"],
-                    attributes["pid"],
-                    attributes["tid"],
-                    attributes["fid"])))
-
-    location_keys = ["file", "line"]
-    if all(key in attributes for key in location_keys):
-        lines.append(format_attribute("location", "%s:%d" % (attributes["file"], attributes["line"])))
-
-    for key, value in attributes.items():
-        if key in origin_keys or key in location_keys:
-            continue
-        lines.append(format_attribute(key, str(value)))
-
-    result = " " * indent + (" " * (indent + 4) + "\n").join(lines)
-    if "inner_errors" in error:
-        for inner_error in error["inner_errors"]:
-            result += "\n" + format_error(inner_error, indent + 2)
-
-    return result
 
