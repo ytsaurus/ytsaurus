@@ -69,6 +69,16 @@ test_tree_commands()
     check '<"a"="b">"c"' `./yt get //home/wrapper_test/folder/@attr --format '<format=text>yson'`
 }
 
+# read and write table
+test_table_commands()
+{
+    ./yt create table //home/wrapper_test/test_table
+    check "" "`./yt read //home/wrapper_test/test_table --format dsv`"
+
+    echo -e "value=y\nvalue=x\n" | ./yt write //home/wrapper_test/test_table --format dsv
+    check "`echo -e "value=y\nvalue=x\n"`" "`./yt read //home/wrapper_test/test_table --format dsv`"
+}
+
 # download and upload file, use it in map operation
 test_file_commands()
 {
@@ -205,6 +215,7 @@ test_transactions()
 }
 
 tear_down
+run_test test_table_commands
 run_test test_tree_commands
 run_test test_file_commands
 run_test test_copy_move_link

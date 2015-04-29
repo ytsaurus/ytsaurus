@@ -52,7 +52,7 @@ import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
                    compose, bool_to_string, chunk_iter_lines, get_version, MB, EMPTY_GENERATOR
 from errors import YtIncorrectResponse, YtError, format_error
-from driver import make_request, ResponseStream
+from driver import make_request, ResponseStream, EmptyResponseStream
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
@@ -650,7 +650,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             index = parameters.get("start_row_index", None)
             if index is None:
                 tx.__exit__(None, None, None)
-                return (_ for _ in [])
+                return read_content(EmptyResponseStream())
             iterator = Iterator(index)
             return read_content(ResponseStream(lambda: iterator.response, iterator, close=iterator.finish))
         except:

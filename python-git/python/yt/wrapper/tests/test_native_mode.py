@@ -520,7 +520,8 @@ class NativeModeTester(YtTestBase, YTEnv):
             self.assertRaises(lambda: yt.read_table(table))
 
             yt.create_table(table)
-            self.check([], list(yt.read_table(table)))
+            self.check([], list(yt.read_table(table, raw=False)))
+            assert "" == yt.read_table(table).read()
 
             yt.write_table(table, ["x=1\n", "y=2\n"])
             self.check(["x=1\n", "y=2\n"], list(yt.read_table(table)))
