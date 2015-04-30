@@ -206,29 +206,28 @@ def resume_operation(operation, client=None):
     """
     make_request("resume_op", {"operation_id": operation}, client=client)
 
-def wait_final_state(operation, time_watcher, print_info, action=lambda: None, client=None):
+def get_operation_state_monitor(operation, time_watcher, action=lambda: None, client=None):
     """
-    Wait for final state of operation.
+    Yield state and sleep. Wait for final state of operation.
 
     If timeout occurred, abort operation and wait for final state anyway.
 
-    :return: operation state.
+    :return: iterator over operation states.
     """
     while True:
         if time_watcher.is_time_up():
             abort_operation(operation, client=client)
-            return wait_final_state(operation, TimeWatcher(1.0, 1.0, 0, timeout=None), print_info, client=client)
+            for state in get_operation_state_monitor(operation, TimeWatcher(1.0, 1.0, 0, timeout=None), client=client):
+                yield state
 
         action()
 
         state = get_operation_state(operation, client=client)
-        print_info(state)
+        yield state
         if state.is_finished():
             break
-
         time_watcher.wait()
 
-    return state
 
 def get_stderrs(operation, only_failed_jobs, limit=None, client=None):
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
@@ -321,8 +320,14 @@ class Operation(object):
     def abort(self):
         abort_operation(self.id, client=self.client)
 
+    def get_state_monitor(self, time_watcher, action=lambda: None):
+        return get_operation_state_monitor(self.id, time_watcher, action, client=self.client)
+
     def get_attributes(self):
         return get("{0}/{1}/@".format(OPERATIONS_PATH, self.id), client=self.client)
+
+    def get_progress(self):
+        return get_operation_progress(self.id, client=self.client)
 
     def get_state(self):
         return OperationState(get("{0}/{1}/@state".format(OPERATIONS_PATH, self.id), client=self.client))
@@ -351,13 +356,13 @@ class Operation(object):
         print_info = PrintOperationInfo(self.id, client=self.client) if print_progress else lambda state: None
 
         def abort():
-            state = wait_final_state(self.id, TimeWatcher(1.0, 1.0, 0.0, timeout=None),
-                                     print_info, lambda: abort_operation(self.id, client=self.client), client=self.client)
+            for state in self.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0, timeout=None), self.abort):
+                print_info(state)
             finalize(state)
-            return state
 
         with KeyboardInterruptsCatcher(abort):
-            state = wait_final_state(self.id, time_watcher, print_info, client=self.client)
+            for state in self.get_state_monitor(time_watcher):
+                print_info(state)
             timeout_occurred = time_watcher.is_time_up()
             finalize(state)
             if timeout_occurred:
