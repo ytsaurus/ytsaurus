@@ -53,6 +53,14 @@ target_link_libraries( yson_python
   ${PYTHON_LIBRARY}
 )
 
+set_target_properties( driver_python
+  LINK_FLAGS "-static-libstdc++"
+)
+
+set_target_properties( yson_python
+  LINK_FLAGS "-static-libstdc++"
+)
+
 exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
   ${CMAKE_BINARY_DIR}/lib/libdriver_python.so
