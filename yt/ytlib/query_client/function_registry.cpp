@@ -55,7 +55,7 @@ IAggregateFunctionDescriptorPtr IFunctionRegistry::GetAggregateFunction(const St
 
 void TFunctionRegistry::RegisterFunction(IFunctionDescriptorPtr descriptor)
 {
-    Stroka functionName = to_lower(descriptor->GetName());
+    auto functionName = to_lower(descriptor->GetName());
     YCHECK(!FindAggregateFunction(functionName));
     YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(descriptor))).second);
 }
@@ -72,7 +72,7 @@ IFunctionDescriptorPtr TFunctionRegistry::FindFunction(const Stroka& functionNam
 
 void TFunctionRegistry::RegisterAggregateFunction(IAggregateFunctionDescriptorPtr descriptor)
 {
-    Stroka aggregateName = to_lower(descriptor->GetName());
+    auto aggregateName = to_lower(descriptor->GetName());
     YCHECK(!FindFunction(aggregateName));
     YCHECK(RegisteredAggregateFunctions_.insert(std::make_pair(aggregateName, std::move(descriptor))).second);
 }
