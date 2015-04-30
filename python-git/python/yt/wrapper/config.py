@@ -102,7 +102,6 @@ def set_yamr_mode():
     CHECK_INPUT_FULLY_CONSUMED = True
     format.TABULAR_DATA_FORMAT = YamrFormat(has_subkey=True, lenval=False)
 
-import errors_config as errors
 import http_config as http
 
 # This function is deprecated
