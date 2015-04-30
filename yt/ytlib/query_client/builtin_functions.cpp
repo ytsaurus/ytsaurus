@@ -475,12 +475,11 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
 }
 
 TCodegenAggregateMerge MakeCodegenMerge(
+    const Stroka& aggregateFunction,
     EValueType type,
     const Stroka& name)
 {
-    return [
-    ] (TCGContext& builder, Value* dstAggState, Value* aggState) {
-    };
+    return MakeCodegenUpdate(aggregateFunction, type, name);
 }
 
 TCodegenAggregateFinalize MakeCodegenFinalize(
@@ -507,7 +506,7 @@ const TCodegenAggregate TAggregateFunction::MakeCodegenAggregate(
     TCodegenAggregate codegenAggregate;
     codegenAggregate.Initialize = MakeCodegenInitialize(type, name);
     codegenAggregate.Update = MakeCodegenUpdate(GetName(), type, name);
-    codegenAggregate.Merge = MakeCodegenMerge(type, name);
+    codegenAggregate.Merge = MakeCodegenMerge(GetName(), type, name);
     codegenAggregate.Finalize = MakeCodegenFinalize(type, name);
     return codegenAggregate;
 }

@@ -441,6 +441,7 @@ TCodegenSource MakeCodegenGroupOp(
     std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
     std::vector<int> aggregateStateOffsets,
     TCodegenSource codegenSource,
+    TTableSchema intermediateSchema,
     bool isMerge,
     bool isFinal);
 

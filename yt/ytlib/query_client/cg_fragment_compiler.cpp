@@ -1308,6 +1308,7 @@ TCodegenSource MakeCodegenGroupOp(
     std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
     std::vector<int> aggregateStateOffsets,
     TCodegenSource codegenSource,
+    TTableSchema inputSchema,
     bool isMerge,
     bool isFinal)
 {
@@ -1316,6 +1317,7 @@ TCodegenSource MakeCodegenGroupOp(
         MOVE(codegenAggregates),
         MOVE(aggregateStateOffsets),
         codegenSource = std::move(codegenSource),
+        inputSchema,
         isMerge,
         isFinal
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
@@ -1344,11 +1346,19 @@ TCodegenSource MakeCodegenGroupOp(
 
         Value* newRowPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
-        collectBuilder.CreateCall3(
-            builder.Module->GetRoutine("AllocatePermanentRow"),
-            collectBuilder.GetExecutionContextPtr(),
-            builder.getInt32(keySize + aggregatesCount),
-            newRowPtr);
+        if (isMerge) {
+            collectBuilder.CreateCall3(
+                builder.Module->GetRoutine("AllocatePermanentRow"),
+                collectBuilder.GetExecutionContextPtr(),
+                builder.getInt32(aggregateStateOffsets[aggregatesCount]),
+                newRowPtr);
+        } else {
+            collectBuilder.CreateCall3(
+                builder.Module->GetRoutine("AllocatePermanentRow"),
+                collectBuilder.GetExecutionContextPtr(),
+                builder.getInt32(keySize + aggregatesCount),
+                newRowPtr);
+        }
 
         std::vector<EValueType> keyTypes;
 
@@ -1369,12 +1379,28 @@ TCodegenSource MakeCodegenGroupOp(
                     value.StoreToRow(builder, newRowRef, index, id);
                 }
 
-                //TODO: this is probably wrong when merging?
-                for (int index = 0; index < aggregatesCount; ++index) {
-                    auto id = keySize + index;
+                if (isMerge) {
+                    for (int index = keySize; index < aggregateStateOffsets[aggregatesCount]; ++index) {
+                        auto id = index;
 
-                    codegenAggregates[index].first(builder, row)
-                        .StoreToRow(builder, newRowRef, keySize + index, id);
+                        TCGValue::CreateFromRow(
+                            builder,
+                            row,
+                            index,
+                            inputSchema.Columns()[id].Type)
+                            .StoreToRow(
+                                builder,
+                                newRowRef,
+                                index,
+                                id);
+                    }
+                } else {
+                    for (int index = 0; index < aggregatesCount; ++index) {
+                        auto id = keySize + index;
+
+                        codegenAggregates[index].first(builder, row)
+                            .StoreToRow(builder, newRowRef, keySize + index, id);
+                    }
                 }
 
                 auto groupRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
@@ -1415,15 +1441,18 @@ TCodegenSource MakeCodegenGroupOp(
                     });
 
                 for (int index = 0; index < aggregatesCount; ++index) {
-                    auto newValue = builder.CreateConstInBoundsGEP1_32(
-                        CodegenValuesPtrFromRow(builder, newRowRef),
-                        keySize + index);
                     if (isMerge) {
+                        auto newValue = builder.CreateConstInBoundsGEP1_32(
+                            CodegenValuesPtrFromRow(builder, newRowRef),
+                            aggregateStateOffsets[index]);
                         codegenAggregates[index].second.Merge(
                             builder,
                             aggStates[index],
                             newValue);
                     } else {
+                        auto newValue = builder.CreateConstInBoundsGEP1_32(
+                            CodegenValuesPtrFromRow(builder, newRowRef),
+                            keySize + index);
                         codegenAggregates[index].second.Update(
                             builder,
                             aggStates[index],
