@@ -989,10 +989,7 @@ bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transac
                     case EObjectType::ListNode: {
                         const auto* parentListNode = static_cast<const TListNode*>(parentNode);
                         auto it = parentListNode->ChildToIndex().find(childTrunkNode);
-                        if (it != parentListNode->ChildToIndex().end()) {
-                            return true;
-                        }
-                        break;        
+                        return it != parentListNode->ChildToIndex().end();
                     }
                 }
                 
