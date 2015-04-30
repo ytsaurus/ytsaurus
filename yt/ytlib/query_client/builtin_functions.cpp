@@ -530,8 +530,16 @@ EValueType TAggregateFunction::InferResultType(
         return argumentType;
     }
     THROW_ERROR_EXCEPTION(
-        "Aggregate function %Qv must have an integer or double argument",
-        GetName());
+        "Wrong type for argument to aggregate function %Qv: expected %Qv, got %Qv",
+        GetName(),
+        TypeToString(
+            std::vector<EValueType>{
+                EValueType::Int64,
+                EValueType::Uint64,
+                EValueType::Double},
+            std::unordered_map<TTypeArgument, EValueType>()),
+        argumentType)
+        << TErrorAttribute("expression", source);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -697,8 +705,10 @@ EValueType TAverageAggregateFunction::InferResultType(
 {
     if (argumentType != EValueType::Int64) {
         THROW_ERROR_EXCEPTION(
-            "Aggregate function %Qv must have a signed integer argument",
-            GetName());
+            "Wrong type for argument to aggregate function %Qv: expected %Qv, got %Qv",
+            GetName(),
+            EValueType::Int64,
+            argumentType);
     }
     return EValueType::Double;
 }
