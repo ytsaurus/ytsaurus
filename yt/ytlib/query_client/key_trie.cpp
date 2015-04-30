@@ -375,8 +375,10 @@ void GetRangesFromTrieWithinRangeImpl(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
     std::vector<std::pair<TRow, TRow>>* result,
+    std::vector<ui32>* resultMask,
     TRowBufferPtr rowBuffer,
     std::vector<TValue> prefix = std::vector<TValue>(),
+    ui32 mask = 0,
     bool refineLower = true,
     bool refineUpper = true)
 {
@@ -407,10 +409,26 @@ void GetRangesFromTrieWithinRangeImpl(
                 keyRange,
                 trie,
                 result,
+                resultMask,
                 rowBuffer,
                 prefix,
+                mask,
                 true,
                 true);
+        } else if (resultMask != nullptr && trie) {
+            YCHECK(prefix.size() < sizeof(mask) * 8);
+            mask |= (1 << prefix.size());
+            prefix.emplace_back(MakeUnversionedSentinelValue(EValueType::Null));
+            GetRangesFromTrieWithinRangeImpl(
+                keyRange,
+                trie,
+                result,
+                resultMask,
+                rowBuffer,
+                prefix,
+                mask,
+                false,
+                false);
         } else {
             std::pair<TRow, TRow> range;
             for (size_t i = 0; i < offset; ++i) {
@@ -442,7 +460,10 @@ void GetRangesFromTrieWithinRangeImpl(
 
             if (!IsEmpty(range)) {
                 result->push_back(range);
-            }            
+                if (resultMask != nullptr) {
+                    resultMask->push_back(mask);
+                }
+            }
         }
         return;
     }
@@ -519,6 +540,9 @@ void GetRangesFromTrieWithinRangeImpl(
         range.second = rowBuffer->Capture(builder.GetRow());
         builder.Reset();
         result->push_back(range);
+        if (resultMask != nullptr) {
+            resultMask->push_back(mask);
+        }
     }
 
     prefix.emplace_back();
@@ -550,8 +574,10 @@ void GetRangesFromTrieWithinRangeImpl(
             keyRange,
             next.second,
             result,
+            resultMask,
             rowBuffer,
             prefix,
+            mask,
             refineLowerNext,
             refineUpperNext);
     }
@@ -562,9 +588,20 @@ TRowRanges GetRangesFromTrieWithinRange(
     TKeyTriePtr trie,
     TRowBufferPtr rowBuffer)
 {
-    std::vector<std::pair<TRow, TRow>> result;
-    GetRangesFromTrieWithinRangeImpl(keyRange, trie, &result, rowBuffer);
+    TRowRanges result;
+    GetRangesFromTrieWithinRangeImpl(keyRange, trie, &result, nullptr, rowBuffer);
     return MergeOverlappingRanges(std::move(result));
+}
+
+std::pair<TRowRanges, std::vector<ui32>> GetExtendedRangesFromTrieWithinRange(
+    const TRowRange& keyRange,
+    TKeyTriePtr trie,
+    TRowBufferPtr rowBuffer)
+{
+    TRowRanges resultRanges;
+    std::vector<ui32> resultMasks;
+    GetRangesFromTrieWithinRangeImpl(keyRange, trie, &resultRanges, &resultMasks, rowBuffer);
+    return std::make_pair(std::move(resultRanges), std::move(resultMasks));
 }
 
 Stroka ToString(TKeyTriePtr node) {

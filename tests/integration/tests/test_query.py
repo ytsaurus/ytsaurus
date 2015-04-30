@@ -250,7 +250,7 @@ class TestQuery(YTEnvSetup):
 
         with pytest.raises(YtError): select_rows("* from [//tmp/tt] where key < 51")
 
-    def test_computed_column(self):
+    def test_computed_column_simple(self):
         self._sync_create_cells(3, 1)
 
         create("table", "//tmp/tc",
@@ -278,6 +278,72 @@ class TestQuery(YTEnvSetup):
         expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in [10, 20, 30]]
         actual = sorted(select_rows("* from [//tmp/tc] where key in (10, 20, 30)"))
         self.assertItemsEqual(actual, expected)
+
+    def test_computed_column_far_divide(self):
+        self._sync_create_cells(3, 1)
+
+        create("table", "//tmp/tc",
+            attributes = {
+                "schema": [
+                    {"name": "hash", "type": "int64", "expression": "key2 / 2"},
+                    {"name": "key1", "type": "int64"},
+                    {"name": "key2", "type": "int64"},
+                    {"name": "value", "type": "int64"}],
+                "key_columns": ["hash", "key1", "key2"]
+            })
+        reshard_table("//tmp/tc", [[]] + [[i] for i in xrange(1, 500, 10)])
+        mount_table("//tmp/tc")
+        self._wait_for_tablet_state("//tmp/tc", ["mounted"])
+
+        def expected(key_range):
+            return [{"hash": i / 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
+
+        insert_rows("//tmp/tc", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0,1000)])
+
+        actual = select_rows("* from [//tmp/tc] where key2 = 42")
+        self.assertItemsEqual(actual, expected([42]))
+
+        actual = sorted(select_rows("* from [//tmp/tc] where key2 >= 10 and key2 < 80"))
+        self.assertItemsEqual(actual, expected(xrange(10,80)))
+
+        actual = sorted(select_rows("* from [//tmp/tc] where key2 in (10, 20, 30)"))
+        self.assertItemsEqual(actual, expected([10, 20, 30]))
+
+        actual = sorted(select_rows("* from [//tmp/tc] where key2 in (10, 20, 30) and key1 in (30, 40)"))
+        self.assertItemsEqual(actual, expected([30]))
+
+    def test_computed_column_modulo(self):
+        self._sync_create_cells(3, 1)
+
+        create("table", "//tmp/tc",
+            attributes = {
+                "schema": [
+                    {"name": "hash", "type": "int64", "expression": "key2 % 2"},
+                    {"name": "key1", "type": "int64"},
+                    {"name": "key2", "type": "int64"},
+                    {"name": "value", "type": "int64"}],
+                "key_columns": ["hash", "key1", "key2"]
+            })
+        reshard_table("//tmp/tc", [[]] + [[i] for i in xrange(1, 500, 10)])
+        mount_table("//tmp/tc")
+        self._wait_for_tablet_state("//tmp/tc", ["mounted"])
+
+        def expected(key_range):
+            return [{"hash": i % 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
+
+        insert_rows("//tmp/tc", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0,1000)])
+
+        actual = select_rows("* from [//tmp/tc] where key2 = 42")
+        self.assertItemsEqual(actual, expected([42]))
+
+        actual = sorted(select_rows("* from [//tmp/tc] where key1 >= 10 and key1 < 80"))
+        self.assertItemsEqual(actual, expected(xrange(10,80)))
+
+        actual = sorted(select_rows("* from [//tmp/tc] where key1 in (10, 20, 30)"))
+        self.assertItemsEqual(actual, expected([10, 20, 30]))
+
+        actual = sorted(select_rows("* from [//tmp/tc] where key1 in (10, 20, 30) and key2 in (30, 40)"))
+        self.assertItemsEqual(actual, expected([30]))
 
     def test_udf(self):
         registry_path =  "//tmp/udfs"
@@ -317,4 +383,4 @@ class TestQuery(YTEnvSetup):
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
         actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u] where sum_udf(b, 1, 2) = sum_udf(3, b)")
-        assert expected == actual
+        self.assertItemsEqual(actual, expected)
