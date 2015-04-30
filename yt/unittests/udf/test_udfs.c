@@ -1,8 +1,8 @@
 #include <yt_udf.h>
 
-unsigned long strtol_udf(TExecutionContext* context, const char* string, int length)
+uint64_t strtol_udf(TExecutionContext* context, const char* string, int length)
 {
-    unsigned long result = 0;
+    uint64_t result = 0;
     for (int i = 0; i < length; i++) {
         result *= 10;
         int digit = string[i] - 48;
@@ -11,10 +11,10 @@ unsigned long strtol_udf(TExecutionContext* context, const char* string, int len
     return result;
 }
 
-long exp_udf(TExecutionContext* context, long n, long m)
+int64_t exp_udf(TExecutionContext* context, int64_t n, int64_t m)
 {
-    long result = 1;
-    for (long i = 0; i < m; i++) {
+    int64_t result = 1;
+    for (int64_t i = 0; i < m; i++) {
         result *= n;
     }
     return result;
@@ -48,9 +48,9 @@ void is_null_udf(TExecutionContext* context, TUnversionedValue* result, TUnversi
     result->Data.Boolean = isnull;
 }
 
-long abs_udf(TExecutionContext* context, long n)
+int64_t abs_udf(TExecutionContext* context, int64_t n)
 {
-    return labs(n);
+    return llabs(n);
 }
 
 void sum_udf(

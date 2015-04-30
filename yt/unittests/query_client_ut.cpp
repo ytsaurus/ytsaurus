@@ -3681,8 +3681,7 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
 
     std::vector<Stroka> source = {
         "a=1",
-        "a=2",
-        ""
+        "a=2"
     };
 
     auto resultSplit = MakeSplit({
@@ -3691,15 +3690,14 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
 
     auto result = BuildRows({
         "x=1",
-        "x=2",
-        ""
+        "x=2"
     }, resultSplit);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     EXPECT_CALL(*registry, FindFunction("sum_udf"))
         .WillRepeatedly(Return(SumUdf_));
 
-    Evaluate("a as x FROM [//t] where sum_udf(10, a) in (11, 12)", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("a as x FROM [//t] where sum_udf(7, 3, a) in (11, 12)", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
@@ -3712,8 +3710,7 @@ TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
 
     std::vector<Stroka> source = {
         "a=3",
-        "a=4",
-        ""
+        "a=4"
     };
 
     auto mallocUdf = New<TUserDefinedFunction>(
