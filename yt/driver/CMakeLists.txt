@@ -65,7 +65,12 @@ else()
   )
 endif()
 
+set_target_properties( yt
+  LINK_FLAGS "-static-libstdc++"
+)
+
 install(
   TARGETS yt
   RUNTIME DESTINATION bin
 )
+

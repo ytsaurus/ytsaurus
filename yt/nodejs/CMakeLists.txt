@@ -5,7 +5,7 @@ function( NODE target type )
   set( _node_compile_definitions
     "_GNU_SOURCE;_LARGEFILE_SOURCE;_FILE_OFFSET_BITS=64")
   set( _node_link_flags
-    "")
+    "-static-libstdc++")
 
   if (APPLE)
     set( _node_link_flags "${_node_link_flags} -undefined dynamic_lookup" )
