@@ -4016,7 +4016,7 @@ TEST_F(TComputedColumnTest, Inequality)
 
     EXPECT_EQ(1, result.size());
 
-    EXPECT_EQ(BuildKey(""), result[0].first);
+    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
     EXPECT_EQ(BuildKey(_MAX_), result[0].second);
 }
 
@@ -4148,10 +4148,125 @@ TEST_F(TComputedColumnTest, Complex3)
     EXPECT_EQ(BuildKey("10;" _MAX_), result[0].second);
 }
 
+TEST_F(TComputedColumnTest, Far1)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("m + 1"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where m = 10");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(1, result.size());
+
+    EXPECT_EQ(BuildKey("11;"), result[0].first);
+    EXPECT_EQ(BuildKey("11;" _MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Far2)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("n + 1"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("n", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where n = 10 and l = 20");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(1, result.size());
+
+    EXPECT_EQ(BuildKey("11;20;"), result[0].first);
+    EXPECT_EQ(BuildKey("11;20;" _MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Far3)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("n + 1"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("n", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where (n,l) in ((10,20), (30,40))");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(2, result.size());
+
+    EXPECT_EQ(BuildKey("11;20;"), result[0].first);
+    EXPECT_EQ(BuildKey("11;20;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("31;40;"), result[1].first);
+    EXPECT_EQ(BuildKey("31;40;" _MAX_), result[1].second);
+}
+
+TEST_F(TComputedColumnTest, Far4)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("n + 1"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("n", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where n in (10,30) and l in (20,40)");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(4, result.size());
+
+    EXPECT_EQ(BuildKey("11;20;"), result[0].first);
+    EXPECT_EQ(BuildKey("11;20;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("11;40;"), result[1].first);
+    EXPECT_EQ(BuildKey("11;40;" _MAX_), result[1].second);
+    EXPECT_EQ(BuildKey("31;20;"), result[2].first);
+    EXPECT_EQ(BuildKey("31;20;" _MAX_), result[2].second);
+    EXPECT_EQ(BuildKey("31;40;"), result[3].first);
+    EXPECT_EQ(BuildKey("31;40;" _MAX_), result[3].second);
+}
+
 TEST_F(TComputedColumnTest, NoComputedColumns)
 {
     TTableSchema tableSchema;
     tableSchema.Columns().emplace_back("k", EValueType::Int64);
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where a = 0");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(1, result.size());
+
+    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
+    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Modulo0)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("l % 2"));
     tableSchema.Columns().emplace_back("l", EValueType::Int64);
     tableSchema.Columns().emplace_back("a", EValueType::Int64);
 
@@ -4175,7 +4290,7 @@ TEST_F(TComputedColumnTest, Modulo1)
     tableSchema.Columns().emplace_back("l", EValueType::Int64);
     tableSchema.Columns().emplace_back("a", EValueType::Int64);
 
-    TKeyColumns keyColumns{"k", "l", "m"};
+    TKeyColumns keyColumns{"k", "l"};
 
     SetSchema(tableSchema, keyColumns);
 
@@ -4340,6 +4455,29 @@ TEST_F(TComputedColumnTest, Divide4)
     EXPECT_EQ(BuildKey("0;9223372036854775807;" _MAX_), result[0].second);
     EXPECT_EQ(BuildKey("1;-9223372036854775808"), result[1].first);
     EXPECT_EQ(BuildKey("1;0;"), result[1].second);
+}
+
+TEST_F(TComputedColumnTest, FarDivide1)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("m / 2"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where m >= 3 and m < 5");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(2, result.size());
+
+    EXPECT_EQ(BuildKey("1"), result[0].first);
+    EXPECT_EQ(BuildKey("1;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("2"), result[1].first);
+    EXPECT_EQ(BuildKey("2;" _MAX_), result[1].second);
 }
 
 TEST_P(TComputedColumnTest, Join)
