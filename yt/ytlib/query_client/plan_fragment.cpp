@@ -1641,6 +1641,23 @@ TNamedItem FromProto(const NProto::TNamedItem& serialized)
 
 TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
 {
+    Stroka aggregateFunction;
+    if (serialized.has_aggregate_function_name()) {
+        aggregateFunction = serialized.aggregate_function_name();
+    } else {
+        switch (EAggregateFunction(serialized.aggregate_function())) {
+            case EAggregateFunction::Min:
+                aggregateFunction = "min";
+                break;
+            case EAggregateFunction::Max:
+                aggregateFunction = "max";
+                break;
+            case EAggregateFunction::Sum:
+                aggregateFunction = "sum";
+                break;
+        }
+    }
+
     return TAggregateItem(
         FromProto(serialized.expression()),
         serialized.aggregate_function_name(),
