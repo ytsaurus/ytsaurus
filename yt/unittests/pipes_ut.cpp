@@ -85,8 +85,8 @@ TEST(TAsyncWriterTest, AsyncCloseFail)
 
     auto writeResult = writer->Write(buffer).Get();
 
-    std::vector<char> buffer(200*1024, 'a');
-    ASSERT_TRUE(writer->Write(&buffer[0], buffer.size()).Get().IsOK());
+    EXPECT_TRUE(writeResult.IsOK())
+        << ToString(writeResult);
 
     auto error = writer->Close();
     auto closeStatus = error.Get();
