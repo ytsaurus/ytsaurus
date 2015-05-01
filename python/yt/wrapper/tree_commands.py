@@ -246,7 +246,10 @@ def find_free_subpath(path, client=None):
         if not exists(name, client=client):
             return name
 
-def search(root="", node_type=None, path_filter=None, object_filter=None, subtree_filter=None, attributes=None, exclude=None, depth_bound=None, client=None):
+def search(root="", node_type=None,
+           path_filter=None, object_filter=None, subtree_filter=None,
+           map_node_order=None, list_node_order=None,
+           attributes=None, exclude=None, depth_bound=None, client=None):
     """Search for some nodes in Cypress subtree.
 
     :param root: (string or `TablePath`) path to search
@@ -305,12 +308,20 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             object = safe_get(path)
 
         if isinstance(object, dict):
-            for key, value in object.iteritems():
+            if map_node_order is not None:
+                iteritems = ((key, object[key]) for key in map_node_order(path, object))
+            else:
+                iteritems = object.iteritems()
+            for key, value in iteritems:
                 for obj in walk("{0}/{1}".format(path, key), value, depth + 1):
                     yield obj
 
         if isinstance(object, __builtin__.list):
-            for index, value in enumerate(object):
+            if list_node_order is not None:
+                enumeration = ((index, object[index]) for index in list_node_order(path, object))
+            else:
+                enumeration = enumerate(object)
+            for index, value in enumeration:
                 for obj in walk("{0}/{1}".format(path, index), value, depth + 1):
                     yield obj
 

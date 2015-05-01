@@ -121,6 +121,11 @@ class NativeModeTester(YtTestBase, YTEnv):
                          set([TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir",
                               TEST_DIR + "/dir/table", TEST_DIR + "/file"]))
 
+        res = yt.search(TEST_DIR, map_node_order=lambda path, object: sorted(object))
+        self.assertEqual(list(res),
+                         [TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir",
+                          TEST_DIR + "/dir/table", TEST_DIR + "/file"])
+
         self.assertEqual(set(yt.search(TEST_DIR, node_type="file")),
                          set([TEST_DIR + "/file"]))
 
