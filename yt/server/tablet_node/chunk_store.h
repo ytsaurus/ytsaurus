@@ -134,6 +134,8 @@ private:
     void PrecacheProperties();
 
     void OnLocalReaderFailed();
+    void OnChunkExpired();
+    void OnChunkReaderExpired();
 
 };
 

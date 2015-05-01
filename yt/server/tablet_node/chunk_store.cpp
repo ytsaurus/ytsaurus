@@ -476,11 +476,7 @@ IChunkPtr TChunkStore::PrepareChunk()
     }
 
     TDelayedExecutor::Submit(
-        BIND([=, this_ = MakeStrong(this)] () {
-            TWriterGuard guard(ChunkLock_);
-            ChunkInitialized_ = false;
-            Chunk_.Reset();
-        }),
+        BIND(&TChunkStore::OnChunkExpired, MakeWeak(this)),
         ChunkExpirationTimeout);
 
     return chunk;
@@ -522,10 +518,7 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
     }
 
     TDelayedExecutor::Submit(
-        BIND([=, this_ = MakeStrong(this)] () {
-            TWriterGuard guard(ChunkReaderLock_);
-            ChunkReader_.Reset();
-        }),
+        BIND(&TChunkStore::OnChunkReaderExpired, MakeWeak(this)),
         ChunkReaderExpirationTimeout);
 
     return chunkReader;
@@ -593,15 +586,25 @@ void TChunkStore::OnLocalReaderFailed()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    {
-        TWriterGuard guard(ChunkLock_);
-        ChunkInitialized_ = false;
-        Chunk_.Reset();
-    }
-    {
-        TWriterGuard guard(ChunkReaderLock_);
-        ChunkReader_.Reset();
-    }
+    OnChunkExpired();
+    OnChunkReaderExpired();
+}
+
+void TChunkStore::OnChunkExpired()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(ChunkLock_);
+    ChunkInitialized_ = false;
+    Chunk_.Reset();
+}
+
+void TChunkStore::OnChunkReaderExpired()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(ChunkReaderLock_);
+    ChunkReader_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
