@@ -4,7 +4,6 @@
 
 #include <core/misc/property.h>
 #include <core/misc/nullable.h>
-#include <core/misc/hash.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
@@ -70,7 +69,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TFillFactorToNodeIterator>, FillFactorIterator);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
-    using TReplicaSet = yhash_set<TChunkPtrWithIndex, TRandomizedHash<TChunkPtrWithIndex>>;
+    using TReplicaSet = yhash_set<TChunkPtrWithIndex>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaSet, StoredReplicas);
     DEFINE_BYREF_RW_PROPERTY(TReplicaSet, CachedReplicas);
     
