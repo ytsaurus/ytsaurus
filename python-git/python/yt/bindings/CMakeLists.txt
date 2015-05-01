@@ -53,11 +53,11 @@ target_link_libraries( yson_python
   ${PYTHON_LIBRARY}
 )
 
-set_target_properties( driver_python
+set_target_properties( driver_python PROPERTIES
   LINK_FLAGS "-static-libstdc++"
 )
 
-set_target_properties( yson_python
+set_target_properties( yson_python PROPERTIES
   LINK_FLAGS "-static-libstdc++"
 )
 
