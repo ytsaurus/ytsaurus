@@ -19,7 +19,9 @@ namespace NDataNode {
 NChunkClient::IChunkReaderPtr CreateLocalChunkReader(
     NCellNode::TBootstrap* bootstrap,
     NChunkClient::TReplicationReaderConfigPtr config,
-    IChunkPtr chunk);
+    IChunkPtr chunk,
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::IBlockCachePtr(),
+    TClosure failureHandler = TClosure());
 
 ////////////////////////////////////////////////////////////////////////////////
 
