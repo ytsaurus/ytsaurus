@@ -531,7 +531,7 @@ TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
         WaitFor(VoidFuture);
         promise.Set();
 
-        Sleep(TDuration::MilliSeconds(10));
+        Sleep(TDuration::MilliSeconds(100));
         flag = true;
     })
     .Via(serializedInvoker)
