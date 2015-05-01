@@ -90,9 +90,6 @@ public:
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 private:
-    class TLocalChunkReader;
-    class TVersionedReaderWrapper;
-    class TVersionedLookuperWrapper;
     class TBlockCache;
 
     NCellNode::TBootstrap* const Bootstrap_;
