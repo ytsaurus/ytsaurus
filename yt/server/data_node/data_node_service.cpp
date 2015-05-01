@@ -334,12 +334,13 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto blockIndexes = NYT::FromProto<int>(request->block_indexes());
         bool enableCaching = request->enable_caching();
         auto sessionType = EReadSessionType(request->session_type());
 
         context->SetRequestInfo("BlockIds: %v:[%v], EnableCaching: %v, SessionType: %v",
             chunkId,
-            JoinToString(request->block_indexes()),
+            JoinToString(blockIndexes),
             enableCaching,
             sessionType);
 
@@ -356,7 +357,7 @@ private:
             // Cannot send the actual data to the client due to throttling.
             // Let's try to suggest some other peers.
             for (int blockIndex : request->block_indexes()) {
-                TBlockId blockId(chunkId, blockIndex);
+                auto blockId = TBlockId(chunkId, blockIndex);
                 const auto& peers = peerBlockTable->GetPeers(blockId);
                 if (!peers.empty()) {
                     auto* peerDescriptor = response->add_peer_descriptors();
@@ -370,27 +371,12 @@ private:
                 }
             }
         } else {
-            // Assign decreasing priorities to block requests to take advantage of sequential read.
-            i64 priority = context->GetPriority();
-            std::vector<TFuture<TSharedRef>> asyncBlocks;
-            for (int index = 0; index < request->block_indexes().size(); ++index) {
-                int blockIndex = request->block_indexes(index);
-
-                LOG_DEBUG("Fetching block (BlockId: %v:%v)",
-                    chunkId,
-                    blockIndex);
-
-                auto asyncBlock = blockStore->ReadBlock(
-                    chunkId,
-                    blockIndex,
-                    priority,
-                    enableCaching);
-                asyncBlocks.push_back(asyncBlock);
-
-                --priority;
-            }
-
-            response->Attachments() = WaitFor(Combine(asyncBlocks))
+            auto asyncBlocks = blockStore->ReadBlocks(
+                chunkId,
+                blockIndexes,
+                context->GetPriority(),
+                enableCaching);
+            response->Attachments() = WaitFor(asyncBlocks)
                 .ValueOrThrow();
         }
 
@@ -452,10 +438,10 @@ private:
                 chunkId,
                 firstBlockIndex,
                 blockCount,
-                context->GetPriority());
-            auto blocks = WaitFor(asyncBlocks)
+                context->GetPriority(),
+                false);
+            response->Attachments() = WaitFor(asyncBlocks)
                 .ValueOrThrow();
-            response->Attachments().insert(response->Attachments().end(), blocks.begin(), blocks.end());
         }
 
         int blocksWithData = response->Attachments().size();

@@ -63,7 +63,7 @@ using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int FetchPriority = 0;
+static const i64 ReadPriority = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -404,12 +404,12 @@ private:
         auto blockStore = Bootstrap_->GetBlockStore();
 
         while (blockIndex < blockCount) {
-            auto getResult = WaitFor(
-                blockStore->ReadBlocks(
-                    ChunkId_,
-                    blockIndex,
-                    blockCount - blockIndex,
-                    FetchPriority));
+            auto getResult = WaitFor(blockStore->ReadBlocks(
+                ChunkId_,
+                blockIndex,
+                blockCount - blockIndex,
+                ReadPriority,
+                false));
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 getResult,
                 "Error reading chunk %v during replication",
