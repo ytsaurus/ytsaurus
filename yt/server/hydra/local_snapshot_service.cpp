@@ -97,7 +97,7 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, ReadSnapshot)
     struct TSnapshotBlockTag { };
     auto buffer = TSharedRef::Allocate<TSnapshotBlockTag>(length, false);
 
-    auto bytesRead = WaitFor(copyingReader->Read(buffer.Begin(), length))
+    auto bytesRead = WaitFor(copyingReader->Read(buffer))
         .ValueOrThrow();
 
     response->Attachments().push_back(buffer.Trim(bytesRead));

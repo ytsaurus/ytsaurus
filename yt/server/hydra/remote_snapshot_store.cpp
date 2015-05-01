@@ -207,11 +207,11 @@ private:
                 .Run();
         }
 
-        virtual TFuture<void> Write(const void* buf, size_t len) override
+        virtual TFuture<void> Write(const TSharedRef& buffer) override
         {
             YCHECK(Opened_ && !Closed_);
-            Length_ += len;
-            return Writer_->Write(TRef(const_cast<void*>(buf), len));
+            Length_ += buffer.Size();
+            return Writer_->Write(buffer);
         }
 
         virtual TFuture<void> Close() override
