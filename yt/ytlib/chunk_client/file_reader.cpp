@@ -80,7 +80,7 @@ TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(const std::vector<int>&
             }
 
             int blockCount = endLocalIndex - startLocalIndex;
-            auto subblocks = DoReadBlocks(startLocalIndex, blockCount);
+            auto subblocks = DoReadBlocks(startBlockIndex, blockCount);
             blocks.insert(blocks.end(), subblocks.begin(), subblocks.end());
 
             localIndex = endLocalIndex;
