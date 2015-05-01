@@ -23,7 +23,7 @@ public:
 
     int GetHandle() const;
 
-    virtual TFuture<void> Write(const void* data, size_t size) override;
+    virtual TFuture<void> Write(const TSharedRef& buffer) override;
 
     TFuture<void> Close();
 

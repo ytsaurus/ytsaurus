@@ -55,7 +55,7 @@ void TReadFileCommand::DoExecute()
         if (!block)
             break;
 
-        auto result = WaitFor(output->Write(block.Begin(), block.Size()));
+        auto result = WaitFor(output->Write(block));
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 }
@@ -87,12 +87,12 @@ void TWriteFileCommand::DoExecute()
     }
 
     struct TWriteBufferTag { };
-    auto buffer = TSharedRef::Allocate<TWriteBufferTag>(Context_->GetConfig()->WriteBufferSize);
+    auto buffer = TSharedRef::Allocate<TWriteBufferTag>(Context_->GetConfig()->WriteBufferSize, false);
 
     auto input = Context_->Request().InputStream;
 
     while (true) {
-        auto readBytes = WaitFor(input->Read(buffer.Begin(), buffer.Size()));
+        auto readBytes = WaitFor(input->Read(buffer));
         THROW_ERROR_EXCEPTION_IF_FAILED(readBytes);
 
         if (readBytes.Value() == 0)

@@ -55,10 +55,10 @@ public:
         return FD_;
     }
 
-    TFuture<void> Write(const void* buffer, int length)
+    TFuture<void> Write(const TSharedRef& buffer)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(length > 0);
+        YCHECK(buffer.Size() > 0);
 
         auto promise = NewPromise<void>();
         BIND([=, this_ = MakeStrong(this)] () {
@@ -83,7 +83,6 @@ public:
 
                 case EWriterState::Active:
                     Buffer_ = buffer;
-                    Length_ = length;
                     Position_ = 0;
 
                     if (!FDWatcher_.is_active()) {
@@ -148,8 +147,7 @@ private:
 
     EWriterState State_ = EWriterState::Active;
 
-    const void* Buffer_ = nullptr;
-    int Length_ = 0;
+    TSharedRef Buffer_;
     int Position_ = 0;
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
@@ -162,7 +160,7 @@ private:
 
         YCHECK(State_ == EWriterState::Active);
 
-        if (Position_ < Length_) {
+        if (Position_ < Buffer_.Size()) {
             DoWrite();
         } else {
             FDWatcher_.stop();
@@ -172,11 +170,11 @@ private:
     void DoWrite()
     {
 #ifndef _win_
-        YCHECK(Position_ < Length_);
+        YCHECK(Position_ < Buffer_.Size());
 
         int size;
         do {
-            size = ::write(FD_, static_cast<const char *>(Buffer_) + Position_, Length_ - Position_);
+            size = ::write(FD_, Buffer_.Begin() + Position_, Buffer_.Size() - Position_);
         } while (size == -1 && errno == EINTR);
 
         if (size == -1) {
@@ -198,7 +196,7 @@ private:
         YCHECK(size > 0);
         Position_ += size;
 
-        if (Position_ == Length_) {
+        if (Position_ == Buffer_.Size()) {
             WriteResultPromise_.Set(TError());
         }
 #else
@@ -231,9 +229,9 @@ int TAsyncWriter::GetHandle() const
     return Impl_->GetHandle();
 }
 
-TFuture<void> TAsyncWriter::Write(const void* data, size_t size)
+TFuture<void> TAsyncWriter::Write(const TSharedRef& buffer)
 {
-    return Impl_->Write(data, size);
+    return Impl_->Write(buffer);
 }
 
 TFuture<void> TAsyncWriter::Close()

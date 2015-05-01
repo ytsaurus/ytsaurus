@@ -21,7 +21,7 @@ public:
 
     int GetHandle() const;
 
-    virtual TFuture<size_t> Read(void* buffer, size_t length) override;
+    virtual TFuture<size_t> Read(TSharedRef buffer) override;
 
     //! Thread-safe, can be called multiple times.
     TFuture<void> Abort();

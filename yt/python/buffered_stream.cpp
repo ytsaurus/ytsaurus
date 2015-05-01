@@ -69,16 +69,16 @@ void TBufferedStream::Finish()
     State_ = EState::Finished;
 }
 
-TFuture<void> TBufferedStream::Write(const void* buf, size_t len)
+TFuture<void> TBufferedStream::Write(const TSharedRef& buffer)
 {
     YCHECK(State_ != EState::Full);
 
     {
         TGuard<TMutex> guard(Mutex_);
 
-        if (Data_.End() - End_ < len) {
-            if (Size_ + len > Data_.Size()) {
-                Reallocate(std::max(Size_ + len, Data_.Size() * 2));
+        if (Data_.End() - End_ < buffer.Size()) {
+            if (Size_ + buffer.Size() > Data_.Size()) {
+                Reallocate(std::max(Size_ + buffer.Size(), Data_.Size() * 2));
             } else if (End_ - Begin_ <= Begin_ - Data_.Begin()) {
                 Move(Data_.Begin());
             } else {
@@ -86,10 +86,9 @@ TFuture<void> TBufferedStream::Write(const void* buf, size_t len)
             }
         }
 
-        auto buf_ = reinterpret_cast<const char*>(buf);
-        std::copy(buf_, buf_ + len, End_);
-        End_ = End_ + len;
-        Size_ += len;
+        std::copy(buffer.Begin(), buffer.Begin() + buffer.Size(), End_);
+        End_ = End_ + buffer.Size();
+        Size_ += buffer.Size();
     }
 
     if (Size_ >= AllowedSize_) {

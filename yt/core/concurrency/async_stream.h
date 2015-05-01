@@ -25,7 +25,7 @@ struct IAsyncInputStream
      *  One must not call #Read again before the previous call is complete.
      *  Returns number of bytes read or an error.
      */
-    virtual TFuture<size_t> Read(void* buf, size_t len) = 0;
+    virtual TFuture<size_t> Read(TSharedRef buffer) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAsyncInputStream)
@@ -48,7 +48,7 @@ struct IAsyncOutputStream
      *  Buffer passed to #Write must remain valid until the returned future is set.
      *  One must not call #Write again before the previous call is complete.
      */
-    virtual TFuture<void> Write(const void* buf, size_t len) = 0;
+    virtual TFuture<void> Write(const TSharedRef& buffer) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAsyncOutputStream)
@@ -98,6 +98,8 @@ struct IAsyncZeroCopyOutputStream
      *  Returns an error, if any.
      *  In contrast to IAsyncOutputStream, one may call #Write again before
      *  the previous call is complete.
+     * 
+     *  NB: this shared ref should become unique ref.
      */
     virtual TFuture<void> Write(const TSharedRef& data) = 0;
 };
