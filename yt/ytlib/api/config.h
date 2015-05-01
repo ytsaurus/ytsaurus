@@ -54,6 +54,7 @@ class TConnectionConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    Stroka NetworkName;
     TMasterConnectionConfigPtr Master;
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     TMasterConnectionConfigPtr MasterCache;

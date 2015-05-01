@@ -180,24 +180,27 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
 
         if (Options_->ErasureCodec == ECodec::None) {
             NextSession_.UnderlyingWriter = CreateReplicationWriter(
-                Config_, 
+                Config_,
+                Options_,
                 NextSession_.ChunkId, 
                 TChunkReplicaList(),
                 NodeDirectory_,
                 MasterChannel_,
-                EWriteSessionType::User,
                 Throttler_);
         } else {
             auto* erasureCodec = GetCodec(Options_->ErasureCodec);
             auto writers = CreateErasurePartWriters(
-                Config_, 
+                Config_,
+                Options_,
                 NextSession_.ChunkId, 
                 erasureCodec, 
                 NodeDirectory_, 
                 MasterChannel_, 
-                EWriteSessionType::User,
                 Throttler_);
-            NextSession_.UnderlyingWriter = CreateErasureWriter(Config_, erasureCodec, writers);
+            NextSession_.UnderlyingWriter = CreateErasureWriter(
+                Config_,
+                erasureCodec,
+                writers);
         }
 
         WaitFor(NextSession_.UnderlyingWriter->Open())

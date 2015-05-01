@@ -209,26 +209,28 @@ private:
 
         if (isErasure) {
             auto erasureCodec = NErasure::GetCodec(erasureCodecId);
-
+            auto readerOptions = New<TRemoteReaderOptions>();
+            readerOptions->NetworkName = NetworkName_;
             auto readers = CreateErasureAllPartsReaders(
                 ReaderConfig_,
+                readerOptions,
                 host->GetBlockCache(),
                 RemoteMasterChannel_,
                 RemoteNodeDirectory_,
                 inputChunkId,
                 inputReplicas,
-                erasureCodec,
-                NetworkName_);
+                erasureCodec);
 
             chunkMeta = GetChunkMeta(readers.front());
 
+            auto writerOptions = New<TRemoteWriterOptions>();
             auto writers = CreateErasurePartWriters(
                 WriterConfig_,
+                writerOptions,
                 outputChunkId,
                 erasureCodec,
                 nodeDirectory,
-                host->GetMasterChannel(),
-                EWriteSessionType::User);
+                host->GetMasterChannel());
 
             YCHECK(readers.size() == writers.size());
 
@@ -257,25 +259,28 @@ private:
             }
             chunkInfo.set_disk_space(diskSpace);
         } else {
+            auto readerOptions = New<TRemoteReaderOptions>();
+            readerOptions->NetworkName = NetworkName_;
             auto reader = CreateReplicationReader(
                 ReaderConfig_,
+                readerOptions,
                 host->GetBlockCache(),
                 RemoteMasterChannel_,
                 RemoteNodeDirectory_,
                 Null,
                 inputChunkId,
-                TChunkReplicaList(),
-                NetworkName_);
+                TChunkReplicaList());
 
             chunkMeta = GetChunkMeta(reader);
 
+            auto writerOptions = New<TRemoteWriterOptions>();
             auto writer = CreateReplicationWriter(
                 WriterConfig_,
+                writerOptions,
                 outputChunkId,
                 TChunkReplicaList(),
                 nodeDirectory,
-                host->GetMasterChannel(),
-                EWriteSessionType::User);
+                host->GetMasterChannel());
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
             int blockCount = static_cast<int>(blocksExt.blocks_size());

@@ -53,24 +53,20 @@ class TReplicationReader
 public:
     TReplicationReader(
         TReplicationReaderConfigPtr config,
+        TRemoteReaderOptionsPtr options,
         IBlockCachePtr blockCache,
         IChannelPtr masterChannel,
         TNodeDirectoryPtr nodeDirectory,
         const TNullable<TNodeDescriptor>& localDescriptor,
         const TChunkId& chunkId,
         const TChunkReplicaList& seedReplicas,
-        const Stroka& networkName,
-        EReadSessionType sessionType,
         IThroughputThrottlerPtr throttler)
         : Config_(config)
         , BlockCache_(blockCache)
         , NodeDirectory_(nodeDirectory)
         , LocalDescriptor_(localDescriptor)
         , ChunkId_(chunkId)
-        , NetworkName_(networkName)
-        , SessionType_(sessionType)
         , Throttler_(throttler)
-        , Logger(ChunkClientLogger)
         , ObjectServiceProxy_(masterChannel)
         , ChunkServiceProxy_(masterChannel)
         , InitialSeedReplicas_(seedReplicas)
@@ -91,12 +87,13 @@ public:
             GetSeedsPromise_ = MakePromise(InitialSeedReplicas_);
         }
 
+        const auto& networkName = Options_->NetworkName;
         LOG_INFO("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalDescriptor: %v, EnableCaching: %v, Network: %v)",
             JoinToString(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
-            LocalDescriptor_ ? ToString(LocalDescriptor_->GetAddressOrThrow(NetworkName_)) : "<Null>",
+            LocalDescriptor_ ? ToString(LocalDescriptor_->GetAddressOrThrow(networkName)) : "<Null>",
             Config_->EnableCaching,
-            NetworkName_);
+            networkName);
     }
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override;
@@ -118,15 +115,15 @@ private:
     class TReadBlockRangeSession;
     class TGetMetaSession;
 
-    TReplicationReaderConfigPtr Config_;
-    IBlockCachePtr BlockCache_;
-    TNodeDirectoryPtr NodeDirectory_;
-    TNullable<TNodeDescriptor> LocalDescriptor_;
-    TChunkId ChunkId_;
-    Stroka NetworkName_;
-    EReadSessionType SessionType_;
-    IThroughputThrottlerPtr Throttler_;
-    NLogging::TLogger Logger;
+    const TReplicationReaderConfigPtr Config_;
+    const TRemoteReaderOptionsPtr Options_;
+    const IBlockCachePtr BlockCache_;
+    const TNodeDirectoryPtr NodeDirectory_;
+    const TNullable<TNodeDescriptor> LocalDescriptor_;
+    const TChunkId ChunkId_;
+    const IThroughputThrottlerPtr Throttler_;
+
+    NLogging::TLogger Logger = ChunkClientLogger;
 
     TObjectServiceProxy ObjectServiceProxy_;
     TChunkServiceProxy ChunkServiceProxy_;
@@ -248,10 +245,10 @@ protected:
     Stroka NetworkName_;
 
     //! Zero based retry index (less than |Reader->Config->RetryCount|).
-    int RetryIndex_;
+    int RetryIndex_ = 0;
 
     //! Zero based pass index (less than |Reader->Config->PassCount|).
-    int PassIndex_;
+    int PassIndex_ = 0;
 
     //! Seed replicas for the current retry.
     TChunkReplicaList SeedReplicas_;
@@ -272,23 +269,19 @@ protected:
     yhash_map<Stroka, TNodeDescriptor> AddressToDescriptor_;
 
     //! Current index in #PeerList.
-    int PeerIndex_;
+    int PeerIndex_ = 0;
 
     //! The instant this session has started.
     TInstant StartTime_;
 
-    NLogging::TLogger Logger;
+    NLogging::TLogger Logger = ChunkClientLogger;
 
 
     explicit TSessionBase(TReplicationReader* reader)
         : Reader_(reader)
         , NodeDirectory_(reader->NodeDirectory_)
-        , NetworkName_(reader->NetworkName_)
-        , RetryIndex_(0)
-        , PassIndex_(0)
-        , PeerIndex_(0)
+        , NetworkName_(reader->Options_->NetworkName)
         , StartTime_(TInstant::Now())
-        , Logger(ChunkClientLogger)
     {
         Logger.AddTag("ChunkId: %v", reader->ChunkId_);
     }
@@ -693,7 +686,7 @@ private:
                 ToProto(req->mutable_chunk_id(), reader->ChunkId_);
                 ToProto(req->mutable_block_indexes(), unfetchedBlockIndexes);
                 req->set_enable_caching(reader->Config_->EnableCaching);
-                req->set_session_type(static_cast<int>(reader->SessionType_));
+                req->set_session_type(static_cast<int>(reader->Options_->SessionType));
                 if (reader->LocalDescriptor_) {
                     auto expirationTime = TInstant::Now() + reader->Config_->PeerExpirationTimeout;
                     ToProto(req->mutable_peer_descriptor(), reader->LocalDescriptor_.Get());
@@ -956,7 +949,7 @@ private:
                 ToProto(req->mutable_chunk_id(), reader->ChunkId_);
                 req->set_first_block_index(FirstBlockIndex_);
                 req->set_block_count(BlockCount_);
-                req->set_session_type(static_cast<int>(reader->SessionType_));
+                req->set_session_type(static_cast<int>(reader->Options_->SessionType));
 
                 req->Invoke().Subscribe(
                     BIND(
@@ -1244,14 +1237,13 @@ TFuture<TChunkMeta> TReplicationReader::GetMeta(
 
 IChunkReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     TNodeDirectoryPtr nodeDirectory,
     const TNullable<TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
-    const Stroka& networkName,
-    EReadSessionType sessionType,
     IThroughputThrottlerPtr throttler)
 {
     YCHECK(config);
@@ -1261,14 +1253,13 @@ IChunkReaderPtr CreateReplicationReader(
 
     auto reader = New<TReplicationReader>(
         config,
+        options,
         blockCache,
         masterChannel,
         nodeDirectory,
         localDescriptor,
         chunkId,
         seedReplicas,
-        networkName,
-        sessionType,
         throttler);
     reader->Initialize();
     return reader;

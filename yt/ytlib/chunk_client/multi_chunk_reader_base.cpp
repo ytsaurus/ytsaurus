@@ -229,14 +229,13 @@ IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunk& chunk)
             auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
             auto reader = CreateReplicationReader(
                 PatchConfig(Config_, chunk.MemoryEstimate),
+                Options_,
                 BlockCache_,
                 MasterChannel_,
                 NodeDirectory_,
                 Null,
                 partId,
                 partReplicas,
-                NNodeTrackerClient::InterconnectNetworkName,
-                EReadSessionType::User,
                 Throttler_);
             readers.push_back(reader);
 
@@ -248,14 +247,13 @@ IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunk& chunk)
     } else {
         return CreateReplicationReader(
             PatchConfig(Config_, chunk.MemoryEstimate),
+            Options_,
             BlockCache_,
             MasterChannel_,
             NodeDirectory_,
             Null,
             chunkId,
             replicas,
-            NNodeTrackerClient::InterconnectNetworkName,
-            EReadSessionType::User,
             Throttler_);
     }
 }
@@ -319,7 +317,7 @@ TSequentialMultiChunkReaderBase::TSequentialMultiChunkReaderBase(
         options, 
         masterChannel, 
         blockCache, 
-        nodeDirectory, 
+        nodeDirectory,
         chunkSpecs,
         throttler)
 {

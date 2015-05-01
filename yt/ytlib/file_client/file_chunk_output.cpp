@@ -49,7 +49,6 @@ TFileChunkOutput::TFileChunkOutput(
     const NObjectClient::TTransactionId& transactionId)
     : Config(config)
     , Options(options)
-    , IsOpen(false)
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
     , Logger(FileClientLogger)
@@ -84,6 +83,7 @@ void TFileChunkOutput::Open()
     auto nodeDirectory = New<TNodeDirectory>();
     ChunkWriter = CreateReplicationWriter(
         Config,
+        Options,
         ChunkId,
         TChunkReplicaList(),
         nodeDirectory,
