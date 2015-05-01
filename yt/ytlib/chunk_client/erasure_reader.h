@@ -28,23 +28,23 @@ TFuture<void> RepairErasedParts(
 
 std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
-    const NErasure::ICodec* codec,
-    const Stroka& networkName = NNodeTrackerClient::InterconnectNetworkName);
+    const NErasure::ICodec* codec);
 
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
-    const NErasure::ICodec* codec,
-    const Stroka& networkName = NNodeTrackerClient::InterconnectNetworkName);
+    const NErasure::ICodec* codec);
 
 ///////////////////////////////////////////////////////////////////////////////
 

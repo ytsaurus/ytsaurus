@@ -11,6 +11,8 @@
 
 #include <ytlib/new_table_client/config.h>
 
+#include <ytlib/node_tracker_client/public.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -27,11 +29,13 @@ TMasterConnectionConfig::TMasterConnectionConfig()
 
 TConnectionConfig::TConnectionConfig()
 {
+    RegisterParameter("network_name", NetworkName)
+        .Default(NNodeTrackerClient::InterconnectNetworkName);
     RegisterParameter("master", Master);
     RegisterParameter("timestamp_provider", TimestampProvider)
-        .Default(nullptr);
+        .Default();
     RegisterParameter("master_cache", MasterCache)
-        .Default(nullptr);
+        .Default();
     RegisterParameter("cell_directory", CellDirectory)
         .DefaultNew();
     RegisterParameter("scheduler", Scheduler)

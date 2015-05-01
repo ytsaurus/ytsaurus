@@ -192,8 +192,11 @@ private:
 
                 auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
                 auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+                auto options = New<TRemoteReaderOptions>();
+                options->NetworkName = Client_->GetConnection()->GetConfig()->NetworkName;
                 CurrentChunkReader_ = CreateReplicationReader(
                     Config_,
+                    options,
                     Client_->GetConnection()->GetBlockCache(),
                     Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
                     NodeDirectory_,

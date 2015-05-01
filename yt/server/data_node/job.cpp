@@ -381,13 +381,16 @@ private:
 
         auto targets = FromProto<TChunkReplica, TChunkReplicaList>(ReplicateChunkJobSpecExt_.targets());
 
+        auto options = New<TRemoteWriterOptions>();
+        options->SessionType = EWriteSessionType::Replication;
+
         auto writer = CreateReplicationWriter(
             Config_->ReplicationWriter,
+            options,
             ChunkId_,
             targets,
             nodeDirectory,
             nullptr,
-            EWriteSessionType::Replication,
             Bootstrap_->GetReplicationOutThrottler());
 
         {
@@ -525,16 +528,17 @@ private:
             YCHECK(!partReplicas.empty());
 
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
+            auto options = New<TRemoteReaderOptions>();
+            options->SessionType = EReadSessionType::Repair;
             auto reader = CreateReplicationReader(
                 Config_->RepairReader,
+                options,
                 Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 partId,
                 partReplicas,
-                InterconnectNetworkName,
-                EReadSessionType::Repair,
                 Bootstrap_->GetRepairInThrottler());
             readers.push_back(reader);
         }
@@ -543,13 +547,15 @@ private:
         for (int index = 0; index < static_cast<int>(erasedIndexes.size()); ++index) {
             int partIndex = erasedIndexes[index];
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
+            auto options = New<TRemoteWriterOptions>();
+            options->SessionType = EWriteSessionType::Repair;
             auto writer = CreateReplicationWriter(
                 Config_->RepairWriter,
+                options,
                 partId,
                 TChunkReplicaList(1, targets[index]),
                 nodeDirectory,
                 nullptr,
-                EWriteSessionType::Repair,
                 Bootstrap_->GetRepairOutThrottler());
             writers.push_back(writer);
         }
@@ -644,16 +650,17 @@ private:
 
             auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(SealJobSpecExt_.replicas());
 
+            auto options = New<TRemoteReaderOptions>();
+            options->SessionType = EReadSessionType::Replication;
             auto reader = CreateReplicationReader(
                 Config_->SealReader,
+                options,
                 Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Null,
                 ChunkId_,
                 replicas,
-                InterconnectNetworkName,
-                EReadSessionType::Replication,
                 Bootstrap_->GetReplicationInThrottler());
 
             while (currentRowCount < sealRowCount) {

@@ -240,8 +240,10 @@ private:
         Logger.AddTag("ChunkId: %v", chunkId);
 
         try {
+            auto options = New<TRemoteReaderOptions>();
             auto chunkReader = CreateReplicationReader(
                 Config_->CacheRemoteReader,
+                options,
                 Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,

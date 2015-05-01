@@ -750,14 +750,14 @@ namespace {
 
 std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& replicas_,
     const NErasure::ICodec* codec,
-    int partCount,
-    const Stroka& networkName)
+    int partCount)
 {
     YCHECK(IsErasureChunkId(chunkId));
     
@@ -784,13 +784,13 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
             auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
             auto reader = CreateReplicationReader(
                 config,
+                options,
                 blockCache,
                 masterChannel,
                 nodeDirectory,
                 Null,
                 partId,
-                partReplicas,
-                networkName);
+                partReplicas);
             readers.push_back(reader);
 
             it = jt;
@@ -805,6 +805,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
 
 std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -815,36 +816,36 @@ std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
 {
     return CreateErasurePartsReaders(
         config,
+        options,
         blockCache,
         masterChannel,
         nodeDirectory,
         chunkId,
         seedReplicas,
         codec,
-        codec->GetDataPartCount(),
-        networkName);
+        codec->GetDataPartCount());
 }
 
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
-    const NErasure::ICodec* codec,
-    const Stroka& networkName)
+    const NErasure::ICodec* codec)
 {
     return CreateErasurePartsReaders(
         config,
+        options,
         blockCache,
         masterChannel,
         nodeDirectory,
         chunkId,
         seedReplicas,
         codec,
-        codec->GetTotalPartCount(),
-        networkName);
+        codec->GetTotalPartCount());
 }
 
 ///////////////////////////////////////////////////////////////////////////////

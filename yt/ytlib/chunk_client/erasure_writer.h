@@ -23,11 +23,11 @@ IChunkWriterPtr CreateErasureWriter(
 
 std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
+    TRemoteWriterOptionsPtr options,
     const TChunkId& chunkId,
     NErasure::ICodec* codec,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NRpc::IChannelPtr masterChannel,
-    EWriteSessionType sessionType = EWriteSessionType::User,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ///////////////////////////////////////////////////////////////////////////////

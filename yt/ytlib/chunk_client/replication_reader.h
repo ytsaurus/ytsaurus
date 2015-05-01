@@ -18,14 +18,13 @@ namespace NChunkClient {
 
 IChunkReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas = TChunkReplicaList(),
-    const Stroka& networkName = NNodeTrackerClient::InterconnectNetworkName,
-    EReadSessionType sessionType = EReadSessionType::User,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ///////////////////////////////////////////////////////////////////////////////

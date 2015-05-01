@@ -13,6 +13,8 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <ytlib/node_tracker_client/public.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -87,6 +89,26 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationReaderConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TRemoteReaderOptions
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    Stroka NetworkName;
+    EReadSessionType SessionType;
+
+    TRemoteReaderOptions()
+    {
+        RegisterParameter("network_name", NetworkName)
+            .Default(NNodeTrackerClient::InterconnectNetworkName);
+        RegisterParameter("session_type", SessionType)
+            .Default(EReadSessionType::User);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemoteReaderOptions)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -186,6 +208,26 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationWriterConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TRemoteWriterOptions
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    Stroka NetworkName;
+    EWriteSessionType SessionType;
+
+    TRemoteWriterOptions()
+    {
+        RegisterParameter("network_name", NetworkName)
+            .Default(NNodeTrackerClient::InterconnectNetworkName);
+        RegisterParameter("session_type", SessionType)
+            .Default(EWriteSessionType::User);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemoteWriterOptions)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -309,6 +351,7 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterConfig)
 
 class TMultiChunkWriterOptions
     : public virtual TEncodingWriterOptions
+    , public virtual TRemoteWriterOptions
 {
 public:
     int ReplicationFactor;
@@ -363,7 +406,7 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TMultiChunkReaderOptions
-    : public virtual NYTree::TYsonSerializable
+    : public TRemoteReaderOptions
 {
 public:
     bool KeepInMemory;
@@ -373,7 +416,6 @@ public:
         RegisterParameter("keep_in_memory", KeepInMemory)
             .Default(false);
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderOptions)

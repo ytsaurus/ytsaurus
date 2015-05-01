@@ -444,11 +444,11 @@ IChunkWriterPtr CreateErasureWriter(
 
 std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
+    TRemoteWriterOptionsPtr options,
     const TChunkId& chunkId,
     NErasure::ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
     NRpc::IChannelPtr masterChannel,
-    EWriteSessionType sessionType,
     IThroughputThrottlerPtr throttler)
 {
     // Patch writer configs to ignore upload replication factor for erasure chunk parts.
@@ -483,11 +483,11 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
         auto partId = ErasurePartIdFromChunkId(chunkId, index);
         writers.push_back(CreateReplicationWriter(
             partConfig,
+            options,
             partId,
             TChunkReplicaList(1, replicas[index]),
             nodeDirectory,
             nullptr,
-            sessionType,
             throttler));
     }
 

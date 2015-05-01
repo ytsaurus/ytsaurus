@@ -503,8 +503,10 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
             BIND(&TChunkStore::OnLocalReaderFailed, MakeWeak(this)));
     } else {
         // TODO(babenko): provide seed replicas
+        auto options = New<TRemoteReaderOptions>();
         chunkReader = CreateReplicationReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+            options,
             GetBlockCache(),
             Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
             New<TNodeDirectory>(),

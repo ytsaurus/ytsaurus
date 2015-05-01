@@ -787,8 +787,10 @@ private:
 
             // TODO(babenko): seed replicas?
             // TODO(babenko): throttler?
+            auto options = New<TRemoteReaderOptions>();
             chunkReader = CreateReplicationReader(
                 Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+                options,
                 Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,

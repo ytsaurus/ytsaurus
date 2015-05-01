@@ -77,10 +77,10 @@ public:
     }
 
 private:
-    IClientPtr Client_;
-    TYPath Path_;
-    TFileReaderOptions Options_;
-    TFileReaderConfigPtr Config_;
+    const IClientPtr Client_;
+    const TYPath Path_;
+    const TFileReaderOptions Options_;
+    const TFileReaderConfigPtr Config_;
 
     TTransactionPtr Transaction_;
 
@@ -153,9 +153,11 @@ private:
             nodeDirectory->MergeFrom(rsp->node_directory());
 
             auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
+            auto options = New<TMultiChunkReaderOptions>();
+            options->NetworkName = Client_->GetConnection()->GetConfig()->NetworkName;
             Reader_ = CreateFileMultiChunkReader(
                 Config_,
-                New<TMultiChunkReaderOptions>(),
+                options,
                 masterChannel,
                 Client_->GetConnection()->GetBlockCache(),
                 nodeDirectory,

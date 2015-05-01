@@ -15,11 +15,11 @@ namespace NChunkClient {
 
 IChunkWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
+    TRemoteWriterOptionsPtr options,
     const TChunkId& chunkId,
     const TChunkReplicaList& targets,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NRpc::IChannelPtr masterChannel,
-    EWriteSessionType sessionType = EWriteSessionType::User,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ///////////////////////////////////////////////////////////////////////////////
