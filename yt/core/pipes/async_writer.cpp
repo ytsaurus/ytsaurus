@@ -4,10 +4,10 @@
 #include "io_dispatcher.h"
 #include "io_dispatcher_impl.h"
 #include "private.h"
+#include "pipe.h"
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/misc/pipe.h>
 #include <core/misc/proc.h>
 
 #include <contrib/libev/ev++.h>

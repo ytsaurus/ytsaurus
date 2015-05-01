@@ -29,7 +29,6 @@ set( SRCS
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
   ${BASE}/phoenix.cpp
-  ${BASE}/pipe.cpp
   ${BASE}/proc.cpp
   ${BASE}/process.cpp
   ${BASE}/protobuf_helpers.cpp
@@ -111,7 +110,6 @@ set( HDRS
   ${BASE}/pattern_formatter.h
   ${BASE}/phoenix-inl.h
   ${BASE}/phoenix.h
-  ${BASE}/pipe.h
   ${BASE}/preprocessor.h
   ${BASE}/proc.h
   ${BASE}/process.h

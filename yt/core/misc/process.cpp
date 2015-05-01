@@ -23,6 +23,8 @@
 
 namespace NYT {
 
+using namespace NPipes;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLogging::TLogger Logger("Process");
@@ -138,9 +140,6 @@ TProcess::TProcess(const Stroka& path, bool copyEnv)
 TProcess::~TProcess()
 {
     YCHECK(ProcessId_ == InvalidProcessId || Finished_);
-
-    TryClose(Pipe_.ReadFD);
-    TryClose(Pipe_.WriteFD);
 }
 
 TProcess::TProcess(TProcess&& other)
@@ -283,9 +282,7 @@ void TProcess::Spawn()
     // This should not fail ever.
     YCHECK(TrySetSignalMask(&oldSignals, nullptr));
 
-    YCHECK(TryClose(Pipe_.WriteFD, false));
-    Pipe_.WriteFD = TPipe::InvalidFD;
-
+    Pipe_.CloseWriteFD();
     ThrowOnChildError();
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
@@ -322,9 +319,8 @@ void TProcess::ThrowOnChildError()
 {
 #ifdef _linux_
     int data[2];
-    int res = ::read(Pipe_.ReadFD, &data, sizeof(data));
-    YCHECK(TryClose(Pipe_.ReadFD, false));
-    Pipe_.ReadFD = TPipe::InvalidFD;
+    int res = ::read(Pipe_.GetReadFD(), &data, sizeof(data));
+    Pipe_.CloseReadFD();
 
     if (res == 0) {
         // Child successfully spawned or was killed by a signal.
@@ -438,6 +434,17 @@ void TProcess::Kill(int signal)
 #endif
 }
 
+void TProcess::KillAndWait() noexcept
+{
+    try {
+        Kill(9);
+    } catch (...) { 
+    }
+    if (!Finished()) {
+        Wait();
+    }
+}
+
 int TProcess::GetProcessId() const
 {
     return ProcessId_;
@@ -488,8 +495,6 @@ char* TProcess::Capture(TStringBuf arg)
 void TProcess::Child()
 {
 #ifdef _linux_
-    YCHECK(Pipe_.WriteFD != TPipe::InvalidFD);
-
     for (int actionIndex = 0; actionIndex < SpawnActions_.size(); ++actionIndex) {
         auto& action = SpawnActions_[actionIndex];
         if (!action.Callback()) {
@@ -500,7 +505,7 @@ void TProcess::Child()
             };
 
             // According to pipe(7) write of small buffer is atomic.
-            YCHECK(::write(Pipe_.WriteFD, &data, sizeof(data)) == sizeof(data));
+            YCHECK(::write(Pipe_.GetWriteFD(), &data, sizeof(data)) == sizeof(data));
             _exit(1);
         }
     }

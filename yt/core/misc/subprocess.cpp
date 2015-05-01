@@ -47,48 +47,30 @@ void TSubprocess::AddArguments(std::initializer_list<TStringBuf> args)
 TSubprocessResult TSubprocess::Execute()
 {
 #ifndef _win_
-    std::array<TPipe, 3> pipes;
-
+    TAsyncReaderPtr outputStream, errorStream;
     {
-        TPipeFactory pipeFactory(3);
-        for (auto& pipe: pipes) {
-            pipe = pipeFactory.Create();
+        std::array<TPipe, 3> pipes;
+
+        {
+            TPipeFactory pipeFactory(3);
+            for (auto& pipe: pipes) {
+                pipe = pipeFactory.Create();
+            }
+            pipeFactory.Clear();
         }
-        pipeFactory.Clear();
-    }
 
-    for (int index = 0; index < pipes.size(); ++index) {
-        const auto& pipe = pipes[index];
+        for (int index = 0; index < pipes.size(); ++index) {
+            const auto& pipe = pipes[index];
 
-        auto FD = index == 0 ? pipe.ReadFD : pipe.WriteFD;
-        Process_.AddDup2FileAction(FD, index);
-    }
+            auto fd = index == 0 ? pipe.GetReadFD() : pipe.GetWriteFD();
+            Process_.AddDup2FileAction(fd, index);
+        }
 
-    try {
         Process_.Spawn();
-    } catch (...) {
-        for (const auto& pipe : pipes) {
-            YCHECK(TryClose(pipe.ReadFD, false));
-            YCHECK(TryClose(pipe.WriteFD, false));
-        }
-        throw;
+
+        outputStream = pipes[1].CreateAsyncReader();
+        errorStream = pipes[2].CreateAsyncReader();
     }
-
-    for (int index = 0; index < pipes.size(); ++index) {
-        auto& pipe = pipes[index];
-
-        YCHECK(TryClose(pipe.WriteFD, false));
-        pipe.WriteFD = TPipe::InvalidFD;
-        if (index == 0) {
-            YCHECK(TryClose(pipe.ReadFD, false));
-            pipe.ReadFD = TPipe::InvalidFD;
-        } else {
-            YCHECK(TryMakeNonblocking(pipe.ReadFD));
-        }
-    }
-
-    auto outputStream = New<TAsyncReader>(pipes[1].ReadFD);
-    auto errorStream = New<TAsyncReader>(pipes[2].ReadFD);
 
     auto readIntoBlob = [] (IAsyncInputStreamPtr stream) {
         TBlob output;
@@ -122,13 +104,7 @@ TSubprocessResult TSubprocess::Execute()
         auto exitCode = Process_.Wait();
         return TSubprocessResult{outputs[0], outputs[1], exitCode};
     } catch (...) {
-        // Cleanup: trying to kill and wait for completion is case of errors.
-        try {
-            Process_.Kill(9);
-        } catch (...) { }
-        if (!Process_.Finished()) {
-            Process_.Wait();
-        }
+        Process_.KillAndWait();
         throw;
     }
 #else

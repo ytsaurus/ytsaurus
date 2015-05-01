@@ -1,7 +1,8 @@
 #pragma once
 
 #include "error.h"
-#include "pipe.h"
+
+#include <core/pipes/pipe.h>
 
 #include <vector>
 
@@ -38,6 +39,8 @@ public:
     TError Wait();
     void Kill(int signal);
 
+    void KillAndWait() noexcept;
+
     int GetProcessId() const;
     bool Started() const;
     bool Finished() const;
@@ -60,7 +63,7 @@ private:
 
     int MaxSpawnActionFD_ = - 1;
 
-    TPipe Pipe_;
+    NPipes::TPipe Pipe_;
     std::vector<Stroka> StringHolder_;
     std::vector<char*> Args_;
     std::vector<char*> Env_;

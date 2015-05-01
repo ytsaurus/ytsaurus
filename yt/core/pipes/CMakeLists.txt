@@ -6,6 +6,8 @@ set( SRCS
   ${BASE}/io_dispatcher.cpp
   ${BASE}/io_dispatcher_impl.cpp
   ${BASE}/private.cpp
+  ${BASE}/pipe.cpp
+
 )
 set( HDRS
   ${BASE}/async_reader.h
@@ -14,6 +16,7 @@ set( HDRS
   ${BASE}/io_dispatcher_impl.h
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/pipe.h
 )
 
 list(APPEND YT_SOURCE_FILES

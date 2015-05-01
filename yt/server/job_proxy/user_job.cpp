@@ -95,7 +95,7 @@ public:
         , Config_(host->GetConfig())
         , JobErrorPromise_(NewPromise<void>())
         , MemoryUsage_(UserJobSpec_.memory_reserve())
-        , CummulativeMemoryUsageMbSec_(0)
+        , CumulativeMemoryUsageMbSec_(0)
         , PipeIOQueue_(New<TActionQueue>("PipeIO"))
         , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
         , JobProberQueue_(New<TActionQueue>("JobProber"))
@@ -209,7 +209,7 @@ private:
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
     i64 MemoryUsage_;
-    i64 CummulativeMemoryUsageMbSec_;
+    i64 CumulativeMemoryUsageMbSec_;
 
     TActionQueuePtr PipeIOQueue_;
 
@@ -317,7 +317,7 @@ private:
             Memory_.Destroy();
         }
 
-        AddStatistic("/user_job/cumulative_memory_mb_sec", CummulativeMemoryUsageMbSec_);
+        AddStatistic("/user_job/cumulative_memory_mb_sec", CumulativeMemoryUsageMbSec_);
 
         {
             TGuard<TSpinLock> guard(FreezerLock_);
@@ -521,38 +521,35 @@ private:
         }));
     }
 
-    TAsyncReaderPtr PrepareOutputPipe(TPipe pipe, int jobDescriptor, TOutputStream* output)
+    TAsyncReaderPtr PrepareOutputPipe(TPipe&& pipe, int jobDescriptor, TOutputStream* output)
     {
-        Process_.AddDup2FileAction(pipe.WriteFD, jobDescriptor);
+        Process_.AddDup2FileAction(pipe.GetWriteFD(), jobDescriptor);
 
         Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
 
-        SafeMakeNonblocking(pipe.ReadFD);
+        auto asyncInput = pipe.CreateAsyncReader();
 
-        auto asyncInput = New<TAsyncReader>(pipe.ReadFD);
-
-        OutputActions_.push_back(BIND([=] () {
-            SafeClose(pipe.WriteFD);
+        OutputActions_.push_back(BIND([=] (int writeFD) {
+            SafeClose(writeFD, false);
             auto input = CreateSyncAdapter(asyncInput);
             PipeInputToOutput(input.get(), output, BufferSize);
-        }));
+        }, pipe.ReleaseWriteFD()));
 
         return asyncInput;
     }
 
     void PrepareInputTablePipe(
-        TPipe pipe,
+        TPipe&& pipe,
         int jobDescriptor,
         ISchemalessMultiChunkReaderPtr reader,
         const TFormat& format)
     {
 
-        Process_.AddDup2FileAction(pipe.ReadFD, jobDescriptor);
+        Process_.AddDup2FileAction(pipe.GetReadFD(), jobDescriptor);
 
         Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
 
-        SafeMakeNonblocking(pipe.WriteFD);
-        auto asyncOutput = New<TAsyncWriter>(pipe.WriteFD);
+        auto asyncOutput = pipe.CreateAsyncWriter();
         TablePipeWriters_.push_back(asyncOutput);
         auto output = CreateSyncAdapter(asyncOutput);
         auto bufferRowCount = Config_->JobIO->BufferRowCount;
@@ -568,13 +565,18 @@ private:
 
         FormatWriters_.push_back(writer);
 
-        InputActions_.push_back(BIND([=] () {
-            PipeReaderToWriter(reader, writer, bufferRowCount);
+        // NB: we do not bother to close it. Anyway, job proxy process would not live long.
+        auto readFD = pipe.ReleaseReadFD();
 
-            auto error = WaitFor(asyncOutput->Close());
-            if (!error.IsOK()) {
+        InputActions_.push_back(BIND([=] () {
+            try {
+                PipeReaderToWriter(reader, writer, bufferRowCount);
+                WaitFor(asyncOutput->Close())
+                    .ThrowOnError();
+            } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Table input pipe failed")
-                    << TErrorAttribute("fd", jobDescriptor);
+                        << TErrorAttribute("fd", jobDescriptor)
+                        << ex;
             }
         }));
 
@@ -582,16 +584,16 @@ private:
             return;
         }
 
-        FinalizeActions_.push_back(BIND([=] () {
+        FinalizeActions_.push_back(BIND([=] (int readFD) {
             char buffer;
             // Try to read some data from the pipe.
-            ssize_t res = ::read(pipe.ReadFD, &buffer, 1);
+            ssize_t res = ::read(readFD, &buffer, 1);
             if (res > 0) {
                 THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
                     << TErrorAttribute("fd", jobDescriptor);
             }
-            // close pipe.ReadFD?
-        }));
+            YCHECK(TryClose(readFD, false));
+        }, readFD));
     }
 
     void PrepareInputTablePipes(TPipeFactory* pipeFactory)
@@ -900,7 +902,7 @@ private:
             }
         }
 
-        CummulativeMemoryUsageMbSec_ += (rss / (1024 * 1024)) * Config_->MemoryWatchdogPeriod.Seconds();
+        CumulativeMemoryUsageMbSec_ += (rss / (1024 * 1024)) * Config_->MemoryWatchdogPeriod.Seconds();
 
         i64 memoryLimit = UserJobSpec_.memory_limit();
         LOG_DEBUG("Check memory usage (Rss: %v, MemoryLimit: %v)",
