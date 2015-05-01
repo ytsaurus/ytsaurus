@@ -7,6 +7,7 @@
 #include <core/misc/proc.h>
 
 #include <core/pipes/io_dispatcher.h>
+#include <core/pipes/pipe.h>
 #include <core/pipes/async_reader.h>
 #include <core/pipes/async_writer.h>
 
@@ -21,20 +22,12 @@ using namespace NConcurrency;
 
 #ifndef _win_
 
-void SafeMakeNonblockingPipes(int fds[2])
-{
-    SafePipe(fds);
-    SafeMakeNonblocking(fds[0]);
-    SafeMakeNonblocking(fds[1]);
-}
-
 TEST(TPipeIOHolder, CanInstantiate)
 {
-    int pipefds[2];
-    SafeMakeNonblockingPipes(pipefds);
+    auto pipe = TPipeFactory().Create();
 
-    auto readerHolder = New<TAsyncReader>(pipefds[0]);
-    auto writerHolder = New<TAsyncWriter>(pipefds[1]);
+    auto readerHolder = pipe.CreateAsyncReader();
+    auto writerHolder = pipe.CreateAsyncWriter();
 
     readerHolder->Abort().Get();
     writerHolder->Abort().Get();
@@ -67,11 +60,10 @@ TBlob ReadAll(TAsyncReaderPtr reader, bool useWaitFor)
 
 TEST(TAsyncWriterTest, AsyncCloseFail)
 {
-    int pipefds[2];
-    SafeMakeNonblockingPipes(pipefds);
+    auto pipe = TPipeFactory().Create();
 
-    auto reader = New<TAsyncReader>(pipefds[0]);
-    auto writer = New<TAsyncWriter>(pipefds[1]);
+    auto reader = pipe.CreateAsyncReader();
+    auto writer = pipe.CreateAsyncWriter();
 
     auto queue = New<NConcurrency::TActionQueue>();
     auto readFromPipe =
@@ -95,17 +87,13 @@ TEST(TAsyncWriterTest, AsyncCloseFail)
         << ToString(readResult);
 
     auto closeStatus = error.Get();
-
-    ASSERT_EQ(-1, close(pipefds[1]));
 }
 
 TEST(TAsyncWriterTest, WriteFailed)
 {
-    int pipefds[2];
-    SafeMakeNonblockingPipes(pipefds);
-
-    auto reader = New<TAsyncReader>(pipefds[0]);
-    auto writer = New<TAsyncWriter>(pipefds[1]);
+    auto pipe = TPipeFactory().Create();
+    auto reader = pipe.CreateAsyncReader();
+    auto writer = pipe.CreateAsyncWriter();
 
     int length = 200*1024;
     auto buffer = TSharedMutableRef::Allocate(length);
@@ -126,11 +114,10 @@ class TPipeReadWriteTest
 protected:
     virtual void SetUp() override
     {
-        int pipefds[2];
-        SafeMakeNonblockingPipes(pipefds);
+        auto pipe = TPipeFactory().Create();
 
-        Reader = New<TAsyncReader>(pipefds[0]);
-        Writer = New<TAsyncWriter>(pipefds[1]);
+        Reader = pipe.CreateAsyncReader();
+        Writer = pipe.CreateAsyncWriter();
     }
 
     virtual void TearDown() override

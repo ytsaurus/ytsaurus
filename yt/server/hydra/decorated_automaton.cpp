@@ -20,6 +20,7 @@
 #include <ytlib/hydra/hydra_manager.pb.h>
 
 #include <core/pipes/async_reader.h>
+#include <core/pipes/pipe.h>
 
 #include <server/misc/snapshot_builder_detail.h>
 
@@ -229,16 +230,11 @@ public:
                     SnapshotId_);
             }
 
-            int fds[2];
-            SafePipe(fds);
-            SafeMakeNonblocking(fds[0]);
+            auto pipe = TPipeFactory().Create();
+            LOG_INFO("Snapshot transfer pipe opened [%v]", pipe);
 
-            LOG_INFO("Snapshot transfer pipe opened (ReadFD: %v, WriteFD: %v)",
-                fds[0],
-                fds[1]);
-
-            InputStream_ = New<TAsyncReader>(fds[0]);
-            OutputFile_ = std::make_unique<TFile>(FHANDLE(fds[1]));
+            InputStream_ = pipe.CreateAsyncReader();
+            OutputFile_ = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, Meta_);
 
