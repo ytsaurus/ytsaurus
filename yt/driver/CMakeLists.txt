@@ -65,7 +65,7 @@ else()
   )
 endif()
 
-set_target_properties( yt
+set_target_properties( yt PROPERTIES
   LINK_FLAGS "-static-libstdc++"
 )
 

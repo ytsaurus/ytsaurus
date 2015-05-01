@@ -50,7 +50,7 @@ target_link_libraries( ytserver
   ytlib
 )
 
-set_target_properties( ytserver
+set_target_properties( ytserver PROPERTIES
   LINK_FLAGS "-static-libstdc++"
 )
 
