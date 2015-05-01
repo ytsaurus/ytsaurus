@@ -51,10 +51,12 @@ public:
         i64 priority = 0;
         for (int blockIndex : blockIndexes) {
             auto blockId = TBlockId(Chunk_->GetId(), blockIndex);
-            auto cachedBlock = BlockCache_->Find(blockId, EBlockType::CompressedData);
-            if (cachedBlock) {
-                asyncBlocks.push_back(MakeFuture(cachedBlock));
-                continue;
+            if (BlockCache_) {
+                auto cachedBlock = BlockCache_->Find(blockId, EBlockType::CompressedData);
+                if (cachedBlock) {
+                    asyncBlocks.push_back(MakeFuture(cachedBlock));
+                    continue;
+                }
             }
 
             auto asyncBlock = blockStore->ReadBlock(
