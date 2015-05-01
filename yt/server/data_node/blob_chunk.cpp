@@ -108,7 +108,7 @@ void TBlobChunkBase::DoReadMeta(
     TPromise<TRefCountedChunkMetaPtr> promise)
 {
     const auto& Profiler = Location_->GetProfiler();
-    LOG_TRACE("Started reading chunk meta (ChunkId: %v, LocationId: %v)",
+    LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v)",
         Id_,
         Location_->GetId());
 
@@ -125,7 +125,7 @@ void TBlobChunkBase::DoReadMeta(
         }
     }
 
-    LOG_TRACE("Finished reading chunk meta (ChunkId: %v, LocationId: %v)",
+    LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v)",
         Id_,
         Location_->GetId());
 
@@ -192,7 +192,7 @@ void TBlobChunkBase::DoReadBlocks(
 
         std::vector<TSharedRef> blocks;
 
-        LOG_TRACE("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+        LOG_DEBUG("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
@@ -205,7 +205,7 @@ void TBlobChunkBase::DoReadBlocks(
 
         auto readTime = timer.GetElapsed();
 
-        LOG_TRACE("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+        LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,

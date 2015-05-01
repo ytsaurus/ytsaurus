@@ -61,8 +61,7 @@ private:
     NChunkClient::NProto::TBlocksExt BlocksExt_;
     int BlockCount_;
 
-
-    TSharedRef ReadBlock(int blockIndex);
+    virtual std::vector<TSharedRef> DoReadBlocks(int firstBlockIndex, int blockCount);
 
 };
 

@@ -55,32 +55,33 @@ public:
     //! Synchronously looks up a single block in the store's cache.
     TCachedBlockPtr FindBlock(const TBlockId& blockId);
 
-    //! Asynchronously reads a single block from the store.
-    /*!
-     *  Fetching an already-cached block is cheap (i.e. requires no context switch).
-     *  Fetching an uncached block enqueues a disk-read action to the appropriate IO queue.
-     *
-     *  If some unrecoverable IO error happens during retrieval then the latter error is returned.
-     *  If the whole chunk or its particular block does not exist then null TSharedRef is returned.
-     */
-    TFuture<TSharedRef> ReadBlock(
-        const TChunkId& chunkId,
-        int blockIndex,
-        i64 priority,
-        bool enableCaching);
-
     //! Asynchronously reads a range of blocks from the store.
     /*!
      *  If some unrecoverable IO error happens during retrieval then the latter error is returned.
      *
      *  The resulting list may contain less blocks than requested.
+     *  If the whole chunk or some of its blocks does not exist then null TSharedRef element may be returned.
      *  An empty list indicates that the requested blocks are all out of range.
+     *
+     *  Note that blob chunks will indicate an error if an attempt is made to read a non-existing block.
+     *  Journal chunks, however, will silently ignore it.
      */
     TFuture<std::vector<TSharedRef>> ReadBlocks(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
-        i64 priority);
+        i64 priority,
+        bool enableCaching);
+
+    //! Asynchronously reads a set of blocks from the store.
+    /*!
+     *  Tries to group block reads into contiguous ranges.
+     */
+    TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TChunkId& chunkId,
+        const std::vector<int> blockIndexes,
+        i64 priority,
+        bool enableCaching);
 
     //! Puts a block into the store.
     /*!
@@ -103,7 +104,6 @@ public:
 
 private:
     class TImpl;
-    class TGetBlocksSession;
 
     friend class TPendingReadSizeGuard;
 

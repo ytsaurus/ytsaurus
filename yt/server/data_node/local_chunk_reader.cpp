@@ -24,6 +24,13 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const i64 ReadPriority = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLocalChunkReader;
+typedef TIntrusivePtr<TLocalChunkReader> TLocalChunkReaderPtr;
+
 class TLocalChunkReader
     : public IChunkReader
 {
@@ -44,56 +51,36 @@ public:
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
         auto blockStore = Bootstrap_->GetBlockStore();
-
-        std::vector<TFuture<TSharedRef>> asyncBlocks;
-        asyncBlocks.reserve(blockIndexes.size());
-
-        i64 priority = 0;
-        for (int blockIndex : blockIndexes) {
-            auto blockId = TBlockId(Chunk_->GetId(), blockIndex);
-            if (BlockCache_) {
-                auto cachedBlock = BlockCache_->Find(blockId, EBlockType::CompressedData);
-                if (cachedBlock) {
-                    asyncBlocks.push_back(MakeFuture(cachedBlock));
-                    continue;
-                }
-            }
-
-            auto asyncBlock = blockStore->ReadBlock(
-                Chunk_->GetId(),
-                blockIndex,
-                priority,
-                Config_->EnableCaching);
-
-            asyncBlocks.push_back(asyncBlock.Apply(BIND(
-                &TLocalChunkReader::OnGotBlock,
-                MakeStrong(this),
-                blockIndex)));
-
-            // Assign decreasing priorities to block requests to take advantage of sequential read.
-            --priority;
-        }
-
-        return Combine(asyncBlocks);
+        auto asyncResult = blockStore->ReadBlocks(
+            Chunk_->GetId(),
+            blockIndexes,
+            ReadPriority,
+            Config_->EnableCaching);
+        return CheckResult(asyncResult);
     }
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
     {
-        std::vector<int> blockIndexes;
-        for (int index = firstBlockIndex; index < firstBlockIndex + blockCount; ++index) {
-            blockIndexes.push_back(index);
-        }
-        return ReadBlocks(blockIndexes);
+        auto blockStore = Bootstrap_->GetBlockStore();
+        auto asyncResult = blockStore->ReadBlocks(
+            Chunk_->GetId(),
+            firstBlockIndex,
+            blockCount,
+            ReadPriority,
+            Config_->EnableCaching);
+        return CheckResult(asyncResult);
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {
-        return Chunk_->ReadMeta(0, extensionTags).Apply(BIND(
-            &TLocalChunkReader::OnGotMeta,
-            MakeStrong(this),
-            partitionTag));
+        auto asyncResult = Chunk_->ReadMeta(0, extensionTags);
+        return CheckResult(asyncResult).Apply(BIND([=] (const TRefCountedChunkMetaPtr& meta) {
+            return partitionTag
+                ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
+                : TChunkMeta(*meta);
+        }));
     }
 
     virtual TChunkId GetChunkId() const override
@@ -109,51 +96,21 @@ private:
     const TClosure FailureHandler_;
 
 
-    TSharedRef OnGotBlock(int blockIndex, const TErrorOr<TSharedRef>& blockOrError)
+    template <class T>
+    TFuture<T> CheckResult(TFuture<T> asyncResult)
     {
-        if (!blockOrError.IsOK()) {
-            OnFailed();
-            THROW_ERROR_EXCEPTION(
-                NDataNode::EErrorCode::LocalChunkReaderFailed,
-                "Error reading local chunk block %v:%v",
-                Chunk_->GetId(),
-                blockIndex)
-                    << blockOrError;
-        }
-
-        const auto& block = blockOrError.Value();
-        if (!block) {
-            OnFailed();
-            THROW_ERROR_EXCEPTION(
-                NDataNode::EErrorCode::LocalChunkReaderFailed,
-                "Local chunk block %v:%v is not available",
-                Chunk_->GetId(),
-                blockIndex);
-        }
-
-        return block;
-    }
-
-    TChunkMeta OnGotMeta(
-        const TNullable<int>& partitionTag,
-        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
-    {
-        if (!metaOrError.IsOK()) {
-            OnFailed();
-            THROW_ERROR metaOrError;
-        }
-
-        const auto& meta = metaOrError.Value();
-        return partitionTag
-           ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
-           : TChunkMeta(*meta);
-    }
-
-    void OnFailed()
-    {
-        if (FailureHandler_) {
-            FailureHandler_.Run();
-        }
+        return asyncResult.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<T>& result) {
+            if (!result.IsOK()) {
+                if (FailureHandler_) {
+                    FailureHandler_.Run();
+                }
+                THROW_ERROR_EXCEPTION(
+                    NDataNode::EErrorCode::LocalChunkReaderFailed,
+                    "Error reading local chunk blocks")
+                    << result;
+            }
+            return result.Value();
+        }));
     }
 
 };
