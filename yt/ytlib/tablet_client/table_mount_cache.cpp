@@ -83,11 +83,13 @@ public:
     TImpl(
         TTableMountCacheConfigPtr config,
         IChannelPtr masterChannel,
-        TCellDirectoryPtr cellDirectory)
+        TCellDirectoryPtr cellDirectory,
+        const Stroka& networkName)
         : TExpiringCache(config)
         , Config_(config)
         , ObjectProxy_(masterChannel)
         , CellDirectory_(cellDirectory)
+        , NetworkName_(networkName)
     { }
 
     TFuture<TTableMountInfoPtr> GetTableInfo(const TYPath& path)
@@ -105,6 +107,7 @@ private:
     const TTableMountCacheConfigPtr Config_;
     TObjectServiceProxy ObjectProxy_;
     const TCellDirectoryPtr CellDirectory_;
+    const Stroka NetworkName_;
 
 
     virtual TFuture <TTableMountInfoPtr> DoGet(const TYPath& path) override
@@ -145,16 +148,20 @@ private:
                     tabletInfo->State = ETabletState(protoTabletInfo.state());
                     tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
 
-                    if (protoTabletInfo.has_cell_config()) {
-                        auto config = ConvertTo<TCellConfigPtr>(TYsonString(protoTabletInfo.cell_config()));
-                        tabletInfo->CellId = config->CellId;
-                        CellDirectory_->RegisterCell(config, protoTabletInfo.cell_config_version());
-                    }
-
-                    for (auto nodeId : protoTabletInfo.replica_node_ids()) {
-                        tabletInfo->Replicas.push_back(TTabletReplica(
-                            nodeId,
-                            nodeDirectory->GetDescriptor(nodeId)));
+                    if (protoTabletInfo.has_cell_id()) {
+                        auto cellConfig = New<TCellConfig>();
+                        tabletInfo->CellId = cellConfig->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
+                        for (auto nodeId : protoTabletInfo.replica_node_ids()) {
+                            if (nodeId == InvalidNodeId) {
+                                cellConfig->Addresses.push_back(Null);
+                            } else {
+                                auto descriptor = nodeDirectory->GetDescriptor(nodeId);
+                                auto address = descriptor.GetAddressOrThrow(NetworkName_);
+                                cellConfig->Addresses.push_back(address);
+                                tabletInfo->Replicas.push_back(TTabletReplica(nodeId, descriptor));
+                            }
+                        }
+                        CellDirectory_->RegisterCell(cellConfig, protoTabletInfo.cell_config_version());
                     }
 
                     tableInfo->Tablets.push_back(tabletInfo);
@@ -177,11 +184,13 @@ private:
 TTableMountCache::TTableMountCache(
     TTableMountCacheConfigPtr config,
     IChannelPtr masterChannel,
-    TCellDirectoryPtr cellDirectory)
+    TCellDirectoryPtr cellDirectory,
+    const Stroka& networkName)
     : Impl_(New<TImpl>(
         config,
         masterChannel,
-        cellDirectory))
+        cellDirectory,
+        networkName))
 { }
 
 TTableMountCache::~TTableMountCache()

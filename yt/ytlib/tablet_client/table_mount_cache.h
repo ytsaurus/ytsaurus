@@ -82,7 +82,8 @@ public:
     TTableMountCache(
         TTableMountCacheConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NHive::TCellDirectoryPtr cellDirectory);
+        NHive::TCellDirectoryPtr cellDirectory,
+        const Stroka& networkName);
     ~TTableMountCache();
 
     TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path);
