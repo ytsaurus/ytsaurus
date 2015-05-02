@@ -450,17 +450,15 @@ private:
             protoTablet->set_state(static_cast<int>(tablet->GetState()));
             ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
             if (cell) {
-                auto config = cell->GetConfig()->ToElection(cell->GetId());
+                ToProto(protoTablet->mutable_cell_id(), cell->GetId());
                 protoTablet->set_cell_config_version(cell->GetConfigVersion());
-                protoTablet->set_cell_config(ConvertToYsonString(config).Data());
                 for (const auto& peer : cell->Peers()) {
                     auto* node = peer.Node;
                     if (node) {
-                        const auto* slot = node->GetTabletSlot(cell);
-                        if (slot->PeerState == EPeerState::Leading) {
-                            builder.Add(node);
-                            protoTablet->add_replica_node_ids(node->GetId());
-                        }
+                        builder.Add(node);
+                        protoTablet->add_replica_node_ids(node->GetId());
+                    } else {
+                        protoTablet->add_replica_node_ids(InvalidNodeId);
                     }
                 }
             }

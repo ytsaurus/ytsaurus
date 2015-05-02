@@ -113,7 +113,8 @@ public:
         TableMountCache_ = New<TTableMountCache>(
             Config_->TableMountCache,
             GetMasterChannel(EMasterChannelKind::Cache),
-            CellDirectory_);
+            CellDirectory_,
+            Config_->NetworkName);
 
         FunctionRegistry_ = CreateFunctionRegistry(
             CreateClient(TClientOptions()));
