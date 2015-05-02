@@ -62,6 +62,7 @@ public:
         const TChunkReplicaList& seedReplicas,
         IThroughputThrottlerPtr throttler)
         : Config_(config)
+        , Options_(options)
         , BlockCache_(blockCache)
         , NodeDirectory_(nodeDirectory)
         , LocalDescriptor_(localDescriptor)
