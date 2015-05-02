@@ -242,7 +242,7 @@ if __name__ == "__main__":
                 spec={"job_count": 100, "max_failed_job_count":10},
                 format=yt.YsonFormat(format="text"))
         except YtError as e:
-            print yt.errors.format_error(e)
+            print str(e)
             raise e
         partition_keys = yt.read_table(partitions_table, format=yt.YsonFormat(format="text"), raw=False)
         partition_keys = [p["pivot_key"] for p in partition_keys]
@@ -317,7 +317,7 @@ if __name__ == "__main__":
                 format=yt.YsonFormat(format="text"),
                 local_files=CONFIG_FILE_NAME)
         except YtError as e:
-            print yt.errors.format_error(e)
+            print str(e)
             raise e
     else:
         config["destination"] = src
@@ -335,7 +335,7 @@ if __name__ == "__main__":
                 format=yt.YsonFormat(format="text"),
                 local_files=CONFIG_FILE_NAME)
         except YtError as e:
-            print yt.errors.format_error(e)
+            print str(e)
             raise e
 
     yt.remove(regions_table)   
