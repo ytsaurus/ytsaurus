@@ -217,7 +217,8 @@ private:
         struct TNode
             : public TRefCounted
         {
-            TNodeDescriptor Descriptor;
+            const TNodeDescriptor Descriptor;
+
             TDataNodeServiceProxy LightProxy;
             TDataNodeServiceProxy HeavyProxy;
             TPeriodicExecutorPtr PingExecutor;
@@ -228,11 +229,18 @@ private:
             std::queue<TBatchPtr> PendingBatches;
             std::vector<TBatchPtr> InFlightBatches;
 
-            explicit TNode(const TNodeDescriptor& descriptor)
+            TNode(
+                const TNodeDescriptor& descriptor,
+                IChannelPtr lightChannel,
+                IChannelPtr heavyChannel,
+                TDuration rpcTimeout)
                 : Descriptor(descriptor)
-                , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress()))
-                , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress()))
-            { }
+                , LightProxy(lightChannel)
+                , HeavyProxy(heavyChannel)
+            {
+                LightProxy.SetDefaultTimeout(rpcTimeout);
+                HeavyProxy.SetDefaultTimeout(rpcTimeout);
+            }
         };
 
         typedef TIntrusivePtr<TNode> TNodePtr;
@@ -477,10 +485,16 @@ private:
             LOG_INFO("Write targets allocated (Targets: [%v])",
                 JoinToString(targets));
 
+            const auto& networkName = Client_->GetConnection()->GetConfig()->NetworkName;
             for (const auto& target : targets) {
-                auto node = New<TNode>(target);
-                node->LightProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
-                node->HeavyProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
+                auto address = target.GetAddressOrThrow(networkName);
+                auto lightChannel = LightNodeChannelFactory->CreateChannel(address);
+                auto heavyChannel = HeavyNodeChannelFactory->CreateChannel(address);
+                auto node = New<TNode>(
+                    target,
+                    lightChannel,
+                    heavyChannel,
+                    Config_->NodeRpcTimeout);
                 CurrentSession_->Nodes.push_back(node);
             }
 
