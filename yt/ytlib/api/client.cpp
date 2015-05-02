@@ -513,7 +513,7 @@ private:
         std::map<Stroka, TDataSources> groupsByLocation;
         for (const auto& group : groupsByChunkReplica) {
             auto descriptor = nodeDirectory->GetDescriptor(TChunkReplica(group.first, 0));
-            auto address = descriptor.GetInterconnectAddress();
+            auto address = descriptor.GetAddressOrThrow(Connection_->GetConfig()->NetworkName);
             auto& targetSources = groupsByLocation[address];
             targetSources.insert(targetSources.end(), group.second.begin(), group.second.end());
         }
@@ -579,8 +579,7 @@ private:
 
         return DoCoordinateAndExecute(fragment, writer, ranges.size(), true, [&] (int index) {
             auto descriptor = nodeDirectory->GetDescriptor(allSplits[index].second);
-            const auto& address = descriptor.GetInterconnectAddress();
-
+            auto address = descriptor.GetAddressOrThrow(Connection_->GetConfig()->NetworkName);
             LOG_DEBUG("Delegating to tablet %v", allSplits[index].first.Id);
             return std::make_pair(TDataSources(1, allSplits[index].first), address);
         });

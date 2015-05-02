@@ -89,10 +89,11 @@ public:
         }
 
         const auto& networkName = Options_->NetworkName;
-        LOG_INFO("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalDescriptor: %v, EnableCaching: %v, Network: %v)",
+        auto maybeLocalAddress = LocalDescriptor_ ? MakeNullable(LocalDescriptor_->GetAddressOrThrow(networkName)) : Null;
+        LOG_INFO("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalAddress: %v, EnableCaching: %v, Network: %v)",
             JoinToString(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
-            LocalDescriptor_ ? ToString(LocalDescriptor_->GetAddressOrThrow(networkName)) : "<Null>",
+            maybeLocalAddress,
             Config_->EnableCaching,
             networkName);
     }

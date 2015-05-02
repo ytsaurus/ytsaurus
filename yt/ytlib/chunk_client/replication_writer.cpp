@@ -42,21 +42,31 @@ typedef TIntrusivePtr<TReplicationWriter> TReplicationWriterPtr;
 struct TNode
     : public TRefCounted
 {
-    int Index;
+    const int Index;
+    const TNodeDescriptor Descriptor;
+    const TChunkReplica ChunkReplica;
+
     TError Error;
-    TChunkReplica ChunkReplica;
-    TNodeDescriptor Descriptor;
     TDataNodeServiceProxy LightProxy;
     TDataNodeServiceProxy HeavyProxy;
     TPeriodicExecutorPtr PingExecutor;
     std::atomic_flag Canceled;
 
-    TNode(int index, const TNodeDescriptor& descriptor)
+    TNode(
+        int index,
+        const TNodeDescriptor& descriptor,
+        TChunkReplica chunkReplica,
+        IChannelPtr lightChannel,
+        IChannelPtr heavyChannel,
+        TDuration rpcTimeout)
         : Index(index)
         , Descriptor(descriptor)
-        , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress()))
-        , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress()))
+        , ChunkReplica(chunkReplica)
+        , LightProxy(lightChannel)
+        , HeavyProxy(heavyChannel)
     {
+        LightProxy.SetDefaultTimeout(rpcTimeout);
+        HeavyProxy.SetDefaultTimeout(rpcTimeout);
         Canceled.clear();
     }
 
@@ -535,10 +545,16 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
 
     LOG_DEBUG("Write session started (Address: %v)", address);
 
-    auto node = New<TNode>(Nodes_.size(), nodeDescriptor);
-    node->ChunkReplica = target;
-    node->LightProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
-    node->HeavyProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
+    auto lightChannel = LightNodeChannelFactory->CreateChannel(address);
+    auto heavyChannel = HeavyNodeChannelFactory->CreateChannel(address);
+    auto node = New<TNode>(
+        Nodes_.size(),
+        nodeDescriptor,
+        target,
+        lightChannel,
+        heavyChannel,
+        Config_->NodeRpcTimeout);
+
     node->PingExecutor = New<TPeriodicExecutor>(
         TDispatcher::Get()->GetWriterInvoker(),
         BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(node)),
