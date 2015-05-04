@@ -191,16 +191,6 @@ protected:
         int rowCount = rows.size();
         PerformanceCounters_->UnmergedRowReadCount += rowCount;
 
-        #ifndef NDEBUG
-        for (int index = 0; index < rowCount - 1; ++index) {
-            auto lhs = rows[index];
-            auto rhs = rows[index + 1];
-            YASSERT(KeyComparer_(
-                lhs.BeginKeys(), lhs.EndKeys(),
-                rhs.BeginKeys(), rhs.EndKeys()) < 0);
-        }
-        #endif
-
         session->CurrentRow = rows.begin();
         
         Parent()->AddSessionToActive(session);
@@ -321,6 +311,11 @@ public:
                 ExtractHeap(ActiveSessionsBegin_, ActiveSessionsEnd_,  SessionComparer_);
                 --ActiveSessionsEnd_;
             } else {
+                #ifndef NDEBUG
+                YASSERT(Parent()->GetKeyComparer()(
+                    partialRow.BeginKeys(), partialRow.EndKeys(),
+                    session->CurrentRow->BeginKeys(), session->CurrentRow->EndKeys()) < 0);
+                #endif
                 AdjustHeapFront(ActiveSessionsBegin_, ActiveSessionsEnd_,  SessionComparer_);
             }
         }
@@ -700,11 +695,12 @@ private:
     typedef TTabletReaderBase<TVersionedTabletReader> TBase;
 
     const std::vector<IStorePtr> Stores_;
+    TChunkedMemoryPool Pool_;
+    TVersionedRowMerger RowMerger_;
     TTimestamp Timestamp_;
     const TOwningKey LowerBound_;
     const TOwningKey UpperBound_;
-    TChunkedMemoryPool Pool_;
-    TVersionedRowMerger RowMerger_;
+    
 
     void DoOpen()
     {
