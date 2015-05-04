@@ -205,9 +205,7 @@ private:
 
     virtual TSharedRef SerializeBody() override
     {
-        TSharedMutableRef data;
-        YCHECK(SerializeToProtoWithEnvelope(*this, &data, Codec_));
-        return data;
+        return SerializeToProtoWithEnvelope(*this, Codec_);
     }
 
 };
@@ -339,7 +337,7 @@ private:
 
     virtual void DeserializeBody(const TRef& data) override
     {
-        YCHECK(DeserializeFromProtoWithEnvelope(this, data));
+        DeserializeFromProtoWithEnvelope(this, data);
     }
 };
 

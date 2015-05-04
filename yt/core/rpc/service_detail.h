@@ -122,7 +122,7 @@ public:
         Request_ = ObjectPool<TTypedRequest>().Allocate();
         Request_->Context_ = UnderlyingContext_.Get();
 
-        if (!DeserializeFromProtoWithEnvelope(Request_.get(), UnderlyingContext_->GetRequestBody())) {
+        if (!TryDeserializeFromProtoWithEnvelope(Request_.get(), UnderlyingContext_->GetRequestBody())) {
             UnderlyingContext_->Reply(TError(
                 NRpc::EErrorCode::ProtocolError,
                 "Error deserializing request body"));
@@ -210,8 +210,7 @@ public:
 private:
     void SerializeResponseAndReply()
     {
-        TSharedMutableRef data;
-        YCHECK(SerializeToProtoWithEnvelope(*Response_, &data, this->Options_.ResponseCodec));
+        auto data = SerializeToProtoWithEnvelope(*Response_, this->Options_.ResponseCodec);
         this->UnderlyingContext_->SetResponseBody(std::move(data));
         this->UnderlyingContext_->Reply(TError());
     }

@@ -102,8 +102,7 @@ TSharedRefArray CreateResponseMessage(
     const ::google::protobuf::MessageLite& body,
     const std::vector<TSharedRef>& attachments)
 {
-    TSharedMutableRef serializedBody;
-    YCHECK(SerializeToProtoWithEnvelope(body, &serializedBody));
+    auto serializedBody = SerializeToProtoWithEnvelope(body);
 
     return CreateResponseMessage(
         TResponseHeader(),

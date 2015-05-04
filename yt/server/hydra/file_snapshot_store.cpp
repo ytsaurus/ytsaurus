@@ -135,7 +135,7 @@ private:
 
                 auto serializedMeta = TSharedMutableRef::Allocate(Header_.MetaSize, false);
                 ReadPadded(input, serializedMeta);
-                YCHECK(DeserializeFromProto(&Meta_, serializedMeta));
+                DeserializeFromProto(&Meta_, serializedMeta);
 
                 if (IsRaw_) {
                     File_->Seek(Offset_, sSet);
@@ -257,7 +257,7 @@ public:
         , Meta_(meta)
         , IsRaw_(raw)
     {
-        YCHECK(SerializeToProto(Meta_, &SerializedMeta_));
+        SerializedMeta_ = SerializeToProto(Meta_);
         Logger.AddTag("Path: %v", FileName_);
     }
 
@@ -312,7 +312,7 @@ private:
     const TSnapshotMeta Meta_;
     const bool IsRaw_;
 
-    TSharedMutableRef SerializedMeta_;
+    TSharedRef SerializedMeta_;
 
     bool IsOpened_ = false;
     bool IsClosed_ = false;
