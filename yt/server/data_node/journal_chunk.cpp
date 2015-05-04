@@ -45,7 +45,6 @@ TJournalChunk::TJournalChunk(
         bootstrap,
         location,
         descriptor.Id)
-    , Meta_(New<TRefCountedChunkMeta>())
 {
     CachedSealed_ = descriptor.Sealed;
     CachedRowCount_ = descriptor.RowCount;
@@ -219,7 +218,6 @@ void TJournalChunk::SyncRemove(bool force)
 
 TFuture<void> TJournalChunk::AsyncRemove()
 {
-    auto location = Location_;
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
     return dispatcher->RemoveChangelog(this);
 }

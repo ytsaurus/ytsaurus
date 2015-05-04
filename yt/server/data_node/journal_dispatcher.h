@@ -21,9 +21,6 @@ public:
         NCellNode::TBootstrap* bootstrap);
     ~TJournalDispatcher();
 
-    //! Returns |true| if journal chunks are supported by any location.
-    bool IsEnabled() const;
-
     //! Asynchronously opens (or returns a cached) changelog corresponding
     //! to a given journal chunk.
     TFuture<NHydra::IChangelogPtr> OpenChangelog(
@@ -44,11 +41,10 @@ private:
     class TCachedChangelog;
     typedef TIntrusivePtr<TCachedChangelog> TCachedChangelogPtr;
 
-    class
-        TImpl;
+    class TImpl;
     typedef TIntrusivePtr<TImpl> TImplPtr;
 
-    const TIntrusivePtr<TImpl> Impl_;
+    const TImplPtr Impl_;
 
 };
 

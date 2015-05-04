@@ -26,9 +26,6 @@ public:
 
     void Initialize();
 
-    //! Returns |true| if journal chunks are supported for this location.
-    bool IsEnabled() const;
-
     TFuture<NHydra::IChangelogPtr> OpenChangelog(
         const TChunkId& chunkId,
         bool enableMultiplexing);

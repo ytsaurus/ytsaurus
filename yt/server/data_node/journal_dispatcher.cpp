@@ -10,8 +10,6 @@
 
 #include <core/misc/async_cache.h>
 
-#include <core/profiling/timing.h>
-
 #include <server/hydra/changelog.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -163,6 +161,7 @@ public:
         Owner_->TryRemove(this);
         return UnderlyingChangelog_->Close();
     }
+
 private:
     const TImplPtr Owner_;
     const TLocationPtr Location_;
