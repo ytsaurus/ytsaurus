@@ -17,6 +17,9 @@ extern const NProfiling::TProfiler DataNodeProfiler;
 extern NRpc::IChannelFactoryPtr ChannelFactory;
 
 extern Stroka CellIdFileName;
+extern Stroka MultiplexedDirectory;
+extern Stroka TrashDirectory;
+extern Stroka CleanExtension;
 
 ////////////////////////////////////////////////////////////////////////////////
 

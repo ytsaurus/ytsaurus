@@ -12,8 +12,6 @@
 
 #include <core/misc/fs.h>
 
-#include <core/ypath/token.h>
-
 #include <core/profiling/profile_manager.h>
 
 #include <ytlib/chunk_client/format.h>
@@ -32,7 +30,6 @@ namespace NYT {
 namespace NDataNode {
 
 using namespace NChunkClient;
-using namespace NYPath;
 using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NElection;
@@ -43,9 +40,6 @@ using namespace NHydra;
 
 // Others must not be able to list chunk store and chunk cache directories.
 static const int ChunkFilesPermissions = 0751;
-
-static const auto TrashDirectory = Stroka("trash");
-static const auto MultiplexedDirectory = Stroka("multiplexed");
 static const auto TrashCheckPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -554,7 +548,6 @@ TNullable<TChunkDescriptor> TLocation::RepairJournalChunk(const TChunkId& chunkI
     auto dataFileName = fileName;
     auto indexFileName = fileName + ChangelogIndexSuffix;
 
-    auto trashDataFileName = trashFileName;
     auto trashIndexFileName = trashFileName + ChangelogIndexSuffix;
 
     bool hasData = NFS::Exists(dataFileName);
@@ -562,7 +555,7 @@ TNullable<TChunkDescriptor> TLocation::RepairJournalChunk(const TChunkId& chunkI
 
     if (hasData) {
         auto dispatcher = Bootstrap_->GetJournalDispatcher();
-        // NB: This also forces the index file.
+        // NB: This also creates the index file, if missing.
         auto changelog = dispatcher->OpenChangelog(this, chunkId, false)
             .Get()
             .ValueOrThrow();

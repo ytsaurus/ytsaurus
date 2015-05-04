@@ -45,7 +45,7 @@ public:
     bool IsSealed() const;
 
 private:
-    const TRefCountedChunkMetaPtr Meta_;
+    const TRefCountedChunkMetaPtr Meta_ = New<TRefCountedChunkMeta>();
 
     bool Active_ = false;
     NHydra::IChangelogPtr Changelog_;
@@ -65,9 +65,6 @@ private:
         int firstBlockIndex,
         int blockCount,
         TPromise<std::vector<TSharedRef>> promise);
-
-    void DoRemove();
-    void DoMoveToTrash();
 
 };
 

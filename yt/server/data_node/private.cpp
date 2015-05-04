@@ -16,6 +16,9 @@ const NProfiling::TProfiler DataNodeProfiler("/data_node");
 NRpc::IChannelFactoryPtr ChannelFactory(NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
 
 Stroka CellIdFileName("cell_id");
+Stroka MultiplexedDirectory("multiplexed");
+Stroka TrashDirectory = Stroka("trash");
+Stroka CleanExtension("clean");
 
 ////////////////////////////////////////////////////////////////////////////////
 

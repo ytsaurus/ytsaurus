@@ -683,7 +683,7 @@ private:
                         ChunkId_);
                 }
 
-                LOG_INFO("Journal chunk rows downloaded (Blocks: %v-%v)",
+                LOG_INFO("Journal chunk rows downloaded (Rows: %v-%v)",
                     currentRowCount,
                     currentRowCount + blockCount - 1);
 
