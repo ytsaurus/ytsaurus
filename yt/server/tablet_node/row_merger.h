@@ -32,8 +32,6 @@ private:
     int SchemaColumnCount_;
     int KeyColumnCount_;
 
-    NVersionedTableClient::TKeyComparer KeyComparer_;
-
     NVersionedTableClient::TUnversionedRow MergedRow_;
     SmallVector<NVersionedTableClient::TTimestamp, NVersionedTableClient::TypicalColumnCount> MergedTimestamps_;
 
@@ -71,8 +69,6 @@ private:
     TRetentionConfigPtr Config_;
     TTimestamp CurrentTimestamp_;
     TTimestamp MajorTimestamp_;
-
-    NVersionedTableClient::TKeyComparer KeyComparer_;
 
     bool Started_;
     SmallVector<TUnversionedValue, NVersionedTableClient::TypicalColumnCount> Keys_;

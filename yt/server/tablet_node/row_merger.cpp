@@ -20,7 +20,6 @@ TSchemafulRowMerger::TSchemafulRowMerger(
     : Pool_(pool)
     , SchemaColumnCount_(schemaColumnCount)
     , KeyColumnCount_(keyColumnCount)
-    , KeyComparer_(KeyColumnCount_)
 {
     if (columnFilter.All) {
         for (int id = 0; id < SchemaColumnCount_; ++id) {
@@ -162,7 +161,6 @@ TVersionedRowMerger::TVersionedRowMerger(
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
     , MajorTimestamp_(majorTimestamp)
-    , KeyComparer_(KeyColumnCount_)
     , Keys_(KeyColumnCount_)
 {
     Cleanup();
