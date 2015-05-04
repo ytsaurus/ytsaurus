@@ -49,7 +49,7 @@ void TFileReader::Open()
             checksum);
     }
 
-    if (!DeserializeFromProtoWithEnvelope(&Meta_, metaBlobRef)) {
+    if (!TryDeserializeFromProtoWithEnvelope(&Meta_, metaBlobRef)) {
         THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %v",
             FileName_);
     }

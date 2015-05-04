@@ -29,8 +29,7 @@ std::vector<TSharedRef> CompressWithEnvelope(
         envelope.set_codec(static_cast<int>(codecId));
     }
 
-    TSharedMutableRef header;
-    YCHECK(SerializeToProto(envelope, &header));
+    auto header = SerializeToProto(envelope);
 
     auto* codec = GetCodec(codecId);
     auto body = codec->Compress(uncompressedData);
@@ -43,7 +42,7 @@ TSharedRef DecompressWithEnvelope(const std::vector<TSharedRef>& compressedData)
     YCHECK(compressedData.size() == 2);
 
     NProto::TCompressedEnvelope envelope;
-    YCHECK(DeserializeFromProto(&envelope, compressedData[0]));
+    DeserializeFromProto(&envelope, compressedData[0]);
 
     auto* codec = GetCodec(ECodec(envelope.codec()));
     return codec->Decompress(compressedData[1]);

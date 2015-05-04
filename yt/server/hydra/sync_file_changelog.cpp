@@ -238,9 +238,10 @@ public:
         ValidateSignature(header);
 
         // Read meta.
-        SerializedMeta_ = TSharedMutableRef::Allocate(header.MetaSize);
-        ReadPadded(*DataFile_, SerializedMeta_);
-        YCHECK(DeserializeFromProto(&Meta_, SerializedMeta_));
+        auto serializedMeta = TSharedMutableRef::Allocate(header.MetaSize);
+        ReadPadded(*DataFile_, serializedMeta);
+        DeserializeFromProto(&Meta_, serializedMeta);
+        SerializedMeta_ = serializedMeta;
 
         Open_ = true;
         SealedRecordCount_ = header.SealedRecordCount;
@@ -292,7 +293,7 @@ public:
         YCHECK(!Open_);
 
         Meta_ = meta;
-        YCHECK(SerializeToProto(Meta_, &SerializedMeta_));
+        SerializedMeta_ = SerializeToProto(Meta_);
         RecordCount_ = 0;
         Open_ = true;
 
@@ -806,7 +807,7 @@ private:
     TInstant LastFlushed_;
 
     TChangelogMeta Meta_;
-    TSharedMutableRef SerializedMeta_;
+    TSharedRef SerializedMeta_;
 
     std::vector<TChangelogIndexRecord> Index_;
 

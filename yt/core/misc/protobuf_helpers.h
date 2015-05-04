@@ -204,28 +204,53 @@ inline std::vector<TOriginal> FromProto(
 
 //! Serializes a protobuf message.
 //! Returns |true| iff everything went well.
-bool SerializeToProto(
+bool TrySerializeToProto(
     const google::protobuf::MessageLite& message,
     TSharedMutableRef* data);
 
+//! Serializes a protobuf message.
+//! Fails on error.
+TSharedRef SerializeToProto(
+    const google::protobuf::MessageLite& message);
+
 //! Deserializes a chunk of memory into a protobuf message.
 //! Returns |true| iff everything went well.
-bool DeserializeFromProto(
+bool TryDeserializeFromProto(
+    google::protobuf::MessageLite* message,
+    const TRef& data);
+
+//! Deserializes a chunk of memory into a protobuf message.
+//! Fails on error.
+void DeserializeFromProto(
     google::protobuf::MessageLite* message,
     const TRef& data);
 
 //! Serializes a given protobuf message and wraps it with envelope.
 //! Optionally compresses the serialized message.
 //! Returns |true| iff everything went well.
-bool SerializeToProtoWithEnvelope(
+bool TrySerializeToProtoWithEnvelope(
     const google::protobuf::MessageLite& message,
     TSharedMutableRef* data,
     NCompression::ECodec codecId = NCompression::ECodec::None);
 
-//! Unwraps a chunk of memory obtained from #SerializeToProtoWithEnvelope
+//! Serializes a given protobuf message and wraps it with envelope.
+//! Optionally compresses the serialized message.
+//! Fails on error.
+TSharedRef SerializeToProtoWithEnvelope(
+    const google::protobuf::MessageLite& message,
+    NCompression::ECodec codecId = NCompression::ECodec::None);
+
+//! Unwraps a chunk of memory obtained from #TrySerializeToProtoWithEnvelope
 //! and deserializes it into a protobuf message.
 //! Returns |true| iff everything went well.
-bool DeserializeFromProtoWithEnvelope(
+bool TryDeserializeFromProtoWithEnvelope(
+    google::protobuf::MessageLite* message,
+    const TRef& data);
+
+//! Unwraps a chunk of memory obtained from #TrySerializeToProtoWithEnvelope
+//! and deserializes it into a protobuf message.
+//! Fails on error.
+void DeserializeFromProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     const TRef& data);
 

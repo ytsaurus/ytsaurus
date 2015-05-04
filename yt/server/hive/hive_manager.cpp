@@ -195,8 +195,7 @@ public:
         TEncapsulatedMessage encapsulatedMessage;
         encapsulatedMessage.set_type(message.GetTypeName());
 
-        TSharedMutableRef serializedMessage;
-        YCHECK(SerializeToProtoWithEnvelope(message, &serializedMessage));
+        auto serializedMessage = SerializeToProtoWithEnvelope(message);
         encapsulatedMessage.set_data(ToString(serializedMessage));
 
         PostMessage(mailbox, encapsulatedMessage);
