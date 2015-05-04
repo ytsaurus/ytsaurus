@@ -34,22 +34,11 @@ static const size_t MaxRowsPerRead = 1024;
 static const int TypicalStoresPerSession = 64;
 
 ////////////////////////////////////////////////////////////////////////////////
+// NB(lukyan): Do not use delegating constructors. It leads to incorrect generated code in Visual C++ and memory corruption.
 
 struct TTabletReaderPoolTag { };
 
-// NB(lukyan): Do not use delegating constructors. It leads to incorrect generated code in Visual C++ and memory corruption.
-
-#define DEFINE_MIXIN() \
-    TParent* Parent() \
-    { \
-        return static_cast<TParent*>(this); \
-    } \
-     \
-    const TParent* Parent() const \
-    { \
-        return static_cast<const TParent*>(this); \
-    }
-
+namespace {
 struct TSession
 {
     IVersionedReaderPtr Reader;
@@ -57,54 +46,50 @@ struct TSession
     std::vector<TVersionedRow>::iterator CurrentRow;
 };
 
-template <class TParent>
+typedef SmallVector<TSession, TypicalStoresPerSession> TSessions;
+typedef SmallVector<TSession*, TypicalStoresPerSession> TSessionPtrs;
+} // namespace
+
+TColumnFilter GetColumnFilter(const TTableSchema& schema, const TTableSchema& tabletSchema)
+{
+    // Infer column filter.
+    TColumnFilter columnFilter;
+    columnFilter.All = false;
+    for (const auto& column : schema.Columns()) {
+        const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
+        if (tabletColumn.Type != column.Type) {
+            THROW_ERROR_EXCEPTION("Invalid type of schema column %Qv: expected %Qlv, actual %Qlv",
+                column.Name,
+                tabletColumn.Type,
+                column.Type);
+        }
+        columnFilter.Indexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
+    }
+
+    return columnFilter;
+}
+
+template <class TMerger>
 class TTabletReaderBase
+    : public virtual TRefCounted
 {
 public:
     TTabletReaderBase(
-        IInvokerPtr poolInvoker,
-        TTabletSnapshotPtr tabletSnapshot)
-        : PoolInvoker_(std::move(poolInvoker))
-        , TabletSnapshot_(std::move(tabletSnapshot))
-        , PerformanceCounters_(TabletSnapshot_->PerformanceCounters)
-        , KeyComparer_(TabletSnapshot_->RowKeyComparer)
+        TTabletPerformanceCountersPtr performanceCounters,
+        const TDynamicRowKeyComparer& keyComparer)
+        : KeyComparer_(keyComparer)
+        , Merger_(KeyComparer_)
+        , PerformanceCounters_(std::move(performanceCounters))
     { }
-
-    const TDynamicRowKeyComparer& GetKeyComparer()
-    {
-        return KeyComparer_;
-    }
-
-    void AddExhausted(TSession* session)
-    {
-        ExhaustedSessions_.push_back(session);
-    }
-
-protected:
-    const IInvokerPtr PoolInvoker_;
-    const TTabletSnapshotPtr TabletSnapshot_;
-    const TTabletPerformanceCountersPtr PerformanceCounters_;
-
-    const TDynamicRowKeyComparer KeyComparer_;
-
-    SmallVector<TSession, TypicalStoresPerSession> Sessions_;
-
-    SmallVector<TSession*, TypicalStoresPerSession> ExhaustedSessions_;
-    SmallVector<TSession*, TypicalStoresPerSession> RefillingSessions_;
-
-    TFuture<void> ReadyEvent_ = VoidFuture;
-
-    std::atomic<bool> Opened_ = {false};
-    std::atomic<bool> Refilling_ = {false};
-
-    template <class TRow>
-    bool DoRead(std::vector<TRow>* rows)
+ 
+    template <class TRow, class TRowMerger>
+    bool DoRead(std::vector<TRow>* rows, TRowMerger* rowMerger)
     {
         YCHECK(Opened_);
         YCHECK(!Refilling_);
 
         rows->clear();
-        Parent()->GetRowMerger()->Reset();
+        rowMerger->Reset();
 
         if (!ExhaustedSessions_.empty()) {
             // Prevent proceeding to the merge phase in presence of exhausted sessions.
@@ -121,19 +106,17 @@ protected:
         RefillingSessions_.clear();
 
         // Check for the end-of-rowset.
-        if (Parent()->NoActiveSessions()) {
+        if (!Merger_.HasActiveSessions()) {
             return false;
         }
-
-        // Fetch equal by key rows
 
         // Must stop once an exhausted session appears.
         while (ExhaustedSessions_.empty()) {
             // Fetch rows from all sessions with a matching key and merge them.
-            Parent()->FetchMatchingRows();
+            Merger_.FetchMatchingRows(&ExhaustedSessions_, rowMerger);
 
             // Save merged row.
-            auto mergedRow = Parent()->GetRowMerger()->BuildMergedRow();
+            auto mergedRow = rowMerger->BuildMergedRow();
             if (mergedRow) {
                 rows->push_back(mergedRow);
             }
@@ -142,41 +125,6 @@ protected:
         PerformanceCounters_->MergedRowReadCount += rows->size();
 
         return true;
-    }
-
-    void AddReader(IVersionedReaderPtr reader)
-    {
-        if (reader) {
-            Sessions_.push_back(TSession());
-            auto& session = Sessions_.back();
-            session.Reader = std::move(reader);
-            session.Rows.reserve(MaxRowsPerRead);
-        }
-    }
-
-    void DoOpen()
-    {
-        // Open readers.
-        std::vector<TFuture<void>> asyncResults;
-        for (const auto& session : Sessions_) {
-            auto asyncResult = session.Reader->Open();
-            auto maybeResult = asyncResult.TryGet();
-            if (maybeResult) {
-                maybeResult->ThrowOnError();
-            } else {
-                asyncResults.push_back(asyncResult);
-            }
-        }
-
-        WaitFor(Combine(asyncResults))
-            .ThrowOnError();
-
-        // Mark all sessions as exhausted.
-        for (auto& session : Sessions_) {
-            ExhaustedSessions_.push_back(&session);
-        }
-
-        Opened_ = true;
     }
 
     bool RefillSession(TSession* session)
@@ -193,7 +141,7 @@ protected:
 
         session->CurrentRow = rows.begin();
         
-        Parent()->AddSessionToActive(session);
+        Merger_.AddSessionToActive(session);
         return true;
     }
 
@@ -217,7 +165,7 @@ protected:
         }
 
         Refilling_ = true;
-        ReadyEvent_ = Combine(asyncResults).Apply(BIND([=, this_ = MakeStrong(Parent())] (const TError& error) {
+        ReadyEvent_ = Combine(asyncResults).Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             Refilling_ = false;
             error.ThrowOnError();
         }));
@@ -225,66 +173,109 @@ protected:
         return true;
     }
 
-    TColumnFilter GetColumnFilter(const TTableSchema& schema)
+    void AddReader(IVersionedReaderPtr reader)
     {
-        const auto& tabletSchema = TabletSnapshot_->Schema;
-
-        // Infer column filter.
-        TColumnFilter columnFilter;
-        columnFilter.All = false;
-        for (const auto& column : schema.Columns()) {
-            const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
-            if (tabletColumn.Type != column.Type) {
-                THROW_ERROR_EXCEPTION("Invalid type of schema column %Qv: expected %Qlv, actual %Qlv",
-                    column.Name,
-                    tabletColumn.Type,
-                    column.Type);
-            }
-            columnFilter.Indexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
+        if (reader) {
+            Sessions_.push_back(TSession());
+            auto& session = Sessions_.back();
+            session.Reader = std::move(reader);
+            session.Rows.reserve(MaxRowsPerRead);
         }
-
-        return columnFilter;
     }
 
-private:
-    DEFINE_MIXIN()
+    void DoOpen()
+    {
+        Merger_.Init(Sessions_.size());
+
+        // Open readers.
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& session : Sessions_) {
+            auto asyncResult = session.Reader->Open();
+            auto maybeResult = asyncResult.TryGet();
+            if (maybeResult) {
+                maybeResult->ThrowOnError();
+            } else {
+                asyncResults.push_back(asyncResult);
+            }
+        }
+
+        WaitFor(Combine(asyncResults))
+            .ThrowOnError();
+
+        // Mark all sessions as exhausted.
+        for (auto& session : Sessions_) {
+            ExhaustedSessions_.push_back(&session);
+        }
+
+        Opened_ = true;
+    }
+
+protected:
+    TFuture<void> ReadyEvent_ = VoidFuture;
+    const TDynamicRowKeyComparer KeyComparer_;
+
+private:    
+    TMerger Merger_;
+
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
+
+    TSessions Sessions_;
+
+    SmallVector<TSession*, TypicalStoresPerSession> ExhaustedSessions_;
+    SmallVector<TSession*, TypicalStoresPerSession> RefillingSessions_;
+
+    std::atomic<bool> Opened_ = {false};
+    std::atomic<bool> Refilling_ = {false};
+
 };
 
-template <class TParent>
-class THeapMerger
+class TSessionComparer
 {
 public:
-    void InitMerger(int maxSessionsCount)
+    explicit TSessionComparer(const TDynamicRowKeyComparer& keyComparer)
+        : KeyComparer_(keyComparer)
+    { }
+
+    bool operator()(const TSession* lhsSession, const TSession* rhsSession) const
     {
-        // Construct an empty heap.
-        ActiveSessions_.reserve(maxSessionsCount);
+        auto lhsRow = *lhsSession->CurrentRow;
+        auto rhsRow = *rhsSession->CurrentRow;
+        return KeyComparer_(
+            lhsRow.BeginKeys(), lhsRow.EndKeys(),
+            rhsRow.BeginKeys(), rhsRow.EndKeys()) < 0;
+    }
+
+protected:
+    const TDynamicRowKeyComparer& KeyComparer_;
+};
+
+class THeapMerger
+    : private TSessionComparer
+{
+public:
+    explicit THeapMerger(const TDynamicRowKeyComparer& keyComparer)
+        : TSessionComparer(keyComparer)
+    { }
+
+    void Init(int maxSessionCount)
+    {
+        ActiveSessions_.reserve(maxSessionCount);
         ActiveSessionsBegin_ = ActiveSessionsEnd_ = ActiveSessions_.begin();
     }
 
-    bool NoActiveSessions()
+    bool HasActiveSessions() const
     {
-        return ActiveSessionsBegin_ == ActiveSessionsEnd_;
+        return ActiveSessionsBegin_ != ActiveSessionsEnd_;
     }
 
-    std::function<bool(const TSession*, const TSession*)> GetSessionComparer()
-    {
-        return [&] (const TSession* lhsSession, const TSession* rhsSession) {
-            auto lhsRow = *lhsSession->CurrentRow;
-            auto rhsRow = *rhsSession->CurrentRow;
-            return Parent()->GetKeyComparer()(
-                lhsRow.BeginKeys(), lhsRow.EndKeys(),
-                rhsRow.BeginKeys(), rhsRow.EndKeys()) < 0;
-        };
-    }
-
-    const std::function<bool(const TSession*, const TSession*)> SessionComparer_ = GetSessionComparer();
     void AddSessionToActive(TSession* session)
     {
         *ActiveSessionsEnd_++ = session;
-        AdjustHeapBack(ActiveSessionsBegin_, ActiveSessionsEnd_, SessionComparer_);
+        AdjustHeapBack(ActiveSessionsBegin_, ActiveSessionsEnd_, GetSessionComparer());
     }
 
-    void FetchMatchingRows()
+    template <class TRowMerger>
+    void FetchMatchingRows(TSessionPtrs* exhausted, TRowMerger* rowMerger)
     {
         const TUnversionedValue* currentKeyBegin = nullptr;
         const TUnversionedValue* currentKeyEnd = nullptr;
@@ -295,7 +286,7 @@ public:
             auto partialRow = *session->CurrentRow;
 
             if (currentKeyBegin) {
-                if (Parent()->GetKeyComparer()(
+                if (KeyComparer_(
                         partialRow.BeginKeys(), partialRow.EndKeys(),
                         currentKeyBegin, currentKeyEnd) != 0)
                     break;
@@ -304,47 +295,50 @@ public:
                 currentKeyEnd = partialRow.EndKeys();
             }
 
-            Parent()->GetRowMerger()->AddPartialRow(partialRow);
+            rowMerger->AddPartialRow(partialRow);
 
             if (++session->CurrentRow == session->Rows.end()) {
-                Parent()->AddExhausted(session);
-                ExtractHeap(ActiveSessionsBegin_, ActiveSessionsEnd_,  SessionComparer_);
+                exhausted->push_back(session);
+                ExtractHeap(ActiveSessionsBegin_, ActiveSessionsEnd_, GetSessionComparer());
                 --ActiveSessionsEnd_;
             } else {
                 #ifndef NDEBUG
-                YASSERT(Parent()->GetKeyComparer()(
+                YASSERT(KeyComparer_(
                     partialRow.BeginKeys(), partialRow.EndKeys(),
                     session->CurrentRow->BeginKeys(), session->CurrentRow->EndKeys()) < 0);
                 #endif
-                AdjustHeapFront(ActiveSessionsBegin_, ActiveSessionsEnd_,  SessionComparer_);
+                AdjustHeapFront(ActiveSessionsBegin_, ActiveSessionsEnd_, GetSessionComparer());
             }
         }
     }
 
 private:
-    typedef SmallVector<TSession*, TypicalStoresPerSession> TActiveSessions;
-    TActiveSessions ActiveSessions_;
-    typename TActiveSessions::iterator ActiveSessionsBegin_;
-    typename TActiveSessions::iterator ActiveSessionsEnd_;
+    const TSessionComparer& GetSessionComparer() const
+    {
+        return *this;
+    }
 
-    DEFINE_MIXIN()
+    TSessionPtrs ActiveSessions_;
+    TSessionPtrs::iterator ActiveSessionsBegin_;
+    TSessionPtrs::iterator ActiveSessionsEnd_;
 
 };
 
-template <class TParent>
 class TSimpleMerger
 {
 public:
-    void InitMerger(int maxSessionsCount)
+    explicit TSimpleMerger(const TDynamicRowKeyComparer& keyComparer)
+    { }
+
+    void Init(int maxSessionCount)
     {
-        // Construct an empty heap.
-        ActiveSessions_.reserve(maxSessionsCount);
+        ActiveSessions_.reserve(maxSessionCount);
         ActiveSessionsBegin_ = ActiveSessionsEnd_ = ActiveSessions_.begin();
     }
 
-    bool NoActiveSessions()
+    bool HasActiveSessions() const
     {
-        return ActiveSessionsBegin_ == ActiveSessionsEnd_;
+        return ActiveSessionsBegin_ != ActiveSessionsEnd_;
     }
 
     void AddSessionToActive(TSession* session)
@@ -352,16 +346,17 @@ public:
         *ActiveSessionsEnd_++ = session;
     }
 
-    void FetchMatchingRows()
+    template <class TRowMerger>
+    void FetchMatchingRows(TSessionPtrs* exhausted, TRowMerger* rowMerger)
     {
         auto it = ActiveSessionsBegin_;
         while (it != ActiveSessionsEnd_) {
             auto* session = *it;
             auto partialRow = *session->CurrentRow;
-            Parent()->GetRowMerger()->AddPartialRow(partialRow);
+            rowMerger->AddPartialRow(partialRow);
 
             if (++session->CurrentRow == session->Rows.end()) {
-                Parent()->AddExhausted(session);
+                exhausted->push_back(session);
                 --ActiveSessionsEnd_;
                 std::swap(*it, *ActiveSessionsEnd_);
             } else {
@@ -371,12 +366,9 @@ public:
     }
 
 private:
-    typedef SmallVector<TSession*, TypicalStoresPerSession> TActiveSessions;
-    TActiveSessions ActiveSessions_;
-    typename TActiveSessions::iterator ActiveSessionsBegin_;
-    typename TActiveSessions::iterator ActiveSessionsEnd_;
-
-    DEFINE_MIXIN()
+    TSessionPtrs ActiveSessions_;
+    TSessionPtrs::iterator ActiveSessionsBegin_;
+    TSessionPtrs::iterator ActiveSessionsEnd_;
 
 };
 
@@ -384,8 +376,7 @@ private:
 
 class TTabletRangeReader
     : public ISchemafulReader
-    , public TTabletReaderBase<TTabletRangeReader>
-    , public THeapMerger<TTabletRangeReader>
+    , protected TTabletReaderBase<THeapMerger>
 {
 public:
     TTabletRangeReader(
@@ -394,13 +385,15 @@ public:
         TOwningKey lowerBound,
         TOwningKey upperBound,
         TTimestamp timestamp)
-        : TTabletReaderBase(
-            std::move(poolInvoker),
-            std::move(tabletSnapshot))
+        : TBase(
+            tabletSnapshot->PerformanceCounters,
+            tabletSnapshot->RowKeyComparer)
+        , PoolInvoker_(std::move(poolInvoker))
+        , TabletSnapshot_(std::move(tabletSnapshot))
+        , Pool_(TTabletReaderPoolTag())
         , Timestamp_(timestamp)
         , LowerBound_(std::move(lowerBound))
-        , UpperBound_(std::move(upperBound))
-        , Pool_(TTabletReaderPoolTag())
+        , UpperBound_(std::move(upperBound)) 
     { }
 
     virtual TFuture<void> Open(const TTableSchema& schema) override
@@ -412,7 +405,7 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        return TBase::DoRead(rows);
+        return DoRead(rows, RowMerger_.get());
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -420,20 +413,19 @@ public:
         return ReadyEvent_;
     }
 
-    TSchemafulRowMerger* GetRowMerger()
-    {
-        return RowMerger_.get();
-    }
-
 private:
-    typedef TTabletReaderBase<TTabletRangeReader> TBase;
+    typedef TTabletReaderBase<THeapMerger> TBase;
+
+    const IInvokerPtr PoolInvoker_;
+    const TTabletSnapshotPtr TabletSnapshot_;
+
+    TChunkedMemoryPool Pool_;
+    std::unique_ptr<TSchemafulRowMerger> RowMerger_;
 
     TTimestamp Timestamp_;
     const TOwningKey LowerBound_;
     const TOwningKey UpperBound_;
-    TChunkedMemoryPool Pool_;
-    std::unique_ptr<TSchemafulRowMerger> RowMerger_;
-
+    
     void DoOpen(const TTableSchema& schema)
     {
         // Select stores.
@@ -465,7 +457,7 @@ private:
                 << TErrorAttribute("fan_in_limit", TabletSnapshot_->Config->MaxReadFanIn);
         }
 
-        auto columnFilter = GetColumnFilter(schema);
+        auto columnFilter = GetColumnFilter(schema, TabletSnapshot_->Schema);
 
         // Create readers.
         for (const auto& store : stores) {
@@ -476,12 +468,11 @@ private:
                 columnFilter));
         }
 
-        RowMerger_ = std::make_unique<TSchemafulRowMerger>(&Pool_,
+        RowMerger_ = std::make_unique<TSchemafulRowMerger>(
+            &Pool_,
             TabletSnapshot_->Schema.Columns().size(),
             TabletSnapshot_->KeyColumns.size(),
             columnFilter);
-
-        this->InitMerger(this->Sessions_.size());
 
         TBase::DoOpen();
     }
@@ -490,8 +481,7 @@ private:
 
 class TTabletKeysReader
     : public ISchemafulReader
-    , public TTabletReaderBase<TTabletKeysReader>
-    , public TSimpleMerger<TTabletKeysReader>
+    , public TTabletReaderBase<TSimpleMerger>
 {
 public:
     TTabletKeysReader(
@@ -500,11 +490,13 @@ public:
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp)
         : TBase(
-            std::move(poolInvoker),
-            std::move(tabletSnapshot))
+            tabletSnapshot->PerformanceCounters,
+            tabletSnapshot->RowKeyComparer)
+        , PoolInvoker_(std::move(poolInvoker))
+        , TabletSnapshot_(std::move(tabletSnapshot))
+        , Pool_(TTabletReaderPoolTag())
         , Timestamp_(timestamp)
         , Keys_(keys)
-        , Pool_(TTabletReaderPoolTag())
     { }
 
     virtual TFuture<void> Open(const TTableSchema& schema) override
@@ -516,7 +508,7 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        return TBase::DoRead(rows);
+        return DoRead(rows, RowMerger_.get());
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -530,12 +522,16 @@ public:
     }
 
 private:
-    typedef TTabletReaderBase<TTabletKeysReader> TBase;
+    typedef TTabletReaderBase<TSimpleMerger> TBase;
+
+    const IInvokerPtr PoolInvoker_;
+    const TTabletSnapshotPtr TabletSnapshot_;
+    
+    TChunkedMemoryPool Pool_;
+    std::unique_ptr<TSchemafulRowMerger> RowMerger_;
 
     TTimestamp Timestamp_;
     const TSharedRange<TKey> Keys_;
-    TChunkedMemoryPool Pool_;
-    std::unique_ptr<TSchemafulRowMerger> RowMerger_;
 
     void DoOpen(const TTableSchema& schema)
     {
@@ -576,7 +572,7 @@ private:
                 << TErrorAttribute("fan_in_limit", TabletSnapshot_->Config->MaxReadFanIn);
         }
 
-        auto columnFilter = GetColumnFilter(schema);
+        auto columnFilter = GetColumnFilter(schema, TabletSnapshot_->Schema);
 
         // Create readers.
         for (const auto& store : stores) {
@@ -586,12 +582,11 @@ private:
                 columnFilter));
         }
 
-        RowMerger_ = std::make_unique<TSchemafulRowMerger>(&Pool_,
+        RowMerger_ = std::make_unique<TSchemafulRowMerger>(
+            &Pool_,
             TabletSnapshot_->Schema.Columns().size(),
             TabletSnapshot_->KeyColumns.size(),
             columnFilter);
-
-        this->InitMerger(this->Sessions_.size());
 
         TBase::DoOpen();
     }
@@ -632,8 +627,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 
 class TVersionedTabletReader
     : public IVersionedReader
-    , public TTabletReaderBase<TVersionedTabletReader>
-    , public THeapMerger<TVersionedTabletReader>
+    , public TTabletReaderBase<THeapMerger>
 {
 public:
     TVersionedTabletReader(
@@ -644,9 +638,11 @@ public:
         TOwningKey upperBound,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp)
-        : TTabletReaderBase(
-            std::move(poolInvoker),
-            std::move(tabletSnapshot))
+         : TTabletReaderBase(
+            tabletSnapshot->PerformanceCounters,
+            tabletSnapshot->RowKeyComparer)
+        , PoolInvoker_(std::move(poolInvoker))
+        , TabletSnapshot_(std::move(tabletSnapshot))
         , Stores_(std::move(stores))
         , RowMerger_(
             &Pool_,
@@ -668,7 +664,7 @@ public:
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
-        bool result = TTabletReaderBase::DoRead(rows);
+        bool result = DoRead(rows, &RowMerger_);
         #ifndef NDEBUG
         for (int index = 0; index < static_cast<int>(rows->size()) - 1; ++index) {
             auto lhs = (*rows)[index];
@@ -686,13 +682,11 @@ public:
         return ReadyEvent_;
     }
 
-    TVersionedRowMerger* GetRowMerger()
-    {
-        return &RowMerger_;
-    }
-
 private:
-    typedef TTabletReaderBase<TVersionedTabletReader> TBase;
+    typedef TTabletReaderBase<THeapMerger> TBase;
+
+    const IInvokerPtr PoolInvoker_;
+    const TTabletSnapshotPtr TabletSnapshot_;
 
     const std::vector<IStorePtr> Stores_;
     TChunkedMemoryPool Pool_;
