@@ -121,6 +121,8 @@ struct TCheckPermissionOptions
 
 struct TCheckPermissionResult
 {
+    TError ToError(const Stroka& user, NYTree::EPermission permission) const;
+
     NSecurityClient::ESecurityAction Action;
     NObjectClient::TObjectId ObjectId;
     TNullable<Stroka> ObjectName;

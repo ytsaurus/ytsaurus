@@ -176,6 +176,13 @@ class TestAcls(YTEnvSetup):
         set("//sys/accounts/a/@resource_limits/disk_space", 0)
         with pytest.raises(YtError): map(in_="//tmp/t1", out="//tmp/t2", command="cat", user="u")
 
+    def test_scheduler_operation_abort_acl(self):
+        self._prepare_scheduler_test()
+        create_user("u1")
+        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command="cat; sleep 1", user="u")
+        with pytest.raises(YtError): abort_op(op_id, user="u1")
+        abort_op(op_id, user="u")
+
     def test_inherit1(self):
         set("//tmp/p", {})
         set("//tmp/p/@inherit_acl", False)

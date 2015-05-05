@@ -126,6 +126,45 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError TCheckPermissionResult::ToError(const Stroka& user, NYTree::EPermission permission) const
+{
+    switch (Action) {
+        case NSecurityClient::ESecurityAction::Allow:
+            return TError();
+
+        case NSecurityClient::ESecurityAction::Deny: {
+            TError error;
+            if (ObjectName && SubjectName) {
+                error = TError(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied: %Qlv permission is denied for %Qv by ACE at %v",
+                    permission,
+                    *SubjectName,
+                    *ObjectName);
+            } else {
+                error = TError(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied: %Qlv permission is not allowed by any matching ACE",
+                    permission);
+            }
+            error.Attributes().Set("user", user);
+            error.Attributes().Set("permission", permission);
+            if (ObjectId != NullObjectId) {
+                error.Attributes().Set("denied_by", ObjectId);
+            }
+            if (SubjectId != NullObjectId) {
+                error.Attributes().Set("denied_for", SubjectId);
+            }
+            return error;
+        }
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryResponseReader
     : public ISchemafulReader
 {
