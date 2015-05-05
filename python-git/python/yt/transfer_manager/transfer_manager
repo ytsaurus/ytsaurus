@@ -1006,18 +1006,19 @@ class Application(object):
         tasks = {}
         with self._mutex:
             pending_tasks = deepcopy(self._pending_tasks)
-            tasks[id] = self._tasks[id]
-            for id in pending_tasks:
-                tasks[id] = self._tasks[id]
+            tasks[id] = deepcopy(self._tasks[id])
+
+        for task_id in pending_tasks:
+            tasks[task_id] = self._tasks[task_id]
 
         task = tasks[id]
         task_description = task.dict(hide_token=True)
         queue_index = 1
-        for id in pending_tasks:
-            if id == task.id:
+        for task_id in pending_tasks:
+            if task_id == id:
                 task_description["queue_index"] = queue_index
                 break
-            if tasks[id].get_queue_id() == task.get_queue_id():
+            if tasks[task_id].get_queue_id() == task.get_queue_id():
                 queue_index += 1
 
         return jsonify(**task_description)
