@@ -45,13 +45,13 @@ TTableSchema GetIntermediateSchema(
     }
 
     for (auto item : groupClause->AggregateItems) {
-        auto intermediateSchema = functionRegistry
+        auto intermediateTypes = functionRegistry
             ->GetAggregateFunction(item.AggregateFunction)
-            ->GetStateSchema(item.Name, item.Expression->Type);
-        for (auto column : intermediateSchema) {
+            ->GetStateTypes(item.Expression->Type);
+        for (auto type : intermediateTypes) {
             schema.Columns().emplace_back(
                 item.Name,
-                column.Type);
+                type);
         }
     }
 

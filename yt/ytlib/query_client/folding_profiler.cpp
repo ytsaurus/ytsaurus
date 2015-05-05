@@ -138,9 +138,7 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 
             codegenAggregates.push_back(Profile(aggregateItem, aggregateFunction, schema));
 
-            auto stateSize = aggregateFunction->GetStateSchema(
-                aggregateItem.Name,
-                aggregateItem.Expression->Type).size();
+            auto stateSize = aggregateFunction->GetStateTypes(aggregateItem.Expression->Type).size();
             offset += stateSize;
             aggregateStateOffsets.push_back(offset);
         }
