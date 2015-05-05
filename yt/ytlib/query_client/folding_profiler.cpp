@@ -139,15 +139,6 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
         schema = groupClause->GetTableSchema();
     }
 
-    if (auto orderClause = query->OrderClause.Get()) {
-        Fold(static_cast<int>(EFoldingObjectType::OrderOp));
-        for (const auto& column : orderClause->OrderColumns) {
-            Fold(column.c_str());
-        }
-
-        codegenSource = MakeCodegenOrderOp(orderClause->OrderColumns, schema, std::move(codegenSource));
-    }
-
     if (auto projectClause = query->ProjectClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::ProjectOp));
 
@@ -159,6 +150,15 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 
         codegenSource = MakeCodegenProjectOp(std::move(codegenProjectExprs), std::move(codegenSource));
         schema = query->ProjectClause->GetTableSchema();
+    }
+
+    if (auto orderClause = query->OrderClause.Get()) {
+        Fold(static_cast<int>(EFoldingObjectType::OrderOp));
+        for (const auto& column : orderClause->OrderColumns) {
+            Fold(column.c_str());
+        }
+
+        codegenSource = MakeCodegenOrderOp(orderClause->OrderColumns, schema, std::move(codegenSource));
     }
 
     return codegenSource;
