@@ -511,13 +511,10 @@ const TCodegenAggregate TAggregateFunction::MakeCodegenAggregate(
     return codegenAggregate;
 }
 
-std::vector<TColumnSchema> TAggregateFunction::GetStateSchema(
-    const Stroka& name,
+std::vector<EValueType> TAggregateFunction::GetStateTypes(
     EValueType type) const
 {
-    return std::vector<TColumnSchema>{
-        TColumnSchema(name, type)
-    };
+    return std::vector<EValueType>{type};
 }
 
 EValueType TAggregateFunction::InferResultType(
@@ -689,13 +686,12 @@ const TCodegenAggregate TAverageAggregateFunction::MakeCodegenAggregate(
     return codegenAggregate;
 }
 
-std::vector<TColumnSchema> TAverageAggregateFunction::GetStateSchema(
-    const Stroka& name,
+std::vector<EValueType> TAverageAggregateFunction::GetStateTypes(
     EValueType type) const
 {
-    return std::vector<TColumnSchema>{
-        TColumnSchema("sum", EValueType::Int64),
-        TColumnSchema("count", EValueType::Int64)
+    return std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Int64
     };
 }
 

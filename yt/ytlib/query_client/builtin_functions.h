@@ -147,8 +147,7 @@ public:
         EValueType type,
         const Stroka& name) const override;
 
-    virtual std::vector<TColumnSchema> GetStateSchema(
-        const Stroka& name,
+    virtual std::vector<EValueType> GetStateTypes(
         EValueType type) const override;
 
     virtual EValueType InferResultType(
@@ -173,8 +172,7 @@ public:
         EValueType type,
         const Stroka& name) const override;
 
-    virtual std::vector<TColumnSchema> GetStateSchema(
-        const Stroka& name,
+    virtual std::vector<EValueType> GetStateTypes(
         EValueType type) const override;
 
     virtual EValueType InferResultType(

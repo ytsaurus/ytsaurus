@@ -41,8 +41,7 @@ struct IAggregateFunctionDescriptor
         EValueType type,
         const Stroka& name) const = 0;
 
-    virtual std::vector<TColumnSchema> GetStateSchema(
-        const Stroka& name,
+    virtual std::vector<EValueType> GetStateTypes(
         EValueType type) const = 0;
 
     virtual EValueType InferResultType(
