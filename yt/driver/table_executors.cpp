@@ -253,7 +253,7 @@ void TSelectRowsExecutor::BuildParameters(IYsonConsumer* consumer)
             fluent.Item("output_row_limit").Value(OutputRowLimitArg.getValue());
         })
         .DoIf(RangeExpansionLimitArg.isSet(), [&] (TFluentMap fluent) {
-            fluent.Item("range_expand_limit").Value(RangeExpansionLimitArg.getValue());
+            fluent.Item("range_expansion_limit").Value(RangeExpansionLimitArg.getValue());
         })
         .Item("verbose_logging").Value(VerboseLoggingArg.getValue());
 }
