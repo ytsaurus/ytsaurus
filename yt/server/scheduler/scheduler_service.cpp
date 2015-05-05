@@ -5,7 +5,10 @@
 
 #include <core/rpc/response_keeper.h>
 
+#include <core/ytree/permission.h>
+
 #include <ytlib/scheduler/scheduler_service_proxy.h>
+#include <ytlib/scheduler/helpers.h>
 
 #include <ytlib/cypress_client/rpc_helpers.h>
 
@@ -93,6 +96,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto user = GetAuthenticatedUserOrThrow(context);
 
         context->SetRequestInfo("OperationId: %v", operationId);
 
@@ -101,6 +105,8 @@ private:
 
         if (ResponseKeeper_->TryReplyFrom(context))
             return;
+
+        ValidatePermission(user, operationId, NYTree::EPermission::Write);
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
         auto asyncResult = scheduler->AbortOperation(
@@ -113,6 +119,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, SuspendOperation)
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto user = GetAuthenticatedUserOrThrow(context);
 
         context->SetRequestInfo("OperationId: %v", operationId);
 
@@ -121,6 +128,8 @@ private:
 
         if (ResponseKeeper_->TryReplyFrom(context))
             return;
+
+        ValidatePermission(user, operationId, NYTree::EPermission::Write);
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
         auto asyncResult = scheduler->SuspendOperation(operation);
@@ -131,6 +140,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, ResumeOperation)
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto user = GetAuthenticatedUserOrThrow(context);
 
         context->SetRequestInfo("OperationId: %v", operationId);
 
@@ -140,12 +150,36 @@ private:
         if (ResponseKeeper_->TryReplyFrom(context))
             return;
 
+        ValidatePermission(user, operationId, NYTree::EPermission::Write);
+
         auto operation = scheduler->GetOperationOrThrow(operationId);
         auto asyncResult = scheduler->ResumeOperation(operation);
 
         context->ReplyFrom(asyncResult);
     }
 
+    void ValidatePermission(
+        const Stroka& user,
+        const TOperationId& operationId,
+        NYTree::EPermission permission)
+    {
+        auto path = GetOperationPath(operationId);
+
+        auto client = Bootstrap_->GetMasterClient();
+        auto asyncResult = client->CheckPermission(user, path, permission);
+        auto resultOrError = WaitFor(asyncResult);
+        if (!resultOrError.IsOK()) {
+            auto wrappedError = TError("Error checking permission for operation %v",
+                operationId)
+                << resultOrError;
+            THROW_ERROR wrappedError;
+        }
+
+        auto error = resultOrError.Value().ToError(user, permission);
+        if (!error.IsOK()) {
+            THROW_ERROR error << TErrorAttribute("operation_id", operationId);
+        }
+    }
 };
 
 IServicePtr CreateSchedulerService(TBootstrap* bootstrap)

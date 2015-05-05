@@ -94,9 +94,10 @@ public:
         auto* list = CreateUpdateList(operation);
         auto strategy = Bootstrap->GetScheduler()->GetStrategy();
 
+        auto path = GetOperationPath(id);
         auto batchReq = StartBatchRequest(list);
         {
-            auto req = TYPathProxy::Set(GetOperationPath(id));
+            auto req = TYPathProxy::Set(path);
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
                     .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operation))
@@ -120,12 +121,30 @@ public:
             batchReq->AddRequest(req);
         }
 
+        {
+            auto acl = NYTree::BuildYsonNodeFluently()
+                .BeginList()
+                    .Item().BeginMap()
+                        .Item("action").Value("allow")
+                        .Item("subjects").BeginList()
+                            .Item().Value(operation->GetAuthenticatedUser())
+                        .EndList()
+                        .Item("permissions").BeginList()
+                            .Item().Value("write")
+                        .EndList()
+                    .EndMap()
+                .EndList();
+
+
+            auto req = TYPathProxy::Set(path + "/@acl");
+            req->set_value(ConvertToYsonString(acl).Data());
+
+            batchReq->AddRequest(req);
+        }
+
         return batchReq->Invoke().Apply(
-            BIND(
-                &TImpl::OnOperationNodeCreated,
-                MakeStrong(this),
-                operation)
-            .AsyncVia(Bootstrap->GetControlInvoker()));
+            BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
+                .AsyncVia(Bootstrap->GetControlInvoker()));
     }
 
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation)
