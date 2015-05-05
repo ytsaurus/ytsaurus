@@ -197,6 +197,13 @@ public:
 
 std::map<Stroka, Stroka> ParseProcessCGroups(const Stroka& str);
 
+template <typename T>
+T GetCurrentCGroup()
+{
+    T group("");
+    return group;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCGroup
