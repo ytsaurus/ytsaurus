@@ -556,7 +556,7 @@ TNullable<TChunkDescriptor> TLocation::RepairJournalChunk(const TChunkId& chunkI
     if (hasData) {
         auto dispatcher = Bootstrap_->GetJournalDispatcher();
         // NB: This also creates the index file, if missing.
-        auto changelog = dispatcher->OpenChangelog(this, chunkId, false)
+        auto changelog = dispatcher->OpenChangelog(this, chunkId)
             .Get()
             .ValueOrThrow();
         TChunkDescriptor descriptor;

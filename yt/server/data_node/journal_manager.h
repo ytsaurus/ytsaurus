@@ -27,14 +27,15 @@ public:
     void Initialize();
 
     TFuture<NHydra::IChangelogPtr> OpenChangelog(
-        const TChunkId& chunkId,
-        bool enableMultiplexing);
+        const TChunkId& chunkId);
 
     TFuture<NHydra::IChangelogPtr> CreateChangelog(
         const TChunkId& chunkId,
         bool enableMultiplexing);
 
-    TFuture<void> RemoveChangelog(TJournalChunkPtr chunk);
+    TFuture<void> RemoveChangelog(
+        TJournalChunkPtr chunk,
+        bool enableMultiplexing);
 
     TFuture<void> AppendMultiplexedRecord(
         const TChunkId& chunkId,

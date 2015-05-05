@@ -133,7 +133,7 @@ void TJournalChunk::DoReadBlocks(
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
-        auto changelog = WaitFor(dispatcher->OpenChangelog(Location_, Id_, false))
+        auto changelog = WaitFor(dispatcher->OpenChangelog(Location_, Id_))
             .ValueOrThrow();
 
         LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
@@ -219,7 +219,7 @@ void TJournalChunk::SyncRemove(bool force)
 TFuture<void> TJournalChunk::AsyncRemove()
 {
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    return dispatcher->RemoveChangelog(this);
+    return dispatcher->RemoveChangelog(this, true);
 }
 
 void TJournalChunk::AttachChangelog(IChangelogPtr changelog)

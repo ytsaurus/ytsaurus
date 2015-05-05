@@ -42,15 +42,16 @@ public:
 
     TFuture<IChangelogPtr> OpenChangelog(
         TLocationPtr location,
-        const TChunkId& chunkId,
-        bool enableMultiplexing);
+        const TChunkId& chunkId);
 
     TFuture<IChangelogPtr> CreateChangelog(
         TLocationPtr location,
         const TChunkId& chunkId,
         bool enableMultiplexing);
 
-    TFuture<void> RemoveChangelog(TJournalChunkPtr chunk);
+    TFuture<void> RemoveChangelog(
+        TJournalChunkPtr chunk,
+        bool enableMultiplexing);
 
 private:
     friend class TCachedChangelog;
@@ -59,7 +60,7 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
 
 
-    IChangelogPtr OnChangelogOpened(
+    IChangelogPtr OnChangelogOpenedOrCreated(
         TLocationPtr location,
         const TChunkId& chunkId,
         bool enableMultiplexing,
@@ -174,8 +175,7 @@ private:
 
 TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
     TLocationPtr location,
-    const TChunkId& chunkId,
-    bool enableMultiplexing)
+    const TChunkId& chunkId)
 {
     TInsertCookie cookie(chunkId);
     bool inserted = BeginInsert(&cookie);
@@ -186,16 +186,16 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
     }
 
     auto journalManager = location->GetJournalManager();
-    return journalManager->OpenChangelog(chunkId, enableMultiplexing).Apply(BIND(
-        &TImpl::OnChangelogOpened,
+    return journalManager->OpenChangelog(chunkId).Apply(BIND(
+        &TImpl::OnChangelogOpenedOrCreated,
         MakeStrong(this),
         location,
         chunkId,
-        enableMultiplexing,
+        false,
         Passed(std::move(cookie))));
 }
 
-IChangelogPtr TJournalDispatcher::TImpl::OnChangelogOpened(
+IChangelogPtr TJournalDispatcher::TImpl::OnChangelogOpenedOrCreated(
     TLocationPtr location,
     const TChunkId& chunkId,
     bool enableMultiplexing,
@@ -231,7 +231,7 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
 
         auto journalManager = location->GetJournalManager();
         return journalManager->CreateChangelog(chunkId, enableMultiplexing).Apply(BIND(
-            &TImpl::OnChangelogOpened,
+            &TImpl::OnChangelogOpenedOrCreated,
             MakeStrong(this),
             location,
             chunkId,
@@ -242,13 +242,15 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
     }
 }
 
-TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(TJournalChunkPtr chunk)
+TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(
+    TJournalChunkPtr chunk,
+    bool enableMultiplexing)
 {
     TAsyncSlruCacheBase::TryRemove(chunk->GetId());
 
     auto location = chunk->GetLocation();
     auto journalManager = location->GetJournalManager();
-    return journalManager->RemoveChangelog(chunk);
+    return journalManager->RemoveChangelog(chunk, enableMultiplexing);
 }
 
 void TJournalDispatcher::TImpl::OnAdded(TCachedChangelog* changelog)
@@ -276,10 +278,9 @@ TJournalDispatcher::~TJournalDispatcher()
 
 TFuture<IChangelogPtr> TJournalDispatcher::OpenChangelog(
     TLocationPtr location,
-    const TChunkId& chunkId,
-    bool enableMultiplexing)
+    const TChunkId& chunkId)
 {
-    return Impl_->OpenChangelog(location, chunkId, enableMultiplexing);
+    return Impl_->OpenChangelog(location, chunkId);
 }
 
 TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
@@ -290,9 +291,11 @@ TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
     return Impl_->CreateChangelog(location, chunkId, enableMultiplexing);
 }
 
-TFuture<void> TJournalDispatcher::RemoveChangelog(TJournalChunkPtr chunk)
+TFuture<void> TJournalDispatcher::RemoveChangelog(
+    TJournalChunkPtr chunk,
+    bool enableMultiplexing)
 {
-    return Impl_->RemoveChangelog(chunk);
+    return Impl_->RemoveChangelog(chunk, enableMultiplexing);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
