@@ -25,8 +25,7 @@ public:
     //! to a given journal chunk.
     TFuture<NHydra::IChangelogPtr> OpenChangelog(
         TLocationPtr location,
-        const TChunkId& chunkId,
-        bool enableMultiplexing);
+        const TChunkId& chunkId);
 
     //! Asynchronously creates a new changelog corresponding to a given journal chunk.
     TFuture<NHydra::IChangelogPtr> CreateChangelog(
@@ -35,7 +34,9 @@ public:
         bool enableMultiplexing);
 
     //! Asynchronously removes files of a given journal chunk.
-    TFuture<void> RemoveChangelog(TJournalChunkPtr chunk);
+    TFuture<void> RemoveChangelog(
+        TJournalChunkPtr chunk,
+        bool enableMultiplexing);
 
 private:
     class TCachedChangelog;

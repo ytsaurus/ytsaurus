@@ -577,11 +577,6 @@ private:
             AddChangelogToActive(record.Header.ChunkId, flushResult);
         }
 
-        // Skip actual actions when replaying multiplexed changelog.
-        if (!MultiplexedChangelog_) {
-            return VoidFuture;
-        }
-
         // Construct the multiplexed data record and append it.
         auto multiplexedData = TSharedMutableRef::Allocate(
             record.Data.Size() +
@@ -797,16 +792,10 @@ public:
         LOG_INFO("Journals initialized");
     }
 
-    TFuture<IChangelogPtr> OpenChangelog(
-        const TChunkId& chunkId,
-        bool enableMultiplexing)
+    TFuture<IChangelogPtr> OpenChangelog(const TChunkId& chunkId)
     {
         return
-            BIND(
-                &TImpl::DoOpenChangelog,
-                MakeStrong(this),
-                chunkId,
-                enableMultiplexing)
+            BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId)
             .AsyncVia(ChangelogDispatcher_->GetInvoker())
             .Run();
     }
@@ -823,16 +812,17 @@ public:
             return futureChangelog;
         }
 
-        auto multiplexedResult = MultiplexedWriter_->WriteCreateRecord(chunkId);
-
-        return multiplexedResult.Apply(BIND([=] () {
-            return CreateLazyChangelog(futureChangelog);
-        }));
+        return MultiplexedWriter_->WriteCreateRecord(chunkId)
+            .Apply(BIND(&CreateLazyChangelog, std::move(futureChangelog)));
     }
 
-    TFuture<void> RemoveChangelog(TJournalChunkPtr chunk)
+    TFuture<void> RemoveChangelog(
+        TJournalChunkPtr chunk,
+        bool enableMultiplexing)
     {
-        MultiplexedWriter_->WriteRemoveRecord(chunk->GetId());
+        if (enableMultiplexing) {
+            MultiplexedWriter_->WriteRemoveRecord(chunk->GetId());
+        }
 
         return BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
             .AsyncVia(ChangelogDispatcher_->GetInvoker())
@@ -865,10 +855,10 @@ private:
 
     IChangelogPtr DoCreateChangelog(const TChunkId& chunkId)
     {
+        IChangelogPtr changelog;
+
         LOG_DEBUG("Started creating journal chunk (ChunkId: %v)",
             chunkId);
-
-        IChangelogPtr changelog;
 
         const auto& Profiler = Location_->GetProfiler();
         PROFILE_TIMING("/journal_chunk_create_time") {
@@ -894,17 +884,17 @@ private:
         return changelog;
     }
 
-    IChangelogPtr DoOpenChangelog(
-        const TChunkId& chunkId,
-        bool enableMultiplexing)
+    IChangelogPtr DoOpenChangelog(const TChunkId& chunkId)
     {
-        auto fileName = Location_->GetChunkPath(chunkId);
+        IChangelogPtr changelog;
+
         LOG_TRACE("Started opening journal chunk (ChunkId: %v)",
             chunkId);
 
         const auto& Profiler = Location_->GetProfiler();
         PROFILE_TIMING("/journal_chunk_open_time") {
             try {
+                auto fileName = Location_->GetChunkPath(chunkId);
                 return ChangelogDispatcher_->OpenChangelog(
                     fileName,
                     Config_->SplitChangelog);
@@ -921,6 +911,8 @@ private:
 
         LOG_TRACE("Finished opening journal chunk (ChunkId: %v)",
             chunkId);
+
+        return changelog;
     }
 
     void DoRemoveChangelog(TJournalChunkPtr chunk)
@@ -988,7 +980,7 @@ private:
             }
 
             auto dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
-            auto changelog = dispatcher->OpenChangelog(chunk->GetLocation(), chunkId, false)
+            auto changelog = dispatcher->OpenChangelog(chunk->GetLocation(), chunkId)
                 .Get()
                 .ValueOrThrow();
 
@@ -1027,7 +1019,7 @@ private:
             chunkStore->UnregisterChunk(chunk);
 
             auto dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
-            dispatcher->RemoveChangelog(journalChunk)
+            dispatcher->RemoveChangelog(journalChunk, false)
                 .Get()
                 .ThrowOnError();
 
@@ -1059,10 +1051,9 @@ void TJournalManager::Initialize()
 }
 
 TFuture<IChangelogPtr> TJournalManager::OpenChangelog(
-    const TChunkId& chunkId,
-    bool enableMultiplexing)
+    const TChunkId& chunkId)
 {
-    return Impl_->OpenChangelog(chunkId, enableMultiplexing);
+    return Impl_->OpenChangelog(chunkId);
 }
 
 TFuture<IChangelogPtr> TJournalManager::CreateChangelog(
@@ -1072,9 +1063,11 @@ TFuture<IChangelogPtr> TJournalManager::CreateChangelog(
     return Impl_->CreateChangelog(chunkId, enableMultiplexing);
 }
 
-TFuture<void> TJournalManager::RemoveChangelog(TJournalChunkPtr chunk)
+TFuture<void> TJournalManager::RemoveChangelog(
+    TJournalChunkPtr chunk,
+    bool enableMultiplexing)
 {
-    return Impl_->RemoveChangelog(chunk);
+    return Impl_->RemoveChangelog(chunk, enableMultiplexing);
 }
 
 TFuture<void> TJournalManager::AppendMultiplexedRecord(

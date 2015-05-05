@@ -625,9 +625,8 @@ private:
 
         auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
         auto location = journalChunk->GetLocation();
-        auto changelogOrError = WaitFor(journalDispatcher->OpenChangelog(location, ChunkId_, false));
-        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-        auto changelog = changelogOrError.Value();
+        auto changelog = WaitFor(journalDispatcher->OpenChangelog(location, ChunkId_))
+            .ValueOrThrow();
 
         if (journalChunk->HasAttachedChangelog()) {
             THROW_ERROR_EXCEPTION("Journal chunk %v is already being written to",
