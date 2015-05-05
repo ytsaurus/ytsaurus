@@ -561,6 +561,7 @@ private:
             LOG_DEBUG("Changelog is removed from active set (ChunkId: %v)",
                 pair.first);
         }
+
         ChunkIdToFlushResult_.clear();
     }
 
@@ -574,6 +575,11 @@ private:
 
         if (flushResult) {
             AddChangelogToActive(record.Header.ChunkId, flushResult);
+        }
+
+        // Skip actual actions when replaying multiplexed changelog.
+        if (!MultiplexedChangelog_) {
+            return VoidFuture;
         }
 
         // Construct the multiplexed data record and append it.
