@@ -188,11 +188,11 @@ void TJobProxy::Run()
         TStatistics jobStatistics = Job_->GetStatistics();
 
         if (Config_->ForceEnableAccounting) {
-            TCpuAccounting cpuAccounting("");
+            auto cpuAccounting = GetCurrentCGroup<TCpuAccounting>();
             auto cpuStatistics = cpuAccounting.GetStatistics();
             jobStatistics.AddComplex("/job_proxy/cpu", cpuStatistics);
 
-            TBlockIO blockIO("");
+            auto blockIO = GetCurrentCGroup<TBlockIO>();
             auto blockIOStatistics = blockIO.GetStatistics();
             jobStatistics.AddComplex("/job_proxy/block_io", blockIOStatistics);
         }
