@@ -266,6 +266,7 @@ void AllocatePermanentRow(TExecutionContext* context, int valueCount, TRow* row)
 
 i8 InsertGroupRow(
     TExecutionContext* context,
+    i8* skipRowPtr,
     TRow* groupRow,
     TLookupRows* lookupRows,
     std::vector<TRow>* groupedRows,
@@ -276,8 +277,15 @@ i8 InsertGroupRow(
     CHECK_STACK();
 
     auto foundRow = lookupRows->find(row);
-    
+
+    *skipRowPtr = false;
     if (foundRow == lookupRows->end()) {
+        if (!UpdateAndCheckRowLimit(&context->GroupRowLimit, &context->StopFlag)) {
+            context->Statistics->IncompleteOutput = true;
+            *skipRowPtr = true;
+            return false;
+        }
+    
         auto newRow = TRow::Allocate(context->PermanentBuffer->GetPool(), groupRowValueCount);
 
         for (int index = 0; index < groupRowKeyCount; index++) {
