@@ -940,12 +940,13 @@ private:
             node->FirstPendingRowIndex += flushRowCount;
             node->InFlightBatches.clear();
 
+            std::vector<TPromise<void>> fulfilledPromises;
             while (!PendingBatches_.empty()) {
                 auto front = PendingBatches_.front();
                 if (front->FlushedReplicas <  WriteQuorum_)
                     break;
 
-                front->FlushedPromise.Set(TError());
+                fulfilledPromises.push_back(front->FlushedPromise);
                 session->FlushedRowCount += front->Rows.size();
                 session->FlushedDataSize += front->DataSize;
                 PendingBatches_.pop_front();
@@ -956,6 +957,10 @@ private:
             }
 
             MaybeFlushBlocks(node);
+
+            for (auto& promise : fulfilledPromises) {
+                promise.Set();
+            }
         }
 
 
