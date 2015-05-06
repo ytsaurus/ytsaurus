@@ -11,7 +11,7 @@ import itertools as it
 from StringIO import StringIO
 from time import sleep
 from copy import deepcopy
-from random import randint
+from random import randint, shuffle
 
 yt.config.VERSION = "v3"
 
@@ -30,7 +30,7 @@ MAX_FAILDED_JOB_COUNT = 10
 # Maximum number of retries to call YT command
 MAX_RETRY_COUNT = 10
 # Sleep interval between retries
-SLEEP_INTERVAL = 60
+SLEEP_INTERVAL = 120
 
 # Simple transformation class - just copy everything.
 class Copy:
@@ -129,6 +129,7 @@ def call_subprocess(command, stdin, max_retry_count, sleep_interval):
     ret, out, err = single_call()
     errors.append((attempt, ret, out, err))
     while attempt < max_retry_count and ret != 0:
+        attempt +=1
         sleep(randint(1, sleep_interval))
         ret, out, err = single_call()
         errors.append((attempt, ret, out, err))
@@ -260,6 +261,7 @@ if __name__ == "__main__":
     # Write partition bounds into regions_table.
     regions = zip([None] + partition_keys, partition_keys + [None])
     regions = [{"left":r[0], "right":r[1]} for r in regions]
+    shuffle(regions)
     yt.write_table(
         regions_table,
         regions,
@@ -282,6 +284,7 @@ if __name__ == "__main__":
         with open(CONFIG_FILE_NAME, "w") as config_file: config_file.write(yson.dumps(config))
 
     spec={
+        "enable_job_proxy_memory_control": False,
         "job_count": args.job_count,
         "max_failed_job_count": args.max_failed_job_count,
         "job_proxy_memory_control": False,
