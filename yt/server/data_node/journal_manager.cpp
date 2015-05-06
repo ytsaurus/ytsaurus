@@ -193,7 +193,12 @@ private:
 
         TChunkId ChunkId;
         IChangelogPtr Changelog;
+
         int RecordsAdded = 0;
+
+        bool AppendSealedLogged = false;
+        bool AppendSkipLogged = false;
+        bool AppendLogged = false;
     };
 
     yhash_map<TChunkId, TSplitEntry> SplitMap_;
@@ -358,12 +363,28 @@ private:
 
         auto& splitEntry = it->second;
 
-        if (splitEntry.Changelog->IsSealed())
+        if (splitEntry.Changelog->IsSealed()) {
+            LOG_INFO_UNLESS(
+                splitEntry.AppendSealedLogged,
+                "Replay ignores sealed journal chunk; further similar messages suppressed "
+                "(ChunkId: %v)",
+                chunkId);
+            splitEntry.AppendSealedLogged = true;
             return;
+        }
 
         int recordCount = splitEntry.Changelog->GetRecordCount();
-        if (recordCount > record.Header.RecordId)
+        if (recordCount > record.Header.RecordId) {
+            LOG_INFO_UNLESS(
+                splitEntry.AppendSkipLogged,
+                "Replay skips multiplexed records that are present in journal chunk; further similar messages suppressed "
+                "(ChunkId: %v, RecordId: %v, RecordCount: %v)",
+                chunkId,
+                record.Header.RecordId,
+                recordCount);
+            splitEntry.AppendSkipLogged = true;
             return;
+        }
 
         if (recordCount != record.Header.RecordId) {
             LOG_FATAL("Journal chunk %v has %v records while multiplexed changelog has relevant records starting from %v",
@@ -371,6 +392,14 @@ private:
                 recordCount,
                 record.Header.RecordId);
         }
+
+        LOG_INFO_UNLESS(
+            splitEntry.AppendLogged,
+            "Replay appends record to journal chunk; further similar messages suppressed "
+            "(ChunkId: %v, RecordId: %v)",
+            chunkId,
+            record.Header.RecordId);
+        splitEntry.AppendLogged = true;
 
         splitEntry.Changelog->Append(record.Data);
         ++splitEntry.RecordsAdded;
