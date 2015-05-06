@@ -776,15 +776,18 @@ private:
             recordInfo = ReadRecord(dataReader);
             if (!recordInfo || recordInfo->Id != RecordCount_ || RecordCount_ == SealedRecordCount_) {
                 // Broken changelog case.
-                if (!recordInfo || recordInfo->Id != RecordCount_) {
-                    LOG_ERROR("Broken record found, changelog trimmed (RecordId: %v, Offset: %v)",
-                        RecordCount_,
-                        CurrentFilePosition_);
+                if (!recordInfo) {
+                    LOG_ERROR("Failed to read record, changelog incomplete");
+                } else if (recordInfo->Id != RecordCount_) {
+                    LOG_ERROR("Invalid record found (ExtractedRecordId: %v, ValidRecordId: %v)",
+                        recordInfo->Id,
+                        RecordCount_);
                 } else {
-                    LOG_ERROR("Excessive records found, sealed changelog trimmed (RecordId: %v, Offset: %v)",
-                        RecordCount_,
-                        CurrentFilePosition_);
+                    LOG_ERROR("Excessive records found in sealed changelog");
                 }
+                LOG_INFO("Changelog trimmed (RecordId: %v, Offset: %v)",
+                    RecordCount_,
+                    CurrentFilePosition_);
                 DataFile_->Resize(CurrentFilePosition_);
                 DataFile_->Seek(0, sEnd);
                 break;
