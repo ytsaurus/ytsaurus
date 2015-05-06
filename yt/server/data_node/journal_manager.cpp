@@ -895,7 +895,7 @@ private:
         PROFILE_TIMING("/journal_chunk_open_time") {
             try {
                 auto fileName = Location_->GetChunkPath(chunkId);
-                return ChangelogDispatcher_->OpenChangelog(
+                changelog = ChangelogDispatcher_->OpenChangelog(
                     fileName,
                     Config_->SplitChangelog);
             } catch (const std::exception& ex) {
