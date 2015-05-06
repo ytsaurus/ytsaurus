@@ -116,7 +116,7 @@ class TestQuery(YTEnvSetup):
         expected = [
             {"k": 0, "aa": 49.0, "mb": 0, "ab": 490.0},
             {"k": 1, "aa": 50.0, "mb": 10, "ab": 500.0}]
-        actual = select_rows("k, avg(a) as aa, min(b) as mb, avg(b) as ab from [//tmp/mg] group by a % 2 as k")
+        actual = select_rows("k, avg(a) as aa, min(b) as mb, avg(b) as ab from [//tmp/mg] group by a % 2 as k order by k limit 2")
         assert expected == actual
 
     def test_limit(self):
