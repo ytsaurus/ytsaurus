@@ -294,7 +294,7 @@ def make_request(command_name, params,
             stream=stream,
             response_should_be_json=response_should_be_json)
     except YtProxyUnavailable:
-        ban_host(proxy)
+        ban_host(proxy, client=client)
         raise
 
     print_info("Response headers %r", response.headers)
