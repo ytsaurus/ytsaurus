@@ -372,7 +372,7 @@ class Operation(object):
         if check_result and state.is_unsuccessfully_finished():
             stderrs = get_stderrs(self.id, only_failed_jobs=True, client=self.client)
             error = get_operation_error(self.id, client=self.client)
-            raise YtOperationFailedError(id=self.id, state=state, error=error, stderrs=stderrs, url=self.url)
+            raise YtOperationFailedError(id=self.id, state=str(state), error=error, stderrs=stderrs, url=self.url)
 
         stderr_level = logging._levelNames[config.STDERR_LOGGING_LEVEL]
         if logger.LOGGER.isEnabledFor(stderr_level):
