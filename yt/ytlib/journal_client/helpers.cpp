@@ -38,8 +38,9 @@ public:
         , Replicas_(replicas)
         , Timeout_(timeout)
         , Quorum_(quorum)
-        , Logger(JournalClientLogger)
-    { }
+    {
+        Logger.AddTag("ChunkId: %v", ChunkId_);
+    }
 
     TFuture<void> Run()
     {
@@ -62,12 +63,12 @@ private:
 
     TPromise<void> Promise_ = NewPromise<void>();
 
-    NLogging::TLogger Logger;
+    NLogging::TLogger Logger = JournalClientLogger;
 
 
     void DoRun()
     {
-        LOG_INFO("Aborting journal chunk session quroum (ChunkId: %v, Addresses: [%v])",
+        LOG_INFO("Aborting journal chunk session quroum (Addresses: [%v])",
             ChunkId_,
             JoinToString(Replicas_));
 
@@ -99,19 +100,19 @@ private:
         // NB: Missing session is also OK.
         if (rspOrError.IsOK() || rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
             ++SuccessCounter_;
-            LOG_INFO("Journal chunk session aborted successfully (ChunkId: %v, Address: %v)",
+            LOG_INFO("Journal chunk session aborted successfully (Address: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress());
 
         } else {
             InnerErrors_.push_back(rspOrError);
-            LOG_WARNING(rspOrError, "Failed to abort journal chunk session (ChunkId: %v, Address: %v)",
+            LOG_WARNING(rspOrError, "Failed to abort journal chunk session (Address: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress());
         }
 
         if (SuccessCounter_ == Quorum_) {
-            LOG_INFO("Journal chunk session quroum aborted successfully (ChunkId: %v)",
+            LOG_INFO("Journal chunk session quroum aborted successfully",
                 ChunkId_);
             Promise_.TrySet();
         }
@@ -151,8 +152,9 @@ public:
         , Replicas_(replicas)
         , Timeout_(timeout)
         , Quorum_(quorum)
-        , Logger(JournalClientLogger)
-    { }
+    {
+        Logger.AddTag("ChunkId: %v", ChunkId_);
+    }
 
     TFuture<TMiscExt> Run()
     {
@@ -173,7 +175,7 @@ private:
 
     TPromise<TMiscExt> Promise_ = NewPromise<TMiscExt>();
 
-    NLogging::TLogger Logger;
+    NLogging::TLogger Logger = JournalClientLogger;
 
 
     void DoRun()
@@ -187,7 +189,7 @@ private:
             return;
         }
 
-        LOG_INFO("Computing quorum info for journal chunk (ChunkId: %v, Addresses: [%v])",
+        LOG_INFO("Computing quorum info for journal chunk (Addresses: [%v])",
             ChunkId_,
             JoinToString(Replicas_));
 
@@ -217,7 +219,7 @@ private:
             auto miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
             Infos_.push_back(miscExt);
 
-            LOG_INFO("Received info for journal chunk (ChunkId: %v, Address: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+            LOG_INFO("Received info for journal chunk (Address: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress(),
                 miscExt.row_count(),
@@ -226,7 +228,7 @@ private:
         } else {
             InnerErrors_.push_back(rspOrError);
 
-            LOG_WARNING(rspOrError, "Failed to get journal info (ChunkId: %v, Address: %v)",
+            LOG_WARNING(rspOrError, "Failed to get journal info (Address: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress());
         }
@@ -253,7 +255,7 @@ private:
 
         const auto& quorumInfo = Infos_[Quorum_ - 1];
 
-        LOG_INFO("Quorum info for journal chunk computed successfully (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+        LOG_INFO("Quorum info for journal chunk computed successfully (RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
             ChunkId_,
             quorumInfo.row_count(),
             quorumInfo.uncompressed_data_size(),
