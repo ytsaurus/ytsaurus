@@ -282,7 +282,7 @@ private:
 
         auto dumpChunkIds = [&] (const yhash_set<TChunkId>& chunkIds, const Stroka& action) {
             for (const auto& chunkId : chunkIds) {
-                LOG_INFO("Replay will %v journal chunk (ChunkId: %v, FirstRelevantRecordId: %v)",
+                LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantRecordId: %v)",
                     action,
                     chunkId,
                     GetFirstRelevantRecordId(chunkId));
@@ -357,6 +357,10 @@ private:
         }
 
         auto& splitEntry = it->second;
+
+        if (splitEntry.Changelog->IsSealed())
+            return;
+
         int recordCount = splitEntry.Changelog->GetRecordCount();
         if (recordCount > record.Header.RecordId)
             return;
