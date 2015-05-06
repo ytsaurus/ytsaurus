@@ -90,8 +90,9 @@ message TNamedItem
 message TAggregateItem
 {
     required TExpression expression = 1;
-    required int32 aggregate_function = 2; // EAggregateFunction
+    optional int32 aggregate_function = 2;
     required string name = 3;
+    optional string aggregate_function_name = 4;
 }
 
 message TJoinClause

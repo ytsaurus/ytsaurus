@@ -44,12 +44,20 @@ IFunctionDescriptorPtr IFunctionRegistry::GetFunction(const Stroka& functionName
     return function;
 }
 
+IAggregateFunctionDescriptorPtr IFunctionRegistry::GetAggregateFunction(const Stroka& functionName)
+{
+    auto function = FindAggregateFunction(functionName);
+    YCHECK(function);
+    return function;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFunctionRegistry::RegisterFunction(IFunctionDescriptorPtr function)
+void TFunctionRegistry::RegisterFunction(IFunctionDescriptorPtr descriptor)
 {
-    Stroka functionName = to_lower(function->GetName());
-    YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(function))).second);
+    auto functionName = to_lower(descriptor->GetName());
+    YCHECK(!FindAggregateFunction(functionName));
+    YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(descriptor))).second);
 }
 
 IFunctionDescriptorPtr TFunctionRegistry::FindFunction(const Stroka& functionName)
@@ -59,6 +67,23 @@ IFunctionDescriptorPtr TFunctionRegistry::FindFunction(const Stroka& functionNam
         return nullptr;
     } else {
         return RegisteredFunctions_.at(name);
+    }
+}
+
+void TFunctionRegistry::RegisterAggregateFunction(IAggregateFunctionDescriptorPtr descriptor)
+{
+    auto aggregateName = to_lower(descriptor->GetName());
+    YCHECK(!FindFunction(aggregateName));
+    YCHECK(RegisteredAggregateFunctions_.insert(std::make_pair(aggregateName, std::move(descriptor))).second);
+}
+
+IAggregateFunctionDescriptorPtr TFunctionRegistry::FindAggregateFunction(const Stroka& aggregateName)
+{
+    auto name = to_lower(aggregateName);
+    if (RegisteredAggregateFunctions_.count(name) == 0) {
+        return nullptr;
+    } else {
+        return RegisteredAggregateFunctions_.at(name);
     }
 }
 
@@ -123,6 +148,10 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
     registry->RegisterFunction(New<TCastFunction>(
         EValueType::Double,
         "double"));
+
+    registry->RegisterAggregateFunction(New<TAggregateFunction>("sum"));
+    registry->RegisterAggregateFunction(New<TAggregateFunction>("min"));
+    registry->RegisterAggregateFunction(New<TAggregateFunction>("max"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -350,6 +379,11 @@ void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
             cypressFunction->ResultType.Type,
             implementationFile));
     }
+}
+
+IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::FindAggregateFunction(const Stroka& aggregateName)
+{
+    return BuiltinRegistry_->FindAggregateFunction(aggregateName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
