@@ -135,5 +135,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAggregateFunction
+    : public IAggregateFunctionDescriptor
+{
+public:
+    TAggregateFunction(Stroka name);
+
+    virtual Stroka GetName() const override;
+
+    virtual TCodegenAggregateUpdate MakeCodegenAggregate(
+        EValueType type,
+        const Stroka& name) const override;
+
+private:
+    const Stroka Name_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT

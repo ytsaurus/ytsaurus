@@ -19,6 +19,10 @@ struct IFunctionRegistry
     virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) = 0;
 
     IFunctionDescriptorPtr GetFunction(const Stroka& functionName);
+
+    virtual IAggregateFunctionDescriptorPtr FindAggregateFunction(const Stroka& aggregateName) = 0;
+
+    IAggregateFunctionDescriptorPtr GetAggregateFunction(const Stroka& aggregateName);
 };
 
 DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
@@ -33,8 +37,13 @@ public:
 
     virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) override;
 
+    void RegisterAggregateFunction(IAggregateFunctionDescriptorPtr descriptor);
+
+    virtual IAggregateFunctionDescriptorPtr FindAggregateFunction(const Stroka& aggregateName) override;
+
 private:
     std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
+    std::unordered_map<Stroka, IAggregateFunctionDescriptorPtr> RegisteredAggregateFunctions_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFunctionRegistry)
@@ -51,6 +60,8 @@ public:
         TFunctionRegistryPtr builtinRegistry);
 
     virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) override;
+
+    virtual IAggregateFunctionDescriptorPtr FindAggregateFunction(const Stroka& aggregateName) override;
 
 private:
     const NApi::IClientPtr Client_;

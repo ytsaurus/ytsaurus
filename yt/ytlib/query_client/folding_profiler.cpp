@@ -48,7 +48,7 @@ public:
 
 private:
     TCodegenExpression Profile(const TNamedItem& namedExpression, const TTableSchema& schema);
-    std::pair<TCodegenExpression, TCodegenAggregate> Profile(const TAggregateItem& aggregateItem, const TTableSchema& schema);
+    std::pair<TCodegenExpression, TCodegenAggregateUpdate> Profile(const TAggregateItem& aggregateItem, const TTableSchema& schema);
 
     void Fold(int numeric);
     void Fold(const char* str);
@@ -121,7 +121,7 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
         Fold(static_cast<int>(EFoldingObjectType::GroupOp));
 
         std::vector<TCodegenExpression> codegenGroupExprs;
-        std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates;
+        std::vector<std::pair<TCodegenExpression, TCodegenAggregateUpdate>> codegenAggregates;
 
         for (const auto& groupItem : groupClause->GroupItems) {
             codegenGroupExprs.push_back(Profile(groupItem, schema));
@@ -259,20 +259,22 @@ TCodegenExpression TFoldingProfiler::Profile(const TNamedItem& namedExpression, 
     return Profile(namedExpression.Expression, schema);
 }
 
-std::pair<TCodegenExpression, TCodegenAggregate> TFoldingProfiler::Profile(
+std::pair<TCodegenExpression, TCodegenAggregateUpdate> TFoldingProfiler::Profile(
     const TAggregateItem& aggregateItem,
     const TTableSchema& schema)
 {
     Fold(static_cast<int>(EFoldingObjectType::AggregateItem));
-    Fold(static_cast<int>(aggregateItem.AggregateFunction));
+    Fold(aggregateItem.AggregateFunction.c_str());
     Fold(aggregateItem.Name.c_str());
+
+    auto function = FunctionRegistry_->GetAggregateFunction(
+        aggregateItem.AggregateFunction);
 
     return std::make_pair(
         Profile(aggregateItem.Expression, schema),
-        MakeCodegenAggregateFunction(
-            aggregateItem.AggregateFunction,
+        function->MakeCodegenAggregate(
             aggregateItem.Expression->Type,
-            aggregateItem.Name.c_str()));
+            aggregateItem.Name));
 }
 
 void TFoldingProfiler::Fold(int numeric)

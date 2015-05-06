@@ -2057,6 +2057,23 @@ class TFunctionRegistryMock
 {
 public:
     MOCK_METHOD1(FindFunction, IFunctionDescriptorPtr(const Stroka&));
+    MOCK_METHOD1(FindAggregateFunction, IAggregateFunctionDescriptorPtr(const Stroka&));
+
+    void WithFunction(IFunctionDescriptorPtr function)
+    {
+        EXPECT_CALL(*this, FindFunction(function->GetName()))
+            .WillRepeatedly(Return(function));
+        EXPECT_CALL(*this, FindAggregateFunction(function->GetName()))
+            .WillRepeatedly(Return(nullptr));
+    }
+
+    void WithFunction(IAggregateFunctionDescriptorPtr function)
+    {
+        EXPECT_CALL(*this, FindFunction(function->GetName()))
+            .WillRepeatedly(Return(nullptr));
+        EXPECT_CALL(*this, FindAggregateFunction(function->GetName()))
+            .WillRepeatedly(Return(function));
+    }
 };
 
 
@@ -3351,39 +3368,6 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestBuiltinUdf)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::String}
-    });
-
-    std::vector<Stroka> source = {
-        "a=\"HELLO\"",
-        "a=\"HeLlO\"",
-        "a=\"\"",
-        ""
-    };
-
-    auto resultSplit = MakeSplit({
-        {"x", EValueType::Uint64}
-    });
-
-    auto result = BuildRows({
-        "x=\"hello\"",
-        "x=\"hello\"",
-        "x=\"\"",
-        ""
-    }, resultSplit);
-
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("to_lower"))
-        .WillRepeatedly(Return(TolowerUdf_));
-
-    Evaluate("to_lower(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
-
-    SUCCEED();
-}
-
 TEST_F(TQueryEvaluateTest, TestUdf)
 {
     auto split = MakeSplit({
@@ -3410,8 +3394,7 @@ TEST_F(TQueryEvaluateTest, TestUdf)
     }, resultSplit);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("abs_udf"))
-        .WillRepeatedly(Return(AbsUdf_));
+    registry->WithFunction(AbsUdf_);
 
     Evaluate("abs_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
@@ -3442,8 +3425,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
         ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("invalid_ir"))
-        .WillRepeatedly(Return(invalidUdfDescriptor));
+    registry->WithFunction(invalidUdfDescriptor);
 
     EvaluateExpectingError("invalid_ir(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
@@ -3472,8 +3454,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
         ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("abs_udf"))
-        .WillRepeatedly(Return(twoArgumentUdf));
+    registry->WithFunction(twoArgumentUdf);
 
     EvaluateExpectingError("abs_udf(a, b) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
@@ -3502,8 +3483,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
         ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("abs_udf"))
-        .WillOnce(Return(invalidArgumentUdf));
+    registry->WithFunction(invalidArgumentUdf);
 
     EvaluateExpectingError("abs_udf(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
@@ -3534,8 +3514,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation)
     }, resultSplit);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("abs_udf"))
-        .WillRepeatedly(Return(AbsUdf_));
+    registry->WithFunction(AbsUdf_);
 
     Evaluate("abs_udf(b) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
@@ -3568,8 +3547,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation2)
     }, resultSplit);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("exp_udf"))
-        .WillRepeatedly(Return(ExpUdf_));
+    registry->WithFunction(ExpUdf_);
 
     Evaluate("exp_udf(a, b) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
@@ -3601,8 +3579,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
     }, resultSplit);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("strtol_udf"))
-        .WillRepeatedly(Return(StrtolUdf_));
+    registry->WithFunction(StrtolUdf_);
 
     Evaluate("strtol_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
@@ -3634,8 +3611,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringResult)
     }, resultSplit);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("tolower_udf"))
-        .WillRepeatedly(Return(TolowerUdf_));
+    registry->WithFunction(TolowerUdf_);
 
     Evaluate("tolower_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
@@ -3665,8 +3641,7 @@ TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
     }, resultSplit);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("is_null_udf"))
-        .WillRepeatedly(Return(IsNullUdf_));
+    registry->WithFunction(IsNullUdf_);
 
     Evaluate("is_null_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
@@ -3694,8 +3669,7 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
     }, resultSplit);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("sum_udf"))
-        .WillRepeatedly(Return(SumUdf_));
+    registry->WithFunction(SumUdf_);
 
     Evaluate("a as x FROM [//t] where sum_udf(7, 3, a) in (11, 12)", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
@@ -3724,8 +3698,7 @@ TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
         ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    EXPECT_CALL(*registry, FindFunction("malloc_udf"))
-        .WillRepeatedly(Return(mallocUdf));
+    registry->WithFunction(mallocUdf);
 
     EvaluateExpectingError("malloc_udf(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 

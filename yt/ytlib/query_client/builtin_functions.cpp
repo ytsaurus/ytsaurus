@@ -335,5 +335,149 @@ TCGValue TCastFunction::CodegenValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAggregateFunction::TAggregateFunction(
+    Stroka name)
+    : Name_(name)
+{ }
+
+Stroka TAggregateFunction::GetName() const
+{
+    return Name_;
+}
+
+TCodegenAggregateUpdate TAggregateFunction::MakeCodegenAggregate(
+    EValueType type,
+    const Stroka& nameStroka) const
+{
+    auto aggregateFunction = Name_;
+    return [
+            aggregateFunction,
+            type,
+            MOVE(nameStroka)
+        ] (TCGContext& builder, Value* aggState, Value* newValue) {
+            Twine name = nameStroka.c_str();
+
+            auto codegenIsNull = [&] (Value* value) {
+                return builder.CreateICmpEQ(
+                    builder.CreateLoad(builder.CreateStructGEP(
+                        value,
+                        TTypeBuilder::Type)),
+                    builder.getInt16(static_cast<ui16>(EValueType::Null)));
+            };
+
+            auto codegenGetData = [&] (Value* value) {
+                return builder.CreateLoad(builder.CreateStructGEP(
+                    value,
+                    TTypeBuilder::Data));
+            };
+
+            CodegenIf<TCGContext>(
+                builder,
+                codegenIsNull(newValue),
+                [&] (TCGContext& builder) { },
+                [&] (TCGContext& builder) {
+                    auto aggregateValue = TCGValue::CreateFromLlvmValue(
+                        builder,
+                        aggState,
+                        type,
+                        name + ".aggregate");
+
+                    CodegenIf<TCGContext>(
+                        builder,
+                        codegenIsNull(aggState),
+                        [&] (TCGContext& builder) {
+                            builder.CreateStore(
+                                builder.getInt16(static_cast<ui16>(type)),
+                                builder.CreateStructGEP(
+                                    aggState,
+                                    TTypeBuilder::Type));
+                            builder.CreateStore(
+                                codegenGetData(newValue),
+                                builder.CreateStructGEP(
+                                    aggState,
+                                    TTypeBuilder::Data,
+                                    name));
+                        },
+                        [&] (TCGContext& builder) {
+                            Value* newData = codegenGetData(newValue);
+                            Value* aggregateData = aggregateValue.GetData();
+                            Value* resultData = nullptr;
+
+                            // TODO(lukyan): support other types
+
+                            if (aggregateFunction == "sum") {
+                                switch (type) {
+                                    case EValueType::Int64:
+                                    case EValueType::Uint64:
+                                        resultData = builder.CreateAdd(
+                                            aggregateData,
+                                            newData);
+                                        break;
+                                    case EValueType::Double:
+                                        resultData = builder.CreateFAdd(
+                                            aggregateData,
+                                            newData);
+                                        break;
+                                    default:
+                                        YUNIMPLEMENTED();
+                                }
+                            } else if (aggregateFunction == "min") {
+                                Value* compareResult = nullptr;
+                                switch (type) {
+                                    case EValueType::Int64:
+                                        compareResult = builder.CreateICmpSLE(aggregateData, newData);
+                                        break;
+                                    case EValueType::Uint64:
+                                        compareResult = builder.CreateICmpULE(aggregateData, newData);
+                                        break;
+                                    case EValueType::Double:
+                                        compareResult = builder.CreateFCmpULE(aggregateData, newData);
+                                        break;
+                                    default:
+                                        YUNIMPLEMENTED();
+                                }
+
+                                resultData = builder.CreateSelect(
+                                    compareResult,
+                                    aggregateData,
+                                    newData);
+                            } else if (aggregateFunction == "max") {
+                                Value* compareResult = nullptr;
+                                switch (type) {
+                                    case EValueType::Int64:
+                                        compareResult = builder.CreateICmpSGE(aggregateData, newData);
+                                        break;
+                                    case EValueType::Uint64:
+                                        compareResult = builder.CreateICmpUGE(aggregateData, newData);
+                                        break;
+                                    case EValueType::Double:
+                                        compareResult = builder.CreateFCmpUGE(aggregateData, newData);
+                                        break;
+                                    default:
+                                        YUNIMPLEMENTED();
+                                }
+
+                                resultData = builder.CreateSelect(
+                                    compareResult,
+                                    aggregateData,
+                                    newData);
+                            } else {
+                                YUNIMPLEMENTED();
+                            }
+
+                            builder.CreateStore(
+                                resultData,
+                                builder.CreateStructGEP(
+                                    aggState,
+                                    TTypeBuilder::Data,
+                                    name));
+                        });
+
+                });
+        };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT

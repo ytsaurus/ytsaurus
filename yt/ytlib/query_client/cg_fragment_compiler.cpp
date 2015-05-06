@@ -166,116 +166,6 @@ Value* CodegenValuesPtrFromRow(TCGIRBuilder& builder, Value* row)
 // Operator helpers
 //
 
-TCodegenAggregate MakeCodegenAggregateFunction(
-    EAggregateFunction aggregateFunction,
-    EValueType type,
-    Twine name)
-{
-    return [
-            aggregateFunction,
-            type,
-            MOVE(name)
-        ] (TCGContext& builder, Value* aggregateRow, Value* newRow, int index) {
-            auto newValue = TCGValue::CreateFromRow(builder, newRow, index, type, name + ".new");
-            ui16 id = index;
-            CodegenIf<TCGContext>(
-                builder,
-                newValue.IsNull(),
-                [&] (TCGContext& builder) { },
-                [&] (TCGContext& builder) {
-                    auto aggregateValue = TCGValue::CreateFromRow(builder, aggregateRow, index, type, name + ".aggregate");
-
-                    CodegenIf<TCGContext, TCGValue>(
-                        builder,
-                        aggregateValue.IsNull(),
-                        [&] (TCGContext& builder) {
-                            return newValue;
-                        },
-                        [&] (TCGContext& builder) {
-                            Value* newData = newValue.GetData();
-                            Value* aggregateData = aggregateValue.GetData();
-                            Value* resultData = nullptr;
-
-                            // TODO(lukyan): support other types
-
-                            switch (aggregateFunction) {
-                                case EAggregateFunction::Sum:
-                                    switch (type) {
-                                        case EValueType::Int64:
-                                        case EValueType::Uint64:
-                                            resultData = builder.CreateAdd(
-                                                aggregateData,
-                                                newData);
-                                            break;
-                                        case EValueType::Double:
-                                            resultData = builder.CreateFAdd(
-                                                aggregateData,
-                                                newData);
-                                            break;
-                                        default:
-                                            YUNIMPLEMENTED();
-                                    }
-                                    break;
-                                case EAggregateFunction::Min:{
-                                    Value* compareResult = nullptr;
-                                    switch (type) {
-                                        case EValueType::Int64:
-                                            compareResult = builder.CreateICmpSLE(aggregateData, newData);
-                                            break;
-                                        case EValueType::Uint64:
-                                            compareResult = builder.CreateICmpULE(aggregateData, newData);
-                                            break;
-                                        case EValueType::Double:
-                                            compareResult = builder.CreateFCmpULE(aggregateData, newData);
-                                            break;
-                                        default:
-                                            YUNIMPLEMENTED();
-                                    }
-
-                                    resultData = builder.CreateSelect(
-                                        compareResult,
-                                        aggregateData,
-                                        newData);
-                                    break;
-                                }
-                                case EAggregateFunction::Max:{
-                                    Value* compareResult = nullptr;
-                                    switch (type) {
-                                        case EValueType::Int64:
-                                            compareResult = builder.CreateICmpSGE(aggregateData, newData);
-                                            break;
-                                        case EValueType::Uint64:
-                                            compareResult = builder.CreateICmpUGE(aggregateData, newData);
-                                            break;
-                                        case EValueType::Double:
-                                            compareResult = builder.CreateFCmpUGE(aggregateData, newData);
-                                            break;
-                                        default:
-                                            YUNIMPLEMENTED();
-                                    }
-
-                                    resultData = builder.CreateSelect(
-                                        compareResult,
-                                        aggregateData,
-                                        newData);
-                                    break;
-                                }
-                                default:
-                                    YUNIMPLEMENTED();
-                            }
-
-                            return TCGValue::CreateFromValue(
-                                builder,
-                                builder.getFalse(),
-                                nullptr,
-                                resultData,
-                                type,
-                                name);
-                        }).StoreToRow(builder, aggregateRow, index, id);
-                });
-        };
-}
-
 void CodegenForEachRow(
     TCGContext& builder,
     Value* rows,
@@ -1415,7 +1305,7 @@ TCodegenSource MakeCodegenProjectOp(
 
 TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
-    std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
+    std::vector<std::pair<TCodegenExpression, TCodegenAggregateUpdate>> codegenAggregates,
     TCodegenSource codegenSource)
 {
     return [
@@ -1499,7 +1389,13 @@ TCodegenSource MakeCodegenGroupOp(
                     [&] (TCGContext& builder) {
                         Value* foundRow = builder.CreateLoad(foundRowPtr);
                         for (int index = 0; index < aggregatesCount; ++index) {
-                            codegenAggregates[index].second(builder, foundRow, newRowRef, keySize + index);
+                            auto aggState = builder.CreateConstInBoundsGEP1_32(
+                                CodegenValuesPtrFromRow(builder, foundRow),
+                                keySize + index);
+                            auto newValue = builder.CreateConstInBoundsGEP1_32(
+                                CodegenValuesPtrFromRow(builder, newRowRef),
+                                keySize + index);
+                            codegenAggregates[index].second(builder, aggState, newValue);
                         }
                     },
                     [&] (TCGContext& builder) { });
