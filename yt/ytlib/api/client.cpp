@@ -132,7 +132,15 @@ class TQueryResponseReader
 public:
     explicit TQueryResponseReader(TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse)
         : AsyncResponse_(std::move(asyncResponse))
-    { }
+    {
+        QueryResult_.OnCanceled(BIND([this, this_ = MakeStrong(this)] () {
+            AsyncResponse_.Cancel();
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+                QueryResult_.Reset();
+            }
+        }));
+    }
 
     virtual TFuture<void> Open(const TTableSchema& schema) override
     {
@@ -163,6 +171,7 @@ private:
     std::unique_ptr<TWireProtocolReader> ProtocolReader_;
     ISchemafulReaderPtr RowsetReader_;
 
+    TSpinLock SpinLock_;
     TPromise<TQueryStatistics> QueryResult_ = NewPromise<TQueryStatistics>();
 
 
@@ -176,7 +185,10 @@ private:
         }
         const auto& response = responseOrError.Value();
 
-        QueryResult_.Set(FromProto(response->query_statistics()));
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            QueryResult_.Set(FromProto(response->query_statistics()));
+        }
 
         YCHECK(!ProtocolReader_);
         auto data  = NCompression::DecompressWithEnvelope(response->Attachments());
