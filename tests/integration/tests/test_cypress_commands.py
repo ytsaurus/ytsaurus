@@ -609,6 +609,13 @@ class TestCypressCommands(YTEnvSetup):
         remove("//tmp/list")
         remove("//tmp/b")
 
+    def test_link13(self):
+        create("map_node", "//tmp/map")
+        create("table", "//tmp/map/table")
+        link("//tmp/map", "//tmp/map_link")
+        copy("//tmp/map_link/table", "//tmp/table_copy")
+        assert get("//tmp/table_copy/@type") == "table"
+
     def test_access_stat1(self):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')

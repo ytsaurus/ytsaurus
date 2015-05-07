@@ -240,7 +240,7 @@ public:
                 auto root = cypressManager->GetNodeProxy(
                     cypressManager->GetRootNode(),
                     transaction);
-                return DoResolvePath(root, tokenizer.GetSuffix());
+                return DoResolvePath(root, transaction, tokenizer.GetSuffix());
             }
 
             case NYPath::ETokenType::Literal: {
@@ -260,7 +260,7 @@ public:
 
                 auto* object = objectManager->GetObjectOrThrow(objectId);
                 auto proxy = objectManager->GetProxy(object, transaction);
-                return DoResolvePath(proxy, tokenizer.GetSuffix());
+                return DoResolvePath(proxy, transaction, tokenizer.GetSuffix());
             }
 
             default:
@@ -284,25 +284,24 @@ public:
 private:
     TBootstrap* Bootstrap;
 
-    static IObjectProxyPtr DoResolvePath(IObjectProxyPtr proxy, const TYPath& path)
+    IObjectProxyPtr DoResolvePath(
+        IObjectProxyPtr proxy,
+        TTransaction* transaction,
+        const TYPath& path)
     {
+        // Fast path.
         if (path.empty()) {
-            return std::move(proxy);
+            return proxy;
         }
 
-        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~proxy);
-        if (!nodeProxy) {
-            THROW_ERROR_EXCEPTION(
-                "Cannot resolve nontrivial path %s for nonversioned object %s",
-                NYTree::EErrorCode::ResolveError,
-                ~path,
-                ~ToString(proxy->GetId()));
-        }
+        // Slow path.
+        auto req = TObjectYPathProxy::GetId(path);
+        auto rsp = SyncExecuteVerb(proxy, req);
+        auto objectId = FromProto<TObjectId>(rsp->object_id());
 
-        auto resolvedNode = GetNodeByYPath(nodeProxy, path);
-        auto* resolvedNodeProxy = dynamic_cast<ICypressNodeProxy*>(~resolvedNode);
-        YCHECK(resolvedNodeProxy);
-        return resolvedNodeProxy;
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* object = objectManager->GetObjectOrThrow(objectId);
+        return objectManager->GetProxy(object, transaction);
     }
 
 };
