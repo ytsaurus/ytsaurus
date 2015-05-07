@@ -7,7 +7,7 @@ namespace NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static Stroka MangleSymbol(const Stroka& name)
+Stroka MangleSymbol(const Stroka& name)
 {
 #ifdef _darwin_
     return "_" + name;
