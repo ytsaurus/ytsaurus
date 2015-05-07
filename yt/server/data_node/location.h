@@ -57,13 +57,18 @@ public:
     const NProfiling::TProfiler& GetProfiler();
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
-    //! If the scan fails, the location becomes disabled, |Disabled| signal is raised, and an empty list is returned.
+    /*!
+     *  If the scan fails, the location becomes disabled, |Disabled| signal is raised, and an empty list is returned.
+     */
     std::vector<TChunkDescriptor> Scan();
 
-    //! Prepares the locations to accept new writes.
-    //! Replays multiplexed journals.
-    //! Must be called when all locations are scanned and all existing chunks are registered.
-    void Prepare();
+    //! Prepares the location to accept new writes.
+    /*!
+     *  Replays multiplexed journals.
+     *  Must be called when all locations are scanned and all existing chunks are registered.
+     *  On failure, acts similarly to Scan.
+     */
+    void Start();
 
     //! Updates #UsedSpace and #AvailalbleSpace
     void UpdateUsedSpace(i64 size);
@@ -197,6 +202,8 @@ private:
     std::vector<TChunkDescriptor> DoScan();
     TNullable<TChunkDescriptor> RepairBlobChunk(const TChunkId& chunkId);
     TNullable<TChunkDescriptor> RepairJournalChunk(const TChunkId& chunkId);
+
+    void DoStart();
 
     void OnHealthCheckFailed(const TError& error);
     void ScheduleDisable(const TError& reason);
