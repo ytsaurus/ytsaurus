@@ -47,7 +47,7 @@ void TReadTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    auto options = New<TMultiChunkReaderOptions>();
+    auto options = New<TRemoteReaderOptions>();
     options->NetworkName = Context_->GetConfig()->NetworkName;
 
     auto nameTable = New<TNameTable>();

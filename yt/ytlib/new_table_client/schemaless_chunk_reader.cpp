@@ -664,7 +664,7 @@ class TSchemalessTableReader
 public:
     TSchemalessTableReader(
         TTableReaderConfigPtr config,
-        TMultiChunkReaderOptionsPtr options,
+        TRemoteReaderOptionsPtr options,
         IChannelPtr masterChannel,
         TTransactionPtr transaction,
         IBlockCachePtr blockCache,
@@ -687,7 +687,7 @@ private:
     typedef TIntrusivePtr<TUnderlyingReader> TUnderlyingReaderPtr;
 
     const TTableReaderConfigPtr Config_;
-    const TMultiChunkReaderOptionsPtr Options_;
+    const TRemoteReaderOptionsPtr Options_;
     const IChannelPtr MasterChannel_;
     const TTransactionPtr Transaction_;
     const IBlockCachePtr BlockCache_;
@@ -709,7 +709,7 @@ private:
 
 TSchemalessTableReader::TSchemalessTableReader(
     TTableReaderConfigPtr config,
-    TMultiChunkReaderOptionsPtr options,
+    TRemoteReaderOptionsPtr options,
     IChannelPtr masterChannel,
     TTransactionPtr transaction,
     IBlockCachePtr blockCache,
@@ -811,9 +811,12 @@ void TSchemalessTableReader::DoOpen()
                 NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
         }
 
+        auto options = New<TMultiChunkReaderOptions>();
+        options->NetworkName = Options_->NetworkName;
+
         UnderlyingReader_ = New<TUnderlyingReader>(
             Config_,
-            Options_,
+            options,
             MasterChannel_,
             BlockCache_,
             nodeDirectory,
@@ -880,7 +883,7 @@ TKeyColumns TSchemalessTableReader::GetKeyColumns() const
 
 ISchemalessTableReaderPtr CreateSchemalessTableReader(
     TTableReaderConfigPtr config,
-    TMultiChunkReaderOptionsPtr options,
+    TRemoteReaderOptionsPtr options,
     IChannelPtr masterChannel,
     TTransactionPtr transaction,
     IBlockCachePtr blockCache,

@@ -83,7 +83,7 @@ class TBufferedTableWriter
 public:
     TBufferedTableWriter(
         TBufferedTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
+        TRemoteWriterOptionsPtr options,
         IChannelPtr masterChannel,
         TTransactionManagerPtr transactionManager,
         TNameTablePtr nameTable,
@@ -158,7 +158,7 @@ public:
 
 private:
     const TBufferedTableWriterConfigPtr Config_;
-    const TTableWriterOptionsPtr Options_;
+    const TRemoteWriterOptionsPtr Options_;
     const IChannelPtr MasterChannel_;
     const TTransactionManagerPtr TransactionManager_;
     const TNameTablePtr NameTable_;
@@ -269,7 +269,7 @@ private:
 
 ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
+    TRemoteWriterOptionsPtr options,
     IChannelPtr masterChannel,
     TTransactionManagerPtr transactionManager,
     TNameTablePtr nameTable,

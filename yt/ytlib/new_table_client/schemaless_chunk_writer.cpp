@@ -725,7 +725,7 @@ class TSchemalessTableWriter
 public:
     TSchemalessTableWriter(
         TTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
+        TRemoteWriterOptionsPtr options,
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
         const TKeyColumns& keyColumns,
@@ -746,7 +746,6 @@ private:
 
     const TTableWriterConfigPtr Config_;
     const TTableWriterOptionsPtr Options_;
-
     const TRichYPath RichPath_;
     const TNameTablePtr NameTable_;
     const TKeyColumns KeyColumns_;
@@ -775,7 +774,7 @@ private:
 
 TSchemalessTableWriter::TSchemalessTableWriter(
     TTableWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
+    TRemoteWriterOptionsPtr options,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
@@ -785,7 +784,7 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     IThroughputThrottlerPtr throttler)
     : Logger(TableClientLogger)
     , Config_(config)
-    , Options_(CloneYsonSerializable(options))
+    , Options_(New<TTableWriterOptions>())
     , RichPath_(richPath)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
@@ -794,10 +793,10 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     , TransactionManager_(transactionManager)
     , Throttler_(throttler)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
-{ 
-    YCHECK(masterChannel);
+{
+    Options_->NetworkName = options->NetworkName;
 
-    Logger.AddTag("Path: v, TransactihonId: %v",
+    Logger.AddTag("Path: %v, TransactihonId: %v",
         RichPath_.GetPath(),
         TransactionId_);
 }
@@ -1033,7 +1032,7 @@ bool TSchemalessTableWriter::IsSorted() const
 
 ISchemalessWriterPtr CreateSchemalessTableWriter(
     TTableWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
+    TRemoteWriterOptionsPtr options,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
