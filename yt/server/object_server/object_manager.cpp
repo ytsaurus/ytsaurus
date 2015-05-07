@@ -243,7 +243,7 @@ public:
                 if (!TObjectId::FromString(objectIdString, &objectId)) {
                     THROW_ERROR_EXCEPTION(
                         NYTree::EErrorCode::ResolveError,
-                        "Error parsing object id %v",
+                        "Error parsing object id %Qv",
                         objectIdString);
                 }
 
