@@ -56,7 +56,7 @@ public:
             blockIndexes,
             ReadPriority,
             Config_->EnableCaching);
-        return CheckResult(asyncResult);
+        return CheckReadBlocksResult(asyncResult);
     }
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
@@ -68,7 +68,7 @@ public:
             blockCount,
             ReadPriority,
             Config_->EnableCaching);
-        return CheckResult(asyncResult);
+        return CheckReadBlocksResult(asyncResult);
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
@@ -76,7 +76,7 @@ public:
         const TNullable<std::vector<int>>& extensionTags) override
     {
         auto asyncResult = Chunk_->ReadMeta(0, extensionTags);
-        return CheckResult(asyncResult).Apply(BIND([=] (const TRefCountedChunkMetaPtr& meta) {
+        return CheckGetMetaResult(asyncResult).Apply(BIND([=] (const TRefCountedChunkMetaPtr& meta) {
             return partitionTag
                 ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
                 : TChunkMeta(*meta);
@@ -96,18 +96,42 @@ private:
     const TClosure FailureHandler_;
 
 
-    template <class T>
-    TFuture<T> CheckResult(TFuture<T> asyncResult)
+    void OnError(const TError& error)
     {
-        return asyncResult.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<T>& result) {
+        if (FailureHandler_) {
+            FailureHandler_.Run();
+        }
+
+        THROW_ERROR_EXCEPTION(
+            NDataNode::EErrorCode::LocalChunkReaderFailed,
+            "Error accessing local chunk %v",
+            Chunk_->GetId())
+            << error;
+    }
+
+    TFuture<std::vector<TSharedRef>> CheckReadBlocksResult(TFuture<std::vector<TSharedRef>> asyncResult)
+    {
+        return asyncResult.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TSharedRef>>& result) {
             if (!result.IsOK()) {
-                if (FailureHandler_) {
-                    FailureHandler_.Run();
+                OnError(result);
+            }
+
+            const auto& blocks = result.Value();
+            for (const auto& block : blocks) {
+                if (!block) {
+                    OnError(TError("Some chunk blocks are missing"));
                 }
-                THROW_ERROR_EXCEPTION(
-                    NDataNode::EErrorCode::LocalChunkReaderFailed,
-                    "Error reading local chunk blocks")
-                    << result;
+            }
+
+            return blocks;
+        }));
+    }
+
+    TFuture<TRefCountedChunkMetaPtr> CheckGetMetaResult(TFuture<TRefCountedChunkMetaPtr> asyncResult)
+    {
+        return asyncResult.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) {
+            if (!result.IsOK()) {
+                OnError(result);
             }
             return result.Value();
         }));
