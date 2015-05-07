@@ -1660,7 +1660,7 @@ TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
 
     return TAggregateItem(
         FromProto(serialized.expression()),
-        serialized.aggregate_function_name(),
+        aggregateFunction,
         serialized.name());
 }
 
