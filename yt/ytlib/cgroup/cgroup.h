@@ -172,6 +172,7 @@ public:
     explicit TMemory(const Stroka& name);
 
     TStatistics GetStatistics() const;
+    ui64 GetMaxMemoryUsage() const;
 
     void SetLimitInBytes(i64 bytes) const;
 
