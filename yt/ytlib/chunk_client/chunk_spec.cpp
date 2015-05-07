@@ -65,7 +65,8 @@ void GetStatistics(
     const TChunkSpec& chunkSpec,
     i64* dataSize,
     i64* rowCount,
-    i64* valueCount)
+    i64* valueCount,
+    i64* compressedDataSize)
 {
     auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
     auto sizeOverrideExt = FindProtoExtension<TSizeOverrideExt>(chunkSpec.chunk_meta().extensions());
@@ -88,6 +89,9 @@ void GetStatistics(
 
     if (valueCount) {
         *valueCount = miscExt.value_count();
+    }
+    if (compressedDataSize) {
+        *compressedDataSize = miscExt.compressed_data_size();
     }
 }
 

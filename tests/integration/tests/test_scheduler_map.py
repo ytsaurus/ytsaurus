@@ -673,6 +673,19 @@ class TestSchedulerMapCommands(YTEnvSetup):
             except OSError:
                 pass
 
+    def test_estimated_statistics(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write("//tmp/t1", [{"key" : i} for i in xrange(5)])
+
+        sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
+        op_id = map(command="cat", in_="//tmp/t1[:1]", out="//tmp/t2")
+
+        statistics = get("//sys/operations/{0}/@progress/estimated_input_statistics".format(op_id))
+        for key in ["chunk_count", "uncompressed_data_size", "compressed_data_size", "row_count", "unavailable_chunk_count"]:
+            assert key in statistics
+        assert statistics["chunk_count"] == 1
+
     def test_input_row_count(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
