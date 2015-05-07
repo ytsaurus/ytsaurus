@@ -124,7 +124,8 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
         Fold(static_cast<int>(EFoldingObjectType::GroupOp));
 
         std::vector<TCodegenExpression> codegenGroupExprs;
-        std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates;
+        std::vector<TCodegenExpression> codegenAggregateExprs;
+        std::vector<TCodegenAggregate> codegenAggregates;
         std::vector<int> aggregateStateOffsets;
 
         for (const auto& groupItem : groupClause->GroupItems) {
@@ -136,21 +137,46 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
         for (const auto& aggregateItem : groupClause->AggregateItems) {
             auto aggregateFunction = FunctionRegistry_->GetAggregateFunction(aggregateItem.AggregateFunction);
 
-            codegenAggregates.push_back(Profile(aggregateItem, aggregateFunction, schema));
+            auto aggregate = Profile(aggregateItem, aggregateFunction, schema);
+            codegenAggregateExprs.push_back(aggregate.first);
+            codegenAggregates.push_back(aggregate.second);
 
             auto stateSize = aggregateFunction->GetStateTypes(aggregateItem.Expression->Type).size();
             offset += stateSize;
             aggregateStateOffsets.push_back(offset);
         }
 
+        int newRowSize;
+        if (groupClause->IsMerge) {
+            newRowSize = aggregateStateOffsets[codegenAggregates.size()];
+        } else {
+            newRowSize = codegenGroupExprs.size() + codegenAggregates.size();
+        }
+
         codegenSource = MakeCodegenGroupOp(
-            std::move(codegenGroupExprs),
-            std::move(codegenAggregates),
-            aggregateStateOffsets,
+            MakeCodegenGroupOpInitialize(
+                codegenAggregates,
+                aggregateStateOffsets),
+            MakeCodegenGroupOpCopy(
+                codegenGroupExprs,
+                codegenAggregateExprs,
+                codegenAggregates,
+                aggregateStateOffsets,
+                groupClause->IsMerge,
+                schema),
+            MakeCodegenGroupOpUpdate(
+                codegenAggregates,
+                aggregateStateOffsets,
+                groupClause->IsMerge),
+            MakeCodegenGroupOpFinalize(
+                codegenAggregates,
+                aggregateStateOffsets,
+                groupClause->IsFinal),
             std::move(codegenSource),
-            query->TableSchema,
-            groupClause->IsMerge,
-            groupClause->IsFinal);
+            codegenGroupExprs.size(),
+            aggregateStateOffsets[codegenAggregates.size()],
+            newRowSize,
+            groupClause->GroupedTableSchema);
 
         schema = groupClause->GetTableSchema();
     }
