@@ -368,7 +368,7 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlocks(
 
 TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlocks(
     const TChunkId& chunkId,
-    const std::vector<int> blockIndexes,
+    const std::vector<int>& blockIndexes,
     i64 priority,
     bool enableCaching)
 {
