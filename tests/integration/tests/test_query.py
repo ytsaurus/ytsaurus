@@ -94,7 +94,7 @@ class TestQuery(YTEnvSetup):
         self.assertItemsEqual(actual, expected)
 
     def test_merging_group_by(self):
-        self._sync_create_cells(3, 1)
+        self._sync_create_cells(3, 3)
 
         create("table", "//tmp/mg",
             attributes = {
@@ -104,7 +104,9 @@ class TestQuery(YTEnvSetup):
                 "key_columns": ["a"]
             })
 
-        reshard_table("//tmp/mg", [[], [25], [50], [78]])
+        pivots = [[i*5] for i in xrange(0,20)]
+        pivots.insert(0, [])
+        reshard_table("//tmp/mg", pivots)
 
         mount_table("//tmp/mg")
 

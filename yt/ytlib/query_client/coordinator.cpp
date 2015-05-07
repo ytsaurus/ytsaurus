@@ -92,7 +92,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
                 functionRegistry);
             subqueryGroupClause->GroupItems = query->GroupClause->GroupItems;
             subqueryGroupClause->AggregateItems = query->GroupClause->AggregateItems;
-            subqueryGroupClause->IsMerge = false;
+            subqueryGroupClause->IsMerge = query->GroupClause->IsMerge;
             subqueryGroupClause->IsFinal = false;
             subqueryPattern->GroupClause = subqueryGroupClause;
 
@@ -122,15 +122,15 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
             }
 
             topGroupClause->IsMerge = true;
-            topGroupClause->IsFinal = true;
+            topGroupClause->IsFinal = query->GroupClause->IsFinal;
             topQuery->GroupClause = topGroupClause;
         } else {
             auto groupClause = New<TGroupClause>();
             groupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
             groupClause->GroupItems = query->GroupClause->GroupItems;
             groupClause->AggregateItems = query->GroupClause->AggregateItems;
-            groupClause->IsMerge = false;
-            groupClause->IsFinal = true;
+            groupClause->IsMerge = query->GroupClause->IsMerge;
+            groupClause->IsFinal = query->GroupClause->IsFinal;
             subqueryPattern->GroupClause = groupClause;
         }
 
