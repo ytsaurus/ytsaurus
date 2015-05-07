@@ -86,7 +86,7 @@ public:
             cookie.EndInsert(chunk);
         }
 
-        Location_->Prepare();
+        Location_->Start();
 
         LOG_INFO("Chunk cache initialized, %v chunks total",
             GetSize());

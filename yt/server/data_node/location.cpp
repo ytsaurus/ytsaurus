@@ -337,7 +337,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         result = DoScan();
         Enabled_.store(true);
     } catch (const std::exception& ex) {
-        auto error = TError("Location has failed to initialize") << ex;
+        auto error = TError("Location scan failed") << ex;
         LOG_ERROR(error);
         ScheduleDisable(error);
     }
@@ -464,39 +464,6 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
     return descriptors;
 }
 
-void TLocation::Prepare()
-{
-    if (Type_ == ELocationType::Store) {
-        JournalManager_->Initialize();
-    }
-
-    auto cellIdPath = NFS::CombinePaths(GetPath(), CellIdFileName);
-    if (NFS::Exists(cellIdPath)) {
-        TFileInput cellIdFile(cellIdPath);
-        auto cellIdString = cellIdFile.ReadAll();
-        TCellId cellId;
-        if (!TCellId::FromString(cellIdString, &cellId)) {
-            THROW_ERROR_EXCEPTION("Failed to parse cell id %Qv",
-                cellIdString);
-        }
-        if (cellId != Bootstrap_->GetCellId()) {
-            THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, found %v",
-                Bootstrap_->GetCellId(),
-                cellId);
-        }
-    } else {
-        LOG_INFO("Cell id file is not found, creating");
-        TFile file(cellIdPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TFileOutput cellIdFile(file);
-        cellIdFile.Write(ToString(Bootstrap_->GetCellId()));
-    }
-
-    // Start health checker.
-    HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
-    HealthChecker_->Start();
-
-}
-
 TNullable<TChunkDescriptor> TLocation::RepairBlobChunk(const TChunkId& chunkId)
 {
     auto fileName = GetChunkPath(chunkId);
@@ -573,6 +540,52 @@ TNullable<TChunkDescriptor> TLocation::RepairJournalChunk(const TChunkId& chunkI
     }
 
     return Null;
+}
+
+void TLocation::Start()
+{
+    if (!Enabled_)
+        return;
+
+    try {
+        DoStart();
+    } catch (const std::exception& ex) {
+        auto error = TError("Location startup failed") << ex;
+        LOG_ERROR(error);
+        ScheduleDisable(error);
+    }
+}
+
+void TLocation::DoStart()
+{
+    if (Type_ == ELocationType::Store) {
+        JournalManager_->Initialize();
+    }
+
+    auto cellIdPath = NFS::CombinePaths(GetPath(), CellIdFileName);
+    if (NFS::Exists(cellIdPath)) {
+        TFileInput cellIdFile(cellIdPath);
+        auto cellIdString = cellIdFile.ReadAll();
+        TCellId cellId;
+        if (!TCellId::FromString(cellIdString, &cellId)) {
+            THROW_ERROR_EXCEPTION("Failed to parse cell id %Qv",
+                cellIdString);
+        }
+        if (cellId != Bootstrap_->GetCellId()) {
+            THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, found %v",
+                Bootstrap_->GetCellId(),
+                cellId);
+        }
+    } else {
+        LOG_INFO("Cell id file is not found, creating");
+        TFile file(cellIdPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        TFileOutput cellIdFile(file);
+        cellIdFile.Write(ToString(Bootstrap_->GetCellId()));
+    }
+
+    // Start health checker.
+    HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
+    HealthChecker_->Start();
 }
 
 void TLocation::OnHealthCheckFailed(const TError& error)

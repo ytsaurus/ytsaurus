@@ -72,7 +72,7 @@ void TChunkStore::Initialize()
     }
 
     for (auto location : Locations_) {
-        location->Prepare();
+        location->Start();
     }
 
     LOG_INFO("Chunk store initialized, %v chunks total",
