@@ -16,9 +16,7 @@ class TJournalDispatcher
     : public TRefCounted
 {
 public:
-    TJournalDispatcher(
-        TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+    explicit TJournalDispatcher(TDataNodeConfigPtr config);
     ~TJournalDispatcher();
 
     //! Asynchronously opens (or returns a cached) changelog corresponding
@@ -39,11 +37,13 @@ public:
         bool enableMultiplexing);
 
 private:
+    struct TCachedChangelogKey;
+
     class TCachedChangelog;
-    typedef TIntrusivePtr<TCachedChangelog> TCachedChangelogPtr;
+    using TCachedChangelogPtr = TIntrusivePtr<TCachedChangelog>;
 
     class TImpl;
-    typedef TIntrusivePtr<TImpl> TImplPtr;
+    using TImplPtr = TIntrusivePtr<TImpl>;
 
     const TImplPtr Impl_;
 
