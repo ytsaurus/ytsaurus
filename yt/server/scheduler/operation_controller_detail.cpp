@@ -958,6 +958,7 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalEstimatedInputDataSize(0)
     , TotalEstimatedInputRowCount(0)
     , TotalEstimatedInputValueCount(0)
+    , TotalEstimatedCompressedDataSize(0)
     , UnavailableInputChunkCount(0)
     , JobCounter(0)
     , Spec(spec)
@@ -3096,20 +3097,23 @@ void TOperationControllerBase::CollectTotals()
             i64 chunkDataSize;
             i64 chunkRowCount;
             i64 chunkValueCount;
-            NChunkClient::GetStatistics(chunk, &chunkDataSize, &chunkRowCount, &chunkValueCount);
+            i64 chunkCompressedDataSize;
+            NChunkClient::GetStatistics(chunk, &chunkDataSize, &chunkRowCount, &chunkValueCount, &chunkCompressedDataSize);
 
             TotalEstimatedInputDataSize += chunkDataSize;
             TotalEstimatedInputRowCount += chunkRowCount;
             TotalEstimatedInputValueCount += chunkValueCount;
+            TotalEstimatedCompressedDataSize += chunkCompressedDataSize;
             ++TotalEstimatedInputChunkCount;
         }
     }
 
-    LOG_INFO("Estimated input totals collected (ChunkCount: %v, DataSize: %v, RowCount: %v, ValueCount: %v)",
+    LOG_INFO("Estimated input totals collected (ChunkCount: %v, DataSize: %v, RowCount: %v, ValueCount: %v, CompressedDataSize: %v)",
         TotalEstimatedInputChunkCount,
         TotalEstimatedInputDataSize,
         TotalEstimatedInputRowCount,
-        TotalEstimatedInputValueCount);
+        TotalEstimatedInputValueCount,
+        TotalEstimatedCompressedDataSize);
 }
 
 void TOperationControllerBase::CustomPrepare()
@@ -3445,6 +3449,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
         .Item("estimated_input_statistics").BeginMap()
             .Item("chunk_count").Value(TotalEstimatedInputChunkCount)
             .Item("uncompressed_data_size").Value(TotalEstimatedInputDataSize)
+            .Item("compressed_data_size").Value(TotalEstimatedCompressedDataSize)
             .Item("row_count").Value(TotalEstimatedInputRowCount)
             .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
         .EndMap()
@@ -3719,6 +3724,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, TotalEstimatedInputDataSize);
     Persist(context, TotalEstimatedInputRowCount);
     Persist(context, TotalEstimatedInputValueCount);
+    Persist(context, TotalEstimatedCompressedDataSize);
 
     Persist(context, UnavailableInputChunkCount);
 

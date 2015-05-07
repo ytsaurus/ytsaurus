@@ -160,6 +160,7 @@ protected:
     i64 TotalEstimatedInputDataSize;
     i64 TotalEstimatedInputRowCount;
     i64 TotalEstimatedInputValueCount;
+    i64 TotalEstimatedCompressedDataSize;
 
     int UnavailableInputChunkCount;
 
