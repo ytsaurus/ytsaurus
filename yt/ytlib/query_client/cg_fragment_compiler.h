@@ -436,14 +436,38 @@ TCodegenSource MakeCodegenJoinOp(
     TTableSchema sourceSchema,
     TCodegenSource codegenSource);
 
-TCodegenSource MakeCodegenGroupOp(
+std::function<void(TCGContext&, Value*, Value*)> MakeCodegenGroupOpCopy(
     std::vector<TCodegenExpression> codegenGroupExprs,
-    std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
+    std::vector<TCodegenExpression> codegenAggregateExprs,
+    std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<int> aggregateStateOffsets,
-    TCodegenSource codegenSource,
-    TTableSchema intermediateSchema,
     bool isMerge,
+    TTableSchema inputSchema);
+
+std::function<void(TCGContext& builder, Value* row)> MakeCodegenGroupOpInitialize(
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<int> aggregateStateOffsets);
+
+std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenGroupOpUpdate(
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<int> aggregateStateOffsets,
+    bool isMerge);
+
+std::function<void(TCGContext& builder, Value* row)> MakeCodegenGroupOpFinalize(
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<int> aggregateStateOffsets,
     bool isFinal);
+
+TCodegenSource MakeCodegenGroupOp(
+    std::function<void(TCGContext&, Value*)> codegenInitialize,
+    std::function<void(TCGContext&, Value*, Value*)> codegenCopy,
+    std::function<void(TCGContext&, Value*, Value*)> codegenUpdate,
+    std::function<void(TCGContext&, Value*)> codegenFinalize,
+    TCodegenSource codegenSource,
+    int keySize,
+    int groupRowSize,
+    int newRowSize,
+    TTableSchema inputSchema);
 
 TCodegenSource MakeCodegenOrderOp(
     std::vector<Stroka> orderColumns,
