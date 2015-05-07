@@ -1460,7 +1460,6 @@ TCodegenSource MakeCodegenGroupOp(
     TCodegenSource codegenSource,
     int keySize,
     int groupRowSize,
-    int newRowSize,
     TTableSchema groupedSchema)
 {
     // codegenInitialize calls the aggregates' initialisation functions
@@ -1475,7 +1474,6 @@ TCodegenSource MakeCodegenGroupOp(
         codegenSource = std::move(codegenSource),
         keySize,
         groupRowSize,
-        newRowSize,
         groupedSchema
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         auto module = builder.Module->GetModule();
@@ -1503,7 +1501,7 @@ TCodegenSource MakeCodegenGroupOp(
         collectBuilder.CreateCall3(
             builder.Module->GetRoutine("AllocatePermanentRow"),
             collectBuilder.GetExecutionContextPtr(),
-            builder.getInt32(newRowSize),
+            builder.getInt32(groupRowSize),
             newRowPtr);
 
         codegenSource(
@@ -1515,37 +1513,40 @@ TCodegenSource MakeCodegenGroupOp(
                 Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
                 Value* newRowRef = builder.CreateLoad(newRowPtrRef);
 
+                //TODO: only need to evaluate the key
                 codegenCopy(builder, row, newRowRef);
 
-                auto groupRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-                auto skipRow = builder.CreateAlloca(TDataTypeBuilder::TBoolean::get(builder.getContext()));
-
-                auto inserted = builder.CreateCall(
+                auto groupRowPtr = builder.CreateCall5(
                     builder.Module->GetRoutine("InsertGroupRow"),
-                    llvm::ArrayRef<Value*>(std::vector<Value*>{
-                        executionContextPtrRef,
-                        skipRow,
-                        groupRowPtr,
-                        lookupRef,
-                        groupedRowsRef,
-                        newRowRef,
-                        builder.getInt32(keySize),
-                        builder.getInt32(groupRowSize)}));
+                    executionContextPtrRef,
+                    lookupRef,
+                    groupedRowsRef,
+                    newRowPtrRef,
+                    builder.getInt32(groupRowSize));
 
                 CodegenIf<TCGContext>(
                     builder,
-                    builder.CreateICmpEQ(builder.CreateLoad(skipRow), builder.getInt8(false)),
+                    builder.CreateIsNotNull(groupRowPtr),
                     [&] (TCGContext& builder) {
                         auto groupRow = builder.CreateLoad(groupRowPtr);
+                        auto newRow = builder.CreateLoad(newRowPtrRef);
+                        auto inserted = builder.CreateICmpNE(
+                            builder.CreateExtractValue(
+                                newRow,
+                                TypeBuilder<TRow, false>::Fields::Header),
+                            builder.CreateExtractValue(
+                                newRowRef,
+                                TypeBuilder<TRow, false>::Fields::Header));
 
                         CodegenIf<TCGContext>(
                             builder,
-                            builder.CreateICmpEQ(inserted, builder.getInt8(true)),
+                            inserted,
                             [&] (TCGContext& builder) {
                                 codegenInitialize(builder, groupRow);
                             });
 
-                        codegenUpdate(builder, newRowRef, groupRow);
+                        codegenCopy(builder, row, newRow);
+                        codegenUpdate(builder, newRow, groupRow);
                     });
                 
             });
