@@ -466,7 +466,6 @@ TCodegenSource MakeCodegenGroupOp(
     TCodegenSource codegenSource,
     int keySize,
     int groupRowSize,
-    int newRowSize,
     TTableSchema inputSchema);
 
 TCodegenSource MakeCodegenOrderOp(

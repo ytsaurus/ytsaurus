@@ -146,13 +146,6 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
             aggregateStateOffsets.push_back(offset);
         }
 
-        int newRowSize;
-        if (groupClause->IsMerge) {
-            newRowSize = aggregateStateOffsets[codegenAggregates.size()];
-        } else {
-            newRowSize = codegenGroupExprs.size() + codegenAggregates.size();
-        }
-
         codegenSource = MakeCodegenGroupOp(
             MakeCodegenGroupOpInitialize(
                 codegenAggregates,
@@ -175,7 +168,6 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
             std::move(codegenSource),
             codegenGroupExprs.size(),
             aggregateStateOffsets[codegenAggregates.size()],
-            newRowSize,
             groupClause->GroupedTableSchema);
 
         schema = groupClause->GetTableSchema();
