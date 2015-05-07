@@ -1317,7 +1317,21 @@ TCodegenSource MakeCodegenProjectOp(
     };
 }
 
-std::function<void(TCGContext&, Value*, Value*)> MakeCodegenGroupOpCopy(
+std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
+    std::vector<TCodegenExpression> codegenGroupExprs)
+{
+    return [
+        MOVE(codegenGroupExprs)
+    ] (TCGContext& builder, Value* srcRow, Value* dstRow) {
+        for (int index = 0; index < codegenGroupExprs.size(); index++) {
+            auto id = index;
+            auto value = codegenGroupExprs[index](builder, srcRow);
+            value.StoreToRow(builder, dstRow, index, id);
+        }
+    };
+}
+
+std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArgs(
     std::vector<TCodegenExpression> codegenGroupExprs,
     std::vector<TCodegenExpression> codegenAggregateExprs,
     std::vector<TCodegenAggregate> codegenAggregates,
@@ -1335,12 +1349,6 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenGroupOpCopy(
     ] (TCGContext& builder, Value* srcRow, Value* dstRow) {
         auto keySize = codegenGroupExprs.size();
         auto aggregatesCount = codegenAggregates.size();
-
-        for (int index = 0; index < keySize; index++) {
-            auto id = index;
-            auto value = codegenGroupExprs[index](builder, srcRow);
-            value.StoreToRow(builder, dstRow, index, id);
-        }
 
         if (!isMerge) {
             for (int index = 0; index < aggregatesCount; index++) {
@@ -1366,7 +1374,7 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenGroupOpCopy(
     };
 }
 
-std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenGroupOpUpdate(
+std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpdate(
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<int> aggregateStateOffsets,
     bool isMerge)
@@ -1406,7 +1414,7 @@ std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenGroupOpUpdat
     };
 }
 
-std::function<void(TCGContext& builder, Value* row)> MakeCodegenGroupOpFinalize(
+std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinalize(
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<int> aggregateStateOffsets,
     bool isFinal)
@@ -1433,7 +1441,7 @@ std::function<void(TCGContext& builder, Value* row)> MakeCodegenGroupOpFinalize(
     };
 }
 
-std::function<void(TCGContext& builder, Value* row)> MakeCodegenGroupOpInitialize(
+std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateInitialize(
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<int> aggregateStateOffsets)
 {
@@ -1454,7 +1462,8 @@ std::function<void(TCGContext& builder, Value* row)> MakeCodegenGroupOpInitializ
 
 TCodegenSource MakeCodegenGroupOp(
     std::function<void(TCGContext&, Value*)> codegenInitialize,
-    std::function<void(TCGContext&, Value*, Value*)> codegenCopy,
+    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateGroups,
+    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateAggregateArgs,
     std::function<void(TCGContext&, Value*, Value*)> codegenUpdate,
     std::function<void(TCGContext&, Value*)> codegenFinalize,
     TCodegenSource codegenSource,
@@ -1463,12 +1472,14 @@ TCodegenSource MakeCodegenGroupOp(
     TTableSchema groupedSchema)
 {
     // codegenInitialize calls the aggregates' initialisation functions
-    // codegenCopy creates the row which update will take as input
+    // codegenEvaluateGroups evaluates the group expressions
+    // codegenEvaluateAggregateArgs evaluates the aggregates' arguments
     // codegenUpdate calls the aggregates' update or merge functions
     // codegenFinalize calls the aggregates' finalize functions if needed
     return [
         codegenInitialize = std::move(codegenInitialize),
-        codegenCopy = std::move(codegenCopy),
+        codegenEvaluateGroups = std::move(codegenEvaluateGroups),
+        codegenEvaluateAggregateArgs = std::move(codegenEvaluateAggregateArgs),
         codegenUpdate = std::move(codegenUpdate),
         codegenFinalize = std::move(codegenFinalize),
         codegenSource = std::move(codegenSource),
@@ -1513,8 +1524,7 @@ TCodegenSource MakeCodegenGroupOp(
                 Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
                 Value* newRowRef = builder.CreateLoad(newRowPtrRef);
 
-                //TODO: only need to evaluate the key
-                codegenCopy(builder, row, newRowRef);
+                codegenEvaluateGroups(builder, row, newRowRef);
 
                 auto groupRowPtr = builder.CreateCall5(
                     builder.Module->GetRoutine("InsertGroupRow"),
@@ -1545,7 +1555,21 @@ TCodegenSource MakeCodegenGroupOp(
                                 codegenInitialize(builder, groupRow);
                             });
 
-                        codegenCopy(builder, row, newRow);
+                        for (int index = 0; index < keySize; index++) {
+                            auto id = index;
+                            TCGValue::CreateFromRow(
+                                builder,
+                                groupRow,
+                                index,
+                                groupedSchema.Columns()[id].Type)
+                                .StoreToRow(
+                                    builder,
+                                    newRow,
+                                    index,
+                                    id);
+                        }
+
+                        codegenEvaluateAggregateArgs(builder, row, newRow);
                         codegenUpdate(builder, newRow, groupRow);
                     });
                 

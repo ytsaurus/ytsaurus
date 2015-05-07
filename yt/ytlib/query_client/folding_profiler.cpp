@@ -147,21 +147,23 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
         }
 
         codegenSource = MakeCodegenGroupOp(
-            MakeCodegenGroupOpInitialize(
+            MakeCodegenAggregateInitialize(
                 codegenAggregates,
                 aggregateStateOffsets),
-            MakeCodegenGroupOpCopy(
+            MakeCodegenEvaluateGroups(
+                codegenGroupExprs),
+            MakeCodegenEvaluateAggregateArgs(
                 codegenGroupExprs,
                 codegenAggregateExprs,
                 codegenAggregates,
                 aggregateStateOffsets,
                 groupClause->IsMerge,
                 schema),
-            MakeCodegenGroupOpUpdate(
+            MakeCodegenAggregateUpdate(
                 codegenAggregates,
                 aggregateStateOffsets,
                 groupClause->IsMerge),
-            MakeCodegenGroupOpFinalize(
+            MakeCodegenAggregateFinalize(
                 codegenAggregates,
                 aggregateStateOffsets,
                 groupClause->IsFinal),
