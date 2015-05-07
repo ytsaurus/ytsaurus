@@ -47,9 +47,14 @@ void TReadTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
+    auto options = New<TMultiChunkReaderOptions>();
+    options->NetworkName = Context_->GetConfig()->NetworkName;
+
     auto nameTable = New<TNameTable>();
+
     auto reader = CreateSchemalessTableReader(
         config,
+        options,
         Context_->GetClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
         AttachTransaction(false),
         Context_->GetClient()->GetConnection()->GetBlockCache(),
@@ -67,7 +72,14 @@ void TReadTableCommand::DoExecute()
     auto bufferedOutput = std::make_unique<TBufferedOutput>(output.get());
     auto format = Context_->GetOutputFormat();
 
-    auto writer = CreateSchemalessWriterForFormat(format, nameTable, std::move(bufferedOutput), false, false, false, 0);
+    auto writer = CreateSchemalessWriterForFormat(
+        format,
+        nameTable,
+        std::move(bufferedOutput),
+        false,
+        false,
+        false,
+        0);
 
     PipeReaderToWriter(reader, writer, Context_->GetConfig()->ReadBufferRowCount);
 }

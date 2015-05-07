@@ -664,6 +664,7 @@ class TSchemalessTableReader
 public:
     TSchemalessTableReader(
         TTableReaderConfigPtr config,
+        TMultiChunkReaderOptionsPtr options,
         IChannelPtr masterChannel,
         TTransactionPtr transaction,
         IBlockCachePtr blockCache,
@@ -685,9 +686,8 @@ private:
     typedef TSchemalessMultiChunkReader<TSequentialMultiChunkReaderBase> TUnderlyingReader;
     typedef TIntrusivePtr<TUnderlyingReader> TUnderlyingReaderPtr;
 
-    NLogging::TLogger Logger;
-
     const TTableReaderConfigPtr Config_;
+    const TMultiChunkReaderOptionsPtr Options_;
     const IChannelPtr MasterChannel_;
     const TTransactionPtr Transaction_;
     const IBlockCachePtr BlockCache_;
@@ -699,6 +699,8 @@ private:
 
     TUnderlyingReaderPtr UnderlyingReader_;
 
+    NLogging::TLogger Logger = TableClientLogger;
+
     void DoOpen();
 
 };
@@ -707,14 +709,15 @@ private:
 
 TSchemalessTableReader::TSchemalessTableReader(
     TTableReaderConfigPtr config,
+    TMultiChunkReaderOptionsPtr options,
     IChannelPtr masterChannel,
     TTransactionPtr transaction,
     IBlockCachePtr blockCache,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
     IThroughputThrottlerPtr throttler)
-    : Logger(TableClientLogger)
-    , Config_(config)
+    : Config_(config)
+    , Options_(options)
     , MasterChannel_(masterChannel)
     , Transaction_(transaction)
     , BlockCache_(blockCache)
@@ -810,7 +813,7 @@ void TSchemalessTableReader::DoOpen()
 
         UnderlyingReader_ = New<TUnderlyingReader>(
             Config_,
-            New<TMultiChunkReaderOptions>(),
+            Options_,
             MasterChannel_,
             BlockCache_,
             nodeDirectory,
@@ -877,6 +880,7 @@ TKeyColumns TSchemalessTableReader::GetKeyColumns() const
 
 ISchemalessTableReaderPtr CreateSchemalessTableReader(
     TTableReaderConfigPtr config,
+    TMultiChunkReaderOptionsPtr options,
     IChannelPtr masterChannel,
     TTransactionPtr transaction,
     IBlockCachePtr blockCache,
@@ -886,6 +890,7 @@ ISchemalessTableReaderPtr CreateSchemalessTableReader(
 {
     return New<TSchemalessTableReader>(
         config,
+        options,
         masterChannel,
         transaction,
         blockCache,
