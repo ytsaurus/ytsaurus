@@ -281,7 +281,7 @@ private:
     {
         // Fast path.
         if (path.empty()) {
-            return std::move(proxy);
+            return proxy;
         }
 
         // Slow path.
