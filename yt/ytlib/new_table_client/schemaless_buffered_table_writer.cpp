@@ -83,11 +83,13 @@ class TBufferedTableWriter
 public:
     TBufferedTableWriter(
         TBufferedTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
         IChannelPtr masterChannel,
         TTransactionManagerPtr transactionManager,
         TNameTablePtr nameTable,
         const TYPath& path)
         : Config_(config)
+        , Options_(options)
         , MasterChannel_(masterChannel)
         , TransactionManager_(transactionManager)
         , NameTable_(nameTable)
@@ -95,7 +97,6 @@ public:
         , FlushExecutor_(New<TPeriodicExecutor>(
             TDispatcher::Get()->GetWriterInvoker(),
             BIND(&TBufferedTableWriter::OnPeriodicFlush, Unretained(this)), Config_->FlushPeriod))
-        , Logger(TableClientLogger)
     {
         EmptyBuffers_.push(Buffers_);
         EmptyBuffers_.push(Buffers_ + 1);
@@ -156,13 +157,14 @@ public:
     }
 
 private:
-    TBufferedTableWriterConfigPtr Config_;
-    IChannelPtr MasterChannel_;
-    TTransactionManagerPtr TransactionManager_;
-    TNameTablePtr NameTable_;
-    TYPath Path_;
+    const TBufferedTableWriterConfigPtr Config_;
+    const TTableWriterOptionsPtr Options_;
+    const IChannelPtr MasterChannel_;
+    const TTransactionManagerPtr TransactionManager_;
+    const TNameTablePtr NameTable_;
+    const TYPath Path_;
 
-    TPeriodicExecutorPtr FlushExecutor_;
+    const TPeriodicExecutorPtr FlushExecutor_;
 
     // Double buffering.
     TBuffer Buffers_[2];
@@ -177,7 +179,7 @@ private:
     // Only accessed in writer thread.
     int FlushedBufferCount_ = 0;
 
-    NLogging::TLogger Logger;
+    NLogging::TLogger Logger = TableClientLogger;
 
 
     void OnPeriodicFlush()
@@ -229,6 +231,7 @@ private:
 
             auto writer = CreateSchemalessTableWriter(
                 Config_,
+                Options_,
                 richPath,
                 NameTable_,
                 TKeyColumns(),
@@ -266,6 +269,7 @@ private:
 
 ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
     IChannelPtr masterChannel,
     TTransactionManagerPtr transactionManager,
     TNameTablePtr nameTable,
@@ -273,6 +277,7 @@ ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
 {
     return New<TBufferedTableWriter>(
         config,
+        options,
         masterChannel,
         transactionManager,
         nameTable,

@@ -725,6 +725,7 @@ class TSchemalessTableWriter
 public:
     TSchemalessTableWriter(
         TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
         const TKeyColumns& keyColumns,
@@ -774,6 +775,7 @@ private:
 
 TSchemalessTableWriter::TSchemalessTableWriter(
     TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
@@ -783,7 +785,7 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     IThroughputThrottlerPtr throttler)
     : Logger(TableClientLogger)
     , Config_(config)
-    , Options_(New<TTableWriterOptions>())
+    , Options_(CloneYsonSerializable(options))
     , RichPath_(richPath)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
@@ -1031,6 +1033,7 @@ bool TSchemalessTableWriter::IsSorted() const
 
 ISchemalessWriterPtr CreateSchemalessTableWriter(
     TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
@@ -1041,6 +1044,7 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
 {
     return New<TSchemalessTableWriter>(
         config,
+        options,
         richPath,
         nameTable,
         keyColumns,
