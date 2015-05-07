@@ -506,6 +506,12 @@ void CodegenIf(
     const std::function<void(TBuilder& builder)>& thenCodegen,
     const std::function<void(TBuilder& builder)>& elseCodegen);
 
+template <class TBuilder>
+void CodegenIf(
+    TBuilder& builder,
+    Value* condition,
+    const std::function<void(TBuilder& builder)>& thenCodegen);
+
 TCGValue MakeBinaryFunctionCall(
     Stroka routineName,
     std::vector<TCodegenExpression> codegenArgs,
