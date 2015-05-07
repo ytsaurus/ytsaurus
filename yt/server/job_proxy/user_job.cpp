@@ -95,6 +95,7 @@ public:
         , Config_(host->GetConfig())
         , JobErrorPromise_(NewPromise<void>())
         , MemoryUsage_(UserJobSpec_.memory_reserve())
+        , CummulativeMemoryUsageMbSec_(0)
         , PipeIOQueue_(New<TActionQueue>("PipeIO"))
         , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
         , JobProberQueue_(New<TActionQueue>("JobProber"))
@@ -208,6 +209,7 @@ private:
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
     i64 MemoryUsage_;
+    i64 CummulativeMemoryUsageMbSec_;
 
     TActionQueuePtr PipeIOQueue_;
 
@@ -304,6 +306,8 @@ private:
         AddStatistic("/user_job/block_io", blockIOStats);
 
         AddStatistic("/user_job/max_memory", Memory_.GetMaxMemoryUsage());
+
+        AddStatistic("/user_job/cummulative_memory_mb_sec", CummulativeMemoryUsageMbSec_);
 
         {
             TGuard<TSpinLock> guard(FreezerLock_);
@@ -889,6 +893,8 @@ private:
                     uidRss);
             }
         }
+
+        CummulativeMemoryUsageMbSec_ += (rss / (1024 * 1024)) * Config_->MemoryWatchdogPeriod.Seconds();
 
         i64 memoryLimit = UserJobSpec_.memory_limit();
         LOG_DEBUG("Check memory usage (Rss: %v, MemoryLimit: %v)",
