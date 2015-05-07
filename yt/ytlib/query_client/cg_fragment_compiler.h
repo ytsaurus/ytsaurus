@@ -436,7 +436,10 @@ TCodegenSource MakeCodegenJoinOp(
     TTableSchema sourceSchema,
     TCodegenSource codegenSource);
 
-std::function<void(TCGContext&, Value*, Value*)> MakeCodegenGroupOpCopy(
+std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
+    std::vector<TCodegenExpression> codegenGroupExprs);
+
+std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArgs(
     std::vector<TCodegenExpression> codegenGroupExprs,
     std::vector<TCodegenExpression> codegenAggregateExprs,
     std::vector<TCodegenAggregate> codegenAggregates,
@@ -444,23 +447,24 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenGroupOpCopy(
     bool isMerge,
     TTableSchema inputSchema);
 
-std::function<void(TCGContext& builder, Value* row)> MakeCodegenGroupOpInitialize(
+std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateInitialize(
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<int> aggregateStateOffsets);
 
-std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenGroupOpUpdate(
+std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpdate(
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<int> aggregateStateOffsets,
     bool isMerge);
 
-std::function<void(TCGContext& builder, Value* row)> MakeCodegenGroupOpFinalize(
+std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinalize(
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<int> aggregateStateOffsets,
     bool isFinal);
 
 TCodegenSource MakeCodegenGroupOp(
     std::function<void(TCGContext&, Value*)> codegenInitialize,
-    std::function<void(TCGContext&, Value*, Value*)> codegenCopy,
+    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateGroups,
+    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateAggregateArgs,
     std::function<void(TCGContext&, Value*, Value*)> codegenUpdate,
     std::function<void(TCGContext&, Value*)> codegenFinalize,
     TCodegenSource codegenSource,
