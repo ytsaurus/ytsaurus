@@ -26,18 +26,41 @@ static const auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJournalDispatcher::TCachedChangelogKey
+{
+    TLocationPtr Location;
+    TChunkId ChunkId;
+
+    // Hasher.
+    operator size_t() const
+    {
+        size_t result = 0;
+        result = HashCombine(result, Location);
+        result = HashCombine(result, ChunkId);
+        return result;
+    }
+
+    // Comparer.
+    bool operator == (const TCachedChangelogKey& other) const
+    {
+        return
+            Location == other.Location &&
+            ChunkId == other.ChunkId;
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJournalDispatcher::TImpl
-    : public TAsyncSlruCacheBase<TChunkId, TCachedChangelog>
+    : public TAsyncSlruCacheBase<TCachedChangelogKey, TCachedChangelog>
 {
 public:
-    TImpl(
-        TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
-        : TAsyncSlruCacheBase<TChunkId, TCachedChangelog>(
+    explicit TImpl(TDataNodeConfigPtr config)
+        : TAsyncSlruCacheBase(
             config->ChangelogReaderCache,
             NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/changelog_cache"))
         , Config_(config)
-        , Bootstrap_(bootstrap)
     { }
 
     TFuture<IChangelogPtr> OpenChangelog(
@@ -57,7 +80,6 @@ private:
     friend class TCachedChangelog;
 
     const TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
 
 
     IChangelogPtr OnChangelogOpenedOrCreated(
@@ -75,7 +97,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalDispatcher::TCachedChangelog
-    : public TAsyncCacheValueBase<TChunkId, TCachedChangelog>
+    : public TAsyncCacheValueBase<TCachedChangelogKey, TCachedChangelog>
     , public IChangelog
 {
 public:
@@ -85,17 +107,19 @@ public:
         const TChunkId& chunkId,
         IChangelogPtr underlyingChangelog,
         bool enableMultiplexing)
-        : TAsyncCacheValueBase<TChunkId, TCachedChangelog>(chunkId)
+        : TAsyncCacheValueBase({location, chunkId})
         , Owner_(owner)
         , Location_(location)
+        , ChunkId_(chunkId)
         , EnableMultiplexing_(enableMultiplexing)
         , UnderlyingChangelog_(underlyingChangelog)
     { }
 
     ~TCachedChangelog()
     {
-        LOG_DEBUG("Cached changelog destroyed (ChunkId: %v)",
-            GetKey());
+        LOG_DEBUG("Cached changelog destroyed (Location: %v, ChunkId: %v)",
+            Location_->GetId(),
+            ChunkId_);
     }
 
     virtual const TChangelogMeta& GetMeta() const override
@@ -128,7 +152,7 @@ public:
         auto flushResult = UnderlyingChangelog_->Append(data);
         auto journalManager = Location_->GetJournalManager();
         return journalManager->AppendMultiplexedRecord(
-            GetKey(),
+            ChunkId_,
             recordId,
             data,
             flushResult);
@@ -166,6 +190,7 @@ public:
 private:
     const TImplPtr Owner_;
     const TLocationPtr Location_;
+    const TChunkId ChunkId_;
     const bool EnableMultiplexing_;
     const IChangelogPtr UnderlyingChangelog_;
 
@@ -177,12 +202,9 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
     TLocationPtr location,
     const TChunkId& chunkId)
 {
-    TInsertCookie cookie(chunkId);
-    bool inserted = BeginInsert(&cookie);
-    auto result = cookie.GetValue();
-
-    if (!inserted) {
-        return result.As<IChangelogPtr>();
+    TInsertCookie cookie({location, chunkId});
+    if (!BeginInsert(&cookie)) {
+        return cookie.GetValue().As<IChangelogPtr>();
     }
 
     auto journalManager = location->GetJournalManager();
@@ -223,7 +245,7 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
     bool enableMultiplexing)
 {
     try {
-        TInsertCookie cookie(chunkId);
+        TInsertCookie cookie({location, chunkId});
         if (!BeginInsert(&cookie)) {
             THROW_ERROR_EXCEPTION("Journal chunk %v is still busy",
                 chunkId);
@@ -246,31 +268,34 @@ TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(
     TJournalChunkPtr chunk,
     bool enableMultiplexing)
 {
-    TAsyncSlruCacheBase::TryRemove(chunk->GetId());
-
     auto location = chunk->GetLocation();
+
+    TAsyncSlruCacheBase::TryRemove({location, chunk->GetId()});
+
     auto journalManager = location->GetJournalManager();
     return journalManager->RemoveChangelog(chunk, enableMultiplexing);
 }
 
 void TJournalDispatcher::TImpl::OnAdded(TCachedChangelog* changelog)
 {
-    LOG_TRACE("Journal chunk added to cache (ChunkId: %v)",
-        changelog->GetKey());
+    auto key = changelog->GetKey();
+    LOG_TRACE("Journal chunk added to cache (Location: %v, ChunkId: %v)",
+        key.Location->GetId(),
+        key.ChunkId);
 }
 
 void TJournalDispatcher::TImpl::OnRemoved(TCachedChangelog* changelog)
 {
-    LOG_TRACE("Journal chunk evicted from cache (ChunkId: %v)",
-        changelog->GetKey());
+    auto key = changelog->GetKey();
+    LOG_TRACE("Journal chunk evicted from cache (Location: %v, ChunkId: %v)",
+        key.Location->GetId(),
+        key.ChunkId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJournalDispatcher::TJournalDispatcher(
-    TDataNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
+TJournalDispatcher::TJournalDispatcher(TDataNodeConfigPtr config)
+    : Impl_(New<TImpl>(config))
 { }
 
 TJournalDispatcher::~TJournalDispatcher()
