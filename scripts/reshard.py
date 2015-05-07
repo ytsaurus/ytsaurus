@@ -19,7 +19,7 @@ def reshard(path, shard_count, is_unsigned, modulo, dump):
     size = modulo if is_unsigned else 2 * modulo
     pivot_keys = [[]] + [[make_yson((i * size) / shard_count - delta, is_unsigned)] for i in xrange(1, shard_count)]
     if path is None or dump:
-        print yson.dumps(pivot_keys)[1:-1]
+        print " ".join("'%s'" % yson.dumps(key)[1:-1] for key in pivot_keys)
     else:
         print "Unmounting..."
         yt.unmount_table(path)
