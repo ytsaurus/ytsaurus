@@ -111,7 +111,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessTableReader)
 
 ISchemalessTableReaderPtr CreateSchemalessTableReader(
     TTableReaderConfigPtr config,
-    NChunkClient::TMultiChunkReaderOptionsPtr options,
+    NChunkClient::TRemoteReaderOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::TTransactionPtr transaction,
     NChunkClient::IBlockCachePtr blockCache,
