@@ -3851,6 +3851,36 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg2)
     Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
 
+TEST_F(TQueryEvaluateTest, TestAverageAgg3)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3;b=1",
+        "b=1",
+        "b=0",
+        "a=7;b=1",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"b", EValueType::Int64},
+        {"x", EValueType::Double}
+    });
+
+    auto result = BuildRows({
+        "b=1;x=5.0",
+        "b=0"
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(New<TAverageAggregateFunction>());
+
+    Evaluate("b, avg(a) as x from [//t] group by b", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
 TEST_F(TQueryEvaluateTest, WronglyTypedAggregate)
 {
     auto split = MakeSplit({

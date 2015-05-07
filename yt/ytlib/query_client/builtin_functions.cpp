@@ -587,24 +587,35 @@ TCodegenAggregateUpdate MakeCodegenAverageUpdate(
             auto sumValue = aggState;
             auto countValue = builder.CreateConstInBoundsGEP1_32(aggState, 1);
 
-            auto resultSum = builder.CreateAdd(
-                builder.CreateLoad(
-                    builder.CreateStructGEP(sumValue, TTypeBuilder::Data)),
-                builder.CreateLoad(
-                    builder.CreateStructGEP(newValue, TTypeBuilder::Data)));
+            auto newValueType = builder.CreateLoad(
+                builder.CreateStructGEP(newValue, TTypeBuilder::Type));
+            auto newValueNonNull = builder.CreateICmpNE(
+                newValueType, 
+                builder.getInt16(static_cast<ui16>(EValueType::Null)));
 
-            auto resultCount = builder.CreateAdd(
-                builder.CreateLoad(
-                    builder.CreateStructGEP(countValue, TTypeBuilder::Data)),
-                builder.getInt64(1));
+            CodegenIf<TCGContext>(
+                builder,
+                newValueNonNull,
+                [&] (TCGContext& builder) {
+                    auto resultSum = builder.CreateAdd(
+                        builder.CreateLoad(
+                            builder.CreateStructGEP(sumValue, TTypeBuilder::Data)),
+                        builder.CreateLoad(
+                            builder.CreateStructGEP(newValue, TTypeBuilder::Data)));
 
-            builder.CreateStore(
-                resultSum,
-                builder.CreateStructGEP(sumValue, TTypeBuilder::Data));
+                    auto resultCount = builder.CreateAdd(
+                        builder.CreateLoad(
+                            builder.CreateStructGEP(countValue, TTypeBuilder::Data)),
+                        builder.getInt64(1));
 
-            builder.CreateStore(
-                resultCount,
-                builder.CreateStructGEP(countValue, TTypeBuilder::Data));
+                    builder.CreateStore(
+                        resultSum,
+                        builder.CreateStructGEP(sumValue, TTypeBuilder::Data));
+
+                    builder.CreateStore(
+                        resultCount,
+                        builder.CreateStructGEP(countValue, TTypeBuilder::Data));
+                });
         };
 }
 
@@ -655,22 +666,35 @@ TCodegenAggregateFinalize MakeCodegenAverageFinalize(
                 builder.CreateConstInBoundsGEP1_32(aggState, 1),
                 TTypeBuilder::Data));
 
-        auto resultValue = builder.CreateFDiv(
-            builder.CreateSIToFP(sumValue, builder.getDoubleTy()),
-            builder.CreateSIToFP(countValue, builder.getDoubleTy()));
+        auto countIsZero = builder.CreateICmpEQ(
+            countValue,
+            builder.getInt64(0));
+        CodegenIf<TCGContext>(
+            builder,
+            countIsZero,
+            [&] (TCGContext& builder) {
+                builder.CreateStore(
+                    builder.getInt16(static_cast<ui16>(EValueType::Null)),
+                    builder.CreateStructGEP(result, TTypeBuilder::Type));
+            },
+            [&] (TCGContext& builder) {
+                auto resultValue = builder.CreateFDiv(
+                    builder.CreateSIToFP(sumValue, builder.getDoubleTy()),
+                    builder.CreateSIToFP(countValue, builder.getDoubleTy()));
 
-        auto dataType = TDataTypeBuilder::get(builder.getContext());
-        auto resultData = builder.CreateBitCast(
-            resultValue,
-            dataType);
+                auto dataType = TDataTypeBuilder::get(builder.getContext());
+                auto resultData = builder.CreateBitCast(
+                    resultValue,
+                    dataType);
 
-        builder.CreateStore(
-            builder.getInt16(static_cast<ui16>(EValueType::Double)),
-            builder.CreateStructGEP(result, TTypeBuilder::Type));
-        builder.CreateStore(
-            resultData,
-            builder.CreateStructGEP(result, TTypeBuilder::Data));
+                builder.CreateStore(
+                    resultData,
+                    builder.CreateStructGEP(result, TTypeBuilder::Data));
 
+                builder.CreateStore(
+                    builder.getInt16(static_cast<ui16>(EValueType::Double)),
+                    builder.CreateStructGEP(result, TTypeBuilder::Type));
+            });
     };
 }
 
