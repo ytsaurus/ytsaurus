@@ -303,6 +303,8 @@ private:
         auto blockIOStats = BlockIO_.GetStatistics();
         AddStatistic("/user_job/block_io", blockIOStats);
 
+        AddStatistic("/user_job/max_memory", Memory_.GetMaxMemoryUsage());
+
         {
             TGuard<TSpinLock> guard(FreezerLock_);
             Freezer_.Destroy();

@@ -607,6 +607,12 @@ TMemory::TStatistics TMemory::GetStatistics() const
     return result;
 }
 
+ui64 TMemory::GetMaxMemoryUsage() const
+{
+    return FromString<ui64>(Get("memory.max_usage_in_bytes"));
+}
+
+
 void TMemory::SetLimitInBytes(i64 bytes) const
 {
     Set("memory.limit_in_bytes", ToString(bytes));
