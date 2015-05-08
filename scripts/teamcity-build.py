@@ -68,7 +68,7 @@ def prepare(options):
     codename = run_captured(["lsb_release", "-c"])
     codename = re.sub(r"^Codename:\s*", "", codename)
 
-    if codename not in ["lucid", "precise"]:
+    if codename not in ["lucid", "precise", "trusty"]:
         raise RuntimeError("Unknown LSB distribution code name: {0}".format(codename))
 
     options.repositories = ["yt-" + codename]
