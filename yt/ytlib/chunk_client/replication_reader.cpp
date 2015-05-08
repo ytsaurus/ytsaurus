@@ -754,11 +754,11 @@ private:
         std::vector<int> receivedBlockIndexes;
         for (int index = 0; index < rsp->Attachments().size(); ++index) {
             const auto& block = rsp->Attachments()[index];
-            if (!block)
+            if (block.Empty())
                 continue;
 
             int blockIndex = req->block_indexes(index);
-            TBlockId blockId(reader->ChunkId_, blockIndex);
+            auto blockId = TBlockId(reader->ChunkId_, blockIndex);
 
             // Only keep source address if P2P is on.
             auto sourceDescriptor = reader->LocalDescriptor_
@@ -831,8 +831,8 @@ private:
         std::vector<TSharedRef> blocks;
         blocks.reserve(BlockIndexes_.size());
         for (int blockIndex : BlockIndexes_) {
-            auto block = Blocks_[blockIndex];
-            YCHECK(block);
+            const auto& block = Blocks_[blockIndex];
+            YCHECK(!block.Empty());
             blocks.push_back(block);
         }
         Promise_.TrySet(std::vector<TSharedRef>(blocks));
@@ -1007,19 +1007,15 @@ private:
             return VoidFuture;
         }
 
-        int blocksReceived = static_cast<int>(rsp->Attachments().size());
+        const auto& blocks = rsp->Attachments();
+        int blocksReceived = 0;
         i64 bytesReceived = 0;
-
-        if (blocksReceived > 0) {
-            LOG_INFO("Block range received (Blocks: %v-%v)",
-                FirstBlockIndex_,
-                FirstBlockIndex_ + blocksReceived - 1);
-            for (const auto& block : rsp->Attachments()) {
-                if (!block)
-                    break;
-                FetchedBlocks_.push_back(block);
-                bytesReceived += block.Size();
-            }
+        for (const auto& block : blocks) {
+            if (block.Empty())
+                break;
+            blocksReceived += 1;
+            bytesReceived += block.Size();
+            FetchedBlocks_.push_back(block);
         }
 
         if (IsSeed(address) && !rsp->has_complete_chunk()) {
@@ -1034,8 +1030,9 @@ private:
             BanPeer(address);
         }
 
-        LOG_INFO("Finished processing block response (BlocksReceived: %v, BytesReceived: %v)",
-            blocksReceived,
+        LOG_INFO("Finished processing block response (BlocksReceived: %v-%v, BytesReceived: %v)",
+            FirstBlockIndex_,
+            FirstBlockIndex_ + blocksReceived - 1,
             bytesReceived);
 
         return reader->Throttler_->Throttle(bytesReceived);
@@ -1056,7 +1053,7 @@ private:
     {
         LOG_INFO("Some blocks are fetched (Blocks: %v-%v)",
             FirstBlockIndex_,
-            FirstBlockIndex_ + static_cast<int>(FetchedBlocks_.size()) - 1);
+            FirstBlockIndex_ + FetchedBlocks_.size() - 1);
 
         Promise_.TrySet(std::vector<TSharedRef>(FetchedBlocks_));
     }
