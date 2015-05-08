@@ -72,8 +72,8 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
     if (!input.Success()) {
         return TError("Error reading record header");
     }
-    if (header.DataSize < 0) {
-        return TError("Broken record header: DataSize < 0");
+    if (header.DataSize <= 0) {
+        return TError("Broken record header: DataSize <= 0");
     }
 
     struct TSyncChangelogRecordTag { };
@@ -403,7 +403,8 @@ public:
         int currentRecordCount = RecordCount_;
         std::vector<int> recordSizes;
         for (int i = 0; i < records.size(); ++i) {
-            auto record = records[i];
+            const auto& record = records[i];
+            YCHECK(!record.Empty());
             int recordId = currentRecordCount + i;
 
             int totalSize = 0;
