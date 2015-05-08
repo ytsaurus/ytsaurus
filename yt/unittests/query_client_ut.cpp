@@ -1697,13 +1697,13 @@ INSTANTIATE_TEST_CASE_P(
             "not a = 2"),
         std::tuple<TConstExpressionPtr, const char*>(
             Make<TBinaryOpExpression>(EBinaryOp::Or,
-                Make<TBinaryOpExpression>(EBinaryOp::Greater,
+                Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
                     Make<TReferenceExpression>("a"),
                     Make<TLiteralExpression>(MakeInt64(3))),
                 Make<TBinaryOpExpression>(EBinaryOp::Less,
                     Make<TReferenceExpression>("a"),
                     Make<TLiteralExpression>(MakeInt64(2)))),
-            "not ((a < 3) and (a > 2))")
+            "not ((a < 3) and (a >= 2))")
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
