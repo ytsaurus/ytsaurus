@@ -72,7 +72,7 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
     if (!input.Success()) {
         return TError("Error reading record header");
     }
-    if (header.DataSize <= 0) {
+    if (header.DataSize < 0) {
         return TError("Broken record header: DataSize < 0");
     }
 
