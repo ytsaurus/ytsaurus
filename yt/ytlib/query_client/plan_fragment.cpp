@@ -343,10 +343,6 @@ protected:
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
             const auto* column = GetColumnPtr(referenceExpr->ColumnName);
             if (!column) {
-                std::cout << "SCHEMA:" << std::endl;
-                for (auto column : GetTableSchema()->Columns()) {
-                    std::cout << column.Name << std::endl;
-                }
                 THROW_ERROR_EXCEPTION("Undefined reference %Qv", referenceExpr->ColumnName);
             }
 
