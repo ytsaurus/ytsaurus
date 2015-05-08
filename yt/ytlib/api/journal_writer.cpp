@@ -145,6 +145,7 @@ private:
 
             TFuture<void> result = VoidFuture;
             for (const auto& row : rows) {
+                YCHECK(!row.Empty());
                 auto batch = EnsureCurrentBatch();
                 // NB: We can form a handful of batches but since flushes are monotonic,
                 // the last one will do.
