@@ -912,6 +912,7 @@ void TReplicationWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
     int firstBlockIndex = BlockCount_;
 
     for (const auto& block : blocks) {
+        YCHECK(!block.Empty());
         EnsureCurrentGroup();
 
         CurrentGroup_->AddBlock(block);
