@@ -52,10 +52,10 @@ EBinaryOp GetInversedBinaryOpcode(EBinaryOp opcode)
     switch (opcode) {
         case EBinaryOp::Equal:          return EBinaryOp::NotEqual;
         case EBinaryOp::NotEqual:       return EBinaryOp::Equal;
-        case EBinaryOp::Less:           return EBinaryOp::Greater;
-        case EBinaryOp::LessOrEqual:    return EBinaryOp::GreaterOrEqual;
-        case EBinaryOp::Greater:        return EBinaryOp::Less;
-        case EBinaryOp::GreaterOrEqual: return EBinaryOp::LessOrEqual;
+        case EBinaryOp::Less:           return EBinaryOp::GreaterOrEqual;
+        case EBinaryOp::LessOrEqual:    return EBinaryOp::Greater;
+        case EBinaryOp::Greater:        return EBinaryOp::LessOrEqual;
+        case EBinaryOp::GreaterOrEqual: return EBinaryOp::Less;
         default:                        YUNREACHABLE();
     }
 }
