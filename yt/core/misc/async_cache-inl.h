@@ -253,6 +253,7 @@ template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* cookie)
 {
     YCHECK(cookie->Active_);
+    YCHECK(value);
 
     auto key = value->GetKey();
 
@@ -337,7 +338,9 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
     // The latter will try to acquire the spinlock.
     guard.Release();
 
-    OnRemoved(value.Get());
+    if (value) {
+        OnRemoved(value.Get());
+    }
 
     delete item;
 
