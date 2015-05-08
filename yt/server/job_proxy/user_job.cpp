@@ -305,7 +305,9 @@ private:
         auto blockIOStats = BlockIO_.GetStatistics();
         AddStatistic("/user_job/block_io", blockIOStats);
 
-        AddStatistic("/user_job/max_memory", Memory_.GetMaxMemoryUsage());
+        if (Config_->EnableCGroupMemoryHierarchy) {
+            AddStatistic("/user_job/max_memory", Memory_.GetMaxMemoryUsage());
+        }
 
         AddStatistic("/user_job/cummulative_memory_mb_sec", CummulativeMemoryUsageMbSec_);
 
