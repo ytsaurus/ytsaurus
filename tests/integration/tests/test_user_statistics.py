@@ -1,6 +1,7 @@
 import pytest
 import os
 import tempfile
+import contextlib
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
@@ -12,6 +13,16 @@ def get_statistics(statistics, complex_key):
         if part:
             result = result[part]
     return result
+
+
+@contextlib.contextmanager
+def tempfolder(prefix):
+    tmpdir = tempfile.mkdtemp(prefix=prefix)
+    yield tmpdir
+    try:
+        os.unlink(tmpdir)
+    except:
+        pass
 
 
 class TestUserStatistics(YTEnvSetup):
@@ -93,59 +104,58 @@ class TestUserStatistics(YTEnvSetup):
         create("table", "//tmp/t2")
         write("//tmp/t1", [{"a": "b"} for i in xrange(2)])
 
-        to_delete = []
-        tmpdir = tempfile.mkdtemp(prefix="job_statistics_progress")
-        to_delete.append(tmpdir)
+        with tempfolder("job_statistics_progress") as tmpdir:
+            to_delete = []
 
-        for i in range(2):
-            path = os.path.join(tmpdir, str(i))
-            os.mkdir(path)
-            to_delete.append(path)
-            if i == 0:
-                keeper_filename = os.path.join(path, "keep")
-                with open(keeper_filename, "w") as f:
-                    f.close()
-                to_delete.append(keeper_filename)
+            for i in range(2):
+                path = os.path.join(tmpdir, str(i))
+                os.mkdir(path)
+                to_delete.append(path)
+                if i == 0:
+                    keeper_filename = os.path.join(path, "keep")
+                    with open(keeper_filename, "w") as f:
+                        f.close()
+                    to_delete.append(keeper_filename)
 
-        command = '''cat > /dev/null;
-            DIR={0}
-            if [ "$YT_START_ROW_INDEX" = "0" ]; then
-              cat $DIR/$YT_START_ROW_INDEX/keep 1>&2
-              until rmdir $DIR/$YT_START_ROW_INDEX 2>/dev/null; do sleep 1; done;
-            fi
-            exit 0;
-            '''.format(tmpdir)
+            command = '''cat > /dev/null;
+                DIR={0}
+                if [ "$YT_START_ROW_INDEX" = "0" ]; then
+                  cat $DIR/$YT_START_ROW_INDEX/keep 1>&2
+                  until rmdir $DIR/$YT_START_ROW_INDEX 2>/dev/null; do sleep 1; done;
+                fi
+                exit 0;
+                '''.format(tmpdir)
 
-        try:
-            op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command,
-                        spec={"max_failed_job_count": 1, "job_count": 2})
+            try:
+                op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command,
+                            spec={"max_failed_job_count": 1, "job_count": 2})
 
-            tries = 0
-            statistics = {}
+                tries = 0
+                statistics = {}
 
-            counter_name = "user_job.cpu.user.$.completed.map.count"
-            count = None
+                counter_name = "user_job.cpu.user.$.completed.map.count"
+                count = None
 
-            while count is None or tries <= 10:
+                while count is None or tries <= 10:
+                    statistics = get("//sys/operations/{0}/@progress".format(op_id))
+                    tries += 1
+                    try:
+                        count = get_statistics(statistics["job_statistics"], counter_name)
+                    except KeyError:
+                        pass
+
+                assert count == 1
+
+                os.unlink(keeper_filename)
+                track_op(op_id)
+
                 statistics = get("//sys/operations/{0}/@progress".format(op_id))
-                tries += 1
-                try:
-                    count = get_statistics(statistics["job_statistics"], counter_name)
-                except KeyError:
-                    pass
-
-            assert count == 1
-
-            os.unlink(keeper_filename)
-            track_op(op_id)
-
-            statistics = get("//sys/operations/{0}/@progress".format(op_id))
-            count = get_statistics(statistics["job_statistics"], counter_name)
-            assert count == 2
-        finally:
-            to_delete.reverse()
-            for filename in to_delete:
-                try:
-                    os.unlink(filename)
-                except:
-                    pass
+                count = get_statistics(statistics["job_statistics"], counter_name)
+                assert count == 2
+            finally:
+                to_delete.reverse()
+                for filename in to_delete:
+                    try:
+                        os.unlink(filename)
+                    except:
+                        pass
