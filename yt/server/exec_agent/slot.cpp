@@ -116,7 +116,7 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
     if (Config_->EnableCGroups) {
         auto subgroupName = GetSlotProcessGroup(SlotIndex_);
 
-        for (const auto& type : NCGroup::GetSupportedCGroups()) {
+        for (const auto& type : Config_->SupportedCGroups) {
             NCGroup::TNonOwningCGroup group(type, subgroupName);
             result.push_back(group.GetFullPath());
         }
@@ -284,7 +284,6 @@ void TSlot::MakeFile(
     } catch (const std::exception& ex) {
         LogErrorAndExit(error << ex);
     }
-
 }
 
 const Stroka& TSlot::GetWorkingDirectory() const

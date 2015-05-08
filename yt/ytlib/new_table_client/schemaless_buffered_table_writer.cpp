@@ -100,7 +100,7 @@ public:
     {
         EmptyBuffers_.push(Buffers_);
         EmptyBuffers_.push(Buffers_ + 1);
-        
+
         Logger.AddTag("Path: %v", Path_);
     }
 
@@ -185,7 +185,7 @@ private:
     void OnPeriodicFlush()
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        
+
         if (CurrentBuffer_ && !CurrentBuffer_->IsEmpty()) {
             RotateBuffers();
         }

@@ -76,6 +76,8 @@ public:
     //! to create freezer subcgroups
     bool EnableCGroups;
 
+    std::vector<Stroka> SupportedCGroups;
+
     //! Thread pool for job startup initialization.
     int PoolSize;
 
@@ -89,6 +91,8 @@ public:
             .Default(10000);
         RegisterParameter("enable_cgroups", EnableCGroups)
             .Default(true);
+        RegisterParameter("supported_cgroups", SupportedCGroups)
+            .Default();
         RegisterParameter("pool_size", PoolSize)
             .GreaterThanOrEqual(1)
             .Default(3);
@@ -134,8 +138,8 @@ public:
     TNullable<int> IopsThreshold;
 
     double MemoryLimitMultiplier;
-    bool ForceEnableAccounting;
-    bool EnableCGroupMemoryHierarchy;
+    bool EnableCGroups;
+    std::vector<Stroka> SupportedCGroups;
 
     TExecAgentConfig()
     {
@@ -164,13 +168,22 @@ public:
 
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
-        RegisterParameter("force_enable_accounting", ForceEnableAccounting)
-            .Default(false);
-        RegisterParameter("enable_cgroup_memory_hierarchy", EnableCGroupMemoryHierarchy)
-            .Default(false);
+
+        RegisterParameter("enable_cgroups", EnableCGroups)
+            .Default(true);
+        RegisterParameter("supported_cgroups", SupportedCGroups)
+            .Default();
 
         RegisterParameter("iops_threshold", IopsThreshold)
             .Default();
+
+        RegisterValidator([&] () {
+            for (const auto& type : SupportedCGroups) {
+                if (!CGroup::IsValidType(type)) {
+                    THROW_ERROR_EXCEPTION("Invalid cgroup type: %v", type);
+                }
+            }
+        }
     }
 };
 

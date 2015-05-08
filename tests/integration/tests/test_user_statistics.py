@@ -32,11 +32,8 @@ class TestUserStatistics(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
-            "force_enable_accounting" : True,
-            "enable_cgroup_memory_hierarchy" : True,
-            'slot_manager' : {
-                'enable_cgroups' : 'true'
-            }
+            "enable_cgroups" : True,
+            "supported_cgroups" : [ "cpuacct", "blkio", "memory" ]
         }
     }
 
@@ -107,21 +104,15 @@ class TestUserStatistics(YTEnvSetup):
         with tempfolder("job_statistics_progress") as tmpdir:
             to_delete = []
 
-            for i in range(2):
-                path = os.path.join(tmpdir, str(i))
-                os.mkdir(path)
-                to_delete.append(path)
-                if i == 0:
-                    keeper_filename = os.path.join(path, "keep")
-                    with open(keeper_filename, "w") as f:
-                        f.close()
-                    to_delete.append(keeper_filename)
+            keeper_filename = os.path.join(tmpdir, "keep")
+            with open(keeper_filename, "w") as f:
+                f.close()
+            to_delete.append(keeper_filename)
 
             command = '''cat > /dev/null;
                 DIR={0}
                 if [ "$YT_START_ROW_INDEX" = "0" ]; then
-                  cat $DIR/$YT_START_ROW_INDEX/keep 1>&2
-                  until rmdir $DIR/$YT_START_ROW_INDEX 2>/dev/null; do sleep 1; done;
+                  until rmdir $DIR 2>/dev/null; do sleep 1; done;
                 fi
                 exit 0;
                 '''.format(tmpdir)

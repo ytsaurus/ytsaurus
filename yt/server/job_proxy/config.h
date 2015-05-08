@@ -43,9 +43,9 @@ public:
 
     double MemoryLimitMultiplier;
 
-    bool ForceEnableAccounting;
+    bool EnableCGroups;
 
-    bool EnableCGroupMemoryHierarchy;
+    std::vector<Stroka> SupportedCGroups;
 
     TNullable<int> UserId;
 
@@ -81,10 +81,11 @@ public:
             .DefaultNew();
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
-        RegisterParameter("force_enable_accounting", ForceEnableAccounting)
-            .Default(false);
-        RegisterParameter("enable_cgroup_memory_hierarchy", EnableCGroupMemoryHierarchy)
-            .Default(false);
+
+        RegisterParameter("enable_cgroups", EnableCGroups)
+            .Default(true);
+        RegisterParameter("supported_cgroups", SupportedCGroups)
+            .Default();
 
         RegisterParameter("user_id", UserId)
             .Default();
