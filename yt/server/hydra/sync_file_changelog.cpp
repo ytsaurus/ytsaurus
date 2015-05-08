@@ -790,31 +790,35 @@ private:
 
             bool trim = false;
             if (!recordInfoOrError.IsOK()) {
-                LOG_ERROR(recordInfoOrError, "Error reading changelog record (RecordId: %v, Offset: %v)",
+                LOG_WARNING(recordInfoOrError, "Error reading changelog record (RecordId: %v, Offset: %v)",
                     RecordCount_,
                     CurrentFilePosition_);
                 trim = true;
             } else if (recordInfoOrError.Value().Id != RecordCount_) {
-                LOG_ERROR("Mismatched changelog record id (ExpectedId: %v, ActualId: %v, Offset: %v)",
+                LOG_WARNING("Mismatched changelog record id (ExpectedId: %v, ActualId: %v, Offset: %v)",
                     RecordCount_,
                     recordInfoOrError.Value().Id,
                     CurrentFilePosition_);
                 trim = true;
             } else if (RecordCount_ == SealedRecordCount_) {
-                LOG_ERROR("Excessive records found in sealed changelog (RecordId: %v, Offset: %v)",
+                LOG_WARNING("Excessive records found in sealed changelog (RecordId: %v, Offset: %v)",
                     RecordCount_,
                     CurrentFilePosition_);
                 trim = true;
             }
 
             if (trim) {
-                // XXX(banenko): temporary
-                LOG_FATAL("Changelog trimmed (RecordId: %v, Offset: %v)",
-                    RecordCount_,
-                    CurrentFilePosition_);
+                if (IsSealed()) {
+                    LOG_FATAL("Sealed changelog is broken and needs trimming (RecordId: %v, Offset: %v)",
+                        RecordCount_,
+                        CurrentFilePosition_);
+                }
                 DataFile_->Resize(CurrentFilePosition_);
                 DataFile_->Flush();
                 DataFile_->Seek(0, sEnd);
+                LOG_WARNING("Changelog trimmed (RecordId: %v, Offset: %v)",
+                    RecordCount_,
+                    CurrentFilePosition_);
                 break;
             }
 
