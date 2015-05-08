@@ -5,14 +5,11 @@
 #include <core/yson/public.h>
 
 #include <vector>
-#include <chrono>
 
 namespace NYT {
 namespace NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-std::vector<Stroka> GetSupportedCGroups();
 
 void RemoveAllSubcgroups(const Stroka& path);
 
@@ -108,6 +105,8 @@ class TCpuAccounting
     : public TCGroup
 {
 public:
+    static const Stroka Name;
+
     struct TStatistics
     {
         TDuration UserTime;
@@ -127,6 +126,8 @@ class TBlockIO
     : public TCGroup
 {
 public:
+    static const Stroka Name;
+
     struct TStatistics
     {
         ui64 BytesRead = 0;
@@ -163,6 +164,8 @@ class TMemory
     : public TCGroup
 {
 public:
+    static const Stroka Name;
+
     struct TStatistics
     {
         ui64 Rss = 0;
@@ -187,6 +190,8 @@ class TFreezer
     : public TCGroup
 {
 public:
+    static const Stroka Name;
+
     explicit TFreezer(const Stroka& name);
 
     Stroka GetState() const;
@@ -201,9 +206,10 @@ std::map<Stroka, Stroka> ParseProcessCGroups(const Stroka& str);
 template <typename T>
 T GetCurrentCGroup()
 {
-    T group("");
-    return group;
+    return T("");
 }
+
+bool IsValidType(const Stroka& type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

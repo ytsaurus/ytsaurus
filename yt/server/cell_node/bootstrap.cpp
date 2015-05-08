@@ -252,8 +252,8 @@ void TBootstrap::DoRun()
 
     JobProxyConfig->MemoryLimitMultiplier = Config->ExecAgent->MemoryLimitMultiplier;
 
-    JobProxyConfig->ForceEnableAccounting = Config->ExecAgent->ForceEnableAccounting;
-    JobProxyConfig->EnableCGroupMemoryHierarchy = Config->ExecAgent->EnableCGroupMemoryHierarchy;
+    JobProxyConfig->EnableCGroups = Config->ExecAgent->EnableCGroups;
+    JobProxyConfig->SupportedCGroups = Config->ExecAgent->SupportedCGroups;
 
     JobProxyConfig->IopsThreshold = Config->ExecAgent->IopsThreshold;
 

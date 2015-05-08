@@ -25,9 +25,7 @@ class YtTestBase(object):
 
         cls.env.DELTA_NODE_CONFIG = {
             "exec_agent" : {
-                "slot_manager" : {
-                    "enable_cgroups" : "false"
-                }
+                "enable_cgroups" : "false"
             }
         }
 

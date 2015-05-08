@@ -38,13 +38,10 @@ class TestBlockIO(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
-            "force_enable_accounting" : True,
+            'enable_cgroups' : 'true',
             "iops_threshold" : 5,
             "block_io_watchdog_period" : 8000,
-            'enable_cgroup_memory_hierarchy' : 'true',
-            'slot_manager' : {
-                'enable_cgroups' : 'true'
-            }
+            "supported_cgroups" :  [ "blkio" ]
         }
     }
 

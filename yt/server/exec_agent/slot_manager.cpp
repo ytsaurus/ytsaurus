@@ -58,6 +58,11 @@ void TSlotManager::Initialize(int slotCount)
 
     try {
         auto nodeRpcPort = Bootstrap->GetConfig()->RpcPort;
+
+        const auto& execAgentConfig = Bootstrap->GetConfig()->ExecAgent;
+        Config->EnableCGroups = execAgentConfig->EnableCGroups;
+        Config->SupportedCGroups = execAgentConfig->SupportedCGroups;
+
         for (int slotId = 0; slotId < slotCount; ++slotId) {
             auto slotName = ToString(slotId);
             auto slotPath = NFS::CombinePaths(Config->Path, slotName);
@@ -66,11 +71,11 @@ void TSlotManager::Initialize(int slotCount)
                 userId = Config->StartUid + slotId;
             }
             auto slot = New<TSlot>(
-                Config, 
-                slotPath, 
-                Format("yt-node-%v", nodeRpcPort), 
-                ActionQueue->GetInvoker(), 
-                slotId, 
+                Config,
+                slotPath,
+                Format("yt-node-%v", nodeRpcPort),
+                ActionQueue->GetInvoker(),
+                slotId,
                 userId);
             slot->Initialize();
             Slots.push_back(slot);

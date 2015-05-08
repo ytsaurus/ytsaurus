@@ -281,7 +281,7 @@ private:
 
     void CleanupCGroups()
     {
-        if (!Config_->ForceEnableAccounting) {
+        if (!Config_->EnableCGroups) {
             return;
         }
 
@@ -299,13 +299,17 @@ private:
             LOG_FATAL(ex, "Failed to clean up user processes");
         }
 
-        auto cpuAccountingStats = CpuAccounting_.GetStatistics();
-        AddStatistic("/user_job/cpu", cpuAccountingStats);
+        if (IsSupported(TCpuAccounting::Name)) {
+            auto cpuAccountingStats = CpuAccounting_.GetStatistics();
+            AddStatistic("/user_job/cpu", cpuAccountingStats);
+        }
 
-        auto blockIOStats = BlockIO_.GetStatistics();
-        AddStatistic("/user_job/block_io", blockIOStats);
+        if (IsSupported(TBlockIO::Name)) {
+            auto blockIOStats = BlockIO_.GetStatistics();
+            AddStatistic("/user_job/block_io", blockIOStats);
+        }
 
-        if (Config_->EnableCGroupMemoryHierarchy) {
+        if (IsSupported(TMemory::Name)) {
             AddStatistic("/user_job/max_memory", Memory_.GetMaxMemoryUsage());
         }
 
@@ -316,10 +320,15 @@ private:
             Freezer_.Destroy();
         }
 
-        CpuAccounting_.Destroy();
-        BlockIO_.Destroy();
+        if (IsSupported(TCpuAccounting::Name)) {
+            CpuAccounting_.Destroy();
+        }
 
-        if (Config_->EnableCGroupMemoryHierarchy) {
+        if (IsSupported(TBlockIO::Name)) {
+            BlockIO_.Destroy();
+        }
+
+        if (IsSupported(TMemory::Name)) {
             Memory_.ForceEmpty();
             Memory_.Destroy();
         }
@@ -660,7 +669,7 @@ private:
 
     void PrepareCGroups()
     {
-        if (!Config_->ForceEnableAccounting) {
+        if (!Config_->EnableCGroups) {
             return;
         }
 
@@ -671,13 +680,17 @@ private:
                 Process_.AddArguments({ "--cgroup", Freezer_.GetFullPath() });
             }
 
-            CpuAccounting_.Create();
-            Process_.AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
+            if (IsSupported(TCpuAccounting::Name)) {
+                CpuAccounting_.Create();
+                Process_.AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
+            }
 
-            BlockIO_.Create();
-            Process_.AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
+            if (IsSupported(TBlockIO::Name)) {
+                BlockIO_.Create();
+                Process_.AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
+            }
 
-            if (Config_->EnableCGroupMemoryHierarchy) {
+            if (IsSupported(TMemory::Name)) {
                 Memory_.Create();
                 Process_.AddArguments({ "--cgroup", Memory_.GetFullPath() });
             }
@@ -970,6 +983,16 @@ private:
         LastServicedIOs_ = servicedIOs;
     }
 
+    bool IsSupported(const Stroka& cgroupType) const
+    {
+        auto item = std::find_if(
+            Config_->SupportedCGroups.begin(),
+            Config_->SupportedCGroups.end(),
+            [=] (const Stroka& type) {
+                return type == cgroupType;
+            });
+        return (item != Config_->SupportedCGroups.end());
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

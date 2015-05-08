@@ -25,11 +25,10 @@ class TestCGroups(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
-            "force_enable_accounting" : True,
-            "enable_cgroup_memory_hierarchy" : True,
+            "enable_cgroups" : True,
+            "supported_cgroups" : [ "cpuacct", "blkio", "memory"],
             "slot_manager" : {
                 "enforce_job_control" : True,
-                "enable_cgroups" : True
             }
         }
     }
@@ -38,8 +37,13 @@ class TestCGroups(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write("//tmp/t1", [{"foo": "bar"} for i in xrange(200)])
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command='trap "" HUP; bash -c "sleep 60" &; sleep $[( $RANDOM % 5 )]s; exit 42;',
-                    spec={"max_failed_job_count": 1, "job_count": 200})
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command='trap "" HUP; bash -c "sleep 60" &; sleep $[( $RANDOM % 5 )]s; exit 42;',
+            spec={"max_failed_job_count": 1, "job_count": 200})
+
         with pytest.raises(YtError):
             track_op(op_id)
 
@@ -64,10 +68,9 @@ class TestEventLog(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
-            "force_enable_accounting" : True,
-            "enable_cgroup_memory_hierarchy" : True,
+            "enable_cgroups" : True,
+            "supported_cgroups" : [ "cpuacct", "blkio", "memory"],
             "slot_manager" : {
-                'enable_cgroups' : True,
                 "enforce_job_control" : True
             }
         }
@@ -110,10 +113,8 @@ class TestJobProber(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
-            "force_enable_accounting" : True,
-            "slot_manager" : {
-                'enable_cgroups' : 'true',
-            }
+            'enable_cgroups' : True,
+            "supported_cgroups" : [ "cpuacct", "blkio", "memory"]
         }
     }
 

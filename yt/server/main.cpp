@@ -264,7 +264,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
             THROW_ERROR_EXCEPTION("Error parsing cell node configuration")
                 << ex;
         }
-        enableCGroups = config->ExecAgent->SlotManager->EnableCGroups;
+        enableCGroups = config->ExecAgent->EnableCGroups;
     }
 
     auto cgroups = parser.CGroups.getValue();
