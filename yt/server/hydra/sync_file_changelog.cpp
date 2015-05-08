@@ -807,12 +807,13 @@ private:
             }
 
             if (trim) {
+                // XXX(banenko): temporary
+                LOG_FATAL("Changelog trimmed (RecordId: %v, Offset: %v)",
+                    RecordCount_,
+                    CurrentFilePosition_);
                 DataFile_->Resize(CurrentFilePosition_);
                 DataFile_->Flush();
                 DataFile_->Seek(0, sEnd);
-                LOG_INFO("Changelog trimmed (RecordId: %v, Offset: %v)",
-                    RecordCount_,
-                    CurrentFilePosition_);
                 break;
             }
 
