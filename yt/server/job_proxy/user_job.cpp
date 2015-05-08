@@ -950,11 +950,11 @@ private:
                     return item.DeviceId == other.DeviceId  && item.Type == other.Type;
                 });
 
-            if (previousItemIt == LastServicedIOs_.end()) {
-                continue;
+            i64 deltaOperations = item.Value;
+            if (previousItemIt != LastServicedIOs_.end()) {
+                deltaOperations -= previousItemIt->Value;
             }
 
-            i64 deltaOperations = item.Value - previousItemIt->Value;
             if (deltaOperations < 0) {
                 LOG_WARNING("%v < 0 operations were serviced for %v device since the last check",
                     deltaOperations,
