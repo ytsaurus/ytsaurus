@@ -291,7 +291,6 @@ public:
 
 protected:
     IChunkPtr Chunk_;
-    TChunkReadGuard ChunkReadGuard_;
 
 
     virtual void DoPrepare()
@@ -367,14 +366,11 @@ private:
 
     virtual void DoRun() override
     {
-        auto metaOrError = WaitFor(Chunk_->ReadMeta(0));
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            metaOrError,
-            "Error getting meta of chunk %v",
-            ChunkId_);
+        auto asyncMeta = Chunk_->ReadMeta(0);
+        auto meta = WaitFor(asyncMeta)
+            .ValueOrThrow();
 
         LOG_INFO("Chunk meta fetched");
-        const auto& meta = metaOrError.Value();
 
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(ReplicateChunkJobSpecExt_.node_directory());
@@ -393,54 +389,48 @@ private:
             nullptr,
             Bootstrap_->GetReplicationOutThrottler());
 
-        {
-            auto error = WaitFor(writer->Open());
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                error,
-                "Error opening writer for chunk %v during replication",
-                ChunkId_);
-        }
+        WaitFor(writer->Open())
+            .ThrowOnError();
 
-        int blockIndex = 0;
+        int currentBlockIndex = 0;
         int blockCount = GetBlockCount(*meta);
 
         auto blockStore = Bootstrap_->GetBlockStore();
 
-        while (blockIndex < blockCount) {
-            auto getResult = WaitFor(blockStore->ReadBlocks(
+        while (currentBlockIndex < blockCount) {
+            auto asyncReadBlocks = blockStore->ReadBlocks(
                 ChunkId_,
-                blockIndex,
-                blockCount - blockIndex,
+                currentBlockIndex,
+                blockCount - currentBlockIndex,
                 ReadPriority,
-                false));
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                getResult,
-                "Error reading chunk %v during replication",
-                ChunkId_);
-            const auto& blocks = getResult.Value();
+                false);
+            auto readBlocks = WaitFor(asyncReadBlocks)
+                .ValueOrThrow();
 
-            LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v-%v)",
-                blockIndex,
-                blockIndex + blocks.size() - 1);
-
-            auto writeResult = writer->WriteBlocks(blocks);
-            if (!writeResult) {
-                auto error = WaitFor(writer->GetReadyEvent());
-                THROW_ERROR_EXCEPTION_IF_FAILED(
-                    error,
-                    "Error writing chunk %v during replication",
-                    ChunkId_);
+            std::vector<TSharedRef> writeBlocks;
+            for (const auto& block : readBlocks) {
+                if (block.Empty())
+                    break;
+                writeBlocks.push_back(block);
             }
 
-            blockIndex += blocks.size();
+            LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v-%v)",
+                currentBlockIndex,
+                currentBlockIndex + writeBlocks.size() - 1);
+
+            auto writeResult = writer->WriteBlocks(writeBlocks);
+            if (!writeResult) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
+            }
+
+            currentBlockIndex += writeBlocks.size();
         }
 
         LOG_DEBUG("All blocks are enqueued for replication");
 
-        {
-            auto error = WaitFor(writer->Close(*meta));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing replication writer");
-        }
+        WaitFor(writer->Close(*meta))
+            .ThrowOnError();
     }
 
     int GetBlockCount(const TChunkMeta& meta)
@@ -667,14 +657,13 @@ private:
                 Bootstrap_->GetReplicationInThrottler());
 
             while (currentRowCount < sealRowCount) {
-                auto blocksOrError = WaitFor(reader->ReadBlocks(
+                auto asyncBlocks = reader->ReadBlocks(
                     currentRowCount,
-                    sealRowCount - currentRowCount));
-                THROW_ERROR_EXCEPTION_IF_FAILED(blocksOrError);
+                    sealRowCount - currentRowCount);
+                auto blocks = WaitFor(asyncBlocks)
+                    .ValueOrThrow();
 
-                const auto& blocks = blocksOrError.Value();
                 int blockCount = static_cast<int>(blocks.size());
-
                 if (blockCount == 0) {
                     THROW_ERROR_EXCEPTION("Cannot download missing rows %v-%v to seal chunk %v",
                         currentRowCount,
@@ -698,10 +687,10 @@ private:
 
         LOG_INFO("Started sealing journal chunk (RowCount: %v)",
             sealRowCount);
-        {
-            auto error = WaitFor(changelog->Seal(sealRowCount));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
+
+        WaitFor(changelog->Seal(sealRowCount))
+            .ThrowOnError();
+
         LOG_INFO("Finished sealing journal chunk");
 
         auto chunkStore = Bootstrap_->GetChunkStore();
