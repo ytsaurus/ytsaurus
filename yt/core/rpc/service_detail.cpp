@@ -375,6 +375,10 @@ private:
             AppendInfo(&builder, "Timeout: %v", TDuration(RequestHeader_->timeout()));
         }
 
+        if (!RequestInfo_.empty()) {
+            AppendInfo(&builder, "%v", RequestInfo_);
+        }
+
         LOG_EVENT(Logger, LogLevel_, "%v <- %v",
             GetMethod(),
             builder.Flush());
