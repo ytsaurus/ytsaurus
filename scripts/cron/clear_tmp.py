@@ -45,7 +45,7 @@ def main():
     links = list(yt.search(args.directory, node_type="link"))
 
     # collect dirs
-    dirs = list(yt.search(args.directory, node_type="map_node", attributes=["modification_time", "count"]))
+    dirs = list(yt.search(args.directory, object_filter=lambda obj: obj.attributes["type"] in ["map_node", "list_node"], attributes=["modification_time", "count", "type"]))
     dir_sizes = dict((str(obj), obj.attributes["count"]) for obj in dirs)
 
     # collect table and files
