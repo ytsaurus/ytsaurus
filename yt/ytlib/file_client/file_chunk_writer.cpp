@@ -91,8 +91,9 @@ bool TFileChunkWriter::Write(const TRef& data)
 {
     LOG_DEBUG("Writing data (Size: %v)", data.Size());
 
-    if (data.Empty())
+    if (data.Empty()) {
         return true;
+    }
 
     if (Buffer_.IsEmpty()) {
         Buffer_.Reserve(static_cast<size_t>(Config_->BlockSize));
