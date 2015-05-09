@@ -754,7 +754,7 @@ private:
         std::vector<int> receivedBlockIndexes;
         for (int index = 0; index < rsp->Attachments().size(); ++index) {
             const auto& block = rsp->Attachments()[index];
-            if (block.Empty())
+            if (!block)
                 continue;
 
             int blockIndex = req->block_indexes(index);
@@ -832,7 +832,7 @@ private:
         blocks.reserve(BlockIndexes_.size());
         for (int blockIndex : BlockIndexes_) {
             const auto& block = Blocks_[blockIndex];
-            YCHECK(!block.Empty());
+            YCHECK(block);
             blocks.push_back(block);
         }
         Promise_.TrySet(std::vector<TSharedRef>(blocks));
@@ -1011,7 +1011,7 @@ private:
         int blocksReceived = 0;
         i64 bytesReceived = 0;
         for (const auto& block : blocks) {
-            if (block.Empty())
+            if (!block)
                 break;
             blocksReceived += 1;
             bytesReceived += block.Size();

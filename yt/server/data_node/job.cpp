@@ -409,7 +409,7 @@ private:
 
             std::vector<TSharedRef> writeBlocks;
             for (const auto& block : readBlocks) {
-                if (block.Empty())
+                if (!block)
                     break;
                 writeBlocks.push_back(block);
             }

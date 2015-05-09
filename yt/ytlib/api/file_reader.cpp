@@ -183,7 +183,6 @@ private:
         TSharedRef block;
         while (true) {
             auto endOfData = !Reader_->ReadBlock(&block);
-
             if (!block.Empty() || endOfData) {
                 return block;
             }
