@@ -51,7 +51,6 @@ bool TFileWriter::WriteBlock(const TSharedRef& block)
 {
     YCHECK(IsOpen_);
     YCHECK(!IsClosed_);
-    YCHECK(!block.Empty());
 
     try {
         auto* blockInfo = BlocksExt_.add_blocks();

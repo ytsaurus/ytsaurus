@@ -134,7 +134,6 @@ std::vector<TSharedRef> TFileReader::DoReadBlocks(
     for (int localIndex = 0; localIndex < blockCount; ++localIndex) {
         int blockIndex = firstBlockIndex + localIndex;
         const auto& blockInfo = BlocksExt_.blocks(blockIndex);
-        YCHECK(blockInfo.size() > 0);
         auto block = data.Slice(
             blockInfo.offset() - firstBlockInfo.offset(),
             blockInfo.offset() - firstBlockInfo.offset() + blockInfo.size());
