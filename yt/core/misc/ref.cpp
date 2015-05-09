@@ -10,6 +10,12 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const char EmptyRefData[0] = {};
+const TRef EmptyRef(EmptyRefData, static_cast<size_t>(0));
+const TSharedRef EmptySharedRef(EmptyRef, nullptr);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSharedRef::TBlobHolder::TBlobHolder(TBlob&& blob)
     : Blob(std::move(blob))
 { }
