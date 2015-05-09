@@ -9,6 +9,7 @@ namespace NBus {
 static const auto& Logger = BusLogger;
 
 static const i64 PacketDecoderChunkSize = 16 * 1024;
+
 struct TPacketDecoderTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,6 +120,8 @@ bool TPacketDecoder::EndPartSizesPhase()
 
     for (int index = 0; index < PartCount_; ++index) {
         i32 partSize = PartSizes_[index];
+        if (partSize == NullPacketPartSize)
+            continue;
         if (partSize < 0 || partSize > MaxPacketPartSize) {
             LOG_ERROR("Invalid size %v of part %v",
                 partSize,
@@ -145,22 +148,23 @@ void TPacketDecoder::NextMessagePartPhase()
     while (true) {
         ++PartIndex_;
         if (PartIndex_ == PartCount_) {
+            Message_ = TSharedRefArray(std::move(Parts_));
+            SetFinished();
             break;
         }
 
-        size_t partSize = PartSizes_[PartIndex_];
-        if (partSize != 0) {
+        int partSize = PartSizes_[PartIndex_];
+        if (partSize == NullPacketPartSize) {
+            Parts_.push_back(TSharedRef());
+        } else if (partSize == 0) {
+            Parts_.push_back(EmptySharedRef);
+        } else {
             auto part = Allocator_.AllocateAligned(partSize);
-            BeginPhase(EPacketPhase::MessagePart, part.Begin(), part.Size());            
+            BeginPhase(EPacketPhase::MessagePart, part.Begin(), part.Size());
             Parts_.push_back(std::move(part));
-            return;
+            break;
         }
-
-        Parts_.push_back(TSharedRef());
     }
-
-    Message_ = TSharedRefArray(std::move(Parts_));
-    SetFinished();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,14 +184,12 @@ i64 TPacketEncoder::GetPacketSize(
         case EPacketType::Ack:
             break;
 
-        case EPacketType::Message: {
-            size += sizeof (i32); // PartCount
-            for (const auto& part : message) {
-                size += sizeof (i32); // PartSize
-                size += part.Size();
-            }
+        case EPacketType::Message:
+            size +=
+                sizeof(i32) +
+                sizeof(i32) * message.Size() +
+                message.ByteSize();
             break;
-        }
 
         default:
             YUNREACHABLE();
@@ -208,27 +210,31 @@ bool TPacketEncoder::Start(
     PartSizes_.clear();
     PartCount_ = 0;
     PartIndex_ = -1;
-    Message_ = message;
+    Message_ = std::move(message);
 
     if (type == EPacketType::Message) {
-        PartCount_ = message.Size();
-
-        if (PartCount_ > MaxPacketPartCount) {
-            LOG_ERROR("Invalid part count %v", PartCount_);
+        if (Message_.Size() > MaxPacketPartCount) {
+            LOG_ERROR("Message exceeds part count limit: %v > %v",
+                Message_.Size(),
+                MaxPacketPartCount);
             return false;
         }
 
+        PartCount_ = Message_.Size();
         for (int index = 0; index < PartCount_; ++index) {
-            const auto& part = message[index];
-            int partSize = static_cast<int>(part.Size());
-            if (partSize > MaxPacketPartSize) {
-                LOG_ERROR("Invalid size %v of part %v",
-                    partSize,
-                    index);
-                return false;
+            const auto& part = Message_[index];
+            if (part) {
+                if (part.Size() > MaxPacketPartSize) {
+                    LOG_ERROR("Part %v exceeds size limit: %v > %v",
+                        index,
+                        part.Size(),
+                        MaxPacketPartSize);
+                    return false;
+                }
+                PartSizes_.push_back(part.Size());
+            } else {
+                PartSizes_.push_back(NullPacketPartSize);
             }
-
-            PartSizes_.push_back(partSize);
         }
     }
 

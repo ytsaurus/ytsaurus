@@ -43,7 +43,8 @@ public:
     { }
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, ModifyAttachments);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, RegularAttachments);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, NullAndEmptyAttachments);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, DoNothing);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistered);
@@ -109,7 +110,8 @@ public:
             NLogging::TLogger("Main"))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttachments));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegularAttachments));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(NullAndEmptyAttachments));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DoNothing));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SlowCall)
@@ -130,7 +132,7 @@ public:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ModifyAttachments)
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, RegularAttachments)
     {
         for (const auto& attachment : request->Attachments()) {
             auto data = TBlob(TDefaultBlobTag());
@@ -138,6 +140,17 @@ public:
             data.Append("_", 1);
             response->Attachments().push_back(TSharedRef::FromBlob(std::move(data)));
         }
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NullAndEmptyAttachments)
+    {
+        const auto& attachments = request->Attachments();
+        EXPECT_EQ(2, attachments.size());
+        EXPECT_FALSE(attachments[0]);
+        EXPECT_TRUE(attachments[1]);
+        EXPECT_TRUE(attachments[1].Empty());
+        response->Attachments() = attachments;
         context->Reply();
     }
 
@@ -284,10 +297,10 @@ TEST_F(TRpcTest, ManyAsyncRequests)
     EXPECT_TRUE(Combine(asyncResults).Get().IsOK());
 }
 
-TEST_F(TRpcTest, Attachments)
+TEST_F(TRpcTest, RegularAttachments)
 {
     TMyProxy proxy(CreateChannel());
-    auto req = proxy.ModifyAttachments();
+    auto req = proxy.RegularAttachments();
 
     req->Attachments().push_back(SharedRefFromString("Hello"));
     req->Attachments().push_back(SharedRefFromString("from"));
@@ -302,6 +315,25 @@ TEST_F(TRpcTest, Attachments)
     EXPECT_EQ("Hello_",     StringFromSharedRef(attachments[0]));
     EXPECT_EQ("from_",      StringFromSharedRef(attachments[1]));
     EXPECT_EQ("TMyProxy_",  StringFromSharedRef(attachments[2]));
+}
+
+TEST_F(TRpcTest, NullAndEmptyAttachments)
+{
+    TMyProxy proxy(CreateChannel());
+    auto req = proxy.NullAndEmptyAttachments();
+
+    req->Attachments().push_back(TSharedRef());
+    req->Attachments().push_back(EmptySharedRef);
+
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK());
+    auto rsp = rspOrError.Value();
+
+    const auto& attachments = rsp->Attachments();
+    EXPECT_EQ(2, attachments.size());
+    EXPECT_FALSE(attachments[0]);
+    EXPECT_TRUE(attachments[1]);
+    EXPECT_TRUE(attachments[1].Empty());
 }
 
 // Now test different types of errors
@@ -474,6 +506,8 @@ TEST_F(TRpcTest, ProtocolVersionMismatch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _linux_
+
 class TRpcUnixDomainTest
     : public TRpcBaseTest
 {
@@ -502,6 +536,8 @@ TEST_F(TRpcUnixDomainTest, Send)
     const auto& rsp = rspOrError.Value();
     EXPECT_EQ(142, rsp->b());
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
