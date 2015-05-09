@@ -109,7 +109,7 @@ void TEncodingWriter::VerifyVector(
     auto decompressedBlock = Codec->Decompress(compressedBlock);
 
     LOG_FATAL_IF(
-        decompressedBlock.Size() != GetTotalSize(origin),
+        decompressedBlock.Size() != GetByteSize(origin),
         "Compression verification failed");
 
     const char* current = decompressedBlock.Begin();

@@ -162,7 +162,7 @@ void TJournalChunk::DoReadBlocks(
         auto readTime = timer.GetElapsed();
         const auto& blocks = blocksOrError.Value();
         int blocksRead = static_cast<int>(blocks.size());
-        i64 bytesRead = GetTotalSize(blocks);
+        i64 bytesRead = GetByteSize(blocks);
 
         LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, BytesReadActually: %v)",
             Id_,

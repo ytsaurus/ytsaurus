@@ -716,7 +716,7 @@ private:
         }
 
         Profiler.Enqueue("/changelog_read_record_count", records.size());
-        Profiler.Enqueue("/changelog_read_size", GetTotalSize(records));
+        Profiler.Enqueue("/changelog_read_size", GetByteSize(records));
 
         return records;
     }

@@ -188,7 +188,7 @@ i64 TPacketEncoder::GetPacketSize(
             size +=
                 sizeof(i32) +
                 sizeof(i32) * message.Size() +
-                message.ByteSize();
+                GetByteSize(message);
             break;
 
         default:

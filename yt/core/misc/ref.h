@@ -418,6 +418,32 @@ Stroka ToString(const TSharedMutableRef& ref);
 size_t GetPageSize();
 size_t RoundUpToPage(size_t bytes);
 
+template <class T>
+size_t GetByteSize(const std::vector<T>& parts)
+{
+    size_t size = 0;
+    for (const auto& part : parts) {
+        size += part.Size();
+    }
+    return size;
+}
+
+inline size_t GetByteSize(const TRef& ref)
+{
+    return ref.Size();
+}
+
+inline size_t GetByteSize(const TSharedRefArray& array)
+{
+    size_t size = 0;
+    if (array) {
+        for (const auto& part : array) {
+            size += part.Size();
+        }
+    }
+    return size;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
