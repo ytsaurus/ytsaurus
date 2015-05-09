@@ -10,11 +10,11 @@ message TRspSomeCall
     required int32 b = 1;
 }
 
-message TReqModifyAttachments { }
-message TRspModifyAttachments { }
+message TReqRegularAttachments { }
+message TRspRegularAttachments { }
 
-message TReqModifyAttributes { }
-message TRspModifyAttributes { }
+message TReqNullAndEmptyAttachments { }
+message TRspNullAndEmptyAttachments { }
 
 message TReqDoNothing { }
 message TRspDoNothing { }
