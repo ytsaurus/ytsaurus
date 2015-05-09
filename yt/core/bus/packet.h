@@ -56,18 +56,20 @@ public:
     bool IsFinished() const;
 
 protected:
-    EPacketPhase Phase = EPacketPhase::Unstarted;
-    char* Fragment = nullptr;
-    size_t FragmentRemaining = 0;
-    TPacketHeader Header;
-    SmallVector<i32, TypicalPacketPartCount> PartSizes;
-    i32 PartCount = -1;
-    int PartIndex = -1;
-    TSharedRefArray Message;
+    EPacketPhase Phase_ = EPacketPhase::Unstarted;
+    char* FragmentPtr_ = nullptr;
+    size_t FragmentRemaining_ = 0;
+    TPacketHeader Header_;
+    SmallVector<i32, TypicalPacketPartCount> PartSizes_;
+    i32 PartCount_ = -1;
+    int PartIndex_ = -1;
+    TSharedRefArray Message_;
 
     void BeginPhase(EPacketPhase phase, void* fragment, size_t size);
     bool EndPhase();
     void SetFinished();
+
+    TDerived* AsDerived();
 
 };
 
@@ -92,11 +94,11 @@ public:
 private:
     friend class TPacketTranscoderBase<TPacketDecoder>;
 
-    TChunkedMemoryAllocator Allocator;
+    TChunkedMemoryAllocator Allocator_;
 
-    std::vector<TSharedRef> Parts;
+    std::vector<TSharedRef> Parts_;
 
-    size_t PacketSize;
+    size_t PacketSize_;
 
     bool EndHeaderPhase();
     bool EndPartCountPhase();
@@ -145,50 +147,56 @@ private:
 template <class TDerived>
 TMutableRef TPacketTranscoderBase<TDerived>::GetFragment()
 {
-    return TMutableRef(Fragment, FragmentRemaining);
+    return TMutableRef(FragmentPtr_, FragmentRemaining_);
 }
 
 template <class TDerived>
 bool TPacketTranscoderBase<TDerived>::IsFinished() const
 {
-    return Phase == EPacketPhase::Finished;
+    return Phase_ == EPacketPhase::Finished;
 }
 
 template <class TDerived>
 void TPacketTranscoderBase<TDerived>::BeginPhase(EPacketPhase phase, void* buffer, size_t size)
 {
-    Phase = phase;
-    Fragment = static_cast<char*>(buffer);
-    FragmentRemaining = size;
+    Phase_ = phase;
+    FragmentPtr_ = static_cast<char*>(buffer);
+    FragmentRemaining_ = size;
 }
 
 template <class TDerived>
 void TPacketTranscoderBase<TDerived>::SetFinished()
 {
-    Phase = EPacketPhase::Finished;
-    Fragment = nullptr;
-    FragmentRemaining = 0;
+    Phase_ = EPacketPhase::Finished;
+    FragmentPtr_ = nullptr;
+    FragmentRemaining_ = 0;
 }
 
 template <class TDerived>
 bool TPacketTranscoderBase<TDerived>::EndPhase()
 {
-    switch (Phase) {
+    switch (Phase_) {
         case EPacketPhase::Header:
-            return static_cast<TDerived*>(this)->EndHeaderPhase();
+            return AsDerived()->EndHeaderPhase();
 
         case EPacketPhase::PartCount:
-            return static_cast<TDerived*>(this)->EndPartCountPhase();
+            return AsDerived()->EndPartCountPhase();
 
         case EPacketPhase::PartSizes:
-            return static_cast<TDerived*>(this)->EndPartSizesPhase();
+            return AsDerived()->EndPartSizesPhase();
 
         case EPacketPhase::MessagePart:
-            return static_cast<TDerived*>(this)->EndMessagePartPhase();
+            return AsDerived()->EndMessagePartPhase();
 
         default:
             YUNREACHABLE();
     }
+}
+
+template <class TDerived>
+TDerived* TPacketTranscoderBase<TDerived>::AsDerived()
+{
+    return static_cast<TDerived*>(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
