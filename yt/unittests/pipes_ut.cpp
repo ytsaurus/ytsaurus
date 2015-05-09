@@ -99,6 +99,25 @@ TEST(TAsyncWriterTest, AsyncCloseFail)
     ASSERT_EQ(-1, close(pipefds[1]));
 }
 
+TEST(TAsyncWriterTest, WriteFailed)
+{
+    int pipefds[2];
+    SafeMakeNonblockingPipes(pipefds);
+
+    auto reader = New<TAsyncReader>(pipefds[0]);
+    auto writer = New<TAsyncWriter>(pipefds[1]);
+
+    int length = 200*1024;
+    auto buffer = TSharedMutableRef::Allocate(length);
+    ::memset(buffer.Begin(), 'a', buffer.Size());
+
+    auto asyncWriteResult = writer->Write(buffer);
+    reader->Abort();
+
+    EXPECT_FALSE(asyncWriteResult.Get().IsOK())
+        << ToString(asyncWriteResult.Get());
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
 class TPipeReadWriteTest
