@@ -876,7 +876,7 @@ bool TReplicationWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
         return false;
     }
 
-    WindowSlots_.Acquire(GetTotalSize(blocks));
+    WindowSlots_.Acquire(GetByteSize(blocks));
     TDispatcher::Get()->GetWriterInvoker()->Invoke(
         BIND(&TReplicationWriter::AddBlocks, MakeWeak(this), blocks));
 
@@ -939,7 +939,7 @@ void TReplicationWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
     LOG_DEBUG("Blocks added (Blocks: %v-%v, Size: %v)",
         firstBlockIndex,
         lastBlockIndex,
-        GetTotalSize(blocks));
+        GetByteSize(blocks));
 }
 
 void TReplicationWriter::DoClose()

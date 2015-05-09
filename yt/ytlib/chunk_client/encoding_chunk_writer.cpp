@@ -30,7 +30,7 @@ void TEncodingChunkWriter::WriteBlock(std::vector<TSharedRef>&& data)
 {
     ++CurrentBlockIndex_;
 
-    i64 blockSize = GetTotalSize(data);
+    i64 blockSize = GetByteSize(data);
     LargestBlockSize_ = std::max(LargestBlockSize_, blockSize);
 
     EncodingWriter_->WriteBlock(std::move(data));

@@ -174,19 +174,9 @@ void UnpackRefs(const TSharedRef& packedRef, T* parts)
 }
 
 template <class T>
-size_t GetTotalSize(const std::vector<T>& parts)
-{
-    size_t size = 0;
-    for (const auto& part : parts) {
-        size += part.Size();
-    }
-    return size;
-}
-
-template <class T>
 TSharedRef MergeRefs(const std::vector<T>& parts)
 {
-    size_t size = GetTotalSize(parts);
+    size_t size = GetByteSize(parts);
     struct TMergedBlockTag { };
     auto result = TSharedMutableRef::Allocate<TMergedBlockTag>(size, false);
     size_t pos = 0;

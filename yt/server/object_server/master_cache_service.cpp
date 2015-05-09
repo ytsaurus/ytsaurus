@@ -111,7 +111,7 @@ private:
             : TAsyncCacheValueBase(key)
             , Success_(success)
             , ResponseMessage_(std::move(responseMessage))
-            , TotalSpace_(ResponseMessage_.ByteSize())
+            , TotalSpace_(GetByteSize(ResponseMessage_))
             , Timestamp_(timestamp)
         { }
 

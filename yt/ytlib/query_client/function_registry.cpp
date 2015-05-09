@@ -280,7 +280,7 @@ TSharedRef ReadFile(const Stroka& fileName, NApi::IClientPtr client)
         blocks.push_back(block);
     }
 
-    i64 size = GetTotalSize(blocks);
+    i64 size = GetByteSize(blocks);
     auto file = TSharedMutableRef::Allocate(size);
     auto memoryOutput = TMemoryOutput(
         file.Begin(),

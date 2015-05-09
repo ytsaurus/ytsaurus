@@ -388,7 +388,7 @@ private:
             }
         }
 
-        i64 blocksSize = GetTotalSize(response->Attachments());
+        i64 blocksSize = GetByteSize(response->Attachments());
 
         // Register the peer that we had just sent the reply to.
         if (request->has_peer_descriptor() && request->has_peer_expiration_time()) {
@@ -445,7 +445,7 @@ private:
         }
 
         int blocksWithData = response->Attachments().size();
-        i64 blocksSize = GetTotalSize(response->Attachments());
+        i64 blocksSize = GetByteSize(response->Attachments());
 
         context->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksSize: %v",
             response->has_complete_chunk(),
