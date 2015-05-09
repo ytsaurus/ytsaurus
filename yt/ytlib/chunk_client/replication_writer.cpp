@@ -918,7 +918,6 @@ void TReplicationWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
     int currentBlockIndex = firstBlockIndex;
 
     for (const auto& block : blocks) {
-        YCHECK(!block.Empty());
         EnsureCurrentGroup();
 
         auto blockId = TBlockId(ChunkId_, currentBlockIndex);
