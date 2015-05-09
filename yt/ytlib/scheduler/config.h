@@ -179,7 +179,7 @@ public:
     double MemoryReserveFactor;
 
     bool UseYamrDescriptors;
-    bool CheckInputStreamFullyConsumed;
+    bool CheckInputFullyConsumed;
     bool EnableCoreDump;
 
     i64 MaxStderrSize;
@@ -212,7 +212,7 @@ public:
             .LessThanOrEqual(1.);
         RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
-        RegisterParameter("check_input_fully_consumed", CheckInputStreamFullyConsumed)
+        RegisterParameter("check_input_fully_consumed", CheckInputFullyConsumed)
             .Default(false);
         RegisterParameter("enable_core_dump", EnableCoreDump)
             .Default(false);
