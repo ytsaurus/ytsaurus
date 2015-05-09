@@ -37,6 +37,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
     TSlruCacheConfigPtr config,
     const NProfiling::TProfiler& profiler)
     : Config_(std::move(config))
+    , TouchBuffer_(Config_->TouchBufferCapacity)
     , Profiler(profiler)
     , HitWeightCounter_("/hit")
     , MissedWeightCounter_("/missed")
@@ -47,31 +48,33 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::Clear()
 {
+    NConcurrency::TWriterGuard guard(SpinLock_);
+
+    TouchBufferPosition_ = 0;
+
+    ItemMap_.clear();
+    ItemMapSize_ = 0;
+
     TIntrusiveListWithAutoDelete<TItem, TDelete> youngerLruList;
+    YoungerLruList_.Swap(youngerLruList);
+    Profiler.Update(YoungerWeightCounter_, 0);
+
     TIntrusiveListWithAutoDelete<TItem, TDelete> olderLruList;
+    OlderLruList_.Swap(olderLruList);
+    Profiler.Update(OlderWeightCounter_, 0);
 
-    {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+    Profiler.Update(HitWeightCounter_, 0);
+    Profiler.Update(MissedWeightCounter_, 0);
 
-        ItemMap_.clear();
-        ItemMapSize_ = 0;
-
-        YoungerLruList_.Swap(youngerLruList);
-        Profiler.Update(YoungerWeightCounter_, 0);
-
-        OlderLruList_.Swap(olderLruList);
-        Profiler.Update(OlderWeightCounter_, 0);
-
-        Profiler.Update(HitWeightCounter_, 0);
-        Profiler.Update(MissedWeightCounter_, 0);
-    }
+    // NB: Lists must die outside the critical section.
+    guard.Release();
 }
 
 template <class TKey, class TValue, class THash>
 typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValuePtr
 TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    NConcurrency::TReaderGuard readerGuard(SpinLock_);
 
     auto itemIt = ItemMap_.find(key);
     if (itemIt == ItemMap_.end()) {
@@ -84,15 +87,16 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
         return nullptr;
     }
 
-    bool canTouch = CanTouch(item);
+    bool needToDrain = Touch(item);
 
     auto weight = GetWeight(item->Value.Get());
     Profiler.Increment(HitWeightCounter_, weight);
 
-    guard.Release();
+    readerGuard.Release();
 
-    if (canTouch) {
-        Touch(key);
+    if (needToDrain) {
+        NConcurrency::TWriterGuard writerGuard(SpinLock_);
+        DrainTouchBuffer();
     }
 
     return value;
@@ -131,7 +135,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
         auto itemIt = ItemMap_.find(key);
         if (itemIt != ItemMap_.end()) {
             auto* item = itemIt->second;
-            bool canTouch = CanTouch(item);
+            bool needToDrain = Touch(item);
             auto promise = item->ValuePromise;
 
             if (item->Value) {
@@ -141,8 +145,9 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 
             readerGuard.Release();
 
-            if (canTouch) {
-                Touch(key);
+            if (needToDrain) {
+                NConcurrency::TWriterGuard guard(SpinLock_);
+                DrainTouchBuffer();
             }
 
             return promise;
@@ -160,6 +165,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
         if (value) {
             NConcurrency::TWriterGuard writerGuard(SpinLock_);
 
+            DrainTouchBuffer();
+
             if (ItemMap_.find(key) != ItemMap_.end())
                 continue;
 
@@ -173,10 +180,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             auto weight = PushToYounger(item);
             Profiler.Increment(HitWeightCounter_, weight);
 
-            writerGuard.Release();
-
+            Trim(writerGuard);
             // ...since the item can be dead at this moment.
-            TrimIfNeeded();
 
             return promise;
         }
@@ -194,6 +199,8 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie
 
     while (true) {
         NConcurrency::TWriterGuard guard(SpinLock_);
+
+        DrainTouchBuffer();
 
         auto itemIt = ItemMap_.find(key);
         if (itemIt != ItemMap_.end()) {
@@ -234,9 +241,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie
 
             cookie->ValuePromise_ = item->ValuePromise;
 
-            guard.Release();
-
-            TrimIfNeeded();
+            Trim(guard);
 
             return false;
         }
@@ -259,6 +264,8 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInser
 
     NConcurrency::TWriterGuard guard(SpinLock_);
 
+    DrainTouchBuffer();
+
     YCHECK(!value->Cache_);
     value->Cache_ = this;
 
@@ -274,33 +281,33 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInser
     auto weight = PushToYounger(item);
     Profiler.Increment(MissedWeightCounter_, weight);
 
-    guard.Release();
+    // NB: Releases the lock.
+    Trim(guard);
 
     promise.Set(value);
 
     OnAdded(value.Get());
-
-    TrimIfNeeded();
 }
 
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError& error)
 {
-    TValuePromise promise;
-    {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+    NConcurrency::TWriterGuard guard(SpinLock_);
 
-        auto it = ItemMap_.find(key);
-        YCHECK(it != ItemMap_.end());
+    DrainTouchBuffer();
 
-        auto* item = it->second;
-        promise = item->ValuePromise;
+    auto it = ItemMap_.find(key);
+    YCHECK(it != ItemMap_.end());
 
-        ItemMap_.erase(it);
-        --ItemMapSize_;
+    auto* item = it->second;
+    auto promise = item->ValuePromise;
 
-        delete item;
-    }
+    ItemMap_.erase(it);
+    --ItemMapSize_;
+
+    delete item;
+
+    guard.Release();
 
     promise.Set(error);
 }
@@ -309,6 +316,8 @@ template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
+
+    DrainTouchBuffer();
 
     YCHECK(ItemMap_.find(key) == ItemMap_.end());
     YCHECK(ValueMap_.erase(key) == 1);
@@ -319,6 +328,8 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
 
+    DrainTouchBuffer();
+
     auto it = ItemMap_.find(key);
     if (it == ItemMap_.end()) {
         return false;
@@ -326,6 +337,9 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
 
     auto* item = it->second;
     auto value = item->Value;
+    if (!value) {
+        return false;
+    }
 
     ItemMap_.erase(it);
     --ItemMapSize_;
@@ -338,9 +352,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
     // The latter will try to acquire the spinlock.
     guard.Release();
 
-    if (value) {
-        OnRemoved(value.Get());
-    }
+    OnRemoved(value.Get());
 
     delete item;
 
@@ -351,6 +363,8 @@ template <class TKey, class TValue, class THash>
 bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
+
+    DrainTouchBuffer();
 
     auto valueIt = ValueMap_.find(value->GetKey());
     if (valueIt == ValueMap_.end() || valueIt->second != value) {
@@ -380,28 +394,29 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
 }
 
 template <class TKey, class TValue, class THash>
-bool TAsyncSlruCacheBase<TKey, TValue, THash>::CanTouch(TItem* item)
+bool TAsyncSlruCacheBase<TKey, TValue, THash>::Touch(TItem* item)
 {
-    return NProfiling::GetCpuInstant() >= item->NextTouchInstant;
+    int capacity = TouchBuffer_.size();
+    int index = TouchBufferPosition_++;
+    if (index >= capacity) {
+        // Drop touch request due to buffer overflow.
+        // NB: We still return false since the other thread is already responsible for
+        // draining the buffer.
+        return false;
+    }
+
+    TouchBuffer_[index] = item;
+    return index == capacity - 1;
 }
 
 template <class TKey, class TValue, class THash>
-void TAsyncSlruCacheBase<TKey, TValue, THash>::Touch(const TKey& key)
+void TAsyncSlruCacheBase<TKey, TValue, THash>::DrainTouchBuffer()
 {
-    static auto MinTouchPeriod = TDuration::MilliSeconds(10);
-
-    NConcurrency::TWriterGuard guard(SpinLock_);
-
-    auto it = ItemMap_.find(key);
-    if (it == ItemMap_.end())
-        return;
-
-    auto* item = it->second;
-    if (!item->Empty()) {
-        MoveToOlder(item);
+    int size = TouchBufferPosition_.load();
+    for (int index = 0; index < size; ++index) {
+        MoveToOlder(TouchBuffer_[index]);
     }
-
-    item->NextTouchInstant = NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(MinTouchPeriod);
+    TouchBufferPosition_ = 0;
 }
 
 template <class TKey, class TValue, class THash>
@@ -472,26 +487,21 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Pop(TItem* item)
 }
 
 template <class TKey, class TValue, class THash>
-void TAsyncSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
+void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(NConcurrency::TWriterGuard& guard)
 {
     // Move from older to younger.
-    while (true) {
-        NConcurrency::TWriterGuard guard(SpinLock_);
-
-        if (OlderLruList_.Empty() || OlderWeightCounter_.Current <= Config_->Capacity * (1 - Config_->YoungerSizeFraction))
-            break;
-
+    while (!OlderLruList_.Empty() &&
+           OlderWeightCounter_.Current > Config_->Capacity * (1 - Config_->YoungerSizeFraction))
+    {
         auto* item = &*(--OlderLruList_.End());
         MoveToYounger(item);
     }
 
     // Evict from younger.
-    while (true) {
-        NConcurrency::TWriterGuard guard(SpinLock_);
-
-        if (YoungerLruList_.Empty() || YoungerWeightCounter_.Current + OlderWeightCounter_.Current <= Config_->Capacity)
-            break;
-
+    std::vector<TValuePtr> evictedValues;
+    while (!YoungerLruList_.Empty() &&
+           YoungerWeightCounter_.Current + OlderWeightCounter_.Current > Config_->Capacity)
+    {
         auto* item = &*(--YoungerLruList_.End());
         auto value = item->Value;
 
@@ -500,11 +510,15 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
         YCHECK(ItemMap_.erase(value->GetKey()) == 1);
         --ItemMapSize_;
 
-        guard.Release();
-
-        OnRemoved(value.Get());
+        evictedValues.emplace_back(std::move(item->Value));
 
         delete item;
+    }
+
+    guard.Release();
+
+    for (const auto& value : evictedValues) {
+        OnRemoved(value.Get());
     }
 }
 
