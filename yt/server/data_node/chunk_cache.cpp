@@ -79,8 +79,8 @@ public:
 
         auto descriptors = Location_->Scan();
         for (const auto& descriptor : descriptors) {
-            TInsertCookie cookie(descriptor.Id);
-            YCHECK(BeginInsert(&cookie));
+            auto cookie = BeginInsert(descriptor.Id);
+            YCHECK(cookie.IsActive());
 
             auto chunk = CreateChunk(Location_, descriptor);
             cookie.EndInsert(chunk);
@@ -109,10 +109,9 @@ public:
         LOG_INFO("Getting chunk from cache (ChunkId: %v)",
             chunkId);
 
-        TInsertCookie cookie(chunkId);
-        bool inserted = BeginInsert(&cookie);
+        auto cookie = BeginInsert(chunkId);
         auto cookieValue = cookie.GetValue();
-        if (inserted) {
+        if (cookie.IsActive()) {
             LOG_INFO("Loading chunk into cache (ChunkId: %v)",
                 chunkId);
 

@@ -72,8 +72,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TInsertCookie cookie(blockId);
-        if (BeginInsert(&cookie)) {
+        auto cookie = BeginInsert(blockId);
+        if (cookie.IsActive()) {
             auto block = New<TCachedBlock>(blockId, data, source);
             cookie.EndInsert(block);
 
@@ -181,8 +181,8 @@ public:
                     entry.Data = cachedBlock->GetData();
                     entry.Cached = true;
                 } else if (enableCaching) {
-                    entry.Cookie = TInsertCookie(blockId);
-                    if (!BeginInsert(&entry.Cookie)) {
+                    entry.Cookie = BeginInsert(blockId);
+                    if (!entry.Cookie.IsActive()) {
                         entry.Cached = true;
                         auto asyncResult = entry.Cookie.GetValue().Apply(
                             BIND([session, &entry] (const TCachedBlockPtr& cachedBlock) {

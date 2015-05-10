@@ -202,8 +202,8 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::OpenChangelog(
     TLocationPtr location,
     const TChunkId& chunkId)
 {
-    TInsertCookie cookie({location, chunkId});
-    if (!BeginInsert(&cookie)) {
+    auto cookie = BeginInsert({location, chunkId});
+    if (!cookie.IsActive()) {
         return cookie.GetValue().As<IChangelogPtr>();
     }
 
@@ -245,8 +245,8 @@ TFuture<IChangelogPtr> TJournalDispatcher::TImpl::CreateChangelog(
     bool enableMultiplexing)
 {
     try {
-        TInsertCookie cookie({location, chunkId});
-        if (!BeginInsert(&cookie)) {
+        auto cookie = BeginInsert({location, chunkId});
+        if (!cookie.IsActive()) {
             THROW_ERROR_EXCEPTION("Journal chunk %v is still busy",
                 chunkId);
         }

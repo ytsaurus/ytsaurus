@@ -153,8 +153,8 @@ private:
 
     IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)
     {
-        TInsertCookie cookie(id);
-        if (!BeginInsert(&cookie)) {
+        auto cookie = BeginInsert(id);
+        if (!cookie.IsActive()) {
             THROW_ERROR_EXCEPTION("Trying to create an already existing changelog %v",
                 id);
         }
@@ -176,8 +176,8 @@ private:
 
     IChangelogPtr DoOpenChangelog(int id)
     {
-        TInsertCookie cookie(id);
-        if (BeginInsert(&cookie)) {
+        auto cookie = BeginInsert(id);
+        if (cookie.IsActive()) {
             auto path = GetChangelogPath(id);
             if (!NFS::Exists(path)) {
                 cookie.Cancel(TError(
