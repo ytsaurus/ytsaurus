@@ -50,23 +50,25 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     IChannelPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
     : Logger(ChunkClientLogger)
+    , Config_(NYTree::CloneYsonSerializable(config))
     , Options_(options)
     , MasterChannel_(masterChannel)
     , TransactionId_(transactionId)
     , ParentChunkListId_(parentChunkListId)
     , Throttler_(throttler)
-    , NodeDirectory_(New<TNodeDirectory>())
-    , ReadyEvent_(VoidFuture)
-    , CompletionError_(NewPromise<void>())
+    , BlockCache_(blockCache)
+    , NodeDirectory_(New<NNodeTrackerClient::TNodeDirectory>())
     , CloseChunksAwaiter_(New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker()))
 {
-    YCHECK(config);
+    YCHECK(Config_);
     YCHECK(MasterChannel_);
 
-    Config_ = CloneYsonSerializable(config);
-    Config_->UploadReplicationFactor = std::min(Options_->ReplicationFactor, Config_->UploadReplicationFactor);
+    Config_->UploadReplicationFactor = std::min(
+        Options_->ReplicationFactor,
+        Config_->UploadReplicationFactor);
 
     Logger.AddTag("TransactionId: %v", TransactionId_);
 }
@@ -160,7 +162,6 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
         GenerateMutationId(req);
 
         // ToDo(psushin): Use CreateChunk here.
-
         auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
         reqExt->set_movable(Config_->ChunksMovable);
         reqExt->set_replication_factor(Options_->ReplicationFactor);
@@ -186,7 +187,8 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
                 TChunkReplicaList(),
                 NodeDirectory_,
                 MasterChannel_,
-                Throttler_);
+                Throttler_,
+                BlockCache_);
         } else {
             auto* erasureCodec = GetCodec(Options_->ErasureCodec);
             auto writers = CreateErasurePartWriters(
@@ -196,7 +198,8 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
                 erasureCodec, 
                 NodeDirectory_, 
                 MasterChannel_, 
-                Throttler_);
+                Throttler_,
+                BlockCache_);
             NextSession_.UnderlyingWriter = CreateErasureWriter(
                 Config_,
                 erasureCodec,

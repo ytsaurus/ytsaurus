@@ -8,6 +8,7 @@
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
 #include "chunk_writer.h"
+#include "block_cache.h"
 #include "private.h"
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -140,7 +141,8 @@ public:
         const TChunkReplicaList& initialTargets,
         TNodeDirectoryPtr nodeDirectory,
         IChannelPtr masterChannel,
-        IThroughputThrottlerPtr throttler);
+        IThroughputThrottlerPtr throttler,
+        IBlockCachePtr blockCache);
 
     ~TReplicationWriter();
 
@@ -165,6 +167,7 @@ private:
     const IChannelPtr MasterChannel_;
     const TNodeDirectoryPtr NodeDirectory_;
     const IThroughputThrottlerPtr Throttler_;
+    const IBlockCachePtr BlockCache_;
 
     TAsyncStreamState State_;
 
@@ -440,7 +443,8 @@ TReplicationWriter::TReplicationWriter(
     const TChunkReplicaList& initialTargets,
     TNodeDirectoryPtr nodeDirectory,
     IChannelPtr masterChannel,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
     : Config_(config)
     , Options_(options)
     , ChunkId_(chunkId)
@@ -448,6 +452,7 @@ TReplicationWriter::TReplicationWriter(
     , MasterChannel_(masterChannel)
     , NodeDirectory_(nodeDirectory)
     , Throttler_(throttler)
+    , BlockCache_(blockCache)
     , WindowSlots_(config->SendWindowSize)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
 {
@@ -910,13 +915,19 @@ void TReplicationWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
         return;
 
     int firstBlockIndex = BlockCount_;
+    int currentBlockIndex = firstBlockIndex;
 
     for (const auto& block : blocks) {
         YCHECK(!block.Empty());
         EnsureCurrentGroup();
 
+        auto blockId = TBlockId(ChunkId_, currentBlockIndex);
+        BlockCache_->Put(blockId, EBlockType::CompressedData, block, Null);
+
         CurrentGroup_->AddBlock(block);
+
         ++BlockCount_;
+        ++currentBlockIndex;
 
         if (CurrentGroup_->GetSize() >= Config_->GroupSize) {
             FlushCurrentGroup();
@@ -1003,7 +1014,8 @@ IChunkWriterPtr CreateReplicationWriter(
     const TChunkReplicaList& targets,
     TNodeDirectoryPtr nodeDirectory,
     IChannelPtr masterChannel,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
 {
     return New<TReplicationWriter>(
         config,
@@ -1012,7 +1024,8 @@ IChunkWriterPtr CreateReplicationWriter(
         targets,
         nodeDirectory,
         masterChannel,
-        throttler);
+        throttler,
+        blockCache);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

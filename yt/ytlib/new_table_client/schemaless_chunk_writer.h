@@ -6,6 +6,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_writer_base.h>
 #include <ytlib/chunk_client/multi_chunk_writer.h>
+#include <ytlib/chunk_client/client_block_cache.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -65,7 +66,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
     bool reorderValues = false,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterConfigPtr config,
@@ -76,7 +78,8 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId,
     std::unique_ptr<IPartitioner> partitioner,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,7 +92,8 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::TTransactionPtr transaction,
     NTransactionClient::TTransactionManagerPtr transactionManager,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ////////////////////////////////////////////////////////////////////////////////
 

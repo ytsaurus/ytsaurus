@@ -1,15 +1,15 @@
 #pragma once
 
 #include "public.h"
+#include "client_block_cache.h"
 
 #include <core/erasure/public.h>
 
 #include <core/rpc/public.h>
 
-#include <core/concurrency/public.h>
+#include <core/concurrency/throughput_throttler.h>
 
 #include <ytlib/node_tracker_client/public.h>
-#include <core/concurrency/throughput_throttler.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -28,7 +28,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     NErasure::ICodec* codec,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NRpc::IChannelPtr masterChannel,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
+    IBlockCachePtr blockCache = GetNullBlockCache());
 
 ///////////////////////////////////////////////////////////////////////////////
 

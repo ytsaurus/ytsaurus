@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <ytlib/api/config.h>
+#include <ytlib/api/public.h>
 
-#include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_writer_base.h>
 #include <ytlib/chunk_client/multi_chunk_writer.h>
 #include <ytlib/chunk_client/writer_base.h>
+#include <ytlib/chunk_client/client_block_cache.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -61,7 +61,8 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ////////////////////////////////////////////////////////////////////////////////
 

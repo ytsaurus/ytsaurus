@@ -31,7 +31,8 @@ public:
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
-        NConcurrency::IThroughputThrottlerPtr throttler);
+        NConcurrency::IThroughputThrottlerPtr throttler,
+        IBlockCachePtr blockCache);
 
     virtual TFuture<void> Open() override;
     virtual TFuture<void> Close() override;
@@ -78,14 +79,16 @@ private:
         }
     };
 
-    TMultiChunkWriterConfigPtr Config_;
+    const TMultiChunkWriterConfigPtr Config_;
     const TMultiChunkWriterOptionsPtr Options_;
     const NRpc::IChannelPtr MasterChannel_;
     const NTransactionClient::TTransactionId TransactionId_;
     const TChunkListId ParentChunkListId_;
     const NConcurrency::IThroughputThrottlerPtr Throttler_;
+    const IBlockCachePtr BlockCache_;
 
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const NConcurrency::TParallelAwaiterPtr CloseChunksAwaiter_;
 
     volatile double Progress_ = 0.0;
 
@@ -95,11 +98,9 @@ private:
     bool Closing_ = false;
 
     TFuture<void> NextSessionReady_;
-    TFuture<void> ReadyEvent_;
+    TFuture<void> ReadyEvent_ = VoidFuture;
 
-    TPromise<void> CompletionError_;
-
-    NConcurrency::TParallelAwaiterPtr CloseChunksAwaiter_;
+    TPromise<void> CompletionError_ = NewPromise<void>();
 
     NProto::TDataStatistics DataStatistics_;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks_;
@@ -136,18 +137,21 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
-        NConcurrency::IThroughputThrottlerPtr throttler)
+        NConcurrency::IThroughputThrottlerPtr throttler,
+        IBlockCachePtr blockCache)
         : TNontemplateMultiChunkWriterBase(
             config, 
             options, 
             masterChannel, 
             transactionId, 
             parentChunkListId,
-            throttler)
+            throttler,
+            blockCache)
         , CreateChunkWriter_(createChunkWriter)
     { }
 
-    virtual bool Write(TWriteArgs... args) override {
+    virtual bool Write(TWriteArgs... args) override
+    {
         if (!VerifyActive()) {
             return false;
         }
@@ -163,8 +167,9 @@ public:
     }
 
 protected:
+    const std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> CreateChunkWriter_;
+
     ISpecificChunkWriterPtr CurrentWriter_;
-    std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> CreateChunkWriter_;
 
     virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) override
     {

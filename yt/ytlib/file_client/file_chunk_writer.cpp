@@ -5,17 +5,13 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/api/public.h>
+#include <ytlib/api/config.h>
 
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/multi_chunk_writer_base.h>
-
-#include <core/logging/log.h>
-
-#include <core/rpc/channel.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -203,7 +199,8 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     IChannelPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
 {
     typedef TMultiChunkWriterBase<
         IFileMultiChunkWriter,
@@ -224,7 +221,8 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
         transactionId, 
         parentChunkListId, 
         createChunkWriter,
-        throttler);
+        throttler,
+        blockCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
