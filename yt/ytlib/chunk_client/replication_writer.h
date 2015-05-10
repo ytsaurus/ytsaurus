@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "client_block_cache.h"
 
 #include <core/concurrency/throughput_throttler.h>
 
@@ -20,7 +21,8 @@ IChunkWriterPtr CreateReplicationWriter(
     const TChunkReplicaList& targets,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NRpc::IChannelPtr masterChannel,
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
+    IBlockCachePtr blockCache = GetNullBlockCache());
 
 ///////////////////////////////////////////////////////////////////////////////
 

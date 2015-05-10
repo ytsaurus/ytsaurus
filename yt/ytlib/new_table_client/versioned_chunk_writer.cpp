@@ -334,7 +334,8 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
 {
     typedef TMultiChunkWriterBase<
         IVersionedMultiChunkWriter,
@@ -357,7 +358,8 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         transactionId,
         parentChunkListId,
         createChunkWriter,
-        throttler);
+        throttler,
+        blockCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

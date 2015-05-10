@@ -589,7 +589,8 @@ public:
         std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TNameTablePtr nameTable,
         bool isSorted,
-        IThroughputThrottlerPtr throttler)
+        IThroughputThrottlerPtr throttler,
+        IBlockCachePtr blockCache)
         : TBase(
             config,
             options,
@@ -597,7 +598,8 @@ public:
             transactionId,
             parentChunkListId,
             createChunkWriter,
-            throttler)
+            throttler,
+            blockCache)
         , NameTable_(nameTable)
         , IsSorted_(isSorted)
     { }
@@ -629,7 +631,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     bool reorderValues,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
 {
     typedef TMultiChunkWriterBase<
         ISchemalessMultiChunkWriter,
@@ -656,7 +659,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
         createChunkWriter,
         nameTable,
         isSorted,
-        throttler);
+        throttler,
+        blockCache);
 
     if (reorderValues && isSorted) {
         return New<TReorderingSchemalessMultiChunkWriter>(keyColumns, nameTable, writer);
@@ -676,7 +680,8 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     std::unique_ptr<IPartitioner> partitioner,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
 {
     YCHECK(!keyColumns.empty());
 
@@ -687,16 +692,15 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
 
     typedef TSchemalessMultiChunkWriter<TPartitionMultiChunkWriterBase> TWriter;
 
-    // Convert to shared_ptr to capture partitioner in lambda.
-    std::shared_ptr<IPartitioner> sharedPartitioner(std::move(partitioner));
-    auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
+    // TODO(babenko): consider making IPartitioner ref-counted.
+    auto createChunkWriter = [=, partitioner = std::shared_ptr<IPartitioner>(std::move(partitioner))] (IChunkWriterPtr underlyingWriter) {
         return CreatePartitionChunkWriter(
             config,
             options,
             nameTable,
             keyColumns,
             underlyingWriter,
-            sharedPartitioner.get());
+            partitioner.get());
     };
 
     auto writer = New<TWriter>(
@@ -708,7 +712,8 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         createChunkWriter,
         nameTable,
         false,
-        throttler);
+        throttler,
+        blockCache);
 
     return New<TReorderingSchemalessMultiChunkWriter>(
         keyColumns,
@@ -732,7 +737,8 @@ public:
         IChannelPtr masterChannel,
         TTransactionPtr transaction,
         TTransactionManagerPtr transactionManager,
-        IThroughputThrottlerPtr throttler);
+        IThroughputThrottlerPtr throttler,
+        IBlockCachePtr blockCache);
 
     virtual TFuture<void> Open() override;
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
@@ -753,6 +759,7 @@ private:
     const TTransactionPtr Transaction_;
     const TTransactionManagerPtr TransactionManager_;
     const IThroughputThrottlerPtr Throttler_;
+    const IBlockCachePtr BlockCache_;
 
     TTransactionId TransactionId_;
 
@@ -781,7 +788,8 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     IChannelPtr masterChannel,
     TTransactionPtr transaction,
     TTransactionManagerPtr transactionManager,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
     : Logger(TableClientLogger)
     , Config_(config)
     , Options_(New<TTableWriterOptions>())
@@ -792,6 +800,7 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     , Transaction_(transaction)
     , TransactionManager_(transactionManager)
     , Throttler_(throttler)
+    , BlockCache_(blockCache)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
 {
     Options_->NetworkName = options->NetworkName;
@@ -962,7 +971,8 @@ void TSchemalessTableWriter::DoOpen()
         UploadTransaction_->GetId(),
         ChunkListId_,
         true,
-        Throttler_);
+        Throttler_,
+        BlockCache_);
 
     auto error = WaitFor(UnderlyingWriter_->Open());
     THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -1039,7 +1049,8 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     IChannelPtr masterChannel,
     TTransactionPtr transaction,
     TTransactionManagerPtr transactionManager,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
 {
     return New<TSchemalessTableWriter>(
         config,
@@ -1050,7 +1061,8 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
         masterChannel,
         transaction,
         transactionManager,
-        throttler);
+        throttler,
+        blockCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
