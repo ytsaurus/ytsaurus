@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "store_preloader.h"
+#include "in_memory_manager.h"
 #include "config.h"
 #include "chunk_store.h"
 #include "tablet.h"
@@ -11,7 +11,6 @@
 
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/async_semaphore.h>
-#include <core/concurrency/delayed_executor.h>
 
 #include <core/compression/codec.h>
 
@@ -37,26 +36,26 @@ const auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStorePreloader
+class TInMemoryManager::TImpl
     : public TRefCounted
 {
 public:
-    TStorePreloader(
+    TImpl(
         TTabletNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
-        , Semaphore_(Config_->StorePreloader->MaxConcurrentPreloads)
+        , PreloadSemaphore_(Config_->StorePreloader->MaxConcurrentPreloads)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->SubscribeScanSlot(BIND(&TStorePreloader::ScanSlot, MakeStrong(this)));
+        slotManager->SubscribeScanSlot(BIND(&TImpl::ScanSlot, MakeStrong(this)));
     }
 
 private:
     const TTabletNodeConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
-    TAsyncSemaphore Semaphore_;
+    TAsyncSemaphore PreloadSemaphore_;
 
 
     void ScanSlot(TTabletSlotPtr slot)
@@ -88,14 +87,14 @@ private:
 
     bool ScanStore(TTablet* tablet, TChunkStorePtr store)
     {
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(&PreloadSemaphore_);
         if (!guard) {
             return false;
         }
 
         auto future =
             BIND(
-                &TStorePreloader::PreloadStore,
+                &TImpl::PreloadStore,
                 MakeStrong(this),
                 Passed(std::move(guard)),
                 tablet,
@@ -232,12 +231,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void StartStorePreloader(
+TInMemoryManager::TInMemoryManager(
     TTabletNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
-{
-    New<TStorePreloader>(config, bootstrap);
-}
+    : Impl_(New<TImpl>(config, bootstrap))
+{ }
+
+TInMemoryManager::~TInMemoryManager()
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

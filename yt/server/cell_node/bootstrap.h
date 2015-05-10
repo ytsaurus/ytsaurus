@@ -58,6 +58,7 @@ public:
     NJobAgent::TJobTrackerPtr GetJobController() const;
     NTabletNode::TSlotManagerPtr GetTabletSlotManager() const;
     NTabletNode::TSecurityManagerPtr GetSecurityManager() const;
+    NTabletNode::TInMemoryManagerPtr GetInMemoryManager() const;
     NExecAgent::TSlotManagerPtr GetExecSlotManager() const;
     NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
@@ -128,6 +129,7 @@ private:
 
     NTabletNode::TSlotManagerPtr TabletSlotManager;
     NTabletNode::TSecurityManagerPtr SecurityManager;
+    NTabletNode::TInMemoryManagerPtr InMemoryManager;
 
     NQueryClient::IExecutorPtr QueryExecutor;
 
@@ -139,5 +141,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellNode
+} // namespace NTabletNode
 } // namespace NYT

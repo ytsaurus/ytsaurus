@@ -80,7 +80,7 @@
 #include <server/tablet_node/store_compactor.h>
 #include <server/tablet_node/partition_balancer.h>
 #include <server/tablet_node/security_manager.h>
-#include <server/tablet_node/store_preloader.h>
+#include <server/tablet_node/in_memory_manager.h>
 
 #include <server/query_agent/query_executor.h>
 #include <server/query_agent/query_service.h>
@@ -327,6 +327,8 @@ void TBootstrap::DoRun()
 
     SecurityManager = New<TSecurityManager>(Config->TabletNode->SecurityManager, this);
 
+    InMemoryManager = New<TInMemoryManager>(Config->TabletNode, this);
+
     QueryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
 
     RpcServer->RegisterService(CreateQueryService(Config->QueryAgent, this));
@@ -395,7 +397,6 @@ void TBootstrap::DoRun()
     SchedulerConnector->Start();
     StartStoreFlusher(Config->TabletNode, this);
     StartStoreCompactor(Config->TabletNode, this);
-    StartStorePreloader(Config->TabletNode, this);
     StartPartitionBalancer(Config->TabletNode->PartitionBalancer, this);
 
     RpcServer->Start();
@@ -460,6 +461,11 @@ NTabletNode::TSlotManagerPtr TBootstrap::GetTabletSlotManager() const
 TSecurityManagerPtr TBootstrap::GetSecurityManager() const
 {
     return SecurityManager;
+}
+
+TInMemoryManagerPtr TBootstrap::GetInMemoryManager() const
+{
+    return InMemoryManager;
 }
 
 NExecAgent::TSlotManagerPtr TBootstrap::GetExecSlotManager() const
