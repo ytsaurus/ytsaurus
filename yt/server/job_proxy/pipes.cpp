@@ -384,6 +384,10 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
                 // Pipe blocked, pause writing.
                 return true;
             } else {
+                if (errno == EPIPE && !CheckDataFullyConsumed) {
+                    // Ignore broken pipe erros if we don't require full consumption.
+                    return false;
+                }
                 // Error with pipe.
                 THROW_ERROR_EXCEPTION("Writing to pipe failed (Fd: %d, JobDescriptor: %d)",
                     Pipe.WriteFd,
