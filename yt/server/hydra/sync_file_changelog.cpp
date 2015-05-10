@@ -795,11 +795,11 @@ private:
                     CurrentFilePosition_);
                 trim = true;
             } else if (recordInfoOrError.Value().Id != RecordCount_) {
-                LOG_WARNING("Mismatched changelog record id (ExpectedId: %v, ActualId: %v, Offset: %v)",
-                    RecordCount_,
-                    recordInfoOrError.Value().Id,
-                    CurrentFilePosition_);
-                trim = true;
+                THROW_ERROR_EXCEPTION("Mismatched record id found in sealed changelog %v",
+                    FileName_)
+                    << TErrorAttribute("expected_record_id", RecordCount_)
+                    << TErrorAttribute("actual_record_id", recordInfoOrError.Value().Id)
+                    << TErrorAttribute("offset", CurrentFilePosition_);
             } else if (RecordCount_ == SealedRecordCount_) {
                 LOG_WARNING("Excessive records found in sealed changelog (RecordId: %v, Offset: %v)",
                     RecordCount_,
@@ -808,10 +808,11 @@ private:
             }
 
             if (trim) {
-                if (Sealed_) {
-                    LOG_FATAL("Sealed changelog is broken and needs trimming (RecordId: %v, Offset: %v)",
-                        RecordCount_,
-                        CurrentFilePosition_);
+                if (Sealed_ && RecordCount_ < SealedRecordCount_) {
+                    THROW_ERROR_EXCEPTION("Broken record found in sealed changelog %v",
+                        FileName_)
+                        << TErrorAttribute("record_id", RecordCount_)
+                        << TErrorAttribute("offset", CurrentFilePosition_);
                 }
                 DataFile_->Resize(CurrentFilePosition_);
                 DataFile_->Flush();
