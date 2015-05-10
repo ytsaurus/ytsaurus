@@ -192,11 +192,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-bool TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
+auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> TInsertCookie
 {
-    YCHECK(!cookie->Active_);
-    auto key = cookie->GetKey();
-
     while (true) {
         NConcurrency::TWriterGuard guard(SpinLock_);
 
@@ -205,33 +202,39 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie
         auto itemIt = ItemMap_.find(key);
         if (itemIt != ItemMap_.end()) {
             auto* item = itemIt->second;
-            cookie->ValuePromise_ = item->ValuePromise;
+            auto valuePromise = item->ValuePromise;
 
             if (item->Value) {
                 auto weight = GetWeight(item->Value.Get());
                 Profiler.Increment(HitWeightCounter_, weight);
             }
 
-            return false;
+            return TInsertCookie(
+                key,
+                nullptr,
+                std::move(valuePromise),
+                false);
         }
 
         auto valueIt = ValueMap_.find(key);
         if (valueIt == ValueMap_.end()) {
             auto* item = new TItem();
+            auto valuePromise = item->ValuePromise;
 
             YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
             ++ItemMapSize_;
 
-            cookie->ValuePromise_ = item->ValuePromise;
-            cookie->Active_ = true;
-            cookie->Cache_ = this;
-
-            return true;
+            return TInsertCookie(
+                key,
+                this,
+                std::move(valuePromise),
+                true);
         }
 
         auto value = TRefCounted::DangerousGetPtr(valueIt->second);
         if (value) {
             auto* item = new TItem(value);
+            auto valuePromise = item->ValuePromise;
 
             YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
             ++ItemMapSize_;
@@ -239,11 +242,13 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie
             auto weight = PushToYounger(item);
             Profiler.Increment(HitWeightCounter_, weight);
 
-            cookie->ValuePromise_ = item->ValuePromise;
-
             Trim(guard);
 
-            return false;
+            return TInsertCookie(
+                key,
+                nullptr,
+                std::move(valuePromise),
+                false);
         }
 
         // Back off.
@@ -538,9 +543,9 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(const TKe
 template <class TKey, class TValue, class THash>
 TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(TInsertCookie&& other)
     : Key_(std::move(other.Key_))
-      , Cache_(std::move(other.Cache_))
-      , ValuePromise_(std::move(other.ValuePromise_))
-      , Active_(other.Active_)
+    , Cache_(std::move(other.Cache_))
+    , ValueFuture_(std::move(other.ValueFuture_))
+    , Active_(other.Active_)
 {
     other.Active_ = false;
 }
@@ -558,7 +563,7 @@ typename TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie& TAsyncSlruCach
         Abort();
         Key_ = std::move(other.Key_);
         Cache_ = std::move(other.Cache_);
-        ValuePromise_ = std::move(other.ValuePromise_);
+        ValueFuture_ = std::move(other.ValueFuture_);
         Active_ = other.Active_;
         other.Active_ = false;
     }
@@ -575,8 +580,8 @@ template <class TKey, class TValue, class THash>
 typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValueFuture
 TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::GetValue() const
 {
-    YASSERT(ValuePromise_);
-    return ValuePromise_;
+    YASSERT(ValueFuture_);
+    return ValueFuture_;
 }
 
 template <class TKey, class TValue, class THash>
@@ -601,6 +606,18 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePt
     Cache_->EndInsert(value, this);
     Active_ = false;
 }
+
+template <class TKey, class TValue, class THash>
+TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(
+    const TKey& key,
+    TIntrusivePtr<TAsyncSlruCacheBase> cache,
+    TValueFuture valueFuture,
+    bool active)
+    : Key_(key)
+    , Cache_(std::move(cache))
+    , ValueFuture_(std::move(valueFuture))
+    , Active_(active)
+{ }
 
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::Abort()

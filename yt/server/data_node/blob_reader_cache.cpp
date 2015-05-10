@@ -65,8 +65,8 @@ public:
         const auto& Profiler = location->GetProfiler();
 
         auto chunkId = chunk->GetId();
-        TInsertCookie cookie(chunkId);
-        if (BeginInsert(&cookie)) {
+        auto cookie = BeginInsert(chunkId);
+        if (cookie.IsActive()) {
             auto fileName = chunk->GetFileName();
             LOG_TRACE("Started opening blob chunk reader (LocationId: %v, ChunkId: %v)",
                 location->GetId(),

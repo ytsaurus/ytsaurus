@@ -74,8 +74,14 @@ public:
 
         TKey Key_;
         TIntrusivePtr<TAsyncSlruCacheBase> Cache_;
-        TValueFuture ValuePromise_;
+        TValueFuture ValueFuture_;
         bool Active_;
+
+        TInsertCookie(
+            const TKey& key,
+            TIntrusivePtr<TAsyncSlruCacheBase> cache,
+            TValueFuture valueFuture,
+            bool active);
 
         void Abort();
 
@@ -87,7 +93,7 @@ public:
     TValuePtr Find(const TKey& key);
     TValueFuture Lookup(const TKey& key);
 
-    bool BeginInsert(TInsertCookie* cookie);
+    TInsertCookie BeginInsert(const TKey& key);
     bool TryRemove(const TKey& key);
     bool TryRemove(TValuePtr value);
     void Clear();
