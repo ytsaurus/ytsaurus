@@ -2,7 +2,7 @@
 
 import yt.logger as logger
 from dateutil.parser import parse
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from datetime import datetime, timedelta
 
 import argparse
@@ -13,7 +13,7 @@ Task = namedtuple("Oper", ["start_time", "finish_time", "id", "user", "state"]);
 
 logger.set_formatter(logging.Formatter('%(asctime)-15s\t%(message)s'))
 
-def clean_tasks(url, token, count, total_count, failed_timeout, max_tasks_per_user, robots):
+def clean_tasks(url, token, count, total_count, failed_timeout, max_regular_tasks_per_user, max_failed_tasks_per_user, robots):
     if robots is None:
         robots = []
 
@@ -38,21 +38,25 @@ def clean_tasks(url, token, count, total_count, failed_timeout, max_tasks_per_us
 
     tasks.sort(key=lambda task: task.start_time, reverse=True)
 
-    users = {}
+    users_regular = defaultdict(int)
+    users_failed = defaultdict(int)
+    users = set()
     for task in tasks:
         if not is_final(task.state):
             continue
 
-        if task.user not in users:
-            users[task.user] = 0
-        users[task.user] += 1
+        users.add(task.user)
 
         time_since = datetime.utcnow() - task.start_time
         is_old = (time_since > failed_timeout)
 
         is_regular = (task.user in robots) and not (task.state == "failed")
-
-        is_user_limit_exceeded = users[task.user] > max_tasks_per_user
+        if task.state == "failed":
+            users_failed[task.user] += 1
+            is_user_limit_exceeded = users_failed[task.user] > max_failed_tasks_per_user
+        else:
+            users_regular[task.user] += 1
+            is_user_limit_exceeded = users_regular[task.user] > max_regular_tasks_per_user
 
         if is_regular or is_old or (saved >= total_count) or is_user_limit_exceeded or (saved >= count and task.user in users and is_casual(task)):
             to_remove.append(task.id)
@@ -86,12 +90,14 @@ def main():
                        help='leave no more that N tasks totally')
     parser.add_argument('--failed-timeout', metavar='N', type=int, default=30,
                        help='remove all failed task older than N days')
-    parser.add_argument('--max-tasks-per-user', metavar='N', type=int, default=200,
+    parser.add_argument('--max-regular-tasks-per-user', metavar='N', type=int, default=50,
+                       help='remove old task of user if limit exceeded')
+    parser.add_argument('--max-failed-tasks-per-user', metavar='N', type=int, default=50,
                        help='remove old task of user if limit exceeded')
     parser.add_argument('--robot', action="append",  help='robot users that run tasks very often and can be ignored')
 
     args = parser.parse_args()
-    clean_tasks(args.url, args.token, args.count, args.total_count, timedelta(days=args.failed_timeout), args.max_tasks_per_user, args.robot)
+    clean_tasks(args.url, args.token, args.count, args.total_count, timedelta(days=args.failed_timeout), args.max_regular_tasks_per_user, args.max_failed_tasks_per_user, args.robot)
 
 if __name__ == "__main__":
     main()
