@@ -808,7 +808,7 @@ private:
             }
 
             if (trim) {
-                if (IsSealed()) {
+                if (Sealed_) {
                     LOG_FATAL("Sealed changelog is broken and needs trimming (RecordId: %v, Offset: %v)",
                         RecordCount_,
                         CurrentFilePosition_);
