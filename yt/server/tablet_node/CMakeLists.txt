@@ -20,7 +20,6 @@ set( SRCS
   ${BASE}/store_detail.cpp
   ${BASE}/store_flusher.cpp
   ${BASE}/store_manager.cpp
-  ${BASE}/store_preloader.cpp
   ${BASE}/tablet.cpp
   ${BASE}/tablet_manager.cpp
   ${BASE}/tablet_reader.cpp
@@ -28,6 +27,7 @@ set( SRCS
   ${BASE}/tablet_slot.cpp
   ${BASE}/transaction.cpp
   ${BASE}/transaction_manager.cpp
+  ${BASE}/in_memory_manager.cpp
 )
 set( HDRS
   ${BASE}/automaton.h
@@ -52,7 +52,6 @@ set( HDRS
   ${BASE}/store_detail.h
   ${BASE}/store_flusher.h
   ${BASE}/store_manager.h
-  ${BASE}/store_preloader.h
   ${BASE}/tablet.h
   ${BASE}/tablet_manager.h
   ${BASE}/tablet_reader.h
@@ -60,6 +59,7 @@ set( HDRS
   ${BASE}/tablet_slot.h
   ${BASE}/transaction.h
   ${BASE}/transaction_manager.h
+  ${BASE}/in_memory_manager.h
 )
 
 list(APPEND YT_SOURCE_FILES
