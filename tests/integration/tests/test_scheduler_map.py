@@ -952,7 +952,7 @@ print row + table_index
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
 
-        data = ({"foo": "bar"} for i in xrange(10000))
+        data = [{"foo": "bar"} for i in xrange(10000)]
         write("//tmp/t1", data)
 
         map(in_="//tmp/t1", out="//tmp/t2", command="head -1",
