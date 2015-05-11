@@ -230,12 +230,12 @@ IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunk& chunk)
             auto reader = CreateReplicationReader(
                 PatchConfig(Config_, chunk.MemoryEstimate),
                 Options_,
-                BlockCache_,
                 MasterChannel_,
                 NodeDirectory_,
                 Null,
                 partId,
                 partReplicas,
+                BlockCache_,
                 Throttler_);
             readers.push_back(reader);
 
@@ -248,12 +248,12 @@ IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunk& chunk)
         return CreateReplicationReader(
             PatchConfig(Config_, chunk.MemoryEstimate),
             Options_,
-            BlockCache_,
             MasterChannel_,
             NodeDirectory_,
             Null,
             chunkId,
             replicas,
+            BlockCache_,
             Throttler_);
     }
 }

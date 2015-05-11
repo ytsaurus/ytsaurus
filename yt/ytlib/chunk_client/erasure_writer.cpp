@@ -501,8 +501,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             TChunkReplicaList(1, replicas[index]),
             nodeDirectory,
             nullptr,
-            throttler,
-            blockCache));
+            blockCache,
+            throttler));
     }
 
     return writers;

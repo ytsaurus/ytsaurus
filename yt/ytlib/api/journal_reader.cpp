@@ -197,12 +197,12 @@ private:
                 CurrentChunkReader_ = CreateReplicationReader(
                     Config_,
                     options,
-                    Client_->GetConnection()->GetBlockCache(),
                     Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
                     NodeDirectory_,
                     Null,
                     chunkId,
-                    replicas);
+                    replicas,
+                    Client_->GetConnection()->GetBlockCache());
 
                 // NB: Lower/upper limits are mandatory for journal chunks.
                 auto lowerLimit = FromProto<TReadLimit>(chunkSpec.lower_limit());
