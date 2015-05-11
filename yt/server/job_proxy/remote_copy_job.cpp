@@ -214,12 +214,12 @@ private:
             auto readers = CreateErasureAllPartsReaders(
                 ReaderConfig_,
                 readerOptions,
-                host->GetBlockCache(),
                 RemoteMasterChannel_,
                 RemoteNodeDirectory_,
                 inputChunkId,
                 inputReplicas,
-                erasureCodec);
+                erasureCodec,
+                host->GetBlockCache());
 
             chunkMeta = GetChunkMeta(readers.front());
 
@@ -264,12 +264,12 @@ private:
             auto reader = CreateReplicationReader(
                 ReaderConfig_,
                 readerOptions,
-                host->GetBlockCache(),
                 RemoteMasterChannel_,
                 RemoteNodeDirectory_,
                 Null,
                 inputChunkId,
-                TChunkReplicaList());
+                TChunkReplicaList(),
+                host->GetBlockCache());
 
             chunkMeta = GetChunkMeta(reader);
 

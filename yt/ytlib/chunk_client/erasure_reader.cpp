@@ -751,13 +751,14 @@ namespace {
 std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& replicas_,
     const NErasure::ICodec* codec,
-    int partCount)
+    int partCount,
+    IBlockCachePtr blockCache,
+    IThroughputThrottlerPtr throttler)
 {
     YCHECK(IsErasureChunkId(chunkId));
     
@@ -785,12 +786,13 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
             auto reader = CreateReplicationReader(
                 config,
                 options,
-                blockCache,
                 masterChannel,
                 nodeDirectory,
                 Null,
                 partId,
-                partReplicas);
+                partReplicas,
+                blockCache,
+                throttler);
             readers.push_back(reader);
 
             it = jt;
@@ -806,46 +808,50 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
 std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
     const NErasure::ICodec* codec,
-    const Stroka& networkName)
+    const Stroka& networkName,
+    IBlockCachePtr blockCache,
+    NConcurrency::IThroughputThrottlerPtr throttler)
 {
     return CreateErasurePartsReaders(
         config,
         options,
-        blockCache,
         masterChannel,
         nodeDirectory,
         chunkId,
         seedReplicas,
         codec,
-        codec->GetDataPartCount());
+        codec->GetDataPartCount(),
+        blockCache,
+        throttler);
 }
 
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
-    const NErasure::ICodec* codec)
+    const NErasure::ICodec* codec,
+    IBlockCachePtr blockCache,
+    NConcurrency::IThroughputThrottlerPtr throttler)
 {
     return CreateErasurePartsReaders(
         config,
         options,
-        blockCache,
         masterChannel,
         nodeDirectory,
         chunkId,
         seedReplicas,
         codec,
-        codec->GetTotalPartCount());
+        codec->GetTotalPartCount(),
+        blockCache,
+        throttler);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

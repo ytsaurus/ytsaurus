@@ -1022,8 +1022,8 @@ IChunkWriterPtr CreateReplicationWriter(
     const TChunkReplicaList& targets,
     TNodeDirectoryPtr nodeDirectory,
     IChannelPtr masterChannel,
-    IThroughputThrottlerPtr throttler,
-    IBlockCachePtr blockCache)
+    IBlockCachePtr blockCache,
+    IThroughputThrottlerPtr throttler)
 {
     return New<TReplicationWriter>(
         config,

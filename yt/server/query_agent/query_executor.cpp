@@ -791,11 +791,12 @@ private:
             chunkReader = CreateReplicationReader(
                 Bootstrap_->GetConfig()->TabletNode->ChunkReader,
                 options,
-                Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
-                chunkId);
+                chunkId,
+                TChunkReplicaList(),
+                Bootstrap_->GetBlockCache());
         }
 
         auto chunkMeta = WaitFor(chunkReader->GetMeta()).ValueOrThrow();

@@ -387,6 +387,7 @@ private:
             targets,
             nodeDirectory,
             nullptr,
+            GetNullBlockCache(),
             Bootstrap_->GetReplicationOutThrottler());
 
         WaitFor(writer->Open())
@@ -523,12 +524,12 @@ private:
             auto reader = CreateReplicationReader(
                 Config_->RepairReader,
                 options,
-                Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 partId,
                 partReplicas,
+                Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetRepairInThrottler());
             readers.push_back(reader);
         }
@@ -546,6 +547,7 @@ private:
                 TChunkReplicaList(1, targets[index]),
                 nodeDirectory,
                 nullptr,
+                GetNullBlockCache(),
                 Bootstrap_->GetRepairOutThrottler());
             writers.push_back(writer);
         }
@@ -648,12 +650,12 @@ private:
             auto reader = CreateReplicationReader(
                 Config_->SealReader,
                 options,
-                Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Null,
                 ChunkId_,
                 replicas,
+                Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetReplicationInThrottler());
 
             while (currentRowCount < sealRowCount) {

@@ -512,11 +512,12 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
         chunkReader = CreateReplicationReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             options,
-            GetBlockCache(),
             Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
             New<TNodeDirectory>(),
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
-            StoreId_);
+            StoreId_,
+            TChunkReplicaList(),
+            GetBlockCache());
     }
 
     {

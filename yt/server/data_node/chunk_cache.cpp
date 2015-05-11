@@ -245,12 +245,12 @@ private:
             auto chunkReader = CreateReplicationReader(
                 Config_->CacheRemoteReader,
                 options,
-                Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 chunkId,
-                seedReplicas);
+                seedReplicas,
+                Bootstrap_->GetBlockCache());
 
             auto fileName = Location_->GetChunkPath(chunkId);
             auto chunkWriter = New<TFileWriter>(chunkId, fileName);

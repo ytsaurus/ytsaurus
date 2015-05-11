@@ -187,8 +187,8 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
                 TChunkReplicaList(),
                 NodeDirectory_,
                 MasterChannel_,
-                Throttler_,
-                BlockCache_);
+                BlockCache_,
+                Throttler_);
         } else {
             auto* erasureCodec = GetCodec(Options_->ErasureCodec);
             auto writers = CreateErasurePartWriters(

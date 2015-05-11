@@ -54,19 +54,19 @@ public:
     TReplicationReader(
         TReplicationReaderConfigPtr config,
         TRemoteReaderOptionsPtr options,
-        IBlockCachePtr blockCache,
         IChannelPtr masterChannel,
         TNodeDirectoryPtr nodeDirectory,
         const TNullable<TNodeDescriptor>& localDescriptor,
         const TChunkId& chunkId,
         const TChunkReplicaList& seedReplicas,
+        IBlockCachePtr blockCache,
         IThroughputThrottlerPtr throttler)
         : Config_(config)
         , Options_(options)
-        , BlockCache_(blockCache)
         , NodeDirectory_(nodeDirectory)
         , LocalDescriptor_(localDescriptor)
         , ChunkId_(chunkId)
+        , BlockCache_(blockCache)
         , Throttler_(throttler)
         , ObjectServiceProxy_(masterChannel)
         , ChunkServiceProxy_(masterChannel)
@@ -119,10 +119,10 @@ private:
 
     const TReplicationReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
-    const IBlockCachePtr BlockCache_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TNullable<TNodeDescriptor> LocalDescriptor_;
     const TChunkId ChunkId_;
+    const IBlockCachePtr BlockCache_;
     const IThroughputThrottlerPtr Throttler_;
 
     NLogging::TLogger Logger = ChunkClientLogger;
@@ -1237,12 +1237,12 @@ TFuture<TChunkMeta> TReplicationReader::GetMeta(
 IChunkReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     TNodeDirectoryPtr nodeDirectory,
     const TNullable<TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
+    IBlockCachePtr blockCache,
     IThroughputThrottlerPtr throttler)
 {
     YCHECK(config);
@@ -1253,12 +1253,12 @@ IChunkReaderPtr CreateReplicationReader(
     auto reader = New<TReplicationReader>(
         config,
         options,
-        blockCache,
         masterChannel,
         nodeDirectory,
         localDescriptor,
         chunkId,
         seedReplicas,
+        blockCache,
         throttler);
     reader->Initialize();
     return reader;
