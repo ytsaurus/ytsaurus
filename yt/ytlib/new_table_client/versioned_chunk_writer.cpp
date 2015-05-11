@@ -361,7 +361,8 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
             options,
             schema,
             keyColumns,
-            underlyingWriter);
+            underlyingWriter,
+            blockCache);
     };
 
     return New<TVersionedMultiChunkWriter>(
