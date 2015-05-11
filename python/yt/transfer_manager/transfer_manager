@@ -1039,8 +1039,12 @@ class Application(object):
 
     def get_tasks(self):
         with self._mutex:
-            tasks = deepcopy(self._tasks)
+            # NB: json is several times faster than deepcopy.
+            tasks_dump = json.dumps(self._tasks)
+            # NB: Number of pending tasks is rather small, so we can use deepcopy here.
             pending_tasks = deepcopy(self._pending_tasks)
+
+        tasks = json.loads(tasks_dump)
 
         user = request.args.get("user")
         fields = request.args.getlist("fields[]")
