@@ -52,8 +52,11 @@ public:
     void SetBackingStore(IStorePtr store);
     bool HasBackingStore() const;
 
+    EInMemoryMode GetInMemoryMode() const;
     void SetInMemoryMode(EInMemoryMode mode);
     NChunkClient::IBlockCachePtr GetPreloadedBlockCache();
+    void PreloadFromInterceptedData(TInterceptedChunkDataPtr chunkData);
+
     NChunkClient::IChunkReaderPtr GetChunkReader();
 
     // IStore implementation.
@@ -90,7 +93,8 @@ public:
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 private:
-    class TBlockCache;
+    class TPreloadedBlockCache;
+    using TPreloadedBlockCachePtr = TIntrusivePtr<TPreloadedBlockCache>;
 
     NCellNode::TBootstrap* const Bootstrap_;
 
@@ -118,7 +122,7 @@ private:
     IStorePtr BackingStore_;
 
     NConcurrency::TReaderWriterSpinLock PreloadedBlockCacheLock_;
-    NChunkClient::IBlockCachePtr PreloadedBlockCache_;
+    TPreloadedBlockCachePtr PreloadedBlockCache_;
 
     EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
 

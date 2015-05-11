@@ -4,6 +4,7 @@
 #include "config.h"
 #include "automaton.h"
 #include "transaction.h"
+#include "in_memory_manager.h"
 
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/delayed_executor.h>
@@ -12,8 +13,6 @@
 #include <core/ytree/fluent.h>
 
 #include <core/misc/protobuf_helpers.h>
-
-#include <core/tracing/trace_context.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -70,11 +69,11 @@ static const auto ChunkReaderExpirationTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkStore::TBlockCache
+class TChunkStore::TPreloadedBlockCache
     : public IBlockCache
 {
 public:
-    TBlockCache(
+    TPreloadedBlockCache(
         TChunkStorePtr owner,
         const TChunkId& chunkId,
         EBlockType type,
@@ -85,7 +84,7 @@ public:
         , UnderlyingCache_(std::move(underlyingCache))
     { }
 
-    ~TBlockCache()
+    ~TPreloadedBlockCache()
     {
         auto owner = Owner_.Lock();
         if (!owner)
@@ -155,6 +154,20 @@ public:
         return Type_;
     }
 
+    void PreloadFromInterceptedData(TInterceptedChunkDataPtr chunkData)
+    {
+        auto owner = Owner_.Lock();
+        if (!owner)
+            return;
+
+        YCHECK(Blocks_.empty());
+        YCHECK(DataSize_ == 0);
+
+        Blocks_ = std::move(chunkData->Blocks);
+        DataSize_ = GetByteSize(Blocks_);
+        owner->SetMemoryUsage(DataSize_);
+    }
+
 private:
     const TWeakPtr<TChunkStore> Owner_;
     const TChunkId ChunkId_;
@@ -218,6 +231,11 @@ bool TChunkStore::HasBackingStore() const
     return BackingStore_ != nullptr;
 }
 
+EInMemoryMode TChunkStore::GetInMemoryMode() const
+{
+    return InMemoryMode_;
+}
+
 void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
 {
     if (InMemoryMode_ == mode)
@@ -238,14 +256,14 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
         } else {
             switch (mode) {
                 case EInMemoryMode::Compressed:
-                    PreloadedBlockCache_ = New<TBlockCache>(
+                    PreloadedBlockCache_ = New<TPreloadedBlockCache>(
                         this,
                         StoreId_,
                         EBlockType::CompressedData,
                         Bootstrap_->GetBlockCache());
                     break;
                 case EInMemoryMode::Uncompressed:
-                    PreloadedBlockCache_ = New<TBlockCache>(
+                    PreloadedBlockCache_ = New<TPreloadedBlockCache>(
                         this,
                         StoreId_,
                         EBlockType::UncompressedData,
@@ -284,6 +302,12 @@ IBlockCachePtr TChunkStore::GetPreloadedBlockCache()
 
     TReaderGuard guard(PreloadedBlockCacheLock_);
     return PreloadedBlockCache_;
+}
+
+void TChunkStore::PreloadFromInterceptedData(TInterceptedChunkDataPtr chunkData)
+{
+    YCHECK(chunkData->InMemoryMode == InMemoryMode_);
+    PreloadedBlockCache_->PreloadFromInterceptedData(chunkData);
 }
 
 NChunkClient::IChunkReaderPtr TChunkStore::GetChunkReader()

@@ -9,6 +9,7 @@
 #include "tablet_manager.h"
 #include "slot_manager.h"
 #include "store_manager.h"
+#include "in_memory_manager.h"
 
 #include <core/misc/address.h>
 
@@ -264,6 +265,7 @@ private:
         auto tabletId = tablet->GetTabletId();
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
+        auto tabletConfig = tablet->GetConfig();
         auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
         writerOptions->ChunksEden = true;
 
@@ -321,13 +323,19 @@ private:
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
 
+            auto inMemoryManager = Bootstrap_->GetInMemoryManager();
+            auto blockCache = inMemoryManager->CreateInterceptingBlockCache(tabletConfig->InMemoryMode);
+
             auto writer = CreateVersionedMultiChunkWriter(
                 Config_->ChunkWriter,
                 writerOptions,
                 schema,
                 keyColumns,
                 Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
-                transaction->GetId());
+                transaction->GetId(),
+                NullChunkId,
+                GetUnlimitedThrottler(),
+                blockCache);
 
             {
                 auto result = WaitFor(writer->Open());

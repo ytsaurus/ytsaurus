@@ -327,7 +327,7 @@ void TBootstrap::DoRun()
 
     SecurityManager = New<TSecurityManager>(Config->TabletNode->SecurityManager, this);
 
-    InMemoryManager = New<TInMemoryManager>(Config->TabletNode, this);
+    InMemoryManager = New<TInMemoryManager>(Config->TabletNode->InMemoryManager, this);
 
     QueryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
 

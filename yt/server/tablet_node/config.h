@@ -318,14 +318,15 @@ DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStorePreloaderConfig
+class TInMemoryManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
     int MaxConcurrentPreloads;
     i64 WindowSize;
+    TDuration InterceptedDataRetentionTime;
 
-    TStorePreloaderConfig()
+    TInMemoryManagerConfig()
     {
         RegisterParameter("max_concurrent_preloads", MaxConcurrentPreloads)
             .GreaterThan(0)
@@ -333,10 +334,12 @@ public:
         RegisterParameter("window_size", WindowSize)
             .GreaterThan(0)
             .Default((i64) 16 * 1024 * 1024);
+        RegisterParameter("intercepted_data_retention_time", InterceptedDataRetentionTime)
+            .Default(TDuration::Seconds(30));
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TStorePreloaderConfig)
+DEFINE_REFCOUNTED_TYPE(TInMemoryManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -437,7 +440,7 @@ public:
     TTabletManagerConfigPtr TabletManager;
     TStoreFlusherConfigPtr StoreFlusher;
     TStoreCompactorConfigPtr StoreCompactor;
-    TStorePreloaderConfigPtr StorePreloader;
+    TInMemoryManagerConfigPtr InMemoryManager;
     TPartitionBalancerConfigPtr PartitionBalancer;
     TSecurityManagerConfigPtr SecurityManager;
 
@@ -486,7 +489,7 @@ public:
             .DefaultNew();
         RegisterParameter("store_compactor", StoreCompactor)
             .DefaultNew();
-        RegisterParameter("store_preloader", StorePreloader)
+        RegisterParameter("in_memory_manager", InMemoryManager)
             .DefaultNew();
         RegisterParameter("partition_balancer", PartitionBalancer)
             .DefaultNew();

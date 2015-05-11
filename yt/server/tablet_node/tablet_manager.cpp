@@ -15,6 +15,7 @@
 #include "lookup.h"
 #include "private.h"
 #include "security_manager.h"
+#include "in_memory_manager.h"
 
 #include <core/misc/ring_queue.h>
 #include <core/misc/string.h>
@@ -576,6 +577,9 @@ private:
                 tablet,
                 &descriptor.chunk_meta());
             storeManager->AddStore(store);
+            if (mountConfig->InMemoryMode != EInMemoryMode::None && mountConfig->InMemoryMode != EInMemoryMode::Disabled) {
+                storeManager->ScheduleStorePreload(store);
+            }
         }
 
         SchedulePartitionsSampling(tablet);
@@ -862,52 +866,66 @@ private:
                 YCHECK(store->GetStoreState() == EStoreState::RemoveCommitting);
                 BackoffStore(store, EStoreState::RemoveFailed);
             }
-        } else {
-            const auto& storeManager = tablet->GetStoreManager();
-            std::vector<TStoreId> addedStoreIds;
-            for (const auto& descriptor : response.stores_to_add()) {
-                auto storeId = FromProto<TChunkId>(descriptor.store_id());
-                addedStoreIds.push_back(storeId);
-                YCHECK(descriptor.has_chunk_meta());
-                auto store = CreateChunkStore(
-                    storeId,
-                    tablet,
-                    &descriptor.chunk_meta());
-                storeManager->AddStore(store);
-                SchedulePartitionSampling(store->GetPartition());
-                TStoreId backingStoreId;
-                if (!IsRecovery() && descriptor.has_backing_store_id()) {
-                    backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
-                    auto backingStore = tablet->GetStore(backingStoreId);
-                    SetBackingStore(tablet, store, backingStore);
+            return;
+        }
+
+        auto mountConfig = tablet->GetConfig();
+        auto inMemoryManager = Bootstrap_->GetInMemoryManager();
+        const auto& storeManager = tablet->GetStoreManager();
+        std::vector<TStoreId> addedStoreIds;
+        for (const auto& descriptor : response.stores_to_add()) {
+            auto storeId = FromProto<TChunkId>(descriptor.store_id());
+            addedStoreIds.push_back(storeId);
+            YCHECK(descriptor.has_chunk_meta());
+
+            auto store = CreateChunkStore(
+                storeId,
+                tablet,
+                &descriptor.chunk_meta());
+            storeManager->AddStore(store);
+
+            auto chunkData = inMemoryManager->EvictInterceptedChunkData(storeId);
+            if (mountConfig->InMemoryMode != EInMemoryMode::None && mountConfig->InMemoryMode != EInMemoryMode::Disabled) {
+                if (!storeManager->TryPreloadStoreFromInterceptedData(store, chunkData)) {
+                    storeManager->ScheduleStorePreload(store);
                 }
-                LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, BackingStoreId: %v)",
-                    tabletId,
-                    storeId,
-                    backingStoreId);
             }
 
-            std::vector<TStoreId> removedStoreIds;
-            for (const auto& descriptor : response.stores_to_remove()) {
-                auto storeId = FromProto<TStoreId>(descriptor.store_id());
-                removedStoreIds.push_back(storeId);
-                auto store = tablet->GetStore(storeId);
-                storeManager->RemoveStore(store);
-                SchedulePartitionSampling(store->GetPartition());
-                LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v)",
-                    tabletId,
-                    storeId);
+            SchedulePartitionSampling(store->GetPartition());
+
+            TStoreId backingStoreId;
+            if (!IsRecovery() && descriptor.has_backing_store_id()) {
+                backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
+                auto backingStore = tablet->GetStore(backingStoreId);
+                SetBackingStore(tablet, store, backingStore);
             }
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully (TabletId: %v, AddedStoreIds: [%v], RemovedStoreIds: [%v])",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, BackingStoreId: %v)",
                 tabletId,
-                JoinToString(addedStoreIds),
-                JoinToString(removedStoreIds));
+                storeId,
+                backingStoreId);
+        }
 
-            UpdateTabletSnapshot(tablet);
-            if (IsLeader()) {
-                CheckIfFullyFlushed(tablet);
-            }
+        std::vector<TStoreId> removedStoreIds;
+        for (const auto& descriptor : response.stores_to_remove()) {
+            auto storeId = FromProto<TStoreId>(descriptor.store_id());
+            removedStoreIds.push_back(storeId);
+            auto store = tablet->GetStore(storeId);
+            storeManager->RemoveStore(store);
+            SchedulePartitionSampling(store->GetPartition());
+            LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v)",
+                tabletId,
+                storeId);
+        }
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully (TabletId: %v, AddedStoreIds: [%v], RemovedStoreIds: [%v])",
+            tabletId,
+            JoinToString(addedStoreIds),
+            JoinToString(removedStoreIds));
+
+        UpdateTabletSnapshot(tablet);
+        if (IsLeader()) {
+            CheckIfFullyFlushed(tablet);
         }
     }
 

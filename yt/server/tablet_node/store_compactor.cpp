@@ -10,6 +10,7 @@
 #include "partition.h"
 #include "tablet_reader.h"
 #include "config.h"
+#include "in_memory_manager.h"
 #include "private.h"
 
 #include <core/concurrency/action_queue.h>
@@ -350,6 +351,7 @@ private:
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
+        auto tabletConfig = tablet->GetConfig();
 
         YCHECK(tabletPivotKey == pivotKeys[0]);
 
@@ -435,13 +437,19 @@ private:
                     currentPivotKey,
                     nextPivotKey);
 
+                auto inMemoryManager = Bootstrap_->GetInMemoryManager();
+                auto blockCache = inMemoryManager->CreateInterceptingBlockCache(tabletConfig->InMemoryMode);
+
                 currentWriter = CreateVersionedMultiChunkWriter(
                     Config_->ChunkWriter,
                     writerOptions,
                     schema,
                     keyColumns,
                     Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
-                    transaction->GetId());
+                    transaction->GetId(),
+                    NullChunkListId,
+                    GetUnlimitedThrottler(),
+                    blockCache);
 
                 WaitFor(currentWriter->Open())
                     .ThrowOnError();
@@ -596,6 +604,7 @@ private:
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
+        auto tabletConfig = tablet->GetConfig();
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, Eden: %v, PartitionRange: %v .. %v",
@@ -664,13 +673,19 @@ private:
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
 
+            auto inMemoryManager = Bootstrap_->GetInMemoryManager();
+            auto blockCache = inMemoryManager->CreateInterceptingBlockCache(tabletConfig->InMemoryMode);
+
             auto writer = CreateVersionedMultiChunkWriter(
                 Config_->ChunkWriter,
                 writerOptions,
                 schema,
                 keyColumns,
                 Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
-                transaction->GetId());
+                transaction->GetId(),
+                NullChunkListId,
+                GetUnlimitedThrottler(),
+                blockCache);
 
             WaitFor(reader->Open())
                 .ThrowOnError();
