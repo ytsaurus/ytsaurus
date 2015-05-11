@@ -11,6 +11,9 @@
 
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/async_semaphore.h>
+#include <core/concurrency/rw_spinlock.h>
+#include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/compression/codec.h>
 
@@ -41,21 +44,52 @@ class TInMemoryManager::TImpl
 {
 public:
     TImpl(
-        TTabletNodeConfigPtr config,
+        TInMemoryManagerConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
-        , PreloadSemaphore_(Config_->StorePreloader->MaxConcurrentPreloads)
+        , PreloadSemaphore_(Config_->MaxConcurrentPreloads)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TImpl::ScanSlot, MakeStrong(this)));
     }
 
+    IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return New<TInterceptingBlockCache>(this, mode);
+    }
+
+    TInterceptedChunkDataPtr EvictInterceptedChunkData(const TChunkId& chunkId)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TWriterGuard guard(InterceptedDataSpinLock_);
+
+        auto it = ChunkIdToData_.find(chunkId);
+        if (it == ChunkIdToData_.end()) {
+            return nullptr;
+        }
+
+        auto data = it->second;
+        ChunkIdToData_.erase(it);
+
+        LOG_INFO("Intercepted chunk data evicted (ChunkId: %v, Mode: %v)",
+            chunkId,
+            data->InMemoryMode);
+
+        return data;
+    }
+
 private:
-    const TTabletNodeConfigPtr Config_;
+    const TInMemoryManagerConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
     TAsyncSemaphore PreloadSemaphore_;
+
+    TReaderWriterSpinLock InterceptedDataSpinLock_;
+    yhash_map<TChunkId, TInterceptedChunkDataPtr> ChunkIdToData_;
 
 
     void ScanSlot(TTabletSlotPtr slot)
@@ -175,12 +209,12 @@ private:
         while (firstBlockIndex < blocksExt.blocks_size()) {
             i64 size = 0;
             int lastBlockIndex = firstBlockIndex;
-            while (lastBlockIndex < blocksExt.blocks_size() && size <= Config_->StorePreloader->WindowSize) {
+            while (lastBlockIndex < blocksExt.blocks_size() && size <= Config_->WindowSize) {
                 size += blocksExt.blocks(lastBlockIndex).size();
                 ++lastBlockIndex;
             }
 
-            LOG_DEBUG("Reading chunk blocks (BlockIndexes: %v-%v)",
+            LOG_DEBUG("Reading chunk blocks (Blocks: %v-%v)",
                 firstBlockIndex,
                 lastBlockIndex - 1);
 
@@ -196,7 +230,7 @@ private:
                     break;
 
                 case EInMemoryMode::Uncompressed: {
-                    LOG_DEBUG("Decompressing chunk blocks (BlockIndexes: %v-%v)",
+                    LOG_DEBUG("Decompressing chunk blocks (Blocks: %v-%v)",
                         firstBlockIndex,
                         lastBlockIndex - 1);
 
@@ -227,18 +261,143 @@ private:
 
         LOG_INFO("Store preload completed");
     }
+
+
+    class TInterceptingBlockCache
+        : public IBlockCache
+    {
+    public:
+        TInterceptingBlockCache(
+            TImplPtr owner,
+            EInMemoryMode mode)
+            : Owner_(owner)
+            , Mode_(mode)
+            , BlockType_(InMemoryModeToBlockType(Mode_))
+        { }
+
+        ~TInterceptingBlockCache()
+        {
+            for (const auto& chunkId : ChunkIds_) {
+                TDelayedExecutor::Submit(
+                    BIND(IgnoreResult(&TImpl::EvictInterceptedChunkData), Owner_, chunkId),
+                    Owner_->Config_->InterceptedDataRetentionTime);
+            }
+        }
+
+        virtual void Put(
+            const TBlockId& id,
+            EBlockType type,
+            const TSharedRef& block,
+            const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+        {
+            if (type != BlockType_)
+                return;
+
+            TGuard<TSpinLock> guard(SpinLock_);
+
+            auto it = ChunkIds_.find(id.ChunkId);
+            TInterceptedChunkDataPtr data;
+            if (it == ChunkIds_.end()) {
+                data = Owner_->CreateChunkData(id.ChunkId, Mode_);
+                YCHECK(ChunkIds_.insert(id.ChunkId).second);
+            } else {
+                data = Owner_->GetChunkData(id.ChunkId, Mode_);
+            }
+
+            if (data->Blocks.size() <= id.BlockIndex) {
+                data->Blocks.resize(id.BlockIndex + 1);
+            }
+            data->Blocks[id.BlockIndex] = block;
+        }
+
+        virtual TSharedRef Find(
+            const TBlockId& /*id*/,
+            EBlockType /*type*/) override
+        {
+            return TSharedRef();
+        }
+
+        virtual EBlockType GetSupportedBlockTypes() const override
+        {
+            return BlockType_;
+        }
+
+    private:
+        const TImplPtr Owner_;
+        const EInMemoryMode Mode_;
+        const EBlockType BlockType_;
+
+        TSpinLock SpinLock_;
+        yhash_set<TChunkId> ChunkIds_;
+
+
+        static EBlockType InMemoryModeToBlockType(EInMemoryMode mode)
+        {
+            switch (mode) {
+                case EInMemoryMode::Compressed:
+                    return EBlockType::CompressedData;
+
+                case EInMemoryMode::Uncompressed:
+                    return EBlockType::UncompressedData;
+
+                case EInMemoryMode::Disabled:
+                case EInMemoryMode::None:
+                    return EBlockType::None;
+
+                default:
+                    YUNREACHABLE();
+            }
+        }
+
+    };
+
+    TInterceptedChunkDataPtr GetChunkData(const TChunkId& chunkId, EInMemoryMode mode)
+    {
+        TReaderGuard guard(InterceptedDataSpinLock_);
+        auto it = ChunkIdToData_.find(chunkId);
+        YCHECK(it != ChunkIdToData_.end());
+        auto data = it->second;
+        YCHECK(data->InMemoryMode == mode);
+        return data;
+    }
+
+    TInterceptedChunkDataPtr CreateChunkData(const TChunkId& chunkId, EInMemoryMode mode)
+    {
+        TWriterGuard guard(InterceptedDataSpinLock_);
+
+        auto data = New<TInterceptedChunkData>();
+        data->InMemoryMode = mode;
+        YCHECK(ChunkIdToData_.insert(std::make_pair(chunkId, data)).second);
+
+        LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v)",
+            chunkId,
+            mode);
+
+        return data;
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TInMemoryManager::TInMemoryManager(
-    TTabletNodeConfigPtr config,
+    TInMemoryManagerConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
 TInMemoryManager::~TInMemoryManager()
 { }
+
+IBlockCachePtr TInMemoryManager::CreateInterceptingBlockCache(EInMemoryMode mode)
+{
+    return Impl_->CreateInterceptingBlockCache(mode);
+}
+
+TInterceptedChunkDataPtr TInMemoryManager::EvictInterceptedChunkData(const TChunkId& chunkId)
+{
+    return Impl_->EvictInterceptedChunkData(chunkId);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

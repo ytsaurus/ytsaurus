@@ -2,10 +2,26 @@
 
 #include "public.h"
 
+#include <core/misc/ref.h>
+
+#include <ytlib/chunk_client/public.h>
+
 #include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Contains chunk data (e.g. blocks) intercepted during write-out.
+struct TInterceptedChunkData
+    : public TIntrinsicRefCounted
+{
+    std::vector<TSharedRef> Blocks;
+    EInMemoryMode InMemoryMode = EInMemoryMode::None;
+};
+
+DEFINE_REFCOUNTED_TYPE(TInterceptedChunkData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,13 +37,17 @@ class TInMemoryManager
 {
 public:
     TInMemoryManager(
-        TTabletNodeConfigPtr config,
+        TInMemoryManagerConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
     ~TInMemoryManager();
 
+    NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode);
+    TInterceptedChunkDataPtr EvictInterceptedChunkData(const NChunkClient::TChunkId& chunkId);
+
 private:
     class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    using TImplPtr = TIntrusivePtr<TImpl>;
+    const TImplPtr Impl_;
 
 };
 
