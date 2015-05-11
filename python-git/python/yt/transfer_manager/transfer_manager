@@ -721,7 +721,7 @@ class Application(object):
                     self._change_task_state(id, "running")
 
                     queue = Queue()
-                    task_process = Process(target=lambda: self._execute_task(self._tasks[id], queue))
+                    task_process = Process(target=self._execute_task, args=(self._tasks[id], queue))
                     task_process.aborted = False
                     task_process.daemon = True
                     task_process.start()
