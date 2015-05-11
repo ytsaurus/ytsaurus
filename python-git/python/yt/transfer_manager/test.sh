@@ -1,6 +1,6 @@
 #!/bin/bash -eu
 
-PORT=5010
+PORT=6000
 
 set +u
 if [ -z "$YT_TOKEN" ]; then
