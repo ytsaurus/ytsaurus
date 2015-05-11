@@ -33,7 +33,8 @@ public:
     TFileChunkWriter(
         TFileChunkWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
-        IChunkWriterPtr chunkWriter);
+        IChunkWriterPtr chunkWriter,
+        NChunkClient::IBlockCachePtr blockCache);
 
     virtual bool Write(const TRef& data) override;
 
@@ -74,13 +75,18 @@ struct TFileChunkBlockTag { };
 TFileChunkWriter::TFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IChunkWriterPtr chunkWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
     : Config_(config)
-    , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, chunkWriter))
+    , EncodingChunkWriter_(New<TEncodingChunkWriter>(
+        config,
+        options,
+        chunkWriter,
+        blockCache))
     , Buffer_(TFileChunkBlockTag())
-    , Logger(FileClientLogger)
-{ 
-    Logger.AddTag("ChunkWriter: %v", chunkWriter.Get());
+{
+    Logger = FileClientLogger;
+    Logger.AddTag("ChunkId: %v", chunkWriter->GetChunkId());
 }
 
 bool TFileChunkWriter::Write(const TRef& data)
@@ -188,9 +194,14 @@ TDataStatistics TFileChunkWriter::GetDataStatistics() const
 IFileChunkWriterPtr CreateFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IChunkWriterPtr chunkWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
 {
-    return New<TFileChunkWriter>(config, options, chunkWriter);
+    return New<TFileChunkWriter>(
+        config,
+        options,
+        chunkWriter,
+        blockCache);
 }
 
 IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(

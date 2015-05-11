@@ -31,7 +31,8 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    NChunkClient::IChunkWriterPtr chunkWriter);
+    NChunkClient::IChunkWriterPtr chunkWriter,
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ////////////////////////////////////////////////////////////////////////////////
 

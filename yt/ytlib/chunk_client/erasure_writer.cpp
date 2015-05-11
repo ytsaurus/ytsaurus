@@ -136,11 +136,12 @@ class TErasureWriter
 public:
     TErasureWriter(
         TErasureWriterConfigPtr config,
+        const TChunkId& chunkId,
         NErasure::ICodec* codec,
         const std::vector<IChunkWriterPtr>& writers)
         : Config_(config)
+        , ChunkId_(chunkId)
         , Codec_(codec)
-        , IsOpen_(false)
         , Writers_(writers)
     {
         YCHECK(writers.size() == codec->GetTotalPartCount());
@@ -198,6 +199,11 @@ public:
 
     virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override;
 
+    virtual TChunkId GetChunkId() const override
+    {
+        return ChunkId_;
+    }
+
 private:
     void PrepareBlocks();
 
@@ -218,10 +224,11 @@ private:
     void OnClosed();
 
 
-    TErasureWriterConfigPtr Config_;
-    NErasure::ICodec* Codec_;
+    const TErasureWriterConfigPtr Config_;
+    const TChunkId ChunkId_;
+    NErasure::ICodec* const Codec_;
 
-    bool IsOpen_;
+    bool IsOpen_ = false;
 
     std::vector<IChunkWriterPtr> Writers_;
     std::vector<TSharedRef> Blocks_;
@@ -434,10 +441,15 @@ void TErasureWriter::OnClosed()
 
 IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
+    const TChunkId& chunkId,
     NErasure::ICodec* codec,
     const std::vector<IChunkWriterPtr>& writers)
 {
-    return New<TErasureWriter>(config, codec, writers);
+    return New<TErasureWriter>(
+        config,
+        chunkId,
+        codec,
+        writers);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

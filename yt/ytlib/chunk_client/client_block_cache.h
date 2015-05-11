@@ -12,7 +12,7 @@ namespace NChunkClient {
 //! Creates a simple client-side block cache.
 IBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
-    const std::vector<EBlockType>& blockTypes,
+    EBlockType supportedBlockTypes,
     const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
 
 //! Returns an always-empty block cache.

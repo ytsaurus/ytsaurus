@@ -23,7 +23,8 @@ public:
     TEncodingChunkWriter(
         TEncodingWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
-        IChunkWriterPtr chunkWriter);
+        IChunkWriterPtr chunkWriter,
+        IBlockCachePtr blockCache);
 
     void WriteBlock(std::vector<TSharedRef> vectorizedBlock);
     void WriteBlock(TSharedRef block);

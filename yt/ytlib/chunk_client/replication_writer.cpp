@@ -157,6 +157,8 @@ public:
     virtual const TChunkInfo& GetChunkInfo() const override;
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
 
+    virtual TChunkId GetChunkId() const override;
+
 private:
     friend class TGroup;
 
@@ -1002,6 +1004,13 @@ TChunkReplicaList TReplicationWriter::GetWrittenChunkReplicas() const
         }
     }
     return chunkReplicas;
+}
+
+TChunkId TReplicationWriter::GetChunkId() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ChunkId_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

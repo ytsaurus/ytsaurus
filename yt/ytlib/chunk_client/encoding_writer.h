@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <core/actions/callback.h>
-#include <core/concurrency/action_queue.h>
 
 #include <core/misc/ref.h>
 #include <core/misc/async_stream_state.h>
@@ -11,6 +10,8 @@
 #include <core/concurrency/async_semaphore.h>
 
 #include <core/compression/public.h>
+
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -29,7 +30,10 @@ public:
     TEncodingWriter(
         TEncodingWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
-        IChunkWriterPtr chunkWriter);
+        IChunkWriterPtr chunkWriter,
+        IBlockCachePtr blockCache);
+
+    ~TEncodingWriter();
 
     bool IsReady() const;
     TFuture<void> GetReadyEvent();
@@ -40,14 +44,17 @@ public:
     // Future is set when all block get written to underlying writer.
     TFuture<void> Flush();
 
-    ~TEncodingWriter();
-
 private:
     const TEncodingWriterConfigPtr Config_;
+    TEncodingWriterOptionsPtr Options_;
     const IChunkWriterPtr ChunkWriter_;
+    const IBlockCachePtr BlockCache_;
 
     std::atomic<i64> UncompressedSize_ = {0};
     std::atomic<i64> CompressedSize_ = {0};
+
+    int AddedBlockIndex_ = 0;
+    int WrittenBlockIndex_ = 0;
 
     std::atomic<double> CompressionRatio_;
 
@@ -65,22 +72,24 @@ private:
     TCallback<void(const TError&)> OnReadyEventCallback_;
     TCallback<void()> TriggerWritingCallback_;
 
+    NLogging::TLogger Logger;
+
 
     void OnReadyEvent(const TError& error);
     void TriggerWriting();
     void WritePendingBlocks();
 
+    void DoCompressBlock(const TSharedRef& uncompressedBlock);
+    void DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock);
+
     void ProcessCompressedBlock(const TSharedRef& block, i64 delta);
 
-    void DoCompressBlock(const TSharedRef& block);
-    void DoCompressVector(const std::vector<TSharedRef>& vectorizedBlock);
-
     void VerifyBlock(
-        const TSharedRef& origin,
+        const TSharedRef& uncompressedBlock,
         const TSharedRef& compressedBlock);
 
     void VerifyVector(
-        const std::vector<TSharedRef>& origin,
+        const std::vector<TSharedRef>& uncompressedVectorizedBlock,
         const TSharedRef& compressedBlock);
 
     void SetCompressionRatio(double value);

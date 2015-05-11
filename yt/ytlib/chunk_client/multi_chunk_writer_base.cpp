@@ -202,6 +202,7 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
                 BlockCache_);
             NextSession_.UnderlyingWriter = CreateErasureWriter(
                 Config_,
+                NextSession_.ChunkId,
                 erasureCodec,
                 writers);
         }

@@ -18,9 +18,14 @@ using namespace NConcurrency;
 TEncodingChunkWriter::TEncodingChunkWriter(
     TEncodingWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IChunkWriterPtr chunkWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
     : ChunkWriter_(chunkWriter)
-    , EncodingWriter_(New<TEncodingWriter>(config, options, chunkWriter))
+    , EncodingWriter_(New<TEncodingWriter>(
+        config,
+        options,
+        ChunkWriter_,
+        blockCache))
 {
     MiscExt_.set_compression_codec(static_cast<int>(options->CompressionCodec));
     MiscExt_.set_eden(options->ChunksEden);

@@ -151,7 +151,6 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     , PartitionTag_(partitionTag)
     , ChunkMeta_(masterMeta)
 {
-    Logger.AddTag("SchemalessChunkReader: %p", this);
     LOG_DEBUG("LowerLimit: %v, UpperLimit: %v",
         LowerLimit_,
         UpperLimit_);

@@ -34,7 +34,8 @@ public:
         TChunkWriterOptionsPtr options,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns,
-        const IChunkWriterPtr& asyncWriter);
+        IChunkWriterPtr chunkWriter,
+        IBlockCachePtr blockCache);
 
     virtual TFuture<void> Open() override;
 
@@ -106,11 +107,16 @@ TVersionedChunkWriter::TVersionedChunkWriter(
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    const IChunkWriterPtr& asyncWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
     : Config_(config)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
-    , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
+    , EncodingChunkWriter_(New<TEncodingChunkWriter>(
+        config,
+        options,
+        chunkWriter,
+        blockCache))
     , LastKey_(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
     , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_))
     , MinTimestamp_(MaxTimestamp)
@@ -319,9 +325,16 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    IChunkWriterPtr asyncWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
 {
-    return New<TVersionedChunkWriter>(config, options, schema, keyColumns, asyncWriter);
+    return New<TVersionedChunkWriter>(
+        config,
+        options,
+        schema,
+        keyColumns,
+        chunkWriter,
+        blockCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

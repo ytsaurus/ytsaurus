@@ -18,6 +18,7 @@ namespace NChunkClient {
 
 IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
+    const TChunkId& chunkId,
     NErasure::ICodec* codec,
     const std::vector<IChunkWriterPtr>& writers);
 

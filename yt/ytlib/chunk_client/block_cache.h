@@ -39,6 +39,9 @@ struct IBlockCache
     virtual TSharedRef Find(
         const TBlockId& id,
         EBlockType type) = 0;
+
+    //! Returns the set of supported block types.
+    virtual EBlockType GetSupportedBlockTypes() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockCache)

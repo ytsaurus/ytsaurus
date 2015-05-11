@@ -11,9 +11,11 @@ using namespace NChunkClient::NProto;
 ///////////////////////////////////////////////////////////////////////////////
 
 TFileReader::TFileReader(
+    const TChunkId& chunkId,
     const Stroka& fileName,
     bool validateBlocksChecksums)
-    : FileName_(fileName)
+    : ChunkId_(chunkId)
+    , FileName_(fileName)
     , ValidateBlockChecksums_(validateBlocksChecksums)
 { }
 
@@ -190,7 +192,7 @@ TFuture<NProto::TChunkMeta> TFileReader::GetMeta(
 
 TChunkId TFileReader::GetChunkId() const
 {
-    YUNREACHABLE();
+    return ChunkId_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
