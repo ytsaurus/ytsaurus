@@ -58,9 +58,10 @@ typedef i64 TBlockOffset;
 //! A |(chunkId, blockIndex)| pair.
 struct TBlockId;
 
-DEFINE_ENUM(EBlockType,
-    (CompressedData)
-    (UncompressedData)
+DEFINE_BIT_ENUM(EBlockType,
+    ((None)              (0x0000))
+    ((CompressedData)    (0x0001))
+    ((UncompressedData)  (0x0002))
 );
 
 DEFINE_ENUM(EChunkType,

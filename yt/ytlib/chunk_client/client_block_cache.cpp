@@ -105,15 +105,17 @@ class TClientBlockCache
 public:
     TClientBlockCache(
         TBlockCacheConfigPtr config,
-        const std::vector<EBlockType>& blockTypes,
+        EBlockType supportedBlockTypes,
         const NProfiling::TProfiler& profiler)
+        : SupportedBlockTypes_(supportedBlockTypes)
     {
         auto initType = [&] (EBlockType type, TSlruCacheConfigPtr config) {
-            if (std::find(blockTypes.begin(), blockTypes.end(), type) != blockTypes.end()) {
-                PerTypeCaches_[type] = New<TPerTypeClientBlockCache>(
+            if (Any(SupportedBlockTypes_ & type)) {
+                auto cache = New<TPerTypeClientBlockCache>(
                     type,
                     config,
                     NProfiling::TProfiler(profiler.GetPathPrefix() + "/" + FormatEnum(type)));
+                YCHECK(PerTypeCaches_.insert({type, cache}).second);
             }
         };
         initType(EBlockType::CompressedData, config->CompressedData);
@@ -126,7 +128,7 @@ public:
         const TSharedRef& data,
         const TNullable<TNodeDescriptor>& /*source*/) override
     {
-        const auto& cache = PerTypeCaches_[type];
+        auto cache = FindPerTypeCache(type);
         if (cache) {
             cache->Put(id, data);
         }
@@ -136,21 +138,34 @@ public:
         const TBlockId& id,
         EBlockType type) override
     {
-        const auto& cache = PerTypeCaches_[type];
+        auto cache = FindPerTypeCache(type);
         return cache ? PerTypeCaches_[type]->Find(id) : TSharedRef();
     }
 
+    virtual EBlockType GetSupportedBlockTypes() const override
+    {
+        return SupportedBlockTypes_;
+    }
+
 private:
-    TEnumIndexedVector<TPerTypeClientBlockCachePtr, EBlockType> PerTypeCaches_;
+    const EBlockType SupportedBlockTypes_;
+
+    yhash_map<EBlockType, TPerTypeClientBlockCachePtr> PerTypeCaches_;
+
+    TPerTypeClientBlockCachePtr FindPerTypeCache(EBlockType type)
+    {
+        auto it = PerTypeCaches_.find(type);
+        return it == PerTypeCaches_.end() ? nullptr : it->second;
+    }
 
 };
 
 IBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
-    const std::vector<EBlockType>& blockTypes,
+    EBlockType supportedBlockTypes,
     const NProfiling::TProfiler& profiler)
 {
-    return New<TClientBlockCache>(config, blockTypes, profiler);
+    return New<TClientBlockCache>(config, supportedBlockTypes, profiler);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -171,6 +186,11 @@ public:
         EBlockType /*type*/) override
     {
         return TSharedRef();
+    }
+
+    virtual EBlockType GetSupportedBlockTypes() const override
+    {
+        return EBlockType::None;
     }
 };
 

@@ -150,6 +150,11 @@ public:
         return UnderlyingCache_->Find(id, type);
     }
 
+    virtual EBlockType GetSupportedBlockTypes() const override
+    {
+        return Type_;
+    }
+
 private:
     const TWeakPtr<TChunkStore> Owner_;
     const TChunkId ChunkId_;

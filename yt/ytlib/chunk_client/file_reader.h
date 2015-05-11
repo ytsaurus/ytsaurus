@@ -17,7 +17,8 @@ class TFileReader
 {
 public:
     //! Creates a new reader.
-    explicit TFileReader(
+    TFileReader(
+        const TChunkId& chunkId,
         const Stroka& fileName,
         bool validateBlocksChecksums = true);
 
@@ -48,6 +49,7 @@ public:
     virtual TChunkId GetChunkId() const override;
 
 private:
+    const TChunkId ChunkId_;
     const Stroka FileName_;
     const bool ValidateBlockChecksums_;
 

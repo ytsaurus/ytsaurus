@@ -67,7 +67,8 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         TNameTablePtr nameTable,
-        IChunkWriterPtr asyncWriter,
+        IChunkWriterPtr chunkWriter,
+        IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns = TKeyColumns());
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
@@ -95,9 +96,15 @@ TSchemalessChunkWriter<TBase>::TSchemalessChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
-    IChunkWriterPtr asyncWriter,
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns)
-    : TBase(config, options, asyncWriter, keyColumns)
+    : TBase(
+        config,
+        options,
+        chunkWriter,
+        blockCache,
+        keyColumns)
     , NameTable_(nameTable)
 { }
 
@@ -158,20 +165,23 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    NChunkClient::IChunkWriterPtr chunkWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
 {
     if (keyColumns.empty()) {
         return New<TSchemalessChunkWriter<TSequentialChunkWriterBase>>(
             config,
             options,
             nameTable,
-            chunkWriter);
+            chunkWriter,
+            blockCache);
     } else {
         return New<TSchemalessChunkWriter<TSortedChunkWriterBase>>(
             config,
             options,
             nameTable,
             chunkWriter,
+            blockCache,
             keyColumns);
     }
 }
@@ -187,7 +197,8 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         TNameTablePtr nameTable,
-        IChunkWriterPtr asyncWriter,
+        IChunkWriterPtr chunkWriter,
+        IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         IPartitioner* partitioner);
 
@@ -239,10 +250,15 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
-    IChunkWriterPtr asyncWriter,
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     IPartitioner* partitioner)
-    : TChunkWriterBase(config, options, asyncWriter)
+    : TChunkWriterBase(
+        config,
+        options,
+        chunkWriter,
+        blockCache)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , Partitioner_(partitioner)
@@ -398,14 +414,16 @@ ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    IChunkWriterPtr asyncWriter,
-    IPartitioner* partitioner)
+    IChunkWriterPtr chunkWriter,
+    IPartitioner* partitioner,
+    IBlockCachePtr blockCache)
 {
     return New<TPartitionChunkWriter>(
         config,
         options,
         nameTable,
-        asyncWriter,
+        chunkWriter,
+        blockCache,
         keyColumns,
         partitioner);
 }
@@ -646,7 +664,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
             options, 
             nameTable, 
             keyColumns, 
-            underlyingWriter);
+            underlyingWriter,
+            blockCache);
     };
 
     bool isSorted = !keyColumns.empty();
@@ -700,7 +719,8 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
             nameTable,
             keyColumns,
             underlyingWriter,
-            partitioner.get());
+            partitioner.get(),
+            blockCache);
     };
 
     auto writer = New<TWriter>(

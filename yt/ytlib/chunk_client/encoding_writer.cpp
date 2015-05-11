@@ -4,6 +4,11 @@
 #include "private.h"
 #include "dispatcher.h"
 #include "chunk_writer.h"
+#include "block_cache.h"
+
+#include <ytlib/node_tracker_client/node_directory.h>
+
+#include <core/concurrency/action_queue.h>
 
 #include <core/compression/codec.h>
 
@@ -14,16 +19,15 @@ using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkClientLogger;
-
-///////////////////////////////////////////////////////////////////////////////
-
 TEncodingWriter::TEncodingWriter(
     TEncodingWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IChunkWriterPtr chunkWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
     : Config_(config)
+    , Options_(options)
     , ChunkWriter_(chunkWriter)
+    , BlockCache_(blockCache)
     , CompressionRatio_(config->DefaultCompressionRatio)
     , CompressionInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionPoolInvoker()))
     , Semaphore_(Config_->EncodeWindowSize)
@@ -34,7 +38,10 @@ TEncodingWriter::TEncodingWriter(
     , TriggerWritingCallback_(
         BIND(&TEncodingWriter::TriggerWriting, MakeWeak(this))
             .Via(CompressionInvoker_))
-{ }
+{
+    Logger = ChunkClientLogger;
+    Logger.AddTag("ChunkId: %v", ChunkWriter_->GetChunkId());
+}
 
 TEncodingWriter::~TEncodingWriter()
 { }
@@ -62,57 +69,63 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock)
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
+void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
 {
-    LOG_DEBUG("Compressing block");
+    LOG_DEBUG("Compressing block (Block: %v)", AddedBlockIndex_);
 
-    auto compressedBlock = Codec_->Compress(block);
+    auto compressedBlock = Codec_->Compress(uncompressedBlock);
+
     CompressedSize_ += compressedBlock.Size();
 
-    int sizeToRelease = -compressedBlock.Size();
-
     if (Config_->VerifyCompression) {
-        VerifyBlock(block, compressedBlock);
+        VerifyBlock(uncompressedBlock, compressedBlock);
     }
 
-    sizeToRelease += block.Size();
+    auto blockId = TBlockId(ChunkWriter_->GetChunkId(), AddedBlockIndex_);
+    BlockCache_->Put(blockId, EBlockType::UncompressedData, uncompressedBlock, Null);
 
+    int sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + uncompressedBlock.Size();
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorizedBlock)
+void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock)
 {
-    LOG_DEBUG("Compressing block");
+    LOG_DEBUG("Compressing block (Block: %v)", AddedBlockIndex_);
 
-    auto compressedBlock = Codec_->Compress(vectorizedBlock);
+    auto compressedBlock = Codec_->Compress(uncompressedVectorizedBlock);
+
     CompressedSize_ += compressedBlock.Size();
 
-    i64 sizeToRelease = -static_cast<i64>(compressedBlock.Size());
-
     if (Config_->VerifyCompression) {
-        VerifyVector(vectorizedBlock, compressedBlock);
+        VerifyVector(uncompressedVectorizedBlock, compressedBlock);
     }
 
-    for (const auto& part : vectorizedBlock) {
-        sizeToRelease += part.Size();
+    auto blockId = TBlockId(ChunkWriter_->GetChunkId(), AddedBlockIndex_);
+    if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
+        // Handle none codec separately to avoid merging block parts twice.
+        auto uncompressedBlock = Options_->CompressionCodec == NCompression::ECodec::None
+            ? compressedBlock
+            : MergeRefs(uncompressedVectorizedBlock);
+        BlockCache_->Put(blockId, EBlockType::UncompressedData, uncompressedBlock, Null);
     }
 
+    i64 sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + GetByteSize(uncompressedVectorizedBlock);
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
 }
 
 void TEncodingWriter::VerifyVector(
-    const std::vector<TSharedRef>& origin,
+    const std::vector<TSharedRef>& uncompressedVectorizedBlock,
     const TSharedRef& compressedBlock)
 {
     auto decompressedBlock = Codec_->Decompress(compressedBlock);
 
     LOG_FATAL_IF(
-        decompressedBlock.Size() != GetByteSize(origin),
+        decompressedBlock.Size() != GetByteSize(uncompressedVectorizedBlock),
         "Compression verification failed");
 
     const char* current = decompressedBlock.Begin();
-    for (const auto& block : origin) {
+    for (const auto& block : uncompressedVectorizedBlock) {
         LOG_FATAL_IF(
             !TRef::AreBitwiseEqual(TRef(current, block.Size()), block),
             "Compression verification failed");
@@ -121,12 +134,12 @@ void TEncodingWriter::VerifyVector(
 }
 
 void TEncodingWriter::VerifyBlock(
-    const TSharedRef& origin,
+    const TSharedRef& uncompressedBlock,
     const TSharedRef& compressedBlock)
 {
     auto decompressedBlock = Codec_->Decompress(compressedBlock);
     LOG_FATAL_IF(
-        !TRef::AreBitwiseEqual(decompressedBlock, origin),
+        !TRef::AreBitwiseEqual(decompressedBlock, uncompressedBlock),
         "Compression verification failed");
 }
 
@@ -142,7 +155,9 @@ void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeTo
     }
 
     PendingBlocks_.push_back(block);
-    LOG_DEBUG("Pending block added");
+    LOG_DEBUG("Pending block added (Block: %v)", AddedBlockIndex_);
+
+    ++AddedBlockIndex_;
 
     if (PendingBlocks_.size() == 1) {
         TriggerWritingCallback_.Run();
@@ -180,16 +195,18 @@ void TEncodingWriter::TriggerWriting()
 void TEncodingWriter::WritePendingBlocks()
 {
     while (!PendingBlocks_.empty()) {
-        LOG_DEBUG("Writing pending block");
+        LOG_DEBUG("Writing pending block (Block: %v)", WrittenBlockIndex_);
+
         auto& front = PendingBlocks_.front();
         auto result = ChunkWriter_->WriteBlock(front);
         Semaphore_.Release(front.Size());
         PendingBlocks_.pop_front();
+        ++WrittenBlockIndex_;
 
         if (!result) {
             IsWaiting_ = true;
             ChunkWriter_->GetReadyEvent().Subscribe(OnReadyEventCallback_);
-            return;
+            break;
         }
     }
 }

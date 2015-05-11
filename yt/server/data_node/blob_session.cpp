@@ -321,7 +321,7 @@ void TBlobSession::DoOpenWriter()
     PROFILE_TIMING ("/blob_chunk_open_time") {
         try {
             auto fileName = Location_->GetChunkPath(ChunkId_);
-            Writer_ = New<TFileWriter>(fileName, Options_.SyncOnClose);
+            Writer_ = New<TFileWriter>(ChunkId_, fileName, Options_.SyncOnClose);
             // File writer opens synchronously.
             Writer_->Open()
                 .Get()

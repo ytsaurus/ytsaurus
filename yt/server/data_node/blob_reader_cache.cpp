@@ -30,7 +30,7 @@ public:
         const Stroka& fileName,
         bool validateBlockChecksums)
         : TAsyncCacheValueBase<TChunkId, TCachedReader>(chunkId)
-        , TFileReader(fileName, validateBlockChecksums)
+        , TFileReader(chunkId, fileName, validateBlockChecksums)
         , ChunkId_(chunkId)
     { }
 

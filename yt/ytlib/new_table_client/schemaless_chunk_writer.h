@@ -33,15 +33,17 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    NChunkClient::IChunkWriterPtr chunkWriter);
+    NChunkClient::IChunkWriterPtr chunkWriter,
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    NChunkClient::IChunkWriterPtr underlyingWriter,
-    IPartitioner* partitioner);
+    NChunkClient::IChunkWriterPtr chunkWriter,
+    IPartitioner* partitioner,
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ////////////////////////////////////////////////////////////////////////////////
 

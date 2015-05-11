@@ -42,7 +42,8 @@ DEFINE_REFCOUNTED_TYPE(IFileChunkWriter)
 IFileChunkWriterPtr CreateFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     NChunkClient::TEncodingWriterOptionsPtr options,
-    NChunkClient::IChunkWriterPtr chunkWriter);
+    NChunkClient::IChunkWriterPtr chunkWriter,
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ////////////////////////////////////////////////////////////////////////////////
 

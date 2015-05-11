@@ -23,6 +23,7 @@ public:
     // Unimplemented.
     virtual const NProto::TChunkInfo& GetChunkInfo() const override;
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
+    virtual TChunkId GetChunkId() const override;
 
     //! Can only be called after the writer is closed.
     std::vector<TSharedRef>& GetBlocks();

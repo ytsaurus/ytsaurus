@@ -113,8 +113,8 @@ public:
 
         std::vector<IChunkWriterPtr> writers;
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
-            Stroka filename = "block" + ToString(i + 1);
-            writers.push_back(NYT::New<TFileWriter>(filename));
+            auto filename = "part" + ToString(i + 1);
+            writers.push_back(NYT::New<TFileWriter>(NullChunkId, filename));
         }
 
         TChunkMeta meta;
@@ -122,7 +122,7 @@ public:
         meta.set_version(1);
 
         i64 dataSize = 0;
-        auto erasureWriter = CreateErasureWriter(config, codec, writers);
+        auto erasureWriter = CreateErasureWriter(config, NullChunkId, codec, writers);
         EXPECT_TRUE(erasureWriter->Open().Get().IsOK());
 
         for (const auto& ref : data) {
@@ -137,8 +137,8 @@ public:
     {
         std::vector<IChunkReaderPtr> readers;
         for (int i = 0; i < codec->GetDataPartCount(); ++i) {
-            Stroka filename = "block" + ToString(i + 1);
-            auto reader = NYT::New<TFileReader>(filename);
+            auto filename = "part" + ToString(i + 1);
+            auto reader = NYT::New<TFileReader>(NullChunkId, filename);
             reader->Open();
             readers.push_back(reader);
         }
@@ -148,7 +148,7 @@ public:
     static void Cleanup(ICodec* codec)
     {
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
-            Stroka filename = "block" + ToString(i + 1);
+            auto filename = "part" + ToString(i + 1);
             NFs::Remove(filename.c_str());
             NFs::Remove((filename + ".meta").c_str());
         }
@@ -171,15 +171,15 @@ TEST_F(TErasureMixture, WriterTest)
 
     // Manually check that data in files is correct
     for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
-        Stroka filename = "block" + ToString(i + 1);
+        auto filename = "part" + ToString(i + 1);
         if (i == 0) {
-            EXPECT_EQ(Stroka("ab"), TFileInput("block" + ToString(i + 1)).ReadAll());
+            EXPECT_EQ(Stroka("ab"), TFileInput("part" + ToString(i + 1)).ReadAll());
         } else if (i == 1) {
-            EXPECT_EQ(Stroka("Hello world"), TFileInput("block" + ToString(i + 1)).ReadAll());
+            EXPECT_EQ(Stroka("Hello world"), TFileInput("part" + ToString(i + 1)).ReadAll());
         } else if (i < 12) {
-            EXPECT_EQ("", TFileInput("block" + ToString(i + 1)).ReadAll());
+            EXPECT_EQ("", TFileInput("part" + ToString(i + 1)).ReadAll());
         } else {
-            EXPECT_EQ(64, TFileInput("block" + ToString(i + 1)).ReadAll().Size());
+            EXPECT_EQ(64, TFileInput("part" + ToString(i + 1)).ReadAll().Size());
         }
     }
 
@@ -249,7 +249,7 @@ TEST_F(TErasureMixture, RepairTest1)
     std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
 
     for (int i = 0; i < erasedIndices.size(); ++i) {
-        Stroka filename = "block" + ToString(erasedIndices[i] + 1);
+        auto filename = "part" + ToString(erasedIndices[i] + 1);
         NFs::Remove(filename.c_str());
         NFs::Remove((filename + ".meta").c_str());
     }
@@ -257,12 +257,12 @@ TEST_F(TErasureMixture, RepairTest1)
     std::vector<IChunkReaderPtr> readers;
     std::vector<IChunkWriterPtr> writers;
     for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
-        Stroka filename = "block" + ToString(i + 1);
+        auto filename = "part" + ToString(i + 1);
         if (erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
-            writers.push_back(NYT::New<TFileWriter>(filename));
+            writers.push_back(NYT::New<TFileWriter>(NullChunkId, filename));
         }
         if (repairIndicesSet.find(i) != repairIndicesSet.end()) {
-            auto reader = NYT::New<TFileReader>(filename);
+            auto reader = NYT::New<TFileReader>(NullChunkId, filename);
             reader->Open();
             readers.push_back(reader);
         }
@@ -309,7 +309,7 @@ TEST_F(TErasureMixture, RepairTest2)
     std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
 
     for (int i = 0; i < erasedIndices.size(); ++i) {
-        Stroka filename = "block" + ToString(erasedIndices[i] + 1);
+        auto filename = "part" + ToString(erasedIndices[i] + 1);
         NFs::Remove(filename.c_str());
         NFs::Remove((filename + ".meta").c_str());
     }
@@ -317,12 +317,12 @@ TEST_F(TErasureMixture, RepairTest2)
     std::vector<IChunkReaderPtr> readers;
     std::vector<IChunkWriterPtr> writers;
     for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
-        Stroka filename = "block" + ToString(i + 1);
+        auto filename = "part" + ToString(i + 1);
         if (erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
-            writers.push_back(NYT::New<TFileWriter>(filename));
+            writers.push_back(NYT::New<TFileWriter>(NullChunkId, filename));
         }
         if (repairIndicesSet.find(i) != repairIndicesSet.end()) {
-            auto reader = NYT::New<TFileReader>(filename);
+            auto reader = NYT::New<TFileReader>(NullChunkId, filename);
             reader->Open();
             readers.push_back(reader);
         }
@@ -384,7 +384,7 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
     std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
 
     for (int i = 0; i < erasedIndices.size(); ++i) {
-        Stroka filename = "block" + ToString(erasedIndices[i] + 1);
+        auto filename = "part" + ToString(erasedIndices[i] + 1);
         NFs::Remove(filename.c_str());
         NFs::Remove((filename + ".meta").c_str());
     }
@@ -392,12 +392,12 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
     std::vector<IChunkReaderPtr> readers;
     std::vector<IChunkWriterPtr> writers;
     for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
-        Stroka filename = "block" + ToString(i + 1);
+        auto filename = "part" + ToString(i + 1);
         if (erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
-            writers.push_back(NYT::New<TFileWriter>(filename));
+            writers.push_back(NYT::New<TFileWriter>(NullChunkId, filename));
         }
         if (repairIndicesSet.find(i) != repairIndicesSet.end()) {
-            auto reader = NYT::New<TFileReader>(filename);
+            auto reader = NYT::New<TFileReader>(NullChunkId, filename);
             reader->Open();
             readers.push_back(reader);
         }

@@ -30,7 +30,7 @@ public:
         , Bootstrap_(bootstrap)
         , UnderlyingCache_(CreateClientBlockCache(
             Config_->BlockCache,
-            {EBlockType::UncompressedData},
+            EBlockType::UncompressedData,
             NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/block_cache")))
     { }
 
@@ -67,6 +67,11 @@ public:
         } else {
             return UnderlyingCache_->Find(id, type);
         }
+    }
+
+    virtual EBlockType GetSupportedBlockTypes() const override
+    {
+        return EBlockType::CompressedData | EBlockType::UncompressedData;
     }
 
 private:

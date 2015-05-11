@@ -24,14 +24,14 @@ TChunkReaderBase::TChunkReaderBase(
     NChunkClient::IChunkReaderPtr underlyingReader,
     const NChunkClient::NProto::TMiscExt& misc,
     IBlockCachePtr blockCache)
-    : Logger(TableClientLogger)
-    , Config_(std::move(config))
+    : Config_(std::move(config))
     , LowerLimit_(lowerLimit)
     , UpperLimit_(upperLimit)
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
     , Misc_(misc)
 {
+    Logger = TableClientLogger;
     Logger.AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId());
 }
 

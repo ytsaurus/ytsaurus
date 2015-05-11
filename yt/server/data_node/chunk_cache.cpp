@@ -253,7 +253,7 @@ private:
                 seedReplicas);
 
             auto fileName = Location_->GetChunkPath(chunkId);
-            auto chunkWriter = New<TFileWriter>(fileName);
+            auto chunkWriter = New<TFileWriter>(chunkId, fileName);
 
             try {
                 NFS::ForcePath(NFS::GetDirectoryName(fileName));

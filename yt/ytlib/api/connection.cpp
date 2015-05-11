@@ -108,7 +108,7 @@ public:
 
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache,
-            {EBlockType::CompressedData, EBlockType::UncompressedData});
+            EBlockType::CompressedData|EBlockType::UncompressedData);
 
         TableMountCache_ = New<TTableMountCache>(
             Config_->TableMountCache,

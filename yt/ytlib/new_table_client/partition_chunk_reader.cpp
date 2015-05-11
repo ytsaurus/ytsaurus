@@ -6,6 +6,7 @@
 
 #include "name_table.h"
 #include "schema.h"
+#include "private.h"
 
 #include <ytlib/chunk_client/config.h>
 
@@ -44,9 +45,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     , KeyColumns_(keyColumns)
     , ChunkMeta_(masterMeta)
     , PartitionTag_(partitionTag)
-{
-    Logger.AddTag("PartitionChunkReader: %p", this);
-}
+{ }
 
 std::vector<TSequentialReader::TBlockInfo> TPartitionChunkReader::GetBlockSequence()
 {

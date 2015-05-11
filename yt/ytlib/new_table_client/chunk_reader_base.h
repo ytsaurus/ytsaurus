@@ -36,8 +36,6 @@ public:
     virtual TFuture<void> GetFetchingCompletedEvent();
 
 protected:
-    mutable NLogging::TLogger Logger;
-
     const TChunkReaderConfigPtr Config_;
     const NChunkClient::TReadLimit LowerLimit_;
     const NChunkClient::TReadLimit UpperLimit_;
@@ -57,6 +55,8 @@ protected:
     bool CheckKeyLimit_ = false;
 
     TChunkedMemoryPool MemoryPool_;
+
+    NLogging::TLogger Logger;
 
 
     bool BeginRead();
