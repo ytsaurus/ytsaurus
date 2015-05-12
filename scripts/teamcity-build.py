@@ -231,6 +231,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
     sandbox_archive = "{0}/{1}".format(
         os.path.expanduser("~/failed_tests/"),
         "__".join([options.btid, options.build_number, suite_name]))
+    working_files_to_archive = ["bin/ytserver", "lib/libyt-driver-python.so", "lib/libyt-yson-python.so"]
 
     mkdirp(sandbox_current)
 
@@ -279,6 +280,10 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                 sandbox_archive),
                 status="WARNING")
             shutil.copytree(sandbox_current, sandbox_archive)
+            mkdirp(os.path.join(sandbox_current, "build"))
+            for file in working_files_to_archive:
+                shutil.copy(os.path.join(options.working_directory, file), os.path.join(sandbox_current, "build"))
+
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
         shutil.rmtree(sandbox_current)
