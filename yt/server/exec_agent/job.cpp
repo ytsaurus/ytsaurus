@@ -477,7 +477,10 @@ private:
             JobState = FinalJobState;
         }
 
-        SetResourceUsage(ZeroNodeResources());
+        {
+            TGuard<TSpinLock> guard(ResourcesLock);
+            ResourceUsage = ZeroNodeResources();
+        }
         ResourcesReleased_.Fire();
     }
 
