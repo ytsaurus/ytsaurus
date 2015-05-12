@@ -563,6 +563,32 @@ Function* CodegenRowComparerFunction(
     return CodegenTupleComparerFunction(compareArgs, module);
 }
 
+Value* CodegenLexicographicalCompare(
+    TCGContext& builder,
+    Value* lhsData,
+    Value* lhsLength,
+    Value* rhsData,
+    Value* rhsLength)
+{
+    Value* lhsLengthIsLess = builder.CreateICmpULT(lhsLength, rhsLength);
+    Value* minLength = builder.CreateSelect(
+        lhsLengthIsLess,
+        lhsLength,
+        rhsLength);
+
+    Value* cmpResult = builder.CreateCall3(
+        builder.Module->GetRoutine("memcmp"),
+        lhsData,
+        rhsData,
+        builder.CreateZExt(minLength, builder.getSizeType()));
+
+    return builder.CreateOr(
+        builder.CreateICmpSLT(cmpResult, builder.getInt32(0)),
+        builder.CreateAnd(
+            builder.CreateICmpEQ(cmpResult, builder.getInt32(0)),
+            lhsLengthIsLess));
+};
+
 TCodegenExpression MakeCodegenLiteralExpr(
     int index,
     EValueType type)
@@ -860,26 +886,6 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
                                             });
                                     };
 
-                                    auto codegenLexicographicalCompare = [&] (Value* lhsData, Value* lhsLength, Value* rhsData, Value* rhsLength) {
-                                        Value* lhsLengthIsLess = builder.CreateICmpULT(lhsLength, rhsLength);
-                                        Value* minLength = builder.CreateSelect(
-                                            lhsLengthIsLess,
-                                            lhsLength,
-                                            rhsLength);
-
-                                        Value* cmpResult = builder.CreateCall3(
-                                            builder.Module->GetRoutine("memcmp"),
-                                            lhsData,
-                                            rhsData,
-                                            builder.CreateZExt(minLength, builder.getSizeType()));
-
-                                        return builder.CreateOr(
-                                            builder.CreateICmpSLT(cmpResult, builder.getInt32(0)),
-                                            builder.CreateAnd(
-                                                builder.CreateICmpEQ(cmpResult, builder.getInt32(0)),
-                                                lhsLengthIsLess));
-                                    };
-
                                     switch (opcode) {
                                         case EBinaryOp::Equal:
                                             evalData = codegenEqual();
@@ -888,18 +894,18 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
                                             evalData = builder.CreateNot(codegenEqual());
                                             break;
                                         case EBinaryOp::Less:
-                                            evalData = codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength);
+                                            evalData = CodegenLexicographicalCompare(builder, lhsData, lhsLength, rhsData, rhsLength);
                                             break;
                                         case EBinaryOp::Greater:
-                                            evalData = codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength);
+                                            evalData = CodegenLexicographicalCompare(builder, rhsData, rhsLength, lhsData, lhsLength);
                                             break;
                                         case EBinaryOp::LessOrEqual:
                                             evalData =  builder.CreateNot(
-                                                codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength));
+                                                CodegenLexicographicalCompare(builder, rhsData, rhsLength, lhsData, lhsLength));
                                             break;
                                         case EBinaryOp::GreaterOrEqual:
                                             evalData = builder.CreateNot(
-                                                codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength));
+                                                CodegenLexicographicalCompare(builder, lhsData, lhsLength, rhsData, rhsLength));
                                             break;
                                         default:
                                             YUNREACHABLE();
@@ -1397,6 +1403,7 @@ std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpd
                     builder,
                     aggState,
                     newValue);
+
             } else {
                 auto aggState = builder.CreateConstInBoundsGEP1_32(
                     CodegenValuesPtrFromRow(builder, groupRow),

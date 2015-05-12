@@ -121,6 +121,34 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("k, avg(a) as aa, min(b) as mb, avg(b) as ab from [//tmp/mg] group by a % 2 as k order by k limit 2")
         assert expected == actual
 
+    def test_merging_group_by2(self):
+        self._sync_create_cells(3, 3)
+
+        create("table", "//tmp/ms",
+            attributes = {
+                "schema": [
+                    {"name": "a", "type": "int64"},
+                    {"name": "b", "type": "string"}],
+                "key_columns": ["a"]
+            })
+
+        pivots = [[i*5] for i in xrange(0,20)]
+        pivots.insert(0, [])
+        reshard_table("//tmp/ms", pivots)
+
+        mount_table("//tmp/ms")
+
+        self._wait_for_tablet_state("//tmp/ms", ["mounted"])
+
+        data = [{"a" : i, "b" : str(i)} for i in xrange(0,100)]
+        insert_rows("//tmp/ms", data)
+
+        expected = [
+            {"k": 0, "m": "98"},
+            {"k": 1, "m": "99"}]
+        actual = select_rows("k, max(b) as m from [//tmp/ms] group by a % 2 as k order by k limit 2")
+        assert expected == actual
+
     def test_limit(self):
         self._sample_data(path="//tmp/l1")
         expected = [{"a": 1, "b": 10}]
