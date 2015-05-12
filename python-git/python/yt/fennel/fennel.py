@@ -105,7 +105,7 @@ class EventLog(object):
             result = []
             if begin < 0:
                 self.log.error("Table index is less then 0: %d. Use archive table", begin)
-                archive_row_count = self.yt.get(self.get_archive_row_count())
+                archive_row_count = self.get_archive_row_count()
                 archive_begin = archive_row_count + begin
                 result.extend(self.yt.read_table(table.TablePath(
                     self._archive_table_name,
