@@ -18,6 +18,9 @@ from yt.tools.remote_copy_tools import \
     copy_hive_to_yt, \
     Kiwi
 
+import yt.packages.requests as requests
+import yt.wrapper.http as yt_http
+
 from yt.wrapper.client import Yt
 from yt.wrapper.common import generate_uuid, get_value
 import yt.logger as logger
@@ -735,6 +738,8 @@ class Application(object):
     def _execute_task(self, task, message_queue):
         prctl.set_pdeathsig(signal.SIGINT)
         logger.LOGGER = TaskIdLogger(task.id)
+
+        yt_http.session_ = requests.Session()
 
         logger.info("Start executing task")
         try:
