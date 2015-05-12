@@ -348,7 +348,6 @@ class TSerializedInvoker
 public:
     explicit TSerializedInvoker(IInvokerPtr underlyingInvoker)
         : TInvokerWrapper(std::move(underlyingInvoker))
-        , FinishedCallback_(BIND(&TSerializedInvoker::OnFinished, MakeWeak(this)))
     {
         Lock_.clear();
     }
@@ -362,10 +361,6 @@ public:
 private:
     TLockFreeQueue<TClosure> Queue_;
     std::atomic_flag Lock_;
-    bool LockReleased_;
-    TClosure FinishedCallback_;
-
-    static PER_THREAD TSerializedInvoker* CurrentRunningInvoker_;
 
 
     class TInvocationGuard
@@ -376,6 +371,12 @@ private:
         { }
 
         TInvocationGuard(TInvocationGuard&& other) = default;
+        TInvocationGuard(const TInvocationGuard& other) = delete;
+
+        void Reset()
+        {
+            Owner_.Reset();
+        }
 
         ~TInvocationGuard()
         {
@@ -397,18 +398,19 @@ private:
 
         if (!Lock_.test_and_set(std::memory_order_acquire)) {
             UnderlyingInvoker_->Invoke(BIND(
-                &TSerializedInvoker::RunCallbacks,
+                &TSerializedInvoker::RunCallback,
                 MakeStrong(this),
                 Passed(TInvocationGuard(this))));
         }
     }
 
-    void RunCallbacks(TInvocationGuard /*invocationGuard*/)
+    void RunCallback(TInvocationGuard invocationGuard)
     {
         TCurrentInvokerGuard currentInvokerGuard(this);
-        TContextSwitchedGuard contextSwitchGuard(FinishedCallback_);
-
-        LockReleased_ = false;
+        TContextSwitchedGuard contextSwitchGuard(BIND(
+            &TSerializedInvoker::OnContextSwitched,
+            MakeStrong(this),
+            &invocationGuard));
 
         // Execute as many callbacks as possible to minimize context switches.
         TClosure callback;
@@ -417,13 +419,16 @@ private:
         }
     }
 
+    void OnContextSwitched(TInvocationGuard* invocationGuard)
+    {
+        invocationGuard->Reset();
+        OnFinished();
+    }
+
     void OnFinished()
     {
-        if (!LockReleased_) {
-            LockReleased_ = true;
-            Lock_.clear(std::memory_order_release);
-            TrySchedule();
-        }
+        Lock_.clear(std::memory_order_release);
+        TrySchedule();
     }
 
 };
@@ -557,6 +562,7 @@ private:
         { }
 
         TInvocationGuard(TInvocationGuard&& other) = default;
+        TInvocationGuard(const TInvocationGuard& other) = delete;
 
         ~TInvocationGuard()
         {
