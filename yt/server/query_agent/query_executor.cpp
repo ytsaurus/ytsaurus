@@ -763,6 +763,7 @@ private:
         auto lowerBound = source.Range.first;
         auto upperBound = source.Range.second;
 
+        auto blockCache = Bootstrap_->GetBlockCache();
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
 
@@ -777,7 +778,8 @@ private:
             chunkReader = CreateLocalChunkReader(
                 Bootstrap_,
                 Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-                chunk);
+                chunk,
+                blockCache);
         } else {
             LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
                 chunkId,

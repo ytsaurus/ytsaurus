@@ -20,7 +20,7 @@ NChunkClient::IChunkReaderPtr CreateLocalChunkReader(
     NCellNode::TBootstrap* bootstrap,
     NChunkClient::TReplicationReaderConfigPtr config,
     IChunkPtr chunk,
-    NChunkClient::IBlockCachePtr blockCache = NChunkClient::IBlockCachePtr(),
+    NChunkClient::IBlockCachePtr blockCache,
     TClosure failureHandler = TClosure());
 
 ////////////////////////////////////////////////////////////////////////////////
