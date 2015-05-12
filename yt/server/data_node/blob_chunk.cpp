@@ -29,7 +29,7 @@ using namespace NChunkClient::NProto;
 
 static const auto& Logger = DataNodeLogger;
 
-static NProfiling::TSimpleCounter DiskBlobReadByteCounter("/disk_blob_read_bytes");
+static NProfiling::TSimpleCounter DiskBlobReadByteCounter("/blob_block_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
