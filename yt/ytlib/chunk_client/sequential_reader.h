@@ -99,8 +99,8 @@ private:
 
     const TSequentialReaderConfigPtr Config_;
     const std::vector<TBlockInfo> BlockInfos_;
-    IChunkReaderPtr ChunkReader_;
-    IBlockCachePtr BlockCache_;
+    const IChunkReaderPtr ChunkReader_;
+    const IBlockCachePtr BlockCache_;
 
     struct TWindowSlot
     {
