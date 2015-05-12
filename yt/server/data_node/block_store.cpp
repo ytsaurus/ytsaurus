@@ -337,7 +337,7 @@ private:
 
     static bool IsJournalChunk(const TChunkId& chunkId)
     {
-        return TypeFromId(DecodeChunkId(chunkId).Id) == EObjectType::Journal;
+        return TypeFromId(DecodeChunkId(chunkId).Id) == EObjectType::JournalChunk;
     }
 
 };
