@@ -665,29 +665,30 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.run_map(foo, table, table, format=yt.YamrFormat(lenval=True))
         self.check(["key=1\tvalue=2\n"], list(yt.read_table(table)))
 
-    def test_wait_strategy_timeout(self):
-        records = ["x=1\n", "y=2\n", "z=3\n"]
-        pause = 3.0
-        sleeep = "sleep {0}; cat > /dev/null".format(pause)
-        desired_timeout = 1.0
+    # TODO(ignat): replace timeout with scheduler-side option
+    #def test_wait_strategy_timeout(self):
+    #    records = ["x=1\n", "y=2\n", "z=3\n"]
+    #    pause = 3.0
+    #    sleeep = "sleep {0}; cat > /dev/null".format(pause)
+    #    desired_timeout = 1.0
 
-        table = TEST_DIR + "/table"
-        yt.write_table(table, records)
+    #    table = TEST_DIR + "/table"
+    #    yt.write_table(table, records)
 
-        # skip long loading time
-        yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(), job_count=1)
+    #    # skip long loading time
+    #    yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(), job_count=1)
 
-        start = time.time()
-        yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(), job_count=1)
-        usual_time = time.time() - start
-        loading_time = usual_time - pause
+    #    start = time.time()
+    #    yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(), job_count=1)
+    #    usual_time = time.time() - start
+    #    loading_time = usual_time - pause
 
-        start = time.time()
-        with pytest.raises(yt.YtTimeoutError):
-            yt.run_map(sleeep, table, "//tmp/1",
-                       strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1)
-        timeout_time = time.time() - start
-        self.assertAlmostEqual(timeout_time, desired_timeout, delta=loading_time)
+    #    start = time.time()
+    #    with pytest.raises(yt.YtTimeoutError):
+    #        yt.run_map(sleeep, table, "//tmp/1",
+    #                   strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1)
+    #    timeout_time = time.time() - start
+    #    self.assertAlmostEqual(timeout_time, desired_timeout, delta=loading_time)
 
     def test_client(self):
         client = Yt(yt.config.http.PROXY)
