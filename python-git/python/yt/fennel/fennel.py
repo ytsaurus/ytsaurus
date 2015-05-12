@@ -505,7 +505,10 @@ class SessionReader(object):
         self.log.info("Session reader is finished. Id: %s", self._id)
 
     def stop(self, e=None):
-        self.log.error("Stopping...", exc_info=e)
+        if e:
+            self.log.error("Stopping...", exc_info=e)
+        else:
+            self.log.info("Stopping...")
         self._error = e
         self._set_ready()
         self._iostream.close(e)
