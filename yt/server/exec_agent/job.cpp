@@ -184,6 +184,9 @@ public:
     virtual void SetResourceUsage(const TNodeResources& newUsage) override
     {
         TGuard<TSpinLock> guard(ResourcesLock);
+        if (GetState() != EJobState::Running) {
+            return;
+        }
         ResourceUsage = newUsage;
     }
 

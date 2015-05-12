@@ -256,6 +256,8 @@ void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& u
             ~FormatResources(usage)));
     }
 
+    job->SetResourceUsage(usage);
+
     if (!Dominates(delta, ZeroNodeResources())) {
         OnResourcesReleased();
     }
