@@ -281,9 +281,9 @@ const TRow* InsertGroupRow(
             context->Statistics->IncompleteOutput = true;
             return nullptr;
         }
-    
+
         groupedRows->push_back(row);
-        for (int index = 0; index < valueCount; index++) {
+        for (int index = 0; index < valueCount; ++index) {
             context->PermanentBuffer->Capture(&row[index]);
         }
         AllocatePermanentRow(context, valueCount, rowPtr);

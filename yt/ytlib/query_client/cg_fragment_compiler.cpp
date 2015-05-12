@@ -1562,20 +1562,6 @@ TCodegenSource MakeCodegenGroupOp(
                                 codegenInitialize(builder, groupRow);
                             });
 
-                        for (int index = 0; index < keySize; index++) {
-                            auto id = index;
-                            TCGValue::CreateFromRow(
-                                builder,
-                                groupRow,
-                                index,
-                                groupedSchema.Columns()[id].Type)
-                                .StoreToRow(
-                                    builder,
-                                    newRow,
-                                    index,
-                                    id);
-                        }
-
                         codegenEvaluateAggregateArgs(builder, row, newRow);
                         codegenUpdate(builder, newRow, groupRow);
                     });
