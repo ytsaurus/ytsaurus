@@ -298,7 +298,7 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     auto req = node->HeavyProxy.PutBlocks();
     ToProto(req->mutable_chunk_id(), writer->ChunkId_);
     req->set_first_block_index(FirstBlockIndex_);
-    req->set_enable_caching(writer->Config_->EnableCaching);
+    req->set_populate_cache(writer->Config_->PopulateCache);
     req->Attachments().insert(req->Attachments().begin(), Blocks_.begin(), Blocks_.end());
 
     LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
@@ -588,9 +588,9 @@ void TReplicationWriter::DoOpen()
             StartSessions(AllocateTargets());
         }
 
-        LOG_INFO("Writer opened (Addresses: [%v], EnableCaching: %v, SessionType: %v, Network: %v)",
+        LOG_INFO("Writer opened (Addresses: [%v], PopulateCache: %v, SessionType: %v, Network: %v)",
             JoinToString(Nodes_),
-            Config_->EnableCaching,
+            Config_->PopulateCache,
             Options_->SessionType,
             Options_->NetworkName);
 

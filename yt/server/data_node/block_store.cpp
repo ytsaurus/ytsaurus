@@ -65,7 +65,22 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    void PutBlock(
+    TCachedBlockPtr FindCachedBlock(const TBlockId& blockId)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto cachedBlock = TAsyncSlruCacheBase::Find(blockId);
+
+        if (cachedBlock) {
+            LOG_TRACE("Block cache hit (BlockId: %v)", blockId);
+        } else {
+            LOG_TRACE("Block cache miss (BlockId: %v)", blockId);
+        }
+
+        return cachedBlock;
+    }
+
+    void PutCachedBlock(
         const TBlockId& blockId,
         const TSharedRef& data,
         const TNullable<TNodeDescriptor>& source)
@@ -89,27 +104,13 @@ public:
         }
     }
 
-    TCachedBlockPtr FindBlock(const TBlockId& blockId)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto cachedBlock = TAsyncSlruCacheBase::Find(blockId);
-
-        if (cachedBlock) {
-            LOG_TRACE("Block cache hit (BlockId: %v)", blockId);
-        } else {
-            LOG_TRACE("Block cache miss (BlockId: %v)", blockId);
-        }
-
-        return cachedBlock;
-    }
-
     TFuture<std::vector<TSharedRef>> ReadBlocks(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
         i64 priority,
-        bool enableCaching)
+        IBlockCachePtr blockCache,
+        bool populateCache)
     {
         if (IsJournalChunk(chunkId)) {
             // Journal chunk: shortcut.
@@ -122,7 +123,12 @@ public:
             for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
                 blockIndexes.push_back(blockIndex);
             }
-            return ReadBlocks(chunkId, blockIndexes, priority, enableCaching);
+            return ReadBlocks(
+                chunkId,
+                blockIndexes,
+                priority,
+                blockCache,
+                populateCache);
         }
     }
 
@@ -130,11 +136,12 @@ public:
         const TChunkId& chunkId,
         const std::vector<int>& blockIndexes,
         i64 priority,
-        bool enableCaching)
+        IBlockCachePtr blockCache,
+        bool populateCache)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        enableCaching &= !IsJournalChunk(chunkId);
+        populateCache &= !IsJournalChunk(chunkId);
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
@@ -146,8 +153,8 @@ public:
             if (!IsJournalChunk(chunkId)) {
                 for (int blockIndex : blockIndexes) {
                     auto blockId = TBlockId(chunkId, blockIndex);
-                    auto cachedBlock = FindBlock(blockId);
-                    blocks.push_back(cachedBlock ? cachedBlock->GetData() : TSharedRef());
+                    auto block = blockCache->Find(blockId, EBlockType::CompressedData);
+                    blocks.push_back(block);
                 }
             }
             return MakeFuture(blocks);
@@ -176,11 +183,11 @@ public:
         if (!IsJournalChunk(chunkId)) {
             for (auto& entry : session->Blocks) {
                 auto blockId = TBlockId(chunkId, entry.BlockIndex);
-                auto cachedBlock = FindBlock(blockId);
-                if (cachedBlock) {
-                    entry.Data = cachedBlock->GetData();
+                auto block = blockCache->Find(blockId, EBlockType::CompressedData);
+                if (block) {
+                    entry.Data = block;
                     entry.Cached = true;
-                } else if (enableCaching) {
+                } else if (populateCache) {
                     entry.Cookie = BeginInsert(blockId);
                     if (!entry.Cookie.IsActive()) {
                         entry.Cached = true;
@@ -346,9 +353,17 @@ TBlockStore::TBlockStore(
 TBlockStore::~TBlockStore()
 { }
 
-TCachedBlockPtr TBlockStore::FindBlock(const TBlockId& blockId)
+TCachedBlockPtr TBlockStore::FindCachedBlock(const TBlockId& blockId)
 {
-    return Impl_->FindBlock(blockId);
+    return Impl_->FindCachedBlock(blockId);
+}
+
+void TBlockStore::PutCachedBlock(
+    const TBlockId& blockId,
+    const TSharedRef& data,
+    const TNullable<TNodeDescriptor>& source)
+{
+    Impl_->PutCachedBlock(blockId, data, source);
 }
 
 TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlocks(
@@ -356,35 +371,31 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlocks(
     int firstBlockIndex,
     int blockCount,
     i64 priority,
-    bool enableCaching)
+    IBlockCachePtr blockCache,
+    bool populateCache)
 {
     return Impl_->ReadBlocks(
         chunkId,
         firstBlockIndex,
         blockCount,
         priority,
-        enableCaching);
+        blockCache,
+        populateCache);
 }
 
 TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlocks(
     const TChunkId& chunkId,
     const std::vector<int>& blockIndexes,
     i64 priority,
-    bool enableCaching)
+    IBlockCachePtr blockCache,
+    bool populateCache)
 {
     return Impl_->ReadBlocks(
         chunkId,
         blockIndexes,
         priority,
-        enableCaching);
-}
-
-void TBlockStore::PutBlock(
-    const TBlockId& blockId,
-    const TSharedRef& data,
-    const TNullable<TNodeDescriptor>& source)
-{
-    Impl_->PutBlock(blockId, data, source);
+        blockCache,
+        populateCache);
 }
 
 i64 TBlockStore::GetPendingReadSize() const

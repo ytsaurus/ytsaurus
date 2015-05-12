@@ -51,7 +51,7 @@ message TReqPutBlocks
 {
     required NYT.NProto.TGuid chunk_id = 1;
     required int32 first_block_index = 2;
-    optional bool enable_caching = 5 [default = false];
+    optional bool populate_cache = 5 [default = false];
     optional bool flush_blocks = 6 [default = false];
 }
 
@@ -90,7 +90,7 @@ message TReqGetBlockSet
     repeated int32 block_indexes = 2;
     optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 3;
     optional uint64 peer_expiration_time = 4;
-    optional bool enable_caching = 5 [default = true];
+    optional bool populate_cache = 5 [default = true];
     required int32 session_type = 6;
 }
 
@@ -118,6 +118,7 @@ message TReqGetBlockRange
     required int32 first_block_index = 2;
     required int32 block_count = 3;
     required int32 session_type = 4;
+    optional bool populate_cache = 5 [default = true];
 }
 
 message TRspGetBlockRange

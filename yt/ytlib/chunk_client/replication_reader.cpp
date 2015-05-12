@@ -90,11 +90,11 @@ public:
 
         const auto& networkName = Options_->NetworkName;
         auto maybeLocalAddress = LocalDescriptor_ ? MakeNullable(LocalDescriptor_->GetAddressOrThrow(networkName)) : Null;
-        LOG_INFO("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalAddress: %v, EnableCaching: %v, Network: %v)",
+        LOG_INFO("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalAddress: %v, PopulateCache: %v, Network: %v)",
             JoinToString(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
             maybeLocalAddress,
-            Config_->EnableCaching,
+            Config_->PopulateCache,
             networkName);
     }
 
@@ -687,7 +687,7 @@ private:
                 req->SetStartTime(StartTime_);
                 ToProto(req->mutable_chunk_id(), reader->ChunkId_);
                 ToProto(req->mutable_block_indexes(), unfetchedBlockIndexes);
-                req->set_enable_caching(reader->Config_->EnableCaching);
+                req->set_populate_cache(reader->Config_->PopulateCache);
                 req->set_session_type(static_cast<int>(reader->Options_->SessionType));
                 if (reader->LocalDescriptor_) {
                     auto expirationTime = TInstant::Now() + reader->Config_->PeerExpirationTimeout;

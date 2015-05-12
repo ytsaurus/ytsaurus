@@ -397,6 +397,7 @@ private:
         int blockCount = GetBlockCount(*meta);
 
         auto blockStore = Bootstrap_->GetBlockStore();
+        auto blockCache = Bootstrap_->GetBlockCache();
 
         while (currentBlockIndex < blockCount) {
             auto asyncReadBlocks = blockStore->ReadBlocks(
@@ -404,6 +405,7 @@ private:
                 currentBlockIndex,
                 blockCount - currentBlockIndex,
                 ReadPriority,
+                blockCache,
                 false);
             auto readBlocks = WaitFor(asyncReadBlocks)
                 .ValueOrThrow();

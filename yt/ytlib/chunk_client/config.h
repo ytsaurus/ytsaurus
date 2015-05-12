@@ -52,10 +52,10 @@ public:
     //! Only makes sense if the reader is equipped with peer descriptor.
     TDuration PeerExpirationTimeout;
 
-    //! If True then fetched blocks are cached by the node.
-    bool EnableCaching;
+    //! If |true| then fetched blocks are cached by the node.
+    bool PopulateCache;
 
-    //! If True then the master may be asked for seeds.
+    //! If |true| then the master may be asked for seeds.
     bool AllowFetchingSeedsFromMaster;
 
     TReplicationReaderConfig()
@@ -81,7 +81,7 @@ public:
             .Default(true);
         RegisterParameter("peer_expiration_timeout", PeerExpirationTimeout)
             .Default(TDuration::Seconds(300));
-        RegisterParameter("enable_caching", EnableCaching)
+        RegisterParameter("populate_cache", PopulateCache)
             .Default(true);
         RegisterParameter("allow_fetching_seeds_from_master", AllowFetchingSeedsFromMaster)
             .Default(true);
@@ -170,7 +170,7 @@ public:
     TDuration NodePingPeriod;
 
     //! If |true| then written blocks are cached by the node.
-    bool EnableCaching;
+    bool PopulateCache;
 
     bool SyncOnClose;
 
@@ -194,7 +194,7 @@ public:
             .Default(true);
         RegisterParameter("node_ping_interval", NodePingPeriod)
             .Default(TDuration::Seconds(10));
-        RegisterParameter("enable_caching", EnableCaching)
+        RegisterParameter("populate_cache", PopulateCache)
             .Default(false);
         RegisterParameter("sync_on_close", SyncOnClose)
             .Default(true);
