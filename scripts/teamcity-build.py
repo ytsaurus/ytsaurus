@@ -231,7 +231,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
     sandbox_archive = "{0}/{1}".format(
         os.path.expanduser("~/failed_tests/"),
         "__".join([options.btid, options.build_number, suite_name]))
-    working_files_to_archive = ["bin/ytserver", "lib/libyt-driver-python.so", "lib/libyt-yson-python.so"]
+    working_files_to_archive = ["bin/ytserver", "lib/libyt-driver-python.so", "lib/libyt-yson-python.so", "lib/YT.so"]
 
     mkdirp(sandbox_current)
 
