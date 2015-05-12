@@ -46,6 +46,7 @@ class YTEnvSetup(YTEnv):
     @classmethod
     def teardown_class(cls):
         cls.Env.clear_environment()
+        yt_commands.driver = None
         gc.collect()
 
     def setup_method(self, method):
