@@ -368,35 +368,60 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
             aggregateFunction,
             type,
             MOVE(nameStroka)
-        ] (TCGContext& builder, Value* aggregateStatePtr, Value* newValuePtr) {
+        ] (TCGContext& builder, Value* aggState, Value* newValue) {
             Twine name = nameStroka.c_str();
 
-            auto aggregateValue = TCGValue::CreateFromLlvmValue(
+            auto codegenGetData = [&] (Value* value) {
+                return builder.CreateLoad(
+                    builder.CreateStructGEP(
+                        value,
+                        TTypeBuilder::Data));
+            };
+
+            auto newTCGValue = TCGValue::CreateFromLlvmValue(
                 builder,
-                aggregateStatePtr,
+                newValue,
                 type,
-                name + ".aggregate");
-            auto newValue = TCGValue::CreateFromLlvmValue(
-                builder,
-                newValuePtr,
-                type);
+                name + ".new_value");
 
             CodegenIf<TCGContext>(
                 builder,
-                newValue.IsNull(),
+                newTCGValue.IsNull(),
                 [&] (TCGContext& builder) { },
                 [&] (TCGContext& builder) {
-
+                    auto aggregateValue = TCGValue::CreateFromLlvmValue(
+                        builder,
+                        aggState,
+                        type,
+                        name + ".aggregate");
                     CodegenIf<TCGContext>(
                         builder,
                         aggregateValue.IsNull(),
                         [&] (TCGContext& builder) {
-                            newValue.StoreToValue(builder, aggregateStatePtr);
+                            if (type == EValueType::String) {
+                                builder.CreateStore(
+                                    newTCGValue.GetLength(),
+                                    builder.CreateStructGEP(
+                                        aggState,
+                                        TTypeBuilder::Length));
+                            }
+                            builder.CreateStore(
+                                builder.getInt16(static_cast<ui16>(type)),
+                                builder.CreateStructGEP(
+                                    aggState,
+                                    TTypeBuilder::Type));
+                            builder.CreateStore(
+                                codegenGetData(newValue),
+                                builder.CreateStructGEP(
+                                    aggState,
+                                    TTypeBuilder::Data,
+                                    name));
                         },
                         [&] (TCGContext& builder) {
-                            Value* newData = newValue.GetData();
+                            Value* newData = newTCGValue.GetData();
                             Value* aggregateData = aggregateValue.GetData();
                             Value* resultData = nullptr;
+                            Value* resultLength = nullptr;
 
                             // TODO(lukyan): support other types
 
@@ -428,14 +453,26 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                     case EValueType::Double:
                                         compareResult = builder.CreateFCmpULE(aggregateData, newData);
                                         break;
+                                    case EValueType::String:
+                                        compareResult = CodegenLexicographicalCompare(
+                                            builder,
+                                            aggregateValue.GetData(),
+                                            aggregateValue.GetLength(),
+                                            newTCGValue.GetData(),
+                                            newTCGValue.GetLength());
+                                        break;
                                     default:
                                         YUNIMPLEMENTED();
                                 }
 
+                                resultLength = builder.CreateSelect(
+                                    compareResult,
+                                    aggregateValue.GetLength(),
+                                    newTCGValue.GetLength());
                                 resultData = builder.CreateSelect(
                                     compareResult,
-                                    aggregateData,
-                                    newData);
+                                    codegenGetData(aggState),
+                                    codegenGetData(newValue));
                             } else if (aggregateFunction == "max") {
                                 Value* compareResult = nullptr;
                                 switch (type) {
@@ -448,26 +485,43 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                     case EValueType::Double:
                                         compareResult = builder.CreateFCmpUGE(aggregateData, newData);
                                         break;
+                                    case EValueType::String:
+                                        compareResult = builder.CreateNot(CodegenLexicographicalCompare(
+                                                builder,
+                                                aggregateValue.GetData(),
+                                                aggregateValue.GetLength(),
+                                                newTCGValue.GetData(),
+                                                newTCGValue.GetLength()));
+                                        break;
                                     default:
                                         YUNIMPLEMENTED();
                                 }
 
+                                resultLength = builder.CreateSelect(
+                                    compareResult,
+                                    aggregateValue.GetLength(),
+                                    newTCGValue.GetLength());
                                 resultData = builder.CreateSelect(
                                     compareResult,
-                                    aggregateData,
-                                    newData);
+                                    codegenGetData(aggState),
+                                    codegenGetData(newValue));
                             } else {
                                 YUNIMPLEMENTED();
                             }
 
-                            auto result = TCGValue::CreateFromValue(
-                                builder,
-                                nullptr,
-                                nullptr,
+                            if (type == EValueType::String) {
+                                builder.CreateStore(
+                                    resultLength,
+                                    builder.CreateStructGEP(
+                                        aggState,
+                                        TTypeBuilder::Length));
+                            }
+                            builder.CreateStore(
                                 resultData,
-                                type,
-                                "result");
-                            result.StoreToValue(builder, aggregateStatePtr);
+                                builder.CreateStructGEP(
+                                    aggState,
+                                    TTypeBuilder::Data,
+                                    name));
                         });
 
                 });
@@ -523,7 +577,8 @@ EValueType TAggregateFunction::InferResultType(
 {
     if (argumentType == EValueType::Int64
         || argumentType == EValueType::Uint64
-        || argumentType == EValueType::Double) {
+        || argumentType == EValueType::Double
+        || argumentType == EValueType::String) {
         return argumentType;
     }
     THROW_ERROR_EXCEPTION(
@@ -533,7 +588,8 @@ EValueType TAggregateFunction::InferResultType(
             std::vector<EValueType>{
                 EValueType::Int64,
                 EValueType::Uint64,
-                EValueType::Double},
+                EValueType::Double,
+                EValueType::String},
             std::unordered_map<TTypeArgument, EValueType>()),
         argumentType)
         << TErrorAttribute("expression", source);

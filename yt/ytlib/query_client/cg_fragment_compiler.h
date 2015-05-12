@@ -388,6 +388,13 @@ struct TCodegenAggregate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Value* CodegenLexicographicalCompare(
+    TCGContext& builder,
+    Value* lhsData,
+    Value* lhsLength,
+    Value* rhsData,
+    Value* rhsLength);
+
 TCodegenExpression MakeCodegenLiteralExpr(
     int index,
     EValueType type);
