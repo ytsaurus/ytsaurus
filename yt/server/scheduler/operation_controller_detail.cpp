@@ -619,12 +619,12 @@ void TOperationControllerBase::TTask::PrepareJoblet(TJobletPtr joblet)
 void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr joblet)
 {
     auto job = joblet->Job;
-    auto address = job->GetNode()->GetAddress();
+    auto address = job->GetNode()->GetDefaultAddress();
     Controller->LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(job->GetId())
         .Item("operation_id").Value(job->GetOperation()->GetId())
         .Item("resource_limits").Value(job->ResourceLimits())
-        .Item("node_address").Value(job->GetNode()->GetAddress())
+        .Item("node_address").Value(address)
         .Item("job_type").Value(job->GetType())
         .Item("total_data_size").Value(joblet->InputStripeList->TotalDataSize)
         .Item("local_data_size").Value(joblet->InputStripeList->LocalDataSize)
