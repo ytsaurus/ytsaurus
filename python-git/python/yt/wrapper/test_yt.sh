@@ -190,9 +190,10 @@ test_concurrent_upload_in_operation()
         done
 
         if [ "$check" = "0" ]; then
-            sleep 1
+            sleep 2
         else
             ok=1
+            break
         fi
     done
     check "$ok" "1"
