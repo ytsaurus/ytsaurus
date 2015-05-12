@@ -149,7 +149,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         slot.Block = block;
 
         if (enableCaching) {
-            blockStore->PutBlock(blockId, block, Null);
+            blockStore->PutCachedBlock(blockId, block, Null);
         }
 
         Location_->UpdateUsedSpace(block.Size());

@@ -50,7 +50,7 @@ public:
     {
         if (type == EBlockType::CompressedData) {
             auto blockStore = Bootstrap_->GetBlockStore();
-            blockStore->PutBlock(id, data, source);
+            blockStore->PutCachedBlock(id, data, source);
         } else {
             UnderlyingCache_->Put(id, type, data, source);
         }
@@ -62,7 +62,7 @@ public:
     {
         if (type == EBlockType::CompressedData) {
             auto blockStore = Bootstrap_->GetBlockStore();
-            auto cachedBlock = blockStore->FindBlock(id);
+            auto cachedBlock = blockStore->FindCachedBlock(id);
             return cachedBlock ? cachedBlock->GetData() : TSharedRef();
         } else {
             return UnderlyingCache_->Find(id, type);

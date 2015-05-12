@@ -52,8 +52,18 @@ public:
 
     ~TBlockStore();
 
-    //! Synchronously looks up a single block in the store's cache.
-    TCachedBlockPtr FindBlock(const TBlockId& blockId);
+    //! Synchronously looks up a compressed block in the store's cache.
+    TCachedBlockPtr FindCachedBlock(const TBlockId& blockId);
+
+    //! Puts a compressed block into the store's cache.
+    /*!
+     *  The store may already have another copy of the same block.
+     *  In this case the block content is checked for identity.
+     */
+    void PutCachedBlock(
+        const TBlockId& blockId,
+        const TSharedRef& data,
+        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
 
     //! Asynchronously reads a range of blocks from the store.
     /*!
@@ -71,7 +81,8 @@ public:
         int firstBlockIndex,
         int blockCount,
         i64 priority,
-        bool enableCaching);
+        NChunkClient::IBlockCachePtr blockCache,
+        bool populateCache);
 
     //! Asynchronously reads a set of blocks from the store.
     /*!
@@ -81,17 +92,8 @@ public:
         const TChunkId& chunkId,
         const std::vector<int>& blockIndexes,
         i64 priority,
-        bool enableCaching);
-
-    //! Puts a block into the store.
-    /*!
-     *  The store may already have another copy of the same block.
-     *  In this case the block content is checked for identity.
-     */
-    void PutBlock(
-        const TBlockId& blockId,
-        const TSharedRef& data,
-        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
+        NChunkClient::IBlockCachePtr blockCache,
+        bool populateCache);
 
     //! Gets a vector of all blocks stored in the cache. Thread-safe.
     std::vector<TCachedBlockPtr> GetAllBlocks() const;

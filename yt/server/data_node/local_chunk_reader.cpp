@@ -28,9 +28,6 @@ static const i64 ReadPriority = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocalChunkReader;
-typedef TIntrusivePtr<TLocalChunkReader> TLocalChunkReaderPtr;
-
 class TLocalChunkReader
     : public IChunkReader
 {
@@ -55,7 +52,8 @@ public:
             Chunk_->GetId(),
             blockIndexes,
             ReadPriority,
-            Config_->EnableCaching);
+            BlockCache_,
+            Config_->PopulateCache);
         return CheckReadBlocksResult(asyncResult);
     }
 
@@ -67,7 +65,8 @@ public:
             firstBlockIndex,
             blockCount,
             ReadPriority,
-            Config_->EnableCaching);
+            BlockCache_,
+            Config_->PopulateCache);
         return CheckReadBlocksResult(asyncResult);
     }
 

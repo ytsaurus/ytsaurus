@@ -246,14 +246,14 @@ private:
         int firstBlockIndex = request->first_block_index();
         int blockCount = static_cast<int>(request->Attachments().size());
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
-        bool enableCaching = request->enable_caching();
+        bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, EnableCaching: %v, FlushBlocks: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v",
             chunkId,
             firstBlockIndex,
             lastBlockIndex,
-            enableCaching,
+            populateCache,
             flushBlocks);
 
         ValidateConnected();
@@ -265,7 +265,7 @@ private:
         auto result = session->PutBlocks(
             firstBlockIndex,
             request->Attachments(),
-            enableCaching);
+            populateCache);
         
         // Flush blocks if needed.
         if (flushBlocks) {
@@ -335,13 +335,13 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto blockIndexes = NYT::FromProto<int>(request->block_indexes());
-        bool enableCaching = request->enable_caching();
+        bool populateCache = request->populate_cache();
         auto sessionType = EReadSessionType(request->session_type());
 
-        context->SetRequestInfo("BlockIds: %v:[%v], EnableCaching: %v, SessionType: %v",
+        context->SetRequestInfo("BlockIds: %v:[%v], PopulateCache: %v, SessionType: %v",
             chunkId,
             JoinToString(blockIndexes),
-            enableCaching,
+            populateCache,
             sessionType);
 
         ValidateConnected();
@@ -371,11 +371,13 @@ private:
                 }
             }
         } else {
+            auto blockCache = Bootstrap_->GetBlockCache();
             auto asyncBlocks = blockStore->ReadBlocks(
                 chunkId,
                 blockIndexes,
                 context->GetPriority(),
-                enableCaching);
+                blockCache,
+                populateCache);
             response->Attachments() = WaitFor(asyncBlocks)
                 .ValueOrThrow();
         }
@@ -418,12 +420,14 @@ private:
         auto sessionType = EReadSessionType(request->session_type());
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
+        bool populateCache = request->populate_cache();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, SessionType: %v",
-             chunkId,
-             firstBlockIndex,
-             firstBlockIndex + blockCount - 1,
-             sessionType);
+        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, SessionType: %v",
+            chunkId,
+            firstBlockIndex,
+            firstBlockIndex + blockCount - 1,
+            populateCache,
+            sessionType);
 
         ValidateConnected();
 
@@ -434,12 +438,14 @@ private:
 
         if (!IsOutThrottling()) {
             auto blockStore = Bootstrap_->GetBlockStore();
+            auto blockCache = Bootstrap_->GetBlockCache();
             auto asyncBlocks = blockStore->ReadBlocks(
                 chunkId,
                 firstBlockIndex,
                 blockCount,
                 context->GetPriority(),
-                false);
+                blockCache,
+                populateCache);
             response->Attachments() = WaitFor(asyncBlocks)
                 .ValueOrThrow();
         }
