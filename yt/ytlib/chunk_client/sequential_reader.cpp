@@ -33,6 +33,7 @@ TSequentialReader::TSequentialReader(
     , Logger(ChunkClientLogger)
 {
     YCHECK(ChunkReader_);
+    YCHECK(BlockCache_);
     YCHECK(!BlockInfos_.empty());
 
     Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
