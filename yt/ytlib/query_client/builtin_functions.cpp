@@ -575,21 +575,20 @@ EValueType TAggregateFunction::InferResultType(
     EValueType argumentType,
     const TStringBuf& source) const
 {
-    if (argumentType == EValueType::Int64
-        || argumentType == EValueType::Uint64
-        || argumentType == EValueType::Double
-        || argumentType == EValueType::String) {
+    auto validTypes = std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double,
+        EValueType::String};
+
+    if (std::find(validTypes.begin(), validTypes.end(), argumentType) != validTypes.end()) {
         return argumentType;
     }
     THROW_ERROR_EXCEPTION(
         "Wrong type for argument to aggregate function %Qv: expected %Qv, got %Qv",
         GetName(),
         TypeToString(
-            std::vector<EValueType>{
-                EValueType::Int64,
-                EValueType::Uint64,
-                EValueType::Double,
-                EValueType::String},
+            validTypes,
             std::unordered_map<TTypeArgument, EValueType>()),
         argumentType)
         << TErrorAttribute("expression", source);
@@ -611,7 +610,7 @@ TCodegenAggregateInit MakeCodegenAverageInitialize(
 {
     return [
     ] (TCGContext& builder, Value* aggState) {
-        auto sumValue = aggState;
+        auto sumValue = builder.CreateConstInBoundsGEP1_32(aggState, 0);
         auto countValue = builder.CreateConstInBoundsGEP1_32(aggState, 1);
 
         builder.CreateStore(
@@ -640,7 +639,7 @@ TCodegenAggregateUpdate MakeCodegenAverageUpdate(
             type,
             MOVE(nameStroka)
         ] (TCGContext& builder, Value* aggState, Value* newValue) {
-            auto sumValue = aggState;
+            auto sumValue = builder.CreateConstInBoundsGEP1_32(aggState, 0);
             auto countValue = builder.CreateConstInBoundsGEP1_32(aggState, 1);
 
             auto newValueType = builder.CreateLoad(
@@ -681,10 +680,10 @@ TCodegenAggregateMerge MakeCodegenAverageMerge(
 {
     return [
     ] (TCGContext& builder, Value* dstAggState, Value* aggState) {
-        auto dstSumValue = dstAggState;
+        auto dstSumValue = builder.CreateConstInBoundsGEP1_32(dstAggState, 0);
         auto dstCountValue = builder.CreateConstInBoundsGEP1_32(dstAggState, 1);
 
-        auto sumValue = aggState;
+        auto sumValue = builder.CreateConstInBoundsGEP1_32(aggState, 0);
         auto countValue = builder.CreateConstInBoundsGEP1_32(aggState, 1);
 
         auto resultSum = builder.CreateAdd(
