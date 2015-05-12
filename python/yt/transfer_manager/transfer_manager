@@ -187,7 +187,7 @@ class Task(object):
         return client
 
     def dict(self, hide_token=False, fields=None):
-        result = deepcopy(self.__dict__)
+        result = self.__dict__.copy()
         if hide_token:
             for key in ["token", "source_cluster_token", "destination_cluster_token"]:
                 del result[key]
@@ -195,6 +195,9 @@ class Task(object):
             if result[key] is None or (fields is not None and key not in fields) or key.startswith("_"):
                 del result[key]
         return result
+
+    def copy(self):
+        return Task(**self.__dict__)
 
 class Application(object):
     ERROR_BUFFER_SIZE = 2 ** 16
@@ -1044,12 +1047,10 @@ class Application(object):
 
     def get_tasks(self):
         with self._mutex:
-            # NB: json is several times faster than deepcopy.
-            tasks_dump = json.dumps(self._tasks)
+            # NB: deepcopy is too slow, then we use two-level shallow copy.
+            tasks = dict([(id, task.copy()) for id, task in self._tasks.iteritems()])
             # NB: Number of pending tasks is rather small, so we can use deepcopy here.
             pending_tasks = deepcopy(self._pending_tasks)
-
-        tasks = json.loads(tasks_dump)
 
         user = request.args.get("user")
         fields = request.args.getlist("fields[]")
