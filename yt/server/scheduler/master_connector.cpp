@@ -295,7 +295,7 @@ public:
         list->WatcherHandlers.push_back(handler);
     }
 
-    void AttachJobInputContext(const TYPath& path, const std::vector<TChunkId>& inputContexts)
+    void AttachJobContext(const TYPath& path, const std::vector<TChunkId>& inputContexts)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1840,11 +1840,11 @@ void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatc
     Impl->AddOperationWatcherHandler(operation, handler);
 }
 
-void TMasterConnector::AttachJobInputContext(
+void TMasterConnector::AttachJobContext(
     const TYPath& path,
     const std::vector<TChunkId>& inputContexts)
 {
-    return Impl->AttachJobInputContext(path, inputContexts);
+    return Impl->AttachJobContext(path, inputContexts);
 }
 
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);

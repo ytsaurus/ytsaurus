@@ -87,7 +87,7 @@ function YtDriverFacadeV2(driver)
     delete descriptors.select_rows;
     delete descriptors.select;
 
-    delete descriptors.dump_job_input_context;
+    delete descriptors.dump_job_context;
     delete descriptors.strace_job;
 
     this.driver = driver;

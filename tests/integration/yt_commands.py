@@ -107,10 +107,10 @@ def execute_command_with_output_format(command_name, kwargs, input_stream=None):
 
 ###########################################################################
 
-def dump_job_input_context(job_id, path, **kwargs):
+def dump_job_context(job_id, path, **kwargs):
     kwargs["job_id"] = job_id
     kwargs["path"] = path
-    return execute_command("dump_job_input_context", kwargs)
+    return execute_command("dump_job_context", kwargs)
 
 def strace_job(job_id, **kwargs):
     kwargs["job_id"] = job_id

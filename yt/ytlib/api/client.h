@@ -340,7 +340,7 @@ struct TResumeOperationOptions
     : public TTimeoutOptions
 { };
 
-struct TDumpJobInputContextOptions
+struct TDumpJobContextOptions
     : public TTimeoutOptions
 { };
 
@@ -554,10 +554,10 @@ struct IClient
         const NScheduler::TOperationId& operationId,
         const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
 
-    virtual TFuture<void> DumpJobInputContext(
+    virtual TFuture<void> DumpJobContext(
         const NJobTrackerClient::TJobId& jobId,
         const NYPath::TYPath& path,
-        const TDumpJobInputContextOptions& options = TDumpJobInputContextOptions()) = 0;
+        const TDumpJobContextOptions& options = TDumpJobContextOptions()) = 0;
 
     virtual TFuture<NYTree::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId& jobId,

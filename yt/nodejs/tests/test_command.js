@@ -321,7 +321,7 @@ describe("YtCommand - command descriptors", function() {
             'copy',
             'create',
             'delete_rows',
-            'dump_job_input_context',
+            'dump_job_context',
             'erase',
             'exists',
             'get',
