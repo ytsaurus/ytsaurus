@@ -14,8 +14,7 @@ namespace NCompression {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TCodec>
-struct TCompressedBlockTag
-{ };
+struct TCompressedBlockTag { };
 
 template <class TCodec>
 struct TDecompressedBlockTag { };
