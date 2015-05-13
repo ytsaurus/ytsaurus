@@ -4,6 +4,7 @@
 #include "user_defined_functions.h"
 
 #include "udf/builtin_functions.h"
+#include "udf/builtin_aggregates.h"
 
 #include <ytlib/api/public.h>
 #include <ytlib/api/client.h>
@@ -96,6 +97,11 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         builtin_functions_bc_len,
         nullptr);
 
+    auto aggregatesImplementation = TSharedRef(
+        builtin_aggregates_bc,
+        builtin_aggregates_bc_len,
+        nullptr);
+
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "is_substr",
         std::vector<TType>{EValueType::String, EValueType::String},
@@ -152,7 +158,13 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
     registry->RegisterAggregateFunction(New<TAggregateFunction>("sum"));
     registry->RegisterAggregateFunction(New<TAggregateFunction>("min"));
     registry->RegisterAggregateFunction(New<TAggregateFunction>("max"));
-    registry->RegisterAggregateFunction(New<TAverageAggregateFunction>());
+    //registry->RegisterAggregateFunction(New<TAverageAggregateFunction>());
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "avg",
+        EValueType::Double,
+        EValueType::String,
+        aggregatesImplementation,
+        ECallingConvention::UnversionedValue));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
