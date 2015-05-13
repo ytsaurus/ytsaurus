@@ -35,7 +35,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto CleanupPeriod = TDuration::Seconds(10);
+static const auto MultiplexedCleanupPeriod = TDuration::Seconds(10);
+static const auto BarrierCleanupPeriod = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,10 +145,10 @@ public:
         for (const auto& descriptor : descriptors) {
             int id = descriptor.Id;
             if (descriptor.Clean) {
-                LOG_INFO("Found clean multiplexed changelog %v", id);
+                LOG_INFO("Found clean multiplexed changelog (ChangelogId: %v)", id);
                 maxCleanId = std::max(maxCleanId, id);
             } else {
-                LOG_INFO("Found dirty multiplexed changelog %v", id);
+                LOG_INFO("Found dirty multiplexed changelog (ChangelogId: %v)", id);
                 minDirtyId = std::min(minDirtyId, id);
                 maxDirtyId = std::max(maxDirtyId, id);
             }
@@ -245,7 +246,7 @@ private:
 
     void AnalyzeChangelog(int changelogId)
     {
-        LOG_INFO("Analyzing dirty multiplexed changelog %v", changelogId);
+        LOG_INFO("Analyzing dirty multiplexed changelog (ChangelogId: %v)", changelogId);
 
         CreateChunkIds_.clear();
         RemoveChunkIds_.clear();
@@ -301,7 +302,7 @@ private:
 
     void ReplayChangelog(int changelogId)
     {
-        LOG_INFO("Replaying dirty multiplexed changelog %v", changelogId);
+        LOG_INFO("Replaying dirty multiplexed changelog (ChangelogId: %v)", changelogId);
 
         ScanChangelog(changelogId, [&] (int recordId, const TMultiplexedRecord& record) {
             const auto& chunkId = record.Header.ChunkId;
@@ -459,11 +460,17 @@ public:
         auto changelog = CreateMultiplexedChangelog(changelogId);
         SetMultiplexedChangelog(changelog, changelogId);
 
-        CleanupExecutor_ = New<TPeriodicExecutor>(
+        MultiplexedCleanupExecutor_ = New<TPeriodicExecutor>(
             GetHydraIOInvoker(),
-            BIND(&TMultiplexedWriter::OnCleanup, MakeWeak(this)),
-            CleanupPeriod);
-        CleanupExecutor_->Start();
+            BIND(&TMultiplexedWriter::OnMultiplexedCleanup, MakeWeak(this)),
+            MultiplexedCleanupPeriod);
+        MultiplexedCleanupExecutor_->Start();
+
+        BarrierCleanupExecutor_ = New<TPeriodicExecutor>(
+            GetHydraIOInvoker(),
+            BIND(&TMultiplexedWriter::OnBarrierCleanup, MakeWeak(this)),
+            BarrierCleanupPeriod);
+        BarrierCleanupExecutor_->Start();
     }
 
     TFuture<void> WriteCreateRecord(const TChunkId& chunkId)
@@ -472,35 +479,37 @@ public:
         record.Header.Type = EMultiplexedRecordType::Create;
         record.Header.ChunkId = chunkId;
         record.Header.RecordId = -1;
-        return DoAppendMultiplexedRecord(record, Null);
+        return WriteMultiplexedRecord(record);
     }
 
     TFuture<void> WriteRemoveRecord(const TChunkId& chunkId)
     {
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            RemoveChangelogFromActive(chunkId);
-        }
-
         TMultiplexedRecord record;
         record.Header.Type = EMultiplexedRecordType::Remove;
         record.Header.ChunkId = chunkId;
         record.Header.RecordId = -1;
-        return DoAppendMultiplexedRecord(record, Null);
+        return WriteMultiplexedRecord(record);
     }
 
     TFuture<void> WriteAppendRecord(
         const TChunkId& chunkId,
         int recordId,
-        const TSharedRef& recordData,
-        TFuture<void> flushResult)
+        const TSharedRef& recordData)
     {
         TMultiplexedRecord record;
         record.Header.Type = EMultiplexedRecordType::Append;
         record.Header.RecordId = recordId;
         record.Header.ChunkId = chunkId;
         record.Data = recordData;
-        return DoAppendMultiplexedRecord(record, std::move(flushResult));
+        return WriteMultiplexedRecord(record);
+    }
+
+    TPromise<void> RegisterBarrier()
+    {
+        auto barrier = NewPromise<void>();
+        TGuard<TSpinLock> guard(SpinLock_);
+        YCHECK(Barriers_.insert(barrier).second);
+        return barrier;
     }
 
     std::vector<TMultiplexedChangelogDescriptor> ListMultiplexedChangelogs()
@@ -537,7 +546,7 @@ public:
         auto cleanDataFileName = dataFileName + "." + CleanExtension;
         NFS::Rename(dataFileName, cleanDataFileName);
         NFS::Rename(dataFileName + ChangelogIndexSuffix, cleanDataFileName + ChangelogIndexSuffix);
-        LOG_INFO("Multiplexed changelog %v is clean", changelogId);
+        LOG_INFO("Multiplexed changelog is clean (ChangelogId: %v)", changelogId);
     }
 
 private:
@@ -555,60 +564,22 @@ private:
     //! The moment when the multiplexed changelog was last rotated.
     NProfiling::TCpuInstant MultiplexedChangelogRotationDeadline_;
 
-    //! The id of #MultiplexedChangelog.
+    //! The id of #MultiplexedChangelog_.
     int MultiplexedChangelogId_;
 
-    //! Maps journal chunk id to the latest flush results for changelogs whose records
-    //! were added into the current multiplexed changelog.
-    //! Safeguards marking multiplexed changelogs as clean.
-    yhash_map<TChunkId, TFuture<void>> ChunkIdToFlushResult_;
+    //! A collection of futures for various activities recorded in the current multiplexed changelog.
+    //! One must wait for these futures to become set before marking the changelog as clean.
+    yhash_set<TFuture<void>> Barriers_;
 
-    TPeriodicExecutorPtr CleanupExecutor_;
+    TPeriodicExecutorPtr MultiplexedCleanupExecutor_;
+    TPeriodicExecutorPtr BarrierCleanupExecutor_;
 
 
-    void AddChangelogToActive(const TChunkId& chunkId, TFuture<void> flushResult)
-    {
-        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-
-        if (ChunkIdToFlushResult_.insert(std::make_pair(chunkId, flushResult)).second) {
-            LOG_DEBUG("Changelog is added to active set (ChunkId: %v)",
-                chunkId);
-        }
-    }
-
-    void RemoveChangelogFromActive(const TChunkId& chunkId)
-    {
-        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-
-        if (ChunkIdToFlushResult_.erase(chunkId) == 1) {
-            LOG_DEBUG("Changelog is removed from active set (ChunkId: %v)",
-                chunkId);
-        }
-    }
-
-    void ClearActiveChangelogs()
-    {
-        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-
-        for (const auto& pair : ChunkIdToFlushResult_) {
-            LOG_DEBUG("Changelog is removed from active set (ChunkId: %v)",
-                pair.first);
-        }
-
-        ChunkIdToFlushResult_.clear();
-    }
-
-    TFuture<void> DoAppendMultiplexedRecord(
-        const TMultiplexedRecord& record,
-        TFuture<void> flushResult)
+    TFuture<void> WriteMultiplexedRecord(const TMultiplexedRecord& record)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(SpinLock_);
-
-        if (flushResult) {
-            AddChangelogToActive(record.Header.ChunkId, flushResult);
-        }
 
         // Construct the multiplexed data record and append it.
         auto multiplexedData = TSharedMutableRef::Allocate(
@@ -629,22 +600,22 @@ private:
             MultiplexedChangelog_->GetDataSize() >= Config_->MaxDataSize ||
             NProfiling::GetCpuInstant() > MultiplexedChangelogRotationDeadline_)
         {
-            LOG_INFO("Started rotating multiplexed changelog %v",
+            LOG_INFO("Started rotating multiplexed changelog (ChangelogId: %v)",
                 MultiplexedChangelogId_);
 
             auto multiplexedFlushResult = MultiplexedChangelog_->Flush();
 
             // To mark a multiplexed changelog as clean we wait for
             // * the multiplexed changelog to get flushed
-            // * last appended records in all active changelogs to get flushed
-            std::vector<TFuture<void>> cleanResults;
-            cleanResults.push_back(multiplexedFlushResult);
-            for (const auto& pair : ChunkIdToFlushResult_) {
-                cleanResults.push_back(pair.second);
-            }
-            ClearActiveChangelogs();
+            // * all outstanding barriers to become set
+            std::vector<TFuture<void>> barriers(Barriers_.begin(), Barriers_.end());
+            barriers.push_back(multiplexedFlushResult);
+
+            Barriers_.clear();
 
             guard.Release();
+
+            auto combinedBarrier = Combine(barriers);
 
             int oldId = MultiplexedChangelogId_;
             int newId = MultiplexedChangelogId_ + 1;
@@ -662,7 +633,7 @@ private:
             BIND(
                 &TMultiplexedWriter::WaitAndMarkMultplexedChangelogClean,
                 MakeStrong(this),
-                cleanResults,
+                combinedBarrier,
                 oldId)
             .AsyncVia(ChangelogDispatcher_->GetInvoker())
             .Run();
@@ -684,7 +655,7 @@ private:
 
     IChangelogPtr CreateMultiplexedChangelog(int id)
     {
-        LOG_INFO("Started creating new multiplexed changelog %v",
+        LOG_INFO("Started creating new multiplexed changelog (ChangelogId: %v)",
             id);
 
         auto changelog = ChangelogDispatcher_->CreateChangelog(
@@ -692,7 +663,7 @@ private:
             TChangelogMeta(),
             Config_);
 
-        LOG_INFO("Finished creating new multiplexed changelog %v",
+        LOG_INFO("Finished creating new multiplexed changelog (ChangelogId: %v)",
             id);
 
         return changelog;
@@ -710,27 +681,25 @@ private:
 
         auto changelog = CreateMultiplexedChangelog(newId);
 
-        LOG_INFO("Finished rotating multiplexed changelog %v",
+        LOG_INFO("Finished rotating multiplexed changelog (ChangelogId: %v)",
             oldId);
 
         return changelog;
     }
 
     void WaitAndMarkMultplexedChangelogClean(
-        const std::vector<TFuture<void>>& results,
+        TFuture<void> combinedBarrier,
         int id)
     {
-        for (const auto& result : results) {
-            auto error = WaitFor(result);
-            if (!error.IsOK()) {
-                LOG_FATAL(error);
-            }
+        auto error = WaitFor(combinedBarrier);
+        if (!error.IsOK()) {
+            LOG_FATAL(error);
         }
 
         MarkMultiplexedChangelogClean(id);
     }
 
-    void OnCleanup()
+    void OnMultiplexedCleanup()
     {
         try {
             auto fileNames = NFS::EnumerateFiles(Path_);
@@ -757,7 +726,7 @@ private:
             ids.erase(ids.end() - Config_->MaxCleanChangelogsToKeep, ids.end());
 
             for (int id : ids) {
-                LOG_INFO("Removing clean multiplexed changelog %v", id);
+                LOG_INFO("Removing clean multiplexed changelog (ChangelogId: %v)", id);
 
                 auto fileName = GetMultiplexedChangelogPath(id) + "." + CleanExtension;
                 RemoveChangelogFiles(fileName);
@@ -772,6 +741,22 @@ private:
         return NFS::CombinePaths(
             Path_,
             Format("%09d.%v", changelogId, ChangelogExtension));
+    }
+
+    void OnBarrierCleanup()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        std::vector<TFuture<void>> activeBarriers;
+        activeBarriers.reserve(Barriers_.size());
+
+        for (const auto& barrier : Barriers_) {
+            if (!barrier.IsSet()) {
+                activeBarriers.push_back(barrier);
+            }
+        }
+
+        Barriers_ = yhash_set<TFuture<void>>(activeBarriers.begin(), activeBarriers.end());
     }
 
 
@@ -827,8 +812,7 @@ public:
 
     TFuture<IChangelogPtr> OpenChangelog(const TChunkId& chunkId)
     {
-        return
-            BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId)
+        return BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId)
             .AsyncVia(ChangelogDispatcher_->GetInvoker())
             .Run();
     }
@@ -837,16 +821,20 @@ public:
         const TChunkId& chunkId,
         bool enableMultiplexing)
     {
-        auto futureChangelog = BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId)
-            .AsyncVia(ChangelogDispatcher_->GetInvoker())
-            .Run();
-
-        if (!enableMultiplexing) {
-            return futureChangelog;
+        if (enableMultiplexing) {
+            auto barrier = MultiplexedWriter_->RegisterBarrier();
+            return MultiplexedWriter_->WriteCreateRecord(chunkId)
+                .Apply(BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId)
+                    .AsyncVia(ChangelogDispatcher_->GetInvoker()))
+                .Apply(BIND([=] (const TErrorOr<IChangelogPtr>& result) mutable {
+                    barrier.Set(result.IsOK() ? TError() : TError(result));
+                    return result.ValueOrThrow();
+                }));
+        } else {
+            return BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId)
+                .AsyncVia(ChangelogDispatcher_->GetInvoker())
+                .Run();
         }
-
-        return MultiplexedWriter_->WriteCreateRecord(chunkId)
-            .Apply(BIND(&CreateLazyChangelog, std::move(futureChangelog)));
     }
 
     TFuture<void> RemoveChangelog(
@@ -854,25 +842,33 @@ public:
         bool enableMultiplexing)
     {
         if (enableMultiplexing) {
-            MultiplexedWriter_->WriteRemoveRecord(chunk->GetId());
+            auto barrier = MultiplexedWriter_->RegisterBarrier();
+            return MultiplexedWriter_->WriteRemoveRecord(chunk->GetId())
+                .Apply(BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
+                    .AsyncVia(ChangelogDispatcher_->GetInvoker()))
+                .Apply(BIND([=] (const TError& result) mutable {
+                    barrier.Set(result);
+                    result.ThrowOnError();
+                }));
+        } else {
+            return BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
+                .AsyncVia(ChangelogDispatcher_->GetInvoker())
+                .Run();
         }
-
-        return BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
-            .AsyncVia(ChangelogDispatcher_->GetInvoker())
-            .Run();
     }
 
     TFuture<void> AppendMultiplexedRecord(
         const TChunkId& chunkId,
         int recordId,
         const TSharedRef& recordData,
-        TFuture<void> flushResult)
+        TFuture<void> splitResult)
     {
+        auto barrier = MultiplexedWriter_->RegisterBarrier();
+        barrier.SetFrom(splitResult);
         return MultiplexedWriter_->WriteAppendRecord(
             chunkId,
             recordId,
-            recordData,
-            std::move(flushResult));
+            recordData);
     }
 
 private:
