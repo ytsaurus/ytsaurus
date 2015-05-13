@@ -11,6 +11,8 @@
 namespace NYT {
 namespace NCompression {
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCompressedBlockTag { };
 struct TDecompressedBlockTag { };
 
@@ -171,18 +173,19 @@ public:
 
     virtual ECodec GetId() const override
     {
-        if (Level_ == 6) {
-            return ECodec::GzipNormal;
+        switch (Level_) {
+            case 6:
+                return ECodec::GzipNormal;
+            case 9:
+                return ECodec::GzipBestCompression;
+            default:
+                YUNREACHABLE();
         }
-        if (Level_ == 9) {
-            return ECodec::GzipBestCompression;
-        }
-        YUNREACHABLE();
     }
 
 private:
-    NCompression::TConverter Compressor_;
-    int Level_;
+    const NCompression::TConverter Compressor_;
+    const int Level_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,8 +223,8 @@ public:
     }
 
 private:
-    NCompression::TConverter Compressor_;
-    ECodec CodecId_;
+    const NCompression::TConverter Compressor_;
+    const ECodec CodecId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,7 +233,7 @@ class TQuickLzCodec
     : public TCodecBase
 {
 public:
-    explicit TQuickLzCodec()
+    TQuickLzCodec()
         : Compressor_(NCompression::QuickLzCompress)
     { }
 
@@ -261,7 +264,7 @@ public:
     }
 
 private:
-    NCompression::TConverter Compressor_;
+    const NCompression::TConverter Compressor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,9 +273,6 @@ class TZstdCodec
     : public TCodecBase
 {
 public:
-    TZstdCodec()
-    { }
-
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
         return Run<TCompressedBlockTag>(NCompression::ZstdCompress, true, block);

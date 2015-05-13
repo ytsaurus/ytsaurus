@@ -93,5 +93,6 @@ void ZstdDecompress(StreamSource* source, TBlob* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}} // namespace NYT::NCompression
+} // namespace NYT
+} // namespace NCompression
 
