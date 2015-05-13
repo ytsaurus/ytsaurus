@@ -691,6 +691,8 @@ private:
         TFuture<void> combinedBarrier,
         int id)
     {
+        LOG_INFO("Waiting for multiplexed changelog to become clean (ChangelogId: %v)", id);
+
         auto error = WaitFor(combinedBarrier);
         if (!error.IsOK()) {
             LOG_FATAL(error);
