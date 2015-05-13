@@ -974,10 +974,10 @@ public:
         const TResumeOperationOptions& options),
         (operationId, options))
 
-    IMPLEMENT_METHOD(void, DumpJobInputContext, (
+    IMPLEMENT_METHOD(void, DumpJobContext, (
         const TJobId& jobId,
         const TYPath& path,
-        const TDumpJobInputContextOptions& options),
+        const TDumpJobContextOptions& options),
         (jobId, path, options))
     IMPLEMENT_METHOD(TYsonString, StraceJob, (
         const TJobId& jobId,
@@ -1829,10 +1829,10 @@ private:
     }
 
 
-    void DoDumpJobInputContext(
+    void DoDumpJobContext(
         const TJobId& jobId,
         const TYPath& path,
-        const TDumpJobInputContextOptions& /*options*/)
+        const TDumpJobContextOptions& /*options*/)
     {
         auto req = JobProberProxy_->DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);

@@ -437,7 +437,7 @@ public:
 
         auto& res = rspOrError.Value();
         auto chunkIds = FromProto<TGuid>(res->chunk_id());
-        MasterConnector_->AttachJobInputContext(path, chunkIds);
+        MasterConnector_->AttachJobContext(path, chunkIds);
 
         LOG_INFO("Input context saved (JobId: %v, Path: %v)",
             jobId,
