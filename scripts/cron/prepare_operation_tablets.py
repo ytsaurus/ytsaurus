@@ -1,9 +1,11 @@
+import yt.yson as yson
 import yt.wrapper as yt
 
 from copy import deepcopy
 
 SHARD_COUNT = 100
 yt.config.VERSION = "v3"
+yt.config.http.HEADER_FORMAT = "yson"
 
 def remove_by_bame(fields, name):
     return filter(lambda item: item["name"] != name, fields)
@@ -47,7 +49,7 @@ def main():
     # ordered_by_id
     yt.set_attribute(ordered_by_id, "schema", fields)
     yt.set_attribute(ordered_by_id, "key_columns", ["id_hash", "id"])
-    pivot_keys = [[]] + [[(i * 2 ** 63) / SHARD_COUNT] for i in xrange(1, SHARD_COUNT)]
+    pivot_keys = [[]] + [[yson.YsonUint64((i * 2 ** 63) / SHARD_COUNT)] for i in xrange(1, SHARD_COUNT)]
     yt.reshard_table(ordered_by_id, pivot_keys)
     yt.mount_table(ordered_by_id)
 
