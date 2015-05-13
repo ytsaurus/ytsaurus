@@ -118,8 +118,6 @@ void TBlobChunkBase::DoReadMeta(
         try {
             reader = readerCache->GetReader(this);
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error reading chunk meta (ChunkId: %v)",
-                Id_);
             promise.Set(TError(ex));
             return;
         }
