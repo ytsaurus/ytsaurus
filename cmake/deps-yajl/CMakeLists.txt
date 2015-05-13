@@ -74,7 +74,7 @@ FOREACH (header ${PUB_HDRS})
 
   EXEC_PROGRAM(${CMAKE_COMMAND} ARGS -E copy_if_different ${header} ${INC_DIR})
 
-  ADD_CUSTOM_COMMAND(TARGET yajl_s POST_BUILD
+  ADD_CUSTOM_COMMAND(TARGET ytext-yajl POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different ${header} ${INC_DIR})
 ENDFOREACH (header ${PUB_HDRS})
 
