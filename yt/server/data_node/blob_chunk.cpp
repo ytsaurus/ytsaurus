@@ -108,9 +108,9 @@ void TBlobChunkBase::DoReadMeta(
     TPromise<TRefCountedChunkMetaPtr> promise)
 {
     const auto& Profiler = Location_->GetProfiler();
-    LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v)",
-        Id_,
-        Location_->GetId());
+    LOG_DEBUG("Started reading chunk meta (LocationId: %v, ChunkId: %v)",
+        Location_->GetId(),
+        Id_);
 
     NChunkClient::TFileReaderPtr reader;
     PROFILE_TIMING ("/meta_read_time") {
@@ -125,9 +125,9 @@ void TBlobChunkBase::DoReadMeta(
         }
     }
 
-    LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v)",
-        Id_,
-        Location_->GetId());
+    LOG_DEBUG("Finished reading chunk meta (LocationId: %v, ChunkId: %v)",
+        Location_->GetId(),
+        Id_);
 
     auto cachedMeta = SetCachedMeta(reader->GetMeta());
     promise.Set(cachedMeta);
