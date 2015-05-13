@@ -70,6 +70,8 @@ public:
         TCGContext& builder) const override;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TUserDefinedFunction
     : public TTypedFunction
     , public TUniversalRangeFunction
@@ -109,14 +111,51 @@ private:
         TSharedRef implementationFile,
         ICallingConventionPtr callingConvention);
 
-    Function* GetLlvmFunction(
-        TCGContext& builder,
-        std::vector<Value*> argumentValues) const;
-
     void CheckCallee(
         Function* callee,
         TCGContext& builder,
         std::vector<Value*> argumentValues) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUserDefinedAggregateFunction
+    : public IAggregateFunctionDescriptor
+{
+public:
+    TUserDefinedAggregateFunction(
+        const Stroka& aggregateName,
+        EValueType resultType,
+        EValueType stateType,
+        TSharedRef implementationFile,
+        ECallingConvention callingConvention);
+
+    virtual Stroka GetName() const override;
+
+    virtual const TCodegenAggregate MakeCodegenAggregate(
+        EValueType type,
+        const Stroka& name) const override;
+
+    virtual EValueType GetStateType(
+        EValueType type) const override;
+
+    virtual EValueType InferResultType(
+        EValueType argumentType,
+        const TStringBuf& source) const override;
+
+private:
+    Stroka AggregateName_;
+    EValueType ResultType_;
+    EValueType StateType_;
+    TSharedRef ImplementationFile_;
+    ICallingConventionPtr CallingConvention_;
+
+    TUserDefinedAggregateFunction(
+        const Stroka& aggregateName,
+        EValueType resultType,
+        EValueType stateType,
+        TSharedRef implementationFile,
+        ICallingConventionPtr callingConvention);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

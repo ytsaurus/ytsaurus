@@ -413,23 +413,26 @@ void TUserDefinedFunction::CheckCallee(
     }
 }
 
-Function* TUserDefinedFunction::GetLlvmFunction(
+Function* GetLlvmFunction(
     TCGContext& builder,
-    std::vector<Value*> argumentValues) const
+    const Stroka& functionName,
+    std::vector<Value*> argumentValues,
+    TSharedRef implementationFile,
+    std::function<void(Function*, std::vector<Value*>)> checkCallee)
 {
     auto module = builder.Module->GetModule();
-    auto callee = module->getFunction(StringRef(FunctionName_));
+    auto callee = module->getFunction(StringRef(functionName));
     if (!callee) {
         auto diag = SMDiagnostic();
         auto buffer = MemoryBufferRef(
-            StringRef(ImplementationFile_.Begin(), ImplementationFile_.Size()),
+            StringRef(implementationFile.Begin(), implementationFile.Size()),
             StringRef("impl"));
         auto implModule = parseIR(buffer, diag, builder.getContext());
 
         if (!implModule) {
             THROW_ERROR_EXCEPTION(
                 "Error parsing LLVM bitcode for function %Qv",
-                FunctionName_)
+                functionName)
                 << TError(Stroka(diag.getMessage().str()));
         }
 
@@ -440,11 +443,11 @@ Function* TUserDefinedFunction::GetLlvmFunction(
         if (linkError) {
             THROW_ERROR_EXCEPTION(
                 "Error linking LLVM bitcode for function %Qv",
-                FunctionName_);
+                functionName);
         }
 
-        callee = module->getFunction(StringRef(FunctionName_));
-        CheckCallee(callee, builder, argumentValues);
+        callee = module->getFunction(StringRef(functionName));
+        checkCallee(callee, argumentValues);
     }
     return callee;
 }
@@ -458,7 +461,14 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
         this_ = MakeStrong(this)
     ] (std::vector<Value*> argumentValues, TCGContext& builder) {
 
-        auto callee = this_->GetLlvmFunction(builder, argumentValues);
+        auto callee = GetLlvmFunction(
+            builder,
+            this_->FunctionName_,
+            argumentValues,
+            this_->ImplementationFile_,
+            [&] (Function* callee, std::vector<Value*> arguments) {
+                this_->CheckCallee(callee, builder, arguments);
+            });
         auto result = builder.CreateCall(callee, argumentValues);
         return result;
     };
@@ -468,6 +478,74 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
         codegenBody,
         type,
         name);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
+    const Stroka& aggregateName,
+    EValueType resultType,
+    EValueType stateType,
+    TSharedRef implementationFile,
+    ICallingConventionPtr callingConvention)
+    : AggregateName_(aggregateName)
+    , ResultType_(resultType)
+    , StateType_(stateType)
+    , ImplementationFile_(implementationFile)
+    , CallingConvention_(callingConvention)
+{ }
+
+TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
+    const Stroka& aggregateName,
+    EValueType resultType,
+    EValueType stateType,
+    TSharedRef implementationFile,
+    ECallingConvention callingConvention)
+    : TUserDefinedAggregateFunction(
+        aggregateName,
+        resultType,
+        stateType,
+        implementationFile,
+        GetCallingConvention(callingConvention))
+{ }
+
+Stroka TUserDefinedAggregateFunction::GetName() const
+{
+    return AggregateName_;
+}
+
+const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
+    EValueType type,
+    const Stroka& name) const
+{
+    //TODO
+    TCodegenAggregate codegenAggregate;
+    codegenAggregate.Initialize = [] (TCGContext& builder, Value* aggState) {
+
+    };
+    codegenAggregate.Update = [] (TCGContext& builder, Value* aggState, Value* newValue) {
+
+    };
+    codegenAggregate.Merge = [] (TCGContext& builder, Value* dstAggState, Value* aggState) {
+
+    };
+    codegenAggregate.Finalize = [] (TCGContext& builder, Value* result, Value* aggState) {
+
+    };
+}
+
+EValueType TUserDefinedAggregateFunction::GetStateType(
+    EValueType type) const
+{
+    return StateType_;
+}
+
+EValueType TUserDefinedAggregateFunction::InferResultType(
+    EValueType argumentType,
+    const TStringBuf& source) const
+{
+    //TODO
+    return ResultType_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
