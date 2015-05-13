@@ -151,7 +151,7 @@ def call_subprocess(command, stdin, max_retry_count, sleep_interval, env):
         errors = ["try: %s\nreturn code: %s\nstdout:\n%s\n\nstderr:\n%s\n" % (attempt, ret, out, err) for attempt, ret, out, err in errors]
         errors = [e +  "\n\n===================================================================\n\n" for e in errors]
         stderr = "".join(errors)
-        print >> sys.stderr, "stdin:\n%s\n" % stdin
+        #print >> sys.stderr, "stdin:\n%s\n" % stdin
         print >> sys.stderr, stderr
         raise sp.CalledProcessError(ret, " ".join(command), errors)
 
@@ -252,8 +252,8 @@ def regions_mapper(r):
         if len(new_data) > config["rows_per_insert"]: dump_data()
     dump_data()
 
-    # Mapper has to be a generator.
-    if False: yield None
+    # Yield processed range.
+    yield r
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Map-Reduce table manipulator.")
@@ -287,6 +287,7 @@ if __name__ == "__main__":
     yt.config.set_proxy(args.proxy)
     yt_src = Yt(existent([args.proxy_src, args.proxy]), existent([args.token_src, get_token()]))
     yt_dst = Yt(existent([args.proxy_dst, args.proxy]), existent([args.token_dst, get_token()]))
+    yt_src.VERSION="v3"
     yt_dst.VERSION="v3"
 
     # YT drivers to use inside operations.
@@ -304,6 +305,10 @@ if __name__ == "__main__":
         args.output_row_limit,
         args.proxy_dst,
         args.token_dst)
+
+    # Only print commands to stderr, without execution.
+    #driver_src.disable()
+    #driver_dst.disable()
 
     # Source table schema.
     schema = yt_src.get(src + "/@schema")
