@@ -117,7 +117,7 @@ public:
 
     ~TCachedChangelog()
     {
-        LOG_DEBUG("Cached changelog destroyed (Location: %v, ChunkId: %v)",
+        LOG_DEBUG("Cached changelog destroyed (LocationId: %v, ChunkId: %v)",
             Location_->GetId(),
             ChunkId_);
     }
@@ -279,7 +279,7 @@ TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(
 void TJournalDispatcher::TImpl::OnAdded(TCachedChangelog* changelog)
 {
     auto key = changelog->GetKey();
-    LOG_TRACE("Journal chunk added to cache (Location: %v, ChunkId: %v)",
+    LOG_TRACE("Journal chunk added to cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),
         key.ChunkId);
 }
@@ -287,7 +287,7 @@ void TJournalDispatcher::TImpl::OnAdded(TCachedChangelog* changelog)
 void TJournalDispatcher::TImpl::OnRemoved(TCachedChangelog* changelog)
 {
     auto key = changelog->GetKey();
-    LOG_TRACE("Journal chunk evicted from cache (Location: %v, ChunkId: %v)",
+    LOG_TRACE("Journal chunk evicted from cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),
         key.ChunkId);
 }
