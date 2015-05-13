@@ -3805,10 +3805,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg)
         "x=24.2",
     }, resultSplit);
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(New<TAverageAggregateFunction>());
-
-    Evaluate("avg(a) as x from [//t] group by 1", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("avg(a) as x from [//t] group by 1", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, TestAverageAgg2)
@@ -3848,7 +3845,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg2)
     registry->WithFunction(New<TAggregateFunction>("max"));
     registry->WithFunction(New<TAggregateFunction>("min"));
 
-    Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, TestAverageAgg3)
@@ -3878,7 +3875,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg3)
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     registry->WithFunction(New<TAverageAggregateFunction>());
 
-    Evaluate("b, avg(a) as x from [//t] group by b", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("b, avg(a) as x from [//t] group by b", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, TestStringAgg)
@@ -3921,9 +3918,8 @@ TEST_F(TQueryEvaluateTest, WronglyTypedAggregate)
     };
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(New<TAverageAggregateFunction>());
 
-    EvaluateExpectingError("avg(a) from [//t] group by 1", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("avg(a) from [//t] group by 1", split, source);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
