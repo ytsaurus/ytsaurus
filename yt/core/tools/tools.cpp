@@ -96,7 +96,7 @@ TYsonString ExecuteTool(const Stroka& toolName, const TYsonString& serializedArg
 
         auto it = registry->find(toolName);
         if (it == registry->end()) {
-            THROW_ERROR_EXCEPTION("Failed to execute %v toolName: no such tool", toolName);
+            THROW_ERROR_EXCEPTION("Failed to execute %v: no such tool", toolName);
         }
 
         const auto& toolDescription = it->second;
