@@ -72,8 +72,8 @@ def clean_tasks(url, token, count, total_count, failed_timeout, max_regular_task
             logger.info("Task (%s) is no more in final state", task)
             continue
         logger.info("Removing task %s", task)
-        #rsp = requests.delete("%s/tasks/%s/" % (url, task),
-        #                      headers={"Authorization": "OAuth " + token})
+        rsp = requests.delete("%s/tasks/%s/" % (url, task),
+                              headers={"Authorization": "OAuth " + token})
         if rsp.status_code != 200:
             logger.error("Cannot remove task %s: %s", task, rsp.content)
             break
