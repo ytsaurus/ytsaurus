@@ -84,7 +84,7 @@ class TestEventLog(YTEnvSetup):
         assert get_statistics(statistics, "user_job.block_io.bytes_read.$.completed.map.sum") is not None
         assert get_statistics(statistics, "user_job.current_memory.rss.$.completed.map.count") > 0
         assert get_statistics(statistics, "user_job.max_memory.$.completed.map.count") > 0
-        assert get_statistics(statistics, "user_job.cummulative_memory_mb_sec.$.completed.map.count") > 0
+        assert get_statistics(statistics, "user_job.cumulative_memory_mb_sec.$.completed.map.count") > 0
         assert get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1
         assert get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1
 
