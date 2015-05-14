@@ -264,6 +264,11 @@ public:
             builder.getInt16(id),
             builder.CreateStructGEP(valuePtr, TTypeBuilder::Id, nameTwine + ".idPtr"));
 
+        StoreToValue(builder, valuePtr, nameTwine);
+    }
+
+    void StoreToValue(TCGIRBuilder& builder, Value* valuePtr, Twine nameTwine = "")
+    {
         if (IsNull_) {
             builder.CreateStore(
                 GetType(builder),
