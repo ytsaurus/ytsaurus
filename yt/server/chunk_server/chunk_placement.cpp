@@ -136,6 +136,10 @@ void TChunkPlacement::Stop()
         node->SetLoadRank(-1);
         node->SetFillFactorIterator(Null);
     }
+
+    // NB: This is redundant since the instance is never reused.
+    LoadRankToNode_.clear();
+    FillFactorToNode_.clear();
 }
 
 void TChunkPlacement::OnNodeRegistered(TNode* node)
