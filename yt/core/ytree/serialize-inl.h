@@ -141,6 +141,18 @@ void Serialize(const yhash_map<Stroka, T>& items, NYson::IYsonConsumer* consumer
     consumer->OnEndMap();
 }
 
+// yhash_map
+template <class T>
+void Serialize(const yhash_map<int, T>& items, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnBeginMap();
+    for (auto it : GetSortedIterators(items)) {
+        consumer->OnKeyedItem(ToString(it->first));
+        Serialize(it->second, consumer);
+    }
+    consumer->OnEndMap();
+}
+
 // map
 template <class T>
 void Serialize(const std::map<Stroka, T>& items, NYson::IYsonConsumer* consumer)
@@ -266,6 +278,19 @@ void Deserialize(yhash_map<Stroka, T>& value, INodePtr node)
     auto mapNode = node->AsMap();
     for (const auto& pair : mapNode->GetChildren()) {
         const auto& key = pair.first;
+        T item;
+        Deserialize(item, pair.second);
+        value.insert(std::make_pair(key, std::move(item)));
+    }
+}
+
+// yhash_map
+template <class T>
+void Deserialize(yhash_map<int, T>& value, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    for (const auto& pair : mapNode->GetChildren()) {
+        int key = FromString<int>(pair.first);
         T item;
         Deserialize(item, pair.second);
         value.insert(std::make_pair(key, std::move(item)));
