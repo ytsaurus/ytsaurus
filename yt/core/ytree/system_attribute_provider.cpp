@@ -6,7 +6,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISystemAttributeProvider::TAttributeInfo* ISystemAttributeProvider::FindBuiltinAttributeInfo(const Stroka& key)
+TNullable<ISystemAttributeProvider::TAttributeInfo> ISystemAttributeProvider::FindBuiltinAttributeInfo(const Stroka& key)
 {
     std::vector<TAttributeInfo> builtinAttributes;
     ListBuiltinAttributes(&builtinAttributes);
@@ -16,7 +16,7 @@ ISystemAttributeProvider::TAttributeInfo* ISystemAttributeProvider::FindBuiltinA
         [&] (const ISystemAttributeProvider::TAttributeInfo& info) {
             return info.Key == key;
         });
-    return it == builtinAttributes.end() ? NULL : &(*it);
+    return it == builtinAttributes.end() ? Null : MakeNullable(*it);
 }
 
 void ISystemAttributeProvider::ListBuiltinAttributes(std::vector<TAttributeInfo>* attributes)

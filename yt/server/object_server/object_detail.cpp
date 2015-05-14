@@ -590,8 +590,8 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attribu
     attributes->push_back("ref_counter");
     attributes->push_back("weak_ref_counter");
     attributes->push_back(TAttributeInfo("supported_permissions", true, true));
-    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, false));
-    attributes->push_back(TAttributeInfo("acl", hasAcd, true));
+    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, false, false, EPermission::Administer));
+    attributes->push_back(TAttributeInfo("acl", hasAcd, true, false, EPermission::Administer));
     attributes->push_back(TAttributeInfo("owner", hasOwner, false));
     attributes->push_back(TAttributeInfo("effective_acl", true, true));
 }
@@ -681,7 +681,6 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
     if (acd) {
         if (key == "inherit_acl") {
             ValidateNoTransaction();
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
             acd->SetInherit(ConvertTo<bool>(value));
             return true;
@@ -689,7 +688,6 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
 
         if (key == "acl") {
             ValidateNoTransaction();
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
             auto supportedPermissions = securityManager->GetSupportedPermissions(Object_);
             auto valueNode = ConvertToNode(value);
