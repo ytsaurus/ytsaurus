@@ -354,52 +354,33 @@ TCodegenAggregateUpdate TAggregateFunction::MakeCodegenAggregate(
             aggregateFunction,
             type,
             MOVE(nameStroka)
-        ] (TCGContext& builder, Value* aggState, Value* newValue) {
+        ] (TCGContext& builder, Value* aggregateStatePtr, Value* newValuePtr) {
             Twine name = nameStroka.c_str();
 
-            auto codegenIsNull = [&] (Value* value) {
-                return builder.CreateICmpEQ(
-                    builder.CreateLoad(builder.CreateStructGEP(
-                        value,
-                        TTypeBuilder::Type)),
-                    builder.getInt16(static_cast<ui16>(EValueType::Null)));
-            };
-
-            auto codegenGetData = [&] (Value* value) {
-                return builder.CreateLoad(builder.CreateStructGEP(
-                    value,
-                    TTypeBuilder::Data));
-            };
+            auto aggregateValue = TCGValue::CreateFromLlvmValue(
+                builder,
+                aggregateStatePtr,
+                type,
+                name + ".aggregate");
+            auto newValue = TCGValue::CreateFromLlvmValue(
+                builder,
+                newValuePtr,
+                type);
 
             CodegenIf<TCGContext>(
                 builder,
-                codegenIsNull(newValue),
+                newValue.IsNull(),
                 [&] (TCGContext& builder) { },
                 [&] (TCGContext& builder) {
-                    auto aggregateValue = TCGValue::CreateFromLlvmValue(
-                        builder,
-                        aggState,
-                        type,
-                        name + ".aggregate");
 
                     CodegenIf<TCGContext>(
                         builder,
-                        codegenIsNull(aggState),
+                        aggregateValue.IsNull(),
                         [&] (TCGContext& builder) {
-                            builder.CreateStore(
-                                builder.getInt16(static_cast<ui16>(type)),
-                                builder.CreateStructGEP(
-                                    aggState,
-                                    TTypeBuilder::Type));
-                            builder.CreateStore(
-                                codegenGetData(newValue),
-                                builder.CreateStructGEP(
-                                    aggState,
-                                    TTypeBuilder::Data,
-                                    name));
+                            newValue.StoreToValue(builder, aggregateStatePtr);
                         },
                         [&] (TCGContext& builder) {
-                            Value* newData = codegenGetData(newValue);
+                            Value* newData = newValue.GetData();
                             Value* aggregateData = aggregateValue.GetData();
                             Value* resultData = nullptr;
 
@@ -465,12 +446,14 @@ TCodegenAggregateUpdate TAggregateFunction::MakeCodegenAggregate(
                                 YUNIMPLEMENTED();
                             }
 
-                            builder.CreateStore(
+                            auto result = TCGValue::CreateFromValue(
+                                builder,
+                                nullptr,
+                                nullptr,
                                 resultData,
-                                builder.CreateStructGEP(
-                                    aggState,
-                                    TTypeBuilder::Data,
-                                    name));
+                                type,
+                                "result");
+                            result.StoreToValue(builder, aggregateStatePtr);
                         });
 
                 });

@@ -2853,6 +2853,30 @@ TEST_F(TQueryEvaluateTest, IsNull)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, DoubleSum)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1.",
+        "a=1.",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Double},
+        {"t", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=2.;t=3"
+    }, resultSplit);
+
+    Evaluate("sum(a) as x, sum(1) as t FROM [//t] group by 1", split, source, result);
+}
+
 TEST_F(TQueryEvaluateTest, ComplexStrings)
 {
     auto split = MakeSplit({
