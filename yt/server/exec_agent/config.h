@@ -4,6 +4,8 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <ytlib/cgroup/config.h>
+
 #include <server/job_agent/config.h>
 
 #include <server/job_proxy/config.h>
@@ -119,7 +121,7 @@ public:
 };
 
 class TExecAgentConfig
-    : public NYTree::TYsonSerializable
+    : public NCGroup::TCGroupConfig
 {
 public:
     TSlotManagerConfigPtr SlotManager;
@@ -138,8 +140,6 @@ public:
     TNullable<int> IopsThreshold;
 
     double MemoryLimitMultiplier;
-    bool EnableCGroups;
-    std::vector<Stroka> SupportedCGroups;
 
     TExecAgentConfig()
     {
@@ -169,21 +169,8 @@ public:
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
 
-        RegisterParameter("enable_cgroups", EnableCGroups)
-            .Default(true);
-        RegisterParameter("supported_cgroups", SupportedCGroups)
-            .Default();
-
         RegisterParameter("iops_threshold", IopsThreshold)
             .Default();
-
-        RegisterValidator([&] () {
-            for (const auto& type : SupportedCGroups) {
-                if (!CGroup::IsValidType(type)) {
-                    THROW_ERROR_EXCEPTION("Invalid cgroup type: %v", type);
-                }
-            }
-        }
     }
 };
 

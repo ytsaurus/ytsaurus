@@ -187,13 +187,13 @@ void TJobProxy::Run()
 
         TStatistics jobStatistics = Job_->GetStatistics();
 
-        if (IsSupported(TCpuAccounting::Name)) {
+        if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
             auto cpuAccounting = GetCurrentCGroup<TCpuAccounting>();
             auto cpuStatistics = cpuAccounting.GetStatistics();
             jobStatistics.AddComplex("/job_proxy/cpu", cpuStatistics);
         }
 
-        if (IsSupported(TBlockIO::Name)) {
+        if (Config_->IsCGroupSupported(TBlockIO::Name)) {
             auto blockIO = GetCurrentCGroup<TBlockIO>();
             auto blockIOStatistics = blockIO.GetStatistics();
             jobStatistics.AddComplex("/job_proxy/block_io", blockIOStatistics);
@@ -434,18 +434,6 @@ IInvokerPtr TJobProxy::GetControlInvoker() const
 {
     return ControlThread_->GetInvoker();
 }
-
-bool TJobProxy::IsSupported(const Stroka& cgroupType) const
-{
-    auto item = std::find_if(
-        Config_->SupportedCGroups.begin(),
-        Config_->SupportedCGroups.end(),
-        [=] (const Stroka& type) {
-            return type == cgroupType;
-        });
-    return (item != Config_->SupportedCGroups.end());
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
