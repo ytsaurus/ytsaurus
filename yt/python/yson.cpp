@@ -273,10 +273,6 @@ private:
             throw CreateYsonError("Incorrect arguments");
         }
 
-        if (ysonType == NYson::EYsonType::MapFragment) {
-            throw CreateYsonError("Map fragment is not supported");
-        }
-
         if (ysonType == NYson::EYsonType::ListFragment) {
             if (raw) {
                 Py::Callable class_type(TRawYsonIterator::type());
@@ -303,6 +299,10 @@ private:
             const int BufferSize = 1024 * 1024;
             char buffer[BufferSize];
             try {
+                if (ysonType == NYson::EYsonType::MapFragment)
+                {
+                    consumer.OnBeginMap();
+                }
                 while (int length = inputStreamPtr->Read(buffer, BufferSize))
                 {
                     parser.Read(TStringBuf(buffer, length));
@@ -311,6 +311,10 @@ private:
                     }
                 }
                 parser.Finish();
+                if (ysonType == NYson::EYsonType::MapFragment)
+                {
+                    consumer.OnEndMap();
+                }
             } catch (const std::exception& error) {
                 throw CreateYsonError(error.what());
             }

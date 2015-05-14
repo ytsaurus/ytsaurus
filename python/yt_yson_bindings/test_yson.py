@@ -31,6 +31,11 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
         self.assertEqual(
             self.load_fragment("{x=[1.0;abc]};#"),
             [{"x": [1.0, "abc"]}, to_yson_type(None)])
+        self.assertEqual(loads("x=z;y=1", yson_type="map_fragment"), {"x": "z", "y": 1})
+        self.assertEqual(
+            loads('k={x=#; o=[%true; "1"; 2]};t=3', yson_type="map_fragment"),
+            {"k": {"x": to_yson_type(None), "o": [True, "1", 2]}, "t": 3}
+        )
 
     def test_dump(self):
         self.assertEqual(
