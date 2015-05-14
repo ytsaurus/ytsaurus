@@ -446,6 +446,10 @@ bool TChunkPlacement::IsValidWriteTarget(
         return false;
     }
 
+    // Sanity checks.
+    YCHECK(node->GetLoadRank() >= 0);
+    YCHECK(node->GetFillFactorIterator());
+
     // Seems OK :)
     return true;
 }
