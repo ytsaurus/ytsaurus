@@ -149,6 +149,23 @@ protected:
         EPermissionCheckScope scope,
         EPermission permission);
 
+    class TCachingPermissionValidator
+    {
+    public:
+        TCachingPermissionValidator(
+            TSupportsPermissions* owner,
+            EPermissionCheckScope scope);
+
+        void Validate(EPermission permission);
+
+    private:
+        TSupportsPermissions* const Owner_;
+        const EPermissionCheckScope Scope_;
+
+        EPermissionSet ValidatedPermissions_ = NonePermissions;
+
+    };
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

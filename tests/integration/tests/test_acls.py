@@ -239,6 +239,28 @@ class TestAcls(YTEnvSetup):
         set("//tmp/@acl/end", self._make_ace("allow", "u", "administer"))
         set("//tmp/t/@acl", [], user="u")
 
+    def test_administer_permission3(self):
+        create("table", "//tmp/t")
+        create_user("u")
+
+        acl = [self._make_ace("allow", "u", "administer"), self._make_ace("deny", "u", "write")]
+        set("//tmp/t/@acl", acl)
+
+        set("//tmp/t/@account", "tmp", user="u")
+        set("//tmp/t/@inherit_acl", False, user="u")
+        set("//tmp/t/@acl", acl, user="u")
+        remove("//tmp/t/@acl/1", user="u")
+
+    def test_administer_permission4(self):
+        create("table", "//tmp/t")
+        create_user("u")
+
+        acl = [self._make_ace("deny", "u", "administer")]
+        set("//tmp/t/@acl", acl)
+
+        with pytest.raises(YtError):
+            set("//tmp/t/@account", "tmp", user="u")
+
     def test_user_rename_success(self):
         create_user("u1")
         set("//sys/users/u1/@name", "u2")
