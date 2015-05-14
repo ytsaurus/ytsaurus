@@ -307,7 +307,7 @@ public:
                 auto contextPath = Format("%v/%v",
                     path,
                     ToYPathLiteral(index));
-                auto req = MakeCreateFileRequest(contextPath, inputContext);
+                auto req = StartCreateFileRequest(contextPath, inputContext);
 
                 batchReq->AddRequest(req, "create_input_context");
             }
@@ -1428,7 +1428,7 @@ private:
                     for (const auto& failContextChunkId : request.FailContextChunkIds) {
                         if (failContextChunkId != NChunkServer::NullChunkId) {
                             auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId(), index);
-                            auto req = MakeCreateFileRequest(failContextPath, failContextChunkId);
+                            auto req = StartCreateFileRequest(failContextPath, failContextChunkId);
 
                             batchReq->AddRequest(req, "create_fail_context");
                         }
@@ -1736,7 +1736,7 @@ private:
     }
 
 
-    TCypressYPathProxy::TReqCreatePtr MakeCreateFileRequest(const TYPath& path, const TChunkId& chunkId)
+    TCypressYPathProxy::TReqCreatePtr StartCreateFileRequest(const TYPath& path, const TChunkId& chunkId)
     {
         auto req = TCypressYPathProxy::Create(path);
         GenerateMutationId(req);
