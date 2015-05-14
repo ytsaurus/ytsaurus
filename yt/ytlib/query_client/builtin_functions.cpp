@@ -610,22 +610,35 @@ TCodegenAggregateInit MakeCodegenAverageInitialize(
 {
     return [
     ] (TCGContext& builder, Value* aggState) {
-        auto sumValue = builder.CreateConstInBoundsGEP1_32(aggState, 0);
-        auto countValue = builder.CreateConstInBoundsGEP1_32(aggState, 1);
+        auto statePtr = builder.CreatePointerCast(
+            builder.CreateCall2(
+                builder.Module->GetRoutine("AllocateBytes"),
+                builder.GetExecutionContextPtr(),
+                builder.CreateZExt(
+                    builder.getInt32(2 * sizeof(ui64)),
+                    builder.getSizeType())),
+            PointerType::getUnqual(builder.getInt64Ty()));
 
-        builder.CreateStore(
-            builder.getInt16(static_cast<ui16>(EValueType::Int64)),
-            builder.CreateStructGEP(sumValue, TTypeBuilder::Type));
-        builder.CreateStore(
-            builder.getInt16(static_cast<ui16>(EValueType::Int64)),
-            builder.CreateStructGEP(countValue, TTypeBuilder::Type));
+        auto sumPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 0);
+        auto countPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 1);
 
         builder.CreateStore(
             builder.getInt64(0),
-            builder.CreateStructGEP(sumValue, TTypeBuilder::Data));
+            sumPtr);
         builder.CreateStore(
             builder.getInt64(0),
-            builder.CreateStructGEP(countValue, TTypeBuilder::Data));
+            countPtr);
+
+        builder.CreateStore(
+            builder.getInt16(static_cast<ui16>(EValueType::String)),
+            builder.CreateStructGEP(aggState, TTypeBuilder::Type));
+        builder.CreateStore(
+            builder.getInt32(2 * sizeof(ui64)),
+            builder.CreateStructGEP(aggState, TTypeBuilder::Length));
+        builder.CreateStore(
+            builder.CreatePtrToInt(statePtr, builder.getInt64Ty()),
+            builder.CreateStructGEP(aggState, TTypeBuilder::Data));
+
     };
 }
 
@@ -639,8 +652,14 @@ TCodegenAggregateUpdate MakeCodegenAverageUpdate(
             type,
             MOVE(nameStroka)
         ] (TCGContext& builder, Value* aggState, Value* newValue) {
-            auto sumValue = builder.CreateConstInBoundsGEP1_32(aggState, 0);
-            auto countValue = builder.CreateConstInBoundsGEP1_32(aggState, 1);
+            auto statePtr = builder.CreateIntToPtr(
+                builder.CreateLoad(builder.CreateStructGEP(
+                    aggState,
+                    TTypeBuilder::Data)),
+                PointerType::getUnqual(builder.getInt64Ty()));
+
+            auto sumPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 0);
+            auto countPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 1);
 
             auto newValueType = builder.CreateLoad(
                 builder.CreateStructGEP(newValue, TTypeBuilder::Type));
@@ -653,23 +672,21 @@ TCodegenAggregateUpdate MakeCodegenAverageUpdate(
                 newValueNonNull,
                 [&] (TCGContext& builder) {
                     auto resultSum = builder.CreateAdd(
-                        builder.CreateLoad(
-                            builder.CreateStructGEP(sumValue, TTypeBuilder::Data)),
+                        builder.CreateLoad(sumPtr),
                         builder.CreateLoad(
                             builder.CreateStructGEP(newValue, TTypeBuilder::Data)));
 
                     auto resultCount = builder.CreateAdd(
-                        builder.CreateLoad(
-                            builder.CreateStructGEP(countValue, TTypeBuilder::Data)),
+                        builder.CreateLoad(countPtr),
                         builder.getInt64(1));
 
                     builder.CreateStore(
                         resultSum,
-                        builder.CreateStructGEP(sumValue, TTypeBuilder::Data));
+                        sumPtr);
 
                     builder.CreateStore(
                         resultCount,
-                        builder.CreateStructGEP(countValue, TTypeBuilder::Data));
+                        countPtr);
                 });
         };
 }
@@ -680,31 +697,43 @@ TCodegenAggregateMerge MakeCodegenAverageMerge(
 {
     return [
     ] (TCGContext& builder, Value* dstAggState, Value* aggState) {
-        auto dstSumValue = builder.CreateConstInBoundsGEP1_32(dstAggState, 0);
-        auto dstCountValue = builder.CreateConstInBoundsGEP1_32(dstAggState, 1);
+        auto dstStatePtr = builder.CreateIntToPtr(
+            builder.CreateLoad(builder.CreateStructGEP(
+                dstAggState,
+                TTypeBuilder::Data)),
+            PointerType::getUnqual(builder.getInt64Ty()));
 
-        auto sumValue = builder.CreateConstInBoundsGEP1_32(aggState, 0);
-        auto countValue = builder.CreateConstInBoundsGEP1_32(aggState, 1);
+        auto statePtr = builder.CreateIntToPtr(
+            builder.CreateLoad(builder.CreateStructGEP(
+                aggState,
+                TTypeBuilder::Data)),
+            PointerType::getUnqual(builder.getInt64Ty()));
+
+        auto dstSumPtr = builder.CreateConstInBoundsGEP1_32(dstStatePtr, 0);
+        auto dstCountPtr = builder.CreateConstInBoundsGEP1_32(dstStatePtr, 1);
+
+        auto sumPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 0);
+        auto countPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 1);
 
         auto resultSum = builder.CreateAdd(
             builder.CreateLoad(
-                builder.CreateStructGEP(dstSumValue, TTypeBuilder::Data)),
+                dstSumPtr),
             builder.CreateLoad(
-                builder.CreateStructGEP(sumValue, TTypeBuilder::Data)));
+                sumPtr));
 
         auto resultCount = builder.CreateAdd(
             builder.CreateLoad(
-                builder.CreateStructGEP(dstCountValue, TTypeBuilder::Data)),
+                dstCountPtr),
             builder.CreateLoad(
-                builder.CreateStructGEP(countValue, TTypeBuilder::Data)));
+                countPtr));
 
         builder.CreateStore(
             resultSum,
-            builder.CreateStructGEP(dstSumValue, TTypeBuilder::Data));
+            dstSumPtr);
 
         builder.CreateStore(
             resultCount,
-            builder.CreateStructGEP(dstCountValue, TTypeBuilder::Data));
+            dstCountPtr);
     };
 }
 
@@ -714,12 +743,17 @@ TCodegenAggregateFinalize MakeCodegenAverageFinalize(
 {
     return [
     ] (TCGContext& builder, Value* result, Value* aggState) {
-        auto sumValue = builder.CreateLoad(
-            builder.CreateStructGEP(aggState, TTypeBuilder::Data));
-        auto countValue = builder.CreateLoad(
-            builder.CreateStructGEP(
-                builder.CreateConstInBoundsGEP1_32(aggState, 1),
-                TTypeBuilder::Data));
+        auto statePtr = builder.CreateIntToPtr(
+            builder.CreateLoad(builder.CreateStructGEP(
+                aggState,
+                TTypeBuilder::Data)),
+            PointerType::getUnqual(builder.getInt64Ty()));
+
+        auto sumPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 0);
+        auto countPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 1);
+
+        auto sumValue = builder.CreateLoad(sumPtr);
+        auto countValue = builder.CreateLoad(countPtr);
 
         auto countIsZero = builder.CreateICmpEQ(
             countValue,
@@ -769,8 +803,7 @@ std::vector<EValueType> TAverageAggregateFunction::GetStateTypes(
     EValueType type) const
 {
     return std::vector<EValueType>{
-        EValueType::Int64,
-        EValueType::Int64
+        EValueType::String
     };
 }
 
