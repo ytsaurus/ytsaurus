@@ -1,6 +1,8 @@
 #include "stracer.h"
 #include "private.h"
 
+#include <core/ytree/serialize.h>
+
 #include <core/concurrency/action_queue.h>
 
 #include <core/misc/subprocess.h>
@@ -59,25 +61,7 @@ void Deserialize(TStrace& value, INodePtr node)
 
 void Serialize(const TStracerResult& stracerResult, NYson::IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .DoFor(stracerResult.Traces, [] (TFluentMap fluent, const yhash_map<int, TStrace>::value_type& pair) {
-                fluent
-                    .Item(ToString(pair.first)).Value(pair.second);
-            })
-        .EndMap();
-}
-
-template <class T>
-void Deserialize(yhash_map<int, T>& value, INodePtr node)
-{
-    auto mapNode = node->AsMap();
-    for (const auto& pair : mapNode->GetChildren()) {
-        int key = ConvertTo<int>(TYsonString(pair.first));
-        T item;
-        Deserialize(item, pair.second);
-        value.insert(std::make_pair(key, std::move(item)));
-    }
+    NYTree::Serialize(stracerResult.Traces, consumer);
 }
 
 void Deserialize(TStracerResult& value, INodePtr node)

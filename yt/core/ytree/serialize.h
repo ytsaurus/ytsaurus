@@ -120,6 +120,10 @@ void Serialize(const yhash_set<T>& value, NYson::IYsonConsumer* consumer);
 template <class T>
 void Serialize(const yhash_map<Stroka, T>& value, NYson::IYsonConsumer* consumer);
 
+// yhash_map
+template <class T>
+void Serialize(const yhash_map<int, T>& value, NYson::IYsonConsumer* consumer);
+
 template<class T>
 void Serialize(const TErrorOr<T>& error, NYson::IYsonConsumer* consumer);
 
