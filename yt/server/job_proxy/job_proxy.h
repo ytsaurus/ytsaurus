@@ -95,8 +95,6 @@ private:
 
     static void Exit(EJobProxyExitCode exitCode);
 
-    bool IsSupported(const Stroka& cgroupType) const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

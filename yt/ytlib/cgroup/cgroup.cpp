@@ -426,7 +426,7 @@ bool TCGroup::IsCreated() const
 const Stroka TCpuAccounting::Name = "cpuacct";
 
 TCpuAccounting::TCpuAccounting(const Stroka& name)
-    : TCGroup(TCpuAccounting::Name, name)
+    : TCGroup(Name, name)
 { }
 
 TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
@@ -477,7 +477,7 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
 const Stroka TBlockIO::Name = "blkio";
 
 TBlockIO::TBlockIO(const Stroka& name)
-    : TCGroup(TBlockIO::Name, name)
+    : TCGroup(Name, name)
 { }
 
 // For more information about format of data
@@ -573,7 +573,7 @@ void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* co
 const Stroka TMemory::Name = "memory";
 
 TMemory::TMemory(const Stroka& name)
-    : TCGroup(TMemory::Name, name)
+    : TCGroup(Name, name)
 { }
 
 TMemory::TStatistics TMemory::GetStatistics() const
@@ -634,7 +634,7 @@ void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* con
 const Stroka TFreezer::Name = "freezer";
 
 TFreezer::TFreezer(const Stroka& name)
-    : TCGroup(TFreezer::Name, name)
+    : TCGroup(Name, name)
 { }
 
 Stroka TFreezer::GetState() const
@@ -682,7 +682,7 @@ std::map<Stroka, Stroka> ParseProcessCGroups(const Stroka& str)
     return result;
 }
 
-bool IsValidType(const Stroka& type)
+bool IsValidCGroupType(const Stroka& type)
 {
     if (type == TCpuAccounting::Name) {
         return true;

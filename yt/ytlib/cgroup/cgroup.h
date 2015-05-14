@@ -209,7 +209,7 @@ T GetCurrentCGroup()
     return T("");
 }
 
-bool IsValidType(const Stroka& type);
+bool IsValidCGroupType(const Stroka& type);
 
 ////////////////////////////////////////////////////////////////////////////////
 
