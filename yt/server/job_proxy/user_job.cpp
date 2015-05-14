@@ -309,7 +309,7 @@ private:
             AddStatistic("/user_job/max_memory", Memory_.GetMaxMemoryUsage());
         }
 
-        AddStatistic("/user_job/cummulative_memory_mb_sec", CummulativeMemoryUsageMbSec_);
+        AddStatistic("/user_job/cumulative_memory_mb_sec", CummulativeMemoryUsageMbSec_);
 
         {
             TGuard<TSpinLock> guard(FreezerLock_);
