@@ -450,22 +450,21 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArg
     std::vector<TCodegenExpression> codegenGroupExprs,
     std::vector<TCodegenExpression> codegenAggregateExprs,
     std::vector<TCodegenAggregate> codegenAggregates,
-    std::vector<int> aggregateStateOffsets,
     bool isMerge,
     TTableSchema inputSchema);
 
 std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateInitialize(
     std::vector<TCodegenAggregate> codegenAggregates,
-    std::vector<int> aggregateStateOffsets);
+    int keySize);
 
 std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpdate(
     std::vector<TCodegenAggregate> codegenAggregates,
-    std::vector<int> aggregateStateOffsets,
+    int keySize,
     bool isMerge);
 
 std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinalize(
     std::vector<TCodegenAggregate> codegenAggregates,
-    std::vector<int> aggregateStateOffsets,
+    int keySize,
     bool isFinal);
 
 TCodegenSource MakeCodegenGroupOp(

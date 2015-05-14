@@ -147,7 +147,7 @@ public:
         EValueType type,
         const Stroka& name) const override;
 
-    virtual std::vector<EValueType> GetStateTypes(
+    virtual EValueType GetStateType(
         EValueType type) const override;
 
     virtual EValueType InferResultType(
@@ -172,7 +172,7 @@ public:
         EValueType type,
         const Stroka& name) const override;
 
-    virtual std::vector<EValueType> GetStateTypes(
+    virtual EValueType GetStateType(
         EValueType type) const override;
 
     virtual EValueType InferResultType(

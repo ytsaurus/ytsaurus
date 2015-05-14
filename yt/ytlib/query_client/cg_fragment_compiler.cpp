@@ -1341,7 +1341,6 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArg
     std::vector<TCodegenExpression> codegenGroupExprs,
     std::vector<TCodegenExpression> codegenAggregateExprs,
     std::vector<TCodegenAggregate> codegenAggregates,
-    std::vector<int> aggregateStateOffsets,
     bool isMerge,
     TTableSchema inputSchema)
 {
@@ -1349,7 +1348,6 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArg
         MOVE(codegenGroupExprs),
         MOVE(codegenAggregateExprs),
         MOVE(codegenAggregates),
-        MOVE(aggregateStateOffsets),
         isMerge,
         inputSchema
     ] (TCGContext& builder, Value* srcRow, Value* dstRow) {
@@ -1363,17 +1361,17 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArg
                 value.StoreToRow(builder, dstRow, keySize + index, id);
             }
         } else {
-            for (int index = 0; index < aggregateStateOffsets[aggregatesCount]; index++) {
-                auto id = index;
+            for (int index = 0; index < aggregatesCount; index++) {
+                auto id = keySize + index;
                 TCGValue::CreateFromRow(
                     builder,
                     srcRow,
-                    index,
+                    keySize + index,
                     inputSchema.Columns()[id].Type)
                     .StoreToRow(
                         builder,
                         dstRow,
-                        index,
+                        keySize + index,
                         id);
             }
         }
@@ -1382,36 +1380,28 @@ std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArg
 
 std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpdate(
     std::vector<TCodegenAggregate> codegenAggregates,
-    std::vector<int> aggregateStateOffsets,
+    int keySize,
     bool isMerge)
 {
     return [
         MOVE(codegenAggregates),
-        MOVE(aggregateStateOffsets),
+        keySize,
         isMerge
     ] (TCGContext& builder, Value* newRow, Value* groupRow) {
         for (int index = 0; index < codegenAggregates.size(); index++) {
-            if (isMerge) {
-                auto aggState = builder.CreateConstInBoundsGEP1_32(
-                    CodegenValuesPtrFromRow(builder, groupRow),
-                    aggregateStateOffsets[index]);
-                auto newValue = builder.CreateConstInBoundsGEP1_32(
-                    CodegenValuesPtrFromRow(builder, newRow),
-                    aggregateStateOffsets[index]);
+            auto aggState = builder.CreateConstInBoundsGEP1_32(
+                CodegenValuesPtrFromRow(builder, groupRow),
+                keySize + index);
+            auto newValue = builder.CreateConstInBoundsGEP1_32(
+                CodegenValuesPtrFromRow(builder, newRow),
+                keySize + index);
 
+            if (isMerge) {
                 codegenAggregates[index].Merge(
                     builder,
                     aggState,
                     newValue);
-
             } else {
-                auto aggState = builder.CreateConstInBoundsGEP1_32(
-                    CodegenValuesPtrFromRow(builder, groupRow),
-                    aggregateStateOffsets[index]);
-                auto newValue = builder.CreateConstInBoundsGEP1_32(
-                    CodegenValuesPtrFromRow(builder, newRow),
-                    aggregateStateOffsets[0] + index);
-
                 codegenAggregates[index].Update(
                     builder,
                     aggState,
@@ -1423,12 +1413,12 @@ std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpd
 
 std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinalize(
     std::vector<TCodegenAggregate> codegenAggregates,
-    std::vector<int> aggregateStateOffsets,
+    int keySize,
     bool isFinal)
 {
     return [
         MOVE(codegenAggregates),
-        MOVE(aggregateStateOffsets),
+        keySize,
         isFinal
     ] (TCGContext& builder, Value* row) {
         if (!isFinal) {
@@ -1436,30 +1426,31 @@ std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinaliz
         }
         for (int index = 0; index < codegenAggregates.size(); index++) {
             auto valuesPtr = CodegenValuesPtrFromRow(builder, row);
+            //TODO: can remove one of finalize's arguments
             codegenAggregates[index].Finalize(
                 builder,
                 builder.CreateConstInBoundsGEP1_32(
                     valuesPtr,
-                    aggregateStateOffsets[0] + index),
+                    keySize + index),
                 builder.CreateConstInBoundsGEP1_32(
                     valuesPtr,
-                    aggregateStateOffsets[index]));
+                    keySize + index));
         }
     };
 }
 
 std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateInitialize(
     std::vector<TCodegenAggregate> codegenAggregates,
-    std::vector<int> aggregateStateOffsets)
+    int keySize)
 {
     return [
         MOVE(codegenAggregates),
-        MOVE(aggregateStateOffsets)
+        keySize
     ] (TCGContext& builder, Value* row) {
         for (int index = 0; index < codegenAggregates.size(); index++) {
             auto aggState = builder.CreateConstInBoundsGEP1_32(
                 CodegenValuesPtrFromRow(builder, row),
-                aggregateStateOffsets[index]);
+                keySize + index);
             codegenAggregates[index].Initialize(
                 builder,
                 aggState);
