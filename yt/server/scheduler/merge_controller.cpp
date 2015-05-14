@@ -528,7 +528,7 @@ protected:
 
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
-        if (0.9 * miscExt.compressed_data_size() >= Spec->JobIO->NewTableWriter->DesiredChunkSize) {
+        if (0.9 * miscExt.compressed_data_size() >= Spec->JobIO->TableWriter->DesiredChunkSize) {
             return true;
         }
 

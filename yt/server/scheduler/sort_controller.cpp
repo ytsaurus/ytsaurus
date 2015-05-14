@@ -1759,7 +1759,7 @@ private:
 
         InitJobIOConfigs();
 
-        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->NewTableWriter);
+        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
 
         if (SimpleSort) {
             BuildSinglePartition();
@@ -1895,7 +1895,7 @@ private:
 
         // Final sort: reader like sort and output like merge.
         FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
-        FinalSortJobIOConfig->NewTableWriter = CloneYsonSerializable(Spec->MergeJobIO->NewTableWriter);
+        FinalSortJobIOConfig->TableWriter = CloneYsonSerializable(Spec->MergeJobIO->TableWriter);
         if (!SimpleSort) {
             InitIntermediateInputConfig(FinalSortJobIOConfig);
         }
@@ -1989,14 +1989,14 @@ private:
         auto stat = AggregateStatistics(statistics).front();
 
         i64 outputBufferSize = std::min(
-            PartitionJobIOConfig->NewTableWriter->BlockSize * static_cast<i64>(Partitions.size()),
+            PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
             stat.DataSize);
 
         outputBufferSize += THorizontalSchemalessBlockWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
 
         outputBufferSize = std::min(
             outputBufferSize,
-            PartitionJobIOConfig->NewTableWriter->MaxBufferSize);
+            PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TNodeResources result;
         result.set_user_slots(1);
@@ -2343,7 +2343,7 @@ private:
 
         InitJobIOConfigs();
 
-        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->NewTableWriter);
+        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
 
         BuildMultiplePartitions(partitionCount);
     }
@@ -2393,7 +2393,7 @@ private:
         {
             // Partition reduce: writer like in merge and reader like in sort.
             FinalSortJobIOConfig = CloneYsonSerializable(Spec->ReduceJobIO);
-            FinalSortJobIOConfig->NewTableReader = CloneYsonSerializable(Spec->SortJobIO->NewTableReader);
+            FinalSortJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
             InitIntermediateInputConfig(FinalSortJobIOConfig);
             InitFinalOutputConfig(FinalSortJobIOConfig);
         }
@@ -2563,8 +2563,8 @@ private:
 
         i64 reserveSize = THorizontalSchemalessBlockWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
         i64 bufferSize = std::min(
-            reserveSize + PartitionJobIOConfig->NewTableWriter->BlockSize * static_cast<i64>(Partitions.size()),
-            PartitionJobIOConfig->NewTableWriter->MaxBufferSize);
+            reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
+            PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TNodeResources result;
         result.set_user_slots(1);

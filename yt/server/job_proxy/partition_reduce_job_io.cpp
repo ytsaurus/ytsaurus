@@ -44,7 +44,7 @@ public:
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         auto reader = CreateSchemalessPartitionSortReader(
-            JobIOConfig_->NewTableReader,
+            JobIOConfig_->TableReader,
             Host_->GetMasterChannel(),
             Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),

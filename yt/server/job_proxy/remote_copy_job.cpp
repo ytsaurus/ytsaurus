@@ -60,8 +60,8 @@ public:
         , SchedulerJobSpecExt_(JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
     {
         auto config = host->GetConfig();
-        ReaderConfig_ = config->JobIO->NewTableReader;
-        WriterConfig_ = config->JobIO->NewTableWriter;
+        ReaderConfig_ = config->JobIO->TableReader;
+        WriterConfig_ = config->JobIO->TableWriter;
 
         YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
         YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);

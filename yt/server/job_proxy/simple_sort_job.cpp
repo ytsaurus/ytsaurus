@@ -43,7 +43,7 @@ public:
         TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
 
         auto reader = CreateSchemalessParallelMultiChunkReader(
-            config->JobIO->NewTableReader,
+            config->JobIO->TableReader,
             New<TMultiChunkReaderOptions>(),
             host->GetMasterChannel(),
             host->GetBlockCache(),
@@ -59,7 +59,7 @@ public:
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
 
         Writer_ = CreateSchemalessMultiChunkWriter(
-            config->JobIO->NewTableWriter,
+            config->JobIO->TableWriter,
             options,
             nameTable,
             keyColumns,
