@@ -126,50 +126,44 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
         std::vector<TCodegenExpression> codegenGroupExprs;
         std::vector<TCodegenExpression> codegenAggregateExprs;
         std::vector<TCodegenAggregate> codegenAggregates;
-        std::vector<int> aggregateStateOffsets;
 
         for (const auto& groupItem : groupClause->GroupItems) {
             codegenGroupExprs.push_back(Profile(groupItem, schema));
         }
 
-        int offset = groupClause->GroupItems.size();
-        aggregateStateOffsets.push_back(offset);
         for (const auto& aggregateItem : groupClause->AggregateItems) {
             auto aggregateFunction = FunctionRegistry_->GetAggregateFunction(aggregateItem.AggregateFunction);
 
             auto aggregate = Profile(aggregateItem, aggregateFunction, schema);
             codegenAggregateExprs.push_back(aggregate.first);
             codegenAggregates.push_back(aggregate.second);
-
-            auto stateSize = aggregateFunction->GetStateTypes(aggregateItem.Expression->Type).size();
-            offset += stateSize;
-            aggregateStateOffsets.push_back(offset);
         }
+
+        int keySize = codegenGroupExprs.size();
 
         codegenSource = MakeCodegenGroupOp(
             MakeCodegenAggregateInitialize(
                 codegenAggregates,
-                aggregateStateOffsets),
+                keySize),
             MakeCodegenEvaluateGroups(
                 codegenGroupExprs),
             MakeCodegenEvaluateAggregateArgs(
                 codegenGroupExprs,
                 codegenAggregateExprs,
                 codegenAggregates,
-                aggregateStateOffsets,
                 groupClause->IsMerge,
                 schema),
             MakeCodegenAggregateUpdate(
                 codegenAggregates,
-                aggregateStateOffsets,
+                keySize,
                 groupClause->IsMerge),
             MakeCodegenAggregateFinalize(
                 codegenAggregates,
-                aggregateStateOffsets,
+                keySize,
                 groupClause->IsFinal),
             std::move(codegenSource),
-            codegenGroupExprs.size(),
-            aggregateStateOffsets[codegenAggregates.size()],
+            keySize,
+            keySize + codegenAggregates.size(),
             groupClause->GroupedTableSchema);
 
         schema = groupClause->GetTableSchema();

@@ -565,10 +565,10 @@ const TCodegenAggregate TAggregateFunction::MakeCodegenAggregate(
     return codegenAggregate;
 }
 
-std::vector<EValueType> TAggregateFunction::GetStateTypes(
+EValueType TAggregateFunction::GetStateType(
     EValueType type) const
 {
-    return std::vector<EValueType>{type};
+    return type;
 }
 
 EValueType TAggregateFunction::InferResultType(
@@ -799,12 +799,10 @@ const TCodegenAggregate TAverageAggregateFunction::MakeCodegenAggregate(
     return codegenAggregate;
 }
 
-std::vector<EValueType> TAverageAggregateFunction::GetStateTypes(
+EValueType TAverageAggregateFunction::GetStateType(
     EValueType type) const
 {
-    return std::vector<EValueType>{
-        EValueType::String
-    };
+    return EValueType::String;
 }
 
 EValueType TAverageAggregateFunction::InferResultType(

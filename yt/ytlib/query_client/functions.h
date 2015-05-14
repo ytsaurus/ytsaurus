@@ -41,7 +41,7 @@ struct IAggregateFunctionDescriptor
         EValueType type,
         const Stroka& name) const = 0;
 
-    virtual std::vector<EValueType> GetStateTypes(
+    virtual EValueType GetStateType(
         EValueType type) const = 0;
 
     virtual EValueType InferResultType(
