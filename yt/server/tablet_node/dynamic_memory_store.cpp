@@ -464,7 +464,7 @@ public:
         rows->clear();
         Pool_.Clear();
 
-        auto keyComparer = Store_->GetTablet()->GetRowKeyComparer();
+        const auto& keyComparer = Store_->GetRowKeyComparer();
 
         while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
             if (keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperKey_.Get()}) >= 0)
@@ -552,7 +552,7 @@ public:
             return false;
         }
 
-        auto keyComparer = Store_->GetTablet()->GetRowKeyComparer();
+        const auto& keyComparer = Store_->GetRowKeyComparer();
 
         while (rows->size() < rows->capacity()) {
             if (RowCount_ == Keys_.Size())
@@ -597,12 +597,13 @@ TDynamicMemoryStore::TDynamicMemoryStore(
         tablet)
     , FlushState_(EStoreFlushState::None)
     , Config_(config)
+    , RowKeyComparer_(tablet->GetRowKeyComparer())
     , RowBuffer_(New<TRowBuffer>(
         Config_->PoolChunkSize,
         Config_->MaxPoolSmallBlockRatio))
     , Rows_(new TSkipList<TDynamicRow, TDynamicRowKeyComparer>(
         RowBuffer_->GetPool(),
-        tablet->GetRowKeyComparer()))
+        RowKeyComparer_))
 {
     StoreState_ = EStoreState::ActiveDynamic;
 
@@ -613,6 +614,11 @@ TDynamicMemoryStore::TDynamicMemoryStore(
 TDynamicMemoryStore::~TDynamicMemoryStore()
 {
     LOG_DEBUG("Dynamic memory store destroyed");
+}
+
+const TDynamicRowKeyComparer& TDynamicMemoryStore::GetRowKeyComparer() const
+{
+    return RowKeyComparer_;
 }
 
 int TDynamicMemoryStore::GetLockCount() const

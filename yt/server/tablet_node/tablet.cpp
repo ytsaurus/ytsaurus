@@ -559,7 +559,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot() const
         tabletSnapshot->Partitions.push_back(partitionSnapshot);
         tabletSnapshot->StoreCount += partitionSnapshot->Stores.size();
     }
-    tabletSnapshot->RowKeyComparer = GetRowKeyComparer();
+    tabletSnapshot->RowKeyComparer = RowKeyComparer_;
     tabletSnapshot->PerformanceCounters = PerformanceCounters_;
     return tabletSnapshot;
 }
@@ -568,7 +568,7 @@ void TTablet::Initialize()
 {
     PerformanceCounters_ = New<TTabletPerformanceCounters>();
 
-    Comparer_ = TDynamicRowKeyComparer::Create(
+    RowKeyComparer_ = TDynamicRowKeyComparer::Create(
         GetKeyColumnCount(),
         Schema_);
 
@@ -615,9 +615,9 @@ TPartition* TTablet::GetContainingPartition(IStorePtr store)
     return GetContainingPartition(store->GetMinKey(), store->GetMaxKey());
 }
 
-TDynamicRowKeyComparer TTablet::GetRowKeyComparer() const
+const TDynamicRowKeyComparer& TTablet::GetRowKeyComparer() const
 {
-    return Comparer_;
+    return RowKeyComparer_;
 }
 
 TObjectId TTablet::GenerateId(EObjectType type)
