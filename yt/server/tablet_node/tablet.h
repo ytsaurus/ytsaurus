@@ -174,7 +174,7 @@ public:
 
     TTabletSnapshotPtr BuildSnapshot() const;
 
-    TDynamicRowKeyComparer GetRowKeyComparer() const;
+    const TDynamicRowKeyComparer& GetRowKeyComparer() const;
 
 private:
     TTableMountConfigPtr Config_;
@@ -194,7 +194,7 @@ private:
     yhash_map<TStoreId, IStorePtr> Stores_;
     TDynamicMemoryStorePtr ActiveStore_;
 
-    TDynamicRowKeyComparer Comparer_;
+    TDynamicRowKeyComparer RowKeyComparer_;
 
     int ColumnLockCount_ = -1;
 

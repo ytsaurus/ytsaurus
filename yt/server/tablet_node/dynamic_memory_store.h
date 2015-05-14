@@ -59,6 +59,10 @@ public:
 
     ~TDynamicMemoryStore();
 
+    //! Returns the cached instance of row key comparer
+    //! (obtained by calling TTablet::GetRowKeyComparer).
+    const TDynamicRowKeyComparer& GetRowKeyComparer() const;
+
     int GetLockCount() const;
     int Lock();
     int Unlock();
@@ -150,6 +154,8 @@ private:
 
     int StoreLockCount_ = 0;
     int StoreValueCount_ = 0;
+
+    TDynamicRowKeyComparer RowKeyComparer_;
 
     NVersionedTableClient::TRowBufferPtr RowBuffer_;
     std::unique_ptr<TSkipList<TDynamicRow, TDynamicRowKeyComparer>> Rows_;
