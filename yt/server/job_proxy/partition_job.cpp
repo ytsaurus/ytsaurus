@@ -46,7 +46,7 @@ public:
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         Reader_ = CreateSchemalessParallelMultiChunkReader(
-            config->JobIO->NewTableReader,
+            config->JobIO->TableReader,
             New<TMultiChunkReaderOptions>(),
             host->GetMasterChannel(),
             host->GetBlockCache(),
@@ -79,7 +79,7 @@ public:
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
 
         Writer_ = CreatePartitionMultiChunkWriter(
-            config->JobIO->NewTableWriter,
+            config->JobIO->TableWriter,
             options,
             nameTable,
             keyColumns,

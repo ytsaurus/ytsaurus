@@ -46,7 +46,7 @@ public:
         std::vector<TChunkSpec> chunkSpecs(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
         Reader_ = CreateSchemalessPartitionSortReader(
-            config->JobIO->NewTableReader,
+            config->JobIO->TableReader,
             host->GetMasterChannel(),
             host->GetBlockCache(),
             host->GetNodeDirectory(),
@@ -64,7 +64,7 @@ public:
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
 
         Writer_ = CreateSchemalessMultiChunkWriter(
-            config->JobIO->NewTableWriter,
+            config->JobIO->TableWriter,
             options,
             nameTable,
             keyColumns,

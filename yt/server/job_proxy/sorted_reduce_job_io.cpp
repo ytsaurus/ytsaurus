@@ -44,7 +44,7 @@ public:
             std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
             auto reader = CreateSchemalessSequentialMultiChunkReader(
-                JobIOConfig_->NewTableReader,
+                JobIOConfig_->TableReader,
                 options,
                 Host_->GetMasterChannel(),
                 Host_->GetBlockCache(),

@@ -115,7 +115,7 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
 {
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
     return CreateSchemalessMultiChunkWriter(
-        JobIOConfig_->NewTableWriter,
+        JobIOConfig_->TableWriter,
         options,
         nameTable,
         keyColumns,
@@ -150,7 +150,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
 {
     if (isParallel) {
         return CreateSchemalessParallelMultiChunkReader(
-            JobIOConfig_->NewTableReader,
+            JobIOConfig_->TableReader,
             options,
             Host_->GetMasterChannel(),
             Host_->GetBlockCache(),
@@ -159,7 +159,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             nameTable);
     } else {
         return CreateSchemalessSequentialMultiChunkReader(
-            JobIOConfig_->NewTableReader,
+            JobIOConfig_->TableReader,
             options,
             Host_->GetMasterChannel(),
             Host_->GetBlockCache(),
