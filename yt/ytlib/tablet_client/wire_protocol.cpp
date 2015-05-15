@@ -352,24 +352,19 @@ public:
         return Current_ == Data_.End();
     }
 
-    TSharedRef GetConsumedPart() const
-    {
-        return Data_.Slice(TRef(const_cast<char*>(Data_.Begin()), const_cast<char*>(Current_)));
-    }
-
-    TSharedRef GetRemainingPart() const
-    {
-        return Data_.Slice(TRef(const_cast<char*>(Current_), const_cast<char*>(Data_.End())));
-    }
-
-    const char* GetCurrent() const
+    TIterator GetCurrent() const
     {
         return Current_;
     }
 
-    void SetCurrent(const char* current)
+    void SetCurrent(TIterator current)
     {
         Current_ = current;
+    }
+
+    TSharedRef Slice(TIterator begin, TIterator end)
+    {
+        return Data_.Slice(TRef(const_cast<char*>(begin), const_cast<char*>(end)));
     }
 
     EWireProtocolCommand ReadCommand()
@@ -411,7 +406,7 @@ public:
 
 private:
     TSharedRef Data_;
-    const char* Current_;
+    TIterator Current_;
 
     TChunkedMemoryPool AlignedPool_;
     TChunkedMemoryPool UnalignedPool_;
@@ -558,24 +553,19 @@ bool TWireProtocolReader::IsFinished() const
     return Impl_->IsFinished();
 }
 
-TSharedRef TWireProtocolReader::GetConsumedPart() const
-{
-    return Impl_->GetConsumedPart();
-}
-
-TSharedRef TWireProtocolReader::GetRemainingPart() const
-{
-    return Impl_->GetRemainingPart();
-}
-
-const char* TWireProtocolReader::GetCurrent() const
+auto TWireProtocolReader::GetCurrent() const -> TIterator
 {
     return Impl_->GetCurrent();
 }
 
-void TWireProtocolReader::SetCurrent(const char* current)
+void TWireProtocolReader::SetCurrent(TIterator current)
 {
     Impl_->SetCurrent(current);
+}
+
+TSharedRef TWireProtocolReader::Slice(TIterator begin, TIterator end)
+{
+    return Impl_->Slice(begin, end);
 }
 
 EWireProtocolCommand TWireProtocolReader::ReadCommand()

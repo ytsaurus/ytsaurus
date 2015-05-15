@@ -192,6 +192,7 @@ public:
         ValidateMemoryLimit();
 
         int prelockedCountBefore = PrelockedTransactions_.size();
+        auto readerBegin = reader->GetCurrent();
 
         TError error;
         TNullable<TRowBlockedException> rowBlockedEx;
@@ -222,7 +223,8 @@ public:
                 tablet->GetTabletId(),
                 prelockedCountDelta);
 
-            auto requestData = reader->GetConsumedPart();
+            auto readerEnd = reader->GetCurrent();
+            auto requestData = reader->Slice(readerBegin, readerEnd);
             auto compressedRequestData = ChangelogCodec_->Compress(requestData);
 
             TReqExecuteWrite hydraRequest;
