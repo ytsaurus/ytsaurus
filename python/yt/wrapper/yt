@@ -234,14 +234,17 @@ def find(**args):
     if args["name"] is not None:
         path_filter = lambda path: fnmatch.fnmatch(os.path.basename(path), args["name"])
 
-    attributes = filter(lambda x: args[x] is not None, ["account", "owner"])
+    attributes = dict([(x, args[x]) for x in ["account", "owner"] if args[x] is not None])
+    if args["attribute_filter"] is not None:
+        attributes.update(yson.loads(args["attribute_filter"], yson_type="map_fragment"))
+
     object_filter = lambda obj: \
-        all([obj.attributes.get(attr) == args[attr] for attr in attributes])
+        all([obj.attributes.get(attr) == attributes[attr] for attr in attributes])
 
     result = yt.search(args["path"],
                     node_type=args["type"],
                     path_filter=path_filter,
-                    attributes=attributes,
+                    attributes=attributes.keys(),
                     object_filter=object_filter,
                     depth_bound=args["depth"])
 
@@ -255,6 +258,7 @@ def add_find_parser(add_parser):
     add_type_help(parser, "--type")
     parser.add_argument("--account")
     parser.add_argument("--owner")
+    parser.add_argument("--attribute-filter", help="yson map fragment with filtering attributes, e.g. k1=v1;k2=v2")
     parser.add_argument("--depth", type=int, help="recursion depth (infinite by default)")
     parser.add_argument("-l", "--long-format", action="store_true", help="print some extra information about nodes")
     parser.set_defaults(func=find)

@@ -19,6 +19,8 @@ class YsonType(object):
 
 class YsonString(str, YsonType):
     def __eq__(self, other):
+        if not isinstance(other, str):
+            return False
         return str(self) == str(other) and YsonType.__eq__(self, other)
 
     def __hash__(self):
@@ -29,7 +31,9 @@ class YsonString(str, YsonType):
 
 class YsonInt64(int, YsonType):
     def __eq__(self, other):
-        return int(self) == int(other) and YsonType.__eq__(self, other)
+        if not isinstance(other, (int, long)):
+            return False
+        return long(self) == long(other) and YsonType.__eq__(self, other)
 
     def __hash__(self):
         return self.base_hash(int)
@@ -40,21 +44,16 @@ class YsonInt64(int, YsonType):
     def __str__(self):
         return self.__repr__()
 
-class YsonUint64(long, YsonType):
-    def __eq__(self, other):
-        return long(self) == long(other) and YsonType.__eq__(self, other)
-
-    def __hash__(self):
-        return self.base_hash(long)
-
-    def __repr__(self):
-        return self.repr(long)
-
-    def __str__(self):
-        return self.__repr__()
+class YsonUint64(YsonInt64):
+    def __init__(self, *args, **kwargs):
+        super(YsonUint64, self).__init__(*args, **kwargs)
+        if self < 0:
+            raise TypeError("'YsonUint64' is unsigned")
 
 class YsonDouble(float, YsonType):
     def __eq__(self, other):
+        if not isinstance(other, float):
+            return False
         return float(self) == float(other) and YsonType.__eq__(self, other)
 
     def __hash__(self):
@@ -68,6 +67,8 @@ class YsonDouble(float, YsonType):
 
 class YsonBoolean(int, YsonType):
     def __eq__(self, other):
+        if not isinstance(other, int):
+            return False
         return (int(self) == 0) == (int(other) == 0) and YsonType.__eq__(self, other)
 
     def __hash__(self):
@@ -85,6 +86,8 @@ class YsonList(list, YsonType):
         list.__init__(self, *kargs, **kwargs)
 
     def __eq__(self, other):
+        if not isinstance(other, list):
+            return False
         return list(self) == list(other) and YsonType.__eq__(self, other)
 
     def __hash__(self):
@@ -102,6 +105,8 @@ class YsonMap(dict, YsonType):
         dict.__init__(self, *kargs, **kwargs)
 
     def __eq__(self, other):
+        if not isinstance(other, dict):
+            return False
         return dict(self) == dict(other) and YsonType.__eq__(self, other)
 
     def __hash__(self):
