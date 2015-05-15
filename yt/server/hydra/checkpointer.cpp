@@ -180,7 +180,7 @@ private:
             for (TPeerId id2 = id1 + 1; id2 < SnapshotChecksums_.size(); ++id2) {
                 const auto& checksum2 = SnapshotChecksums_[id2];
                 if (checksum1 && checksum2 && checksum1 != checksum2) {
-                    LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v)"
+                    LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v)",
                         Version_.SegmentId + 1);
                 }
             }
