@@ -2,6 +2,8 @@
 #include "node.h"
 #include "rack.h"
 
+#include <core/misc/collection_helpers.h>
+
 #include <ytlib/object_client/helpers.h>
 
 #include <server/chunk_server/job.h>
@@ -350,6 +352,20 @@ void TNode::DetachTabletCell(const TTabletCell* cell)
     if (slot) {
         *slot = TTabletSlot();
     }
+}
+
+void TNode::ShrinkHashTables()
+{
+    ShrinkHashTable(&StoredReplicas_);
+    RandomReplicaIt_ = StoredReplicas_.end();
+    ShrinkHashTable(&CachedReplicas_);
+    ShrinkHashTable(&UnapprovedReplicas_);
+    ShrinkHashTable(&Jobs_);
+    for (auto& queue : ChunkReplicationQueues_) {
+        ShrinkHashTable(&queue);
+    }
+    ShrinkHashTable(&ChunkRemovalQueue_);
+    ShrinkHashTable(&ChunkSealQueue_);
 }
 
 ui64 TNode::GenerateVisitMark()

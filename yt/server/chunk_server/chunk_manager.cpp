@@ -15,7 +15,6 @@
 #include "helpers.h"
 
 #include <core/misc/string.h>
-#include <core/misc/collection_helpers.h>
 
 #include <core/compression/codec.h>
 
@@ -1037,16 +1036,7 @@ private:
         const TReqIncrementalHeartbeat& request,
         TRspIncrementalHeartbeat* /*response*/)
     {
-        // Shrink hashtables.
-        ShrinkHashTable(&node->StoredReplicas());
-        ShrinkHashTable(&node->CachedReplicas());
-        ShrinkHashTable(&node->UnapprovedReplicas());
-        ShrinkHashTable(&node->Jobs());
-        for (auto& queue : node->ChunkReplicationQueues()) {
-            ShrinkHashTable(&queue);
-        }
-        ShrinkHashTable(&node->ChunkRemovalQueue());
-        ShrinkHashTable(&node->ChunkSealQueue());
+        node->ShrinkHashTables();
 
         for (const auto& chunkInfo : request.added_chunks()) {
             ProcessAddedChunk(node, chunkInfo, true);
