@@ -917,6 +917,13 @@ private:
                 << TErrorAttribute("rss", rss)
                 << TErrorAttribute("limit", memoryLimit));
 
+            if (!Config_->EnableCGroups) {
+                // TODO(psushin): If someone wanted to use
+                // YT without cgroups in production than one need to
+                // implement kill by uid here
+                return;
+            }
+
             YCHECK(Freezer_.IsCreated());
 
             try {
