@@ -100,15 +100,17 @@ class TWireProtocolReader
     : private TNonCopyable
 {
 public:
+    using TIterator = const char*;
+
     explicit TWireProtocolReader(const TSharedRef& data);
     ~TWireProtocolReader();
 
     bool IsFinished() const;
-    TSharedRef GetConsumedPart() const;
-    TSharedRef GetRemainingPart() const;
 
-    const char* GetCurrent() const;
-    void SetCurrent(const char* current);
+    TIterator GetCurrent() const;
+    void SetCurrent(TIterator);
+
+    TSharedRef Slice(TIterator begin, TIterator end);
 
     EWireProtocolCommand ReadCommand();
 
