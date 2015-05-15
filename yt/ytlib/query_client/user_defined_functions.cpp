@@ -544,37 +544,14 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
         type,
         name,
         makeCodegenBody
-    ] (TCGContext& builder, Value* aggState) {
+    ] (TCGContext& builder, Value* row) {
         auto stateType = this_->GetStateType(type);
 
-        auto stateValue = this_->CallingConvention_->MakeCodegenFunctionCall(
+        return this_->CallingConvention_->MakeCodegenFunctionCall(
             std::vector<TCodegenExpression>(),
             makeCodegenBody(this_->AggregateName_ + "_init"),
             stateType,
-            name + "_init")(builder, aggState);
-
-        //TODO use StoreToRow instead of copying fields
-        builder.CreateStore(
-            stateValue.GetType(builder),
-            builder.CreateStructGEP(aggState, TTypeBuilder::Type));
-        builder.CreateStore(
-            stateValue.GetLength(),
-            builder.CreateStructGEP(aggState, TTypeBuilder::Length));
-
-        auto data = stateValue.GetData();
-        auto targetType = TDataTypeBuilder::get(builder.getContext());
-
-        if (data->getType()->isPointerTy()) {
-            data = builder.CreatePtrToInt(data, targetType);
-        } else if (data->getType()->isFloatingPointTy()) {
-            data = builder.CreateBitCast(data, targetType);
-        } else {
-            data = builder.CreateIntCast(data, targetType, false);
-        }
-
-        builder.CreateStore(
-            data,
-            builder.CreateStructGEP(aggState, TTypeBuilder::Data));
+            name + "_init")(builder, row);
     };
 
     codegenAggregate.Update = [
@@ -598,34 +575,11 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
                 type);
         });
 
-        auto stateValue = this_->CallingConvention_->MakeCodegenFunctionCall(
+        return this_->CallingConvention_->MakeCodegenFunctionCall(
             codegenArgs,
             makeCodegenBody(this_->AggregateName_ + "_update"),
             stateType,
             name + "_update")(builder, aggState);
-
-        //TODO use StoreToRow instead of copying fields
-        builder.CreateStore(
-            stateValue.GetType(builder),
-            builder.CreateStructGEP(aggState, TTypeBuilder::Type));
-        builder.CreateStore(
-            stateValue.GetLength(),
-            builder.CreateStructGEP(aggState, TTypeBuilder::Length));
-
-        auto data = stateValue.GetData();
-        auto targetType = TDataTypeBuilder::get(builder.getContext());
-
-        if (data->getType()->isPointerTy()) {
-            data = builder.CreatePtrToInt(data, targetType);
-        } else if (data->getType()->isFloatingPointTy()) {
-            data = builder.CreateBitCast(data, targetType);
-        } else {
-            data = builder.CreateIntCast(data, targetType, false);
-        }
-
-        builder.CreateStore(
-            data,
-            builder.CreateStructGEP(aggState, TTypeBuilder::Data));
     };
 
     codegenAggregate.Merge = [
@@ -649,34 +603,11 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
                 stateType);
         });
 
-        auto stateValue = this_->CallingConvention_->MakeCodegenFunctionCall(
+        return this_->CallingConvention_->MakeCodegenFunctionCall(
             codegenArgs,
             makeCodegenBody(this_->AggregateName_ + "_merge"),
             stateType,
             name + "_merge")(builder, aggState);
-
-        //TODO use StoreToRow instead of copying fields
-        builder.CreateStore(
-            stateValue.GetType(builder),
-            builder.CreateStructGEP(dstAggState, TTypeBuilder::Type));
-        builder.CreateStore(
-            stateValue.GetLength(),
-            builder.CreateStructGEP(dstAggState, TTypeBuilder::Length));
-
-        auto data = stateValue.GetData();
-        auto targetType = TDataTypeBuilder::get(builder.getContext());
-
-        if (data->getType()->isPointerTy()) {
-            data = builder.CreatePtrToInt(data, targetType);
-        } else if (data->getType()->isFloatingPointTy()) {
-            data = builder.CreateBitCast(data, targetType);
-        } else {
-            data = builder.CreateIntCast(data, targetType, false);
-        }
-
-        builder.CreateStore(
-            data,
-            builder.CreateStructGEP(dstAggState, TTypeBuilder::Data));
     };
 
     codegenAggregate.Finalize = [
@@ -684,7 +615,7 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
         type,
         name,
         makeCodegenBody
-    ] (TCGContext& builder, Value* result, Value* aggState) {
+    ] (TCGContext& builder, Value* aggState) {
         auto stateType = this_->GetStateType(type);
         auto codegenArgs = std::vector<TCodegenExpression>();
         codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
@@ -694,34 +625,11 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
                 stateType);
         });
 
-        auto resultValue = this_->CallingConvention_->MakeCodegenFunctionCall(
+        return this_->CallingConvention_->MakeCodegenFunctionCall(
             codegenArgs,
             makeCodegenBody(this_->AggregateName_ + "_finalize"),
             type,
             name + "_finalize")(builder, aggState);
-
-        //TODO use StoreToRow instead of copying fields
-        builder.CreateStore(
-            resultValue.GetType(builder),
-            builder.CreateStructGEP(result, TTypeBuilder::Type));
-        builder.CreateStore(
-            resultValue.GetLength(),
-            builder.CreateStructGEP(result, TTypeBuilder::Length));
-
-        auto data = resultValue.GetData();
-        auto targetType = TDataTypeBuilder::get(builder.getContext());
-
-        if (data->getType()->isPointerTy()) {
-            data = builder.CreatePtrToInt(data, targetType);
-        } else if (data->getType()->isFloatingPointTy()) {
-            data = builder.CreateBitCast(data, targetType);
-        } else {
-            data = builder.CreateIntCast(data, targetType, false);
-        }
-
-        builder.CreateStore(
-            data,
-            builder.CreateStructGEP(result, TTypeBuilder::Data));
     };
 
     return codegenAggregate;

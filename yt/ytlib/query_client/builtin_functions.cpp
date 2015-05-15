@@ -350,12 +350,9 @@ TCodegenAggregateInit MakeCodegenInitialize(
     const Stroka& name)
 {
     return [
-    ] (TCGContext& builder, Value* aggState) {
-        builder.CreateStore(
-            builder.getInt16(static_cast<ui16>(EValueType::Null)),
-            builder.CreateStructGEP(
-                aggState,
-                TTypeBuilder::Type));
+        type
+    ] (TCGContext& builder, Value* row) {
+        return TCGValue::CreateNull(builder, type);
     };
 }
 
@@ -371,51 +368,29 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
         ] (TCGContext& builder, Value* aggState, Value* newValue) {
             Twine name = nameStroka.c_str();
 
-            auto codegenGetData = [&] (Value* value) {
-                return builder.CreateLoad(
-                    builder.CreateStructGEP(
-                        value,
-                        TTypeBuilder::Data));
-            };
-
             auto newTCGValue = TCGValue::CreateFromLlvmValue(
                 builder,
                 newValue,
                 type,
                 name + ".new_value");
+            auto aggregateValue = TCGValue::CreateFromLlvmValue(
+                builder,
+                aggState,
+                type,
+                name + ".aggregate");
 
-            CodegenIf<TCGContext>(
+            return CodegenIf<TCGContext, TCGValue>(
                 builder,
                 newTCGValue.IsNull(),
-                [&] (TCGContext& builder) { },
                 [&] (TCGContext& builder) {
-                    auto aggregateValue = TCGValue::CreateFromLlvmValue(
-                        builder,
-                        aggState,
-                        type,
-                        name + ".aggregate");
-                    CodegenIf<TCGContext>(
+                    return aggregateValue;
+                },
+                [&] (TCGContext& builder) {
+                    return CodegenIf<TCGContext, TCGValue>(
                         builder,
                         aggregateValue.IsNull(),
                         [&] (TCGContext& builder) {
-                            if (type == EValueType::String) {
-                                builder.CreateStore(
-                                    newTCGValue.GetLength(),
-                                    builder.CreateStructGEP(
-                                        aggState,
-                                        TTypeBuilder::Length));
-                            }
-                            builder.CreateStore(
-                                builder.getInt16(static_cast<ui16>(type)),
-                                builder.CreateStructGEP(
-                                    aggState,
-                                    TTypeBuilder::Type));
-                            builder.CreateStore(
-                                codegenGetData(newValue),
-                                builder.CreateStructGEP(
-                                    aggState,
-                                    TTypeBuilder::Data,
-                                    name));
+                            return newTCGValue;
                         },
                         [&] (TCGContext& builder) {
                             Value* newData = newTCGValue.GetData();
@@ -471,8 +446,8 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                     newTCGValue.GetLength());
                                 resultData = builder.CreateSelect(
                                     compareResult,
-                                    codegenGetData(aggState),
-                                    codegenGetData(newValue));
+                                    aggregateValue.GetData(),
+                                    newTCGValue.GetData());
                             } else if (aggregateFunction == "max") {
                                 Value* compareResult = nullptr;
                                 switch (type) {
@@ -503,25 +478,18 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                     newTCGValue.GetLength());
                                 resultData = builder.CreateSelect(
                                     compareResult,
-                                    codegenGetData(aggState),
-                                    codegenGetData(newValue));
+                                    aggregateValue.GetData(),
+                                    newTCGValue.GetData());
                             } else {
                                 YUNIMPLEMENTED();
                             }
 
-                            if (type == EValueType::String) {
-                                builder.CreateStore(
-                                    resultLength,
-                                    builder.CreateStructGEP(
-                                        aggState,
-                                        TTypeBuilder::Length));
-                            }
-                            builder.CreateStore(
+                            return TCGValue::CreateFromValue(
+                                builder,
+                                builder.getInt1(false),
+                                resultLength,
                                 resultData,
-                                builder.CreateStructGEP(
-                                    aggState,
-                                    TTypeBuilder::Data,
-                                    name));
+                                type);
                         });
 
                 });
@@ -541,15 +509,12 @@ TCodegenAggregateFinalize MakeCodegenFinalize(
     const Stroka& name)
 {
     return [
-    ] (TCGContext& builder, Value* result, Value* aggState) {
-        builder.CreateStore(
-            builder.CreateLoad(
-                builder.CreateStructGEP(aggState, TTypeBuilder::Type)),
-            builder.CreateStructGEP(result, TTypeBuilder::Type));
-        builder.CreateStore(
-            builder.CreateLoad(
-                builder.CreateStructGEP(aggState, TTypeBuilder::Data)),
-            builder.CreateStructGEP(result, TTypeBuilder::Data));
+        type
+    ] (TCGContext& builder, Value* aggState) {
+        return TCGValue::CreateFromLlvmValue(
+            builder,
+            aggState,
+            type);
     };
 }
 
@@ -592,231 +557,6 @@ EValueType TAggregateFunction::InferResultType(
             std::unordered_map<TTypeArgument, EValueType>()),
         argumentType)
         << TErrorAttribute("expression", source);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TAverageAggregateFunction::TAverageAggregateFunction()
-{ }
-
-Stroka TAverageAggregateFunction::GetName() const
-{
-    return "avg";
-}
-
-TCodegenAggregateInit MakeCodegenAverageInitialize(
-    EValueType type,
-    const Stroka& name)
-{
-    return [
-    ] (TCGContext& builder, Value* aggState) {
-        auto statePtr = builder.CreatePointerCast(
-            builder.CreateCall2(
-                builder.Module->GetRoutine("AllocateBytes"),
-                builder.GetExecutionContextPtr(),
-                builder.CreateZExt(
-                    builder.getInt32(2 * sizeof(ui64)),
-                    builder.getSizeType())),
-            PointerType::getUnqual(builder.getInt64Ty()));
-
-        auto sumPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 0);
-        auto countPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 1);
-
-        builder.CreateStore(
-            builder.getInt64(0),
-            sumPtr);
-        builder.CreateStore(
-            builder.getInt64(0),
-            countPtr);
-
-        builder.CreateStore(
-            builder.getInt16(static_cast<ui16>(EValueType::String)),
-            builder.CreateStructGEP(aggState, TTypeBuilder::Type));
-        builder.CreateStore(
-            builder.getInt32(2 * sizeof(ui64)),
-            builder.CreateStructGEP(aggState, TTypeBuilder::Length));
-        builder.CreateStore(
-            builder.CreatePtrToInt(statePtr, builder.getInt64Ty()),
-            builder.CreateStructGEP(aggState, TTypeBuilder::Data));
-
-    };
-}
-
-TCodegenAggregateUpdate MakeCodegenAverageUpdate(
-    const Stroka& aggregateFunction,
-    EValueType type,
-    const Stroka& nameStroka)
-{
-    return [
-            aggregateFunction,
-            type,
-            MOVE(nameStroka)
-        ] (TCGContext& builder, Value* aggState, Value* newValue) {
-            auto statePtr = builder.CreateIntToPtr(
-                builder.CreateLoad(builder.CreateStructGEP(
-                    aggState,
-                    TTypeBuilder::Data)),
-                PointerType::getUnqual(builder.getInt64Ty()));
-
-            auto sumPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 0);
-            auto countPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 1);
-
-            auto newValueType = builder.CreateLoad(
-                builder.CreateStructGEP(newValue, TTypeBuilder::Type));
-            auto newValueNonNull = builder.CreateICmpNE(
-                newValueType, 
-                builder.getInt16(static_cast<ui16>(EValueType::Null)));
-
-            CodegenIf<TCGContext>(
-                builder,
-                newValueNonNull,
-                [&] (TCGContext& builder) {
-                    auto resultSum = builder.CreateAdd(
-                        builder.CreateLoad(sumPtr),
-                        builder.CreateLoad(
-                            builder.CreateStructGEP(newValue, TTypeBuilder::Data)));
-
-                    auto resultCount = builder.CreateAdd(
-                        builder.CreateLoad(countPtr),
-                        builder.getInt64(1));
-
-                    builder.CreateStore(
-                        resultSum,
-                        sumPtr);
-
-                    builder.CreateStore(
-                        resultCount,
-                        countPtr);
-                });
-        };
-}
-
-TCodegenAggregateMerge MakeCodegenAverageMerge(
-    EValueType type,
-    const Stroka& name)
-{
-    return [
-    ] (TCGContext& builder, Value* dstAggState, Value* aggState) {
-        auto dstStatePtr = builder.CreateIntToPtr(
-            builder.CreateLoad(builder.CreateStructGEP(
-                dstAggState,
-                TTypeBuilder::Data)),
-            PointerType::getUnqual(builder.getInt64Ty()));
-
-        auto statePtr = builder.CreateIntToPtr(
-            builder.CreateLoad(builder.CreateStructGEP(
-                aggState,
-                TTypeBuilder::Data)),
-            PointerType::getUnqual(builder.getInt64Ty()));
-
-        auto dstSumPtr = builder.CreateConstInBoundsGEP1_32(dstStatePtr, 0);
-        auto dstCountPtr = builder.CreateConstInBoundsGEP1_32(dstStatePtr, 1);
-
-        auto sumPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 0);
-        auto countPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 1);
-
-        auto resultSum = builder.CreateAdd(
-            builder.CreateLoad(
-                dstSumPtr),
-            builder.CreateLoad(
-                sumPtr));
-
-        auto resultCount = builder.CreateAdd(
-            builder.CreateLoad(
-                dstCountPtr),
-            builder.CreateLoad(
-                countPtr));
-
-        builder.CreateStore(
-            resultSum,
-            dstSumPtr);
-
-        builder.CreateStore(
-            resultCount,
-            dstCountPtr);
-    };
-}
-
-TCodegenAggregateFinalize MakeCodegenAverageFinalize(
-    EValueType type,
-    const Stroka& name)
-{
-    return [
-    ] (TCGContext& builder, Value* result, Value* aggState) {
-        auto statePtr = builder.CreateIntToPtr(
-            builder.CreateLoad(builder.CreateStructGEP(
-                aggState,
-                TTypeBuilder::Data)),
-            PointerType::getUnqual(builder.getInt64Ty()));
-
-        auto sumPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 0);
-        auto countPtr = builder.CreateConstInBoundsGEP1_32(statePtr, 1);
-
-        auto sumValue = builder.CreateLoad(sumPtr);
-        auto countValue = builder.CreateLoad(countPtr);
-
-        auto countIsZero = builder.CreateICmpEQ(
-            countValue,
-            builder.getInt64(0));
-        CodegenIf<TCGContext>(
-            builder,
-            countIsZero,
-            [&] (TCGContext& builder) {
-                builder.CreateStore(
-                    builder.getInt16(static_cast<ui16>(EValueType::Null)),
-                    builder.CreateStructGEP(result, TTypeBuilder::Type));
-            },
-            [&] (TCGContext& builder) {
-                auto resultValue = builder.CreateFDiv(
-                    builder.CreateSIToFP(sumValue, builder.getDoubleTy()),
-                    builder.CreateSIToFP(countValue, builder.getDoubleTy()));
-
-                auto dataType = TDataTypeBuilder::get(builder.getContext());
-                auto resultData = builder.CreateBitCast(
-                    resultValue,
-                    dataType);
-
-                builder.CreateStore(
-                    resultData,
-                    builder.CreateStructGEP(result, TTypeBuilder::Data));
-
-                builder.CreateStore(
-                    builder.getInt16(static_cast<ui16>(EValueType::Double)),
-                    builder.CreateStructGEP(result, TTypeBuilder::Type));
-            });
-    };
-}
-
-const TCodegenAggregate TAverageAggregateFunction::MakeCodegenAggregate(
-    EValueType type,
-    const Stroka& name) const
-{
-    TCodegenAggregate codegenAggregate;
-    codegenAggregate.Initialize = MakeCodegenAverageInitialize(type, name);
-    codegenAggregate.Update = MakeCodegenAverageUpdate(GetName(), type, name);
-    codegenAggregate.Merge = MakeCodegenAverageMerge(type, name);
-    codegenAggregate.Finalize = MakeCodegenAverageFinalize(type, name);
-    return codegenAggregate;
-}
-
-EValueType TAverageAggregateFunction::GetStateType(
-    EValueType type) const
-{
-    return EValueType::String;
-}
-
-EValueType TAverageAggregateFunction::InferResultType(
-    EValueType argumentType,
-    const TStringBuf& source) const
-{
-    if (argumentType != EValueType::Int64) {
-        THROW_ERROR_EXCEPTION(
-            "Wrong type for argument to aggregate function %Qv: expected %Qv, got %Qv",
-            GetName(),
-            EValueType::Int64,
-            argumentType);
-    }
-    return EValueType::Double;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

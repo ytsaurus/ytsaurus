@@ -3840,11 +3840,6 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg2)
         "r1=35.5;x=0;r2=9;r3=3.5;r4=23"
     }, resultSplit);
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(New<TAverageAggregateFunction>());
-    registry->WithFunction(New<TAggregateFunction>("max"));
-    registry->WithFunction(New<TAggregateFunction>("min"));
-
     Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, result);
 }
 
@@ -3871,9 +3866,6 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg3)
         "b=1;x=5.0",
         "b=0"
     }, resultSplit);
-
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(New<TAverageAggregateFunction>());
 
     Evaluate("b, avg(a) as x from [//t] group by b", split, source, result);
 }

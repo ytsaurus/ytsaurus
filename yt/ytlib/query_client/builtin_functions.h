@@ -160,27 +160,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAverageAggregateFunction
-    : public IAggregateFunctionDescriptor
-{
-public:
-    TAverageAggregateFunction();
-
-    virtual Stroka GetName() const override;
-
-    virtual const TCodegenAggregate MakeCodegenAggregate(
-        EValueType type,
-        const Stroka& name) const override;
-
-    virtual EValueType GetStateType(
-        EValueType type) const override;
-
-    virtual EValueType InferResultType(
-        EValueType argumentType,
-        const TStringBuf& source) const override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NQueryClient
 } // namespace NYT
