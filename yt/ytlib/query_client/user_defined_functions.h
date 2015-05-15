@@ -27,6 +27,13 @@ struct ICallingConvention
         Type* llvmType,
         TType resultType,
         TCGContext& builder) const = 0;
+
+    void CheckCallee(
+        const Stroka& functionName,
+        llvm::Function* callee,
+        TCGContext& builder,
+        std::vector<Value*> argumentValues,
+        TType resultType) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICallingConvention);
@@ -110,11 +117,6 @@ private:
         TType resultType,
         TSharedRef implementationFile,
         ICallingConventionPtr callingConvention);
-
-    void CheckCallee(
-        Function* callee,
-        TCGContext& builder,
-        std::vector<Value*> argumentValues) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
