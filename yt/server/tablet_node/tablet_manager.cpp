@@ -773,13 +773,9 @@ private:
         auto compressedRequestData = TSharedRef::FromString(request.compressed_data());
         auto requestData = codec->Decompress(compressedRequestData);
 
-        try {
-            TWireProtocolReader reader(requestData);
-            while (!reader.IsFinished()) {
-                ExecuteSingleWrite(tablet, transaction, &reader, false);
-            }
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error executing writes");
+        TWireProtocolReader reader(requestData);
+        while (!reader.IsFinished()) {
+            ExecuteSingleWrite(tablet, transaction, &reader, false);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v)",
