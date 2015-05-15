@@ -65,6 +65,51 @@ void PushExecutionContext(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ICallingConvention::CheckCallee(
+    const Stroka& functionName,
+    llvm::Function* callee,
+    TCGContext& builder,
+    std::vector<Value*> argumentValues,
+    TType resultType) const
+{
+    if (!callee) {
+        THROW_ERROR_EXCEPTION(
+            "Could not find LLVM bitcode for function %Qv",
+            functionName);
+    } else if (callee->arg_size() != argumentValues.size()) {
+        THROW_ERROR_EXCEPTION(
+            "Wrong number of arguments in LLVM bitcode for function %Qv: expected %v, got %v",
+            functionName,
+            argumentValues.size(),
+            callee->arg_size());
+    }
+
+    CheckResultType(
+        functionName,
+        callee->getReturnType(),
+        resultType,
+        builder);
+
+    auto i = 1;
+    auto expected = argumentValues.begin();
+    for (
+        auto actual = callee->arg_begin();
+        expected != argumentValues.end();
+        expected++, actual++, i++)
+    {
+        if (actual->getType() != (*expected)->getType()) {
+            THROW_ERROR_EXCEPTION(
+                "Wrong type for argument %v in LLVM bitcode for function %Qv: expected %Qv, got %Qv",
+                i,
+                functionName,
+                ToString((*expected)->getType()),
+                ToString(actual->getType()));
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void PushArgument(
     TCGContext& builder,
     std::vector<Value*>& argumentValues,
@@ -372,53 +417,13 @@ TUserDefinedFunction::TUserDefinedFunction(
         New<TUnversionedValueCallingConvention>(argumentTypes.size()))
 { }
 
-void TUserDefinedFunction::CheckCallee(
-    llvm::Function* callee,
-    TCGContext& builder,
-    std::vector<Value*> argumentValues) const
-{
-    if (!callee) {
-        THROW_ERROR_EXCEPTION(
-            "Could not find LLVM bitcode for function %Qv",
-            FunctionName_);
-    } else if (callee->arg_size() != argumentValues.size()) {
-        THROW_ERROR_EXCEPTION(
-            "Wrong number of arguments in LLVM bitcode for function %Qv: expected %v, got %v",
-            FunctionName_,
-            argumentValues.size(),
-            callee->arg_size());
-    }
-
-    CallingConvention_->CheckResultType(
-        FunctionName_,
-        callee->getReturnType(),
-        ResultType_,
-        builder);
-
-    auto i = 1;
-    auto expected = argumentValues.begin();
-    for (
-        auto actual = callee->arg_begin();
-        expected != argumentValues.end();
-        expected++, actual++, i++)
-    {
-        if (actual->getType() != (*expected)->getType()) {
-            THROW_ERROR_EXCEPTION(
-                "Wrong type for argument %v in LLVM bitcode for function %Qv: expected %Qv, got %Qv",
-                i,
-                FunctionName_,
-                ToString((*expected)->getType()),
-                ToString(actual->getType()));
-        }
-    }
-}
-
 Function* GetLlvmFunction(
     TCGContext& builder,
     const Stroka& functionName,
     std::vector<Value*> argumentValues,
     TSharedRef implementationFile,
-    std::function<void(Function*, std::vector<Value*>)> checkCallee)
+    TType resultType,
+    ICallingConventionPtr callingConvention)
 {
     auto module = builder.Module->GetModule();
     auto callee = module->getFunction(StringRef(functionName));
@@ -447,7 +452,12 @@ Function* GetLlvmFunction(
         }
 
         callee = module->getFunction(StringRef(functionName));
-        checkCallee(callee, argumentValues);
+        callingConvention->CheckCallee(
+            functionName,
+            callee,
+            builder,
+            argumentValues,
+            resultType);
     }
     return callee;
 }
@@ -466,9 +476,8 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
             this_->FunctionName_,
             argumentValues,
             this_->ImplementationFile_,
-            [&] (Function* callee, std::vector<Value*> arguments) {
-                this_->CheckCallee(callee, builder, arguments);
-            });
+            this_->ResultType_,
+            this_->CallingConvention_);
         auto result = builder.CreateCall(callee, argumentValues);
         return result;
     };
@@ -535,9 +544,8 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
                 functionName,
                 argumentValues,
                 this_->ImplementationFile_,
-                [&] (Function* callee, std::vector<Value*> arguments) {
-                    //TODO: this_->CheckCallee(callee, builder, arguments);
-                });
+                this_->ResultType_,
+                this_->CallingConvention_);
             return builder.CreateCall(callee, argumentValues);
         };
     };
