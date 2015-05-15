@@ -429,13 +429,13 @@ IVersionedReaderPtr TChunkStore::CreateReader(
 }
 
 void TChunkStore::CheckRowLocks(
-    TKey key,
+    TUnversionedRow row,
     TTransaction* transaction,
     ui32 lockMask)
 {
     auto backingStore = GetBackingStore();
     if (backingStore) {
-        return backingStore->CheckRowLocks(key, transaction, lockMask);
+        return backingStore->CheckRowLocks(row, transaction, lockMask);
     }
 
     THROW_ERROR_EXCEPTION(
@@ -446,7 +446,7 @@ void TChunkStore::CheckRowLocks(
         << TErrorAttribute("transaction_register_time", transaction->GetRegisterTime())
         << TErrorAttribute("tablet_id", TabletId_)
         << TErrorAttribute("store_id", StoreId_)
-        << TErrorAttribute("key", key);
+        << TErrorAttribute("key", RowToKey(row));
 }
 
 void TChunkStore::Save(TSaveContext& context) const

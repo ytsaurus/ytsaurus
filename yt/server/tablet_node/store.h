@@ -89,7 +89,7 @@ struct IStore
      *  Thread affinity: any
      */
     virtual void CheckRowLocks(
-        TKey key,
+        TUnversionedRow row,
         TTransaction* transaction,
         ui32 lockMask) = 0;
 

@@ -485,6 +485,11 @@ TOwningKey RowToKey(
     const NVersionedTableClient::TKeyColumns& keyColumns,
     TDynamicRow row);
 
+TOwningKey RowToKey(
+    const NVersionedTableClient::TTableSchema& schema,
+    const NVersionedTableClient::TKeyColumns& keyColumns,
+    TUnversionedRow row);
+
 void SaveRowKeys(
     TSaveContext& context,
     const NVersionedTableClient::TTableSchema& schema,

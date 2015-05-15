@@ -52,6 +52,18 @@ TOwningKey RowToKey(
     return builder.FinishRow();
 }
 
+TOwningKey RowToKey(
+    const TTableSchema& /*schema*/,
+    const TKeyColumns& keyColumns,
+    TUnversionedRow row)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (int index = 0; index < keyColumns.size(); ++index) {
+        builder.AddValue(row[index]);
+    }
+    return builder.FinishRow();
+}
+
 void SaveRowKeys(
     TSaveContext& context,
     const TTableSchema& schema,

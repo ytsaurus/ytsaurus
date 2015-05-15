@@ -119,7 +119,7 @@ private:
 
     void CheckInactiveStoresLocks(
         TTransaction* transaction,
-        TUnversionedRow key,
+        TUnversionedRow row,
         ui32 lockMask);
 
     void CheckForUnlockedStore(TDynamicMemoryStore* store);

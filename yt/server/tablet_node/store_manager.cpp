@@ -250,12 +250,12 @@ ui32 TStoreManager::ComputeLockMask(TUnversionedRow row, ELockMode lockMode)
 
 void TStoreManager::CheckInactiveStoresLocks(
     TTransaction* transaction,
-    TUnversionedRow key,
+    TUnversionedRow row,
     ui32 lockMask)
 {
     for (const auto& store : LockedStores_) {
         store->CheckRowLocks(
-            key,
+            row,
             transaction,
             lockMask);
     }
@@ -270,7 +270,7 @@ void TStoreManager::CheckInactiveStoresLocks(
             store->AsDynamicMemory()->GetLockCount() > 0)
             continue;
         store->CheckRowLocks(
-            key,
+            row,
             transaction,
             lockMask);
     }
