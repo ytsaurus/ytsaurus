@@ -484,11 +484,13 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
 
 TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
     const Stroka& aggregateName,
-    EValueType resultType,
+    TType argumentType,
+    TType resultType,
     EValueType stateType,
     TSharedRef implementationFile,
     ICallingConventionPtr callingConvention)
     : AggregateName_(aggregateName)
+    , ArgumentType_(argumentType)
     , ResultType_(resultType)
     , StateType_(stateType)
     , ImplementationFile_(implementationFile)
@@ -497,12 +499,14 @@ TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
 
 TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
     const Stroka& aggregateName,
-    EValueType resultType,
+    TType argumentType,
+    TType resultType,
     EValueType stateType,
     TSharedRef implementationFile,
     ECallingConvention callingConvention)
     : TUserDefinedAggregateFunction(
         aggregateName,
+        argumentType,
         resultType,
         stateType,
         implementationFile,
@@ -645,8 +649,13 @@ EValueType TUserDefinedAggregateFunction::InferResultType(
     EValueType argumentType,
     const TStringBuf& source) const
 {
-    //TODO
-    return ResultType_;
+    return TypingFunction(
+        std::vector<TType>{ArgumentType_},
+        EValueType::Null,
+        ResultType_,
+        AggregateName_,
+        std::vector<EValueType>{argumentType},
+        source);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
