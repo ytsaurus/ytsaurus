@@ -367,23 +367,23 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
             aggregateFunction,
             type,
             MOVE(nameStroka)
-        ] (TCGContext& builder, Value* aggState, Value* newValue) {
+        ] (TCGContext& builder, Value* aggregateStatePtr, Value* newValuePtr) {
             Twine name = nameStroka.c_str();
 
-            auto newTCGValue = TCGValue::CreateFromLlvmValue(
-                builder,
-                newValue,
-                type,
-                name + ".new_value");
             auto aggregateValue = TCGValue::CreateFromLlvmValue(
                 builder,
-                aggState,
+                aggregateStatePtr,
                 type,
                 name + ".aggregate");
+            auto newValue = TCGValue::CreateFromLlvmValue(
+                builder,
+                newValuePtr,
+                type,
+                name + ".new_value");
 
             return CodegenIf<TCGContext, TCGValue>(
                 builder,
-                newTCGValue.IsNull(),
+                newValue.IsNull(),
                 [&] (TCGContext& builder) {
                     return aggregateValue;
                 },
@@ -392,10 +392,10 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                         builder,
                         aggregateValue.IsNull(),
                         [&] (TCGContext& builder) {
-                            return newTCGValue;
+                            return newValue;
                         },
                         [&] (TCGContext& builder) {
-                            Value* newData = newTCGValue.GetData();
+                            Value* newData = newValue.GetData();
                             Value* aggregateData = aggregateValue.GetData();
                             Value* resultData = nullptr;
                             Value* resultLength = nullptr;
@@ -433,10 +433,10 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                     case EValueType::String:
                                         compareResult = CodegenLexicographicalCompare(
                                             builder,
-                                            aggregateValue.GetData(),
+                                            aggregateData,
                                             aggregateValue.GetLength(),
-                                            newTCGValue.GetData(),
-                                            newTCGValue.GetLength());
+                                            newData,
+                                            newValue.GetLength());
                                         break;
                                     default:
                                         YUNIMPLEMENTED();
@@ -445,11 +445,11 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                 resultLength = builder.CreateSelect(
                                     compareResult,
                                     aggregateValue.GetLength(),
-                                    newTCGValue.GetLength());
+                                    newValue.GetLength());
                                 resultData = builder.CreateSelect(
                                     compareResult,
-                                    aggregateValue.GetData(),
-                                    newTCGValue.GetData());
+                                    aggregateData,
+                                    newData);
                             } else if (aggregateFunction == "max") {
                                 Value* compareResult = nullptr;
                                 switch (type) {
@@ -464,11 +464,11 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                         break;
                                     case EValueType::String:
                                         compareResult = builder.CreateNot(CodegenLexicographicalCompare(
-                                                builder,
-                                                aggregateValue.GetData(),
-                                                aggregateValue.GetLength(),
-                                                newTCGValue.GetData(),
-                                                newTCGValue.GetLength()));
+                                            builder,
+                                            aggregateData,
+                                            aggregateValue.GetLength(),
+                                            newData,
+                                            newValue.GetLength()));
                                         break;
                                     default:
                                         YUNIMPLEMENTED();
@@ -477,11 +477,11 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                 resultLength = builder.CreateSelect(
                                     compareResult,
                                     aggregateValue.GetLength(),
-                                    newTCGValue.GetLength());
+                                    newValue.GetLength());
                                 resultData = builder.CreateSelect(
                                     compareResult,
-                                    aggregateValue.GetData(),
-                                    newTCGValue.GetData());
+                                    aggregateData,
+                                    newData);
                             } else {
                                 YUNIMPLEMENTED();
                             }
@@ -491,7 +491,8 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                 builder.getInt1(false),
                                 resultLength,
                                 resultData,
-                                type);
+                                type,
+                                "result");
                         });
 
                 });
