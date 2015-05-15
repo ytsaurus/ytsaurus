@@ -374,10 +374,10 @@ public:
 typedef std::function<Value* (TCGIRBuilder& builder)> TCodegenBlock;
 typedef std::function<TCGValue(TCGContext& builder, Value* row)> TCodegenExpression;
 
-typedef std::function<void(TCGContext& builder, Value* aggState)> TCodegenAggregateInit;
-typedef std::function<void(TCGContext& builder, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
-typedef std::function<void(TCGContext& builder, Value* dstAggState, Value* aggState)> TCodegenAggregateMerge;
-typedef std::function<void(TCGContext& builder, Value* result, Value* aggState)> TCodegenAggregateFinalize;
+typedef std::function<TCGValue(TCGContext& builder, Value* aggState)> TCodegenAggregateInit;
+typedef std::function<TCGValue(TCGContext& builder, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
+typedef std::function<TCGValue(TCGContext& builder, Value* dstAggState, Value* aggState)> TCodegenAggregateMerge;
+typedef std::function<TCGValue(TCGContext& builder, Value* aggState)> TCodegenAggregateFinalize;
 
 struct TCodegenAggregate {
     TCodegenAggregateInit Initialize;

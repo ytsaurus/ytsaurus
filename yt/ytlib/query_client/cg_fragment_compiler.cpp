@@ -1396,17 +1396,22 @@ std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpd
                 CodegenValuesPtrFromRow(builder, newRow),
                 keySize + index);
 
+            auto id = keySize + index;
+            TCodegenAggregateUpdate updateFunction;
             if (isMerge) {
-                codegenAggregates[index].Merge(
-                    builder,
-                    aggState,
-                    newValue);
+                updateFunction = codegenAggregates[index].Merge;
             } else {
-                codegenAggregates[index].Update(
-                    builder,
-                    aggState,
-                    newValue);
+                updateFunction = codegenAggregates[index].Update;
             }
+            updateFunction(
+                builder,
+                aggState,
+                newValue)
+                .StoreToRow(
+                    builder,
+                    groupRow,
+                    keySize + index,
+                    id);
         }
     };
 }
@@ -1425,16 +1430,18 @@ std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinaliz
             return;
         }
         for (int index = 0; index < codegenAggregates.size(); index++) {
+            auto id = keySize + index;
             auto valuesPtr = CodegenValuesPtrFromRow(builder, row);
-            //TODO: can remove one of finalize's arguments
-            codegenAggregates[index].Finalize(
+            auto resultValue = codegenAggregates[index].Finalize(
                 builder,
                 builder.CreateConstInBoundsGEP1_32(
                     valuesPtr,
-                    keySize + index),
-                builder.CreateConstInBoundsGEP1_32(
-                    valuesPtr,
                     keySize + index));
+            resultValue.StoreToRow(
+                builder,
+                row,
+                keySize + index,
+                id);
         }
     };
 }
@@ -1448,12 +1455,15 @@ std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateInitial
         keySize
     ] (TCGContext& builder, Value* row) {
         for (int index = 0; index < codegenAggregates.size(); index++) {
-            auto aggState = builder.CreateConstInBoundsGEP1_32(
-                CodegenValuesPtrFromRow(builder, row),
-                keySize + index);
-            codegenAggregates[index].Initialize(
+            auto id = keySize + index;
+            auto initState = codegenAggregates[index].Initialize(
                 builder,
-                aggState);
+                row);
+            initState.StoreToRow(
+                builder,
+                row,
+                keySize + index,
+                id);
         }
     };
 }
