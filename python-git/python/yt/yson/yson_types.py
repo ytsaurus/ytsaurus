@@ -33,7 +33,7 @@ class YsonInt64(int, YsonType):
     def __eq__(self, other):
         if not isinstance(other, (int, long)):
             return False
-        return long(self) == long(other) and YsonType.__eq__(self, other)
+        return int(self) == int(other) and YsonType.__eq__(self, other)
 
     def __hash__(self):
         return self.base_hash(int)
@@ -44,11 +44,20 @@ class YsonInt64(int, YsonType):
     def __str__(self):
         return self.__repr__()
 
-class YsonUint64(YsonInt64):
-    def __init__(self, *args, **kwargs):
-        super(YsonUint64, self).__init__(*args, **kwargs)
-        if self < 0:
-            raise TypeError("'YsonUint64' is unsigned")
+class YsonUint64(long, YsonType):
+    def __eq__(self, other):
+        if not isinstance(other, (int, long)):
+            return False
+        return long(self) == long(other) and YsonType.__eq__(self, other)
+
+    def __hash__(self):
+        return self.base_hash(long)
+
+    def __repr__(self):
+        return self.repr(long)
+
+    def __str__(self):
+        return self.__repr__()
 
 class YsonDouble(float, YsonType):
     def __eq__(self, other):
