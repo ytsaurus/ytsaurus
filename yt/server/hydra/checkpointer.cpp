@@ -179,8 +179,7 @@ private:
             for (TPeerId id2 = id1 + 1; id2 < SnapshotChecksums_.size(); ++id2) {
                 const auto& checksum2 = SnapshotChecksums_[id2];
                 if (checksum1 && checksum2 && checksum1 != checksum2) {
-                    // TODO(babenko): consider killing followers
-                    LOG_FATAL(
+                    LOG_ERROR(
                         "Snapshot %v checksum mismatch: "
                         "peer %v reported %" PRIx64 ", "
                         "peer %v reported %" PRIx64,
