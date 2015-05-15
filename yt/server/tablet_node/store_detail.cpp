@@ -100,6 +100,16 @@ void TStoreBase::SetMemoryUsage(i64 value)
     }
 }
 
+TOwningKey TStoreBase::RowToKey(TUnversionedRow row)
+{
+    return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
+}
+
+TOwningKey TStoreBase::RowToKey(TDynamicRow row)
+{
+    return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
+}
+
 void TStoreBase::Save(TSaveContext& context) const
 {
     using NYT::Save;

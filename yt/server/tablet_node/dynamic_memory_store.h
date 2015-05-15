@@ -134,7 +134,7 @@ public:
         const TColumnFilter& columnFilter) override;
 
     virtual void CheckRowLocks(
-        TKey key,
+        TUnversionedRow row,
         TTransaction* transaction,
         ui32 lockMask) override;
 
@@ -198,8 +198,6 @@ private:
     TDynamicValueData CaptureStringValue(const TUnversionedValue& src);
 
     void OnMemoryUsageUpdated();
-
-    TOwningKey RowToKey(TDynamicRow row);
 
 };
 

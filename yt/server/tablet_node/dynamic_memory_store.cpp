@@ -552,8 +552,6 @@ public:
             return false;
         }
 
-        const auto& keyComparer = Store_->GetRowKeyComparer();
-
         while (rows->size() < rows->capacity()) {
             if (RowCount_ == Keys_.Size())
                 break;
@@ -1247,16 +1245,16 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
 }
 
 void TDynamicMemoryStore::CheckRowLocks(
-    NVersionedTableClient::TKey key,
+    TUnversionedRow row,
     TTransaction* transaction,
     ui32 lockMask)
 {
-    auto it = Rows_->FindEqualTo(TRowWrapper{key});
+    auto it = Rows_->FindEqualTo(TRowWrapper{row});
     if (!it.IsValid())
         return;
 
-    auto row = it.GetCurrent();
-    CheckRowLocks(row, transaction, lockMask);
+    auto dynamicRow = it.GetCurrent();
+    CheckRowLocks(dynamicRow, transaction, lockMask);
 }
 
 void TDynamicMemoryStore::Save(TSaveContext& context) const
@@ -1384,11 +1382,6 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
 void TDynamicMemoryStore::OnMemoryUsageUpdated()
 {
     SetMemoryUsage(GetUncompressedDataSize());
-}
-
-TOwningKey TDynamicMemoryStore::RowToKey(TDynamicRow row)
-{
-    return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "store.h"
+#include "dynamic_memory_store_bits.h"
 
 #include <core/actions/signal.h>
 
@@ -61,6 +62,9 @@ protected:
 
 
     void SetMemoryUsage(i64 value);
+
+    TOwningKey RowToKey(TUnversionedRow row);
+    TOwningKey RowToKey(TDynamicRow row);
 
 private:
     i64 MemoryUsage_ = 0;
