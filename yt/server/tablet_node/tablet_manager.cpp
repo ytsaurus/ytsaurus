@@ -170,22 +170,27 @@ public:
     }
 
     void Write(
-        TTablet* tablet,
-        TTransaction* transaction,
+        TTabletSnapshotPtr tabletSnapshot,
+        const TTransactionId& transactionId,
         TWireProtocolReader* reader)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(tablet->GetSnapshot(), EPermission::Write);
+        securityManager->ValidatePermission(tabletSnapshot, EPermission::Write);
+
+        // NB: No yielding beyond this point.
+        // May access tablet and transaction.
+
+        auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
+
+        auto transactionManager = Slot_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
         ValidateTabletMounted(tablet);
         ValidateStoreLimit(tablet);
         ValidateTransactionActive(transaction);
         ValidateMemoryLimit();
-
-        // Protect from tablet disposal.
-        TCurrentInvokerGuard guard(tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
 
         int prelockedCountBefore = PrelockedTransactions_.size();
 
@@ -231,6 +236,9 @@ public:
                 ->Commit();
         }
 
+        // NB: Yielding is now possible.
+        // Cannot neither access tablet, nor transaction.
+
         if (rowBlockedEx) {
             rowBlockedEx->GetStore()->WaitOnBlockedRow(
                 rowBlockedEx->GetRow(),
@@ -238,9 +246,7 @@ public:
                 rowBlockedEx->GetTimestamp());
         }
 
-        if (!error.IsOK()) {
-            THROW_ERROR error;
-        }
+        error.ThrowOnError();
     }
 
 
@@ -1604,13 +1610,13 @@ void TTabletManager::Read(
 }
 
 void TTabletManager::Write(
-    TTablet* tablet,
-    TTransaction* transaction,
+    TTabletSnapshotPtr tabletSnapshot,
+    const TTransactionId& transactionId,
     TWireProtocolReader* reader)
 {
     Impl_->Write(
-        tablet,
-        transaction,
+        std::move(tabletSnapshot),
+        transactionId,
         reader);
 }
 

@@ -109,19 +109,22 @@ private:
         auto securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+
+        auto tabletManager = tabletSnapshot->Slot->GetTabletManager();
+
+        auto config = Bootstrap_->GetConfig()->QueryAgent;
+
         NQueryAgent::ExecuteRequestWithRetries(
-            Bootstrap_->GetConfig()->QueryAgent->MaxQueryRetries,
+            config->MaxQueryRetries,
             Logger,
             [&] () {
                 ValidateActiveLeader();
 
-                auto slotManager = Bootstrap_->GetTabletSlotManager();
-                auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-
                 TWireProtocolReader reader(requestData);
                 TWireProtocolWriter writer;
 
-                auto tabletManager = tabletSnapshot->Slot->GetTabletManager();
                 tabletManager->Read(
                     tabletSnapshot,
                     timestamp,
@@ -139,33 +142,37 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)
     {
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        context->SetRequestInfo("TransactionId: %v, TabletId: %v",
-            transactionId,
-            tabletId);
-
-        auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
-        TWireProtocolReader reader(requestData);
+        context->SetRequestInfo("TabletId: %v, TransactionId: %v",
+            tabletId,
+            transactionId);
 
         auto user = GetAuthenticatedUserOrThrow(context);
         auto securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+
+        if (tabletSnapshot->Slot != Slot_) {
+            THROW_ERROR_EXCEPTION("Wrong tablet slot: expected %v, got %v",
+                Slot_->GetCellId(),
+                tabletSnapshot->Slot->GetCellId());
+        }
+
+        auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
+        TWireProtocolReader reader(requestData);
+
+        auto tabletManager = Slot_->GetTabletManager();
+
         while (!reader.IsFinished()) {
             ValidateActiveLeader();
 
-            // NB: May yield in Write, need to re-fetch tablet and transaction on every iteration.
-            auto tabletManager = Slot_->GetTabletManager();
-            auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
-
-            auto transactionManager = Slot_->GetTransactionManager();
-            auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
-
             tabletManager->Write(
-                tablet,
-                transaction,
+                tabletSnapshot,
+                transactionId,
                 &reader);
         }
 
