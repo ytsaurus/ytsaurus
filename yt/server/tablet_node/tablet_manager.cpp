@@ -763,16 +763,10 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto transactionManager = Slot_->GetTransactionManager();
-        // COMPAT(babenko)
-        auto* transaction = transactionManager->FindTransaction(transactionId);
-        if (!transaction)
-            return;
+        auto* transaction = transactionManager->GetTransaction(transactionId);
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
-        // COMPAT(babenko)
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet)
-            return;
+        auto* tablet = GetTablet(tabletId);
 
         auto codecId = ECodec(request.codec());
         auto* codec = GetCodec(codecId);
