@@ -208,6 +208,27 @@ class CommonTestBase(object):
         self.assertTrue(isinstance(loaded, yt.yson.yson_types.YsonUint64))
         self.assertEqual("1u", dumps(loaded))
 
+    def test_equalities(self):
+        loads = CommonTestBase.parser.loads
+        dumps = CommonTestBase.writer.dumps
+
+        num = 1
+        num_long = 1L
+        lst = [1, 2, 3]
+        s = "abc"
+        f = 1.0
+        d = {"x": 2}
+        self.assertEqual(loads(dumps(num)), num_long)
+
+        self.assertFalse(None == loads(dumps(num)))
+        self.assertFalse(None == loads(dumps(lst)))
+        self.assertFalse(None == loads(dumps(s)))
+        self.assertFalse(None == loads(dumps(f)))
+
+        self.assertFalse(lst == loads(dumps(f)))
+        self.assertFalse(num == loads(dumps(s)))
+        self.assertFalse(loads(dumps(d)) == s)
+
 class TestCommon(unittest.TestCase, CommonTestBase):
     CommonTestBase.writer = writer
     CommonTestBase.parser = parser
