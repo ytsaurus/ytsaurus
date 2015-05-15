@@ -98,7 +98,7 @@ private:
     IChunkPtr OnWriterClosed(const TError& error);
 
     void DoWriteBlock(const TSharedRef& block, int blockIndex);
-    void OnBlockWritten(int blockIndex, const TError& error);
+    void OnBlockWritten(int blockIndex, i64 blockSize, const TError& error);
 
     void OnBlockFlushed(int blockIndex, const TError& error);
 
