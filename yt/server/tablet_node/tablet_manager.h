@@ -47,8 +47,8 @@ public:
         NTabletClient::TWireProtocolWriter* writer);
 
     void Write(
-        TTablet* tablet,
-        TTransaction* transaction,
+        TTabletSnapshotPtr tabletSnapshot,
+        const TTransactionId& transctionId,
         NTabletClient::TWireProtocolReader* reader);
 
 
