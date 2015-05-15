@@ -70,8 +70,8 @@ public:
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TReplicaSet = yhash_set<TChunkPtrWithIndex>;
-    DEFINE_BYREF_RW_PROPERTY(TReplicaSet, StoredReplicas);
-    DEFINE_BYREF_RW_PROPERTY(TReplicaSet, CachedReplicas);
+    DEFINE_BYREF_RO_PROPERTY(TReplicaSet, StoredReplicas);
+    DEFINE_BYREF_RO_PROPERTY(TReplicaSet, CachedReplicas);
     
     //! Maps replicas to the leader timestamp when this replica was registered by a client.
     typedef yhash_map<TChunkPtrWithIndex, TInstant> TUnapprovedReplicaMap;
@@ -154,6 +154,8 @@ public:
     TTabletSlot* GetTabletSlot(const NTabletServer::TTabletCell* cell);
 
     void DetachTabletCell(const NTabletServer::TTabletCell* cell);
+
+    void ShrinkHashTables();
 
     static ui64 GenerateVisitMark();
 
