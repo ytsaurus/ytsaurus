@@ -181,7 +181,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         .AsyncVia(WriteInvoker_)
         .Run()
         .Subscribe(
-            BIND(&TBlobSession::OnBlockWritten, MakeStrong(this), WindowIndex_)
+            BIND(&TBlobSession::OnBlockWritten, MakeStrong(this), WindowIndex_, slot.Block.Size())
                 .Via(Bootstrap_->GetControlInvoker()));
         ++WindowIndex_;
     }
@@ -255,18 +255,16 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 }
 
-void TBlobSession::OnBlockWritten(int blockIndex, const TError& error)
+void TBlobSession::OnBlockWritten(int blockIndex, i64 blockSize, const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto& slot = GetSlot(blockIndex);
-
-    // NB: Update pending write size before setting the promise as the subscriber
-    // is likely to erase the slot.
+    // NB: slot could have already been erased (e.g. in case of failure).
     auto sessionManager = Bootstrap_->GetSessionManager();
-    sessionManager->UpdatePendingWriteSize(-slot.Block.Size());
+    sessionManager->UpdatePendingWriteSize(-blockSize);
 
     if (error.IsOK()) {
+        auto& slot = GetSlot(blockIndex);
         YCHECK(slot.State == ESlotState::Received);
         slot.State = ESlotState::Written;
         slot.WrittenPromise.Set(TError());
