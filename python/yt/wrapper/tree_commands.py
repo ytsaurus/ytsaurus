@@ -284,12 +284,16 @@ def search(root="", node_type=None,
                 raise
         return None
 
+    def is_opaque(object):
+        # We have bug that get to document don't return attributes.
+        return object.attributes.get("opaque", False) and object.attributes["type"] != "document"
+
     def walk(path, object, depth, ignore_opaque=False):
         if object is None:
             return
         if path in exclude or (depth_bound is not None and depth > depth_bound):
             return
-        if object.attributes.get("opaque", False) and not ignore_opaque:
+        if is_opaque(object) and not ignore_opaque:
             for obj in walk(path, safe_get(path), depth, True):
                 yield obj
             return
