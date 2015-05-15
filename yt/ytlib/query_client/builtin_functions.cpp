@@ -11,45 +11,6 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTypedFunction::TTypedFunction(
-    const Stroka& functionName,
-    std::vector<TType> argumentTypes,
-    TType repeatedArgumentType,
-    TType resultType)
-    : FunctionName_(functionName)
-    , ArgumentTypes_(argumentTypes)
-    , RepeatedArgumentType_(repeatedArgumentType)
-    , ResultType_(resultType)
-{ }
-
-TTypedFunction::TTypedFunction(
-    const Stroka& functionName,
-    std::vector<TType> argumentTypes,
-    TType resultType)
-    : FunctionName_(functionName)
-    , ArgumentTypes_(argumentTypes)
-    , RepeatedArgumentType_(EValueType::Null)
-    , ResultType_(resultType)
-{ }
-
-Stroka TTypedFunction::GetName() const
-{
-    return FunctionName_;
-}
-
-EValueType TTypedFunction::InferResultType(
-    const std::vector<EValueType>& argumentTypes,
-    const TStringBuf& source) const
-{
-    return TypingFunction(
-        ArgumentTypes_,
-        RepeatedArgumentType_,
-        ResultType_,
-        GetName(),
-        argumentTypes,
-        source);
-}
-
 Stroka TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> genericAssignments)
 {
     if (auto genericId = tp.TryAs<TTypeArgument>()) {
@@ -68,13 +29,13 @@ Stroka TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> gene
     }
 }
 
-EValueType TTypedFunction::TypingFunction(
+EValueType TypingFunction(
     const std::vector<TType>& expectedArgTypes,
     TType repeatedArgType,
     TType resultType,
     const Stroka& functionName,
     const std::vector<EValueType>& argTypes,
-    const TStringBuf& source) const
+    const TStringBuf& source)
 {
     std::unordered_map<TTypeArgument, EValueType> genericAssignments;
 
@@ -166,6 +127,47 @@ EValueType TTypedFunction::TypingFunction(
     }
 
     return EValueType::Null;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTypedFunction::TTypedFunction(
+    const Stroka& functionName,
+    std::vector<TType> argumentTypes,
+    TType repeatedArgumentType,
+    TType resultType)
+    : FunctionName_(functionName)
+    , ArgumentTypes_(argumentTypes)
+    , RepeatedArgumentType_(repeatedArgumentType)
+    , ResultType_(resultType)
+{ }
+
+TTypedFunction::TTypedFunction(
+    const Stroka& functionName,
+    std::vector<TType> argumentTypes,
+    TType resultType)
+    : FunctionName_(functionName)
+    , ArgumentTypes_(argumentTypes)
+    , RepeatedArgumentType_(EValueType::Null)
+    , ResultType_(resultType)
+{ }
+
+Stroka TTypedFunction::GetName() const
+{
+    return FunctionName_;
+}
+
+EValueType TTypedFunction::InferResultType(
+    const std::vector<EValueType>& argumentTypes,
+    const TStringBuf& source) const
+{
+    return TypingFunction(
+        ArgumentTypes_,
+        RepeatedArgumentType_,
+        ResultType_,
+        GetName(),
+        argumentTypes,
+        source);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -158,9 +158,9 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
     registry->RegisterAggregateFunction(New<TAggregateFunction>("sum"));
     registry->RegisterAggregateFunction(New<TAggregateFunction>("min"));
     registry->RegisterAggregateFunction(New<TAggregateFunction>("max"));
-    //registry->RegisterAggregateFunction(New<TAverageAggregateFunction>());
     registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
         "avg",
+        EValueType::Int64,
         EValueType::Double,
         EValueType::String,
         aggregatesImplementation,

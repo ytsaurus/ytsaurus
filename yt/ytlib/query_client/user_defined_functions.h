@@ -125,7 +125,8 @@ class TUserDefinedAggregateFunction
 public:
     TUserDefinedAggregateFunction(
         const Stroka& aggregateName,
-        EValueType resultType,
+        TType argumentType,
+        TType resultType,
         EValueType stateType,
         TSharedRef implementationFile,
         ECallingConvention callingConvention);
@@ -145,14 +146,16 @@ public:
 
 private:
     Stroka AggregateName_;
-    EValueType ResultType_;
+    TType ArgumentType_;
+    TType ResultType_;
     EValueType StateType_;
     TSharedRef ImplementationFile_;
     ICallingConventionPtr CallingConvention_;
 
     TUserDefinedAggregateFunction(
         const Stroka& aggregateName,
-        EValueType resultType,
+        TType argumentType,
+        TType resultType,
         EValueType stateType,
         TSharedRef implementationFile,
         ICallingConventionPtr callingConvention);
