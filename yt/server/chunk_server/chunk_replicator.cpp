@@ -36,6 +36,8 @@
 #include <server/node_tracker_server/rack.h>
 #include <server/node_tracker_server/node_directory_builder.h>
 
+#include <server/object_server/object.h>
+
 #include <server/cypress_server/node.h>
 
 #include <array>
@@ -52,6 +54,7 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NNodeTrackerServer;
+using namespace NObjectServer;
 using namespace NChunkServer::NProto;
 using namespace NCellMaster;
 
@@ -672,7 +675,7 @@ bool TChunkReplicator::CreateRemovalJob(
     auto chunkManager = Bootstrap_->GetChunkManager();
     auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
     // NB: Allow more than one job for dead chunks.
-    if (chunk) {
+    if (IsObjectAlive(chunk)) {
         if (chunk->GetRefreshScheduled()) {
             return true;
         }
