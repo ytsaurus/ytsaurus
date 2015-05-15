@@ -1115,7 +1115,7 @@ void TTcpConnection::DiscardOutcomingMessages(const TError& error)
 {
     TQueuedMessage queuedMessage;
     while (QueuedMessages_.Dequeue(&queuedMessage)) {
-        LOG_DEBUG("Outcoming message dequeued (PacketId: %v)",
+        LOG_DEBUG("Outcoming message discarded (PacketId: %v)",
             queuedMessage.PacketId);
         if (queuedMessage.Promise) {
             queuedMessage.Promise.Set(error);
