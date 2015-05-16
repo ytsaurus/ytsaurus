@@ -11,6 +11,8 @@
 #include <server/node_tracker_server/rack.h>
 #include <server/node_tracker_server/node_tracker.h>
 
+#include <server/object_server/object.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/config.h>
 
@@ -22,6 +24,7 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NNodeTrackerServer;
 using namespace NCellMaster;
@@ -515,7 +518,7 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
     for (int index = 0; index < replicaCount * 2; ++index) {
         auto replica = node->PickRandomReplica();
         auto* chunk = replica.GetPtr();
-        if (!chunk) {
+        if (!IsObjectAlive(chunk)) {
             break;
         }
         if (static_cast<int>(result.size()) >= replicaCount) {
