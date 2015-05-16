@@ -201,10 +201,6 @@ private:
             chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
         }
 
-        LOG_INFO("File opened (Account: %v, ChunkListId: %v)",
-            writerOptions->Account,
-            chunkListId);
-
         Writer_ = CreateFileMultiChunkWriter(
             Config_,
             writerOptions,
@@ -214,6 +210,11 @@ private:
 
         WaitFor(Writer_->Open())
             .ThrowOnError();
+
+        LOG_INFO("File opened (Account: %v, ChunkListId: %v)",
+            writerOptions->Account,
+            chunkListId);
+
     }
 
     void DoWrite(const TRef& data)
