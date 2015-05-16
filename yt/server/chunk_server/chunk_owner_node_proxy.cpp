@@ -23,6 +23,8 @@
 
 #include <server/node_tracker_server/node_directory_builder.h>
 
+#include <server/object_server/object.h>
+
 #include <server/cell_master/config.h>
 
 namespace NYT {
@@ -33,11 +35,11 @@ using namespace NChunkClient;
 using namespace NCypressServer;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
 using namespace NVersionedTableClient;
-
 
 using NChunkClient::NProto::TReqFetch;
 using NChunkClient::NProto::TRspFetch;
@@ -123,7 +125,7 @@ private:
                 auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
                 if (TypeFromId(chunkId) == EObjectType::JournalChunk) {
                     auto* chunk = chunkManager->FindChunk(chunkId);
-                    if (!chunk) {
+                    if (!IsObjectAlive(chunk)) {
                         THROW_ERROR_EXCEPTION(
                             NRpc::EErrorCode::Unavailable,
                             "Optimistic locking failed for chunk %v",
