@@ -498,7 +498,7 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
     }
 
     IChunkReaderPtr chunkReader;
-    if (chunk) {
+    if (chunk &&  !chunk->IsRemoveScheduled()) {
         chunkReader = CreateLocalChunkReader(
             Bootstrap_,
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
