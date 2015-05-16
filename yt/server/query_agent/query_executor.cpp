@@ -40,6 +40,7 @@
 #include <ytlib/api/client.h>
 
 #include <server/data_node/block_store.h>
+#include <server/data_node/chunk.h>
 
 #include <server/tablet_node/slot_manager.h>
 #include <server/tablet_node/tablet_manager.h>
@@ -768,7 +769,7 @@ private:
         auto chunk = chunkRegistry->FindChunk(chunkId);
 
         NChunkClient::IChunkReaderPtr chunkReader;
-        if (chunk) {
+        if (chunk && !chunk->IsRemoveScheduled()) {
             LOG_DEBUG("Creating local reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
                 chunkId,
                 lowerBound,
