@@ -12,6 +12,8 @@
 #include <server/node_tracker_server/node_tracker.h>
 #include <server/node_tracker_server/node.h>
 
+#include <server/object_server/object.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/master_hydra_service.h>
@@ -22,6 +24,7 @@ namespace NChunkServer {
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NNodeTrackerServer;
+using namespace NObjectServer;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +47,8 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
-        context->SetRequestInfo("ChunkCount: %v", request->chunk_ids_size());
+        context->SetRequestInfo("ChunkCount: %v",
+            request->chunk_ids_size());
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
@@ -54,7 +58,7 @@ private:
             auto chunkIdWithIndex = DecodeChunkId(chunkId);
 
             auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
-            if (!chunk)
+            if (!IsObjectAlive(chunk))
                 continue;
 
             TChunkPtrWithIndex chunkWithIndex(chunk, chunkIdWithIndex.Index);
