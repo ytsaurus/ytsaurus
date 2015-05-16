@@ -56,7 +56,8 @@ protected:
     int Version_ = 0;
 
     TSpinLock SpinLock_;
-    TPromise<void> RemovedPromise_; // if not null then remove is scheduled
+    TFuture<void> RemovedFuture_;  // if not null then remove is scheduled
+    TPromise<void> RemovedPromise_;
     int ReadLockCounter_ = 0;
     bool Removing_ = false;
 
