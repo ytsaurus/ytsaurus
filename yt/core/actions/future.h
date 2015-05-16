@@ -164,6 +164,9 @@ public:
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
     bool Cancel();
 
+    //! Returns a wrapper that suppresses cancelation attempts.
+    TFuture<T> ToUncancelable();
+
     //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
     //! or to |EErrorCode::Timeout| (in case of timeout).
     TFuture<T> WithTimeout(TDuration timeout);
@@ -317,7 +320,7 @@ public:
     //! Checks if the promise is canceled.
     bool IsCanceled() const;
 
-    //! Attaches a cancellation handler.
+    //! Attaches a cancelation handler.
     /*!
      *  \param handler A callback to call when TFuture<T>::Cancel is triggered
      *  by the client.

@@ -561,6 +561,22 @@ bool TFutureBase<T>::Cancel()
 }
 
 template <class T>
+TFuture<T> TFutureBase<T>::ToUncancelable()
+{
+    if (!Impl_) {
+        return TFuture<T>();
+    }
+
+    auto promise = NewPromise<T>();
+
+    this->Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
+        promise.Set(value);
+    }));
+
+    return promise;
+}
+
+template <class T>
 TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
 {
     YASSERT(Impl_);
