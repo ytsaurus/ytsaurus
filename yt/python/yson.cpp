@@ -299,8 +299,7 @@ private:
             const int BufferSize = 1024 * 1024;
             char buffer[BufferSize];
             try {
-                if (ysonType == NYson::EYsonType::MapFragment)
-                {
+                if (ysonType == NYson::EYsonType::MapFragment) {
                     consumer.OnBeginMap();
                 }
                 while (int length = inputStreamPtr->Read(buffer, BufferSize))
@@ -311,8 +310,7 @@ private:
                     }
                 }
                 parser.Finish();
-                if (ysonType == NYson::EYsonType::MapFragment)
-                {
+                if (ysonType == NYson::EYsonType::MapFragment) {
                     consumer.OnEndMap();
                 }
             } catch (const std::exception& error) {
