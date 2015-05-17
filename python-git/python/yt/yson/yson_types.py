@@ -94,7 +94,7 @@ class YsonList(list, YsonType):
         return self.to_str(list, repr)
 
     def __str__(self):
-        return self.__repr__()
+        return self.to_str(list, str)
 
 class YsonMap(dict, YsonType):
     def __init__(self, *kargs, **kwargs):
@@ -113,7 +113,7 @@ class YsonMap(dict, YsonType):
         return self.to_str(dict, repr)
 
     def __str__(self):
-        return self.__repr__()
+        return self.to_str(dict, str)
 
 class YsonEntity(YsonType):
     def __eq__(self, other):
