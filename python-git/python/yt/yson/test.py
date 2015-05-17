@@ -195,12 +195,12 @@ class CommonTestBase(object):
         self.assertEqual("1", dumps(num))
         loaded = loads("1")
         self.assertEqual(1, loaded)
-        self.assertTrue(isinstance(loaded, int))
+        self.assertTrue(isinstance(loaded, long))
 
         num = 2 ** 50
         loaded = loads(dumps(num))
         self.assertEqual(2 ** 50, loaded)
-        self.assertTrue(isinstance(loaded, int))
+        self.assertTrue(isinstance(loaded, long))
 
         yson_num = "1u"
         loaded = loads(yson_num)
