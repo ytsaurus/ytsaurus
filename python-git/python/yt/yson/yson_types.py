@@ -7,10 +7,10 @@ class YsonType(object):
             return self.attributes == other.attributes
         return not self.attributes
 
-    def repr(self, base_type):
+    def to_str(self, base_type, str_func):
         if self.attributes:
-            return repr({"value": base_type(self), "attributes": self.attributes})
-        return repr(base_type(self))
+            return str_func({"value": base_type(self), "attributes": self.attributes})
+        return str_func(base_type(self))
 
     def base_hash(self, type):
         if self.attributes:
@@ -27,24 +27,9 @@ class YsonString(str, YsonType):
         return self.base_hash(str)
 
     def __repr__(self):
-        return self.repr(str)
+        return self.to_str(str, repr)
 
-class YsonInt64(int, YsonType):
-    def __eq__(self, other):
-        if not isinstance(other, (int, long)):
-            return False
-        return int(self) == int(other) and YsonType.__eq__(self, other)
-
-    def __hash__(self):
-        return self.base_hash(int)
-
-    def __repr__(self):
-        return self.repr(int)
-
-    def __str__(self):
-        return self.__repr__()
-
-class YsonUint64(long, YsonType):
+class YsonInt64(long, YsonType):
     def __eq__(self, other):
         if not isinstance(other, (int, long)):
             return False
@@ -54,10 +39,13 @@ class YsonUint64(long, YsonType):
         return self.base_hash(long)
 
     def __repr__(self):
-        return self.repr(long)
+        return self.to_str(long, repr)
 
     def __str__(self):
-        return self.__repr__()
+        return self.to_str(long, str)
+
+class YsonUint64(YsonInt64):
+    pass
 
 class YsonDouble(float, YsonType):
     def __eq__(self, other):
@@ -69,10 +57,10 @@ class YsonDouble(float, YsonType):
         return self.base_hash(float)
 
     def __repr__(self):
-        return self.repr(float)
+        return self.to_str(float, repr)
 
     def __str__(self):
-        return self.__repr__()
+        return self.to_str(float, str)
 
 class YsonBoolean(int, YsonType):
     def __eq__(self, other):
@@ -103,7 +91,7 @@ class YsonList(list, YsonType):
         raise TypeError("unhashable type 'YsonList'")
 
     def __repr__(self):
-        return self.repr(list)
+        return self.to_str(list, repr)
 
     def __str__(self):
         return self.__repr__()
@@ -122,7 +110,7 @@ class YsonMap(dict, YsonType):
         raise TypeError("unhashable type 'YsonMap'")
 
     def __repr__(self):
-        return self.repr(dict)
+        return self.to_str(dict, repr)
 
     def __str__(self):
         return self.__repr__()
