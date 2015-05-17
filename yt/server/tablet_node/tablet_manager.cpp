@@ -761,7 +761,7 @@ private:
             rowCount);
     }
 
-    void HydraFollowerExecuteWrite(const TReqExecuteWrite& request)
+    void HydraFollowerExecuteWrite(const TReqExecuteWrite& request) noexcept
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto transactionManager = Slot_->GetTransactionManager();
