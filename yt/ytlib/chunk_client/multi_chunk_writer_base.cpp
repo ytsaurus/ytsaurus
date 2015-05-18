@@ -336,13 +336,14 @@ void TNontemplateMultiChunkWriterBase::InitCurrentSession()
 bool TNontemplateMultiChunkWriterBase::VerifyActive()
 {
     YCHECK(!Closing_);
-    YCHECK(CurrentSession_.IsActive());
 
     if (CompletionError_.IsSet()) {
         ReadyEvent_ = CompletionError_.ToFuture();
         return false;
     }
 
+    // If #CompletionError is not set, #CurrentSession must be ready.
+    YCHECK(CurrentSession_.IsActive());
     return true;
 }
 
