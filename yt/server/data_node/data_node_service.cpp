@@ -747,8 +747,15 @@ private:
         auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
         auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
 
-        if (chunkKeyColumns != keyColumns) {
-            auto error = TError("Key columns mismatch in chunk %v: expected [%v], actual [%v]",
+        int prefixLength = std::min(chunkKeyColumns.size(), keyColumns.size());
+        bool isCompatibleKeyColumns = std::equal(
+            chunkKeyColumns.begin(), 
+            chunkKeyColumns.begin() + prefixLength, 
+            keyColumns.begin());
+
+        // Requested key can be wider than stored.
+        if (!isCompatibleKeyColumns || chunkKeyColumns.size() > prefixLength) {
+            auto error = TError("Incompatible key columns in chunk %v: requested key columns [%v], chunk key columns [%v]",
                 chunkId,
                 JoinToString(keyColumns),
                 JoinToString(chunkKeyColumns));
@@ -764,6 +771,18 @@ private:
             samplesExt.entries().end(),
             std::back_inserter(samples),
             sampleRequest->sample_count());
+
+        int keySizeDelta = prefixLength - keyColumns.size();
+        if (keySizeDelta < 0) {
+            // Requested key is wider than the keys stored in chunk.
+            std::vector<TUnversionedValue> values(keyColumns.size(), MakeUnversionedSentinelValue(EValueType::Null, 0));
+            for (int i = 0; i < samples.size(); ++i) {
+                auto row = FromProto<TUnversionedOwningRow>(samples[i]);
+                YCHECK(row.GetCount() == chunkKeyColumns.size());
+                std::copy(row.Begin(), row.End(), values.begin());
+                samples[i] = SerializeToString(values.data(), values.data() + keyColumns.size());
+            }
+        }
 
         ToProto(chunkSamples->mutable_keys(), samples);
     }
