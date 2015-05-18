@@ -30,6 +30,8 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////
 
 TChunkSplitsFetcher::TChunkSplitsFetcher(
@@ -123,9 +125,12 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
 
     const auto& rsp = rspOrError.Value();
     for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
+        const auto& chunk = Chunks_[requestedChunkIndexes[i]];
         const auto& responseChunks = rsp->splitted_chunks(i);
+
         if (responseChunks.has_error()) {
-            OnChunkFailed(nodeId, requestedChunkIndexes[i]);
+            auto error = FromProto<TError>(responseChunks.error());
+            OnChunkFailed(nodeId, requestedChunkIndexes[i], error);
             continue;
         }
 
@@ -133,15 +138,13 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
             responseChunks.chunk_specs_size(),
             requestedChunkIndexes[i]);
 
-        auto origin = Chunks_[requestedChunkIndexes[i]];
-
         for (auto& responseChunk : responseChunks.chunk_specs()) {
             auto split = New<TRefCountedChunkSpec>(std::move(responseChunk));
             // Adjust chunk id (makes sense for erasure chunks only).
-            auto chunkId = NYT::FromProto<TChunkId>(split->chunk_id());
+            auto chunkId = FromProto<TChunkId>(split->chunk_id());
             auto chunkIdWithIndex = DecodeChunkId(chunkId);
             ToProto(split->mutable_chunk_id(), chunkIdWithIndex.Id);
-            split->set_table_index(origin->table_index());
+            split->set_table_index(chunk->table_index());
             ChunkSplits_.push_back(split);
         }
     }
