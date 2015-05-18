@@ -496,13 +496,13 @@ TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
     const Stroka& aggregateName,
     TType argumentType,
     TType resultType,
-    EValueType stateType,
+    std::function<EValueType(EValueType)> stateTypeFunction,
     TSharedRef implementationFile,
     ICallingConventionPtr callingConvention)
     : AggregateName_(aggregateName)
     , ArgumentType_(argumentType)
     , ResultType_(resultType)
-    , StateType_(stateType)
+    , StateTypeFunction_(stateTypeFunction)
     , ImplementationFile_(implementationFile)
     , CallingConvention_(callingConvention)
 { }
@@ -511,14 +511,14 @@ TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
     const Stroka& aggregateName,
     TType argumentType,
     TType resultType,
-    EValueType stateType,
+    std::function<EValueType(EValueType)> stateTypeFunction,
     TSharedRef implementationFile,
     ECallingConvention callingConvention)
     : TUserDefinedAggregateFunction(
         aggregateName,
         argumentType,
         resultType,
-        stateType,
+        stateTypeFunction,
         implementationFile,
         GetCallingConvention(callingConvention))
 { }
@@ -651,7 +651,7 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
 EValueType TUserDefinedAggregateFunction::GetStateType(
     EValueType type) const
 {
-    return StateType_;
+    return StateTypeFunction_(type);
 }
 
 EValueType TUserDefinedAggregateFunction::InferResultType(
