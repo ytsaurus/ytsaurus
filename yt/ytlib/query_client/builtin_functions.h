@@ -14,6 +14,7 @@ typedef std::vector<EValueType> TUnionType;
 typedef TVariant<EValueType, TTypeArgument, TUnionType> TType;
 
 EValueType TypingFunction(
+    const std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     const std::vector<TType>& expectedArgTypes,
     TType repeatedArgType,
     TType resultType,
@@ -27,12 +28,14 @@ class TTypedFunction
 public:
     TTypedFunction(
         const Stroka& functionName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgumentType,
         TType resultType);
 
     TTypedFunction(
         const Stroka& functionName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType resultType);
 
@@ -44,6 +47,7 @@ public:
 
 private:
     Stroka FunctionName_;
+    std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
     std::vector<TType> ArgumentTypes_;
     TType RepeatedArgumentType_;
     TType ResultType_;

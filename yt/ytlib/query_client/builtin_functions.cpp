@@ -30,6 +30,7 @@ Stroka TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> gene
 }
 
 EValueType TypingFunction(
+    const std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     const std::vector<TType>& expectedArgTypes,
     TType repeatedArgType,
     TType resultType,
@@ -39,14 +40,17 @@ EValueType TypingFunction(
 {
     std::unordered_map<TTypeArgument, EValueType> genericAssignments;
 
+    auto typeInUnion = [&] (TUnionType unionType, EValueType type) {
+        return std::find(
+            unionType.begin(),
+            unionType.end(),
+            type) != unionType.end();
+    };
+
     auto isSubtype = [&] (EValueType type1, TType type2) {
         YCHECK(!type2.TryAs<TTypeArgument>());
         if (auto* unionType = type2.TryAs<TUnionType>()) {
-            auto exists = std::find(
-                unionType->begin(),
-                unionType->end(),
-                type1);
-            return exists != unionType->end();
+            return typeInUnion(*unionType, type1);
         } else if (auto* concreteType = type2.TryAs<EValueType>()) {
             return type1 == *concreteType;
         }
@@ -109,6 +113,22 @@ EValueType TypingFunction(
         }
     }
 
+    for (auto constraint : typeArgumentConstraints) {
+        auto typeArg = constraint.first;
+        auto allowedTypes = constraint.second;
+        if (genericAssignments.count(typeArg)
+            && typeInUnion(allowedTypes, genericAssignments[typeArg]))
+        {
+            THROW_ERROR_EXCEPTION(
+                "Invalid type infered for type argument %v to function %Qv: expected %Qv, got %Qv",
+                typeArg,
+                functionName,
+                TypeToString(allowedTypes, genericAssignments),
+                TypeToString(typeArg, genericAssignments))
+                << TErrorAttribute("expression", source);
+        }
+    }
+
     if (auto* genericResult = resultType.TryAs<TTypeArgument>()) {
         if (!genericAssignments.count(*genericResult)) {
             THROW_ERROR_EXCEPTION(
@@ -133,10 +153,12 @@ EValueType TypingFunction(
 
 TTypedFunction::TTypedFunction(
     const Stroka& functionName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     std::vector<TType> argumentTypes,
     TType repeatedArgumentType,
     TType resultType)
     : FunctionName_(functionName)
+    , TypeArgumentConstraints_(typeArgumentConstraints)
     , ArgumentTypes_(argumentTypes)
     , RepeatedArgumentType_(repeatedArgumentType)
     , ResultType_(resultType)
@@ -144,9 +166,11 @@ TTypedFunction::TTypedFunction(
 
 TTypedFunction::TTypedFunction(
     const Stroka& functionName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     std::vector<TType> argumentTypes,
     TType resultType)
     : FunctionName_(functionName)
+    , TypeArgumentConstraints_(typeArgumentConstraints)
     , ArgumentTypes_(argumentTypes)
     , RepeatedArgumentType_(EValueType::Null)
     , ResultType_(resultType)
@@ -162,6 +186,7 @@ EValueType TTypedFunction::InferResultType(
     const TStringBuf& source) const
 {
     return TypingFunction(
+        TypeArgumentConstraints_,
         ArgumentTypes_,
         RepeatedArgumentType_,
         ResultType_,
@@ -206,6 +231,7 @@ TCodegenExpression TCodegenFunction::MakeCodegenExpr(
 
 TIfFunction::TIfFunction() : TTypedFunction(
     "if",
+    std::unordered_map<TTypeArgument, TUnionType>(),
     std::vector<TType>{ EValueType::Boolean, 0, 0 },
     0)
 { }
@@ -249,9 +275,10 @@ TCGValue TIfFunction::CodegenValue(
 
 TIsPrefixFunction::TIsPrefixFunction()
     : TTypedFunction(
-      "is_prefix",
-      std::vector<TType>{ EValueType::String, EValueType::String },
-      EValueType::Boolean)
+        "is_prefix",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{ EValueType::String, EValueType::String },
+        EValueType::Boolean)
 { }
 
 TCGValue TIsPrefixFunction::CodegenValue(
@@ -315,6 +342,7 @@ TCastFunction::TCastFunction(
     const Stroka& functionName)
     : TTypedFunction(
         functionName,
+        std::unordered_map<TTypeArgument, TUnionType>(),
         std::vector<TType>{ CastTypes_ },
         resultType)
 { }
