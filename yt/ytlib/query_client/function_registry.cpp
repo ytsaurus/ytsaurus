@@ -162,21 +162,41 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         EValueType::Double,
         "double"));
 
-    registry->RegisterAggregateFunction(New<TAggregateFunction>("sum"));
-    registry->RegisterAggregateFunction(New<TAggregateFunction>("min"));
-    //registry->RegisterAggregateFunction(New<TAggregateFunction>("max"));
-    auto maxTypeArg = 0;
-    auto maxConstraints = std::unordered_map<TTypeArgument, TUnionType>();
-    maxConstraints[maxTypeArg] = std::vector<EValueType>{
+    auto typeArg = 0;
+    auto constraints = std::unordered_map<TTypeArgument, TUnionType>();
+    constraints[typeArg] = std::vector<EValueType>{
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Double,
         EValueType::String};
+    auto sumConstraints = std::unordered_map<TTypeArgument, TUnionType>();
+    sumConstraints[typeArg] = std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double,
+        EValueType::String};
+
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "sum",
+        sumConstraints,
+        typeArg,
+        typeArg,
+        [] (EValueType type) { return type; },
+        aggregatesImplementation,
+        ECallingConvention::UnversionedValue));
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "min",
+        constraints,
+        typeArg,
+        typeArg,
+        [] (EValueType type) { return type; },
+        aggregatesImplementation,
+        ECallingConvention::UnversionedValue));
     registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
         "max",
-        maxConstraints,
-        maxTypeArg,
-        maxTypeArg,
+        constraints,
+        typeArg,
+        typeArg,
         [] (EValueType type) { return type; },
         aggregatesImplementation,
         ECallingConvention::UnversionedValue));
