@@ -431,10 +431,11 @@ private:
         // Select stores.
         std::vector<IStorePtr> stores;
         auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-            stores.insert(
-                stores.end(),
-                partitionSnapshot->Stores.begin(),
-                partitionSnapshot->Stores.end());
+            for (const auto& store : partitionSnapshot->Stores) {
+                if (store->GetMinKey() <= UpperBound_ && store->GetMaxKey() >= LowerBound_) {
+                    stores.push_back(store);
+                }
+            }
         };
 
         takePartition(TabletSnapshot_->Eden);
@@ -497,7 +498,12 @@ public:
         , Pool_(TTabletReaderPoolTag())
         , Timestamp_(timestamp)
         , Keys_(keys)
-    { }
+    {
+        for (const auto& key : Keys_) {
+            MinKey_ = !MinKey_ || key < MinKey_ ? key : MinKey_;
+            MaxKey_ = !MaxKey_ || key > MaxKey_ ? key : MaxKey_;
+        }
+    }
 
     virtual TFuture<void> Open(const TTableSchema& schema) override
     {
@@ -532,16 +538,19 @@ private:
 
     TTimestamp Timestamp_;
     const TSharedRange<TKey> Keys_;
+    TKey MinKey_;
+    TKey MaxKey_;
 
     void DoOpen(const TTableSchema& schema)
     {
         // Select stores.
         std::vector<IStorePtr> stores;
         auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-            stores.insert(
-                stores.end(),
-                partitionSnapshot->Stores.begin(),
-                partitionSnapshot->Stores.end());
+            for (const auto& store : partitionSnapshot->Stores) {
+                if (store->GetMinKey() <= MaxKey_ && store->GetMaxKey() >= MinKey_) {
+                    stores.push_back(store);
+                }
+            }
         };
 
         takePartition(TabletSnapshot_->Eden);
