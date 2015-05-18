@@ -364,6 +364,7 @@ TUserDefinedFunction::TUserDefinedFunction(
     ICallingConventionPtr callingConvention)
     : TTypedFunction(
         functionName,
+        std::unordered_map<TTypeArgument, TUnionType>(),
         std::vector<TType>(argumentTypes.begin(), argumentTypes.end()),
         repeatedArgType,
         resultType)
@@ -658,6 +659,7 @@ EValueType TUserDefinedAggregateFunction::InferResultType(
     const TStringBuf& source) const
 {
     return TypingFunction(
+        std::unordered_map<TTypeArgument, TUnionType>(),
         std::vector<TType>{ArgumentType_},
         EValueType::Null,
         ResultType_,
