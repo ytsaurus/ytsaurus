@@ -110,10 +110,6 @@ private:
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-
-        auto tabletManager = tabletSnapshot->Slot->GetTabletManager();
-
         auto config = Bootstrap_->GetConfig()->QueryAgent;
 
         NQueryAgent::ExecuteRequestWithRetries(
@@ -122,9 +118,12 @@ private:
             [&] () {
                 ValidateActiveLeader();
 
+                auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+
                 TWireProtocolReader reader(requestData);
                 TWireProtocolWriter writer;
 
+                auto tabletManager = tabletSnapshot->Slot->GetTabletManager();
                 tabletManager->Read(
                     tabletSnapshot,
                     timestamp,
