@@ -227,7 +227,7 @@ message TRspGetChunkSplits
         repeated NChunkClient.NProto.TChunkSpec chunk_specs = 2;
     }
 
-    repeated TChunkSplits splitted_chunks = 1;
+    repeated TChunkSplits splits = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

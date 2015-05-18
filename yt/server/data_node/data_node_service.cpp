@@ -513,7 +513,7 @@ private:
         auto keyColumns = NYT::FromProto<Stroka>(request->key_columns());
         for (const auto& chunkSpec : request->chunk_specs()) {
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-            auto* splittedChunk = response->add_splitted_chunks();
+            auto* splits = response->add_splits();
             auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
             if (!chunk) {
@@ -522,7 +522,7 @@ private:
                     "No such chunk %v",
                     chunkId);
                 LOG_WARNING(error);
-                ToProto(splittedChunk->mutable_error(), error);
+                ToProto(splits->mutable_error(), error);
                 continue;
             }
 
@@ -532,7 +532,7 @@ private:
                     &TDataNodeService::MakeChunkSplits,
                     MakeStrong(this),
                     &chunkSpec,
-                    splittedChunk,
+                    splits,
                     request->min_split_size(),
                     keyColumns)
                 .AsyncVia(WorkerThread_->GetInvoker())));
@@ -543,7 +543,7 @@ private:
 
     void MakeChunkSplits(
         const NChunkClient::NProto::TChunkSpec* chunkSpec,
-        NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
+        NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splits,
         i64 minSplitSize,
         const TKeyColumns& keyColumns,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
@@ -579,12 +579,12 @@ private:
                 keyColumns.size());
 
             for (const auto& slice : slices) {
-                ToProto(splittedChunk->add_chunk_specs(), *slice);
+                ToProto(splits->add_chunk_specs(), *slice);
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             LOG_WARNING(error);
-            ToProto(splittedChunk->mutable_error(), error);
+            ToProto(splits->mutable_error(), error);
         }
     }
 
