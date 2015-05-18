@@ -50,21 +50,85 @@ namespace NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void SerializeMapFragment(const Py::Mapping& map, IYsonConsumer* consumer, bool ignoreInnerAttributes, int depth)
+void SerializeMapFragment(const Py::Object& map, IYsonConsumer* consumer, bool ignoreInnerAttributes, int depth)
 {
-    auto iterator = Py::Object(PyObject_GetIter(*map), true);
-    while (auto* next = PyIter_Next(*iterator)) {
-        Py::Object key = Py::Object(next, true);
-        char* keyStr = PyString_AsString(ConvertToString(key).ptr());
-        auto value = Py::Object(PyMapping_GetItemString(*map, keyStr), true);
-        consumer->OnKeyedItem(TStringBuf(keyStr));
-        Serialize(value, consumer, ignoreInnerAttributes, depth + 1);
+    auto items = Py::Object(PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyMapping_Items(*map), true);
+    auto iterator = Py::Object(PyObject_GetIter(*items), true);
+    while (auto* item = PyIter_Next(*iterator)) {
+         auto key = Py::Object(PyTuple_GET_ITEM(item, 0), false);
+         char* keyStr = PyString_AsString(ConvertToString(key).ptr());
+         auto value = Py::Object(PyTuple_GET_ITEM(item, 1), false);
+         consumer->OnKeyedItem(TStringBuf(keyStr));
+         Serialize(value, consumer, ignoreInnerAttributes, depth + 1);
+         Py::_XDECREF(item);
     }
+}
+
+void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
+{
+    static Py::Callable YsonBooleanClass = GetYsonType("YsonBoolean");
+    static Py::Callable YsonUint64Class = GetYsonType("YsonUint64");
+    static Py::Callable YsonInt64Class = GetYsonType("YsonInt64");
+    static Py::LongLong SignedInt64Min(std::numeric_limits<i64>::min());
+    static Py::LongLong SignedInt64Max(std::numeric_limits<i64>::max());
+    static Py::LongLong UnsignedInt64Max(std::numeric_limits<ui64>::max());
+
+    if (PyObject_Compare(UnsignedInt64Max.ptr(), obj.ptr()) < 0 ||
+        PyObject_Compare(obj.ptr(), SignedInt64Min.ptr()) < 0)
+    {
+        throw Py::RuntimeError(
+            "Integer " + std::string(obj.repr()) +
+            " cannot be represented in YSON since it is out of range [-2^63, 2^64 - 1])");
+    }
+
+    auto consumeAsLong = [&] {
+        bool greaterThanInt64 = PyObject_Compare(SignedInt64Max.ptr(), obj.ptr()) < 0;
+        if (greaterThanInt64) {
+            consumer->OnUint64Scalar(PyLong_AsUnsignedLongLong(obj.ptr()));
+        } else {
+            consumer->OnInt64Scalar(PyLong_AsLongLong(obj.ptr()));
+        }
+    };
+
+    if (PyLong_CheckExact(obj.ptr())) {
+        consumeAsLong();
+        return;
+    }
+
+    // YsonBoolean inherited from int
+    if (IsInstance(obj, YsonBooleanClass)) {
+        consumer->OnBooleanScalar(Py::Boolean(obj));
+        return;
+    }
+
+    bool isUint64 = IsInstance(obj, YsonUint64Class);
+    if (isUint64) {
+        bool negative = PyObject_Compare(Py::Int(0).ptr(), obj.ptr()) > 0;
+        if (negative) {
+            throw Py::RuntimeError("Can not dump negative integer as YSON uint64");
+        }
+        consumer->OnUint64Scalar(PyLong_AsUnsignedLongLong(obj.ptr()));
+        return;
+    }
+
+    bool isInt64 = IsInstance(obj, YsonInt64Class);
+    if (isInt64) {
+        bool greaterThanInt64 = PyObject_Compare(SignedInt64Max.ptr(), obj.ptr()) < 0;
+        if (greaterThanInt64) {
+            throw Py::RuntimeError("Can not dump integer greater than 2^63-1 as YSON int64");
+        }
+        consumer->OnInt64Scalar(PyLong_AsLongLong(obj.ptr()));
+        return;
+    }
+
+    consumeAsLong();
 }
 
 
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerAttributes, int depth)
 {
+    static Py::Callable YsonEntityClass = GetYsonType("YsonEntity");
+
     const char* attributesStr = "attributes";
     if ((!ignoreInnerAttributes || depth == 0) && PyObject_HasAttrString(*obj, attributesStr)) {
         auto attributes = Py::Mapping(PyObject_GetAttrString(*obj, attributesStr), true);
@@ -82,8 +146,15 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
         consumer->OnStringScalar(ConvertToStringBuf(ConvertToString(encoded)));
     } else if (obj.isMapping()) {
         consumer->OnBeginMap();
-        SerializeMapFragment(Py::Mapping(obj), consumer, ignoreInnerAttributes, depth);
+        SerializeMapFragment(obj, consumer, ignoreInnerAttributes, depth);
         consumer->OnEndMap();
+    // Fast check for simple integers
+    } else if (PyInt_CheckExact(obj.ptr())) {
+        consumer->OnInt64Scalar(PyLong_AsLongLong(obj.ptr()));
+    } else if (obj.isBoolean()) {
+        consumer->OnBooleanScalar(Py::Boolean(obj));
+    } else if (obj.isInteger() or PyLong_Check(obj.ptr())) {
+        SerializePythonInteger(obj, consumer);
     } else if (obj.isSequence()) {
         const auto& objList = Py::Sequence(obj);
         consumer->OnBeginList();
@@ -92,39 +163,9 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
             Serialize(*it, consumer, ignoreInnerAttributes, depth + 1);
         }
         consumer->OnEndList();
-    } else if (obj.isBoolean() || IsInstance(obj, GetYsonType("YsonBoolean"))) {
-        consumer->OnBooleanScalar(Py::Boolean(obj));
-    } else if (obj.isInteger() or PyLong_Check(obj.ptr())) {
-        if (PyObject_Compare(Py::LongLong(std::numeric_limits<ui64>::max()).ptr(), obj.ptr()) < 0 ||
-            PyObject_Compare(obj.ptr(), Py::LongLong(std::numeric_limits<i64>::min()).ptr()) < 0)
-        {
-            throw Py::RuntimeError(
-                "Integer " + std::string(obj.repr()) +
-                " cannot be represented in YSON since it is out of range [-2^63, 2^64 - 1])");
-        }
-
-        bool isUint64 = IsInstance(obj, GetYsonType("YsonUint64"));
-        bool isInt64 = IsInstance(obj, GetYsonType("YsonInt64"));
-        bool negative = PyObject_Compare(Py::Int(0).ptr(), obj.ptr()) > 0;
-        bool greaterThanInt64 = PyObject_Compare(Py::Int(std::numeric_limits<i64>::max()).ptr(), obj.ptr()) < 0;
-
-        if (isUint64 && negative) {
-            throw Py::RuntimeError("Can not dump negative integer as YSON uint64");
-        }
-        
-        if (isInt64 && greaterThanInt64) {
-            throw Py::RuntimeError("Can not dump integer greater than 2^63-1 as YSON int64");
-        }
-
-        auto longObj = Py::LongLong(obj);
-        if (isUint64 || greaterThanInt64) {
-            consumer->OnUint64Scalar(PyLong_AsUnsignedLongLong(longObj.ptr()));
-        } else {
-            consumer->OnInt64Scalar(PyLong_AsLongLong(longObj.ptr()));
-        }
     } else if (obj.isFloat()) {
         consumer->OnDoubleScalar(Py::Float(obj));
-    } else if (obj.isNone() || IsInstance(obj, GetYsonType("YsonEntity"))) {
+    } else if (obj.isNone() || IsInstance(obj, YsonEntityClass)) {
         consumer->OnEntity();
     } else {
         throw Py::RuntimeError(
