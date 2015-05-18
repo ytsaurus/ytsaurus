@@ -126,20 +126,20 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
     const auto& rsp = rspOrError.Value();
     for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
         const auto& chunk = Chunks_[requestedChunkIndexes[i]];
-        const auto& responseChunks = rsp->splitted_chunks(i);
+        const auto& splits = rsp->splits(i);
 
-        if (responseChunks.has_error()) {
-            auto error = FromProto<TError>(responseChunks.error());
+        if (splits.has_error()) {
+            auto error = FromProto<TError>(splits.error());
             OnChunkFailed(nodeId, requestedChunkIndexes[i], error);
             continue;
         }
 
         LOG_TRACE("Received %v chunk splits for chunk #%v",
-            responseChunks.chunk_specs_size(),
+            splits.chunk_specs_size(),
             requestedChunkIndexes[i]);
 
-        for (auto& responseChunk : responseChunks.chunk_specs()) {
-            auto split = New<TRefCountedChunkSpec>(std::move(responseChunk));
+        for (auto& chunkSpec : splits.chunk_specs()) {
+            auto split = New<TRefCountedChunkSpec>(std::move(chunkSpec));
             // Adjust chunk id (makes sense for erasure chunks only).
             auto chunkId = FromProto<TChunkId>(split->chunk_id());
             auto chunkIdWithIndex = DecodeChunkId(chunkId);
