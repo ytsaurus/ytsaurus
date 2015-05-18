@@ -169,7 +169,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         "avg",
         EValueType::Int64,
         EValueType::Double,
-        EValueType::String,
+        [] (EValueType type) { return EValueType::String; },
         aggregatesImplementation,
         ECallingConvention::UnversionedValue));
 }
@@ -482,7 +482,7 @@ void TCypressFunctionRegistry::LookupAndRegisterAggregate(const Stroka& aggregat
         aggregateName,
         cypressDescriptor->ArgumentType.Type,
         cypressDescriptor->ResultType.Type,
-        cypressDescriptor->StateType,
+        [=] (EValueType type) { return cypressDescriptor->StateType; },
         implementationFile,
         cypressDescriptor->CallingConvention));
 }

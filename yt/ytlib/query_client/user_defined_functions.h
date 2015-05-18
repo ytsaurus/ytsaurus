@@ -129,7 +129,7 @@ public:
         const Stroka& aggregateName,
         TType argumentType,
         TType resultType,
-        EValueType stateType,
+        std::function<EValueType(EValueType)> StateTypeFunction_,
         TSharedRef implementationFile,
         ECallingConvention callingConvention);
 
@@ -150,7 +150,7 @@ private:
     Stroka AggregateName_;
     TType ArgumentType_;
     TType ResultType_;
-    EValueType StateType_;
+    std::function<EValueType(EValueType)> StateTypeFunction_;
     TSharedRef ImplementationFile_;
     ICallingConventionPtr CallingConvention_;
 
@@ -158,7 +158,7 @@ private:
         const Stroka& aggregateName,
         TType argumentType,
         TType resultType,
-        EValueType stateType,
+        std::function<EValueType(EValueType)> stateTypeFunction,
         TSharedRef implementationFile,
         ICallingConventionPtr callingConvention);
 };
