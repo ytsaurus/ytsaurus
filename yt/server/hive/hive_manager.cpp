@@ -282,20 +282,20 @@ private:
         if (!mailbox)
             return;
 
-        int lastIncomingMessageId = request.last_incoming_message_id();
-        int trimCount = lastIncomingMessageId - mailbox->GetFirstOutcomingMessageId() + 1;
+        int lastAcknowledgedMessageId = request.last_acknowledged_message_id();
+        int trimCount = lastAcknowledgedMessageId - mailbox->GetFirstOutcomingMessageId() + 1;
         if (trimCount <= 0)
             return;
 
         auto& outcomingMessages = mailbox->OutcomingMessages();
         if (trimCount > outcomingMessages.size()) {
             LOG_ERROR_UNLESS(IsRecovery(), "Requested to acknowledge too many messages "
-                "(SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v, LastIncomingMessageId: %v)",
+                "(SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v, LastAcknowledgedMessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
                 mailbox->GetFirstOutcomingMessageId(),
                 outcomingMessages.size(),
-                lastIncomingMessageId);
+                lastAcknowledgedMessageId);
             return;
         }
 
@@ -337,10 +337,10 @@ private:
 
         if (context) {
             auto* response = &context->Response();
-            int lastIncomingMessageId = mailbox->GetLastIncomingMessageId();
-            response->set_last_incoming_message_id(lastIncomingMessageId);
-            context->SetResponseInfo("LastIncomingMessageId: %v",
-                lastIncomingMessageId);
+            int lastAcknowledgedMessageId = mailbox->GetLastIncomingMessageId();
+            response->set_last_acknowledged_message_id(lastAcknowledgedMessageId);
+            context->SetResponseInfo("LastAcknowledgedMessageId: %v",
+                lastAcknowledgedMessageId);
         }
     }
 
@@ -505,13 +505,13 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        int lastIncomingMessageId = rsp->last_incoming_message_id();
-        LOG_DEBUG("Outcoming messages posted successfully (SrcCellId: %v, DstCellId: %v, LastIncomingMessageId: %v)",
+        int lastAcknowledgedMessageId = rsp->last_acknowledged_message_id();
+        LOG_DEBUG("Outcoming messages posted successfully (SrcCellId: %v, DstCellId: %v, LastAcknowledgedMessageId: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
-            lastIncomingMessageId);
+            lastAcknowledgedMessageId);
 
-        HandleAcknowledgedMessages(mailbox, lastIncomingMessageId);
+        HandleAcknowledgedMessages(mailbox, lastAcknowledgedMessageId);
     }
 
 
@@ -532,14 +532,14 @@ private:
     }
 
 
-    void HandleAcknowledgedMessages(TMailbox* mailbox, int lastIncomingMessageId)
+    void HandleAcknowledgedMessages(TMailbox* mailbox, int lastAcknowledgedMessageId)
     {
-        if (lastIncomingMessageId < mailbox->GetFirstOutcomingMessageId())
+        if (lastAcknowledgedMessageId < mailbox->GetFirstOutcomingMessageId())
             return;
 
         TReqAcknowledgeMessages req;
         ToProto(req.mutable_cell_id(), mailbox->GetCellId());
-        req.set_last_incoming_message_id(lastIncomingMessageId);
+        req.set_last_acknowledged_message_id(lastAcknowledgedMessageId);
 
         CreateAcknowledgeMessagesMutation(req)
             ->Commit()
