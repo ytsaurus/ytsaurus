@@ -164,9 +164,25 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 
     registry->RegisterAggregateFunction(New<TAggregateFunction>("sum"));
     registry->RegisterAggregateFunction(New<TAggregateFunction>("min"));
-    registry->RegisterAggregateFunction(New<TAggregateFunction>("max"));
+    //registry->RegisterAggregateFunction(New<TAggregateFunction>("max"));
+    auto maxTypeArg = 0;
+    auto maxConstraints = std::unordered_map<TTypeArgument, TUnionType>();
+    maxConstraints[maxTypeArg] = std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double,
+        EValueType::String};
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "max",
+        maxConstraints,
+        maxTypeArg,
+        maxTypeArg,
+        [] (EValueType type) { return type; },
+        aggregatesImplementation,
+        ECallingConvention::UnversionedValue));
     registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
         "avg",
+        std::unordered_map<TTypeArgument, TUnionType>(),
         EValueType::Int64,
         EValueType::Double,
         [] (EValueType type) { return EValueType::String; },
@@ -480,6 +496,7 @@ void TCypressFunctionRegistry::LookupAndRegisterAggregate(const Stroka& aggregat
 
     UdfRegistry_->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
         aggregateName,
+        std::unordered_map<TTypeArgument, TUnionType>(),
         cypressDescriptor->ArgumentType.Type,
         cypressDescriptor->ResultType.Type,
         [=] (EValueType type) { return cypressDescriptor->StateType; },
