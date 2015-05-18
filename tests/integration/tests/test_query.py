@@ -440,3 +440,28 @@ class TestQuery(YTEnvSetup):
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
         actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u] where sum_udf(b, 1, 2) = sum_udf(3, b)")
         self.assertItemsEqual(actual, expected)
+
+    def test_udaf(self):
+        registry_path = "//tmp/udfs"
+        create("map_node", registry_path)
+
+        avg_path = os.path.join(registry_path, "avg_udaf")
+        create("file", avg_path,
+            attributes = { "aggregate_descriptor": {
+                "name": "avg_udaf",
+                "argument_type": {
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                "state_type": "string",
+                "result_type": {
+                    "tag": "concrete_type",
+                    "value": "double"},
+                "calling_convention": "unversioned_value"}})
+
+        local_implementation_path = find_executable("test_udfs.bc")
+        upload_file(avg_path, local_implementation_path)
+
+        self._sample_data(path="//tmp/ua")
+        expected = [{"x": 5.0}]
+        actual = select_rows("avg_udaf(a) as x from [//tmp/ua] group by 1")
+        self.assertItemsEqual(actual, expected)

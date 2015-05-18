@@ -284,6 +284,30 @@ public:
 DECLARE_REFCOUNTED_CLASS(TCypressFunctionDescriptor)
 DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
 
+class TCypressAggregateDescriptor
+    : public TYsonSerializable
+{
+public:
+    Stroka Name;
+    TDescriptorType ArgumentType;
+    EValueType StateType;
+    TDescriptorType ResultType;
+    ECallingConvention CallingConvention;
+
+    TCypressAggregateDescriptor()
+    {
+        RegisterParameter("name", Name)
+            .NonEmpty();
+        RegisterParameter("argument_type", ArgumentType);
+        RegisterParameter("state_type", StateType);
+        RegisterParameter("result_type", ResultType);
+        RegisterParameter("calling_convention", CallingConvention);
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TCypressAggregateDescriptor)
+DEFINE_REFCOUNTED_TYPE(TCypressAggregateDescriptor)
+
 TSharedRef ReadFile(const Stroka& fileName, NApi::IClientPtr client)
 {
     auto reader = client->CreateFileReader(fileName);
@@ -331,79 +355,136 @@ IFunctionDescriptorPtr TCypressFunctionRegistry::FindFunction(const Stroka& func
         LOG_DEBUG("Found a cached implementation of function %Qv", functionName);
         return function;
     } else {
-        LookupAndRegister(functionName);
+        LookupAndRegisterFunction(functionName);
         return UdfRegistry_->FindFunction(functionName);
     }
 }
 
-void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
+template <class TDescriptor>
+TDescriptor LookupDescriptor(
+    const Stroka& descriptorAttribute,
+    const Stroka& functionName,
+    const Stroka& functionPath,
+    NApi::IClientPtr client)
 {
     LOG_DEBUG("Looking for implementation of function %Qv in Cypress",
         functionName);
     
-    const auto descriptorAttribute = "function_descriptor";
-
-    auto functionPath = RegistryPath_ + "/" + ToYPathLiteral(to_lower(functionName));
-
     auto getDescriptorOptions = NApi::TGetNodeOptions();
     getDescriptorOptions.AttributeFilter = TAttributeFilter(
         EAttributeFilterMode::MatchingOnly,
         std::vector<Stroka>{descriptorAttribute});
 
-    auto cypressFunctionOrError = WaitFor(Client_->GetNode(
+    auto cypressFunctionOrError = WaitFor(client->GetNode(
         functionPath,
         getDescriptorOptions));
 
     if (!cypressFunctionOrError.IsOK()) {
         LOG_DEBUG(cypressFunctionOrError, "Failed to find implementation of function %Qv in Cypress",
             functionName);
-        return;
+        return nullptr;
     }
 
     LOG_DEBUG("Found implementation of function %Qv in Cypress",
         functionName);
 
-    TCypressFunctionDescriptorPtr cypressFunction;
+    TDescriptor cypressDescriptor;
     try {
-        cypressFunction = ConvertToNode(cypressFunctionOrError.Value())
+        cypressDescriptor = ConvertToNode(cypressFunctionOrError.Value())
             ->Attributes()
-            .Get<TCypressFunctionDescriptorPtr>(descriptorAttribute);
-        
-        if (cypressFunction->CallingConvention == ECallingConvention::Simple && 
-            cypressFunction->RepeatedArgumentType)
-        {
-            THROW_ERROR_EXCEPTION("Function using the simple calling convention may not have repeated arguments");
-        }
+            .Get<TDescriptor>(descriptorAttribute);
     } catch (const TErrorException& exception) {
         THROW_ERROR_EXCEPTION(
             "Error while deserializing UDF descriptor from Cypress")
             << exception;
     }
-  
+
+    return cypressDescriptor;
+}
+
+void TCypressFunctionRegistry::LookupAndRegisterFunction(const Stroka& functionName)
+{
+    const auto descriptorAttribute = "function_descriptor";
+
+    auto functionPath = RegistryPath_ + "/" + ToYPathLiteral(to_lower(functionName));
+
+    auto cypressDescriptor = LookupDescriptor<TCypressFunctionDescriptorPtr>(
+        descriptorAttribute,
+        functionName,
+        functionPath,
+        Client_);
+
+    if (!cypressDescriptor) {
+        return;
+    }
+
+    if (cypressDescriptor->CallingConvention == ECallingConvention::Simple &&
+        cypressDescriptor->RepeatedArgumentType)
+    {
+        THROW_ERROR_EXCEPTION("Function using the simple calling convention may not have repeated arguments");
+    }
+
     auto implementationFile = ReadFile(
         functionPath,
         Client_);
 
-    if (!cypressFunction->RepeatedArgumentType) {
+    if (!cypressDescriptor->RepeatedArgumentType) {
         UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
-            cypressFunction->Name,
-            cypressFunction->GetArgumentsTypes(),
-            cypressFunction->ResultType.Type,
+            cypressDescriptor->Name,
+            cypressDescriptor->GetArgumentsTypes(),
+            cypressDescriptor->ResultType.Type,
             implementationFile,
-            cypressFunction->CallingConvention));
+            cypressDescriptor->CallingConvention));
     } else {
         UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
-            cypressFunction->Name,
-            cypressFunction->GetArgumentsTypes(),
-            cypressFunction->RepeatedArgumentType->Type,
-            cypressFunction->ResultType.Type,
+            cypressDescriptor->Name,
+            cypressDescriptor->GetArgumentsTypes(),
+            cypressDescriptor->RepeatedArgumentType->Type,
+            cypressDescriptor->ResultType.Type,
             implementationFile));
     }
 }
 
 IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::FindAggregateFunction(const Stroka& aggregateName)
 {
-    return BuiltinRegistry_->FindAggregateFunction(aggregateName);
+    if (auto aggregate = BuiltinRegistry_->FindAggregateFunction(aggregateName)) {
+        return aggregate;
+    } else if (auto aggregate = UdfRegistry_->FindAggregateFunction(aggregateName)) {
+        LOG_DEBUG("Found a cached implementation of function %Qv", aggregateName);
+        return aggregate;
+    } else {
+        LookupAndRegisterAggregate(aggregateName);
+        return UdfRegistry_->FindAggregateFunction(aggregateName);
+    }
+}
+
+void TCypressFunctionRegistry::LookupAndRegisterAggregate(const Stroka& aggregateName)
+{
+    const auto descriptorAttribute = "aggregate_descriptor";
+
+    auto aggregatePath = RegistryPath_ + "/" + ToYPathLiteral(to_lower(aggregateName));
+
+    auto cypressDescriptor = LookupDescriptor<TCypressAggregateDescriptorPtr>(
+        descriptorAttribute,
+        aggregateName,
+        aggregatePath,
+        Client_);
+
+    if (!cypressDescriptor) {
+        return;
+    }
+
+    auto implementationFile = ReadFile(
+        aggregatePath,
+        Client_);
+
+    UdfRegistry_->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        aggregateName,
+        cypressDescriptor->ArgumentType.Type,
+        cypressDescriptor->ResultType.Type,
+        cypressDescriptor->StateType,
+        implementationFile,
+        cypressDescriptor->CallingConvention));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
