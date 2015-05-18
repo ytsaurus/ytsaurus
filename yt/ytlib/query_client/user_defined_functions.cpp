@@ -494,12 +494,14 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
 
 TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
     const Stroka& aggregateName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     TType argumentType,
     TType resultType,
     std::function<EValueType(EValueType)> stateTypeFunction,
     TSharedRef implementationFile,
     ICallingConventionPtr callingConvention)
     : AggregateName_(aggregateName)
+    , TypeArgumentConstraints_(typeArgumentConstraints)
     , ArgumentType_(argumentType)
     , ResultType_(resultType)
     , StateTypeFunction_(stateTypeFunction)
@@ -509,6 +511,7 @@ TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
 
 TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
     const Stroka& aggregateName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     TType argumentType,
     TType resultType,
     std::function<EValueType(EValueType)> stateTypeFunction,
@@ -516,6 +519,7 @@ TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
     ECallingConvention callingConvention)
     : TUserDefinedAggregateFunction(
         aggregateName,
+        typeArgumentConstraints,
         argumentType,
         resultType,
         stateTypeFunction,

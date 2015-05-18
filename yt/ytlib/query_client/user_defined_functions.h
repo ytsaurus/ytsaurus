@@ -127,6 +127,7 @@ class TUserDefinedAggregateFunction
 public:
     TUserDefinedAggregateFunction(
         const Stroka& aggregateName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         TType argumentType,
         TType resultType,
         std::function<EValueType(EValueType)> StateTypeFunction_,
@@ -148,6 +149,7 @@ public:
 
 private:
     Stroka AggregateName_;
+    std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
     TType ArgumentType_;
     TType ResultType_;
     std::function<EValueType(EValueType)> StateTypeFunction_;
@@ -156,6 +158,7 @@ private:
 
     TUserDefinedAggregateFunction(
         const Stroka& aggregateName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         TType argumentType,
         TType resultType,
         std::function<EValueType(EValueType)> stateTypeFunction,
