@@ -19,8 +19,8 @@ using namespace NNodeTrackerClient::NProto;
 static const auto& Logger = SchedulerLogger;
 static const auto& Profiler = SchedulerProfiler;
 
-static const double RatioComputationPrecision = 1e-12;
-static const double RatioComparisonPrecision = 1e-6;
+static const double RatioComputationPrecision = std::numeric_limits<double>::epsilon();
+static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -202,8 +202,8 @@ public:
         if (Attributes_.UsageRatio > RatioComputationPrecision)
         {
             Attributes_.MaxShareRatio = std::min(
-                    GetMinResourceRatio(limits, usage) * Attributes_.UsageRatio,
-                    Attributes_.MaxShareRatio);
+                GetMinResourceRatio(limits, usage) * Attributes_.UsageRatio,
+                Attributes_.MaxShareRatio);
         }
     }
 
@@ -301,11 +301,11 @@ protected:
         double usageRatio = Attributes_.UsageRatio;
 
         // Check for corner cases.
-        if (fairShareRatio < RatioComparisonPrecision) {
-            return 1.0;
+        if (fairShareRatio < RatioComputationPrecision) {
+            return std::numeric_limits<double>::max();
         }
 
-        if (minShareRatio > RatioComparisonPrecision && usageRatio < minShareRatio) {
+        if (minShareRatio > RatioComputationPrecision && usageRatio < minShareRatio) {
             // Needy element, negative satisfaction.
             return usageRatio / minShareRatio - 1.0;
         } else {
@@ -575,7 +575,7 @@ protected:
             childAttributes.AdjustedMinShareRatio = result;
             minShareSum += result;
 
-            if (child->GetWeight() > RatioComparisonPrecision) {
+            if (child->GetWeight() > RatioComputationPrecision) {
                 minWeight = std::min(minWeight, child->GetWeight());
             }
         }
