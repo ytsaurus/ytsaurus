@@ -30,6 +30,12 @@ TCpuInstant InstantToCpuInstant(TInstant instant);
  */
 TValue DurationToValue(TDuration duration);
 
+//! Converts a TValue to duration.
+/*!
+ *  The current implementation assumes that #value is given in microseconds.
+ */
+TDuration ValueToDuration(TValue value);
+
 //! Converts a CPU duration into TValue suitable for profiling.
 TValue CpuDurationToValue(TCpuDuration duration);
 
