@@ -1,5 +1,7 @@
 #include <yt_udf.h>
+
 #include <ctype.h>
+#include <time.h>
 
 char IsSubstr(
     const char* patternData,
@@ -70,3 +72,21 @@ void farm_hash(
     result->Data.Uint64 = FarmHash(args, args + args_len);
     result->Type = Uint64;
 }
+
+int64_t sleep(
+    TExecutionContext* context,
+    int64_t value)
+{
+    if (value < 1) {
+        value = 1;
+    }
+    if (value > 1000) {
+        value = 1000;
+    }
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = value * 1000000;
+    nanosleep(&ts, NULL);
+    return 0;
+}
+

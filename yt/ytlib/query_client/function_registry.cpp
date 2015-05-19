@@ -110,6 +110,13 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         builtinImplementations,
         ECallingConvention::Simple));
 
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "sleep",
+        std::vector<TType>{EValueType::Int64},
+        EValueType::Int64,
+        builtinImplementations,
+        ECallingConvention::Simple));
+
     TUnionType hashTypes = TUnionType{
         EValueType::Int64,
         EValueType::Uint64,
