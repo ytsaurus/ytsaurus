@@ -1111,13 +1111,13 @@ TFuture<void> TJournalManager::AppendMultiplexedRecord(
     const TChunkId& chunkId,
     int recordId,
     const TSharedRef& recordData,
-    TFuture<void> flushResult)
+    TFuture<void> splitResult)
 {
     return Impl_->AppendMultiplexedRecord(
         chunkId,
         recordId,
         recordData,
-        std::move(flushResult));
+        std::move(splitResult));
 }
 
 //////////////////////////////////////////////////////////////////////////////////
