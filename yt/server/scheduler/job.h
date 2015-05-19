@@ -41,7 +41,10 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(bool, Restarted);
 
     //! The time when the job was finished.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
+    DEFINE_BYVAL_RO_PROPERTY(TNullable<TInstant>, FinishTime);
+
+    //! Sets finish time and other timing statistics.
+    void FinalizeJob(const TInstant& finishTime);
 
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;

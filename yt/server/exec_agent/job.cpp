@@ -107,7 +107,7 @@ public:
         YCHECK(JobState == EJobState::Waiting);
         JobState = EJobState::Running;
 
-        StartTime = TInstant::Now();
+        PrepareTime = TInstant::Now();
         auto slotManager = Bootstrap->GetExecSlotManager();
         Slot = slotManager->AcquireSlot();
 
@@ -213,15 +213,6 @@ public:
         }
     }
 
-    TDuration GetElapsedTime() const
-    {
-        if (StartTime.HasValue()) {
-            return TInstant::Now() - StartTime.Get();
-        } else {
-            return TDuration::Seconds(0);
-        }
-    }
-
     NJobProberClient::TJobProberServiceProxy CreateJobProber() const
     {
         auto jobProberClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
@@ -283,7 +274,8 @@ private:
 
     TNullable<TJobResult> JobResult;
 
-    TNullable<TInstant> StartTime;
+    TNullable<TInstant> PrepareTime;
+    TNullable<TInstant> ExecTime;
     TSlotPtr Slot;
 
     IProxyControllerPtr ProxyController;
@@ -317,6 +309,12 @@ private:
 
             YCHECK(JobPhase == EJobPhase::PreparingFiles);
             JobPhase = EJobPhase::Running;
+
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                ExecTime = TInstant::Now();
+            }
+
             RunJobProxy();
         } catch (const std::exception& ex) {
             {
@@ -354,6 +352,13 @@ private:
         }
 
         JobResult = jobResult;
+        if (ExecTime) {
+            JobResult->set_exec_time((TInstant::Now() - *ExecTime).MilliSeconds());
+            JobResult->set_prepare_time((*ExecTime - *PrepareTime).MilliSeconds());
+        } else if (PrepareTime) {
+            JobResult->set_prepare_time((TInstant::Now() - *PrepareTime).MilliSeconds());
+        }
+
         auto error = FromProto<TError>(jobResult.error());
 
         if (error.IsOK()) {
@@ -777,4 +782,5 @@ NJobAgent::IJobPtr CreateUserJob(
 
 } // namespace NExecAgent
 } // namespace NYT
+
 

@@ -34,6 +34,20 @@ TJob::TJob(
     , Preemptable_(false)
 { }
 
+
+void TJob::FinalizeJob(const TInstant& finishTime)
+{
+    FinishTime_ = finishTime;
+    Statistics_.Add("/time/total", GetDuration().MilliSeconds());
+    if (Result().has_prepare_time()) {
+        Statistics_.Add("/time/prepare", Result().prepare_time());
+    }
+
+    if (Result().has_exec_time()) {
+        Statistics_.Add("/time/exec", Result().exec_time());
+    }
+}
+
 TDuration TJob::GetDuration() const
 {
     return *FinishTime_ - StartTime_;

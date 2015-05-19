@@ -20,6 +20,8 @@ message TJobResult
 {
     required NYT.NProto.TError error = 1;
     required bytes statistics = 2;
+    optional int64 prepare_time = 3;
+    optional int64 exec_time = 4;
 
     extensions 100 to max;
 }
