@@ -198,7 +198,7 @@ protected:
             PROFILE_AGGREGATED_TIMING (AcceptTime) {
 #ifdef _linux_
                 clientSocket = accept4(
-                    ServerSocket,
+                    ServerSocket_,
                     clientAddress.GetSockAddr(),
                     &clientAddressLen,
                     SOCK_CLOEXEC);

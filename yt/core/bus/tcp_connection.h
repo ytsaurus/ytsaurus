@@ -185,6 +185,7 @@ private:
     void SyncResolve();
     void SyncClose(const TError& error);
 
+    void InitBuffers();
     void InitFD();
     void InitSocketWatcher();
 
