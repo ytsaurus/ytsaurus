@@ -116,7 +116,6 @@ void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpDispatcher::TImpl::TImpl()
-    : ThreadIdGenerator_(0)
 {
     for (int index = 0; index < ThreadCount; ++index) {
         auto thread = New<TTcpDispatcherThread>(Format("Bus:%v", index));
@@ -149,8 +148,7 @@ TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType 
 
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::AllocateThread()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
-    size_t index = ThreadIdGenerator_.Generate<size_t>() % ThreadCount;
+    size_t index = CurrentThreadIndex_++ % ThreadCount;
     return Threads_[index];
 }
 

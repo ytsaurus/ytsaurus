@@ -5,7 +5,6 @@
 
 #include <core/misc/error.h>
 #include <core/misc/address.h>
-#include <core/misc/random.h>
 
 #include <core/concurrency/ev_scheduler_thread.h>
 #include <core/concurrency/event_count.h>
@@ -85,9 +84,7 @@ private:
     TImpl();
 
     std::vector<TTcpDispatcherThreadPtr> Threads_;
-
-    TSpinLock SpinLock_;
-    TRandomGenerator ThreadIdGenerator_;
+    std::atomic<size_t> CurrentThreadIndex_ = 0;
 
 };
 
