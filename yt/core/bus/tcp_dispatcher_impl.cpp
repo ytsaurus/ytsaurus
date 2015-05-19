@@ -117,10 +117,13 @@ void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
 
 TTcpDispatcher::TImpl::TImpl()
 {
+    ServerThread_ = New<TTcpDispatcherThread>("BusServer");
+    ServerThread_->Start();
+
     for (int index = 0; index < ThreadCount; ++index) {
-        auto thread = New<TTcpDispatcherThread>(Format("Bus:%v", index));
+        auto thread = New<TTcpDispatcherThread>(Format("BusClient:%v", index));
         thread->Start();
-        Threads_.push_back(thread);
+        ClientThreads_.push_back(thread);
     }
 }
 
@@ -131,7 +134,7 @@ TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
 
 void TTcpDispatcher::TImpl::Shutdown()
 {
-    for (auto& thread : Threads_) {
+    for (auto& thread : ClientThreads_) {
         thread->Shutdown();
     }
 }
@@ -140,16 +143,21 @@ TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType 
 {
     // This is racy but should be OK as an approximation.
     TTcpDispatcherStatistics result;
-    for (auto& thread : Threads_) {
+    for (auto& thread : ClientThreads_) {
         result += thread->Statistics(interfaceType);
     }
     return result;
 }
 
-TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::AllocateThread()
+TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetServerThread()
 {
-    size_t index = CurrentThreadIndex_++ % ThreadCount;
-    return Threads_[index];
+    return ServerThread_;
+}
+
+TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
+{
+    size_t index = CurrentClientThreadIndex_++ % ThreadCount;
+    return ClientThreads_[index];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
