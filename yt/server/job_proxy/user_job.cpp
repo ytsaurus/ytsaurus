@@ -728,10 +728,6 @@ private:
 
     void FillCurrentDataStatistics(TStatistics& statistics) const
     {
-        statistics.Add(
-            "/user_job/time",
-            static_cast<i64>(GetElapsedTime().MilliSeconds()));
-
         statistics.AddComplex("/data/input", GetDataStatistics(JobIO_->GetReaders()));
 
         int i = 0;
@@ -741,8 +737,6 @@ private:
                 writer->GetDataStatistics());
             ++i;
         }
-
-        statistics.Add("/data/time", GetElapsedTime().MilliSeconds());
     }
 
     template <class T>
@@ -915,7 +909,6 @@ private:
 
         if (rss > memoryLimit) {
             JobErrorPromise_.TrySet(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
-                << TErrorAttribute("time_since_start", GetElapsedTime().MilliSeconds())
                 << TErrorAttribute("rss", rss)
                 << TErrorAttribute("limit", memoryLimit));
 

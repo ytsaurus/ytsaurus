@@ -74,11 +74,6 @@ TDataStatistics GetTotalOutputDataStatistics(const TStatistics& statistics)
     return result;
 }
 
-i64 GetTime(const TStatistics& statistics)
-{
-    return statistics.Get("/data/time");
-}
-
 ////////////////////////////////////////////////////////////////////
 
 const TYsonString SerializedEmptyStatistics(ConvertToYsonString(TStatistics()));

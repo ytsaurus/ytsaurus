@@ -65,7 +65,6 @@ void Deserialize(TStatistics& value, NYTree::INodePtr node);
 
 NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics(const TStatistics& statistics);
 NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatistics& statistics);
-i64 GetTime(const TStatistics& statistics);
 
 extern const NYTree::TYsonString SerializedEmptyStatistics;
 

@@ -36,11 +36,6 @@ TJob::TJob(IJobHost* host)
     YCHECK(host);
 }
 
-TDuration TJob::GetElapsedTime() const
-{
-    return TInstant::Now() - StartTime;
-}
-
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
 {
     THROW_ERROR_EXCEPTION("Dumping input context is not supported for built-in jobs");
@@ -122,8 +117,6 @@ TStatistics TSimpleJobBase::GetStatistics() const
     result.AddComplex(
         "/data/output/" + NYPath::ToYPathLiteral(0),
         Writer_->GetDataStatistics());
-
-    result.Add("/data/time", GetElapsedTime().MilliSeconds());
 
     return result;
 }

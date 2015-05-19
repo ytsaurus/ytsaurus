@@ -124,8 +124,6 @@ public:
             "/data/output/" + NYPath::ToYPathLiteral(0),
             DataStatistics_);
 
-        result.Add("/data/time", GetElapsedTime().MilliSeconds());
-
         return result;
     }
 

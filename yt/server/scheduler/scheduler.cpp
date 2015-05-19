@@ -1569,11 +1569,11 @@ private:
         UnregisterJob(job);
     }
 
-
     void OnJobFinished(TJobPtr job)
     {
-        job->SetFinishTime(TInstant::Now());
+        job->FinalizeJob(TInstant::Now());
         auto duration = job->GetDuration();
+
         switch (job->GetState()) {
             case EJobState::Completed:
                 Profiler.Increment(TotalCompletedJobTimeCounter_, duration.MicroSeconds());
@@ -1996,10 +1996,9 @@ private:
                 if (jobStatus->has_result()) {
                     auto statistics = ConvertTo<TStatistics>(TYsonString(jobStatus->result().statistics()));
 
-                    LOG_INFO("Job completed, removal scheduled (Input: {%v}, Output: {%v}, Time: %v)",
-                        GetTotalOutputDataStatistics(statistics),
-                        GetTotalOutputDataStatistics(statistics),
-                        GetTime(statistics));
+                    LOG_INFO("Job completed, removal scheduled (Input: {%v}, Output: {%v})",
+                        GetTotalInputDataStatistics(statistics),
+                        GetTotalOutputDataStatistics(statistics));
                 } else {
                     LOG_INFO("Job completed, removal scheduled");
                 }
