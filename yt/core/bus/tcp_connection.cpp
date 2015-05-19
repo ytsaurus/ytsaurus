@@ -120,6 +120,7 @@ TTcpConnection::TTcpConnection(
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(Handler_);
+    YASSERT(DispatcherThread_);
 
     Logger = BusLogger;
     Logger.AddTag("ConnectionId: %v, Address: %v",
