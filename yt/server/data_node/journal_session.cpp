@@ -32,7 +32,6 @@ TJournalSession::TJournalSession(
         options,
         location,
         lease)
-    , LastAppendResult_(VoidFuture)
 { }
 
 TChunkInfo TJournalSession::GetChunkInfo() const
