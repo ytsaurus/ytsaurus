@@ -29,6 +29,9 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                 logger.debug("Processing {0} chunk (length: {1}, transaction: {2})"
                     .format(command_name, len(chunk), config.TRANSACTION))
 
+                if isinstance(chunk, list):
+                    chunk = iter(chunk)
+
                 for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
                     current_time = datetime.now()
                     try:
