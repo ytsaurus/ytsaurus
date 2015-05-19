@@ -446,11 +446,11 @@ class TMultiplexedWriter
 public:
     TMultiplexedWriter(
         TMultiplexedChangelogConfigPtr config,
-        TFileChangelogDispatcherPtr changelogDispatcher,
+        TFileChangelogDispatcherPtr multiplexedChangelogDispatcher,
         const Stroka& path,
         const NLogging::TLogger& logger)
         : Config_(config)
-        , ChangelogDispatcher_(changelogDispatcher)
+        , MultiplexedChangelogDispatcher_(multiplexedChangelogDispatcher)
         , Path_(path)
         , Logger(logger)
     { }
@@ -537,7 +537,7 @@ public:
     IChangelogPtr OpenMultiplexedChangelog(int changelogId)
     {
         auto path = GetMultiplexedChangelogPath(changelogId);
-        return ChangelogDispatcher_->OpenChangelog(path, Config_);
+        return MultiplexedChangelogDispatcher_->OpenChangelog(path, Config_);
     }
 
     void MarkMultiplexedChangelogClean(int changelogId)
@@ -551,7 +551,7 @@ public:
 
 private:
     const TMultiplexedChangelogConfigPtr Config_;
-    const TFileChangelogDispatcherPtr ChangelogDispatcher_;
+    const TFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
     const Stroka Path_;
     const NLogging::TLogger Logger;
 
@@ -627,7 +627,7 @@ private:
                     multiplexedFlushResult,
                     oldId,
                     newId)
-                .AsyncVia(ChangelogDispatcher_->GetInvoker())
+                .AsyncVia(MultiplexedChangelogDispatcher_->GetInvoker())
                 .Run();
 
             BIND(
@@ -635,7 +635,7 @@ private:
                 MakeStrong(this),
                 combinedBarrier,
                 oldId)
-            .AsyncVia(ChangelogDispatcher_->GetInvoker())
+            .AsyncVia(MultiplexedChangelogDispatcher_->GetInvoker())
             .Run();
 
             SetMultiplexedChangelog(CreateLazyChangelog(futureMultiplexedChangelog), newId);
@@ -658,7 +658,7 @@ private:
         LOG_INFO("Started creating new multiplexed changelog (ChangelogId: %v)",
             id);
 
-        auto changelog = ChangelogDispatcher_->CreateChangelog(
+        auto changelog = MultiplexedChangelogDispatcher_->CreateChangelog(
             GetMultiplexedChangelogPath(id),
             TChangelogMeta(),
             Config_);
@@ -783,13 +783,17 @@ public:
         Logger = DataNodeLogger;
         Logger.AddTag("LocationId: %v", Location_->GetId());
 
-        ChangelogDispatcher_ = New<TFileChangelogDispatcher>(
+        MultiplexedChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Config_->MultiplexedChangelog,
-            "Flush:" + Location_->GetId());
+            "MFlush:" + Location_->GetId());
+
+        SplitChangelogDispatcher_ = New<TFileChangelogDispatcher>(
+            Config_->MultiplexedChangelog,
+            "SFlush:" + Location_->GetId());
 
         MultiplexedWriter_ = New<TMultiplexedWriter>(
             Config_->MultiplexedChangelog,
-            ChangelogDispatcher_,
+            MultiplexedChangelogDispatcher_,
             NFS::CombinePaths(Location_->GetPath(), MultiplexedDirectory),
             Logger);
     }
@@ -815,7 +819,7 @@ public:
     TFuture<IChangelogPtr> OpenChangelog(const TChunkId& chunkId)
     {
         return BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId)
-            .AsyncVia(ChangelogDispatcher_->GetInvoker())
+            .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run();
     }
 
@@ -827,14 +831,14 @@ public:
             auto barrier = MultiplexedWriter_->RegisterBarrier();
             return MultiplexedWriter_->WriteCreateRecord(chunkId)
                 .Apply(BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId)
-                    .AsyncVia(ChangelogDispatcher_->GetInvoker()))
+                    .AsyncVia(SplitChangelogDispatcher_->GetInvoker()))
                 .Apply(BIND([=] (const TErrorOr<IChangelogPtr>& result) mutable {
                     barrier.Set(result.IsOK() ? TError() : TError(result));
                     return result.ValueOrThrow();
                 }));
         } else {
             return BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId)
-                .AsyncVia(ChangelogDispatcher_->GetInvoker())
+                .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
                 .Run();
         }
     }
@@ -847,14 +851,14 @@ public:
             auto barrier = MultiplexedWriter_->RegisterBarrier();
             return MultiplexedWriter_->WriteRemoveRecord(chunk->GetId())
                 .Apply(BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
-                    .AsyncVia(ChangelogDispatcher_->GetInvoker()))
+                    .AsyncVia(SplitChangelogDispatcher_->GetInvoker()))
                 .Apply(BIND([=] (const TError& result) mutable {
                     barrier.Set(result);
                     result.ThrowOnError();
                 }));
         } else {
             return BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
-                .AsyncVia(ChangelogDispatcher_->GetInvoker())
+                .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
                 .Run();
         }
     }
@@ -878,7 +882,9 @@ private:
     TLocation* const Location_;
     NCellNode::TBootstrap* const Bootstrap_;
 
-    TFileChangelogDispatcherPtr ChangelogDispatcher_;
+    TFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
+    TFileChangelogDispatcherPtr SplitChangelogDispatcher_;
+
     TIntrusivePtr<TMultiplexedWriter> MultiplexedWriter_;
 
     NLogging::TLogger Logger;
@@ -895,7 +901,7 @@ private:
         PROFILE_TIMING("/journal_chunk_create_time") {
             try {
                 auto fileName = Location_->GetChunkPath(chunkId);
-                changelog = ChangelogDispatcher_->CreateChangelog(
+                changelog = SplitChangelogDispatcher_->CreateChangelog(
                     fileName,
                     TChangelogMeta(),
                     Config_->SplitChangelog);
@@ -926,7 +932,7 @@ private:
         PROFILE_TIMING("/journal_chunk_open_time") {
             try {
                 auto fileName = Location_->GetChunkPath(chunkId);
-                changelog = ChangelogDispatcher_->OpenChangelog(
+                changelog = SplitChangelogDispatcher_->OpenChangelog(
                     fileName,
                     Config_->SplitChangelog);
             } catch (const std::exception& ex) {
