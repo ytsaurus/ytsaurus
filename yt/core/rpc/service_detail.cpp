@@ -400,8 +400,8 @@ private:
 
         if (Profiler.GetEnabled()) {
             AppendInfo(&builder, "ExecutionTime: %v, TotalTime: %v",
-                RuntimeInfo_->ExecutionTimeCounter.Current,
-                RuntimeInfo_->TotalTimeCounter.Current);
+                ValueToDuration(RuntimeInfo_->ExecutionTimeCounter.Current),
+                ValueToDuration(RuntimeInfo_->TotalTimeCounter.Current));
         }
 
         LOG_EVENT(Logger, LogLevel_, "%v -> %v",
