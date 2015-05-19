@@ -1304,8 +1304,9 @@ private:
             }
             securityManager->UpdateAccountNodeUsage(table);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated (TabletId: %v, AttachedChunkIds: [%v], DetachedChunkIds: [%v], "
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated (TableId: %v, TabletId: %v, AttachedChunkIds: [%v], DetachedChunkIds: [%v], "
                 "AttachedRowCount: %v, DetachedRowCount: %v)",
+                table->GetId(),
                 tabletId,
                 JoinToString(ToObjectIds(chunksToAttach)),
                 JoinToString(ToObjectIds(chunksToDetach)),
