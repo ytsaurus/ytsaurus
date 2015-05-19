@@ -41,7 +41,7 @@ public:
         const TChunkId& chunkId,
         int recordId,
         const TSharedRef& recordData,
-        TFuture<void> flushResult);
+        TFuture<void> splitResult);
 
 private:
     class TImpl;
