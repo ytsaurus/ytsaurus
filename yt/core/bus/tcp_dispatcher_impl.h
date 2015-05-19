@@ -76,15 +76,18 @@ public:
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType) const;
 
-    TTcpDispatcherThreadPtr AllocateThread();
+    TTcpDispatcherThreadPtr GetServerThread();
+    TTcpDispatcherThreadPtr GetClientThread();
 
 private:
     friend TTcpDispatcher;
 
     TImpl();
 
-    std::vector<TTcpDispatcherThreadPtr> Threads_;
-    std::atomic<size_t> CurrentThreadIndex_ = 0;
+    TTcpDispatcherThreadPtr ServerThread_;
+
+    std::vector<TTcpDispatcherThreadPtr> ClientThreads_;
+    std::atomic<size_t> CurrentClientThreadIndex_ = {0};
 
 };
 

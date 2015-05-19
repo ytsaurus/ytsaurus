@@ -43,15 +43,12 @@ public:
         TTcpBusServerConfigPtr config,
         TTcpDispatcherThreadPtr dispatcherThread,
         IMessageHandlerPtr handler)
-        : Config(std::move(config))
-        , DispatcherThread(std::move(dispatcherThread))
-        , Handler(std::move(handler))
-        , Logger(BusLogger)
-        , ServerSocket(INVALID_SOCKET)
-        , ServerFD(INVALID_SOCKET)
+        : Config_(std::move(config))
+        , DispatcherThread_(std::move(dispatcherThread))
+        , Handler_(std::move(handler))
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(Handler);
+        YCHECK(Handler_);
     }
 
     // IEventLoopObject implementation.
@@ -63,22 +60,22 @@ public:
         // This may throw.
         OpenServerSocket();
 
-        AcceptWatcher.reset(new ev::io(DispatcherThread->GetEventLoop()));
-        AcceptWatcher->set<TTcpBusServerBase, &TTcpBusServerBase::OnAccept>(this);
-        AcceptWatcher->start(ServerFD, ev::READ);
+        AcceptWatcher_.reset(new ev::io(DispatcherThread_->GetEventLoop()));
+        AcceptWatcher_->set<TTcpBusServerBase, &TTcpBusServerBase::OnAccept>(this);
+        AcceptWatcher_->start(ServerFD_, ev::READ);
     }
 
     virtual void SyncFinalize() override
     {
         VERIFY_THREAD_AFFINITY(EventLoop);
 
-        AcceptWatcher.reset();
+        AcceptWatcher_.reset();
 
         CloseServerSocket();
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            for (auto connection : Connections) {
+            TGuard<TSpinLock> guard(ConnectionsLock_);
+            for (auto connection : Connections_) {
                 connection->Terminate(TError(
                     NRpc::EErrorCode::TransportError,
                     "Bus server terminated"));
@@ -90,25 +87,25 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Format("Port: %v", Config->Port);
+        return Format("Port: %v", Config_->Port);
     }
 
 protected:
-    TTcpBusServerConfigPtr Config;
-    TTcpDispatcherThreadPtr DispatcherThread;
-    IMessageHandlerPtr Handler;
+    const TTcpBusServerConfigPtr Config_;
+    const TTcpDispatcherThreadPtr DispatcherThread_;
+    const IMessageHandlerPtr Handler_;
 
-    NLogging::TLogger Logger;
+    std::unique_ptr<ev::io> AcceptWatcher_;
 
-    std::unique_ptr<ev::io> AcceptWatcher;
-
-    int ServerSocket;
-    int ServerFD;
+    int ServerSocket_ = INVALID_SOCKET;
+    int ServerFD_ = INVALID_SOCKET;
 
     //! Protects the following members.
-    TSpinLock SpinLock;
+    TSpinLock ConnectionsLock_;
     //! The set of all currently active connections.
-    yhash_set<TTcpConnectionPtr> Connections;
+    yhash_set<TTcpConnectionPtr> Connections_;
+
+    NLogging::TLogger Logger = BusLogger;
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
@@ -119,7 +116,7 @@ protected:
 
     virtual void InitClientSocket(SOCKET clientSocket)
     {
-        if (Config->EnableNoDelay) {
+        if (Config_->EnableNoDelay) {
             int value = 1;
             setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value));
         }
@@ -135,8 +132,8 @@ protected:
         VERIFY_THREAD_AFFINITY_ANY();
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            YCHECK(Connections.erase(connection) == 1);
+            TGuard<TSpinLock> guard(ConnectionsLock_);
+            YCHECK(Connections_.erase(connection) == 1);
         }
     }
 
@@ -147,9 +144,9 @@ protected:
 
         CreateServerSocket();
 
-        InitSocket(ServerSocket);
+        InitSocket(ServerSocket_);
 
-        if (listen(ServerSocket, Config->MaxBacklogSize) == SOCKET_ERROR) {
+        if (listen(ServerSocket_, Config_->MaxBacklogSize) == SOCKET_ERROR) {
             int error = LastSystemError();
             CloseServerSocket();
             THROW_ERROR_EXCEPTION("Failed to listen to server socket")
@@ -161,12 +158,12 @@ protected:
 
     void CloseServerSocket()
     {
-        if (ServerFD != INVALID_SOCKET) {
-            close(ServerFD);
+        if (ServerFD_ != INVALID_SOCKET) {
+            close(ServerFD_);
             LOG_DEBUG("Server socket closed");
         }
-        ServerSocket = INVALID_SOCKET;
-        ServerFD = INVALID_SOCKET;
+        ServerSocket_ = INVALID_SOCKET;
+        ServerFD_ = INVALID_SOCKET;
     }
 
     void InitSocket(SOCKET socket)
@@ -204,7 +201,7 @@ protected:
                     SOCK_CLOEXEC);
 #else
                 clientSocket = accept(
-                    ServerSocket,
+                    ServerSocket_,
                     clientAddress.GetSockAddr(),
                     &clientAddressLen);
 #endif
@@ -228,10 +225,10 @@ protected:
             InitClientSocket(clientSocket);
             InitSocket(clientSocket);
 
-            auto dispatcherThread = TTcpDispatcher::TImpl::Get()->AllocateThread();
+            auto dispatcherThread = TTcpDispatcher::TImpl::Get()->GetClientThread();
 
             auto connection = New<TTcpConnection>(
-                Config,
+                Config_,
                 dispatcherThread,
                 EConnectionType::Server,
                 GetInterfaceType(),
@@ -240,7 +237,7 @@ protected:
                 ToString(clientAddress, false),
                 false,
                 0,
-                Handler);
+                Handler_);
 
             connection->SubscribeTerminated(BIND(
                 &TTcpBusServerBase::OnConnectionTerminated,
@@ -248,8 +245,8 @@ protected:
                 connection));
 
             {
-                TGuard<TSpinLock> guard(SpinLock);
-                YCHECK(Connections.insert(connection).second);
+                TGuard<TSpinLock> guard(ConnectionsLock_);
+                YCHECK(Connections_.insert(connection).second);
             }
 
             dispatcherThread->AsyncRegister(connection);
@@ -284,7 +281,7 @@ public:
             std::move(dispatcherThread),
             std::move(handler))
     {
-        Logger.AddTag("Port: %v", Config->Port);
+        Logger.AddTag("Port: %v", Config_->Port);
     }
 
 
@@ -294,7 +291,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Format("Port: %v", Config->Port);
+        return Format("Port: %v", Config_->Port);
     }
 
 private:
@@ -311,8 +308,8 @@ private:
         type |= SOCK_CLOEXEC;
 #endif
 
-        ServerSocket = socket(AF_INET6, type, IPPROTO_TCP);
-        if (ServerSocket == INVALID_SOCKET) {
+        ServerSocket_ = socket(AF_INET6, type, IPPROTO_TCP);
+        if (ServerSocket_ == INVALID_SOCKET) {
             THROW_ERROR_EXCEPTION("Failed to create a server socket")
                 << TError::FromSystem();
         }
@@ -320,12 +317,12 @@ private:
 #ifdef _WIN32
         ServerFD = _open_osfhandle(ServerSocket, 0);
 #else
-        ServerFD = ServerSocket;
+        ServerFD_ = ServerSocket_;
 #endif
 
         {
             int flag = 0;
-            if (setsockopt(ServerSocket, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &flag, sizeof(flag)) != 0) {
+            if (setsockopt(ServerSocket_, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &flag, sizeof(flag)) != 0) {
                 THROW_ERROR_EXCEPTION("Failed to configure IPv6 protocol")
                     << TError::FromSystem();
             }
@@ -333,7 +330,7 @@ private:
 
         {
             int flag = 1;
-            if (setsockopt(ServerSocket, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag, sizeof(flag)) != 0) {
+            if (setsockopt(ServerSocket_, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag, sizeof(flag)) != 0) {
                 THROW_ERROR_EXCEPTION("Failed to configure socket address reuse")
                     << TError::FromSystem();
             }
@@ -344,10 +341,10 @@ private:
             memset(&serverAddress, 0, sizeof(serverAddress));
             serverAddress.sin6_family = AF_INET6;
             serverAddress.sin6_addr = in6addr_any;
-            serverAddress.sin6_port = htons(Config->Port.Get());
-            if (bind(ServerSocket, (sockaddr*)&serverAddress, sizeof(serverAddress)) != 0) {
+            serverAddress.sin6_port = htons(Config_->Port.Get());
+            if (bind(ServerSocket_, (sockaddr*)&serverAddress, sizeof(serverAddress)) != 0) {
                 CloseServerSocket();
-                THROW_ERROR_EXCEPTION("Failed to bind a server socket to port %v", Config->Port)
+                THROW_ERROR_EXCEPTION("Failed to bind a server socket to port %v", Config_->Port)
                     << TError::FromSystem();
             }
         }
@@ -359,7 +356,7 @@ private:
 
 #if !defined(_win_) && !defined(__APPLE__)
         {
-            int priority = Config->Priority;
+            int priority = Config_->Priority;
             setsockopt(clientSocket, SOL_SOCKET, SO_PRIORITY, (const char*) &priority, sizeof(priority));
         }
 #endif
@@ -379,7 +376,7 @@ public:
             std::move(dispatcherThread),
             std::move(handler))
     {
-        Logger.AddTag("LocalPort: %v", Config->Port);
+        Logger.AddTag("LocalPort: %v", Config_->Port);
     }
 
 
@@ -389,12 +386,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Format("LocalPort: %v", Config->Port);
+        return Format("LocalPort: %v", Config_->Port);
     }
 
 private:
-    Stroka Path;
-
     virtual ETcpInterfaceType GetInterfaceType() override
     {
         return ETcpInterfaceType::Local;
@@ -408,22 +403,22 @@ private:
         type |= SOCK_CLOEXEC;
 #endif
 
-        ServerSocket = socket(AF_UNIX, type, 0);
-        if (ServerSocket == INVALID_SOCKET) {
+        ServerSocket_ = socket(AF_UNIX, type, 0);
+        if (ServerSocket_ == INVALID_SOCKET) {
             THROW_ERROR_EXCEPTION("Failed to create a local server socket")
                 << TError::FromSystem();
         }
 
-        ServerFD = ServerSocket;
+        ServerFD_ = ServerSocket_;
 
         {
             TNetworkAddress netAddress;
-            if (Config->UnixDomainName) {
-                netAddress = GetUnixDomainAddress(Config->UnixDomainName.Get());
+            if (Config_->UnixDomainName) {
+                netAddress = GetUnixDomainAddress(Config_->UnixDomainName.Get());
             } else {
-                netAddress = GetLocalBusAddress(Config->Port.Get());
+                netAddress = GetLocalBusAddress(Config_->Port.Get());
             }
-            if (bind(ServerSocket, netAddress.GetSockAddr(), netAddress.GetLength()) != 0) {
+            if (bind(ServerSocket_, netAddress.GetSockAddr(), netAddress.GetLength()) != 0) {
                 CloseServerSocket();
                 THROW_ERROR_EXCEPTION("Failed to bind a local server socket")
                     << TError::FromSystem();
@@ -445,11 +440,10 @@ class TTcpBusServerProxy
 {
 public:
     explicit TTcpBusServerProxy(TTcpBusServerConfigPtr config)
-        : Config(std::move(config))
-        , DispatcherThread(TTcpDispatcher::TImpl::Get()->AllocateThread())
-        , Running(false)
+        : Config_(std::move(config))
+        , DispatcherThread_(TTcpDispatcher::TImpl::Get()->GetServerThread())
     {
-        YCHECK(Config);
+        YCHECK(Config_);
     }
 
     ~TTcpBusServerProxy()
@@ -459,47 +453,47 @@ public:
 
     virtual void Start(IMessageHandlerPtr handler)
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(SpinLock_);
 
-        YCHECK(!Running);
+        YCHECK(!Running_);
 
         auto server = New<TServer>(
-            Config,
-            DispatcherThread,
+            Config_,
+            DispatcherThread_,
             std::move(handler));
 
-        auto error = DispatcherThread->AsyncRegister(server).Get();
+        auto error = DispatcherThread_->AsyncRegister(server).Get();
         if (!error.IsOK()) {
             THROW_ERROR error;
         }
 
-        Server = server;
-        Running = true;
+        Server_ = server;
+        Running_ = true;
     }
 
     virtual void Stop()
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(SpinLock_);
 
-        if (!Running) {
+        if (!Running_) {
             return;
         }
 
-        auto error = DispatcherThread->AsyncUnregister(Server).Get();
+        auto error = DispatcherThread_->AsyncUnregister(Server_).Get();
         // Shutdown will hopefully never fail.
         YCHECK(error.IsOK());
 
-        Server.Reset();
-        Running = false;
+        Server_.Reset();
+        Running_ = false;
     }
 
 private:
-    TTcpBusServerConfigPtr Config;
+    const TTcpBusServerConfigPtr Config_;
 
-    TSpinLock SpinLock;
-    TTcpDispatcherThreadPtr DispatcherThread;
-    volatile bool Running;
-    TIntrusivePtr<TServer> Server;
+    TSpinLock SpinLock_;
+    TTcpDispatcherThreadPtr DispatcherThread_;
+    volatile bool Running_ = false;
+    TIntrusivePtr<TServer> Server_;
 
 };
 
@@ -510,25 +504,25 @@ class TCompositeBusServer
 {
 public:
     explicit TCompositeBusServer(const std::vector<IBusServerPtr>& servers)
-        : Servers(servers)
+        : Servers_(servers)
     { }
 
     virtual void Start(IMessageHandlerPtr handler) override
     {
-        for (auto server : Servers) {
+        for (auto server : Servers_) {
             server->Start(handler);
         }
     }
 
     virtual void Stop() override
     {
-        for (auto server : Servers) {
+        for (auto server : Servers_) {
             server->Stop();
         }
     }
 
 private:
-    std::vector<IBusServerPtr> Servers;
+    const std::vector<IBusServerPtr> Servers_;
 
 };
 
