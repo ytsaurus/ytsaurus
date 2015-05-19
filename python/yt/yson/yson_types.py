@@ -7,6 +7,9 @@ class YsonType(object):
             return self.attributes == other.attributes
         return not self.attributes
 
+    def __ne__(self, other):
+        return not (self == other)
+
     def to_str(self, base_type, str_func):
         if self.attributes:
             return str_func({"value": base_type(self), "attributes": self.attributes})
@@ -23,6 +26,9 @@ class YsonString(str, YsonType):
             return False
         return str(self) == str(other) and YsonType.__eq__(self, other)
 
+    def __ne__(self, other):
+        return not (self == other)
+
     def __hash__(self):
         return self.base_hash(str)
 
@@ -34,6 +40,9 @@ class YsonInt64(long, YsonType):
         if not isinstance(other, (int, long)):
             return False
         return long(self) == long(other) and YsonType.__eq__(self, other)
+
+    def __ne__(self, other):
+        return not (self == other)
 
     def __hash__(self):
         return self.base_hash(long)
@@ -53,6 +62,9 @@ class YsonDouble(float, YsonType):
             return False
         return float(self) == float(other) and YsonType.__eq__(self, other)
 
+    def __ne__(self, other):
+        return not (self == other)
+
     def __hash__(self):
         return self.base_hash(float)
 
@@ -67,6 +79,9 @@ class YsonBoolean(int, YsonType):
         if not isinstance(other, int):
             return False
         return (int(self) == 0) == (int(other) == 0) and YsonType.__eq__(self, other)
+
+    def __ne__(self, other):
+        return not (self == other)
 
     def __hash__(self):
         return self.base_hash(bool)
@@ -87,6 +102,9 @@ class YsonList(list, YsonType):
             return False
         return list(self) == list(other) and YsonType.__eq__(self, other)
 
+    def __ne__(self, other):
+        return not (self == other)
+
     def __hash__(self):
         raise TypeError("unhashable type 'YsonList'")
 
@@ -106,6 +124,9 @@ class YsonMap(dict, YsonType):
             return False
         return dict(self) == dict(other) and YsonType.__eq__(self, other)
 
+    def __ne__(self, other):
+        return not (self == other)
+
     def __hash__(self):
         raise TypeError("unhashable type 'YsonMap'")
 
@@ -120,6 +141,9 @@ class YsonEntity(YsonType):
         if other is None and not self.attributes:
             return True
         return isinstance(other, YsonEntity) and YsonType.__eq__(self, other)
+
+    def __ne__(self, other):
+        return not (self == other)
 
     def __repr__(self):
         if self.attributes:
