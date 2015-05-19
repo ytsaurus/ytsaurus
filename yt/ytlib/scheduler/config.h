@@ -27,6 +27,12 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Ratio of MaxWeight and MinWeight shouldn't lose precision.
+const double MinSchedulableWeight = sqrt(std::numeric_limits<double>::epsilon());
+const double MaxSchedulableWeight = 1.0 / MinSchedulableWeight;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobIOConfig
     : public NYTree::TYsonSerializable
 {
@@ -770,7 +776,7 @@ public:
     {
         RegisterParameter("weight", Weight)
             .Default(1.0)
-            .GreaterThanOrEqual(0.0);
+            .InRange(MinSchedulableWeight, MaxSchedulableWeight);
 
         RegisterParameter("min_share_ratio", MinShareRatio)
             .Default(0.0)
@@ -841,7 +847,7 @@ public:
     {
         RegisterParameter("weight", Weight)
             .Default(1.0)
-            .GreaterThanOrEqual(0.0);
+            .InRange(MinSchedulableWeight, MaxSchedulableWeight);
     }
 };
 
