@@ -233,5 +233,19 @@ class TestCommon(unittest.TestCase, CommonTestBase):
     CommonTestBase.writer = writer
     CommonTestBase.parser = parser
 
+class TestYsonTypes(unittest.TestCase):
+    def test_equalities(self):
+        from yt.yson import YsonBoolean
+
+        a = YsonBoolean(False)
+        b = YsonBoolean(False)
+        self.assertTrue(a == b)
+        self.assertFalse(a != b)
+
+        a.attributes["attr"] = 10
+        b.attributes["attr"] = 20
+        self.assertFalse(a == b)
+        self.assertTrue(a != b)
+
 if __name__ == "__main__":
     unittest.main()
