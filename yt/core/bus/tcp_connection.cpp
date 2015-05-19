@@ -69,12 +69,26 @@ struct TTcpInterfaceStatistics
     NProfiling::TAggregateCounter PendingOutByteCounter;
 };
 
-static TEnumIndexedVector<TTcpInterfaceStatistics, ETcpInterfaceType> TcpInterfaceStatistics;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTcpConnectionReadBufferTag { };
 struct TTcpConnectionWriteBufferTag { };
+
+////////////////////////////////////////////////////////////////////////////////
+
+static struct TGlobals
+{
+    TGlobals()
+    {
+        for (auto type : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
+            InterfaceTags[type] = NProfiling::TProfileManager::Get()->RegisterTag("interface", type);
+        }
+    }
+
+    TEnumIndexedVector<NProfiling::TTagId, ETcpInterfaceType> InterfaceTags;
+    TEnumIndexedVector<TTcpInterfaceStatistics, ETcpInterfaceType> InterfaceStatistics;
+
+} Globals;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,13 +114,12 @@ TTcpConnection::TTcpConnection(
 #ifdef _linux_
     , Priority_(priority)
 #endif
-    , Handler_(handler)
-    , InterfaceStatistics_(&TcpInterfaceStatistics[InterfaceType_])
+    , Handler_(std::move(handler))
+    , InterfaceStatistics_(&Globals.InterfaceStatistics[InterfaceType_])
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
-    , ReadBuffer_(TTcpConnectionReadBufferTag(), MinBatchReadSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(handler);
+    YASSERT(Handler_);
 
     Logger = BusLogger;
     Logger.AddTag("ConnectionId: %v, Address: %v",
@@ -114,8 +127,7 @@ TTcpConnection::TTcpConnection(
         Address_);
 
     Profiler = BusProfiler;
-    auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("interface", FormatEnum(InterfaceType_));
-    Profiler.TagIds().push_back(tagId);
+    Profiler.TagIds().push_back(Globals.InterfaceTags[InterfaceType_]);
 
     switch (ConnectionType_) {
         case EConnectionType::Client:
@@ -131,9 +143,6 @@ TTcpConnection::TTcpConnection(
         default:
             YUNREACHABLE();
     }
-
-    WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionWriteBufferTag()));
-    WriteBuffers_[0]->Reserve(MaxBatchWriteSize);
 
     UpdateConnectionCount(+1);
 }
@@ -170,6 +179,8 @@ void TTcpConnection::Cleanup()
 void TTcpConnection::SyncInitialize()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
+
+    InitBuffers();
 
     switch (ConnectionType_) {
         case EConnectionType::Client:
@@ -357,6 +368,14 @@ void TTcpConnection::SyncClose(const TError& error)
     UpdateConnectionCount(-1);
 
     DispatcherThread_->AsyncUnregister(this);
+}
+
+void TTcpConnection::InitBuffers()
+{
+    ReadBuffer_ = TBlob(TTcpConnectionReadBufferTag(), MinBatchReadSize, false);
+
+    WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionWriteBufferTag()));
+    WriteBuffers_[0]->Reserve(MaxBatchWriteSize);
 }
 
 void TTcpConnection::InitFD()
