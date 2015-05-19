@@ -119,7 +119,7 @@ void TSnapshotBuilderBase::OnWatchdogCheck()
     }
 
     int status;
-    if (waitpid(ChildPid_, &status, WNOHANG) == 0)
+    if (::waitpid(ChildPid_, &status, WNOHANG) == 0)
         return;
 
     auto error = StatusToError(status);
@@ -160,7 +160,10 @@ void TSnapshotBuilderBase::DoCancel()
 
 #ifdef _unix_
     ::kill(ChildPid_, 9);
+    ::waitpid(ChildPid_, nullptr, 0);
 #endif
+
+    LOG_INFO("Snapshot child process killed");
 
     Result_.TrySet(TError("Snapshot builder canceled"));
     DoCleanup();
