@@ -156,9 +156,9 @@ public:
             .Default(true);
 
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(15));
         RegisterParameter("node_ping_period", NodePingPeriod)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(15));
         RegisterParameter("node_ban_timeout", NodeBanTimeout)
             .Default(TDuration::Seconds(60));
 
