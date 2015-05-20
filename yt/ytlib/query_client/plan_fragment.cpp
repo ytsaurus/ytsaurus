@@ -336,8 +336,7 @@ protected:
             result.insert(result.end(), typedRhsExprs.begin(), typedRhsExprs.end());
         } else if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
             result.push_back(New<TLiteralExpression>(
-                literalExpr->SourceLocation,
-                EValueType(literalExpr->Value.Type),
+                literalExpr->Value.Type,
                 literalExpr->Value));
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
             const auto* column = GetColumnPtr(referenceExpr->ColumnName);
@@ -346,7 +345,6 @@ protected:
             }
 
             result.push_back(New<TReferenceExpression>(
-                referenceExpr->SourceLocation,
                 column->Type,
                 referenceExpr->ColumnName));
         } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
@@ -365,7 +363,6 @@ protected:
                         functionRegistry);
 
                     result.push_back(New<TReferenceExpression>(
-                        NullSourceLocation,
                         aggregateColumn->Type,
                         aggregateColumn->Name));
 
@@ -384,7 +381,6 @@ protected:
                 }
 
                 result.push_back(New<TFunctionExpression>(
-                    functionExpr->SourceLocation,
                     InferFunctionExprType(functionName, types, functionExpr->GetSource(source), functionRegistry),
                     functionName,
                     typedOperands));
@@ -397,7 +393,6 @@ protected:
                     result.push_back(foldedExpr);
                 } else {
                     result.push_back(New<TUnaryOpExpression>(
-                        unaryExpr->SourceLocation,
                         InferUnaryExprType(
                             unaryExpr->Opcode,
                             operand->Type,
@@ -415,7 +410,7 @@ protected:
                 if (auto foldedExpr = FoldConstants(binaryExpr, lhs, rhs)) {
                     return foldedExpr;
                 } else {
-                    return New<TBinaryOpExpression>(binaryExpr->SourceLocation, type, op, lhs, rhs);
+                    return New<TBinaryOpExpression>(type, op, lhs, rhs);
                 }
             };
 
@@ -488,7 +483,6 @@ protected:
 
             auto capturedRows = TupleListsToRows(inExpr->Values, argTypes, inExpr->GetSource(source));
             result.push_back(New<TInOpExpression>(
-                inExpr->SourceLocation,
                 std::move(inExprOperands),
                 std::move(capturedRows)));
         }
@@ -503,27 +497,24 @@ protected:
         {
             return expr;
         } else if (auto inExpr = expr->As<TInOpExpression>()) {
-            TArguments propagatedArgumenst;
+            std::vector<TConstExpressionPtr> propagatedArgumenst;
             for (auto argument : inExpr->Arguments) {
                 propagatedArgumenst.push_back(PropagateNotExpression(argument));
             }
             return New<TInOpExpression>(
-                inExpr->SourceLocation,
                 std::move(propagatedArgumenst),
                 inExpr->Values);
         } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-            TArguments propagatedArgumenst;
+            std::vector<TConstExpressionPtr> propagatedArgumenst;
             for (auto argument : functionExpr->Arguments) {
                 propagatedArgumenst.push_back(PropagateNotExpression(argument));
             }
             return New<TFunctionExpression>(
-                functionExpr->SourceLocation,
                 functionExpr->Type,
                 functionExpr->FunctionName,
                 std::move(propagatedArgumenst));
         } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
             return New<TBinaryOpExpression>(
-                binaryOp->SourceLocation,
                 binaryOp->Type,
                 binaryOp->Opcode,
                 PropagateNotExpression(binaryOp->Lhs),
@@ -539,30 +530,25 @@ protected:
                     if (operandBinaryOp->Opcode == EBinaryOp::And) {
                         return PropagateNotExpression(MakeOrExpression(
                             New<TUnaryOpExpression>(
-                                operandBinaryOp->Lhs->SourceLocation,
                                 operandBinaryOp->Lhs->Type,
                                 EUnaryOp::Not,
                                 operandBinaryOp->Lhs),
                             New<TUnaryOpExpression>(
-                                operandBinaryOp->Rhs->SourceLocation,
                                 operandBinaryOp->Rhs->Type,
                                 EUnaryOp::Not,
                                 operandBinaryOp->Rhs)));
                     } else if (operandBinaryOp->Opcode == EBinaryOp::Or) {
                         return PropagateNotExpression(MakeAndExpression(
                             New<TUnaryOpExpression>(
-                                operandBinaryOp->Lhs->SourceLocation,
                                 operandBinaryOp->Lhs->Type,
                                 EUnaryOp::Not,
                                 operandBinaryOp->Lhs),
                             New<TUnaryOpExpression>(
-                                operandBinaryOp->Rhs->SourceLocation,
                                 operandBinaryOp->Rhs->Type,
                                 EUnaryOp::Not,
                                 operandBinaryOp->Rhs)));
                     } else if (IsBinaryOpCompare(operandBinaryOp->Opcode)) {
                         return PropagateNotExpression(New<TBinaryOpExpression>(
-                            operandBinaryOp->SourceLocation,
                             operandBinaryOp->Type,
                             GetInversedBinaryOpcode(operandBinaryOp->Opcode),
                             operandBinaryOp->Lhs,
@@ -572,13 +558,11 @@ protected:
                     TUnversionedValue value = literal->Value;
                     value.Data.Boolean = !value.Data.Boolean;
                     return New<TLiteralExpression>(
-                        literal->SourceLocation,
                         literal->Type,
                         value);
                 }
             }
             return New<TUnaryOpExpression>(
-                unaryOp->SourceLocation,
                 unaryOp->Type,
                 unaryOp->Opcode,
                 PropagateNotExpression(operand));
@@ -672,10 +656,7 @@ protected:
         };
 
         if (auto value = foldConstants(unaryExpr->Opcode, operand)) {
-            return New<TLiteralExpression>(
-                unaryExpr->SourceLocation,
-                EValueType(value->Type),
-                *value);
+            return New<TLiteralExpression>(EValueType(value->Type), *value);
         }
 
         return TConstExpressionPtr();
@@ -831,10 +812,7 @@ protected:
         };
 
         if (auto value = foldConstants(binaryExpr->Opcode, lhsExpr, rhsExpr)) {
-            return New<TLiteralExpression>(
-                binaryExpr->SourceLocation,
-                EValueType(value->Type),
-                *value);
+            return New<TLiteralExpression>(EValueType(value->Type), *value);
         }
 
         if (binaryExpr->Opcode == EBinaryOp::Divide) {
@@ -863,12 +841,10 @@ protected:
 
                     auto makeBinaryExpr = [&] (TUnversionedValue divisor) {
                         return New<TBinaryOpExpression>(
-                            binaryExpr->SourceLocation,
                             divisor.Type,
                             EBinaryOp::Divide,
                             lhsBinaryExpr->Lhs,
                             New<TLiteralExpression>(
-                                rhsLiteralExpr->SourceLocation,
                                 divisor.Type,
                                 divisor));
                     };
@@ -1033,7 +1009,7 @@ public:
         const NAst::TExpression* arguments,
         Stroka subexprName,
         Stroka source,
-        IFunctionRegistry* functionRegistry)
+        IFunctionRegistry* functionRegistry) override
     {
         const TColumnSchema* aggregateColumn = GetTableSchema()->FindColumn(subexprName);
 
@@ -1393,8 +1369,6 @@ TConstExpressionPtr PrepareExpression(
 void ToProto(NProto::TExpression* serialized, TConstExpressionPtr original)
 {
     serialized->set_type(static_cast<int>(original->Type));
-    serialized->set_location_begin(original->SourceLocation.first);
-    serialized->set_location_end(original->SourceLocation.second);
 
     if (auto literalExpr = original->As<TLiteralExpression>()) {
         serialized->set_kind(static_cast<int>(EExpressionKind::Literal));
@@ -1469,11 +1443,10 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
 {
     auto kind = EExpressionKind(serialized.kind());
     auto type = EValueType(serialized.type());
-    TSourceLocation sourceLocation(serialized.location_begin(), serialized.location_end());
 
     switch (kind) {
         case EExpressionKind::Literal: {
-            auto typedResult = New<TLiteralExpression>(sourceLocation, type);
+            auto typedResult = New<TLiteralExpression>(type);
             auto data = serialized.GetExtension(NProto::TLiteralExpression::literal_expression);
 
             switch (type) {
@@ -1510,14 +1483,14 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
         }
 
         case EExpressionKind::Reference: {
-            auto typedResult = New<TReferenceExpression>(sourceLocation, type);
+            auto typedResult = New<TReferenceExpression>(type);
             auto data = serialized.GetExtension(NProto::TReferenceExpression::reference_expression);
             typedResult->ColumnName = data.column_name();
             return typedResult;
         }
 
         case EExpressionKind::Function: {
-            auto typedResult = New<TFunctionExpression>(sourceLocation, type);
+            auto typedResult = New<TFunctionExpression>(type);
             auto data = serialized.GetExtension(NProto::TFunctionExpression::function_expression);
             typedResult->FunctionName = data.function_name();
             typedResult->Arguments.reserve(data.arguments_size());
@@ -1528,7 +1501,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
         }
 
         case EExpressionKind::UnaryOp: {
-            auto typedResult = New<TUnaryOpExpression>(sourceLocation, type);
+            auto typedResult = New<TUnaryOpExpression>(type);
             auto data = serialized.GetExtension(NProto::TUnaryOpExpression::unary_op_expression);
             typedResult->Opcode = EUnaryOp(data.opcode());
             typedResult->Operand = FromProto(data.operand());
@@ -1536,7 +1509,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
         }
 
         case EExpressionKind::BinaryOp: {
-            auto typedResult = New<TBinaryOpExpression>(sourceLocation, type);
+            auto typedResult = New<TBinaryOpExpression>(type);
             auto data = serialized.GetExtension(NProto::TBinaryOpExpression::binary_op_expression);
             typedResult->Opcode = EBinaryOp(data.opcode());
             typedResult->Lhs = FromProto(data.lhs());
@@ -1545,7 +1518,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
         }
 
         case EExpressionKind::InOp: {
-            auto typedResult = New<TInOpExpression>(sourceLocation, type);
+            auto typedResult = New<TInOpExpression>(type);
             auto data = serialized.GetExtension(NProto::TInOpExpression::in_op_expression);
             typedResult->Arguments.reserve(data.arguments_size());
             for (int i = 0; i < data.arguments_size(); ++i) {

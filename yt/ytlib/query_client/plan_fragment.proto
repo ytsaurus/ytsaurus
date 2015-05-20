@@ -11,8 +11,8 @@ message TExpression
     required int32 kind = 1;
     required uint32 type = 2;
 
-    required int32 location_begin = 3;
-    required int32 location_end = 4;
+    // required int32 location_begin = 3; (deprecated)
+    // required int32 location_end = 4; (deprecated)
 
     extensions 100 to max;
 }

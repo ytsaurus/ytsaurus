@@ -601,7 +601,6 @@ template <class TTypedExpression, class... TArgs>
 static TConstExpressionPtr Make(TArgs&&... args)
 {
     return New<TTypedExpression>(
-        NullSourceLocation,
         EValueType::TheBottom,
         std::forward<TArgs>(args)...);
 }
