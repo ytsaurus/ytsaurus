@@ -45,6 +45,8 @@ using NYT::ToProto;
 using NYT::FromProto;
 using ::ToString;
 
+const double MaxBackoffMultiplier = 1000.0;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReader
@@ -443,9 +445,11 @@ protected:
             return;
         }
 
-        auto backoffTime = reader->Config_->MinPassBackoffTime *
-            std::pow(reader->Config_->PassBackoffTimeMultiplier, PassIndex_ - 1);
+        auto backoffMultiplier = std::min(
+            std::pow(reader->Config_->PassBackoffTimeMultiplier, PassIndex_ - 1), 
+            MaxBackoffMultiplier);
 
+        auto backoffTime = reader->Config_->MinPassBackoffTime * backoffMultiplier;
         backoffTime = std::min(backoffTime, reader->Config_->MaxPassBackoffTime);
 
         TDelayedExecutor::Submit(
