@@ -465,3 +465,20 @@ class TestQuery(YTEnvSetup):
         expected = [{"x": 5.0}]
         actual = select_rows("avg_udaf(a) as x from [//tmp/ua] group by 1")
         self.assertItemsEqual(actual, expected)
+
+    def test_aggregate_string_capture(self):
+        create("table", "//tmp/ca",
+            attributes = {
+                "schema": [{"name": "a", "type": "string"}]
+            })
+
+        # Need at least 1024 items to ensure a second batch in the scan operator
+        data = [
+            {"a": "A" + str(j) + "BCD"}
+            for j in xrange(1, 2000)]
+        write("//tmp/ca", data)
+        sort(in_="//tmp/ca", out="//tmp/ca", sort_by=["a"])
+
+        expected = [{"m": "a1000bcd"}]
+        actual = select_rows("min(lower(a)) as m from [//tmp/ca] group by 1")
+        self.assertItemsEqual(actual, expected)

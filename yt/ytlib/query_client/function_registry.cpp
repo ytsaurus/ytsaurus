@@ -173,8 +173,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
     sumConstraints[typeArg] = std::vector<EValueType>{
         EValueType::Int64,
         EValueType::Uint64,
-        EValueType::Double,
-        EValueType::String};
+        EValueType::Double};
 
     registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
         "sum",

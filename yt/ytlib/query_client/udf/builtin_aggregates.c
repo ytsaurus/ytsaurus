@@ -1,4 +1,5 @@
 #include <yt_udf.h>
+#include <stdio.h>
 #include <string.h>
 
 void avg_init(
@@ -105,7 +106,13 @@ static void max_iteration(
     {
         result->Type = newValue->Type;
         result->Length = newValue->Length;
-        result->Data = newValue->Data;
+        if (newValue->Type == String) {
+            char* permanentData = AllocatePermanentBytes(context, newValue->Length);
+            memcpy(permanentData, newValue->Data.String, newValue->Length);
+            result->Data.String = permanentData;
+        } else {
+            result->Data = newValue->Data;
+        }
     } else {
         result->Type = state->Type;
         result->Length = state->Length;
@@ -166,7 +173,13 @@ static void min_iteration(
     {
         result->Type = newValue->Type;
         result->Length = newValue->Length;
-        result->Data = newValue->Data;
+        if (newValue->Type == String) {
+            char* permanentData = AllocatePermanentBytes(context, newValue->Length);
+            memcpy(permanentData, newValue->Data.String, newValue->Length);
+            result->Data.String = permanentData;
+        } else {
+            result->Data = newValue->Data;
+        }
     } else {
         result->Type = state->Type;
         result->Length = state->Length;
