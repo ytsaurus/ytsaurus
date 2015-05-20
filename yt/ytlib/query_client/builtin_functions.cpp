@@ -458,7 +458,22 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                     case EValueType::Double:
                                         compareResult = builder.CreateFCmpULE(aggregateData, newData);
                                         break;
-                                    case EValueType::String:
+                                    case EValueType::String: {
+                                        auto newValueLength = builder.CreateZExt(newValue.GetLength(), builder.getSizeType());
+
+                                        auto permanentString = builder.CreateCall2(
+                                            builder.Module->GetRoutine("AllocatePermanentBytes"),
+                                            builder.GetExecutionContextPtr(),
+                                            newValueLength);
+
+                                        builder.CreateCall3(
+                                            builder.Module->GetRoutine("memcpy"),
+                                            permanentString,
+                                            newData,
+                                            newValueLength);
+
+                                        newData = permanentString;
+
                                         compareResult = CodegenLexicographicalCompare(
                                             builder,
                                             aggregateData,
@@ -466,18 +481,20 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                             newData,
                                             newValue.GetLength());
                                         break;
+                                    }
                                     default:
                                         YUNIMPLEMENTED();
                                 }
 
-                                resultLength = builder.CreateSelect(
-                                    compareResult,
-                                    aggregateValue.GetLength(),
-                                    newValue.GetLength());
                                 resultData = builder.CreateSelect(
                                     compareResult,
                                     aggregateData,
                                     newData);
+                                resultLength = builder.CreateSelect(
+                                    compareResult,
+                                    aggregateValue.GetLength(),
+                                    newValue.GetLength());
+
                             } else if (aggregateFunction == "max") {
                                 Value* compareResult = nullptr;
                                 switch (type) {
@@ -490,7 +507,22 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                     case EValueType::Double:
                                         compareResult = builder.CreateFCmpUGE(aggregateData, newData);
                                         break;
-                                    case EValueType::String:
+                                    case EValueType::String: {
+                                        auto newValueLength = builder.CreateZExt(newValue.GetLength(), builder.getSizeType());
+
+                                        auto permanentString = builder.CreateCall2(
+                                            builder.Module->GetRoutine("AllocatePermanentBytes"),
+                                            builder.GetExecutionContextPtr(),
+                                            newValueLength);
+
+                                        builder.CreateCall3(
+                                            builder.Module->GetRoutine("memcpy"),
+                                            permanentString,
+                                            newData,
+                                            newValueLength);
+
+                                        newData = permanentString;
+
                                         compareResult = builder.CreateNot(CodegenLexicographicalCompare(
                                             builder,
                                             aggregateData,
@@ -498,18 +530,20 @@ TCodegenAggregateUpdate MakeCodegenUpdate(
                                             newData,
                                             newValue.GetLength()));
                                         break;
+                                    }
                                     default:
                                         YUNIMPLEMENTED();
                                 }
 
-                                resultLength = builder.CreateSelect(
-                                    compareResult,
-                                    aggregateValue.GetLength(),
-                                    newValue.GetLength());
                                 resultData = builder.CreateSelect(
                                     compareResult,
                                     aggregateData,
                                     newData);
+                                resultLength = builder.CreateSelect(
+                                    compareResult,
+                                    aggregateValue.GetLength(),
+                                    newValue.GetLength());
+
                             } else {
                                 YUNIMPLEMENTED();
                             }

@@ -1,3 +1,4 @@
+#include <iostream>
 #include "stdafx.h"
 #include "cg_routines.h"
 #include "cg_types.h"
@@ -333,7 +334,7 @@ void OrderOpHelper(
     consumeRows(consumeRowsClosure, &rows, &context->StopFlag);
 }
 
-char* AllocateBytes(TExpressionContext* context, size_t byteCount)
+char* AllocateBytes(TExecutionContext* context, size_t byteCount)
 {
     CHECK_STACK();
 
@@ -341,6 +342,21 @@ char* AllocateBytes(TExpressionContext* context, size_t byteCount)
         ->IntermediateBuffer
         ->GetPool()
         ->AllocateUnaligned(byteCount);
+}
+
+char* AllocatePermanentBytes(TExecutionContext* context, size_t byteCount)
+{
+    CHECK_STACK();
+
+    return context
+        ->PermanentBuffer
+        ->GetPool()
+        ->AllocateUnaligned(byteCount);
+}
+
+void DebugPrintPointer(char* ptr)
+{
+    std::cout << ToString(ptr) << std::endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -504,6 +520,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(SaveJoinRow);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateRow);
+    REGISTER_ROUTINE(AllocatePermanentBytes);
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);

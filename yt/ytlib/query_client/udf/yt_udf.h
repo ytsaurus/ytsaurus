@@ -34,4 +34,6 @@ typedef struct TUnversionedValue
 
 typedef struct TExecutionContext TExecutionContext;
 
+char* AllocatePermanentBytes(TExecutionContext* context, size_t size);
+
 char* AllocateBytes(TExecutionContext* context, size_t size);
