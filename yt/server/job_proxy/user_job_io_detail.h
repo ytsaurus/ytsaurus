@@ -28,6 +28,10 @@ public:
 
     virtual bool IsKeySwitchEnabled() const override;
 
+    virtual void CreateReader() override;
+
+    virtual NVersionedTableClient::TSchemalessReaderFactory GetReaderCreator() const override;
+
 protected:
     IJobHost* Host_;
 
