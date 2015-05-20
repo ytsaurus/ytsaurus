@@ -30,7 +30,7 @@ public:
         : TUserJobIOBase(host)
     { }
 
-    virtual std::vector<ISchemalessMultiChunkReaderPtr> DoCreateReaders() override
+    virtual ISchemalessMultiChunkReaderPtr DoCreateReader() override
     {
         YCHECK(SchedulerJobSpec_.input_specs_size() == 1);
 
@@ -43,7 +43,7 @@ public:
         auto keyColumns = FromProto<Stroka>(reduceJobSpecExt.key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-        auto reader = CreateSchemalessPartitionSortReader(
+        return CreateSchemalessPartitionSortReader(
             JobIOConfig_->TableReader,
             Host_->GetMasterChannel(),
             Host_->GetBlockCache(),
@@ -54,8 +54,6 @@ public:
             chunks,
             SchedulerJobSpec_.input_row_count(),
             SchedulerJobSpec_.is_approximate());
-
-        return std::vector<ISchemalessMultiChunkReaderPtr>(1, reader);
     }
 
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(

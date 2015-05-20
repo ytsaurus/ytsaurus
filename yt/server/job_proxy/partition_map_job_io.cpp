@@ -57,11 +57,11 @@ public:
             std::move(partitioner));
     }
 
-    virtual std::vector<ISchemalessMultiChunkReaderPtr> DoCreateReaders() override
+    virtual ISchemalessMultiChunkReaderPtr DoCreateReader() override
     {
         // ToDo(psushin): don't use parallel readers here to minimize nondetermenistics
         // behaviour in mapper, that may lead to huge problems in presence of lost jobs.
-        return CreateRegularReaders(false);
+        return CreateRegularReader(false);
     }
 
     virtual void PopulateResult(TSchedulerJobResultExt* schedulerJobResult) override

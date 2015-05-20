@@ -29,7 +29,7 @@ public:
         : TUserJobIOBase(host)
     { }
 
-    virtual std::vector<ISchemalessMultiChunkReaderPtr> DoCreateReaders() override
+    virtual ISchemalessMultiChunkReaderPtr DoCreateReader() override
     {
         const auto& jobSpec = Host_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
@@ -56,8 +56,7 @@ public:
             readers.push_back(reader);
         }
 
-        auto reader = CreateSchemalessSortedMergingReader(readers);
-        return std::vector<ISchemalessMultiChunkReaderPtr>(1, reader);
+        return CreateSchemalessSortedMergingReader(readers);
     }
 
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(

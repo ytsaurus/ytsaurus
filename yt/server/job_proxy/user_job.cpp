@@ -170,13 +170,9 @@ public:
 
     virtual double GetProgress() const override
     {
-        i64 total = 0;
-        i64 current = 0;
-
-        for (const auto& reader : JobIO_->GetReaders()) {
-            total += reader->GetTotalRowCount();
-            current += reader->GetSessionRowIndex();
-        }
+        const auto& reader = JobIO_->GetReader();
+        i64 total = reader->GetTotalRowCount();
+        i64 current = reader->GetSessionRowIndex();
 
         if (total == 0) {
             return 0.0;
@@ -188,10 +184,9 @@ public:
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
         std::vector<TChunkId> failedChunks;
-        for (const auto& reader : JobIO_->GetReaders()) {
-            auto chunks = reader->GetFailedChunkIds();
-            failedChunks.insert(failedChunks.end(), chunks.begin(), chunks.end());
-        }
+        const auto& reader = JobIO_->GetReader();
+        auto chunks = reader->GetFailedChunkIds();
+        failedChunks.insert(failedChunks.end(), chunks.begin(), chunks.end());
         return failedChunks;
     }
 
@@ -465,7 +460,7 @@ private:
     int GetMaxReservedDescriptor() const
     {
         int outputCount = JobIO_->GetWriters().size();
-        int inputCount = JobIO_->GetReaders().size();
+        int inputCount = 1;
 
         if (UserJobSpec_.use_yamr_descriptors()) {
             return 2 + outputCount;
@@ -600,13 +595,7 @@ private:
     {
         YCHECK(pipeFactory);
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
-        const auto& readers = JobIO_->GetReaders();
-
-        YCHECK(!UserJobSpec_.use_yamr_descriptors() || readers.size() == 1);
-
-        for (int i = 0; i < readers.size(); ++i) {
-            PrepareInputTablePipe(pipeFactory->Create(), 3 * i, readers[i], format);
-        }
+        PrepareInputTablePipe(pipeFactory->Create(), 0, JobIO_->GetReader(), format);
     }
 
     void PreparePipes()
@@ -728,7 +717,7 @@ private:
 
     void FillCurrentDataStatistics(TStatistics& statistics) const
     {
-        statistics.AddComplex("/data/input", GetDataStatistics(JobIO_->GetReaders()));
+        statistics.AddComplex("/data/input", JobIO_->GetReader()->GetDataStatistics());
 
         int i = 0;
         for (const auto& writer : JobIO_->GetWriters()) {
