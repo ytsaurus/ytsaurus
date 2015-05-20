@@ -57,19 +57,9 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
         BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
 
         BlockIndexKeys_.reserve(BlockMeta_.blocks_size());
-
-        // COMPAT(psushin): newer chunks store index inside TBlockMeta.
-        auto blockIndexExt = FindProtoExtension<TBlockIndexExt>(ChunkMeta_.extensions());
-        if (blockIndexExt) {
-            for (const auto& protoKey : blockIndexExt->entries()) {
-                BlockIndexKeys_.push_back(FromProto<TOwningKey>(protoKey));
-            }
-            BlockIndexKeys_.push_back(MaxKey_);
-        } else {
-            for (const auto& block : BlockMeta_.blocks()) {
-                YCHECK(block.has_last_key());
-                BlockIndexKeys_.push_back(FromProto<TOwningKey>(block.last_key()));
-            }
+        for (const auto& block : BlockMeta_.blocks()) {
+            YCHECK(block.has_last_key());
+            BlockIndexKeys_.push_back(FromProto<TOwningKey>(block.last_key()));
         }
 
         return this;
