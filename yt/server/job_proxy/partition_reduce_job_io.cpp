@@ -30,8 +30,11 @@ public:
         : TUserJobIOBase(host)
     { }
 
-    virtual ISchemalessMultiChunkReaderPtr DoCreateReader() override
+    virtual ISchemalessMultiChunkReaderPtr DoCreateReader(
+        NVersionedTableClient::TNameTablePtr nameTable,
+        const NVersionedTableClient::TColumnFilter& columnFilter) override
     {
+        YCHECK(nameTable->GetSize() == 0 && columnFilter.All);
         YCHECK(SchedulerJobSpec_.input_specs_size() == 1);
 
         const auto& inputSpec = SchedulerJobSpec_.input_specs(0);
@@ -41,7 +44,7 @@ public:
 
         const auto& reduceJobSpecExt = Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<Stroka>(reduceJobSpecExt.key_columns());
-        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+        nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         return CreateSchemalessPartitionSortReader(
             JobIOConfig_->TableReader,

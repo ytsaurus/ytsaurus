@@ -75,6 +75,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
+    TColumnFilter columnFilter = TColumnFilter(),
     const TKeyColumns& keyColumns = TKeyColumns(),
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
@@ -88,6 +89,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
+    TColumnFilter columnFilter = TColumnFilter(),
     const TKeyColumns& keyColumns = TKeyColumns(),
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 

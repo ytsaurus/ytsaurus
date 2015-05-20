@@ -59,7 +59,10 @@ void TUserJobIOBase::Init()
 
     LOG_INFO("Opening readers");
 
-    Reader_ = DoCreateReader();
+    auto nameTable = New<TNameTable>();
+    auto columnFilter = TColumnFilter();
+
+    Reader_ = DoCreateReader(nameTable, columnFilter);
     WaitFor(Reader_->Open())
         .ThrowOnError();
 }
@@ -124,7 +127,10 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
         true);
 }
 
-ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(bool isParallel)
+ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(
+    bool isParallel,
+    TNameTablePtr nameTable,
+    const TColumnFilter& columnFilter)
 {
     std::vector<TChunkSpec> chunkSpecs;
     for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
@@ -135,15 +141,15 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(bool isParall
     }
 
     auto options = New<TMultiChunkReaderOptions>();
-    auto nameTable = New<TNameTable>();
 
-    return CreateTableReader(options, chunkSpecs, nameTable, isParallel);
+    return CreateTableReader(options, chunkSpecs, nameTable, columnFilter, isParallel);
 }
 
 ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
     TMultiChunkReaderOptionsPtr options,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
+    const TColumnFilter& columnFilter,
     bool isParallel)
 {
     if (isParallel) {
@@ -154,7 +160,8 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             chunkSpecs,
-            nameTable);
+            nameTable,
+            columnFilter);
     } else {
         return CreateSchemalessSequentialMultiChunkReader(
             JobIOConfig_->TableReader,
@@ -163,7 +170,8 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             chunkSpecs,
-            nameTable);
+            nameTable,
+            columnFilter);
     }
 }
 

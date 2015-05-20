@@ -32,9 +32,11 @@ private:
         return CreateTableWriter(options, chunkListId, transactionId, keyColumns);
     }
 
-    virtual ISchemalessMultiChunkReaderPtr DoCreateReader() override
+    virtual ISchemalessMultiChunkReaderPtr DoCreateReader(
+        NVersionedTableClient::TNameTablePtr nameTable,
+        const NVersionedTableClient::TColumnFilter& columnFilter) override
     {
-        return CreateRegularReader(true);
+        return CreateRegularReader(true, nameTable, columnFilter);
     }
 
 };
