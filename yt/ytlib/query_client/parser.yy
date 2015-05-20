@@ -14,7 +14,6 @@
 
 %parse-param {TLexer& lexer}
 %parse-param {TAstHead* head}
-%parse-param {TRowBufferPtr rowBuffer}
 %parse-param {const Stroka& source}
 
 %code requires {
@@ -30,7 +29,6 @@
 
 %code {
     #include <ytlib/query_client/lexer.h>
-    #include <ytlib/new_table_client/row_buffer.h>
 
     #define yt_ql_yylex lexer.GetNextToken
 
