@@ -38,7 +38,6 @@ import datetime
 import time
 import sys
 import collections
-import random
 
 
 log = logging.getLogger("Fennel")
@@ -511,7 +510,8 @@ class SessionReader(object):
             self.log.info("Stopping...")
         self._error = e
         self._set_ready()
-        self._iostream.close(e)
+        if self._iostream:
+            self._iostream.close(e)
 
     def read_message(self):
         return self._return_when_ready(
@@ -716,37 +716,41 @@ class Application(object):
 
     @gen.coroutine
     def _start(self):
-        while True:
-            try:
-                self._log_broker = LogBroker(self._service_id, self._source_id, io_loop=self._io_loop)
+        try:
+            while True:
+                try:
+                    self._log_broker = LogBroker(self._service_id, self._source_id, io_loop=self._io_loop)
 
-                hostname = _get_logbroker_hostname(logbroker_url=self._logbroker_url)
-                self._last_acked_seqno = yield self._log_broker.connect(hostname)
+                    hostname = _get_logbroker_hostname(logbroker_url=self._logbroker_url)
+                    self._last_acked_seqno = yield self._log_broker.connect(hostname)
 
-                while True:
-                    chunk_size = self._chunk_size
-                    saved = False
-                    while not saved:
-                        try:
-                            data = self._event_log.get_data(self._last_acked_seqno, chunk_size)
-                            data = misc._preprocess(data, cluster_name=self._cluster_name, log_name=self._log_name)
-                            self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
+                    while True:
+                        chunk_size = self._chunk_size
+                        saved = False
+                        while not saved:
+                            try:
+                                data = self._event_log.get_data(self._last_acked_seqno, chunk_size)
+                                data = misc._preprocess(data, cluster_name=self._cluster_name, log_name=self._log_name)
+                                self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
 
-                            self._event_log.update_last_saved_ts(self._log_broker.get_chunk_data_ts())
-                        except EventLog.NotEnoughDataError:
-                            self.log.info("Not enough data in the event log", exc_info=True)
-                            yield sleep_future(30.0, self._io_loop)
-                        except ChunkTooBigError:
-                            new_chunk_size = max(100, chunk_size / 2)
-                            self.log.error("%d table rows forms chunk which is too big. Use small chunk size: %d", chunk_size, new_chunk_size)
-                            chunk_size = new_chunk_size
-                        else:
-                            saved = True
-            except Exception:
-                self.log.error("Unhandled exception. Try to reconnect...", exc_info=True)
-                self._log_broker.stop()
-                self._log_broker = None
-                yield sleep_future(1, self._io_loop)
+                                self._event_log.update_last_saved_ts(self._log_broker.get_chunk_data_ts())
+                            except EventLog.NotEnoughDataError:
+                                self.log.info("Not enough data in the event log", exc_info=True)
+                                yield sleep_future(30.0, self._io_loop)
+                            except ChunkTooBigError:
+                                new_chunk_size = max(100, chunk_size / 2)
+                                self.log.error("%d table rows forms chunk which is too big. Use small chunk size: %d", chunk_size, new_chunk_size)
+                                chunk_size = new_chunk_size
+                            else:
+                                saved = True
+                except Exception:
+                    self.log.error("Unhandled exception. Try to reconnect...", exc_info=True)
+                    self._log_broker.stop()
+                    self._log_broker = None
+                    yield sleep_future(1, self._io_loop)
+        except:
+            self.log.exception("Unhandled exception. Something goes wrong.")
+            self._io_loop.stop()
 
 
 class LastSeqnoGetter(object):
