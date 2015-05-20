@@ -751,7 +751,7 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
     Stroka name)
 {
 
-    if (IsBinaryOpCompare(opcode))
+    if (IsRelationalBinaryOp(opcode))
     {
         return [
             MOVE(opcode),

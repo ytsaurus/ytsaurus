@@ -51,7 +51,6 @@
 // Unqualified %code blocks.
 
     #include <ytlib/query_client/lexer.h>
-    #include <ytlib/new_table_client/row_buffer.h>
 
     #define yt_ql_yylex lexer.GetNextToken
 
@@ -191,7 +190,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
   /// Build a parser object.
-  TParser::TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, TRowBufferPtr rowBuffer_yyarg, const Stroka& source_yyarg)
+  TParser::TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, const Stroka& source_yyarg)
     :
 #if YT_QL_YYDEBUG
       yydebug_ (false),
@@ -199,7 +198,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 #endif
       lexer (lexer_yyarg),
       head (head_yyarg),
-      rowBuffer (rowBuffer_yyarg),
       source (source_yyarg)
   {}
 
@@ -2296,14 +2294,14 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   const unsigned short int
   TParser::yyrline_[] =
   {
-       0,   145,   145,   146,   147,   151,   155,   159,   166,   173,
-     177,   184,   188,   192,   196,   200,   204,   208,   212,   216,
-     220,   227,   234,   241,   248,   255,   260,   267,   272,   279,
-     283,   290,   295,   299,   304,   308,   313,   317,   322,   326,
-     333,   337,   342,   344,   346,   348,   350,   352,   357,   361,
-     366,   368,   373,   377,   382,   384,   386,   391,   395,   400,
-     404,   409,   411,   416,   420,   424,   428,   435,   437,   439,
-     441,   443,   445,   450,   455,   462,   466,   473,   478
+       0,   143,   143,   144,   145,   149,   153,   157,   164,   171,
+     175,   182,   186,   190,   194,   198,   202,   206,   210,   214,
+     218,   225,   232,   239,   246,   253,   258,   265,   270,   277,
+     281,   288,   293,   297,   302,   306,   311,   315,   320,   324,
+     331,   335,   340,   342,   344,   346,   348,   350,   355,   359,
+     364,   366,   371,   375,   380,   382,   384,   389,   393,   398,
+     402,   407,   409,   414,   418,   422,   426,   433,   435,   437,
+     439,   441,   443,   448,   453,   460,   464,   471,   476
   };
 
   // Print the state stack on the debug stream.
