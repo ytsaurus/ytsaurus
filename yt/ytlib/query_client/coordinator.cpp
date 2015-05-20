@@ -67,7 +67,6 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
             auto& finalGroupItems = groupClause->GroupItems;
             for (const auto& groupItem : query->GroupClause->GroupItems) {
                 auto referenceExpr = New<TReferenceExpression>(
-                    NullSourceLocation,
                     groupItem.Expression->Type,
                     groupItem.Name);
                 finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
@@ -76,7 +75,6 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
             auto& finalAggregateItems = groupClause->AggregateItems;
             for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
                 auto referenceExpr = New<TReferenceExpression>(
-                    NullSourceLocation,
                     aggregateItem.Expression->Type,
                     aggregateItem.Name);
                 finalAggregateItems.emplace_back(
