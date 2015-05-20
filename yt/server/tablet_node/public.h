@@ -200,8 +200,8 @@ typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
 class TSchemafulRowMerger;
 class TVersionedRowMerger;
 
-typedef NVersionedTableClient::TMultiChunkWriterOptions TTabletWriterOptions;
-typedef NVersionedTableClient::TMultiChunkWriterOptionsPtr TTabletWriterOptionsPtr;
+typedef NVersionedTableClient::TTableWriterOptions TTabletWriterOptions;
+typedef NVersionedTableClient::TTableWriterOptionsPtr TTabletWriterOptionsPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

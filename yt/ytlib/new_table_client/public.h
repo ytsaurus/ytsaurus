@@ -180,10 +180,7 @@ DECLARE_REFCOUNTED_STRUCT(IValueConsumer)
 DECLARE_REFCOUNTED_CLASS(TBuildingValueConsumer)
 DECLARE_REFCOUNTED_CLASS(TWritingValueConsumer)
 
-DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
-
-typedef TMultiChunkWriterOptions TTableWriterOptions;
-typedef TMultiChunkWriterOptionsPtr TTableWriterOptionsPtr;
+DECLARE_REFCOUNTED_CLASS(TTableWriterOptions)
 
 DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)
