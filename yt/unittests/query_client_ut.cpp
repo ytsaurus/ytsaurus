@@ -2210,6 +2210,7 @@ protected:
             ECallingConvention::UnversionedValue);
         SumUdf_ = New<TUserDefinedFunction>(
             "sum_udf",
+            std::unordered_map<TTypeArgument, TUnionType>(),
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
             EValueType::Int64,

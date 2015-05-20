@@ -131,6 +131,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "simple_hash",
+        std::unordered_map<TTypeArgument, TUnionType>(),
         std::vector<TType>{},
         hashTypes,
         EValueType::Uint64,
@@ -138,6 +139,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "farm_hash",
+        std::unordered_map<TTypeArgument, TUnionType>(),
         std::vector<TType>{},
         hashTypes,
         EValueType::Uint64,
@@ -150,19 +152,35 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         builtinImplementations,
         ECallingConvention::UnversionedValue));
 
-    registry->RegisterFunction(New<TIfFunction>());
-    registry->RegisterFunction(New<TIsPrefixFunction>());
-    registry->RegisterFunction(New<TCastFunction>(
+    auto typeArg = 0;
+    auto castConstraints = std::unordered_map<TTypeArgument, TUnionType>();
+    castConstraints[typeArg] = std::vector<EValueType>{
         EValueType::Int64,
-        "int64"));
-    registry->RegisterFunction(New<TCastFunction>(
         EValueType::Uint64,
-        "uint64"));
+        EValueType::Double};
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "int64",
+        castConstraints,
+        std::vector<TType>{typeArg},
+        EValueType::Null,
+        EValueType::Int64,
+        builtinImplementations));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "uint64",
+        castConstraints,
+        std::vector<TType>{typeArg},
+        EValueType::Null,
+        EValueType::Uint64,
+        builtinImplementations));
+
     registry->RegisterFunction(New<TCastFunction>(
         EValueType::Double,
         "double"));
+    registry->RegisterFunction(New<TIfFunction>());
+    registry->RegisterFunction(New<TIsPrefixFunction>());
 
-    auto typeArg = 0;
     auto constraints = std::unordered_map<TTypeArgument, TUnionType>();
     constraints[typeArg] = std::vector<EValueType>{
         EValueType::Int64,
@@ -473,6 +491,7 @@ void TCypressFunctionRegistry::LookupAndRegisterFunction(const Stroka& functionN
     } else {
         UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
             cypressDescriptor->Name,
+            std::unordered_map<TTypeArgument, TUnionType>(),
             cypressDescriptor->GetArgumentsTypes(),
             cypressDescriptor->RepeatedArgumentType->Type,
             cypressDescriptor->ResultType.Type,
