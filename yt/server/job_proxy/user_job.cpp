@@ -535,10 +535,11 @@ private:
 
     void PrepareInputTablePipe(
         TPipe&& pipe,
-        int jobDescriptor,
-        ISchemalessMultiChunkReaderPtr reader,
-        const TFormat& format)
+        int jobDescriptor)
     {
+        JobIO_->CreateReader();
+        auto reader = JobIO_->GetReader();
+        auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
         Process_.AddDup2FileAction(pipe.GetReadFD(), jobDescriptor);
 
@@ -594,8 +595,7 @@ private:
     void PrepareInputTablePipes(TPipeFactory* pipeFactory)
     {
         YCHECK(pipeFactory);
-        auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
-        PrepareInputTablePipe(pipeFactory->Create(), 0, JobIO_->GetReader(), format);
+        PrepareInputTablePipe(pipeFactory->Create(), 0);
     }
 
     void PreparePipes()

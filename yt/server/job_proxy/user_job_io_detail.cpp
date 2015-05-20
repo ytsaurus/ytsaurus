@@ -5,6 +5,9 @@
 #include "config.h"
 #include "job.h"
 
+#include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/schema.pb.h>
+
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
@@ -56,8 +59,11 @@ void TUserJobIOBase::Init()
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
         Writers_.push_back(writer);
     }
+}
 
-    LOG_INFO("Opening readers");
+void TUserJobIOBase::CreateReader()
+{
+    LOG_INFO("Opening reader");
 
     auto nameTable = New<TNameTable>();
     auto columnFilter = TColumnFilter();
@@ -65,6 +71,21 @@ void TUserJobIOBase::Init()
     Reader_ = DoCreateReader(nameTable, columnFilter);
     WaitFor(Reader_->Open())
         .ThrowOnError();
+}
+
+TSchemalessReaderFactory TUserJobIOBase::GetReaderCreator() const
+{
+    for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
+        for (const auto& chunkSpec : inputSpec.chunks()) {
+            if (chunkSpec.has_channel() && !FromProto<NChunkClient::TChannel>(chunkSpec.channel()).IsUniversal()) {
+                THROW_ERROR_EXCEPTION("Channels and QL filter cannot appear in the same operation.");
+            }
+        }
+    }
+
+    return [&] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
+        return DoCreateReader(nameTable, columnFilter);
+    };
 }
 
 const std::vector<ISchemalessMultiChunkWriterPtr>& TUserJobIOBase::GetWriters() const
