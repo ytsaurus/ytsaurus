@@ -219,8 +219,18 @@ const TChunkMeta& TChunkStore::GetChunkMeta() const
     return ChunkMeta_;
 }
 
+IStorePtr TChunkStore::GetBackingStore()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(BackingStoreLock_);
+    return BackingStore_;
+}
+
 void TChunkStore::SetBackingStore(IStorePtr store)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TWriterGuard guard(BackingStoreLock_);
     BackingStore_ = store;
 }
@@ -580,14 +590,6 @@ TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunk
     }
 
     return cachedMeta;
-}
-
-IStorePtr TChunkStore::GetBackingStore()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TReaderGuard guard(PreloadedBlockCacheLock_);
-    return BackingStore_;
 }
 
 IBlockCachePtr TChunkStore::GetBlockCache()
