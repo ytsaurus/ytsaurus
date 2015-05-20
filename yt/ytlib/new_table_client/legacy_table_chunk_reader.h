@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "row_sampler.h"
 
 #include "schemaless_chunk_reader.h"
 
@@ -97,6 +98,8 @@ private:
     i64 BeginRowIndex_ = 0;
     i64 EndRowIndex_ = 0;
     i64 RowCount_ = 0;
+
+    std::unique_ptr<IRowSampler> RowSampler_;
 
     int UnfetchedChannelIndex_ = -1;
 
