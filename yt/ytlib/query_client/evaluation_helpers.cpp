@@ -153,7 +153,6 @@ TJoinEvaluator GetJoinEvaluator(
     for (const auto& column : foreignTableSchema.Columns()) {
         if (std::find(joinColumns.begin(), joinColumns.end(), column.Name) != joinColumns.end()) {
             projectClause->AddProjection(New<TReferenceExpression>(
-                NullSourceLocation,
                 column.Type,
                 column.Name),
                 column.Name);
@@ -163,7 +162,6 @@ TJoinEvaluator GetJoinEvaluator(
     for (const auto& column : foreignTableSchema.Columns()) {
         if (std::find(joinColumns.begin(), joinColumns.end(), column.Name) == joinColumns.end()) {
             projectClause->AddProjection(New<TReferenceExpression>(
-                NullSourceLocation,
                 column.Type,
                 column.Name),
                 column.Name);
@@ -175,7 +173,6 @@ TJoinEvaluator GetJoinEvaluator(
     std::vector<TConstExpressionPtr> joinKeyExprs;
     for (const auto& column : joinColumns) {
         joinKeyExprs.push_back(New<TReferenceExpression>(
-            NullSourceLocation,
             foreignTableSchema.GetColumnOrThrow(column).Type,
             column));
     }
@@ -201,7 +198,6 @@ TJoinEvaluator GetJoinEvaluator(
             std::vector<TRow>* joinedRows)
         {
             subquery->WhereClause = New<TInOpExpression>(
-                NullSourceLocation,
                 joinKeyExprs,
                 // TODO(babenko): fixme
                 TSharedRange<TRow>(MakeRange(keys), nullptr));
