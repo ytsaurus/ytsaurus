@@ -27,7 +27,8 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TReadLimit& lowerLimit,
         const NChunkClient::TReadLimit& upperLimit,
-        i64 tableRowIndex);
+        i64 tableRowIndex,
+        i32 rangeIndex);
 
     virtual TFuture<void> Open() override;
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
@@ -38,6 +39,8 @@ public:
     virtual TKeyColumns GetKeyColumns() const override;
 
     virtual i64 GetTableRowIndex() const override;
+
+    virtual i32 GetRangeIndex() const override;
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
     virtual TFuture<void> GetFetchingCompletedEvent() override;
@@ -87,7 +90,8 @@ private:
 
     std::vector<TColumnInfo> ColumnInfo_;
 
-    i64 TableRowIndex_;
+    const i64 TableRowIndex_;
+    const i32 RangeIndex_;
 
     i64 CurrentRowIndex_ = -1;
     i64 BeginRowIndex_ = 0;

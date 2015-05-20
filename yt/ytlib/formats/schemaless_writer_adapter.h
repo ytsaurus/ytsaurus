@@ -26,7 +26,6 @@ public:
         NVersionedTableClient::TNameTablePtr nameTable,
         std::unique_ptr<TOutputStream> outputStream,
         bool enableContextSaving,
-        bool enableTableSwitch,
         bool enableKeySwitch,
         int keyColumnCount);
 
@@ -42,7 +41,11 @@ public:
 
     virtual bool IsSorted() const override;
 
-    virtual void SetTableIndex(int tableIndex) override;
+    virtual void WriteTableIndex(int tableIndex) override;
+
+    virtual void WriteRangeIndex(i32 rangeIndex) override;
+
+    virtual void WriteRowIndex(i64 rowIndex) override;
 
     virtual TBlob GetContext() const override;
 
@@ -56,16 +59,19 @@ private:
     TBlobOutput CurrentBuffer_;
     TBlobOutput PreviousBuffer_;
 
-    bool EnableTableSwitch_;
-    int TableIndex_ = -1;
-
     bool EnableKeySwitch_;
-    int KeyColumnCount_;
     NVersionedTableClient::TOwningKey LastKey_;
     NVersionedTableClient::TKey CurrentKey_;
 
+    int KeyColumnCount_;
+
     static TFuture<void> StaticError_;
     TError Error_;
+
+    template <class T>
+    void WriteControlAttribute(
+        NVersionedTableClient::EControlAttribute controlAttribute,
+        T value);
 
     void ConsumeRow(const NVersionedTableClient::TUnversionedRow& row);
     void FlushBuffer();

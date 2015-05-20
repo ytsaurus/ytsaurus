@@ -2441,7 +2441,6 @@ private:
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
                 auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
-                reduceJobSpecExt->set_enable_key_switch(Spec->EnableKeySwitch);
 
                 InitUserJobSpecTemplate(
                     schedulerJobSpecExt->mutable_user_job_spec(),
@@ -2465,7 +2464,6 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
-            reduceJobSpecExt->set_enable_key_switch(Spec->EnableKeySwitch);
 
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),
@@ -2484,7 +2482,6 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
-            reduceJobSpecExt->set_enable_key_switch(Spec->EnableKeySwitch);
 
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),

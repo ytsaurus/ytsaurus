@@ -2,6 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt.yson import to_yson_type
 
 from time import sleep
 
@@ -223,6 +224,40 @@ class TestTables(YTEnvSetup):
         assert read("//tmp/table{a, a}") == [{"a" : 1}]
         assert read("//tmp/table{c, b}") == [{"b" : 3, "c" : 5}]
         assert read("//tmp/table{zzzzz}") == [{}] # non existent column
+
+    def test_range_and_row_index(self):
+        create("table", "//tmp/table")
+
+        write("//tmp/table", [{"a": 0}, {"a": 1}, {"a": 2}, {"a": 3}, {"a": 4}, {"a": 5}])
+
+        v1 = to_yson_type(None, attributes={"range_index": 0})
+        v2 = to_yson_type(None, attributes={"row_index": 0})
+        v3 = {"a": 0}
+        v4 = {"a": 1}
+        v5 = {"a": 2}
+        v6 = to_yson_type(None, attributes={"range_index": 1})
+        v7 = to_yson_type(None, attributes={"row_index": 2})
+        v8 = {"a": 2}
+        v9 = {"a": 3}
+
+        control_attributes = {"enable_range_index": True, "enable_row_index": True}
+        result = read("//tmp/table[#0:#3, #2:#4]", control_attributes=control_attributes)
+        assert result == [v1, v2, v3, v4, v5, v6, v7, v8, v9]
+
+    def test_range_and_row_index2(self):
+        create("table", "//tmp/table")
+
+        write("//tmp/table", [{"a": 0}, {"a": 1}, {"a": 2}, {"a": 3}, {"a": 4}, {"a": 5}], sorted_by="a")
+
+        v1 = to_yson_type(None, attributes={"range_index": 0})
+        v2 = to_yson_type(None, attributes={"row_index": 2})
+        v3 = {"a": 2}
+        v4 = {"a": 3}
+        v5 = {"a": 4}
+
+        control_attributes = {"enable_range_index": True, "enable_row_index": True}
+        result = read("//tmp/table[2:5]", control_attributes=control_attributes)
+        assert result == [v1, v2, v3, v4, v5]
 
     def test_shared_locks_two_chunks(self):
         create("table", "//tmp/table")

@@ -144,5 +144,40 @@ DEFINE_REFCOUNTED_TYPE(TTableReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TControlAttributesConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableTableIndex;
+    bool EnableKeySwitch;
+    bool EnableRangeIndex;
+    bool EnableRowIndex;
+
+    TControlAttributesConfig()
+    {
+        RegisterParameter("enable_table_index", EnableTableIndex)
+            .Default(false);
+
+        RegisterParameter("enable_key_switch", EnableKeySwitch)
+            .Default(false);
+
+        RegisterParameter("enable_range_index", EnableRangeIndex)
+            .Default(false);
+
+        RegisterParameter("enable_row_index", EnableRowIndex)
+            .Default(false);
+
+        RegisterValidator([&] () {
+            if (EnableRangeIndex != EnableRowIndex) {
+                THROW_ERROR_EXCEPTION("\"enable_range_index\" must be in sync with \"enable_row_index\"");
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TControlAttributesConfig);
+
+//////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NVersionedTableClient
 } // namespace NYT

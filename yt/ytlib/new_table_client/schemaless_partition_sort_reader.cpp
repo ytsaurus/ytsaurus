@@ -193,6 +193,16 @@ public:
         return UnderlyingReader_->GetFailedChunkIds();
     }
 
+    virtual i64 GetTableRowIndex() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual i32 GetRangeIndex() const override
+    {
+        YUNREACHABLE();
+    }
+
 private:
     class TComparerBase
     {

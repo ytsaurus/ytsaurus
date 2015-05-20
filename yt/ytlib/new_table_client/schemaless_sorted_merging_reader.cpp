@@ -53,6 +53,10 @@ public:
 
     virtual i64 GetSessionRowIndex() const override;
 
+    virtual i64 GetTableRowIndex() const override;
+
+    virtual i32 GetRangeIndex() const override;
+
 private:
     struct TSession
     {
@@ -264,6 +268,16 @@ i64 TSchemalessSortedMergingReader::GetTotalRowCount() const
 i64 TSchemalessSortedMergingReader::GetSessionRowIndex() const
 {
     return RowIndex_;
+}
+
+i64 TSchemalessSortedMergingReader::GetTableRowIndex() const
+{
+    YUNREACHABLE();
+}
+
+i32 TSchemalessSortedMergingReader::GetRangeIndex() const
+{
+    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

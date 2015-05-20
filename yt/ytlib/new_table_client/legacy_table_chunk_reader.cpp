@@ -478,7 +478,8 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
     IBlockCachePtr blockCache,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
-    i64 tableRowIndex)
+    i64 tableRowIndex,
+    i32 rangeIndex)
     : SequentialReader_(nullptr)
     , ColumnFilter_(columnFilter)
     , NameTable_(nameTable)
@@ -486,6 +487,7 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
     , UpperLimit_(upperLimit)
     , MemoryPool_(TLegacyTableChunkReaderMemoryPoolTag())
     , TableRowIndex_(tableRowIndex)
+    , RangeIndex_(rangeIndex)
     , Logger(TableClientLogger)
 {
     YCHECK(config);
@@ -576,6 +578,11 @@ TFuture<void> TLegacyTableChunkReader::GetReadyEvent()
 i64 TLegacyTableChunkReader::GetTableRowIndex() const
 {
     return TableRowIndex_ + CurrentRowIndex_;
+}
+
+i32 TLegacyTableChunkReader::GetRangeIndex() const
+{
+    return RangeIndex_;
 }
 
 void TLegacyTableChunkReader::ResetCurrentRow()

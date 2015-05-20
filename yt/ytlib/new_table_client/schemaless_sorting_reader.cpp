@@ -133,6 +133,16 @@ public:
         return ReadRowCount_;
     }
 
+    virtual i64 GetTableRowIndex() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual i32 GetRangeIndex() const override
+    {
+        YUNREACHABLE();
+    }
+
 private:
     TSchemalessRowReorderer RowReorderer_;
 
