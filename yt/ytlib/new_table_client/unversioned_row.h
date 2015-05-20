@@ -56,15 +56,16 @@ struct TUnversionedValue
 class TUnversionedOwningValue
 {
 public:
-    TUnversionedOwningValue()
+    TUnversionedOwningValue() = default;
+
+    TUnversionedOwningValue(TUnversionedOwningValue&& other)
     {
-        Value_.Type = EValueType::TheBottom;
-        Value_.Length = 0;
+        std::swap(Value_, other.Value_);
     }
 
     TUnversionedOwningValue(const TUnversionedOwningValue& other)
     {
-        Assign(other);
+        Assign(other.Value_);
     }
 
     TUnversionedOwningValue(const TUnversionedValue& other)
@@ -72,19 +73,30 @@ public:
         Assign(other);
     }
 
+    ~TUnversionedOwningValue()
+    {
+        Clear();
+    }
+
     operator TUnversionedValue() const
     {
         return Value_;
     }
 
-    TUnversionedOwningValue& operator = (const TUnversionedValue& other)
+    TUnversionedOwningValue& operator = (TUnversionedOwningValue&& other)
     {
-        Clear();
-        Assign(other);
+        std::swap(Value_, other.Value_);
         return *this;
     }
 
     TUnversionedOwningValue& operator = (const TUnversionedOwningValue& other)
+    {
+        Clear();
+        Assign(other.Value_);
+        return *this;
+    }
+
+    TUnversionedOwningValue& operator = (const TUnversionedValue& other)
     {
         Clear();
         Assign(other);
@@ -100,13 +112,8 @@ public:
         Value_.Length = 0;
     }
 
-    ~TUnversionedOwningValue()
-    {
-        Clear();
-    }
-
 private:
-    TUnversionedValue Value_;
+    TUnversionedValue Value_ = {0, EValueType::TheBottom, 0, {0}};
 
     void Assign(const TUnversionedValue& other)
     {
@@ -117,7 +124,7 @@ private:
             Value_.Data.String = newString;                
         }
     }
-    
+
 };
 
 static_assert(
