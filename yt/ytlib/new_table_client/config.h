@@ -85,12 +85,12 @@ DEFINE_REFCOUNTED_TYPE(TChunkWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMultiChunkWriterOptions
+class TTableWriterOptions
     : public TChunkWriterOptions
     , public NChunkClient::TMultiChunkWriterOptions
 { };
 
-DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterOptions)
+DEFINE_REFCOUNTED_TYPE(TTableWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
