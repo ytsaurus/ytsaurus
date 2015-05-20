@@ -8,6 +8,24 @@ namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka ToString(const TLiteralValue& literalValue)
+{
+    switch (literalValue.Tag()) {
+        case NAst::TLiteralValue::TagOf<i64>():
+            return ToString(literalValue.As<i64>());
+        case NAst::TLiteralValue::TagOf<ui64>():
+            return ToString(literalValue.As<ui64>());
+        case NAst::TLiteralValue::TagOf<double>():
+            return ToString(literalValue.As<double>());
+        case NAst::TLiteralValue::TagOf<bool>():
+            return ToString(literalValue.As<bool>());
+        case NAst::TLiteralValue::TagOf<Stroka>():
+            return literalValue.As<Stroka>().Quote();
+        default:
+            YUNREACHABLE();
+    }
+}
+
 TStringBuf TExpression::GetSource(const TStringBuf& source) const
 {
     auto begin = SourceLocation.first;

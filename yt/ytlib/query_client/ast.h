@@ -4,9 +4,6 @@
 
 #include "plan_fragment_common.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/row_buffer.h>
-
 #include <core/misc/variant.h>
 
 namespace NYT {
@@ -15,8 +12,9 @@ namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::vector<TValue> TValueList;
-typedef std::vector<std::vector<TValue>> TValueTupleList;
+typedef TVariant<i64, ui64, double, bool, Stroka> TLiteralValue;
+typedef std::vector<TLiteralValue> TLiteralValueList;
+typedef std::vector<std::vector<TLiteralValue>> TLiteralValueTupleList;
 
 struct TExpression
     : public TIntrinsicRefCounted
@@ -40,7 +38,6 @@ struct TExpression
     TStringBuf GetSource(const TStringBuf& source) const;
 
     TSourceLocation SourceLocation;
-
 };
 
 DECLARE_REFCOUNTED_STRUCT(TExpression)
@@ -53,13 +50,12 @@ struct TLiteralExpression
 {
     TLiteralExpression(
         const TSourceLocation& sourceLocation,
-        TValue value)
+        TLiteralValue value)
         : TExpression(sourceLocation)
-        , Value(value)
+        , Value(std::move(value))
     { }
 
-    TValue Value;
-
+    TLiteralValue Value;
 };
 
 struct TReferenceExpression
@@ -73,7 +69,6 @@ struct TReferenceExpression
     { }
 
     Stroka ColumnName;
-
 };
 
 struct TCommaExpression
@@ -84,8 +79,8 @@ struct TCommaExpression
         TExpressionPtr lhs,
         TExpressionPtr rhs)
         : TExpression(sourceLocation)
-        , Lhs(lhs)
-        , Rhs(rhs)
+        , Lhs(std::move(lhs))
+        , Rhs(std::move(rhs))
     { }
 
     TExpressionPtr Lhs;
@@ -101,12 +96,11 @@ struct TFunctionExpression
         TExpressionPtr arguments)
         : TExpression(sourceLocation)
         , FunctionName(functionName)
-        , Arguments(arguments)
+        , Arguments(std::move(arguments))
     { }
 
     Stroka FunctionName;
     TExpressionPtr Arguments;
-
 };
 
 struct TUnaryOpExpression
@@ -118,12 +112,11 @@ struct TUnaryOpExpression
         TExpressionPtr operand)
         : TExpression(sourceLocation)
         , Opcode(opcode)
-        , Operand(operand)
+        , Operand(std::move(operand))
     { }
 
     EUnaryOp Opcode;
     TExpressionPtr Operand;
-
 };
 
 struct TBinaryOpExpression
@@ -136,14 +129,13 @@ struct TBinaryOpExpression
         TExpressionPtr rhs)
         : TExpression(sourceLocation)
         , Opcode(opcode)
-        , Lhs(lhs)
-        , Rhs(rhs)
+        , Lhs(std::move(lhs))
+        , Rhs(std::move(rhs))
     { }
 
     EBinaryOp Opcode;
     TExpressionPtr Lhs;
     TExpressionPtr Rhs;
-
 };
 
 struct TInExpression
@@ -152,16 +144,14 @@ struct TInExpression
     TInExpression(
         const TSourceLocation& sourceLocation,
         TExpressionPtr expression,
-        const TValueTupleList& values)
+        const TLiteralValueTupleList& values)
         : TExpression(sourceLocation)
-        , Expr(expression)
+        , Expr(std::move(expression))
         , Values(values)
     { }
 
     TExpressionPtr Expr;
-    // TODO(babenko): TSharedRange here?
-    TValueTupleList Values;
-
+    TLiteralValueTupleList Values;
 };
 
 Stroka InferName(const TExpression* expr);

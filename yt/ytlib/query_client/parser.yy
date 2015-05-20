@@ -126,10 +126,10 @@
 %type <TExpressionPtr> unary-expr
 %type <TExpressionPtr> atomic-expr
 %type <TExpressionPtr> comma-expr
-%type <TUnversionedValue> literal-expr
-%type <TValueList> literal-list
-%type <TValueList> literal-tuple
-%type <TValueTupleList> literal-tuple-list
+%type <TNullable<TLiteralValue>> literal-value
+%type <TLiteralValueList> literal-list
+%type <TLiteralValueList> literal-tuple
+%type <TLiteralValueTupleList> literal-tuple-list
 
 %type <EUnaryOp> unary-op
 
@@ -425,43 +425,43 @@ atomic-expr
         {
             $$ = $expr;
         }
-    | literal-expr[value]
+    | literal-value[value]
         {
-            $$ = New<TLiteralExpression>(@$, $value);
+            $$ = New<TLiteralExpression>(@$, *$value);
         }
 ;
 
-literal-expr
+literal-value
     : Int64Literal
-        { $$ = MakeUnversionedInt64Value($1); }
+        { $$ = $1; }
     | Uint64Literal
-        { $$ = MakeUnversionedUint64Value($1); }
+        { $$ = $1; }
     | DoubleLiteral
-        { $$ = MakeUnversionedDoubleValue($1); }
+        { $$ = $1; }
     | StringLiteral
-        { $$ = rowBuffer->Capture(MakeUnversionedStringValue($1)); }
+        { $$ = $1; }
     | KwFalse
-        { $$ = MakeUnversionedBooleanValue(false); }
+        { $$ = false; }
     | KwTrue
-        { $$ = MakeUnversionedBooleanValue(true); }
+        { $$ = true; }
 ;
 
 literal-list
-    : literal-list[as] Comma literal-expr[a]
+    : literal-list[as] Comma literal-value[a]
         {
             $$.swap($as);
-            $$.push_back($a);
+            $$.push_back(*$a);
         }
-    | literal-expr[a]
+    | literal-value[a]
         {
-            $$.push_back($a);
+            $$.push_back(*$a);
         }
 ;
 
 literal-tuple
-    : literal-expr[a]
+    : literal-value[a]
         {
-            $$.push_back($a);
+            $$.push_back(*$a);
         }
     | LeftParenthesis literal-list[a] RightParenthesis
         {
