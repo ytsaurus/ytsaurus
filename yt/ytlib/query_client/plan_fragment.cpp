@@ -572,7 +572,7 @@ protected:
                                 operandBinaryOp->Rhs->Type,
                                 EUnaryOp::Not,
                                 operandBinaryOp->Rhs)));
-                    } else if (IsBinaryOpCompare(operandBinaryOp->Opcode)) {
+                    } else if (IsRelationalBinaryOp(operandBinaryOp->Opcode)) {
                         return PropagateNotExpression(New<TBinaryOpExpression>(
                             operandBinaryOp->Type,
                             GetInversedBinaryOpcode(operandBinaryOp->Opcode),
@@ -973,7 +973,7 @@ public:
         return column;
     }
 
-    virtual void Finish()
+    virtual void Finish() override
     {
         if (SourceTableSchema_) {
             for (const auto& column : SourceTableSchema_->Columns()) {
@@ -1022,7 +1022,7 @@ public:
         return column;
     }
 
-    virtual void Finish()
+    virtual void Finish() override
     {
         Self_->Finish();
         Foreign_->Finish();
@@ -1235,12 +1235,11 @@ void PrepareQuery(
 
 void ParseYqlString(
     NAst::TAstHead* astHead,
-    TRowBufferPtr rowBuffer,
     const Stroka& source,
     NAst::TParser::token::yytokentype strayToken)
 {
     NAst::TLexer lexer(source, strayToken);
-    NAst::TParser parser(lexer, astHead, rowBuffer, source);
+    NAst::TParser parser(lexer, astHead, source);
 
     int result = parser.parse();
 
@@ -1259,10 +1258,8 @@ TPlanFragmentPtr PreparePlanFragment(
     TTimestamp timestamp)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
-    auto rowBuffer = New<TRowBuffer>();
     ParseYqlString(
         &astHead,
-        rowBuffer,
         source,
         NAst::TParser::token::StrayWillParseQuery);
 
@@ -1376,10 +1373,8 @@ TQueryPtr PrepareJobQuery(
     IFunctionRegistry* functionRegistry)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
-    auto rowBuffer = New<TRowBuffer>();
     ParseYqlString(
         &astHead,
-        rowBuffer,
         source,
         NAst::TParser::token::StrayWillParseJobQuery);
 
@@ -1410,10 +1405,8 @@ TConstExpressionPtr PrepareExpression(
     IFunctionRegistry* functionRegistry)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>()};
-    auto rowBuffer = New<TRowBuffer>();
     ParseYqlString(
         &astHead,
-        rowBuffer,
         source,
         NAst::TParser::token::StrayWillParseExpression);
 
