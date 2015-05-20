@@ -3,11 +3,9 @@
 #include "column_evaluator.h"
 #include "config.h"
 
-#ifdef YT_USE_LLVM
 #include "cg_fragment_compiler.h"
 #include "query_statistics.h"
 #include "folding_profiler.h"
-#endif
 
 #include <core/misc/sync_cache.h>
 
@@ -25,17 +23,14 @@ TColumnEvaluator::TColumnEvaluator(
     : Schema_(schema)
     , KeySize_(keySize)
     , FunctionRegistry_(functionRegistry)
-#ifdef YT_USE_LLVM
     , Evaluators_(keySize)
     , Variables_(keySize)
     , ReferenceIds_(keySize)
     , Expressions_(keySize)
-#endif
 { }
 
 void TColumnEvaluator::PrepareEvaluator(int index)
 {
-#ifdef YT_USE_LLVM
     YCHECK(index < KeySize_);
     YCHECK(Schema_.Columns()[index].Expression);
 
@@ -58,16 +53,12 @@ void TColumnEvaluator::PrepareEvaluator(int index)
         }
         std::sort(ReferenceIds_[index].begin(), ReferenceIds_[index].end());
     }
-#else
-    THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
-#endif
 }
 
 void TColumnEvaluator::EvaluateKey(TRow fullRow, const TRowBufferPtr& buffer, int index)
 {
     YCHECK(index < fullRow.GetCount());
 
-#ifdef YT_USE_LLVM
     PrepareEvaluator(index);
 
     TQueryStatistics statistics;
@@ -90,9 +81,6 @@ void TColumnEvaluator::EvaluateKey(TRow fullRow, const TRowBufferPtr& buffer, in
         &executionContext);
 
     fullRow[index].Id = index;
-#else
-    THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
-#endif
 }
 
 void TColumnEvaluator::EvaluateKeys(TRow fullRow, const TRowBufferPtr& buffer)
@@ -170,27 +158,17 @@ TRow TColumnEvaluator::EvaluateKeys(
 
 const std::vector<int>& TColumnEvaluator::GetReferenceIds(int index)
 {
-#ifdef YT_USE_LLVM
     PrepareEvaluator(index);
     return ReferenceIds_[index];
-#else
-    THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
-#endif
 }
 
 TConstExpressionPtr TColumnEvaluator::GetExpression(int index)
 {
-#ifdef YT_USE_LLVM
     PrepareEvaluator(index);
     return Expressions_[index];
-#else
-    THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifdef YT_USE_LLVM
 
 class TCachedColumnEvaluator
     : public TSyncCacheValueBase<llvm::FoldingSetNodeID, TCachedColumnEvaluator>
@@ -242,16 +220,12 @@ private:
     const IFunctionRegistryPtr FunctionRegistry_;
 };
 
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnEvaluatorCache::TColumnEvaluatorCache(
     TColumnEvaluatorCacheConfigPtr config,
     const IFunctionRegistryPtr functionRegistry)
-#ifdef YT_USE_LLVM
     : Impl_(New<TImpl>(std::move(config), functionRegistry))
-#endif
 { }
 
 TColumnEvaluatorCache::~TColumnEvaluatorCache() = default;
@@ -260,11 +234,7 @@ TColumnEvaluatorPtr TColumnEvaluatorCache::Find(
     const TTableSchema& schema,
     int keySize)
 {
-#ifdef YT_USE_LLVM
     return Impl_->Get(schema, keySize);
-#else
-    THROW_ERROR_EXCEPTION("Computed columns are not supported in this build");
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,10 +32,7 @@ public:
 private:
     class TImpl;
 
-#ifdef YT_USE_LLVM
     TIntrusivePtr<TImpl> Impl_;
-#endif
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TEvaluator)

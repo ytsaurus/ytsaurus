@@ -2,11 +2,9 @@
 #include "framework.h"
 #include "versioned_table_client_ut.h"
 
-#ifdef YT_USE_LLVM
 #include "udf/test_udfs.h"
 #include "udf/malloc_udf.h"
 #include "udf/invalid_ir.h"
-#endif
 
 #include <core/concurrency/action_queue.h>
 
@@ -29,9 +27,7 @@
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
 
-#ifdef YT_USE_LLVM
 #include <ytlib/query_client/folding_profiler.h>
-#endif
 
 #include <tuple>
 
@@ -1755,8 +1751,6 @@ TEST_F(TArithmeticTest, ConstantDivisorsFolding)
 
 }
 
-#ifdef YT_USE_LLVM
-
 TEST_P(TArithmeticTest, Evaluate)
 {
     auto& param = GetParam();
@@ -1799,8 +1793,6 @@ TEST_P(TArithmeticTest, Evaluate)
     EXPECT_EQ(expected, result)
         << "row: " << ::testing::PrintToString(row);
 }
-
-#endif
 
 INSTANTIATE_TEST_CASE_P(
     TArithmeticTest,
@@ -2030,8 +2022,6 @@ INSTANTIATE_TEST_CASE_P(
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifdef YT_USE_LLVM
 
 class TReaderMock
     : public ISchemafulReader
@@ -4893,8 +4883,6 @@ INSTANTIATE_TEST_CASE_P(
             "2;2;2",
             "3;3;3"}
 ));
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
