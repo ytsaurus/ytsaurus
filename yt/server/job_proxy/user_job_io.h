@@ -18,7 +18,7 @@ struct IUserJobIO
     virtual void Init() = 0;
 
     virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr>& GetWriters() const = 0;
-    virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr>& GetReaders() const = 0;
+    virtual const NVersionedTableClient::ISchemalessMultiChunkReaderPtr& GetReader() const = 0;
 
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) = 0;
 

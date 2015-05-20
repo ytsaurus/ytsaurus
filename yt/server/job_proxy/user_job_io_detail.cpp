@@ -59,11 +59,9 @@ void TUserJobIOBase::Init()
 
     LOG_INFO("Opening readers");
 
-    Readers_ = DoCreateReaders();
-    for (const auto& reader : Readers_) {
-        auto error = WaitFor(reader->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-    }
+    Reader_ = DoCreateReader();
+    WaitFor(Reader_->Open())
+        .ThrowOnError();
 }
 
 const std::vector<ISchemalessMultiChunkWriterPtr>& TUserJobIOBase::GetWriters() const
@@ -71,9 +69,9 @@ const std::vector<ISchemalessMultiChunkWriterPtr>& TUserJobIOBase::GetWriters() 
     return Writers_;
 }
 
-const std::vector<ISchemalessMultiChunkReaderPtr>& TUserJobIOBase::GetReaders() const
+const ISchemalessMultiChunkReaderPtr& TUserJobIOBase::GetReader() const
 {
-    return Readers_;
+    return Reader_;
 }
 
 TBoundaryKeysExt TUserJobIOBase::GetBoundaryKeys(ISchemalessMultiChunkWriterPtr writer) const
@@ -126,7 +124,7 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
         true);
 }
 
-std::vector<ISchemalessMultiChunkReaderPtr> TUserJobIOBase::CreateRegularReaders(bool isParallel)
+ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(bool isParallel)
 {
     std::vector<TChunkSpec> chunkSpecs;
     for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
@@ -139,8 +137,7 @@ std::vector<ISchemalessMultiChunkReaderPtr> TUserJobIOBase::CreateRegularReaders
     auto options = New<TMultiChunkReaderOptions>();
     auto nameTable = New<TNameTable>();
 
-    auto reader = CreateTableReader(options, chunkSpecs, nameTable, isParallel);
-    return std::vector<ISchemalessMultiChunkReaderPtr>(1, reader);
+    return CreateTableReader(options, chunkSpecs, nameTable, isParallel);
 }
 
 ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(

@@ -32,9 +32,9 @@ private:
         return CreateTableWriter(options, chunkListId, transactionId, keyColumns);
     }
 
-    virtual std::vector<ISchemalessMultiChunkReaderPtr> DoCreateReaders() override
+    virtual ISchemalessMultiChunkReaderPtr DoCreateReader() override
     {
-        return CreateRegularReaders(true);
+        return CreateRegularReader(true);
     }
 
 };

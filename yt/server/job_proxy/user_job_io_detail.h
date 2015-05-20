@@ -22,7 +22,7 @@ public:
     virtual void Init() override;
 
     virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr>& GetWriters() const override;
-    virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr>& GetReaders() const override;
+    virtual const NVersionedTableClient::ISchemalessMultiChunkReaderPtr& GetReader() const override;
 
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) override;
 
@@ -34,7 +34,7 @@ protected:
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpec_;
     NScheduler::TJobIOConfigPtr JobIOConfig_;
 
-    std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> Readers_;
+    NVersionedTableClient::ISchemalessMultiChunkReaderPtr Reader_;
     std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
 
     NLogging::TLogger Logger;
@@ -46,10 +46,10 @@ protected:
         const NTransactionClient::TTransactionId& transactionId,
         const NVersionedTableClient::TKeyColumns& keyColumns) = 0;
 
-    virtual std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> DoCreateReaders() = 0;
+    virtual NVersionedTableClient::ISchemalessMultiChunkReaderPtr DoCreateReader() = 0;
 
 
-    std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> CreateRegularReaders(bool isParallel);
+    NVersionedTableClient::ISchemalessMultiChunkReaderPtr CreateRegularReader(bool isParallel);
 
     NVersionedTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
         NChunkClient::TMultiChunkReaderOptionsPtr options,
