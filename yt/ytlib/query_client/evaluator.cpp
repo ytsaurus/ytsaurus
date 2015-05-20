@@ -7,10 +7,8 @@
 #include "query_statistics.h"
 #include "config.h"
 
-#ifdef YT_USE_LLVM
 #include "evaluation_helpers.h"
 #include "folding_profiler.h"
-#endif
 
 #include <ytlib/new_table_client/schemaful_writer.h>
 
@@ -18,14 +16,10 @@
 
 #include <core/misc/sync_cache.h>
 
-#ifdef YT_USE_LLVM
-
 #include <llvm/ADT/FoldingSet.h>
 
 #include <llvm/Support/Threading.h>
 #include <llvm/Support/TargetSelect.h>
-
-#endif
 
 namespace NYT {
 namespace NQueryClient {
@@ -33,8 +27,6 @@ namespace NQueryClient {
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifdef YT_USE_LLVM
 
 class TCachedCGQuery
     : public TSyncCacheValueBase<
@@ -237,14 +229,10 @@ private:
 
 };
 
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TEvaluator::TEvaluator(TExecutorConfigPtr config)
-#ifdef YT_USE_LLVM
     : Impl_(New<TImpl>(std::move(config)))
-#endif
 { }
 
 TEvaluator::~TEvaluator()
@@ -257,11 +245,7 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     TExecuteQuery executeCallback,
     const IFunctionRegistryPtr functionRegistry)
 {
-#ifdef YT_USE_LLVM
     return Impl_->Run(query, std::move(reader), std::move(writer), executeCallback, functionRegistry);
-#else
-    THROW_ERROR_EXCEPTION("Query evaluation is not supported in this build");
-#endif
 }
 
 TQueryStatistics TEvaluator::Run(
