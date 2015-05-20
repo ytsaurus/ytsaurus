@@ -93,6 +93,7 @@ public:
 
     TUserDefinedFunction(
         const Stroka& functionName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
         TType resultType,
@@ -112,6 +113,7 @@ private:
 
     TUserDefinedFunction(
         const Stroka& functionName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
         TType resultType,

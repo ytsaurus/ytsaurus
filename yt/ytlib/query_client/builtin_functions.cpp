@@ -117,10 +117,10 @@ EValueType TypingFunction(
         auto typeArg = constraint.first;
         auto allowedTypes = constraint.second;
         if (genericAssignments.count(typeArg)
-            && typeInUnion(allowedTypes, genericAssignments[typeArg]))
+            && !typeInUnion(allowedTypes, genericAssignments[typeArg]))
         {
             THROW_ERROR_EXCEPTION(
-                "Invalid type infered for type argument %v to function %Qv: expected %Qv, got %Qv",
+                "Invalid type inferred for type argument %v to function %Qv: expected %Qv, got %Qv",
                 typeArg,
                 functionName,
                 TypeToString(allowedTypes, genericAssignments),

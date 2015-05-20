@@ -357,6 +357,7 @@ void TUnversionedValueCallingConvention::CheckResultType(
 
 TUserDefinedFunction::TUserDefinedFunction(
     const Stroka& functionName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     std::vector<TType> argumentTypes,
     TType repeatedArgType,
     TType resultType,
@@ -364,7 +365,7 @@ TUserDefinedFunction::TUserDefinedFunction(
     ICallingConventionPtr callingConvention)
     : TTypedFunction(
         functionName,
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        typeArgumentConstraints,
         std::vector<TType>(argumentTypes.begin(), argumentTypes.end()),
         repeatedArgType,
         resultType)
@@ -376,13 +377,21 @@ TUserDefinedFunction::TUserDefinedFunction(
 { }
 
 ICallingConventionPtr GetCallingConvention(
-    ECallingConvention callingConvention)
+    ECallingConvention callingConvention,
+    int repeatedArgIndex,
+    TType repeatedArgType)
 {
     switch (callingConvention) {
         case ECallingConvention::Simple:
             return New<TSimpleCallingConvention>();
         case ECallingConvention::UnversionedValue:
-            return New<TUnversionedValueCallingConvention>(-1);
+            if (repeatedArgType.TryAs<EValueType>()
+                && repeatedArgType.As<EValueType>() == EValueType::Null)
+            {
+                return New<TUnversionedValueCallingConvention>(-1);
+            } else {
+                return New<TUnversionedValueCallingConvention>(repeatedArgIndex);
+            }
         default:
             YUNREACHABLE();
     }
@@ -396,26 +405,29 @@ TUserDefinedFunction::TUserDefinedFunction(
     ECallingConvention callingConvention)
     : TUserDefinedFunction(
         functionName,
+        std::unordered_map<TTypeArgument, TUnionType>(),
         argumentTypes,
         EValueType::Null,
         resultType,
         implementationFile,
-        GetCallingConvention(callingConvention))
+        GetCallingConvention(callingConvention, argumentTypes.size(), EValueType::Null))
 { }
 
 TUserDefinedFunction::TUserDefinedFunction(
     const Stroka& functionName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     std::vector<TType> argumentTypes,
     TType repeatedArgType,
     TType resultType,
     TSharedRef implementationFile)
     : TUserDefinedFunction(
         functionName,
+        typeArgumentConstraints,
         argumentTypes,
         repeatedArgType,
         resultType,
         implementationFile,
-        New<TUnversionedValueCallingConvention>(argumentTypes.size()))
+        GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType))
 { }
 
 Function* GetLlvmFunction(
@@ -524,7 +536,7 @@ TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
         resultType,
         stateTypeFunction,
         implementationFile,
-        GetCallingConvention(callingConvention))
+        GetCallingConvention(callingConvention, 1, EValueType::Null))
 { }
 
 Stroka TUserDefinedAggregateFunction::GetName() const
