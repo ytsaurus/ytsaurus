@@ -68,12 +68,6 @@ public:
     {
         return CreateTableWriter(options, chunkListId, transactionId, keyColumns);
     }
-
-    virtual bool IsKeySwitchEnabled() const override
-    {
-        const auto& jobSpecExt = Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        return jobSpecExt.enable_key_switch();
-    }
 };
 
 std::unique_ptr<IUserJobIO> CreateSortedReduceJobIO(IJobHost* host)

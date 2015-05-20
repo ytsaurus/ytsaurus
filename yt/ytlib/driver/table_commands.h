@@ -8,6 +8,8 @@
 
 #include <ytlib/new_table_client/unversioned_row.h>
 
+#include <ytlib/new_table_client/config.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -18,12 +20,15 @@ struct TReadTableRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableReader;
+    NVersionedTableClient::TControlAttributesConfigPtr ControlAttributes;
 
     TReadTableRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("table_reader", TableReader)
             .Default(nullptr);
+        RegisterParameter("control_attributes", ControlAttributes)
+            .DefaultNew();
     }
 
     virtual void OnLoaded() override

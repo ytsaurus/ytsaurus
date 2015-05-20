@@ -710,8 +710,15 @@ private:
 
             auto producer = [&] (TOutputStream* output) {
                 auto bufferedOutput = std::make_unique<TBufferedOutput>(output);
-                auto writer = CreateSchemalessWriterForFormat(format, nameTable, std::move(bufferedOutput), false, false, false, 0);
-                PipeReaderToWriter(reader, writer, 10000);
+                auto controlAttributesConfig = New<TControlAttributesConfig>();
+                auto writer = CreateSchemalessWriterForFormat(
+                    format,
+                    nameTable,
+                    std::move(bufferedOutput),
+                    false,
+                    false,
+                    0);
+                PipeReaderToWriter(reader, writer, controlAttributesConfig, 10000);
             };
 
             Slot->MakeFile(fileName, producer);

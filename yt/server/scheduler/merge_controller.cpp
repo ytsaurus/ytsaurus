@@ -1717,7 +1717,6 @@ private:
 
         auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         ToProto(reduceJobSpecExt->mutable_key_columns(), KeyColumns);
-        reduceJobSpecExt->set_enable_key_switch(Spec->EnableKeySwitch);
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }

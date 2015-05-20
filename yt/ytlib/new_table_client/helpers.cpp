@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "helpers.h"
+#include "config.h"
 
 #include "schemaless_reader.h"
 #include "schemaless_writer.h"
@@ -9,7 +10,6 @@
 #include <ytlib/formats/parser.h>
 
 #include <core/concurrency/scheduler.h>
-
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -86,11 +86,15 @@ void PipeReaderToWriter(
 void PipeReaderToWriter(
     ISchemalessMultiChunkReaderPtr reader,
     NFormats::ISchemalessFormatWriterPtr writer,
+    NVersionedTableClient::TControlAttributesConfigPtr config,
     int bufferRowCount,
     bool validateValues)
 {
     std::vector<TUnversionedRow> rows;
     rows.reserve(bufferRowCount);
+
+    int tableIndex = -1;
+    i32 rangeIndex = -1;
 
     while (reader->Read(&rows)) {
         if (rows.empty()) {
@@ -107,7 +111,24 @@ void PipeReaderToWriter(
             }
         }
 
-        writer->SetTableIndex(reader->GetTableIndex());
+        if (config->EnableTableIndex) {
+            auto newTableIndex = reader->GetTableIndex();
+            if (tableIndex != newTableIndex) {
+                writer->WriteTableIndex(newTableIndex);
+                tableIndex = newTableIndex;
+            }
+        }
+
+        if (config->EnableRangeIndex) {
+            auto newRangeIndex = reader->GetRangeIndex();
+            if (rangeIndex != newRangeIndex) {
+                writer->WriteRangeIndex(newRangeIndex);
+                rangeIndex = newRangeIndex;
+                if (config->EnableRowIndex) {
+                    writer->WriteRowIndex(reader->GetTableRowIndex() - rows.size());
+                }
+            }
+        }
 
         if (!writer->Write(rows)) {
             WaitFor(writer->GetReadyEvent())

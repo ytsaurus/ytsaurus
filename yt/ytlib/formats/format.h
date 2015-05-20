@@ -67,7 +67,11 @@ void Deserialize(TFormat& value, NYTree::INodePtr node);
 struct ISchemalessFormatWriter
     : public NVersionedTableClient::ISchemalessWriter
 {
-    virtual void SetTableIndex(int tableIndex) = 0;
+    virtual void WriteTableIndex(int tableIndex) = 0;
+
+    virtual void WriteRangeIndex(i32 rangeIndex) = 0;
+
+    virtual void WriteRowIndex(i64 rowIndex) = 0;
 
     virtual TBlob GetContext() const = 0;
 };
@@ -90,7 +94,6 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     NVersionedTableClient::TNameTablePtr nameTable,
     std::unique_ptr<TOutputStream> outputStream,
     bool enableContextSaving,
-    bool enableTableSwitch,
     bool enableKeySwitch,
     int keyColumnCount);
 

@@ -30,13 +30,11 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
     TNameTablePtr nameTable,
     std::unique_ptr<TOutputStream> outputStream,
     bool enableContextSaving,
-    bool enableTableSwitch,
     bool enableKeySwitch,
     int keyColumnCount)
     : NameTable_(nameTable)
     , OutputStream_(std::move(outputStream))
     , EnableContextSaving_(enableContextSaving)
-    , EnableTableSwitch_(enableTableSwitch)
     , EnableKeySwitch_(enableKeySwitch)
     , KeyColumnCount_(keyColumnCount)
 {
@@ -60,12 +58,7 @@ bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
         for (const auto& row : rows) {
             if (EnableKeySwitch_) {
                 if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
-                    BuildYsonListFluently(Consumer_.get())
-                        .Item()
-                        .BeginAttributes()
-                            .Item("key_switch").Value(true)
-                        .EndAttributes()
-                        .Entity();
+                    WriteControlAttribute(EControlAttribute::KeySwitch, true);
                 }
                 CurrentKey_ = row;
             }
@@ -116,17 +109,19 @@ bool TSchemalessWriterAdapter::IsSorted() const
     return false;
 }
 
-void TSchemalessWriterAdapter::SetTableIndex(int tableIndex)
+void TSchemalessWriterAdapter::WriteTableIndex(int tableIndex)
 {
-    if (EnableTableSwitch_ && TableIndex_ != tableIndex) {
-        BuildYsonListFluently(Consumer_.get())
-            .Item()
-            .BeginAttributes()
-                .Item("table_index").Value(tableIndex)
-            .EndAttributes()
-            .Entity();
-        TableIndex_ = tableIndex;
-    }
+    WriteControlAttribute(EControlAttribute::TableIndex, tableIndex);
+}
+
+void TSchemalessWriterAdapter::WriteRangeIndex(i32 rangeIndex)
+{
+    WriteControlAttribute(EControlAttribute::RangeIndex, rangeIndex);
+}
+
+void TSchemalessWriterAdapter::WriteRowIndex(i64 rowIndex)
+{
+    WriteControlAttribute(EControlAttribute::RowIndex, rowIndex);
 }
 
 TBlob TSchemalessWriterAdapter::GetContext() const
@@ -135,6 +130,19 @@ TBlob TSchemalessWriterAdapter::GetContext() const
     result.Append(TRef::FromBlob(PreviousBuffer_.Blob()));
     result.Append(TRef::FromBlob(CurrentBuffer_.Blob()));
     return result;
+}
+
+template <class T>
+void TSchemalessWriterAdapter::WriteControlAttribute(
+    EControlAttribute controlAttribute,
+    T value)
+{
+    BuildYsonListFluently(Consumer_.get())
+        .Item()
+        .BeginAttributes()
+            .Item(FormatEnum(controlAttribute)).Value(value)
+        .EndAttributes()
+        .Entity();
 }
 
 void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)

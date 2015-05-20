@@ -559,8 +559,7 @@ private:
             reader->GetNameTable(),
             std::move(output),
             true,
-            Config_->JobIO->EnableInputTableIndex,
-            JobIO_->IsKeySwitchEnabled(),
+            Config_->JobIO->ControlAttributes->EnableKeySwitch,
             reader->GetKeyColumns().size());
 
         FormatWriters_.push_back(writer);
@@ -570,7 +569,12 @@ private:
 
         InputActions_.push_back(BIND([=] () {
             try {
-                PipeReaderToWriter(reader, writer, bufferRowCount);
+                PipeReaderToWriter(
+                    reader,
+                    writer,
+                    Config_->JobIO->ControlAttributes,
+                    bufferRowCount);
+
                 WaitFor(asyncOutput->Close())
                     .ThrowOnError();
             } catch (const std::exception& ex) {

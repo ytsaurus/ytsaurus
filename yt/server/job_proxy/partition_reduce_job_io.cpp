@@ -78,12 +78,6 @@ public:
         writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_node_directory());
         ToProto(schedulerJobResult->mutable_chunks(), writer->GetWrittenChunks());
     }
-
-    virtual bool IsKeySwitchEnabled() const override
-    {
-        const auto& jobSpecExt = Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        return jobSpecExt.enable_key_switch();
-    }
 };
 
 std::unique_ptr<IUserJobIO> CreatePartitionReduceJobIO(IJobHost* host)

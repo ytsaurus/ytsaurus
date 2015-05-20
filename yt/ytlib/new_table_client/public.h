@@ -73,6 +73,8 @@ DEFINE_ENUM(ETableChunkFormat,
 DEFINE_ENUM(EControlAttribute,
     (TableIndex)
     (KeySwitch)
+    (RangeIndex)
+    (RowIndex)
 );
 
 // COMPAT(psushin): Legacy enum for old chunks.
@@ -164,7 +166,7 @@ DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkWriter)
 DECLARE_REFCOUNTED_CLASS(TPartitionChunkReader)
 DECLARE_REFCOUNTED_CLASS(TPartitionMultiChunkReader)
 
-DECLARE_REFCOUNTED_STRUCT(ISchemalessTableReader)
+DECLARE_REFCOUNTED_CLASS(TControlAttributesConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)

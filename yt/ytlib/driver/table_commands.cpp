@@ -78,10 +78,13 @@ void TReadTableCommand::DoExecute()
         std::move(bufferedOutput),
         false,
         false,
-        false,
         0);
 
-    PipeReaderToWriter(reader, writer, Context_->GetConfig()->ReadBufferRowCount);
+    PipeReaderToWriter(
+        reader,
+        writer,
+        Request_->ControlAttributes,
+        Context_->GetConfig()->ReadBufferRowCount);
 }
 
 //////////////////////////////////////////////////////////////////////////////////

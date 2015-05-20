@@ -258,6 +258,8 @@ private:
             ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
         }
 
+        chunkSpec->set_range_index(CurrentRangeIndex_);
+
         return true;
     }
 

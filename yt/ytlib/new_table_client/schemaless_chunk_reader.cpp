@@ -69,6 +69,7 @@ public:
         const TReadLimit& upperLimit,
         const TColumnFilter& columnFilter,
         i64 tableRowIndex,
+        i32 rangeIndex,
         TNullable<int> partitionTag);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
@@ -77,7 +78,9 @@ public:
 
     virtual TNameTablePtr GetNameTable() const override;
 
-    virtual i64 GetTableRowIndex() const;
+    virtual i64 GetTableRowIndex() const override;
+
+    virtual i32 GetRangeIndex() const override;
 
     virtual TKeyColumns GetKeyColumns() const override;
 
@@ -89,6 +92,7 @@ private:
     TKeyColumns KeyColumns_;
 
     const i64 TableRowIndex_;
+    const i32 RangeIndex_;
 
     const TNullable<int> PartitionTag_;
 
@@ -135,6 +139,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     const TReadLimit& upperLimit,
     const TColumnFilter& columnFilter,
     i64 tableRowIndex,
+    i32 rangeIndex,
     TNullable<int> partitionTag)
     : TChunkReaderBase(
         config, 
@@ -148,6 +153,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     , ColumnFilter_(columnFilter)
     , KeyColumns_(keyColumns)
     , TableRowIndex_(tableRowIndex)
+    , RangeIndex_(rangeIndex)
     , PartitionTag_(partitionTag)
     , ChunkMeta_(masterMeta)
 {
@@ -372,6 +378,11 @@ i64 TSchemalessChunkReader::GetTableRowIndex() const
     return TableRowIndex_ + CurrentRowIndex_;
 }
 
+i32 TSchemalessChunkReader::GetRangeIndex() const
+{
+    return RangeIndex_;
+}
+
 TKeyColumns TSchemalessChunkReader::GetKeyColumns() const
 {
     return KeyColumns_;
@@ -390,6 +401,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TReadLimit& upperLimit,
     const TColumnFilter& columnFilter,
     i64 tableRowIndex,
+    i32 rangeIndex,
     TNullable<int> partitionTag)
 {
     auto type = EChunkType(masterMeta.type());
@@ -410,6 +422,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 upperLimit, 
                 columnFilter,
                 tableRowIndex,
+                rangeIndex,
                 partitionTag);
 
         case ETableChunkFormat::Old:
@@ -423,7 +436,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 blockCache,
                 lowerLimit,
                 upperLimit,
-                tableRowIndex);
+                tableRowIndex,
+                rangeIndex);
 
         default:
             YUNREACHABLE();
@@ -461,7 +475,9 @@ public:
 
     virtual TKeyColumns GetKeyColumns() const override;
 
-    i64 GetTableRowIndex() const;
+    virtual i64 GetTableRowIndex() const override;
+
+    virtual i32 GetRangeIndex() const override;
 
 private:
     const TMultiChunkReaderConfigPtr Config_;
@@ -558,6 +574,7 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
         chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit(),
         CreateColumnFilter(channel, NameTable_),
         chunkSpec.table_row_index(),
+        chunkSpec.range_index(),
         chunkSpec.has_partition_tag() ? MakeNullable(chunkSpec.partition_tag()) : Null);
 }
 
@@ -584,6 +601,12 @@ template <class TBase>
 i64 TSchemalessMultiChunkReader<TBase>::GetTableRowIndex() const
 {
     return CurrentReader_ ? CurrentReader_->GetTableRowIndex() : 0;
+}
+
+template <class TBase>
+i32 TSchemalessMultiChunkReader<TBase>::GetRangeIndex() const
+{
+    return CurrentReader_ ? CurrentReader_->GetRangeIndex() : 0;
 }
 
 template <class TBase>
@@ -657,7 +680,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessTableReader
-    : public ISchemalessTableReader
+    : public ISchemalessMultiChunkReader
     , public TTransactionListener
 {
 public:
@@ -676,10 +699,18 @@ public:
     virtual TFuture<void> GetReadyEvent() override;
 
     virtual i64 GetTableRowIndex() const override;
+    virtual i32 GetRangeIndex() const override;
     virtual TNameTablePtr GetNameTable() const override;
     virtual i64 GetTotalRowCount() const override;
 
     virtual TKeyColumns GetKeyColumns() const override;
+
+    // not actually used
+    virtual int GetTableIndex() const override;
+    virtual i64 GetSessionRowIndex() const override;
+    virtual bool IsFetchingCompleted() const override;
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override;
 
 private:
     typedef TSchemalessMultiChunkReader<TSequentialMultiChunkReaderBase> TUnderlyingReader;
@@ -862,6 +893,12 @@ i64 TSchemalessTableReader::GetTableRowIndex() const
     return UnderlyingReader_->GetTableRowIndex();
 }
 
+i32 TSchemalessTableReader::GetRangeIndex() const
+{
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->GetRangeIndex();
+}
+
 i64 TSchemalessTableReader::GetTotalRowCount() const
 {
     YCHECK(UnderlyingReader_);
@@ -878,9 +915,38 @@ TKeyColumns TSchemalessTableReader::GetKeyColumns() const
     return TKeyColumns();
 }
 
+int TSchemalessTableReader::GetTableIndex() const
+{
+    return 0;
+}
+
+i64 TSchemalessTableReader::GetSessionRowIndex() const
+{
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->GetSessionRowIndex();
+}
+
+bool TSchemalessTableReader::IsFetchingCompleted() const
+{
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->IsFetchingCompleted();
+}
+
+NChunkClient::NProto::TDataStatistics TSchemalessTableReader::GetDataStatistics() const
+{
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->GetDataStatistics();
+}
+
+std::vector<TChunkId> TSchemalessTableReader::GetFailedChunkIds() const
+{
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->GetFailedChunkIds();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessTableReaderPtr CreateSchemalessTableReader(
+ISchemalessMultiChunkReaderPtr CreateSchemalessTableReader(
     TTableReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     IChannelPtr masterChannel,

@@ -314,7 +314,7 @@ echo {v = 2} >&7
             command='cat 1>&2',
             reduce_by=['key'],
             spec={
-                "enable_key_switch": "true",
+                "job_io": {"control_attributes": {"enable_key_switch": "true"}},
                 "reducer": {"format": yson.loads("<lenval=true>yamr")},
                 "job_count": 1
             })
@@ -349,7 +349,7 @@ echo {v = 2} >&7
             command='cat 1>&2',
             reduce_by=['key'],
             spec={
-                "enable_key_switch": "true",
+                "job_io": {"control_attributes": {"enable_key_switch": "true"}},
                 "reducer": {"format": yson.loads("<format=text>yson")},
                 "job_count": 1
             })
