@@ -30,6 +30,7 @@ using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
+using namespace NChunkClient;
 
 using NVersionedTableClient::TOwningKey;
 
@@ -1660,7 +1661,7 @@ private:
         TSortControllerBase::DoInitialize();
 
         auto& table = OutputTables[0];
-        table.Clear = true;
+        table.UpdateMode = EUpdateMode::Overwrite;
         table.LockMode = ELockMode::Exclusive;
     }
 

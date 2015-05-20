@@ -99,8 +99,8 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
     TLivePreviewTableBase::Persist(context);
 
     using NYT::Persist;
-    Persist(context, Clear);
-    Persist(context, Overwrite);
+    Persist(context, AppendRequested);
+    Persist(context, UpdateMode);
     Persist(context, LockMode);
     Persist(context, Options);
     Persist(context, KeyColumns);
@@ -996,20 +996,20 @@ void TOperationControllerBase::Initialize()
     for (const auto& path : GetOutputTablePaths()) {
         TOutputTable table;
         table.Path = path;
-        if (!path.GetAppend()) {
-            table.Clear = true;
-            table.Overwrite = true;
-            table.LockMode = ELockMode::Exclusive;
+
+        if (path.GetAppend()) {
+            table.AppendRequested = true;
+            table.UpdateMode = EUpdateMode::Append;
+            table.LockMode = ELockMode::Shared;
         }
 
         table.KeyColumns = path.Attributes().Find<TKeyColumns>("sorted_by");
         if (table.KeyColumns) {
             if (!IsSortedOutputSupported()) {
                 THROW_ERROR_EXCEPTION("Sorted outputs are not supported");
-            } else {
-                table.Clear = true;
-                table.LockMode = ELockMode::Exclusive;
             }
+            table.UpdateMode = EUpdateMode::Overwrite;
+            table.LockMode = ELockMode::Exclusive;
         }
 
         OutputTables.push_back(table);
@@ -2396,7 +2396,8 @@ void TOperationControllerBase::PrepareLivePreviewTablesForUpdate()
 
     auto addRequest = [&] (const TLivePreviewTableBase& table, const Stroka& key) {
         auto req = TTableYPathProxy::PrepareForUpdate(FromObjectId(table.LivePreviewTableId));
-        req->set_mode(static_cast<int>(EUpdateMode::Overwrite));
+        req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
+        req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
         SetTransactionId(req, Operation->GetAsyncSchedulerTransaction());
         batchReq->AddRequest(req, key);
     };
@@ -2758,7 +2759,8 @@ void TOperationControllerBase::RequestOutputObjects()
             auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, Operation->GetOutputTransaction());
             GenerateMutationId(req);
-            req->set_mode(static_cast<int>(table.Clear ? EUpdateMode::Overwrite : EUpdateMode::Append));
+            req->set_update_mode(static_cast<int>(table.UpdateMode));
+            req->set_lock_mode(static_cast<int>(table.LockMode));
             batchReq->AddRequest(req, "prepare_for_update");
         }
     }
@@ -2796,7 +2798,10 @@ void TOperationControllerBase::RequestOutputObjects()
                     ConvertToNode(attributes.GetYson("channels")));
 
                 i64 initialRowCount = attributes.Get<i64>("row_count");
-                if (initialRowCount > 0 && table.Clear && !table.Overwrite) {
+                if (initialRowCount > 0 &&
+                    table.AppendRequested &&
+                    table.UpdateMode == EUpdateMode::Overwrite)
+                {
                     THROW_ERROR_EXCEPTION("Can't append sorted data to non-empty output table %v",
                         table.Path.GetPath());
                 }

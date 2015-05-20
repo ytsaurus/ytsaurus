@@ -6,6 +6,8 @@
 
 #include <server/cypress_server/public.h>
 
+#include <ytlib/new_table_client/public.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -53,6 +55,14 @@ void SerializeOwningNodesPaths(
     NCypressServer::TCypressManagerPtr cypressManager,
     TChunkTree* chunkTree,
     NYson::IYsonConsumer* consumer);
+
+NVersionedTableClient::TOwningKey GetMaxKey(const TChunk* chunk);
+NVersionedTableClient::TOwningKey GetMaxKey(const TChunkList* chunkList);
+NVersionedTableClient::TOwningKey GetMaxKey(const TChunkTree* chunkTree);
+
+NVersionedTableClient::TOwningKey GetMinKey(const TChunk* chunk);
+NVersionedTableClient::TOwningKey GetMinKey(const TChunkList* chunkList);
+NVersionedTableClient::TOwningKey GetMinKey(const TChunkTree* chunkTree);
 
 ////////////////////////////////////////////////////////////////////////////////
 

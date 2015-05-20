@@ -104,6 +104,19 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read("//tmp/t_out") == [{"a": 1}, {"a": 10}, {"a": 100}]
         assert get("//tmp/t_out/@chunk_count") == 1 # resulting number of chunks is always equal to 1 (as long they are small)
 
+    def test_append_not_sorted(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write("//tmp/t_out", [{"a": 1}, {"a": 2}, {"a": 3}], sorted_by="a")
+        write("//tmp/t_in", [{"a": 0}])
+
+        merge(mode="unordered",
+              in_=["//tmp/t_in"],
+              out="<append=true>//tmp/t_out")
+
+        assert get("//tmp/t_out/@sorted") == False
+
     def test_sorted_with_same_chunks(self):
         t1 = "//tmp/t1"
         t2 = "//tmp/t2"

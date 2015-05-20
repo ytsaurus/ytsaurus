@@ -596,7 +596,7 @@ public:
     int GetCount() const
     {
         const auto* header = GetHeader();
-        return static_cast<int>(header->Count);
+        return header ? static_cast<int>(header->Count) : 0;
     }
 
     const TUnversionedValue& operator[] (int index) const

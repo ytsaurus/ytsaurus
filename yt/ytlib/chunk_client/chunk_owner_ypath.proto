@@ -15,12 +15,15 @@ import "yt/ytlib/chunk_client/chunk_spec.proto";
 // where all new chunks must be added to.
 message TReqPrepareForUpdate
 {
-    required int32 mode = 1;
+    required int32 update_mode = 1;
+    required int32 lock_mode = 2;
+    optional bool fetch_last_key = 3 [default = false];
 }
 
 message TRspPrepareForUpdate
 {
     required NYT.NProto.TGuid chunk_list_id = 1;
+    optional bytes last_key = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

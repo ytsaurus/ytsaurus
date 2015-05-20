@@ -219,17 +219,11 @@ protected:
         : public TUserTableBase
         , public TLivePreviewTableBase
     {
-        TOutputTable()
-            : Clear(false)
-            , Overwrite(false)
-            , LockMode(NCypressClient::ELockMode::Shared)
-            , Options(New<NVersionedTableClient::TTableWriterOptions>())
-        { }
-
-        bool Clear;
-        bool Overwrite;
-        NCypressClient::ELockMode LockMode;
-        NVersionedTableClient::TTableWriterOptionsPtr Options;
+        bool AppendRequested = false;
+        NChunkClient::EUpdateMode UpdateMode = NChunkClient::EUpdateMode::Overwrite;
+        NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
+        NVersionedTableClient::TTableWriterOptionsPtr Options =
+            New<NVersionedTableClient::TTableWriterOptions>();
         TNullable<NVersionedTableClient::TKeyColumns> KeyColumns;
 
         // Chunk list for appending the output.
