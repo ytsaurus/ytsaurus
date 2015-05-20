@@ -679,7 +679,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
     /// Build a parser object.
-    TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, TRowBufferPtr rowBuffer_yyarg, const Stroka& source_yyarg);
+    TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, const Stroka& source_yyarg);
     virtual ~TParser ();
 
     /// Parse.
@@ -890,7 +890,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     // User arguments.
     TLexer& lexer;
     TAstHead* head;
-    TRowBufferPtr rowBuffer;
     const Stroka& source;
   };
 
