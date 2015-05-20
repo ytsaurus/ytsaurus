@@ -68,6 +68,7 @@ public:
             options,
             nameTable,
             keyColumns,
+            TOwningKey(),
             host->GetMasterChannel(),
             transactionId,
             chunkListId);
