@@ -430,6 +430,8 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
             response = HTTPResponse.from_httplib(httplib_response,
                                                  pool=self,
                                                  connection=response_conn,
+                                                 timeout=timeout,
+                                                 url=url,
                                                  **response_kw)
 
             # else:

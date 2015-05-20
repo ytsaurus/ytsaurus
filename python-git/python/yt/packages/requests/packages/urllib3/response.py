@@ -11,8 +11,9 @@ try:
 except ImportError:
     import zlib
 
+from socket import timeout as SocketTimeout
 
-from .exceptions import DecodeError
+from .exceptions import DecodeError, TimeoutError
 from .packages.six import string_types as basestring, binary_type
 
 
@@ -79,7 +80,7 @@ class HTTPResponse(object):
 
     def __init__(self, body='', headers=None, status=0, version=0, reason=None,
                  strict=0, preload_content=True, decode_content=True,
-                 original_response=None, pool=None, connection=None):
+                 original_response=None, pool=None, connection=None, timeout=None, url=None):
         self.headers = headers or {}
         self.status = status
         self.version = version
@@ -94,6 +95,9 @@ class HTTPResponse(object):
 
         self._pool = pool
         self._connection = connection
+
+        self._timeout = timeout
+        self._url = url
 
         if hasattr(body, 'read'):
             self._fp = body
@@ -172,7 +176,15 @@ class HTTPResponse(object):
                 flush_decoder = True
             else:
                 cache_content = False
-                data = self._fp.read(amt)
+                try:
+                    data = self._fp.read(amt)
+                except SocketTimeout:
+                    # NB: added by ignat@, also add url and timeout fields to this class.
+                    # Timed out by socket
+                    raise TimeoutError(self, self._url,
+                                       "Request timed out. (timeout=%s)" %
+                                       self._timeout)
+
                 if amt != 0 and not data:  # Platform-specific: Buggy versions of Python.
                     # Close the connection when no data is returned
                     #
