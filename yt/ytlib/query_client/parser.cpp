@@ -266,6 +266,15 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TIdentifierList > (other.value);
         break;
 
+      case 75: // literal-list
+      case 76: // literal-tuple
+        value.copy< TLiteralValueList > (other.value);
+        break;
+
+      case 77: // literal-tuple-list
+        value.copy< TLiteralValueTupleList > (other.value);
+        break;
+
       case 59: // named-expression
         value.copy< TNamedExpression > (other.value);
         break;
@@ -275,25 +284,16 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TNamedExpressionList > (other.value);
         break;
 
+      case 74: // literal-value
+        value.copy< TNullable<TLiteralValue> > (other.value);
+        break;
+
       case 52: // select-clause-impl
         value.copy< TNullableNamedExpressionList > (other.value);
         break;
 
       case 22: // "identifier"
         value.copy< TStringBuf > (other.value);
-        break;
-
-      case 74: // literal-expr
-        value.copy< TUnversionedValue > (other.value);
-        break;
-
-      case 75: // literal-list
-      case 76: // literal-tuple
-        value.copy< TValueList > (other.value);
-        break;
-
-      case 77: // literal-tuple-list
-        value.copy< TValueTupleList > (other.value);
         break;
 
       case 25: // "double literal"
@@ -359,6 +359,15 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TIdentifierList > (v);
         break;
 
+      case 75: // literal-list
+      case 76: // literal-tuple
+        value.copy< TLiteralValueList > (v);
+        break;
+
+      case 77: // literal-tuple-list
+        value.copy< TLiteralValueTupleList > (v);
+        break;
+
       case 59: // named-expression
         value.copy< TNamedExpression > (v);
         break;
@@ -368,25 +377,16 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TNamedExpressionList > (v);
         break;
 
+      case 74: // literal-value
+        value.copy< TNullable<TLiteralValue> > (v);
+        break;
+
       case 52: // select-clause-impl
         value.copy< TNullableNamedExpressionList > (v);
         break;
 
       case 22: // "identifier"
         value.copy< TStringBuf > (v);
-        break;
-
-      case 74: // literal-expr
-        value.copy< TUnversionedValue > (v);
-        break;
-
-      case 75: // literal-list
-      case 76: // literal-tuple
-        value.copy< TValueList > (v);
-        break;
-
-      case 77: // literal-tuple-list
-        value.copy< TValueTupleList > (v);
         break;
 
       case 25: // "double literal"
@@ -453,6 +453,20 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   {}
 
   template <typename Base>
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TLiteralValueList v, const location_type& l)
+    : Base (t)
+    , value (v)
+    , location (l)
+  {}
+
+  template <typename Base>
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TLiteralValueTupleList v, const location_type& l)
+    : Base (t)
+    , value (v)
+    , location (l)
+  {}
+
+  template <typename Base>
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNamedExpression v, const location_type& l)
     : Base (t)
     , value (v)
@@ -467,6 +481,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   {}
 
   template <typename Base>
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l)
+    : Base (t)
+    , value (v)
+    , location (l)
+  {}
+
+  template <typename Base>
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNullableNamedExpressionList v, const location_type& l)
     : Base (t)
     , value (v)
@@ -475,27 +496,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   template <typename Base>
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l)
-    : Base (t)
-    , value (v)
-    , location (l)
-  {}
-
-  template <typename Base>
-  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TUnversionedValue v, const location_type& l)
-    : Base (t)
-    , value (v)
-    , location (l)
-  {}
-
-  template <typename Base>
-  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TValueList v, const location_type& l)
-    : Base (t)
-    , value (v)
-    , location (l)
-  {}
-
-  template <typename Base>
-  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TValueTupleList v, const location_type& l)
     : Base (t)
     , value (v)
     , location (l)
@@ -571,6 +571,15 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.template destroy< TIdentifierList > ();
         break;
 
+      case 75: // literal-list
+      case 76: // literal-tuple
+        value.template destroy< TLiteralValueList > ();
+        break;
+
+      case 77: // literal-tuple-list
+        value.template destroy< TLiteralValueTupleList > ();
+        break;
+
       case 59: // named-expression
         value.template destroy< TNamedExpression > ();
         break;
@@ -580,25 +589,16 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.template destroy< TNamedExpressionList > ();
         break;
 
+      case 74: // literal-value
+        value.template destroy< TNullable<TLiteralValue> > ();
+        break;
+
       case 52: // select-clause-impl
         value.template destroy< TNullableNamedExpressionList > ();
         break;
 
       case 22: // "identifier"
         value.template destroy< TStringBuf > ();
-        break;
-
-      case 74: // literal-expr
-        value.template destroy< TUnversionedValue > ();
-        break;
-
-      case 75: // literal-list
-      case 76: // literal-tuple
-        value.template destroy< TValueList > ();
-        break;
-
-      case 77: // literal-tuple-list
-        value.template destroy< TValueTupleList > ();
         break;
 
       case 25: // "double literal"
@@ -661,6 +661,15 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< TIdentifierList > (s.value);
         break;
 
+      case 75: // literal-list
+      case 76: // literal-tuple
+        value.move< TLiteralValueList > (s.value);
+        break;
+
+      case 77: // literal-tuple-list
+        value.move< TLiteralValueTupleList > (s.value);
+        break;
+
       case 59: // named-expression
         value.move< TNamedExpression > (s.value);
         break;
@@ -670,25 +679,16 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< TNamedExpressionList > (s.value);
         break;
 
+      case 74: // literal-value
+        value.move< TNullable<TLiteralValue> > (s.value);
+        break;
+
       case 52: // select-clause-impl
         value.move< TNullableNamedExpressionList > (s.value);
         break;
 
       case 22: // "identifier"
         value.move< TStringBuf > (s.value);
-        break;
-
-      case 74: // literal-expr
-        value.move< TUnversionedValue > (s.value);
-        break;
-
-      case 75: // literal-list
-      case 76: // literal-tuple
-        value.move< TValueList > (s.value);
-        break;
-
-      case 77: // literal-tuple-list
-        value.move< TValueTupleList > (s.value);
         break;
 
       case 25: // "double literal"
@@ -1053,6 +1053,15 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< TIdentifierList > (that.value);
         break;
 
+      case 75: // literal-list
+      case 76: // literal-tuple
+        value.move< TLiteralValueList > (that.value);
+        break;
+
+      case 77: // literal-tuple-list
+        value.move< TLiteralValueTupleList > (that.value);
+        break;
+
       case 59: // named-expression
         value.move< TNamedExpression > (that.value);
         break;
@@ -1062,25 +1071,16 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< TNamedExpressionList > (that.value);
         break;
 
+      case 74: // literal-value
+        value.move< TNullable<TLiteralValue> > (that.value);
+        break;
+
       case 52: // select-clause-impl
         value.move< TNullableNamedExpressionList > (that.value);
         break;
 
       case 22: // "identifier"
         value.move< TStringBuf > (that.value);
-        break;
-
-      case 74: // literal-expr
-        value.move< TUnversionedValue > (that.value);
-        break;
-
-      case 75: // literal-list
-      case 76: // literal-tuple
-        value.move< TValueList > (that.value);
-        break;
-
-      case 77: // literal-tuple-list
-        value.move< TValueTupleList > (that.value);
         break;
 
       case 25: // "double literal"
@@ -1144,6 +1144,15 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TIdentifierList > (that.value);
         break;
 
+      case 75: // literal-list
+      case 76: // literal-tuple
+        value.copy< TLiteralValueList > (that.value);
+        break;
+
+      case 77: // literal-tuple-list
+        value.copy< TLiteralValueTupleList > (that.value);
+        break;
+
       case 59: // named-expression
         value.copy< TNamedExpression > (that.value);
         break;
@@ -1153,25 +1162,16 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TNamedExpressionList > (that.value);
         break;
 
+      case 74: // literal-value
+        value.copy< TNullable<TLiteralValue> > (that.value);
+        break;
+
       case 52: // select-clause-impl
         value.copy< TNullableNamedExpressionList > (that.value);
         break;
 
       case 22: // "identifier"
         value.copy< TStringBuf > (that.value);
-        break;
-
-      case 74: // literal-expr
-        value.copy< TUnversionedValue > (that.value);
-        break;
-
-      case 75: // literal-list
-      case 76: // literal-tuple
-        value.copy< TValueList > (that.value);
-        break;
-
-      case 77: // literal-tuple-list
-        value.copy< TValueTupleList > (that.value);
         break;
 
       case 25: // "double literal"
@@ -1450,6 +1450,15 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         yylhs.value.build< TIdentifierList > ();
         break;
 
+      case 75: // literal-list
+      case 76: // literal-tuple
+        yylhs.value.build< TLiteralValueList > ();
+        break;
+
+      case 77: // literal-tuple-list
+        yylhs.value.build< TLiteralValueTupleList > ();
+        break;
+
       case 59: // named-expression
         yylhs.value.build< TNamedExpression > ();
         break;
@@ -1459,25 +1468,16 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         yylhs.value.build< TNamedExpressionList > ();
         break;
 
+      case 74: // literal-value
+        yylhs.value.build< TNullable<TLiteralValue> > ();
+        break;
+
       case 52: // select-clause-impl
         yylhs.value.build< TNullableNamedExpressionList > ();
         break;
 
       case 22: // "identifier"
         yylhs.value.build< TStringBuf > ();
-        break;
-
-      case 74: // literal-expr
-        yylhs.value.build< TUnversionedValue > ();
-        break;
-
-      case 75: // literal-list
-      case 76: // literal-tuple
-        yylhs.value.build< TValueList > ();
-        break;
-
-      case 77: // literal-tuple-list
-        yylhs.value.build< TValueTupleList > ();
         break;
 
       case 25: // "double literal"
@@ -1683,7 +1683,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 40:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TInExpression>(yylhs.location, yystack_[4].value.as< TExpressionPtr > (), yystack_[1].value.as< TValueTupleList > ());
+            yylhs.value.as< TExpressionPtr > () = New<TInExpression>(yylhs.location, yystack_[4].value.as< TExpressionPtr > (), yystack_[1].value.as< TLiteralValueTupleList > ());
         }
     break;
 
@@ -1803,69 +1803,69 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 66:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TLiteralExpression>(yylhs.location, yystack_[0].value.as< TUnversionedValue > ());
+            yylhs.value.as< TExpressionPtr > () = New<TLiteralExpression>(yylhs.location, *yystack_[0].value.as< TNullable<TLiteralValue> > ());
         }
     break;
 
   case 67:
-    { yylhs.value.as< TUnversionedValue > () = MakeUnversionedInt64Value(yystack_[0].value.as< i64 > ()); }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< i64 > (); }
     break;
 
   case 68:
-    { yylhs.value.as< TUnversionedValue > () = MakeUnversionedUint64Value(yystack_[0].value.as< ui64 > ()); }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< ui64 > (); }
     break;
 
   case 69:
-    { yylhs.value.as< TUnversionedValue > () = MakeUnversionedDoubleValue(yystack_[0].value.as< double > ()); }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< double > (); }
     break;
 
   case 70:
-    { yylhs.value.as< TUnversionedValue > () = rowBuffer->Capture(MakeUnversionedStringValue(yystack_[0].value.as< Stroka > ())); }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< Stroka > (); }
     break;
 
   case 71:
-    { yylhs.value.as< TUnversionedValue > () = MakeUnversionedBooleanValue(false); }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = false; }
     break;
 
   case 72:
-    { yylhs.value.as< TUnversionedValue > () = MakeUnversionedBooleanValue(true); }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = true; }
     break;
 
   case 73:
     {
-            yylhs.value.as< TValueList > ().swap(yystack_[2].value.as< TValueList > ());
-            yylhs.value.as< TValueList > ().push_back(yystack_[0].value.as< TUnversionedValue > ());
+            yylhs.value.as< TLiteralValueList > ().swap(yystack_[2].value.as< TLiteralValueList > ());
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
         }
     break;
 
   case 74:
     {
-            yylhs.value.as< TValueList > ().push_back(yystack_[0].value.as< TUnversionedValue > ());
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
         }
     break;
 
   case 75:
     {
-            yylhs.value.as< TValueList > ().push_back(yystack_[0].value.as< TUnversionedValue > ());
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
         }
     break;
 
   case 76:
     {
-            yylhs.value.as< TValueList > () = yystack_[1].value.as< TValueList > ();
+            yylhs.value.as< TLiteralValueList > () = yystack_[1].value.as< TLiteralValueList > ();
         }
     break;
 
   case 77:
     {
-            yylhs.value.as< TValueTupleList > ().swap(yystack_[2].value.as< TValueTupleList > ());
-            yylhs.value.as< TValueTupleList > ().push_back(yystack_[0].value.as< TValueList > ());
+            yylhs.value.as< TLiteralValueTupleList > ().swap(yystack_[2].value.as< TLiteralValueTupleList > ());
+            yylhs.value.as< TLiteralValueTupleList > ().push_back(yystack_[0].value.as< TLiteralValueList > ());
         }
     break;
 
   case 78:
     {
-            yylhs.value.as< TValueTupleList > ().push_back(yystack_[0].value.as< TValueList > ());
+            yylhs.value.as< TLiteralValueTupleList > ().push_back(yystack_[0].value.as< TLiteralValueList > ());
         }
     break;
 
@@ -2288,7 +2288,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   "and-op-expr", "not-op-expr", "relational-op-expr", "relational-op",
   "additive-op-expr", "additive-op", "multiplicative-op-expr",
   "multiplicative-op", "comma-expr", "unary-expr", "unary-op",
-  "atomic-expr", "literal-expr", "literal-list", "literal-tuple",
+  "atomic-expr", "literal-value", "literal-list", "literal-tuple",
   "literal-tuple-list", YY_NULLPTR
   };
 

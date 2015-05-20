@@ -31,14 +31,14 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/savrus/dev/yt/jobql/yt/ytlib/query_client/parser.hpp
+ ** \file /home/sandello/yt/source/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::NAst::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_JOBQL_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_JOBQL_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
 
     #include "ast.h"
@@ -306,28 +306,28 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // identifier-list
       char dummy5[sizeof(TIdentifierList)];
 
+      // literal-list
+      // literal-tuple
+      char dummy6[sizeof(TLiteralValueList)];
+
+      // literal-tuple-list
+      char dummy7[sizeof(TLiteralValueTupleList)];
+
       // named-expression
-      char dummy6[sizeof(TNamedExpression)];
+      char dummy8[sizeof(TNamedExpression)];
 
       // group-by-clause-impl
       // named-expression-list
-      char dummy7[sizeof(TNamedExpressionList)];
+      char dummy9[sizeof(TNamedExpressionList)];
+
+      // literal-value
+      char dummy10[sizeof(TNullable<TLiteralValue>)];
 
       // select-clause-impl
-      char dummy8[sizeof(TNullableNamedExpressionList)];
+      char dummy11[sizeof(TNullableNamedExpressionList)];
 
       // "identifier"
-      char dummy9[sizeof(TStringBuf)];
-
-      // literal-expr
-      char dummy10[sizeof(TUnversionedValue)];
-
-      // literal-list
-      // literal-tuple
-      char dummy11[sizeof(TValueList)];
-
-      // literal-tuple-list
-      char dummy12[sizeof(TValueTupleList)];
+      char dummy12[sizeof(TStringBuf)];
 
       // "double literal"
       char dummy13[sizeof(double)];
@@ -443,19 +443,19 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   basic_symbol (typename Base::kind_type t, const TIdentifierList v, const location_type& l);
 
+  basic_symbol (typename Base::kind_type t, const TLiteralValueList v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TLiteralValueTupleList v, const location_type& l);
+
   basic_symbol (typename Base::kind_type t, const TNamedExpression v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNamedExpressionList v, const location_type& l);
 
+  basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l);
+
   basic_symbol (typename Base::kind_type t, const TNullableNamedExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TUnversionedValue v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TValueList v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TValueTupleList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const double v, const location_type& l);
 
@@ -900,4 +900,4 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
 
-#endif // !YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_JOBQL_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED

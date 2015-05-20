@@ -335,9 +335,34 @@ protected:
             result.insert(result.end(), typedLhsExprs.begin(), typedLhsExprs.end());
             result.insert(result.end(), typedRhsExprs.begin(), typedRhsExprs.end());
         } else if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
-            result.push_back(New<TLiteralExpression>(
-                literalExpr->Value.Type,
-                literalExpr->Value));
+            const auto& literalValue = literalExpr->Value;
+            switch (literalValue.Tag()) {
+                case NAst::TLiteralValue::TagOf<i64>():
+                    result.push_back(New<TLiteralExpression>(
+                        EValueType::Int64,
+                        GetValue(literalValue)));
+                    break;
+                case NAst::TLiteralValue::TagOf<ui64>():
+                    result.push_back(New<TLiteralExpression>(
+                        EValueType::Uint64,
+                        GetValue(literalValue)));
+                    break;
+                case NAst::TLiteralValue::TagOf<double>():
+                    result.push_back(New<TLiteralExpression>(
+                        EValueType::Double,
+                        GetValue(literalValue)));
+                    break;
+                case NAst::TLiteralValue::TagOf<bool>():
+                    result.push_back(New<TLiteralExpression>(
+                        EValueType::Boolean,
+                        GetValue(literalValue)));
+                    break;
+                case NAst::TLiteralValue::TagOf<Stroka>():
+                    result.push_back(New<TLiteralExpression>(
+                        EValueType::String,
+                        GetValue(literalValue)));
+                    break;
+            }
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
             const auto* column = GetColumnPtr(referenceExpr->ColumnName);
             if (!column) {
@@ -594,8 +619,46 @@ protected:
         return result;
     };
 
+    static EValueType GetType(const NAst::TLiteralValue& literalValue)
+    {
+        switch (literalValue.Tag()) {
+            case NAst::TLiteralValue::TagOf<i64>():
+                return EValueType::Int64;
+            case NAst::TLiteralValue::TagOf<ui64>():
+                return EValueType::Uint64;
+            case NAst::TLiteralValue::TagOf<double>():
+                return EValueType::Double;
+            case NAst::TLiteralValue::TagOf<bool>():
+                return EValueType::Boolean;
+            case NAst::TLiteralValue::TagOf<Stroka>():
+                return EValueType::String;
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    static TValue GetValue(const NAst::TLiteralValue& literalValue)
+    {
+        switch (literalValue.Tag()) {
+            case NAst::TLiteralValue::TagOf<i64>():
+                return MakeUnversionedInt64Value(literalValue.As<i64>());
+            case NAst::TLiteralValue::TagOf<ui64>():
+                return MakeUnversionedUint64Value(literalValue.As<ui64>());
+            case NAst::TLiteralValue::TagOf<double>():
+                return MakeUnversionedDoubleValue(literalValue.As<double>());
+            case NAst::TLiteralValue::TagOf<bool>():
+                return MakeUnversionedBooleanValue(literalValue.As<bool>());
+            case NAst::TLiteralValue::TagOf<Stroka>():
+                return MakeUnversionedStringValue(
+                    literalValue.As<Stroka>().c_str(),
+                    literalValue.As<Stroka>().length());
+            default:
+                YUNREACHABLE();
+        }
+    }
+
     static TSharedRange<TRow> TupleListsToRows(
-        const NAst::TValueTupleList& literalTuples,
+        const NAst::TLiteralValueTupleList& literalTuples,
         const std::vector<EValueType>& argTypes,
         const TStringBuf& source)
     {
@@ -609,14 +672,14 @@ protected:
             }
 
             for (int i = 0; i < tuple.size(); ++i) {
-                if (tuple[i].Type != argTypes[i]) {
+                if (GetType(tuple[i]) != argTypes[i]) {
                     THROW_ERROR_EXCEPTION("IN operator types mismatch")
                         << TErrorAttribute("source", source)
                         << TErrorAttribute("expected", argTypes[i])
-                        << TErrorAttribute("actual", tuple[i].Type);
+                        << TErrorAttribute("actual", GetType(tuple[i]));
                 }
 
-                rowBuilder.AddValue(tuple[i]);
+                rowBuilder.AddValue(GetValue(tuple[i]));
             }
             rows.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
             rowBuilder.Reset();

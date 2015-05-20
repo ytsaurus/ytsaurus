@@ -38,7 +38,10 @@ typedef TParser::token_type TToken;
     kw_false = 'false'i;
     kw_true = 'true'i;
 
-    keyword = kw_from | kw_where | kw_limit | kw_join | kw_using |kw_group_by | kw_order_by | kw_as | kw_and | kw_or | kw_not | kw_between | kw_in |  kw_false | kw_true;
+    keyword =
+        kw_from | kw_where | kw_limit | kw_join | kw_using | kw_group_by |
+        kw_order_by | kw_as | kw_and | kw_or | kw_not | kw_between | kw_in |
+        kw_false | kw_true;
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
 
     fltexp = [Ee] [+\-]? digit+;
@@ -96,7 +99,7 @@ typedef TParser::token_type TToken;
             type = TToken::Int64Literal;
             value->build(FromString<ui64>(ts, te - ts));
             fbreak;
-        };        
+        };
         uint64_literal => {
             type = TToken::Uint64Literal;
             value->build(FromString<ui64>(ts, te - ts - 1));
