@@ -81,11 +81,4 @@ message TKeyColumnsExt
     repeated string names = 1;
 }
 
-// COMPAT(psushin): new chunks store index in TBlockMeta.
-message TBlockIndexExt
-{
-    // Number of entries equals to block count.
-    repeated bytes entries = 1;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
