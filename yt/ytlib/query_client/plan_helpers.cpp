@@ -181,7 +181,6 @@ TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionP
     }
 
     return New<TBinaryOpExpression>(
-        NullSourceLocation,
         InferBinaryExprType(
             EBinaryOp::And,
             lhs->Type,
@@ -209,7 +208,6 @@ TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPt
     }
 
     return New<TBinaryOpExpression>(
-        NullSourceLocation,
         InferBinaryExprType(
             EBinaryOp::Or,
             lhs->Type,
@@ -228,11 +226,9 @@ TConstExpressionPtr RefinePredicate(
     TColumnEvaluatorPtr columnEvaluator)
 {
     auto trueLiteral = New<TLiteralExpression>(
-        NullSourceLocation,
         EValueType::Boolean,
         MakeUnversionedBooleanValue(true));
     auto falseLiteral = New<TLiteralExpression>(
-        NullSourceLocation,
         EValueType::Boolean,
         MakeUnversionedBooleanValue(false));
 
@@ -447,7 +443,6 @@ TConstExpressionPtr RefinePredicate(
                 return falseLiteral;
             } else {
                 return New<TInOpExpression>(
-                    NullSourceLocation,
                     inExpr->Arguments,
                     MakeSharedRange(std::move(filteredValues), MakeHolder(inExpr->Values)));
             }
@@ -465,11 +460,9 @@ TConstExpressionPtr RefinePredicate(
     const TKeyColumns& keyColumns)
 {
     static auto trueLiteral = New<TLiteralExpression>(
-        NullSourceLocation,
         EValueType::Boolean,
         MakeUnversionedBooleanValue(true));
     static auto falseLiteral = New<TLiteralExpression>(
-        NullSourceLocation,
         EValueType::Boolean,
         MakeUnversionedBooleanValue(false));
 
@@ -718,7 +711,6 @@ TConstExpressionPtr ExtractPredicateForColumnSubset(
     }
 
     return New<TLiteralExpression>(
-        NullSourceLocation,
         EValueType::Boolean,
         MakeUnversionedBooleanValue(true));
 }
