@@ -63,7 +63,7 @@ public:
     {
         // ToDo(psushin): don't use parallel readers here to minimize nondetermenistics
         // behaviour in mapper, that may lead to huge problems in presence of lost jobs.
-        return CreateRegularReader(false, nameTable, columnFilter);
+        return CreateRegularReader(false, std::move(nameTable), columnFilter);
     }
 
     virtual void PopulateResult(TSchedulerJobResultExt* schedulerJobResult) override
