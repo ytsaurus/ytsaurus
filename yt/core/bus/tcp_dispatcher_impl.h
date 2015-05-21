@@ -75,6 +75,7 @@ public:
     void Shutdown();
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType) const;
+    TTcpProfilingData* GetProfilingData(ETcpInterfaceType interfaceType);
 
     TTcpDispatcherThreadPtr GetServerThread();
     TTcpDispatcherThreadPtr GetClientThread();
@@ -88,6 +89,8 @@ private:
 
     std::vector<TTcpDispatcherThreadPtr> ClientThreads_;
     std::atomic<size_t> CurrentClientThreadIndex_ = {0};
+
+    TEnumIndexedVector<TTcpProfilingData, ETcpInterfaceType> ProfilingData_;
 
 };
 

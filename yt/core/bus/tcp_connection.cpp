@@ -11,8 +11,6 @@
 
 #include <core/ytree/convert.h>
 
-#include <core/profiling/profile_manager.h>
-
 #include <util/system/error.h>
 
 #include <errno.h>
@@ -37,58 +35,8 @@ static const size_t MaxWriteCoalesceSize = 4 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTcpInterfaceStatistics
-{
-    TTcpInterfaceStatistics()
-        : ReceiveTimeCounter("/receive_time")
-        , ReceiveSizeCounter("/receive_size")
-        , InHandlerTimeCounter("/in_handler_time")
-        , InByteCounter("/in_bytes")
-        , InPacketCounter("/in_packets")
-        , SendTimeCounter("/send_time")
-        , SendSizeCounter("/send_size")
-        , OutHandlerTimeCounter("/out_handler_time")
-        , OutBytesCounter("/out_bytes")
-        , OutPacketCounter("/out_packets")
-        , PendingOutPacketCounter("/pending_out_packets")
-        , PendingOutByteCounter("/pending_out_bytes")
-    { }
-    
-    NProfiling::TAggregateCounter ReceiveTimeCounter;
-    NProfiling::TAggregateCounter ReceiveSizeCounter;
-    NProfiling::TAggregateCounter InHandlerTimeCounter;
-    NProfiling::TSimpleCounter InByteCounter;
-    NProfiling::TSimpleCounter InPacketCounter;
-
-    NProfiling::TAggregateCounter SendTimeCounter;
-    NProfiling::TAggregateCounter SendSizeCounter;
-    NProfiling::TAggregateCounter OutHandlerTimeCounter;
-    NProfiling::TSimpleCounter OutBytesCounter;
-    NProfiling::TSimpleCounter OutPacketCounter;
-    NProfiling::TAggregateCounter PendingOutPacketCounter;
-    NProfiling::TAggregateCounter PendingOutByteCounter;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TTcpConnectionReadBufferTag { };
 struct TTcpConnectionWriteBufferTag { };
-
-////////////////////////////////////////////////////////////////////////////////
-
-static struct TGlobals
-{
-    TGlobals()
-    {
-        for (auto type : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
-            InterfaceTags[type] = NProfiling::TProfileManager::Get()->RegisterTag("interface", type);
-        }
-    }
-
-    TEnumIndexedVector<NProfiling::TTagId, ETcpInterfaceType> InterfaceTags;
-    TEnumIndexedVector<TTcpInterfaceStatistics, ETcpInterfaceType> InterfaceStatistics;
-
-} Globals;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,7 +63,7 @@ TTcpConnection::TTcpConnection(
     , Priority_(priority)
 #endif
     , Handler_(std::move(handler))
-    , InterfaceStatistics_(&Globals.InterfaceStatistics[InterfaceType_])
+    , ProfilingData_(TTcpDispatcher::Get()->GetProfilingData(InterfaceType_))
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -128,7 +76,7 @@ TTcpConnection::TTcpConnection(
         Address_);
 
     Profiler = BusProfiler;
-    Profiler.TagIds().push_back(Globals.InterfaceTags[InterfaceType_]);
+    Profiler.TagIds().push_back(ProfilingData_->TagId);
 
     switch (ConnectionType_) {
         case EConnectionType::Client:
@@ -240,11 +188,11 @@ void TTcpConnection::UpdatePendingOut(int countDelta, i64 sizeDelta)
 {
     {
         int value = (Statistics().PendingOutPackets += countDelta);
-        Profiler.Update(InterfaceStatistics_->PendingOutPacketCounter, value);
+        Profiler.Update(ProfilingData_->PendingOutPacketCounter, value);
     }
     {
         size_t value = (Statistics().PendingOutBytes += sizeDelta);
-        Profiler.Update(InterfaceStatistics_->PendingOutByteCounter, value);
+        Profiler.Update(ProfilingData_->PendingOutByteCounter, value);
     }
 }
 
@@ -627,7 +575,7 @@ void TTcpConnection::OnSocketRead()
 bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 {
     ssize_t result;
-    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->ReceiveTimeCounter) {
+    PROFILE_AGGREGATED_TIMING (ProfilingData_->ReceiveTimeCounter) {
         do {
             result = recv(Socket_, buffer, size, 0);
         } while (result < 0 && errno == EINTR);
@@ -640,8 +588,8 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 
     *bytesRead = result;
 
-    Profiler.Increment(InterfaceStatistics_->InByteCounter, *bytesRead);
-    Profiler.Update(InterfaceStatistics_->ReceiveSizeCounter, *bytesRead);
+    Profiler.Increment(ProfilingData_->InByteCounter, *bytesRead);
+    Profiler.Update(ProfilingData_->ReceiveSizeCounter, *bytesRead);
 
     LOG_TRACE("%v bytes read", *bytesRead);
 
@@ -696,7 +644,7 @@ bool TTcpConnection::AdvanceDecoder(size_t size)
 
 bool TTcpConnection::OnPacketReceived()
 {
-    Profiler.Increment(InterfaceStatistics_->InPacketCounter);
+    Profiler.Increment(ProfilingData_->InPacketCounter);
     switch (Decoder_.GetPacketType()) {
         case EPacketType::Ack:
             return OnAckPacketReceived();
@@ -731,7 +679,7 @@ bool TTcpConnection::OnAckPacketReceived()
 
     LOG_DEBUG("Ack received (PacketId: %v)", Decoder_.GetPacketId());
 
-    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->OutHandlerTimeCounter) {
+    PROFILE_AGGREGATED_TIMING (ProfilingData_->OutHandlerTimeCounter) {
         if (unackedMessage.Promise) {
             unackedMessage.Promise.Set(TError());
         }
@@ -753,7 +701,7 @@ bool TTcpConnection::OnMessagePacketReceived()
     }
 
     auto message = Decoder_.GetMessage();
-    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->InHandlerTimeCounter) {
+    PROFILE_AGGREGATED_TIMING (ProfilingData_->InHandlerTimeCounter) {
         Handler_->HandleMessage(std::move(message), this);
     }
 
@@ -857,7 +805,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
         bytesAvailable -= size;
     }
 
-    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->SendTimeCounter) {
+    PROFILE_AGGREGATED_TIMING (ProfilingData_->SendTimeCounter) {
         ssize_t result;
 #ifdef _win_
         DWORD bytesWritten_ = 0;
@@ -872,8 +820,8 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
         bool isOK = CheckWriteError(result);
 
         if (!isOK) {
-            Profiler.Increment(InterfaceStatistics_->OutBytesCounter, *bytesWritten);
-            Profiler.Update(InterfaceStatistics_->SendSizeCounter, *bytesWritten);
+            Profiler.Increment(ProfilingData_->OutBytesCounter, *bytesWritten);
+            Profiler.Update(ProfilingData_->SendSizeCounter, *bytesWritten);
             LOG_TRACE("%v bytes written", *bytesWritten);
         }
 
@@ -1046,7 +994,7 @@ void TTcpConnection::OnPacketSent()
 
 
     UpdatePendingOut(-1, -packet->Size);
-    Profiler.Increment(InterfaceStatistics_->OutPacketCounter);
+    Profiler.Increment(ProfilingData_->OutPacketCounter);
 
     delete packet;
     EncodedPackets_.pop();
