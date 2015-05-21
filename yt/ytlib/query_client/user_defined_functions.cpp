@@ -701,7 +701,7 @@ EValueType TUserDefinedAggregateFunction::InferResultType(
     const TStringBuf& source) const
 {
     return TypingFunction(
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        TypeArgumentConstraints_,
         std::vector<TType>{ArgumentType_},
         EValueType::Null,
         ResultType_,
