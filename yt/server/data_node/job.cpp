@@ -627,14 +627,13 @@ private:
                 ChunkId_);
         }
 
-        TJournalChunkChangelogGuard changelogGuard(journalChunk, changelog);
-
-        if (changelog->IsSealed()) {
+        if (journalChunk->IsSealed()) {
             LOG_INFO("Chunk %v is already sealed",
                 ChunkId_);
             return;
         }
 
+        TJournalChunkChangelogGuard changelogGuard(journalChunk, changelog);
         i64 currentRowCount = changelog->GetRecordCount();
         i64 sealRowCount = SealJobSpecExt_.row_count();
         if (currentRowCount < sealRowCount) {
@@ -689,10 +688,12 @@ private:
             LOG_INFO("Finished downloading missing journal chunk rows");
         }
 
-        LOG_INFO("Started sealing journal chunk (RowCount: %v)",
-            sealRowCount);
+        LOG_INFO("Started sealing journal chunk");
 
-        WaitFor(changelog->Seal(sealRowCount))
+        WaitFor(changelog->Flush())
+            .ThrowOnError();
+
+        WaitFor(journalChunk->Seal())
             .ThrowOnError();
 
         LOG_INFO("Finished sealing journal chunk");

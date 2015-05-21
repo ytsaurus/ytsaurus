@@ -14,12 +14,13 @@ namespace NDataNode {
 extern const NLogging::TLogger DataNodeLogger;
 extern const NProfiling::TProfiler DataNodeProfiler;
 
-extern NRpc::IChannelFactoryPtr ChannelFactory;
+extern const NRpc::IChannelFactoryPtr ChannelFactory;
 
-extern Stroka CellIdFileName;
-extern Stroka MultiplexedDirectory;
-extern Stroka TrashDirectory;
-extern Stroka CleanExtension;
+extern const Stroka CellIdFileName;
+extern const Stroka MultiplexedDirectory;
+extern const Stroka TrashDirectory;
+extern const Stroka CleanExtension;
+extern const Stroka SealedFlagExtension;
 
 ////////////////////////////////////////////////////////////////////////////////
 

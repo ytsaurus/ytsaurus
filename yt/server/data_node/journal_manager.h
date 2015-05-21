@@ -45,6 +45,10 @@ public:
         const TSharedRef& recordData,
         TFuture<void> splitResult);
 
+    TFuture<bool> IsChangelogSealed(const TChunkId& chunkId);
+
+    TFuture<void> SealChangelog(TJournalChunkPtr chunk);
+
 private:
     class TImpl;
     typedef TIntrusivePtr<TImpl> TImplPtr;

@@ -76,6 +76,12 @@ public:
         TJournalChunkPtr chunk,
         bool enableMultiplexing);
 
+    TFuture<bool> IsChangelogSealed(
+        TLocationPtr location,
+        const TChunkId& chunkId);
+
+    TFuture<void> SealChangelog(TJournalChunkPtr chunk);
+
 private:
     friend class TCachedChangelog;
 
@@ -276,6 +282,21 @@ TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(
     return journalManager->RemoveChangelog(chunk, enableMultiplexing);
 }
 
+TFuture<bool> TJournalDispatcher::TImpl::IsChangelogSealed(
+    TLocationPtr location,
+    const TChunkId& chunkId)
+{
+    auto journalManager = location->GetJournalManager();
+    return journalManager->IsChangelogSealed(chunkId);
+}
+
+TFuture<void> TJournalDispatcher::TImpl::SealChangelog(TJournalChunkPtr chunk)
+{
+    auto location = chunk->GetLocation();
+    auto journalManager = location->GetJournalManager();
+    return journalManager->SealChangelog(chunk);
+}
+
 void TJournalDispatcher::TImpl::OnAdded(TCachedChangelog* changelog)
 {
     auto key = changelog->GetKey();
@@ -321,6 +342,18 @@ TFuture<void> TJournalDispatcher::RemoveChangelog(
     bool enableMultiplexing)
 {
     return Impl_->RemoveChangelog(chunk, enableMultiplexing);
+}
+
+TFuture<bool> TJournalDispatcher::IsChangelogSealed(
+    TLocationPtr location,
+    const TChunkId& chunkId)
+{
+    return Impl_->IsChangelogSealed(location, chunkId);
+}
+
+TFuture<void> TJournalDispatcher::SealChangelog(TJournalChunkPtr chunk)
+{
+    return Impl_->SealChangelog(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

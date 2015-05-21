@@ -32,7 +32,6 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
-
 static NProfiling::TSimpleCounter DiskJournalReadByteCounter("/disk_journal_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,9 +45,9 @@ TJournalChunk::TJournalChunk(
         location,
         descriptor.Id)
 {
-    CachedSealed_ = descriptor.Sealed;
     CachedRowCount_ = descriptor.RowCount;
     CachedDataSize_ = descriptor.DiskSpace;
+    Sealed_ = descriptor.Sealed;
 
     Meta_->set_type(static_cast<int>(EChunkType::Journal));
     Meta_->set_version(0);
@@ -69,7 +68,7 @@ TChunkInfo TJournalChunk::GetInfo() const
     UpdateCachedParams();
 
     TChunkInfo info;
-    info.set_sealed(CachedSealed_);
+    info.set_sealed(Sealed_);
     info.set_disk_space(CachedDataSize_);
     return info;
 }
@@ -93,7 +92,7 @@ TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const TNullable<std::vector<in
     miscExt.set_row_count(CachedRowCount_);
     miscExt.set_uncompressed_data_size(CachedDataSize_);
     miscExt.set_compressed_data_size(CachedDataSize_);
-    miscExt.set_sealed(CachedSealed_);
+    miscExt.set_sealed(Sealed_);
     SetProtoExtension(Meta_->mutable_extensions(), miscExt);
 
     return FilterMeta(Meta_, extensionTags);
@@ -189,7 +188,6 @@ void TJournalChunk::UpdateCachedParams() const
     if (Changelog_) {
         CachedRowCount_ = Changelog_->GetRecordCount();
         CachedDataSize_ = Changelog_->GetDataSize();
-        CachedSealed_ = Changelog_->IsSealed();
     }
 }
 
@@ -267,8 +265,15 @@ i64 TJournalChunk::GetDataSize() const
 
 bool TJournalChunk::IsSealed() const
 {
-    UpdateCachedParams();
-    return CachedSealed_;
+    return Sealed_;
+}
+
+TFuture<void> TJournalChunk::Seal()
+{
+    auto dispatcher = Bootstrap_->GetJournalDispatcher();
+    return dispatcher->SealChangelog(this).Apply(BIND([this, this_ = MakeStrong(this)] () {
+        Sealed_ = true;
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

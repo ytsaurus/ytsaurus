@@ -530,7 +530,9 @@ TNullable<TChunkDescriptor> TLocation::RepairJournalChunk(const TChunkId& chunkI
         descriptor.Id = chunkId;
         descriptor.DiskSpace = changelog->GetDataSize();
         descriptor.RowCount = changelog->GetRecordCount();
-        descriptor.Sealed = changelog->IsSealed();
+        descriptor.Sealed = dispatcher->IsChangelogSealed(this, chunkId)
+            .Get()
+            .ValueOrThrow();
         return descriptor;
     } else if (!hasData && hasIndex) {
         LOG_WARNING("Journal data file %v is missing, moving index file %v to trash",

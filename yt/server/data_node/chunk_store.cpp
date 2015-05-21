@@ -237,14 +237,16 @@ void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
 
     location->UpdateUsedSpace(+entry.DiskSpace);
 
-    switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
-        case EObjectType::JournalChunk:
+    switch (chunk->GetType()) {
+        case EObjectType::JournalChunk: {
+            auto journalChunk = chunk->AsJournalChunk();
             LOG_DEBUG("Journal chunk updated (ChunkId: %v, Version: %v, Sealed: %v, Active: %v)",
-                chunk->GetId(),
-                chunk->GetVersion(),
-                chunk->GetInfo().sealed(),
-                chunk->IsActive());
+                journalChunk->GetId(),
+                journalChunk->GetVersion(),
+                journalChunk->IsSealed(),
+                journalChunk->IsActive());
             break;
+        }
 
         default:
             YUNREACHABLE();
