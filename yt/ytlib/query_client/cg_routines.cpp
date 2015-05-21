@@ -1,4 +1,3 @@
-#include <iostream>
 #include "stdafx.h"
 #include "cg_routines.h"
 #include "cg_types.h"
@@ -352,11 +351,6 @@ char* AllocatePermanentBytes(TExecutionContext* context, size_t byteCount)
         ->PermanentBuffer
         ->GetPool()
         ->AllocateUnaligned(byteCount);
-}
-
-void DebugPrintPointer(char* ptr)
-{
-    std::cout << ToString(ptr) << std::endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

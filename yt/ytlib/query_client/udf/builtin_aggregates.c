@@ -1,5 +1,4 @@
 #include <yt_udf.h>
-#include <stdio.h>
 #include <string.h>
 
 void avg_init(
@@ -70,15 +69,15 @@ static int string_less_than(
     TUnversionedValue* string1,
     TUnversionedValue* string2)
 {
-    int length1_is_less = string1->Length < string2->Length;
-    int min_length = length1_is_less ? string1->Length : string2->Length;
+    int length1IsLess = string1->Length < string2->Length;
+    int min_length = length1IsLess ? string1->Length : string2->Length;
 
     int cmp_result = memcmp(
         string1->Data.String,
         string2->Data.String,
         min_length);
 
-    return (cmp_result < 0) || (cmp_result == 0 && length1_is_less);
+    return (cmp_result < 0) || (cmp_result == 0 && length1IsLess);
 }
 
 void max_init(
