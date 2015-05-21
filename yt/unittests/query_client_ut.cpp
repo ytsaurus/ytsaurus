@@ -3783,6 +3783,137 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestAverageAgg)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3",
+        "a=53",
+        "a=8",
+        "a=24",
+        "a=33"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Double}
+    });
+
+    auto result = BuildRows({
+        "x=24.2",
+    }, resultSplit);
+
+    Evaluate("avg(a) as x from [//t] group by 1", split, source, result);
+}
+
+TEST_F(TQueryEvaluateTest, TestAverageAgg2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3;b=3;c=1",
+        "a=53;b=2;c=3",
+        "a=8;b=5;c=32",
+        "a=24;b=7;c=4",
+        "a=33;b=4;c=9",
+        "a=33;b=3;c=43",
+        "a=23;b=0;c=0",
+        "a=33;b=8;c=2"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"r1", EValueType::Double},
+        {"x", EValueType::Int64},
+        {"r2", EValueType::Int64},
+        {"r3", EValueType::Double},
+        {"r4", EValueType::Int64},
+    });
+
+    auto result = BuildRows({
+        "r1=17.0;x=1;r2=43;r3=20.0;r4=3",
+        "r1=35.5;x=0;r2=9;r3=3.5;r4=23"
+    }, resultSplit);
+
+    Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, result);
+}
+
+TEST_F(TQueryEvaluateTest, TestAverageAgg3)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3;b=1",
+        "b=1",
+        "b=0",
+        "a=7;b=1",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"b", EValueType::Int64},
+        {"x", EValueType::Double}
+    });
+
+    auto result = BuildRows({
+        "b=1;x=5.0",
+        "b=0"
+    }, resultSplit);
+
+    Evaluate("b, avg(a) as x from [//t] group by b", split, source, result);
+}
+
+TEST_F(TQueryEvaluateTest, TestStringAgg)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"one\"",
+        "a=\"two\"",
+        "a=\"three\"",
+        "a=\"four\"",
+        "a=\"fo\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"b", EValueType::String},
+    });
+
+    auto result = BuildRows({
+        "b=\"fo\";c=\"two\"",
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(New<TAggregateFunction>("min"));
+    registry->WithFunction(New<TAggregateFunction>("max"));
+
+    Evaluate("min(a) as b, max(a) as c from [//t] group by 1", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, WronglyTypedAggregate)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"\""
+    };
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+
+    EvaluateExpectingError("avg(a) from [//t] group by 1", split, source);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEvaluateExpressionTest

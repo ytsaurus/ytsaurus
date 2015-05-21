@@ -78,3 +78,4 @@ protoc( ${BASE}/plan_fragment.proto YT_SOURCE_FILES )
 protoc( ${BASE}/query_service.proto YT_SOURCE_FILES )
 
 udf( ${BASE}/udf/builtin_functions.c YT_SOURCE_FILES )
+udf( ${BASE}/udf/builtin_aggregates.c YT_SOURCE_FILES )

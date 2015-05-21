@@ -256,7 +256,7 @@ struct TAggregateItem
         , AggregateFunction(aggregateFunction)
     { }
 
-    const Stroka AggregateFunction;
+    Stroka AggregateFunction;
 };
 
 typedef std::vector<TAggregateItem> TAggregateItemList;
@@ -286,21 +286,11 @@ struct TGroupClause
 {
     TNamedItemList GroupItems;
     TAggregateItemList AggregateItems;
+    bool IsMerge;
+    bool IsFinal;
 
     // TODO: Use ITableSchemaInterface
     TTableSchema GroupedTableSchema;
-
-    void AddGroupItem(const TNamedItem& namedItem)
-    {
-        GroupItems.push_back(namedItem);
-        GroupedTableSchema.Columns().emplace_back(namedItem.Name, namedItem.Expression->Type);
-    }
-
-    void AddAggregateItem(const TAggregateItem& aggregateItem)
-    {
-        AggregateItems.push_back(aggregateItem);
-        GroupedTableSchema.Columns().emplace_back(aggregateItem.Name, aggregateItem.Expression->Type);
-    }
 
     TTableSchema GetTableSchema() const
     {

@@ -602,8 +602,7 @@ protected:
 
         TNullable<Stroka> result;
 
-        if (functionRegistry->FindAggregateFunction(name))
-        {
+        if (functionRegistry->FindAggregateFunction(name)) {
             result.Assign(name);
         }
 
@@ -1049,6 +1048,10 @@ public:
                     aggregateFunction);
             }
 
+            auto resultType = functionRegistry
+                ->GetAggregateFunction(aggregateFunction)
+                ->InferResultType(typedOperands.front()->Type, source);
+
             CheckExpressionDepth(typedOperands.front());
 
             AggregateItems_->emplace_back(
@@ -1056,7 +1059,7 @@ public:
                 aggregateFunction,
                 subexprName);
 
-            aggregateColumn = AddColumn(GetTableSchema(), TColumnSchema(subexprName, typedOperands.front()->Type));
+            aggregateColumn = AddColumn(GetTableSchema(), TColumnSchema(subexprName, resultType));
         }
 
         return aggregateColumn;
@@ -1106,6 +1109,8 @@ TConstGroupClausePtr BuildGroupClause(
     IFunctionRegistry* functionRegistry)
 {
     auto groupClause = New<TGroupClause>();
+    groupClause->IsMerge = false;
+    groupClause->IsFinal = true;
     TTableSchema& tableSchema = groupClause->GroupedTableSchema;
 
     for (const auto& expr : expressionsAst.Get()) {
@@ -1588,6 +1593,9 @@ void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
 {
     ToProto(proto->mutable_group_items(), original->GroupItems);
     ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
+    ToProto(proto->mutable_grouped_table_schema(), original->GroupedTableSchema);
+    proto->set_is_merge(original->IsMerge);
+    proto->set_is_final(original->IsFinal);
 }
 
 void ToProto(NProto::TProjectClause* proto, TConstProjectClausePtr original)
@@ -1683,13 +1691,17 @@ TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
 TGroupClausePtr FromProto(const NProto::TGroupClause& serialized)
 {
     auto result = New<TGroupClause>();
+    FromProto(&result->GroupedTableSchema, serialized.grouped_table_schema());
+    result->IsMerge = serialized.is_merge();
+    result->IsFinal = serialized.is_final();
+
     result->GroupItems.reserve(serialized.group_items_size());
     for (int i = 0; i < serialized.group_items_size(); ++i) {
-        result->AddGroupItem(FromProto(serialized.group_items(i)));
+        result->GroupItems.push_back(FromProto(serialized.group_items(i)));
     }
     result->AggregateItems.reserve(serialized.aggregate_items_size());
     for (int i = 0; i < serialized.aggregate_items_size(); ++i) {
-        result->AddAggregateItem(FromProto(serialized.aggregate_items(i)));
+        result->AggregateItems.push_back(FromProto(serialized.aggregate_items(i)));
     }
 
     return result;
