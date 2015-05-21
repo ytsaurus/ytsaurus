@@ -33,8 +33,8 @@ private:
     }
 
     virtual ISchemalessMultiChunkReaderPtr DoCreateReader(
-        NVersionedTableClient::TNameTablePtr nameTable,
-        const NVersionedTableClient::TColumnFilter& columnFilter) override
+        TNameTablePtr nameTable,
+        const TColumnFilter& columnFilter) override
     {
         return CreateRegularReader(true, nameTable, columnFilter);
     }

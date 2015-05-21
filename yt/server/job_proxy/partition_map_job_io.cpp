@@ -58,8 +58,8 @@ public:
     }
 
     virtual ISchemalessMultiChunkReaderPtr DoCreateReader(
-        NVersionedTableClient::TNameTablePtr nameTable,
-        const NVersionedTableClient::TColumnFilter& columnFilter) override
+        TNameTablePtr nameTable,
+        const TColumnFilter& columnFilter) override
     {
         // ToDo(psushin): don't use parallel readers here to minimize nondetermenistics
         // behaviour in mapper, that may lead to huge problems in presence of lost jobs.
