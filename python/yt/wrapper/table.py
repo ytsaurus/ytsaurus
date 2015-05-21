@@ -63,7 +63,7 @@ class TablePath(object):
         else:
             self.name = YsonString(name)
 
-        if self.name != "/" and not self.name.startswith("//") and not self.name.startswith("#"):
+        if str(self.name) != "/" and not self.name.startswith("//") and not self.name.startswith("#"):
             prefix = config.PREFIX
             require(prefix,
                     YtError("Path '%s' should be absolute or you should specify a prefix" % self.name))
@@ -123,7 +123,7 @@ class TablePath(object):
         return self.name
 
     def __eq__(self, other):
-        return self.name == other.name
+        return str(self.name) == str(other.name)
 
     def __hash__(self):
         return hash(self.name)
