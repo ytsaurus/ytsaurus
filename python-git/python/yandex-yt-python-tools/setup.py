@@ -13,7 +13,8 @@ def main():
         "yt/tools/binaries/yt_set_account.py",
         "yt/tools/binaries/yt_convert_to_erasure.py",
         "yt/tools/binaries/yt_lock.py",
-        "yt/tools/binaries/yt_doctor.py"])
+        "yt/tools/binaries/yt_doctor.py",
+        "yt/tools/binaries/yt_checksum.py"])
 
     setup(
         name = "yandex-yt-tools",
