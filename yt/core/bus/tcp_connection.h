@@ -142,7 +142,7 @@ private:
 
     NLogging::TLogger Logger;
 
-    TTcpInterfaceStatistics* const InterfaceStatistics_;
+    TTcpProfilingData* const ProfilingData_;
     NProfiling::TProfiler Profiler;
 
     // Only used by client sockets.

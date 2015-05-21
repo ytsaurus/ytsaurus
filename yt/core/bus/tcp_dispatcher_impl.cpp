@@ -5,6 +5,8 @@
 
 #include <core/misc/address.h>
 
+#include <core/profiling/profile_manager.h>
+
 #ifndef _win_
     #include <sys/socket.h>
     #include <sys/un.h>
@@ -125,6 +127,10 @@ TTcpDispatcher::TImpl::TImpl()
         thread->Start();
         ClientThreads_.push_back(thread);
     }
+
+    for (auto type : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
+        ProfilingData_[type].TagId = NProfiling::TProfileManager::Get()->RegisterTag("interface", type);
+    }
 }
 
 TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
@@ -147,6 +153,12 @@ TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType 
         result += thread->Statistics(interfaceType);
     }
     return result;
+}
+
+
+TTcpProfilingData* TTcpDispatcher::TImpl::GetProfilingData(ETcpInterfaceType interfaceType)
+{
+    return &ProfilingData_[interfaceType];
 }
 
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetServerThread()
