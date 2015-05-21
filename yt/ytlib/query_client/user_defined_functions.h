@@ -99,6 +99,15 @@ public:
         TType resultType,
         TSharedRef implementationFile);
 
+    TUserDefinedFunction(
+        const Stroka& functionName,
+        const Stroka& symbolName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::vector<TType> argumentTypes,
+        TType repeatedArgType,
+        TType resultType,
+        TSharedRef implementationFile);
+
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
@@ -106,6 +115,7 @@ public:
 
 private:
     Stroka FunctionName_;
+    Stroka SymbolName_;
     TSharedRef ImplementationFile_;
     TType ResultType_;
     std::vector<TType> ArgumentTypes_;
@@ -113,6 +123,7 @@ private:
 
     TUserDefinedFunction(
         const Stroka& functionName,
+        const Stroka& symbolName,
         std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
