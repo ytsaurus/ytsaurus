@@ -76,9 +76,12 @@ private:
     // list initialization inside member initializer list or
     // non-static data member initializer is not implemented
     const std::unordered_set<std::string> Whitelist_ = std::unordered_set<std::string>{
-        MangleSymbol("memcmp"),
         MangleSymbol("__chkstk"),
-        MangleSymbol("tolower")
+        MangleSymbol("memcmp"),
+        MangleSymbol("memcpy"),
+        MangleSymbol("nanosleep"),
+        MangleSymbol("tolower"),
+        MangleSymbol("toupper")
     };
 };
 
