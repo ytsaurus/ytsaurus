@@ -116,52 +116,6 @@ public:
         const TRowBufferPtr& rowBuffer) const override;
 };
 
-class TCastFunction
-    : public TTypedFunction
-    , public TCodegenFunction
-    , public TUniversalRangeFunction
-{
-public:
-    TCastFunction(
-        EValueType resultType,
-        const Stroka& functionName);
-
-    virtual TCGValue CodegenValue(
-        std::vector<TCodegenExpression> codegenArgs,
-        EValueType type,
-        const Stroka& name,
-        TCGContext& builder,
-        Value* row) const override;
-
-private:
-    static const TUnionType CastTypes_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TAggregateFunction
-    : public IAggregateFunctionDescriptor
-{
-public:
-    TAggregateFunction(Stroka name);
-
-    virtual Stroka GetName() const override;
-
-    virtual const TCodegenAggregate MakeCodegenAggregate(
-        EValueType type,
-        const Stroka& name) const override;
-
-    virtual EValueType GetStateType(
-        EValueType type) const override;
-
-    virtual EValueType InferResultType(
-        EValueType argumentType,
-        const TStringBuf& source) const override;
-
-private:
-    const Stroka Name_;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
