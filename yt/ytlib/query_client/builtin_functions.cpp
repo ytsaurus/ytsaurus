@@ -337,33 +337,5 @@ TKeyTriePtr TIsPrefixFunction::ExtractKeyRange(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCastFunction::TCastFunction(
-    EValueType resultType,
-    const Stroka& functionName)
-    : TTypedFunction(
-        functionName,
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{ CastTypes_ },
-        resultType)
-{ }
-
-const TUnionType TCastFunction::CastTypes_ = TUnionType{
-    EValueType::Int64,
-    EValueType::Uint64,
-    EValueType::Double};
-
-TCGValue TCastFunction::CodegenValue(
-    std::vector<TCodegenExpression> codegenArgs,
-    EValueType type,
-    const Stroka& name,
-    TCGContext& builder,
-    Value* row) const
-{
-    YCHECK(codegenArgs.size() == 1);
-    return codegenArgs[0](builder, row).Cast(builder, type);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NQueryClient
 } // namespace NYT

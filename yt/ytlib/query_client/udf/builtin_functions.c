@@ -95,7 +95,7 @@ void uint64(
     TUnversionedValue* result,
     TUnversionedValue* value)
 {
-    result->Type = value->Type;
+    result->Type = Uint64;
     if (value->Type == Int64) {
         result->Data.Uint64 = (uint64_t)value->Data.Uint64;
     } else if (value->Type == Uint64) {
@@ -110,12 +110,27 @@ void int64(
     TUnversionedValue* result,
     TUnversionedValue* value)
 {
-    result->Type = value->Type;
+    result->Type = Int64;
     if (value->Type == Int64) {
         result->Data.Int64 = value->Data.Int64;
     } else if (value->Type == Uint64) {
         result->Data.Int64 = (int64_t)value->Data.Uint64;
     } else if (value->Type == Double) {
         result->Data.Int64 = (int64_t)value->Data.Double;
+    }
+}
+
+void double_cast(
+    TExecutionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* value)
+{
+    result->Type = Double;
+    if (value->Type == Int64) {
+        result->Data.Double = (double)value->Data.Int64;
+    } else if (value->Type == Uint64) {
+        result->Data.Double = (double)value->Data.Uint64;
+    } else if (value->Type == Double) {
+        result->Data.Double = value->Data.Double;
     }
 }

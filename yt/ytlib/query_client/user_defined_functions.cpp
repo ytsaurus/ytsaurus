@@ -357,6 +357,7 @@ void TUnversionedValueCallingConvention::CheckResultType(
 
 TUserDefinedFunction::TUserDefinedFunction(
     const Stroka& functionName,
+    const Stroka& symbolName,
     std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     std::vector<TType> argumentTypes,
     TType repeatedArgType,
@@ -370,6 +371,7 @@ TUserDefinedFunction::TUserDefinedFunction(
         repeatedArgType,
         resultType)
     , FunctionName_(functionName)
+    , SymbolName_(symbolName)
     , ImplementationFile_(implementationFile)
     , ResultType_(resultType)
     , ArgumentTypes_(argumentTypes)
@@ -405,6 +407,7 @@ TUserDefinedFunction::TUserDefinedFunction(
     ECallingConvention callingConvention)
     : TUserDefinedFunction(
         functionName,
+        functionName,
         std::unordered_map<TTypeArgument, TUnionType>(),
         argumentTypes,
         EValueType::Null,
@@ -422,6 +425,26 @@ TUserDefinedFunction::TUserDefinedFunction(
     TSharedRef implementationFile)
     : TUserDefinedFunction(
         functionName,
+        functionName,
+        typeArgumentConstraints,
+        argumentTypes,
+        repeatedArgType,
+        resultType,
+        implementationFile,
+        GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType))
+{ }
+
+TUserDefinedFunction::TUserDefinedFunction(
+    const Stroka& functionName,
+    const Stroka& symbolName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+    std::vector<TType> argumentTypes,
+    TType repeatedArgType,
+    TType resultType,
+    TSharedRef implementationFile)
+    : TUserDefinedFunction(
+        functionName,
+        symbolName,
         typeArgumentConstraints,
         argumentTypes,
         repeatedArgType,
@@ -433,13 +456,14 @@ TUserDefinedFunction::TUserDefinedFunction(
 Function* GetLlvmFunction(
     TCGContext& builder,
     const Stroka& functionName,
+    const Stroka& symbolName,
     std::vector<Value*> argumentValues,
     TSharedRef implementationFile,
     TType resultType,
     ICallingConventionPtr callingConvention)
 {
     auto module = builder.Module->GetModule();
-    auto callee = module->getFunction(StringRef(functionName));
+    auto callee = module->getFunction(StringRef(symbolName));
     if (!callee) {
         auto diag = SMDiagnostic();
         auto buffer = MemoryBufferRef(
@@ -464,7 +488,7 @@ Function* GetLlvmFunction(
                 functionName);
         }
 
-        callee = module->getFunction(StringRef(functionName));
+        callee = module->getFunction(StringRef(symbolName));
         callingConvention->CheckCallee(
             functionName,
             callee,
@@ -487,6 +511,7 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
         auto callee = GetLlvmFunction(
             builder,
             this_->FunctionName_,
+            this_->SymbolName_,
             argumentValues,
             this_->ImplementationFile_,
             this_->ResultType_,
@@ -558,6 +583,7 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
 
             auto callee = GetLlvmFunction(
                 builder,
+                functionName,
                 functionName,
                 argumentValues,
                 this_->ImplementationFile_,

@@ -175,9 +175,15 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         EValueType::Uint64,
         builtinImplementations));
 
-    registry->RegisterFunction(New<TCastFunction>(
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "double",
+        "double_cast",
+        castConstraints,
+        std::vector<TType>{typeArg},
+        EValueType::Null,
         EValueType::Double,
-        "double"));
+        builtinImplementations));
+
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
 
