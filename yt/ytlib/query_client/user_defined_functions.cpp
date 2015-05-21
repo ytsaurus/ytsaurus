@@ -65,6 +65,51 @@ void PushExecutionContext(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ICallingConvention::CheckCallee(
+    const Stroka& functionName,
+    llvm::Function* callee,
+    TCGContext& builder,
+    std::vector<Value*> argumentValues,
+    TType resultType) const
+{
+    if (!callee) {
+        THROW_ERROR_EXCEPTION(
+            "Could not find LLVM bitcode for function %Qv",
+            functionName);
+    } else if (callee->arg_size() != argumentValues.size()) {
+        THROW_ERROR_EXCEPTION(
+            "Wrong number of arguments in LLVM bitcode for function %Qv: expected %v, got %v",
+            functionName,
+            argumentValues.size(),
+            callee->arg_size());
+    }
+
+    CheckResultType(
+        functionName,
+        callee->getReturnType(),
+        resultType,
+        builder);
+
+    auto i = 1;
+    auto expected = argumentValues.begin();
+    for (
+        auto actual = callee->arg_begin();
+        expected != argumentValues.end();
+        expected++, actual++, i++)
+    {
+        if (actual->getType() != (*expected)->getType()) {
+            THROW_ERROR_EXCEPTION(
+                "Wrong type for argument %v in LLVM bitcode for function %Qv: expected %Qv, got %Qv",
+                i,
+                functionName,
+                ToString((*expected)->getType()),
+                ToString(actual->getType()));
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void PushArgument(
     TCGContext& builder,
     std::vector<Value*>& argumentValues,
@@ -372,64 +417,27 @@ TUserDefinedFunction::TUserDefinedFunction(
         New<TUnversionedValueCallingConvention>(argumentTypes.size()))
 { }
 
-void TUserDefinedFunction::CheckCallee(
-    llvm::Function* callee,
+Function* GetLlvmFunction(
     TCGContext& builder,
-    std::vector<Value*> argumentValues) const
-{
-    if (!callee) {
-        THROW_ERROR_EXCEPTION(
-            "Could not find LLVM bitcode for function %Qv",
-            FunctionName_);
-    } else if (callee->arg_size() != argumentValues.size()) {
-        THROW_ERROR_EXCEPTION(
-            "Wrong number of arguments in LLVM bitcode for function %Qv: expected %v, got %v",
-            FunctionName_,
-            argumentValues.size(),
-            callee->arg_size());
-    }
-
-    CallingConvention_->CheckResultType(
-        FunctionName_,
-        callee->getReturnType(),
-        ResultType_,
-        builder);
-
-    auto i = 1;
-    auto expected = argumentValues.begin();
-    for (
-        auto actual = callee->arg_begin();
-        expected != argumentValues.end();
-        expected++, actual++, i++)
-    {
-        if (actual->getType() != (*expected)->getType()) {
-            THROW_ERROR_EXCEPTION(
-                "Wrong type for argument %v in LLVM bitcode for function %Qv: expected %Qv, got %Qv",
-                i,
-                FunctionName_,
-                ToString((*expected)->getType()),
-                ToString(actual->getType()));
-        }
-    }
-}
-
-Function* TUserDefinedFunction::GetLlvmFunction(
-    TCGContext& builder,
-    std::vector<Value*> argumentValues) const
+    const Stroka& functionName,
+    std::vector<Value*> argumentValues,
+    TSharedRef implementationFile,
+    TType resultType,
+    ICallingConventionPtr callingConvention)
 {
     auto module = builder.Module->GetModule();
-    auto callee = module->getFunction(StringRef(FunctionName_));
+    auto callee = module->getFunction(StringRef(functionName));
     if (!callee) {
         auto diag = SMDiagnostic();
         auto buffer = MemoryBufferRef(
-            StringRef(ImplementationFile_.Begin(), ImplementationFile_.Size()),
+            StringRef(implementationFile.Begin(), implementationFile.Size()),
             StringRef("impl"));
         auto implModule = parseIR(buffer, diag, builder.getContext());
 
         if (!implModule) {
             THROW_ERROR_EXCEPTION(
                 "Error parsing LLVM bitcode for function %Qv",
-                FunctionName_)
+                functionName)
                 << TError(Stroka(diag.getMessage().str()));
         }
 
@@ -440,11 +448,16 @@ Function* TUserDefinedFunction::GetLlvmFunction(
         if (linkError) {
             THROW_ERROR_EXCEPTION(
                 "Error linking LLVM bitcode for function %Qv",
-                FunctionName_);
+                functionName);
         }
 
-        callee = module->getFunction(StringRef(FunctionName_));
-        CheckCallee(callee, builder, argumentValues);
+        callee = module->getFunction(StringRef(functionName));
+        callingConvention->CheckCallee(
+            functionName,
+            callee,
+            builder,
+            argumentValues,
+            resultType);
     }
     return callee;
 }
@@ -458,7 +471,13 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
         this_ = MakeStrong(this)
     ] (std::vector<Value*> argumentValues, TCGContext& builder) {
 
-        auto callee = this_->GetLlvmFunction(builder, argumentValues);
+        auto callee = GetLlvmFunction(
+            builder,
+            this_->FunctionName_,
+            argumentValues,
+            this_->ImplementationFile_,
+            this_->ResultType_,
+            this_->CallingConvention_);
         auto result = builder.CreateCall(callee, argumentValues);
         return result;
     };
@@ -468,6 +487,183 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
         codegenBody,
         type,
         name);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
+    const Stroka& aggregateName,
+    TType argumentType,
+    TType resultType,
+    EValueType stateType,
+    TSharedRef implementationFile,
+    ICallingConventionPtr callingConvention)
+    : AggregateName_(aggregateName)
+    , ArgumentType_(argumentType)
+    , ResultType_(resultType)
+    , StateType_(stateType)
+    , ImplementationFile_(implementationFile)
+    , CallingConvention_(callingConvention)
+{ }
+
+TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
+    const Stroka& aggregateName,
+    TType argumentType,
+    TType resultType,
+    EValueType stateType,
+    TSharedRef implementationFile,
+    ECallingConvention callingConvention)
+    : TUserDefinedAggregateFunction(
+        aggregateName,
+        argumentType,
+        resultType,
+        stateType,
+        implementationFile,
+        GetCallingConvention(callingConvention))
+{ }
+
+Stroka TUserDefinedAggregateFunction::GetName() const
+{
+    return AggregateName_;
+}
+
+const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
+    EValueType type,
+    const Stroka& name) const
+{
+    auto makeCodegenBody = [
+        this_ = MakeStrong(this)
+    ] (const Stroka& functionName) {
+        return [
+            this_,
+            functionName
+        ] (std::vector<Value*> argumentValues, TCGContext& builder) {
+
+            auto callee = GetLlvmFunction(
+                builder,
+                functionName,
+                argumentValues,
+                this_->ImplementationFile_,
+                this_->ResultType_,
+                this_->CallingConvention_);
+            return builder.CreateCall(callee, argumentValues);
+        };
+    };
+
+    TCodegenAggregate codegenAggregate;
+    codegenAggregate.Initialize = [
+        this_ = MakeStrong(this),
+        type,
+        name,
+        makeCodegenBody
+    ] (TCGContext& builder, Value* row) {
+        auto stateType = this_->GetStateType(type);
+
+        return this_->CallingConvention_->MakeCodegenFunctionCall(
+            std::vector<TCodegenExpression>(),
+            makeCodegenBody(this_->AggregateName_ + "_init"),
+            stateType,
+            name + "_init")(builder, row);
+    };
+
+    codegenAggregate.Update = [
+        this_ = MakeStrong(this),
+        type,
+        name,
+        makeCodegenBody
+    ] (TCGContext& builder, Value* aggState, Value* newValue) {
+        auto stateType = this_->GetStateType(type);
+        auto codegenArgs = std::vector<TCodegenExpression>();
+        codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
+            return TCGValue::CreateFromLlvmValue(
+                builder,
+                aggState,
+                stateType);
+        });
+        codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
+            return TCGValue::CreateFromLlvmValue(
+                builder,
+                newValue,
+                type);
+        });
+
+        return this_->CallingConvention_->MakeCodegenFunctionCall(
+            codegenArgs,
+            makeCodegenBody(this_->AggregateName_ + "_update"),
+            stateType,
+            name + "_update")(builder, aggState);
+    };
+
+    codegenAggregate.Merge = [
+        this_ = MakeStrong(this),
+        type,
+        name,
+        makeCodegenBody
+    ] (TCGContext& builder, Value* dstAggState, Value* aggState) {
+        auto stateType = this_->GetStateType(type);
+        auto codegenArgs = std::vector<TCodegenExpression>();
+        codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
+            return TCGValue::CreateFromLlvmValue(
+                builder,
+                dstAggState,
+                stateType);
+            });
+        codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
+            return TCGValue::CreateFromLlvmValue(
+                builder,
+                aggState,
+                stateType);
+        });
+
+        return this_->CallingConvention_->MakeCodegenFunctionCall(
+            codegenArgs,
+            makeCodegenBody(this_->AggregateName_ + "_merge"),
+            stateType,
+            name + "_merge")(builder, aggState);
+    };
+
+    codegenAggregate.Finalize = [
+        this_ = MakeStrong(this),
+        type,
+        name,
+        makeCodegenBody
+    ] (TCGContext& builder, Value* aggState) {
+        auto stateType = this_->GetStateType(type);
+        auto codegenArgs = std::vector<TCodegenExpression>();
+        codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
+            return TCGValue::CreateFromLlvmValue(
+                builder,
+                aggState,
+                stateType);
+        });
+
+        return this_->CallingConvention_->MakeCodegenFunctionCall(
+            codegenArgs,
+            makeCodegenBody(this_->AggregateName_ + "_finalize"),
+            type,
+            name + "_finalize")(builder, aggState);
+    };
+
+    return codegenAggregate;
+}
+
+EValueType TUserDefinedAggregateFunction::GetStateType(
+    EValueType type) const
+{
+    return StateType_;
+}
+
+EValueType TUserDefinedAggregateFunction::InferResultType(
+    EValueType argumentType,
+    const TStringBuf& source) const
+{
+    return TypingFunction(
+        std::vector<TType>{ArgumentType_},
+        EValueType::Null,
+        ResultType_,
+        AggregateName_,
+        std::vector<EValueType>{argumentType},
+        source);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

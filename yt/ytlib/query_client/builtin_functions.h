@@ -13,6 +13,14 @@ typedef int TTypeArgument;
 typedef std::vector<EValueType> TUnionType;
 typedef TVariant<EValueType, TTypeArgument, TUnionType> TType;
 
+EValueType TypingFunction(
+    const std::vector<TType>& expectedArgTypes,
+    TType repeatedArgType,
+    TType resultType,
+    const Stroka& functionName,
+    const std::vector<EValueType>& argTypes,
+    const TStringBuf& source);
+
 class TTypedFunction
     : public virtual IFunctionDescriptor
 {
@@ -35,14 +43,6 @@ public:
         const TStringBuf& source) const override;
 
 private:
-    EValueType TypingFunction(
-        const std::vector<TType>& expectedArgTypes,
-        TType repeatedArgType,
-        TType resultType,
-        const Stroka& functionName,
-        const std::vector<EValueType>& argTypes,
-        const TStringBuf& source) const;
-
     Stroka FunctionName_;
     std::vector<TType> ArgumentTypes_;
     TType RepeatedArgumentType_;
@@ -143,9 +143,16 @@ public:
 
     virtual Stroka GetName() const override;
 
-    virtual TCodegenAggregateUpdate MakeCodegenAggregate(
+    virtual const TCodegenAggregate MakeCodegenAggregate(
         EValueType type,
         const Stroka& name) const override;
+
+    virtual EValueType GetStateType(
+        EValueType type) const override;
+
+    virtual EValueType InferResultType(
+        EValueType argumentType,
+        const TStringBuf& source) const override;
 
 private:
     const Stroka Name_;

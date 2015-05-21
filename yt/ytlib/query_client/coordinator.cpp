@@ -6,6 +6,7 @@
 #include "plan_helpers.h"
 #include "plan_fragment.h"
 #include "range_inferrer.h"
+#include "functions.h"
 
 #include <core/logging/log.h>
 
@@ -31,9 +32,34 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableSchema GetIntermediateSchema(
+    TConstGroupClausePtr groupClause,
+    IFunctionRegistryPtr functionRegistry)
+{
+    auto schema = TTableSchema();
+
+    for (auto item : groupClause->GroupItems) {
+        schema.Columns().emplace_back(
+            item.Name,
+            item.Expression->Type);
+    }
+
+    for (auto item : groupClause->AggregateItems) {
+        auto intermediateType = functionRegistry
+            ->GetAggregateFunction(item.AggregateFunction)
+            ->GetStateType(item.Expression->Type);
+        schema.Columns().emplace_back(
+            item.Name,
+            intermediateType);
+    }
+
+    return schema;
+}
+
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     TConstQueryPtr query,
-    const std::vector<TRefiner>& refiners)
+    const std::vector<TRefiner>& refiners,
+    IFunctionRegistryPtr functionRegistry)
 {
     auto Logger = BuildLogger(query);
 
@@ -57,12 +83,22 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     topQuery->Limit = query->Limit;
 
     if (query->GroupClause) {
-        subqueryPattern->GroupClause = query->GroupClause;
         if (refiners.size() > 1) {
-            auto groupClause = New<TGroupClause>();
-            groupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
+            auto subqueryGroupClause = New<TGroupClause>();
+            subqueryGroupClause->GroupedTableSchema = GetIntermediateSchema(
+                query->GroupClause,
+                functionRegistry);
+            subqueryGroupClause->GroupItems = query->GroupClause->GroupItems;
+            subqueryGroupClause->AggregateItems = query->GroupClause->AggregateItems;
+            subqueryGroupClause->IsMerge = query->GroupClause->IsMerge;
+            subqueryGroupClause->IsFinal = false;
+            subqueryPattern->GroupClause = subqueryGroupClause;
 
-            auto& finalGroupItems = groupClause->GroupItems;
+            auto topGroupClause = New<TGroupClause>();
+
+            topGroupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
+
+            auto& finalGroupItems = topGroupClause->GroupItems;
             for (const auto& groupItem : query->GroupClause->GroupItems) {
                 auto referenceExpr = New<TReferenceExpression>(
                     NullSourceLocation,
@@ -71,7 +107,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
                 finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
             }
 
-            auto& finalAggregateItems = groupClause->AggregateItems;
+            auto& finalAggregateItems = topGroupClause->AggregateItems;
             for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
                 auto referenceExpr = New<TReferenceExpression>(
                     NullSourceLocation,
@@ -83,7 +119,17 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
                     aggregateItem.Name);
             }
 
-            topQuery->GroupClause = groupClause;
+            topGroupClause->IsMerge = true;
+            topGroupClause->IsFinal = query->GroupClause->IsFinal;
+            topQuery->GroupClause = topGroupClause;
+        } else {
+            auto groupClause = New<TGroupClause>();
+            groupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
+            groupClause->GroupItems = query->GroupClause->GroupItems;
+            groupClause->AggregateItems = query->GroupClause->AggregateItems;
+            groupClause->IsMerge = query->GroupClause->IsMerge;
+            groupClause->IsFinal = query->GroupClause->IsFinal;
+            subqueryPattern->GroupClause = groupClause;
         }
 
         topQuery->ProjectClause = query->ProjectClause;
@@ -209,7 +255,8 @@ TQueryStatistics CoordinateAndExecute(
     const std::vector<TRefiner>& refiners,
     bool isOrdered,
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
-    std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop)
+    std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
+    IFunctionRegistryPtr functionRegistry)
 {
     auto nodeDirectory = fragment->NodeDirectory;
     auto query = fragment->Query;
@@ -219,7 +266,7 @@ TQueryStatistics CoordinateAndExecute(
 
     TConstQueryPtr topQuery;
     std::vector<TConstQueryPtr> subqueries;
-    std::tie(topQuery, subqueries) = CoordinateQuery(query, refiners);
+    std::tie(topQuery, subqueries) = CoordinateQuery(query, refiners, functionRegistry);
 
     LOG_DEBUG("Finished coordinating query");
 
