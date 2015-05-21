@@ -2,13 +2,11 @@ var util = require("util");
 
 exports.TraceEvent = function(object, sname, ename)
 {
-    "use strict";
     object.on(ename, function() { console.log("---> %s : %s", sname, ename); });
 };
 
 exports.TraceReadableStream = function(stream, name)
 {
-    "use strict";
     exports.TraceEvent(stream, name, "data");
     exports.TraceEvent(stream, name, "end");
     exports.TraceEvent(stream, name, "error");
@@ -17,7 +15,6 @@ exports.TraceReadableStream = function(stream, name)
 
 exports.TraceWritableStream = function(stream, name)
 {
-    "use strict";
     exports.TraceEvent(stream, name, "drain");
     exports.TraceEvent(stream, name, "error");
     exports.TraceEvent(stream, name, "close");
@@ -26,7 +23,6 @@ exports.TraceWritableStream = function(stream, name)
 
 exports.TraceSocket = function(socket, name)
 {
-    "use strict";
     exports.TraceEvent(socket, name, "connect");
     exports.TraceEvent(socket, name, "data");
     exports.TraceEvent(socket, name, "end");
@@ -38,7 +34,6 @@ exports.TraceSocket = function(socket, name)
 
 exports.TraceSocketActivity = function(socket, name)
 {
-    "use strict";
     setTimeout(function inner() {
         console.log("--? %s : Peer=%s:%s Recv=%s Send=%s Buffer=%s",
             name,
@@ -51,8 +46,6 @@ exports.TraceSocketActivity = function(socket, name)
 
 exports.that = function(key, name)
 {
-    "use strict";
-
     var test = new RegExp("YT(" + [ "ALL", key ].join("|") + ")");
     var result;
 

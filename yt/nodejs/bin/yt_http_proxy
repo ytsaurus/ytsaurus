@@ -102,16 +102,18 @@ if (opts.argv.h) {
 
 function merge(lhs, rhs) {
     for (var p in rhs) {
-        try {
-            if (typeof(rhs[p]) !== "undefined" && rhs[p] !== null) {
-                if (rhs[p].constructor === Object) {
-                    lhs[p] = merge(lhs[p], rhs[p]);
-                } else {
-                    lhs[p] = rhs[p];
+        if (rhs.hasOwnProperty(p)) {
+            try {
+                if (typeof(rhs[p]) !== "undefined" && rhs[p] !== null) {
+                    if (rhs[p].constructor === Object) {
+                        lhs[p] = merge(lhs[p], rhs[p]);
+                    } else {
+                        lhs[p] = rhs[p];
+                    }
                 }
+            } catch (err) {
+                lhs[p] = rhs[p];
             }
-        } catch (err) {
-            lhs[p] = rhs[p];
         }
     }
     return lhs;
@@ -251,14 +253,12 @@ function ensureFileExistsAndOwned(path, user, group) {
     return Q
         .promisify(fs.exists)(path)
         .catch(function(exists) {
-            return exists || Q
-                .promisify(fs.writeFile)(path, "")
-                .then(Q
+            return exists || Q.promisify(fs.writeFile)(path, "").then(Q
                     .promisify(uid_number)(user || process.getuid(), group || process.getgid)
                     .spread(Q.promisify(fs.chown).bind(undefined, path))
                 );
         });
-};
+}
 
 function provideWinstonTransport() {
     if (config.logging) {
@@ -329,7 +329,6 @@ function runProxy(logger) {
     });
 
     process.on("SIGUSR1", function() {
-        "use strict";
         console.error("Writing a heap snapshot (" + process.pid + ")");
         heapdump.writeSnapshot();
     });

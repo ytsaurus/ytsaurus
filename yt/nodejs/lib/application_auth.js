@@ -1,3 +1,4 @@
+var buffertools = require("buffertools");
 var url = require("url");
 var querystring = require("querystring");
 var fs = require("fs");
@@ -25,16 +26,12 @@ var _STATIC_STYLE = fs.readFileSync(__dirname + "/../static/bootstrap.min.css");
 
 function YtApplicationAuth(logger, authority)
 {
-    "use strict";
-
     this.logger = logger;
     this.authority = authority;
 }
 
 YtApplicationAuth.prototype.dispatch = function(req, rsp, next)
 {
-    "use strict";
-
     var self = this;
     self.logger.debug("Auth call on '" + req.url + "'");
 
@@ -58,8 +55,6 @@ YtApplicationAuth.prototype.dispatch = function(req, rsp, next)
 
 YtApplicationAuth.prototype._dispatchError = function(req, rsp, err)
 {
-    "use strict";
-
     var error = YtError.ensureWrapped(err);
     var logger = req.logger || this.logger;
 
@@ -98,8 +93,6 @@ YtApplicationAuth.prototype._dispatchError = function(req, rsp, err)
 
 YtApplicationAuth.prototype._dispatchIndex = function(req, rsp)
 {
-    "use strict";
-
     if (!utils.redirectUnlessDirectory(req, rsp)) {
         var body = _TEMPLATE_LAYOUT({ content: _TEMPLATE_INDEX() });
         return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
@@ -108,8 +101,6 @@ YtApplicationAuth.prototype._dispatchIndex = function(req, rsp)
 
 YtApplicationAuth.prototype._dispatchLogin = function(req, rsp, body)
 {
-    "use strict";
-
     var self = this;
     var logger = req.logger || self.logger;
     var origin = req.origin || req.connection.remoteAddress;
@@ -137,8 +128,6 @@ YtApplicationAuth.prototype._dispatchLogin = function(req, rsp, body)
 
 YtApplicationAuth.prototype._dispatchNew = function(req, rsp)
 {
-    "use strict";
-
     var params = querystring.parse(url.parse(req.url).query);
     if (params.code && params.state) {
         return this._dispatchNewCallback(req, rsp, params);
@@ -149,8 +138,6 @@ YtApplicationAuth.prototype._dispatchNew = function(req, rsp)
 
 YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
 {
-    "use strict";
-
     var self = this;
     var logger = req.logger || self.logger;
     var origin = req.origin || req.connection.remoteAddress;
@@ -169,11 +156,10 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
         ]);
     })
     .spread(function(token, result) {
+        var login = result.login;
+        var realm = result.realm;
         if (state.return_path) {
             var target = state.return_path;
-            var login = result.login;
-            var realm = result.realm;
-
             target = url.parse(target);
             target.query = querystring.decode(target.query);
             target.query.token = token;
@@ -201,8 +187,6 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
 
 YtApplicationAuth.prototype._dispatchNewRedirect = function(req, rsp, params)
 {
-    "use strict";
-
     var logger = req.logger || this.logger;
     var origin = req.origin || req.connection.remoteAddress;
 
@@ -220,8 +204,6 @@ YtApplicationAuth.prototype._dispatchNewRedirect = function(req, rsp, params)
 
 YtApplicationAuth.prototype._captureBody = function(req, rsp)
 {
-    "use strict";
-
     var deferred = Q.defer();
     var chunks = [];
 

@@ -1,3 +1,4 @@
+var buffertools = require("buffertools");
 var dns = require("dns");
 var url = require("url");
 var http = require("http");
@@ -18,7 +19,6 @@ var _resolveIPv6 = Q.promisify(dns.resolve6);
 
 function YtHttpRequest(host, port, path, verb, body)
 {
-    "use strict";
     if (!(this instanceof YtHttpRequest)) {
         return new YtHttpRequest(host, port, path, verb, body);
     }
@@ -43,7 +43,6 @@ function YtHttpRequest(host, port, path, verb, body)
 
 YtHttpRequest.prototype.withHost = function(host)
 {
-    "use strict";
     this.host = host;
     this.headers["Host"] = host;
     return this;
@@ -51,77 +50,66 @@ YtHttpRequest.prototype.withHost = function(host)
 
 YtHttpRequest.prototype.withPort = function(port)
 {
-    "use strict";
     this.port = port;
     return this;
 };
 
 YtHttpRequest.prototype.withPath = function(path)
 {
-    "use strict";
     this.path = path;
     return this;
 };
 
 YtHttpRequest.prototype.withVerb = function(verb)
 {
-    "use strict";
     this.verb = verb;
     return this;
 };
 
 YtHttpRequest.prototype.setNoDelay = function(nodelay)
 {
-    "use strict";
     this.nodelay = nodelay;
     return this;
 };
 
 YtHttpRequest.prototype.setNoResolve = function(noresolve)
 {
-    "use strict";
     this.noresolve = noresolve;
     return this;
 };
 
 YtHttpRequest.prototype.setTimeout = function(timeout)
 {
-    "use strict";
     this.timeout = timeout;
     return this;
 };
 
 YtHttpRequest.prototype.asHttps = function(secure)
 {
-    "use strict";
     this.secure = !!secure;
     return this;
 };
 
 YtHttpRequest.prototype.asJson = function(json)
 {
-    "use strict";
     this.json = !!json;
     return this;
 };
 
 YtHttpRequest.prototype.shouldFailOn4xx = function(fail)
 {
-    "use strict";
     this.failOn4xx = !!fail;
     return this;
 };
 
 YtHttpRequest.prototype.shouldFailOn5xx = function(fail)
 {
-    "use strict";
     this.failOn5xx = !!fail;
     return this;
 };
 
 YtHttpRequest.prototype.withBody = function(body, type)
 {
-    "use strict";
     if (typeof(body) === "object") {
         this.body = JSON.stringify(body);
         type = "application/json";
@@ -147,15 +135,12 @@ YtHttpRequest.prototype.withBody = function(body, type)
 
 YtHttpRequest.prototype.withHeader = function(header, value)
 {
-    "use strict";
     this.headers[header] = value;
     return this;
 };
 
 YtHttpRequest.prototype.fire = function()
 {
-    "use strict";
-
     var self = this;
     function impl(addr) {
         addr = addr[0];
@@ -231,7 +216,6 @@ YtHttpRequest.prototype.fire = function()
 
 YtHttpRequest.prototype.toString = function()
 {
-    "use strict";
     return "Request to '" + this.host + ":" + this.port + this.path + "'";
 };
 

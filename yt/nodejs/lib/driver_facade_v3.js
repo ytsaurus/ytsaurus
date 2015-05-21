@@ -2,8 +2,6 @@
 
 function YtDriverFacadeV3(driver)
 {
-    "use strict";
-
     // Keep everything lean.
     return driver;
 }
