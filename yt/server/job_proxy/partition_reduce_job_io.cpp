@@ -31,8 +31,8 @@ public:
     { }
 
     virtual ISchemalessMultiChunkReaderPtr DoCreateReader(
-        NVersionedTableClient::TNameTablePtr nameTable,
-        const NVersionedTableClient::TColumnFilter& columnFilter) override
+        TNameTablePtr nameTable,
+        const TColumnFilter& columnFilter) override
     {
         YCHECK(nameTable->GetSize() == 0 && columnFilter.All);
         YCHECK(SchedulerJobSpec_.input_specs_size() == 1);
