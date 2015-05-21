@@ -534,14 +534,14 @@ TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
     std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     TType argumentType,
     TType resultType,
-    std::function<EValueType(EValueType)> stateTypeFunction,
+    TType stateType,
     TSharedRef implementationFile,
     ICallingConventionPtr callingConvention)
     : AggregateName_(aggregateName)
     , TypeArgumentConstraints_(typeArgumentConstraints)
     , ArgumentType_(argumentType)
     , ResultType_(resultType)
-    , StateTypeFunction_(stateTypeFunction)
+    , StateType_(stateType)
     , ImplementationFile_(implementationFile)
     , CallingConvention_(callingConvention)
 { }
@@ -551,7 +551,7 @@ TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
     std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     TType argumentType,
     TType resultType,
-    std::function<EValueType(EValueType)> stateTypeFunction,
+    TType stateType,
     TSharedRef implementationFile,
     ECallingConvention callingConvention)
     : TUserDefinedAggregateFunction(
@@ -559,7 +559,7 @@ TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
         typeArgumentConstraints,
         argumentType,
         resultType,
-        stateTypeFunction,
+        stateType,
         implementationFile,
         GetCallingConvention(callingConvention, 1, EValueType::Null))
 { }
@@ -693,7 +693,14 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
 EValueType TUserDefinedAggregateFunction::GetStateType(
     EValueType type) const
 {
-    return StateTypeFunction_(type);
+    return TypingFunction(
+        TypeArgumentConstraints_,
+        std::vector<TType>{ArgumentType_},
+        EValueType::Null,
+        StateType_,
+        AggregateName_,
+        std::vector<EValueType>{type},
+        TStringBuf());
 }
 
 EValueType TUserDefinedAggregateFunction::InferResultType(

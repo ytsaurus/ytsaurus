@@ -452,7 +452,9 @@ class TestQuery(YTEnvSetup):
                 "argument_type": {
                     "tag": "concrete_type",
                     "value": "int64"},
-                "state_type": "string",
+                "state_type": {
+                    "tag": "concrete_type",
+                    "value": "string"},
                 "result_type": {
                     "tag": "concrete_type",
                     "value": "double"},

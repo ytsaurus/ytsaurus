@@ -204,7 +204,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         sumConstraints,
         typeArg,
         typeArg,
-        [] (EValueType type) { return type; },
+        typeArg,
         aggregatesImplementation,
         ECallingConvention::UnversionedValue));
     registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
@@ -212,7 +212,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         constraints,
         typeArg,
         typeArg,
-        [] (EValueType type) { return type; },
+        typeArg,
         aggregatesImplementation,
         ECallingConvention::UnversionedValue));
     registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
@@ -220,7 +220,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         constraints,
         typeArg,
         typeArg,
-        [] (EValueType type) { return type; },
+        typeArg,
         aggregatesImplementation,
         ECallingConvention::UnversionedValue));
     registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
@@ -228,7 +228,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         std::unordered_map<TTypeArgument, TUnionType>(),
         EValueType::Int64,
         EValueType::Double,
-        [] (EValueType type) { return EValueType::String; },
+        EValueType::String,
         aggregatesImplementation,
         ECallingConvention::UnversionedValue));
 }
@@ -349,7 +349,7 @@ class TCypressAggregateDescriptor
 public:
     Stroka Name;
     TDescriptorType ArgumentType;
-    EValueType StateType;
+    TDescriptorType StateType;
     TDescriptorType ResultType;
     ECallingConvention CallingConvention;
 
@@ -543,7 +543,7 @@ void TCypressFunctionRegistry::LookupAndRegisterAggregate(const Stroka& aggregat
         std::unordered_map<TTypeArgument, TUnionType>(),
         cypressDescriptor->ArgumentType.Type,
         cypressDescriptor->ResultType.Type,
-        [=] (EValueType type) { return cypressDescriptor->StateType; },
+        cypressDescriptor->StateType.Type,
         implementationFile,
         cypressDescriptor->CallingConvention));
 }
