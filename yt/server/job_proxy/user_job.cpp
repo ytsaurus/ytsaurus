@@ -171,6 +171,10 @@ public:
     virtual double GetProgress() const override
     {
         const auto& reader = JobIO_->GetReader();
+        if (!reader) {
+            return 0;
+        }
+
         i64 total = reader->GetTotalRowCount();
         i64 current = reader->GetSessionRowIndex();
 
@@ -185,8 +189,10 @@ public:
     {
         std::vector<TChunkId> failedChunks;
         const auto& reader = JobIO_->GetReader();
-        auto chunks = reader->GetFailedChunkIds();
-        failedChunks.insert(failedChunks.end(), chunks.begin(), chunks.end());
+        if (reader) {
+            auto chunks = reader->GetFailedChunkIds();
+            failedChunks.insert(failedChunks.end(), chunks.begin(), chunks.end());
+        }
         return failedChunks;
     }
 
@@ -538,7 +544,7 @@ private:
         int jobDescriptor)
     {
         JobIO_->CreateReader();
-        auto reader = JobIO_->GetReader();
+        const auto& reader = JobIO_->GetReader();
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
         Process_.AddDup2FileAction(pipe.GetReadFD(), jobDescriptor);
@@ -717,7 +723,10 @@ private:
 
     void FillCurrentDataStatistics(TStatistics& statistics) const
     {
-        statistics.AddComplex("/data/input", JobIO_->GetReader()->GetDataStatistics());
+        const auto& reader = JobIO_->GetReader();
+        if (reader) {
+            statistics.AddComplex("/data/input", reader->GetDataStatistics());
+        }
 
         int i = 0;
         for (const auto& writer : JobIO_->GetWriters()) {
