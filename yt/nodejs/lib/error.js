@@ -6,8 +6,6 @@ var binding = require("./ytnode");
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtError(first, second) {
-    "use strict";
-
     this.code = 0;
     this.message = "";
     this.attributes = {};
@@ -44,7 +42,6 @@ binding.BasicYtError.prototype.__proto__ = YtError.prototype; // As in buffer.js
 
 YtError.ensureWrapped = function(err, message)
 {
-    "use strict";
     if (err instanceof YtError) {
         return err;
     } else {
@@ -72,51 +69,42 @@ function checkForErrorCode(error, code)
 }
 
 YtError.prototype.isOK = function() {
-    "use strict";
     return this.code === 0;
 };
 
 YtError.prototype.isUnavailable = function() {
-    "use strict";
     return checkForErrorCode(this, binding.UnavailableYtErrorCode);
 };
 
 YtError.prototype.isUserBanned = function() {
-    "use strict";
     return checkForErrorCode(this, binding.UserBannedYtErrorCode);
 };
 
 YtError.prototype.isRequestRateLimitExceeded = function() {
-    "use strict";
     return checkForErrorCode(this, binding.RequestRateLimitExceededYtErrorCode);
 };
 
 YtError.prototype.isAllTargetNodesFailed = function() {
-    "use strict";
     return checkForErrorCode(this, binding.AllTargetNodesFailedYtErrorCode);
 };
 
 YtError.prototype.checkFor = function(code) {
-    "use strict";
     return checkForErrorCode(this, code);
 };
 
 // Setters.
 
 YtError.prototype.withCode = function(code) {
-    "use strict";
     this.code = code;
     return this;
 };
 
 YtError.prototype.withMessage = function(message) {
-    "use strict";
     this.message = message;
     return this;
 };
 
 YtError.prototype.withAttribute = function(key, value) {
-    "use strict";
     this.attributes[key] = value;
     return this;
 };
@@ -124,24 +112,20 @@ YtError.prototype.withAttribute = function(key, value) {
 // Getters.
 
 YtError.prototype.getCode = function() {
-    "use strict";
     return this.code;
 };
 
 YtError.prototype.getMessage = function() {
-    "use strict";
     return this.message;
 };
 
 YtError.prototype.getAttribute = function(key) {
-    "use strict";
     return this.attributes[key];
 };
 
 // Serialization.
 
 YtError.prototype.toJson = function() {
-    "use strict";
     var p;
     var serialized_attributes = [];
     var serialized_inner_errors = [];
@@ -164,7 +148,6 @@ YtError.prototype.toJson = function() {
 };
 
 YtError.prototype.toString = function() {
-    "use strict";
     return "YtError: " + this.message;
 };
 

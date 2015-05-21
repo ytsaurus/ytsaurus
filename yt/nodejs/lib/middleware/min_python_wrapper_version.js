@@ -7,7 +7,7 @@ var utils = require("../utils");
 
 function compareVersions(a, b) {
     for (var i = 0; i < a.length && i < b.length; ++i) {
-        if (a[i] == b[i]) {
+        if (a[i] === b[i]) {
             continue;
         } else {
             return a[i] - b[i];
@@ -22,15 +22,13 @@ function printVersion(v) {
 
 exports.that = function Middleware__YtMinPythonWrapperVersion()
 {
-    "use strict";
-
     var config = YtRegistry.get("config", "min_python_wrapper_version");
     var logger = YtRegistry.get("logger");
 
     if (!config.enable) {
         return function(req, rsp, next) {
             next();
-        }
+        };
     }
 
     var min_version = [ config.major, config.minor, config.patch ];
@@ -39,7 +37,7 @@ exports.that = function Middleware__YtMinPythonWrapperVersion()
         var ua = req.headers["user-agent"] + ""; // Do not care about null or undefined.
         var re = ua.match(/^Python wrapper \b(\d+)\.(\d+)\.(\d+)\b/);
         if (re) {
-            var version = [ ~~re[1], ~~re[2], ~~re[3] ];
+            var version = [parseInt(re[1]), parseInt(re[2]), parseInt(re[3])];
             if (compareVersions(version, min_version) < 0) {
                 var error = new YtError(
                     "You are using deprecated version of `yandex-yt-python` " +

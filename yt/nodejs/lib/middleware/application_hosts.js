@@ -7,8 +7,6 @@ var YtRegistry = require("../registry").that;
 
 exports.that = function Middleware__YtApplicationHosts()
 {
-    "use strict";
-
     var logger = YtRegistry.get("logger");
     var coordinator = YtRegistry.get("coordinator");
 

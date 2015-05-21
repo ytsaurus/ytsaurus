@@ -7,8 +7,6 @@ var YtRegistry = require("../registry").that;
 
 exports.that = function Middleware__YtApplicationAuth()
 {
-    "use strict";
-
     var logger = YtRegistry.get("logger");
     var authority = YtRegistry.get("authority");
 

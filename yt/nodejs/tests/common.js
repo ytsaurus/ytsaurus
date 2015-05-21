@@ -10,12 +10,10 @@ global.expect = chai.expect;
 
 if (process.env.NODE_DEBUG && /YTTEST/.test(process.env.NODE_DEBUG)) {
     global.__DBG = function(x) {
-        "use strict";
         process.stderr.write("__DBG : ");
         console.error(x);
     };
     global.__LOG = function() {
-        "use strict";
         process.stderr.write("__LOG : ");
         console.error.apply(null, arguments);
     };

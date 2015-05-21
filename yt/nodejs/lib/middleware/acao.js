@@ -4,8 +4,6 @@ var utils = require("../utils");
 
 exports.that = function Middleware__YtAcao()
 {
-    "use strict";
-
     return function(req, rsp, next) {
         var origin = req.headers["origin"] || "*";
 
