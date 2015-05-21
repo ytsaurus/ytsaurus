@@ -143,7 +143,7 @@ public:
         std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         TType argumentType,
         TType resultType,
-        std::function<EValueType(EValueType)> StateTypeFunction_,
+        TType stateType,
         TSharedRef implementationFile,
         ECallingConvention callingConvention);
 
@@ -165,7 +165,7 @@ private:
     std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
     TType ArgumentType_;
     TType ResultType_;
-    std::function<EValueType(EValueType)> StateTypeFunction_;
+    TType StateType_;
     TSharedRef ImplementationFile_;
     ICallingConventionPtr CallingConvention_;
 
@@ -174,7 +174,7 @@ private:
         std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         TType argumentType,
         TType resultType,
-        std::function<EValueType(EValueType)> stateTypeFunction,
+        TType stateType,
         TSharedRef implementationFile,
         ICallingConventionPtr callingConvention);
 };
