@@ -129,7 +129,7 @@ void TJobController::StartWaitingJobs()
         auto spareResources = GetResourceLimits() - usedResources;
         auto jobResources = job->GetResourceUsage();
 
-        if (Dominates(spareResources, jobResources)) {
+        if (DominatesNonnegative(spareResources, jobResources)) {
             auto error = tracker->TryAcquire(EMemoryConsumer::Job, jobResources.memory());
 
             if (error.IsOK()) {
