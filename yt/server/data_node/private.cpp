@@ -13,12 +13,13 @@ namespace NDataNode {
 const NLogging::TLogger DataNodeLogger("DataNode");
 const NProfiling::TProfiler DataNodeProfiler("/data_node");
 
-NRpc::IChannelFactoryPtr ChannelFactory(NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
+const NRpc::IChannelFactoryPtr ChannelFactory(NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
 
-Stroka CellIdFileName("cell_id");
-Stroka MultiplexedDirectory("multiplexed");
-Stroka TrashDirectory = Stroka("trash");
-Stroka CleanExtension("clean");
+const Stroka CellIdFileName("cell_id");
+const Stroka MultiplexedDirectory("multiplexed");
+const Stroka TrashDirectory("trash");
+const Stroka CleanExtension("clean");
+const Stroka SealedFlagExtension("sealed");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -38,6 +38,14 @@ public:
         TJournalChunkPtr chunk,
         bool enableMultiplexing);
 
+    //! Asynchronously checks if a given journal chunk is sealed.
+    TFuture<bool> IsChangelogSealed(
+        TLocationPtr location,
+        const TChunkId& chunkId);
+
+    //! Asynchronously marks a given journal chunk as sealed.
+    TFuture<void> SealChangelog(TJournalChunkPtr chunk);
+
 private:
     struct TCachedChangelogKey;
 

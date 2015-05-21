@@ -22,6 +22,7 @@ struct TChunkDescriptor
 
     TChunkId Id;
     i64 DiskSpace = 0;
+
     // For journal chunks only.
     i64 RowCount = 0;
     bool Sealed = false;

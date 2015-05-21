@@ -822,7 +822,7 @@ public:
 
     TFuture<IChangelogPtr> OpenChangelog(const TChunkId& chunkId)
     {
-        return BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId)
+        return DisableLocationOnError(BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId), chunkId)
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run();
     }
@@ -831,19 +831,18 @@ public:
         const TChunkId& chunkId,
         bool enableMultiplexing)
     {
+        auto creator = DisableLocationOnError(BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId), chunkId)
+            .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
             return MultiplexedWriter_->WriteCreateRecord(chunkId)
-                .Apply(BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId)
-                    .AsyncVia(SplitChangelogDispatcher_->GetInvoker()))
+                .Apply(creator)
                 .Apply(BIND([=] (const TErrorOr<IChangelogPtr>& result) mutable {
                     barrier.Set(result.IsOK() ? TError() : TError(result));
                     return result.ValueOrThrow();
                 }));
         } else {
-            return BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId)
-                .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
-                .Run();
+            return creator.Run();
         }
     }
 
@@ -851,19 +850,18 @@ public:
         TJournalChunkPtr chunk,
         bool enableMultiplexing)
     {
+        auto remover = DisableLocationOnError(BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk), chunk->GetId())
+            .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
             return MultiplexedWriter_->WriteRemoveRecord(chunk->GetId())
-                .Apply(BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
-                    .AsyncVia(SplitChangelogDispatcher_->GetInvoker()))
+                .Apply(remover)
                 .Apply(BIND([=] (const TError& result) mutable {
                     barrier.Set(result);
                     result.ThrowOnError();
                 }));
         } else {
-            return BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
-                .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
-                .Run();
+            return remover.Run();
         }
     }
 
@@ -881,6 +879,20 @@ public:
             recordData);
     }
 
+    TFuture<bool> IsChangelogSealed(const TChunkId& chunkId)
+    {
+        return DisableLocationOnError(BIND(&TImpl::DoIsChangelogSealed, MakeStrong(this), chunkId), chunkId)
+            .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
+            .Run();
+    }
+
+    TFuture<void> SealChangelog(TJournalChunkPtr chunk)
+    {
+        return DisableLocationOnError(BIND(&TImpl::DoSealChangelog, MakeStrong(this), chunk), chunk->GetId())
+            .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
+            .Run();
+    }
+
 private:
     const TDataNodeConfigPtr Config_;
     TLocation* const Location_;
@@ -894,6 +906,24 @@ private:
     NLogging::TLogger Logger;
 
 
+    template <class T>
+    TCallback<T()> DisableLocationOnError(TCallback<T()> callback, const TChunkId& chunkId)
+    {
+        return BIND([=] () -> T {
+            try {
+                return callback.Run();
+            } catch (const std::exception& ex) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::IOError,
+                    "Error accessing journal chunk %v",
+                    chunkId)
+                    << ex;
+                Location_->Disable(error);
+                THROW_ERROR error;
+            }
+        });
+    }
+
     IChangelogPtr DoCreateChangelog(const TChunkId& chunkId)
     {
         IChangelogPtr changelog;
@@ -903,20 +933,11 @@ private:
 
         const auto& Profiler = Location_->GetProfiler();
         PROFILE_TIMING("/journal_chunk_create_time") {
-            try {
-                auto fileName = Location_->GetChunkPath(chunkId);
-                changelog = SplitChangelogDispatcher_->CreateChangelog(
-                    fileName,
-                    TChangelogMeta(),
-                    Config_->SplitChangelog);
-            } catch (const std::exception& ex) {
-                auto error = TError(
-                    NChunkClient::EErrorCode::IOError,
-                    "Error creating journal chunk %v",
-                    chunkId) << ex;
-                Location_->Disable(error);
-                THROW_ERROR error;
-            }
+            auto fileName = Location_->GetChunkPath(chunkId);
+            changelog = SplitChangelogDispatcher_->CreateChangelog(
+                fileName,
+                TChangelogMeta(),
+                Config_->SplitChangelog);
         }
 
         LOG_DEBUG("Finished creating journal chunk (ChunkId: %v)",
@@ -934,20 +955,10 @@ private:
 
         const auto& Profiler = Location_->GetProfiler();
         PROFILE_TIMING("/journal_chunk_open_time") {
-            try {
-                auto fileName = Location_->GetChunkPath(chunkId);
-                changelog = SplitChangelogDispatcher_->OpenChangelog(
-                    fileName,
-                    Config_->SplitChangelog);
-            } catch (const std::exception& ex) {
-                auto error = TError(
-                    NChunkClient::EErrorCode::IOError,
-                    "Error opening journal chunk %v",
-                    chunkId)
-                    << ex;
-                Location_->Disable(error);
-                THROW_ERROR error;
-            }
+            auto fileName = Location_->GetChunkPath(chunkId);
+            changelog = SplitChangelogDispatcher_->OpenChangelog(
+                fileName,
+                Config_->SplitChangelog);
         }
 
         LOG_TRACE("Finished opening journal chunk (ChunkId: %v)",
@@ -962,6 +973,21 @@ private:
         PROFILE_TIMING("/journal_chunk_remove_time") {
             chunk->SyncRemove(false);
         }
+    }
+
+    bool DoIsChangelogSealed(const TChunkId& chunkId)
+    {
+        return NFS::Exists(GetSealedFlagFileName(chunkId));
+    }
+
+    void DoSealChangelog(TJournalChunkPtr chunk)
+    {
+        TFile file(GetSealedFlagFileName(chunk->GetId()), CreateNew);
+    }
+
+    Stroka GetSealedFlagFileName(const TChunkId& chunkId)
+    {
+        return Location_->GetChunkPath(chunkId) + "." + SealedFlagExtension;
     }
 
 
@@ -1122,6 +1148,16 @@ TFuture<void> TJournalManager::AppendMultiplexedRecord(
         recordId,
         recordData,
         std::move(splitResult));
+}
+
+TFuture<bool> TJournalManager::IsChangelogSealed(const TChunkId& chunkId)
+{
+    return Impl_->IsChangelogSealed(chunkId);
+}
+
+TFuture<void> TJournalManager::SealChangelog(TJournalChunkPtr chunk)
+{
+    return Impl_->SealChangelog(chunk);
 }
 
 //////////////////////////////////////////////////////////////////////////////////

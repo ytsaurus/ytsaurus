@@ -42,6 +42,8 @@ public:
 
     i64 GetRowCount() const;
     i64 GetDataSize() const;
+
+    TFuture<void> Seal();
     bool IsSealed() const;
 
 private:
@@ -52,7 +54,8 @@ private:
     
     mutable i64 CachedRowCount_ = 0;
     mutable i64 CachedDataSize_ = 0;
-    mutable bool CachedSealed_ = false;
+
+    mutable bool Sealed_ = false;
 
 
     TRefCountedChunkMetaPtr DoReadMeta(const TNullable<std::vector<int>>& extensionTags);
