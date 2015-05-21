@@ -36,7 +36,7 @@ private:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
-        return CreateRegularReader(true, nameTable, columnFilter);
+        return CreateRegularReader(true, std::move(nameTable), columnFilter);
     }
 
 };

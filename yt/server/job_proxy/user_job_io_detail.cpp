@@ -65,10 +65,7 @@ void TUserJobIOBase::CreateReader()
 {
     LOG_INFO("Opening reader");
 
-    auto nameTable = New<TNameTable>();
-    auto columnFilter = TColumnFilter();
-
-    Reader_ = DoCreateReader(nameTable, columnFilter);
+    Reader_ = DoCreateReader(New<TNameTable>(), TColumnFilter());
     WaitFor(Reader_->Open())
         .ThrowOnError();
 }
@@ -84,7 +81,7 @@ TSchemalessReaderFactory TUserJobIOBase::GetReaderCreator() const
     }
 
     return [&] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
-        return DoCreateReader(nameTable, columnFilter);
+        return DoCreateReader(std::move(nameTable), std::move(columnFilter));
     };
 }
 
@@ -138,8 +135,8 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
     return CreateSchemalessMultiChunkWriter(
         JobIOConfig_->TableWriter,
-        options,
-        nameTable,
+        std::move(options),
+        std::move(nameTable),
         keyColumns,
         TOwningKey(),
         Host_->GetMasterChannel(),
@@ -163,7 +160,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(
 
     auto options = New<TMultiChunkReaderOptions>();
 
-    return CreateTableReader(options, chunkSpecs, nameTable, columnFilter, isParallel);
+    return CreateTableReader(options, chunkSpecs, std::move(nameTable), columnFilter, isParallel);
 }
 
 ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
@@ -181,7 +178,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             chunkSpecs,
-            nameTable,
+            std::move(nameTable),
             columnFilter);
     } else {
         return CreateSchemalessSequentialMultiChunkReader(
@@ -191,7 +188,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             chunkSpecs,
-            nameTable,
+            std::move(nameTable),
             columnFilter);
     }
 }
