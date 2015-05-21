@@ -336,33 +336,10 @@ protected:
             result.insert(result.end(), typedRhsExprs.begin(), typedRhsExprs.end());
         } else if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
             const auto& literalValue = literalExpr->Value;
-            switch (literalValue.Tag()) {
-                case NAst::TLiteralValue::TagOf<i64>():
-                    result.push_back(New<TLiteralExpression>(
-                        EValueType::Int64,
-                        GetValue(literalValue)));
-                    break;
-                case NAst::TLiteralValue::TagOf<ui64>():
-                    result.push_back(New<TLiteralExpression>(
-                        EValueType::Uint64,
-                        GetValue(literalValue)));
-                    break;
-                case NAst::TLiteralValue::TagOf<double>():
-                    result.push_back(New<TLiteralExpression>(
-                        EValueType::Double,
-                        GetValue(literalValue)));
-                    break;
-                case NAst::TLiteralValue::TagOf<bool>():
-                    result.push_back(New<TLiteralExpression>(
-                        EValueType::Boolean,
-                        GetValue(literalValue)));
-                    break;
-                case NAst::TLiteralValue::TagOf<Stroka>():
-                    result.push_back(New<TLiteralExpression>(
-                        EValueType::String,
-                        GetValue(literalValue)));
-                    break;
-            }
+
+            result.push_back(New<TLiteralExpression>(
+                GetType(literalValue),
+                GetValue(literalValue)));
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
             const auto* column = GetColumnPtr(referenceExpr->ColumnName);
             if (!column) {
