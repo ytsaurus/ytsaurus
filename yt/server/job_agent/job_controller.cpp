@@ -111,8 +111,8 @@ void TJobController::StartWaitingJobs()
 
     bool resourcesUpdated = false;
 
-    auto usedResources = GetResourceUsage(false);
     {
+        auto usedResources = GetResourceUsage(false);
         auto memoryToRelease = tracker->GetUsed(EMemoryConsumer::Job) - usedResources.memory();
         if (memoryToRelease > 0) {
             tracker->Release(EMemoryConsumer::Job, memoryToRelease);
@@ -125,32 +125,36 @@ void TJobController::StartWaitingJobs()
         if (job->GetState() != EJobState::Waiting)
             continue;
 
-        usedResources = GetResourceUsage(false);
+        auto usedResources = GetResourceUsage(false);
         auto spareResources = GetResourceLimits() - usedResources;
         auto jobResources = job->GetResourceUsage();
 
-        if (DominatesNonnegative(spareResources, jobResources)) {
-            auto error = tracker->TryAcquire(EMemoryConsumer::Job, jobResources.memory());
-
-            if (error.IsOK()) {
-                LOG_INFO("Starting job (JobId: %v)", job->GetId());
-
-                job->SubscribeResourcesUpdated(
-                    BIND(&TJobController::OnResourcesUpdated, MakeWeak(this), MakeWeak(job))
-                        .Via(Bootstrap_->GetControlInvoker()));
-
-                job->Start();
-                resourcesUpdated = true;
-            } else {
-                LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
-                    job->GetId());
-            }
-        } else {
+        if (!DominatesNonnegative(spareResources, jobResources)) {
             LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, SpareResources: %v, JobResources: %v)",
                 job->GetId(),
                 FormatResources(spareResources),
                 FormatResources(jobResources));
+            continue;
         }
+
+        if (jobResources.memory()) {
+            auto error = tracker->TryAcquire(EMemoryConsumer::Job, jobResources.memory());
+            if (!error.IsOK()) {
+                LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
+                    job->GetId());
+                continue;
+            }
+        }
+
+        LOG_INFO("Starting job (JobId: %v)", job->GetId());
+
+        job->SubscribeResourcesUpdated(
+            BIND(&TJobController::OnResourcesUpdated, MakeWeak(this), MakeWeak(job))
+                .Via(Bootstrap_->GetControlInvoker()));
+
+        job->Start();
+
+        resourcesUpdated = true;
     }
 
     if (resourcesUpdated) {
