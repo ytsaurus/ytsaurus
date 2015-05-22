@@ -465,7 +465,7 @@ private:
             if (mergeRanges) {
                 int lastIndex = 0;
 
-                auto addRange = [&] (int count, const TOwningKey& lowerBound, const TOwningKey& upperBound) {
+                auto addRange = [&] (int count, TUnversionedRow lowerBound, TUnversionedRow upperBound) {
                     LOG_DEBUG_IF(verboseLogging, "Merging %v ranges into [%v .. %v]",
                         count,
                         lowerBound,
