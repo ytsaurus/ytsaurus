@@ -539,10 +539,12 @@ private:
         return asyncInput;
     }
 
-    void PrepareInputTablePipe(
-        TPipe&& pipe,
-        int jobDescriptor)
+    void PrepareInputTablePipe(TPipeFactory* pipeFactory)
     {
+        YCHECK(pipeFactory);
+        auto pipe = pipeFactory->Create();
+        int jobDescriptor = 0;
+
         JobIO_->CreateReader();
         const auto& reader = JobIO_->GetReader();
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
@@ -598,12 +600,6 @@ private:
         }, readFD));
     }
 
-    void PrepareInputTablePipes(TPipeFactory* pipeFactory)
-    {
-        YCHECK(pipeFactory);
-        PrepareInputTablePipe(pipeFactory->Create(), 0);
-    }
-
     void PreparePipes()
     {
         LOG_DEBUG("Initializing pipes");
@@ -647,7 +643,7 @@ private:
             PrepareOutputPipe(pipeFactory.Create(), JobStatisticsFD, CreateStatisticsOutput());
         }
 
-        PrepareInputTablePipes(&pipeFactory);
+        PrepareInputTablePipe(&pipeFactory);
 
         // Close reserved descriptors.
         pipeFactory.Clear();
