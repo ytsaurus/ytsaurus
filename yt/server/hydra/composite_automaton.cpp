@@ -220,7 +220,6 @@ void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPart* part)
     }
 }
 
-
 void TCompositeAutomaton::SetSerializationDumpEnabled(bool value)
 {
     SerializationDumpEnabled_ = value;
