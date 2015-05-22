@@ -272,6 +272,7 @@ private:
                     TCreateNodeOptions options;
                     auto attributes = CreateEphemeralAttributes();
                     attributes->Set("replication_factor", Store_->Options_->SnapshotReplicationFactor);
+                    attributes->Set("compression_codec", Store_->Options_->SnapshotCompressionCodec);
                     attributes->Set("prev_record_count", Meta_.prev_record_count());
                     options.Attributes = std::move(attributes);
                     options.PrerequisiteTransactionIds = Store_->PrerequisiteTransactionIds_;
