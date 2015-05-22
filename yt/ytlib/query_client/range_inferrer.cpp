@@ -386,17 +386,20 @@ private:
         return depletedKeyColumns;
     }
 
-    int SchemaToDepletedIndex(int schemaIndex) {
+    int SchemaToDepletedIndex(int schemaIndex)
+    {
         YCHECK(schemaIndex >= 0 && schemaIndex < SchemaToDepletedMapping_.size());
         return SchemaToDepletedMapping_[schemaIndex];
     }
 
-    int DepletedToSchemaIndex(int depletedIndex) {
+    int DepletedToSchemaIndex(int depletedIndex)
+    {
         YCHECK(depletedIndex >= 0 && depletedIndex < DepletedToSchemaMapping_.size());
         return DepletedToSchemaMapping_[depletedIndex];
     }
 
-    bool IsUnboundedColumn(int depletedIndex, ui32 unboundedColumnMask) {
+    bool IsUnboundedColumn(int depletedIndex, ui32 unboundedColumnMask)
+    {
         YCHECK(depletedIndex < sizeof(unboundedColumnMask) * 8);
         return unboundedColumnMask & (1 << depletedIndex);
     }
