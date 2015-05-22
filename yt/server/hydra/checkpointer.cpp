@@ -73,7 +73,6 @@ private:
     TVersion Version_;
     TPromise<TRemoteSnapshotParams> SnapshotPromise_ = NewPromise<TRemoteSnapshotParams>();
     TPromise<void> ChangelogPromise_ = NewPromise<void>();
-    TParallelAwaiterPtr SnapshotAwaiter_;
     TParallelAwaiterPtr ChangelogAwaiter_;
     std::vector<TNullable<TChecksum>> SnapshotChecksums_;
 
@@ -102,7 +101,7 @@ private:
 
         SnapshotChecksums_.resize(Owner_->CellManager_->GetPeerCount());
 
-        auto awaiter = SnapshotAwaiter_ = New<TParallelAwaiter>(Owner_->EpochContext_->EpochControlInvoker);
+        auto awaiter = New<TParallelAwaiter>(Owner_->EpochContext_->EpochControlInvoker);
         for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
             if (peerId == Owner_->CellManager_->GetSelfPeerId())
                 continue;
