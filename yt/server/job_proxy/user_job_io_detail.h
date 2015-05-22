@@ -72,10 +72,14 @@ protected:
         const NChunkClient::TChunkListId& chunkListId,
         const NTransactionClient::TTransactionId& transactionId,
         const NVersionedTableClient::TKeyColumns& keyColumns);
-    
+
     NVersionedTableClient::NProto::TBoundaryKeysExt GetBoundaryKeys(
         NVersionedTableClient::ISchemalessMultiChunkWriterPtr writer) const;
 
+private:
+    void InitReader(
+        NVersionedTableClient::TNameTablePtr nameTable,
+        const NVersionedTableClient::TColumnFilter& columnFilter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
