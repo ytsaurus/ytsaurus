@@ -3,110 +3,139 @@
 #endif
 #undef MEMORY_USAGE_TRACKER_INL_H_
 
-#include <core/misc/string.h>
+#include <core/concurrency/thread_affinity.h>
+
+#include <core/profiling/profile_manager.h>
 
 namespace NYT {
 
-using namespace NProfiling;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class EMemoryConsumer>
-TMemoryUsageTracker<EMemoryConsumer>::TMemoryUsageTracker(
-    i64 totalMemory,
-    const Stroka& profilingPath)
-    : TotalMemory(totalMemory)
-    , FreeMemory(totalMemory)
-    , Profiler(profilingPath + "/memory_usage")
-    , FreeMemoryCounter("/free", EmptyTagIds, EAggregateMode::Min)
-    , Logger("MemoryUsage")
+template <class ECategory>
+TMemoryUsageTracker<ECategory>::TMemoryUsageTracker(
+    i64 totalLimit,
+    const std::vector<std::pair<ECategory, i64>>& limits,
+    const NLogging::TLogger& logger,
+    const NProfiling::TProfiler& profiler)
+    : TotalLimit_(totalLimit)
+    , TotalUsedCounter_("/total_used", NProfiling::EmptyTagIds, NProfiling::EAggregateMode::Max)
+    , TotalFreeCounter_("/total_free", NProfiling::EmptyTagIds, NProfiling::EAggregateMode::Min)
+    , Logger(logger)
+    , Profiler(profiler)
 {
-    for (auto value : TEnumTraits<EMemoryConsumer>::GetDomainValues()) {
-        ConsumerCounters[value] = TAggregateCounter("/" + FormatEnum(value));
+    Profiler.Update(TotalFreeCounter_, totalLimit);
+
+    auto* profileManager = NProfiling::TProfileManager::Get();
+    for (auto value : TEnumTraits<ECategory>::GetDomainValues()) {
+        auto tagId = profileManager->RegisterTag("category", value);
+        Categories_[value].UsedCounter = NProfiling::TAggregateCounter(
+            "/used",
+            {tagId},
+            NProfiling::EAggregateMode::Max);
+    }
+
+    for (const auto& pair : limits) {
+        Categories_[pair.first].Limit = pair.second;
     }
 }
 
-template <class EMemoryConsumer>
-i64 TMemoryUsageTracker<EMemoryConsumer>::GetFree() const
+template <class ECategory>
+i64 TMemoryUsageTracker<ECategory>::GetTotalLimit() const
 {
-    return FreeMemory;
+    return TotalLimit_;
 }
 
-template <class EMemoryConsumer>
-i64 TMemoryUsageTracker<EMemoryConsumer>::GetUsed() const
+template <class ECategory>
+i64 TMemoryUsageTracker<ECategory>::GetTotalUsed() const
 {
-    return TotalMemory - FreeMemory;
+    return TotalUsedCounter_.Current;
 }
 
-template <class EMemoryConsumer>
-i64 TMemoryUsageTracker<EMemoryConsumer>::GetUsed(EMemoryConsumer consumer) const
+template <class ECategory>
+i64 TMemoryUsageTracker<ECategory>::GetTotalFree() const
 {
-    return UsedMemory[consumer];
+    return GetTotalLimit() - GetTotalUsed();
 }
 
-template <class EMemoryConsumer>
-i64 TMemoryUsageTracker<EMemoryConsumer>::GetTotal() const
+template <class ECategory>
+i64 TMemoryUsageTracker<ECategory>::GetLimit(ECategory category) const
 {
-    return TotalMemory;
+    return Categories_[category].Limit;
 }
 
-template <class EMemoryConsumer>
-void TMemoryUsageTracker<EMemoryConsumer>::Acquire(EMemoryConsumer consumer, i64 size)
+template <class ECategory>
+i64 TMemoryUsageTracker<ECategory>::GetUsed(ECategory category) const
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    DoAcquire(consumer, size);
-    auto freeMemory = FreeMemory;
-    guard.Release();
+    return Categories_[category].UsedCounter.Current;
+}
 
-    if (freeMemory < 0) {
-        LOG_ERROR("Memory overcommit by %v after %Qlv request for %v",
-            -freeMemory,
-            consumer,
+template <class ECategory>
+i64 TMemoryUsageTracker<ECategory>::GetFree(ECategory category) const
+{
+    return std::min(GetLimit(category) - GetUsed(category), GetTotalFree());
+}
+
+template <class ECategory>
+void TMemoryUsageTracker<ECategory>::Acquire(ECategory category, i64 size)
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+
+    DoAcquire(category, size);
+
+    if (TotalFreeCounter_.Current < 0) {
+        LOG_WARNING("Total memory overcommit by %v after %Qlv request for %v",
+            -TotalFreeCounter_.Current,
+            category,
+            size);
+    }
+
+    const auto& data = Categories_[category];
+    if (data.UsedCounter.Current > data.Limit) {
+        LOG_WARNING("Per-category memory overcommit by %v after %Qlv request for %v",
+            data.UsedCounter.Current - data.Limit,
+            category,
             size);
     }
 }
 
-template <class EMemoryConsumer>
-void TMemoryUsageTracker<EMemoryConsumer>::DoAcquire(EMemoryConsumer consumer, i64 size)
+template <class ECategory>
+TError TMemoryUsageTracker<ECategory>::TryAcquire(ECategory category, i64 size)
 {
-    FreeMemory -= size;
-    auto& usedMemory = UsedMemory[consumer];
-    usedMemory += size;
-    Profiler.Update(FreeMemoryCounter, FreeMemory);
-    Profiler.Update(ConsumerCounters[consumer], usedMemory);
-}
+    TGuard<TSpinLock> guard(SpinLock_);
 
-template <class EMemoryConsumer>
-TError TMemoryUsageTracker<EMemoryConsumer>::TryAcquire(EMemoryConsumer consumer, i64 size)
-{
-    TGuard<TSpinLock> guard(SpinLock);
-    if (size < FreeMemory) {
-        DoAcquire(consumer, size);
-        return TError();
+    i64 free = GetFree(category);
+    if (size > GetFree(category)) {
+        return TError(
+            "Not enough memory to serve %Qlv request: free %v, requested %v",
+            category,
+            free,
+            size);
     }
 
-    auto freeMemory = FreeMemory;
-    guard.Release();
-
-    return TError(
-        "Not enough memory to serve %Qlv request: free %v, requested %v",
-        consumer,
-        freeMemory,
-        size);
+    DoAcquire(category, size);
+    return TError();
 }
 
-template <class EMemoryConsumer>
-void TMemoryUsageTracker<EMemoryConsumer>::Release(EMemoryConsumer consumer, i64 size)
+template <class ECategory>
+void TMemoryUsageTracker<ECategory>::DoAcquire(ECategory category, i64 size)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    auto& usedMemory = UsedMemory[consumer];
-    YCHECK(usedMemory >= size);
-    usedMemory -= size;
-    FreeMemory += size;
-    YCHECK(FreeMemory <= TotalMemory);
+    YCHECK(size >= 0);
 
-    Profiler.Update(FreeMemoryCounter, FreeMemory);
-    Profiler.Update(ConsumerCounters[consumer], usedMemory);
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    Profiler.Increment(TotalUsedCounter_, +size);
+    Profiler.Increment(TotalFreeCounter_, -size);
+    Profiler.Increment(Categories_[category].UsedCounter, +size);
+}
+
+template <class ECategory>
+void TMemoryUsageTracker<ECategory>::Release(ECategory category, i64 size)
+{
+    YCHECK(size >= 0);
+
+    TGuard<TSpinLock> guard(SpinLock_);
+    Profiler.Increment(TotalUsedCounter_, -size);
+    Profiler.Increment(TotalFreeCounter_, +size);
+    Profiler.Increment(Categories_[category].UsedCounter, -size);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

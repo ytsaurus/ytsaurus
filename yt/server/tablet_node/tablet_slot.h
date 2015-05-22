@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/public.h>
+
 #include <core/yson/public.h>
 
 #include <core/rpc/public.h>

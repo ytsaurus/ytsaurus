@@ -225,7 +225,7 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
         blockIndex,
         block.Size());
 
-    TScopedTimer timer;
+    NProfiling::TScopedTimer timer;
     try {
         if (!Writer_->WriteBlock(block)) {
             auto result = Writer_->GetReadyEvent().Get();

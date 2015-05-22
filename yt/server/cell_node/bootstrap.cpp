@@ -42,6 +42,7 @@
 #include <ytlib/api/connection.h>
 
 #include <server/misc/build_attributes.h>
+#include <server/misc/memory_usage_tracker.h>
 
 #include <server/data_node/config.h>
 #include <server/data_node/ytree_integration.h>
@@ -126,7 +127,6 @@ TBootstrap::TBootstrap(
     TCellNodeConfigPtr config)
     : ConfigFileName(configFileName)
     , Config(config)
-    , MemoryUsageTracker(Config->ExecAgent->JobController->ResourceLimits->Memory, "/cell_node")
 { }
 
 TBootstrap::~TBootstrap()
@@ -155,9 +155,15 @@ void TBootstrap::DoRun()
         JoinToString(GetValues(localAddresses)),
         JoinToString(Config->ClusterConnection->Master->Addresses));
 
+    MemoryUsageTracker = std::make_unique<TNodeMemoryTracker>(
+        Config->ExecAgent->JobController->ResourceLimits->Memory,
+        std::vector<std::pair<EMemoryCategory, i64>>{},
+        Logger,
+        TProfiler("/cell_node/memory_usage"));
+
     {
-        auto result = MemoryUsageTracker.TryAcquire(
-            EMemoryConsumer::Footprint,
+        auto result = MemoryUsageTracker->TryAcquire(
+            EMemoryCategory::Footprint,
             FootprintMemorySize);
         if (!result.IsOK()) {
             THROW_ERROR_EXCEPTION("Error allocating footprint memory")
@@ -495,7 +501,7 @@ TChunkCachePtr TBootstrap::GetChunkCache() const
 
 TNodeMemoryTracker* TBootstrap::GetMemoryUsageTracker()
 {
-    return &MemoryUsageTracker;
+    return MemoryUsageTracker.get();
 }
 
 TChunkRegistryPtr TBootstrap::GetChunkRegistry() const

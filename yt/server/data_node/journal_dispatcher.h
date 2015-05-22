@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/future.h>
+
 #include <server/hydra/public.h>
 
 #include <server/cell_node/public.h>
