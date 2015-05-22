@@ -268,14 +268,16 @@ TQueryStatistics CoordinateAndExecute(
 
     for (int index = 0; index < subqueryHolders.size(); ++index) {
         auto subfragmentStatistics = WaitFor(subqueryHolders[index].Get()).ValueOrThrow();
-        LOG_DEBUG("Subfragment statistics (%v) subfragmentID: %v", subfragmentStatistics, subqueries[index]->Id);
+        LOG_DEBUG("Subfragment statistics (Statistics: {%v}, SubfragmentId: %v)",
+            subfragmentStatistics,
+            subqueries[index]->Id);
         queryStatistics += subfragmentStatistics;
     }
 
     return queryStatistics;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////`//////////////////////
 
 } // namespace NQueryClient
 } // namespace NYT
