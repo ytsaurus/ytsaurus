@@ -732,6 +732,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
            updateMode == EUpdateMode::Overwrite);
 
     auto lockMode = ELockMode(request->lock_mode());
+    // COMPAT(sandello): When scheduler is lagging behind the master it may send an empty lock mode.
+    if (lockMode == ELockMode::None) {
+        lockMode = ELockMode::Exclusive;
+    }
     YCHECK(lockMode == ELockMode::Shared ||
            lockMode == ELockMode::Exclusive);
 
