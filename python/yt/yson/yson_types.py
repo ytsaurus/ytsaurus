@@ -35,7 +35,7 @@ class YsonString(str, YsonType):
     def __repr__(self):
         return self.to_str(str, repr)
 
-class YsonInt64(long, YsonType):
+class YsonIntegerBase(long, YsonType):
     def __eq__(self, other):
         if not isinstance(other, (int, long)):
             return False
@@ -53,7 +53,10 @@ class YsonInt64(long, YsonType):
     def __str__(self):
         return self.to_str(long, str)
 
-class YsonUint64(YsonInt64):
+class YsonInt64(YsonIntegerBase):
+    pass
+
+class YsonUint64(YsonIntegerBase):
     pass
 
 class YsonDouble(float, YsonType):
