@@ -8,8 +8,6 @@ var YtRegistry = require("../registry").that;
 
 exports.that = function YtApplicationApi()
 {
-    "use strict";
-
     var config = YtRegistry.get("config");
     var logger = YtRegistry.get("logger");
     var driver = YtRegistry.get("driver");

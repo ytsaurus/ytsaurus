@@ -7,8 +7,6 @@ var YtRegistry = require("../registry").that;
 
 exports.that = function Middleware__YtApplicationUpravlyator()
 {
-    "use strict";
-
     var logger = YtRegistry.get("logger");
     var driver = YtRegistry.get("driver");
 

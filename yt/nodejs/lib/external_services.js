@@ -16,8 +16,6 @@ function generateMarker()
 
 exports.blackboxValidateToken = function(logger, party, token)
 {
-    "use strict";
-
     var config = YtRegistry.get("config", "services", "blackbox");
     var marker = generateMarker();
 
@@ -84,8 +82,6 @@ exports.blackboxValidateToken = function(logger, party, token)
 
 exports.blackboxValidateCookie = function(logger, party, sessionid, sslsessionid)
 {
-    "use strict";
-
     var config = YtRegistry.get("config", "services", "blackbox");
     var marker = generateMarker();
 
@@ -108,7 +104,7 @@ exports.blackboxValidateCookie = function(logger, party, sessionid, sslsessionid
             format: "json",
             userip: party,
             host: config.host.split(".").slice(1).join("."),
-        }
+        };
         if (sessionid) {
             query.sessionid = sessionid + "";
         }
@@ -160,8 +156,6 @@ exports.blackboxValidateCookie = function(logger, party, sessionid, sslsessionid
 
 exports.oAuthObtainToken = function(logger, client_id, client_secret, code)
 {
-    "use strict";
-
     var config = YtRegistry.get("config", "services", "oauth");
     var marker = generateMarker();
 
@@ -228,8 +222,6 @@ exports.oAuthObtainToken = function(logger, client_id, client_secret, code)
 
 exports.oAuthBuildUrlToRedirect = function(client_id, state)
 {
-    "use strict";
-
     var config = YtRegistry.get("config", "services", "oauth");
 
     return url.format({

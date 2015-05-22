@@ -685,11 +685,11 @@ int ApplyIdMapping(
                 idMapping.size() - 1);
         }
         schemaId = idMapping[id];
-        if (schemaId < 0 || schemaId >= schema.Columns().size()) {
-            THROW_ERROR_EXCEPTION("Invalid mapped column id: actual %v, expected in range [0,%v]",
-                schemaId,
-                schema.Columns().size());
-        }
+    }
+    if (schemaId < 0 || schemaId >= schema.Columns().size()) {
+        THROW_ERROR_EXCEPTION("Invalid mapped column id: actual %v, expected in range [0,%v]",
+            schemaId,
+            schema.Columns().size());
     }
     return schemaId;
 }

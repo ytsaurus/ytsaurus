@@ -8,8 +8,6 @@ var utils = require("../utils");
 
 exports.that = function Middleware__YtLogRequest()
 {
-    "use strict";
-
     var fqdn = YtRegistry.get("fqdn");
     var logger = YtRegistry.get("logger");
     var buffer = new Buffer(16);

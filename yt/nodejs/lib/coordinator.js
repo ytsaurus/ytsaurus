@@ -21,8 +21,6 @@ function parseBoolean(x)
 
 function YtCoordinatedHost(config, host)
 {
-    "use strict";
-
     var role = "data";
     var dead = true;
     var banned = false;
@@ -92,7 +90,7 @@ function YtCoordinatedHost(config, host)
 
     Object.defineProperty(this, "ban_message", {
         get: function() {
-            if (ban_message.length == 0) {
+            if (ban_message.length === 0) {
                 return undefined;
             } else {
                 return ban_message;
@@ -188,7 +186,6 @@ util.inherits(YtCoordinatedHost, events.EventEmitter);
 
 function YtCoordinator(config, logger, driver, fqdn)
 {
-    "use strict";
     this.__DBG = __DBG.Tagged();
 
     this.config = config;
@@ -210,7 +207,7 @@ function YtCoordinator(config, logger, driver, fqdn)
         this.initialized = false;
 
         this.timer = setInterval(this._refresh.bind(this), this.config.heartbeat_interval);
-        this.timer.unref && this.timer.unref();
+        if (this.timer.unref) { this.timer.unref(); }
 
         this._refresh(); // Fire |_refresh| ASAP to avoid empty host list.
     }
@@ -220,8 +217,6 @@ function YtCoordinator(config, logger, driver, fqdn)
 
 YtCoordinator.prototype._initialize = function()
 {
-    "use strict";
-
     var self = this;
     var fqdn = self.fqdn;
     var path = "//sys/proxies/" + utils.escapeYPath(fqdn);
@@ -268,8 +263,6 @@ YtCoordinator.prototype._initialize = function()
 
 YtCoordinator.prototype._refresh = function()
 {
-    "use strict";
-
     var self = this;
     var fqdn = self.fqdn;
     var path = "//sys/proxies/" + utils.escapeYPath(fqdn);
@@ -331,10 +324,10 @@ YtCoordinator.prototype._refresh = function()
                     self.logger.info("Marking proxy as alive", { host: host });
                 });
                 ref.on("banned", function() {
-                    self.logger.info("Proxy was banned", { host: banned });
+                    self.logger.info("Proxy was banned", { host: host });
                 });
                 ref.on("unbanned", function() {
-                    self.logger.info("Proxy was unbanned", { host: unbanned });
+                    self.logger.info("Proxy was unbanned", { host: host });
                 });
             }
 
@@ -361,7 +354,6 @@ YtCoordinator.prototype._refresh = function()
 
 YtCoordinator.prototype.getProxies = function(role, dead, banned)
 {
-    "use strict";
     var result = [];
     for (var p in this.hosts) {
         if (this.hosts.hasOwnProperty(p)) {
@@ -398,8 +390,6 @@ YtCoordinator.prototype.countFailure = function()
 
 YtCoordinator.prototype.allocateDataProxy = function()
 {
-    "use strict";
-
     var victim = this
         .getProxies("data", false, false)
         .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })[0];

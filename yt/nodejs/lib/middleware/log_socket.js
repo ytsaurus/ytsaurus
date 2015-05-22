@@ -9,8 +9,6 @@ var utils = require("../utils");
 
 exports.that = function Middleware__YtLogSocket()
 {
-    "use strict";
-
     var logger = YtRegistry.get("logger");
 
     function getSocketMeta(socket, with_tls) {

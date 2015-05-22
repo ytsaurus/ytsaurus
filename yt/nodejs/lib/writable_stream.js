@@ -10,7 +10,6 @@ var __DBG = require("./debug").that("B", "Writable Stream");
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtWritableStream(low_watermark, high_watermark) {
-    "use strict";
     this.__DBG = __DBG.Tagged();
 
     stream.Stream.call(this);
@@ -37,7 +36,6 @@ function YtWritableStream(low_watermark, high_watermark) {
 util.inherits(YtWritableStream, stream.Stream);
 
 YtWritableStream.prototype._emitClose = function() {
-    "use strict";
     this.__DBG("_emitClose");
     if (!this._closed) {
         this.emit("close");
@@ -46,7 +44,6 @@ YtWritableStream.prototype._emitClose = function() {
 };
 
 YtWritableStream.prototype.write = function(chunk, encoding) {
-    "use strict";
     this.__DBG("write");
 
     if (typeof(chunk) !== "string" && !Buffer.isBuffer(chunk)) {
@@ -70,7 +67,6 @@ YtWritableStream.prototype.write = function(chunk, encoding) {
 };
 
 YtWritableStream.prototype.end = function(chunk, encoding) {
-    "use strict";
     this.__DBG("end");
     if (chunk) {
         this.write(chunk, encoding);
@@ -79,7 +75,6 @@ YtWritableStream.prototype.end = function(chunk, encoding) {
 };
 
 YtWritableStream.prototype.destroy = function() {
-    "use strict";
     this.__DBG("destroy");
 
     this._binding.Destroy();
@@ -90,7 +85,6 @@ YtWritableStream.prototype.destroy = function() {
 };
 
 YtWritableStream.prototype.destroySoon = function() {
-    "use strict";
     this.__DBG("destroySoon");
 
     this._binding.End();

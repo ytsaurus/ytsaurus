@@ -22,11 +22,15 @@ public:
     virtual void Init() override;
 
     virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr>& GetWriters() const override;
-    virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr>& GetReaders() const override;
+    virtual const NVersionedTableClient::ISchemalessMultiChunkReaderPtr& GetReader() const override;
 
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) override;
 
     virtual bool IsKeySwitchEnabled() const override;
+
+    virtual void CreateReader() override;
+
+    virtual NVersionedTableClient::TSchemalessReaderFactory GetReaderCreator() const override;
 
 protected:
     IJobHost* Host_;
@@ -34,7 +38,7 @@ protected:
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpec_;
     NScheduler::TJobIOConfigPtr JobIOConfig_;
 
-    std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> Readers_;
+    NVersionedTableClient::ISchemalessMultiChunkReaderPtr Reader_;
     std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
 
     NLogging::TLogger Logger;
@@ -46,26 +50,36 @@ protected:
         const NTransactionClient::TTransactionId& transactionId,
         const NVersionedTableClient::TKeyColumns& keyColumns) = 0;
 
-    virtual std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> DoCreateReaders() = 0;
+    virtual NVersionedTableClient::ISchemalessMultiChunkReaderPtr DoCreateReader(
+        NVersionedTableClient::TNameTablePtr nameTable,
+        const NVersionedTableClient::TColumnFilter& columnFilter) = 0;
 
 
-    std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> CreateRegularReaders(bool isParallel);
+    NVersionedTableClient::ISchemalessMultiChunkReaderPtr CreateRegularReader(
+        bool isParallel,
+        NVersionedTableClient::TNameTablePtr nameTable,
+        const NVersionedTableClient::TColumnFilter& columnFilter);
 
     NVersionedTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
         NChunkClient::TMultiChunkReaderOptionsPtr options,
-        const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs, 
+        const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
         NVersionedTableClient::TNameTablePtr nameTable,
+        const NVersionedTableClient::TColumnFilter& columnFilter,
         bool isParallel);
 
     NVersionedTableClient::ISchemalessMultiChunkWriterPtr CreateTableWriter(
         NVersionedTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
         const NTransactionClient::TTransactionId& transactionId,
-        const NVersionedTableClient::TKeyColumns& keyColumns); 
-    
+        const NVersionedTableClient::TKeyColumns& keyColumns);
+
     NVersionedTableClient::NProto::TBoundaryKeysExt GetBoundaryKeys(
         NVersionedTableClient::ISchemalessMultiChunkWriterPtr writer) const;
 
+private:
+    void InitReader(
+        NVersionedTableClient::TNameTablePtr nameTable,
+        const NVersionedTableClient::TColumnFilter& columnFilter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

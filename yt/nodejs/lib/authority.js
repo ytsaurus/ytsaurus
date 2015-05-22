@@ -15,8 +15,6 @@ var __DBG = require("./debug").that("A", "Authentication");
 
 function createNewResult()
 {
-    "use strict";
-
     // This structure represents a mutable response state.
     // If |result.login| is string, then it is a login.
     // If |result.login| === false, then it is a rejection.
@@ -27,8 +25,7 @@ function createNewResult()
 
     Object.defineProperty(result, "isAuthenticated", {
         get: function() {
-            return typeof(this.login) === "string"
-                && typeof(this.realm) === "string";
+            return typeof(this.login) === "string" && typeof(this.realm) === "string";
         },
         enumerable: true
     });
@@ -38,7 +35,6 @@ function createNewResult()
 
 function YtAuthority(config, driver)
 {
-    "use strict";
     this.__DBG = __DBG.Tagged();
 
     this.config = config;
@@ -62,7 +58,6 @@ function YtAuthority(config, driver)
 YtAuthority.prototype.authenticateByToken = Q.method(
 function YtAuthority$authenticateByToken(logger, party, token)
 {
-    "use strict";
     this.__DBG("authenticateByToken");
 
     // This structure represents an immutable request state.
@@ -93,7 +88,6 @@ function YtAuthority$authenticateByToken(logger, party, token)
 YtAuthority.prototype.authenticateByCookie = Q.method(
 function YtAuthority$authenticateByCookie(logger, party, sessionid, sslsessionid)
 {
-    "use strict";
     this.__DBG("authenticateByCookie");
 
     // This structure represents an immutable request state.
@@ -124,7 +118,6 @@ function YtAuthority$authenticateByCookie(logger, party, sessionid, sslsessionid
 YtAuthority.prototype.oAuthObtainToken = Q.method(
 function YtAuthority$oAuthObtainToken(logger, party, key, code)
 {
-    "use strict";
     this.__DBG("oAuthObtainToken");
 
     var app = this._findOAuthApplicationByKey(key);
@@ -150,7 +143,6 @@ function YtAuthority$oAuthObtainToken(logger, party, key, code)
 YtAuthority.prototype.oAuthBuildUrlToRedirect = Q.method(
 function YtAuthority$oAuthBuildUrlToRedirect(logger, party, key, state)
 {
-    "use strict";
     this.__DBG("oAuthBuildUrlToRedirect");
 
     var app = this._findOAuthApplicationByKey(key);
@@ -165,7 +157,6 @@ function YtAuthority$oAuthBuildUrlToRedirect(logger, party, key, state)
 
 YtAuthority.prototype._findOAuthApplicationBy = function(key, value)
 {
-    "use strict";
     this.__DBG("_findOAuthApplicationBy");
 
     var apps = this.config.oauth;
@@ -178,7 +169,6 @@ YtAuthority.prototype._findOAuthApplicationBy = function(key, value)
 
 YtAuthority.prototype._findOAuthApplicationByKey = function(key)
 {
-    "use strict";
     this.__DBG("_findOAuthApplicationByKey");
 
     return this._findOAuthApplicationBy(
@@ -188,7 +178,6 @@ YtAuthority.prototype._findOAuthApplicationByKey = function(key)
 
 YtAuthority.prototype._syncCheckCache = function(context, result)
 {
-    "use strict";
     this.__DBG("_syncCheckCache");
 
     var cached_result = this.authentication_cache.get(context.cache_key);
@@ -209,7 +198,6 @@ YtAuthority.prototype._syncCheckCache = function(context, result)
 
 YtAuthority.prototype._asyncQueryBlackboxToken = function(context, result)
 {
-    "use strict";
     this.__DBG("_asyncQueryBlackboxToken");
 
     if (!this.config.blackbox.enable || result.isAuthenticated) {
@@ -262,7 +250,6 @@ YtAuthority.prototype._asyncQueryBlackboxToken = function(context, result)
 
 YtAuthority.prototype._asyncQueryBlackboxCookie = function(context, result)
 {
-    "use strict";
     this.__DBG("_asyncQueryBlackboxCookie");
 
     if (!this.config.blackbox.enable || result.isAuthenticated) {
@@ -285,16 +272,17 @@ YtAuthority.prototype._asyncQueryBlackboxCookie = function(context, result)
 
         switch (data.status.id) {
             case 0: // VALID
-                context.logger.debug("Blackbox has approved the cookie");
             case 1: // NEED_RESET
-                context.logger.debug("Blackbox asks to resign the cookie (ignored)")
+                context.logger.debug("Blackbox has approved the cookie");
                 result.login = data.login;
                 result.realm = "blackbox_session_cookie";
                 break;
+            /*
             case 2: // EXPIRED
             case 3: // NOAUTH
             case 4: // DISABLED
             case 5: // INVALID
+            */
             default:
                 context.logger.debug("Blackbox has rejected the cookie");
                 break;
@@ -304,7 +292,6 @@ YtAuthority.prototype._asyncQueryBlackboxCookie = function(context, result)
 
 YtAuthority.prototype._syncFinalize = function(context, result)
 {
-    "use strict";
     this.__DBG("_syncFinalize");
 
     var dt = (new Date()) - context.ts;
@@ -325,7 +312,6 @@ YtAuthority.prototype._syncFinalize = function(context, result)
 
 YtAuthority.prototype._asyncQueryCypress = function(context, result)
 {
-    "use strict";
     this.__DBG("_asyncQueryCypress");
 
     if (!this.config.cypress.enable || result.isAuthenticated) {
@@ -361,15 +347,14 @@ YtAuthority.prototype._asyncQueryCypress = function(context, result)
 
 YtAuthority.prototype._ensureUserExists = function(context, result)
 {
-    "use strict";
     this.__DBG("_ensureUserExists");
+
+    var self = this;
+    var name = result.login;
 
     if (!result.isAuthenticated || this.exist_cache.get(name)) {
         return Q.resolve();
     }
-
-    var self = this;
-    var name = result.login;
 
     return this.driver.executeSimple("create", {
         type: "user",

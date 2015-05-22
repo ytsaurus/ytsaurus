@@ -55,6 +55,7 @@ public:
                 host->GetNodeDirectory(),
                 std::move(chunkSpecs),
                 nameTable,
+                TColumnFilter(),
                 keyColumns);
 
             readers.push_back(reader);
