@@ -5,6 +5,9 @@
 #include "config.h"
 #include "job.h"
 
+#include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/schema.pb.h>
+
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
@@ -56,14 +59,37 @@ void TUserJobIOBase::Init()
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
         Writers_.push_back(writer);
     }
+}
 
-    LOG_INFO("Opening readers");
+void TUserJobIOBase::InitReader(TNameTablePtr nameTable, const TColumnFilter& columnFilter)
+{
+    YCHECK(!Reader_);
+    Reader_ = DoCreateReader(std::move(nameTable), columnFilter);
+}
 
-    Readers_ = DoCreateReaders();
-    for (const auto& reader : Readers_) {
-        auto error = WaitFor(reader->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+void TUserJobIOBase::CreateReader()
+{
+    LOG_INFO("Opening reader");
+
+    InitReader(New<TNameTable>(), TColumnFilter());
+    WaitFor(Reader_->Open())
+        .ThrowOnError();
+}
+
+TSchemalessReaderFactory TUserJobIOBase::GetReaderCreator() const
+{
+    for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
+        for (const auto& chunkSpec : inputSpec.chunks()) {
+            if (chunkSpec.has_channel() && !FromProto<NChunkClient::TChannel>(chunkSpec.channel()).IsUniversal()) {
+                THROW_ERROR_EXCEPTION("Channels and QL filter cannot appear in the same operation.");
+            }
+        }
     }
+
+    return [&] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
+        InitReader(std::move(nameTable), std::move(columnFilter));
+        return Reader_;
+    };
 }
 
 const std::vector<ISchemalessMultiChunkWriterPtr>& TUserJobIOBase::GetWriters() const
@@ -71,9 +97,9 @@ const std::vector<ISchemalessMultiChunkWriterPtr>& TUserJobIOBase::GetWriters() 
     return Writers_;
 }
 
-const std::vector<ISchemalessMultiChunkReaderPtr>& TUserJobIOBase::GetReaders() const
+const ISchemalessMultiChunkReaderPtr& TUserJobIOBase::GetReader() const
 {
-    return Readers_;
+    return Reader_;
 }
 
 TBoundaryKeysExt TUserJobIOBase::GetBoundaryKeys(ISchemalessMultiChunkWriterPtr writer) const
@@ -116,8 +142,8 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
     return CreateSchemalessMultiChunkWriter(
         JobIOConfig_->TableWriter,
-        options,
-        nameTable,
+        std::move(options),
+        std::move(nameTable),
         keyColumns,
         TOwningKey(),
         Host_->GetMasterChannel(),
@@ -126,7 +152,10 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
         true);
 }
 
-std::vector<ISchemalessMultiChunkReaderPtr> TUserJobIOBase::CreateRegularReaders(bool isParallel)
+ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(
+    bool isParallel,
+    TNameTablePtr nameTable,
+    const TColumnFilter& columnFilter)
 {
     std::vector<TChunkSpec> chunkSpecs;
     for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
@@ -137,16 +166,15 @@ std::vector<ISchemalessMultiChunkReaderPtr> TUserJobIOBase::CreateRegularReaders
     }
 
     auto options = New<TMultiChunkReaderOptions>();
-    auto nameTable = New<TNameTable>();
 
-    auto reader = CreateTableReader(options, chunkSpecs, nameTable, isParallel);
-    return std::vector<ISchemalessMultiChunkReaderPtr>(1, reader);
+    return CreateTableReader(options, chunkSpecs, std::move(nameTable), columnFilter, isParallel);
 }
 
 ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
     TMultiChunkReaderOptionsPtr options,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
+    const TColumnFilter& columnFilter,
     bool isParallel)
 {
     if (isParallel) {
@@ -157,7 +185,8 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             chunkSpecs,
-            nameTable);
+            std::move(nameTable),
+            columnFilter);
     } else {
         return CreateSchemalessSequentialMultiChunkReader(
             JobIOConfig_->TableReader,
@@ -166,7 +195,8 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             chunkSpecs,
-            nameTable);
+            std::move(nameTable),
+            columnFilter);
     }
 }
 

@@ -53,6 +53,7 @@ public:
             host->GetNodeDirectory(),
             std::move(chunkSpecs),
             nameTable,
+            TColumnFilter(),
             TKeyColumns());
 
         std::unique_ptr<IPartitioner> partitioner;

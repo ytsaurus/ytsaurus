@@ -5,20 +5,17 @@ var util = require("util");
 
 var getHrtime = function()
 {
-    "use strict";
     var now = process.hrtime();
     return Math.floor((now[0] * 1000) + (now[1] / 1000000));
 };
 
 var getLog10 = function(x)
 {
-    "use strict";
     return x === 0.0 ? -1000 : Math.log(x) / Math.LN10;
 };
 
 var getNormalCdf = function(x, mean, stddev)
 {
-    "use strict";
     var z = (x - mean) / stddev;
     return 1.0 / (1.0 + Math.exp(-z * (1.5976 + 0.070566 * z * z)));
 };
@@ -27,8 +24,6 @@ var getNormalCdf = function(x, mean, stddev)
 
 function YtACFSample(window_size)
 {
-    "use strict";
-
     this._window_size = window_size;
     this._window = [];
 
@@ -60,8 +55,6 @@ function YtACFSample(window_size)
 
 YtACFSample.prototype.push = function(value)
 {
-    "use strict";
-
     if (this._window.length >= this._window_size) {
         var dropped = this._window.shift();
         this._sum -= dropped;
@@ -78,8 +71,6 @@ function YtAccrualFailureDetector(
     window_size, phi_threshold, min_stddev,
     heartbeat_tolerance, heartbeat_estimate)
 {
-    "use strict";
-
     this.sample = new YtACFSample(window_size);
     this.last_at = null;
 
@@ -99,8 +90,6 @@ util.inherits(YtAccrualFailureDetector, events.EventEmitter);
 
 YtAccrualFailureDetector.prototype.heartbeat = function(now)
 {
-    "use strict";
-
     if (typeof(now) === "undefined") {
         now = getHrtime();
     }
@@ -137,14 +126,11 @@ YtAccrualFailureDetector.prototype.heartbeat = function(now)
 
 YtAccrualFailureDetector.prototype.heartbeatTS = function(date)
 {
-    "use strict";
     return this.heartbeat(+(date || new Date()));
 };
 
 YtAccrualFailureDetector.prototype.phi = function(now)
 {
-    "use strict";
-
     if (typeof(now) === "undefined") {
         now = getHrtime();
     }
@@ -167,7 +153,6 @@ YtAccrualFailureDetector.prototype.phi = function(now)
 
 YtAccrualFailureDetector.prototype.phiTS = function(date)
 {
-    "use strict";
     return this.phi(+(date || new Date()));
 };
 

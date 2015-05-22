@@ -23,23 +23,19 @@ function addHostNameSuffix(host, suffix)
 
 function YtApplicationHosts(logger, coordinator)
 {
-    "use strict";
-
     this.logger = logger;
     this.coordinator = coordinator;
 }
 
 YtApplicationHosts.prototype.dispatch = function(req, rsp, next)
 {
-    "use strict";
-
     var self = this;
     self.logger.debug("Hosts call on '" + req.url + "'");
 
     return Q.try(function() {
         var suffix;
         suffix = url.parse(req.url).pathname;
-        suffix = suffix.replace(/\/+/, "-").replace(/-+$/, "")
+        suffix = suffix.replace(/\/+/, "-").replace(/-+$/, "");
         if (suffix === "-all") {
             return self._dispatchExtended(req, rsp);
         } else {
@@ -51,15 +47,12 @@ YtApplicationHosts.prototype.dispatch = function(req, rsp, next)
 
 YtApplicationHosts.prototype._dispatchError = function(req, rsp, err)
 {
-    "use strict";
     var error = YtError.ensureWrapped(err);
     return utils.dispatchAs(rsp, error.toJson(), "application/json");
 };
 
 YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix)
 {
-    "use strict";
-
     var hosts = this.coordinator
     .getProxies("data", false, false)
     .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
@@ -87,8 +80,6 @@ YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix)
 
 YtApplicationHosts.prototype._dispatchExtended = function(req, rsp)
 {
-    "use strict";
-
     var data = this.coordinator.getProxies();
     return utils.dispatchJson(rsp, data);
 };

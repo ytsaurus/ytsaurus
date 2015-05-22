@@ -15,16 +15,12 @@ var __DBG = require("./debug").that("U", "Upravlyator");
 
 function YtApplicationUpravlyator(logger, driver)
 {
-    "use strict";
-
     this.logger = logger;
     this.driver = driver;
 }
 
 YtApplicationUpravlyator.prototype._getFromYt = function(type, name)
 {
-    "use strict";
-
     return this.driver.executeSimple(
         "get",
         { path: "//sys/" + type + "/" + utils.escapeYPath(name) + "/@" })
@@ -39,8 +35,6 @@ YtApplicationUpravlyator.prototype._getFromYt = function(type, name)
 
 YtApplicationUpravlyator.prototype._getManagedUser = function(name)
 {
-    "use strict";
-
     if (typeof(name) !== "string") {
         return Q.reject(new YtError("User name is not specified"));
     }
@@ -65,8 +59,6 @@ YtApplicationUpravlyator.prototype._getManagedUser = function(name)
 
 YtApplicationUpravlyator.prototype._getManagedGroup = function(name)
 {
-    "use strict";
-
     if (typeof(name) !== "string") {
         return Q.reject(new YtError("Group name is not specified"));
     }
@@ -91,8 +83,6 @@ YtApplicationUpravlyator.prototype._getManagedGroup = function(name)
 
 YtApplicationUpravlyator.prototype._getManagedUsers = function(force)
 {
-    "use strict";
-
     var logger = this.logger;
 
     return this.driver.executeSimple("list", {
@@ -133,8 +123,6 @@ YtApplicationUpravlyator.prototype._getManagedUsers = function(force)
 
 YtApplicationUpravlyator.prototype._getManagedGroups = function()
 {
-    "use strict";
-
     var logger = this.logger;
 
     return this.driver.executeSimple("list", {
@@ -177,8 +165,6 @@ YtApplicationUpravlyator.prototype._getManagedGroups = function()
 
 YtApplicationUpravlyator.prototype.dispatch = function(req, rsp, next)
 {
-    "use strict";
-
     var self = this;
     self.logger.debug("Upravlyator call on '" + req.url + "'");
 
@@ -205,8 +191,6 @@ YtApplicationUpravlyator.prototype.dispatch = function(req, rsp, next)
 
 YtApplicationUpravlyator.prototype._dispatchError = function(req, rsp, err)
 {
-    "use strict";
-
     var error = YtError.ensureWrapped(err);
     var logger = req.logger || this.logger;
 
@@ -232,8 +216,6 @@ YtApplicationUpravlyator.prototype._dispatchError = function(req, rsp, err)
 
 YtApplicationUpravlyator.prototype._dispatchInfo = function(req, rsp)
 {
-    "use strict";
-
     return this._getManagedGroups().then(function(groups) {
         return utils.dispatchJson(rsp, {
             code: 0,
@@ -248,8 +230,6 @@ YtApplicationUpravlyator.prototype._dispatchInfo = function(req, rsp)
 
 YtApplicationUpravlyator.prototype._dispatchAddRole = function(req, rsp)
 {
-    "use strict";
-
     var self = this;
     var logger = req.logger || self.logger;
 
@@ -287,8 +267,6 @@ YtApplicationUpravlyator.prototype._dispatchAddRole = function(req, rsp)
 
 YtApplicationUpravlyator.prototype._dispatchRemoveRole = function(req, rsp)
 {
-    "use strict";
-
     var self = this;
     var logger = req.logger || self.logger;
 
@@ -326,8 +304,6 @@ YtApplicationUpravlyator.prototype._dispatchRemoveRole = function(req, rsp)
 
 YtApplicationUpravlyator.prototype._dispatchGetUserRoles = function(req, rsp)
 {
-    "use strict";
-
     var self = this;
     var logger = req.logger || self.logger;
 
@@ -367,8 +343,6 @@ YtApplicationUpravlyator.prototype._dispatchGetUserRoles = function(req, rsp)
 
 YtApplicationUpravlyator.prototype._dispatchGetAllRoles = function(req, rsp)
 {
-    "use strict";
-
     var self = this;
     var logger = req.logger || self.logger;
 
@@ -396,8 +370,6 @@ YtApplicationUpravlyator.prototype._dispatchGetAllRoles = function(req, rsp)
 
 YtApplicationUpravlyator.prototype._captureBody = function(req, rsp)
 {
-    "use strict";
-
     var deferred = Q.defer();
     var chunks = [];
 
@@ -417,8 +389,6 @@ YtApplicationUpravlyator.prototype._captureBody = function(req, rsp)
 
 YtApplicationUpravlyator.prototype._extractUserGroup = function(req, rsp)
 {
-    "use strict";
-
     var self = this;
     var logger = req.logger || self.logger;
 
