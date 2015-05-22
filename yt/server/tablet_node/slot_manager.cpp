@@ -14,6 +14,8 @@
 #include <core/ytree/ypath_service.h>
 #include <core/ytree/fluent.h>
 
+#include <server/misc/memory_usage_tracker.h>
+
 #include <server/data_node/master_connector.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -35,7 +37,7 @@ using namespace NHydra;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
-static auto SlotScanPeriod = TDuration::Seconds(1);
+static const auto SlotScanPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,7 +73,7 @@ public:
     {
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return
-            tracker->GetUsed(NCellNode::EMemoryConsumer::TabletDynamic) >
+            tracker->GetUsed(NCellNode::EMemoryCategory::TabletDynamic) >
             Config_->MemoryLimit;
     }
 
@@ -79,7 +81,7 @@ public:
     {
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return
-            tracker->GetUsed(NCellNode::EMemoryConsumer::TabletDynamic) - passiveUsage >
+            tracker->GetUsed(NCellNode::EMemoryCategory::TabletDynamic) - passiveUsage >
             Config_->MemoryLimit * Config_->ForcedRotationsMemoryRatio;
     }
 

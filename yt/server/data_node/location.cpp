@@ -81,7 +81,7 @@ TLocation::TLocation(
     Logger.AddTag("LocationId: %v", Id_);
 
     NProfiling::TTagIdList tagIds;
-    auto* profilingManager = TProfileManager::Get();
+    auto* profilingManager = NProfiling::TProfileManager::Get();
     tagIds.push_back(profilingManager->RegisterTag("location_id", Id_));
     tagIds.push_back(profilingManager->RegisterTag("location_type", Type_));
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);

@@ -37,6 +37,8 @@
 
 #include <ytlib/object_client/helpers.h>
 
+#include <server/misc/memory_usage_tracker.h>
+
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
 #include <server/hydra/mutation_context.h>
@@ -1442,19 +1444,19 @@ private:
     }
 
 
-    static EMemoryConsumer GetMemoryConsumerFromStore(IStorePtr store)
+    static EMemoryCategory GetMemoryConsumerFromStore(IStorePtr store)
     {
         switch (store->GetType()) {
             case EStoreType::DynamicMemory:
-                return EMemoryConsumer::TabletDynamic;
+                return EMemoryCategory::TabletDynamic;
             case EStoreType::Chunk:
-                return EMemoryConsumer::TabletStatic;
+                return EMemoryCategory::TabletStatic;
             default:
                 YUNREACHABLE();
         }
     }
 
-    static void OnStoreMemoryUsageUpdated(NCellNode::TBootstrap* bootstrap, EMemoryConsumer consumer, i64 delta)
+    static void OnStoreMemoryUsageUpdated(NCellNode::TBootstrap* bootstrap, EMemoryCategory consumer, i64 delta)
     {
         auto* tracker = bootstrap->GetMemoryUsageTracker();
         if (delta >= 0) {

@@ -8,6 +8,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <server/misc/memory_usage_tracker.h>
+
 #include <server/cell_node/config.h>
 #include <server/cell_node/bootstrap.h>
 
@@ -37,7 +39,7 @@ public:
     void Initialize()
     {
         auto result = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(
-            NCellNode::EMemoryConsumer::BlockCache,
+            NCellNode::EMemoryCategory::BlockCache,
             Config_->BlockCache->GetTotalCapacity());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving memory for block cache");
     }

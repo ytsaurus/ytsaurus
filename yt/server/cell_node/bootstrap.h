@@ -108,7 +108,7 @@ private:
     NExecAgent::TSlotManagerPtr ExecSlotManager;
     NExecAgent::TEnvironmentManagerPtr EnvironmentManager;
     NJobProxy::TJobProxyConfigPtr JobProxyConfig;
-    TMemoryUsageTracker<EMemoryConsumer> MemoryUsageTracker;
+    std::unique_ptr<TMemoryUsageTracker<EMemoryCategory>> MemoryUsageTracker;
     NExecAgent::TSchedulerConnectorPtr SchedulerConnector;
     NDataNode::TChunkStorePtr ChunkStore;
     NDataNode::TChunkCachePtr ChunkCache;

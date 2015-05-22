@@ -14,6 +14,8 @@
 #include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <server/misc/memory_usage_tracker.h>
+
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
 
@@ -54,7 +56,7 @@ TBlobChunkBase::~TBlobChunkBase()
     auto cachedMeta = GetCachedMeta();
     if (cachedMeta) {
         auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        tracker->Release(EMemoryConsumer::ChunkMeta, cachedMeta->SpaceUsed());
+        tracker->Release(EMemoryCategory::ChunkMeta, cachedMeta->SpaceUsed());
     }
 }
 
@@ -250,7 +252,7 @@ TRefCountedChunkMetaPtr TBlobChunkBase::SetCachedMeta(const NChunkClient::NProto
     CachedMeta_ = New<TRefCountedChunkMeta>(meta);
 
     auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-    tracker->Acquire(EMemoryConsumer::ChunkMeta, CachedMeta_->SpaceUsed());
+    tracker->Acquire(EMemoryCategory::ChunkMeta, CachedMeta_->SpaceUsed());
 
     return CachedMeta_;
 }

@@ -42,6 +42,8 @@
 #include <ytlib/api/client.h>
 #include <ytlib/api/transaction.h>
 
+#include <server/misc/memory_usage_tracker.h>
+
 #include <server/tablet_server/tablet_manager.pb.h>
 
 #include <server/tablet_node/tablet_manager.pb.h>
@@ -165,7 +167,7 @@ private:
                 "TotalMemoryUsage: %v, TabletMemoryUsage: %v, "
                 "MemoryLimit: %v)",
                 candidate.TabletId,
-                Bootstrap_->GetMemoryUsageTracker()->GetUsed(NCellNode::EMemoryConsumer::TabletDynamic),
+                Bootstrap_->GetMemoryUsageTracker()->GetUsed(NCellNode::EMemoryCategory::TabletDynamic),
                 candidate.MemoryUsage,
                 Config_->MemoryLimit);
 

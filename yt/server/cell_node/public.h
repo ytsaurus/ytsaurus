@@ -1,10 +1,8 @@
 #pragma once
 
-#include "memory_consumer.h"
-
 #include <core/misc/public.h>
 
-#include <server/misc/memory_usage_tracker.h>
+#include <server/misc/public.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -16,7 +14,18 @@ class TBootstrap;
 class TCellNodeConfig;
 typedef TIntrusivePtr<TCellNodeConfig> TCellNodeConfigPtr;
 
-typedef TMemoryUsageTracker<EMemoryConsumer> TNodeMemoryTracker;
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EMemoryCategory,
+    (Footprint)
+    (BlockCache)
+    (ChunkMeta)
+    (Job)
+    (TabletStatic)
+    (TabletDynamic)
+);
+
+using TNodeMemoryTracker = TMemoryUsageTracker<EMemoryCategory>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

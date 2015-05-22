@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/callback.h>
+
 #include <ytlib/chunk_client/public.h>
 
 #include <server/cell_node/public.h>
