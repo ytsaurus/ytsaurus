@@ -61,11 +61,17 @@ void TUserJobIOBase::Init()
     }
 }
 
+void TUserJobIOBase::InitReader(TNameTablePtr nameTable, const TColumnFilter& columnFilter)
+{
+    YCHECK(!Reader_);
+    Reader_ = DoCreateReader(std::move(nameTable), columnFilter);
+}
+
 void TUserJobIOBase::CreateReader()
 {
     LOG_INFO("Opening reader");
 
-    Reader_ = DoCreateReader(New<TNameTable>(), TColumnFilter());
+    InitReader(New<TNameTable>(), TColumnFilter());
     WaitFor(Reader_->Open())
         .ThrowOnError();
 }
@@ -81,7 +87,8 @@ TSchemalessReaderFactory TUserJobIOBase::GetReaderCreator() const
     }
 
     return [&] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
-        return DoCreateReader(std::move(nameTable), std::move(columnFilter));
+        InitReader(std::move(nameTable), std::move(columnFilter));
+        return Reader_;
     };
 }
 
