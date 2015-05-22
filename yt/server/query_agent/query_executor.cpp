@@ -464,7 +464,15 @@ private:
             std::vector<TRowRange> resultRanges;
             if (mergeRanges) {
                 int lastIndex = 0;
-                
+
+                auto addRange = [&] (int count, const TOwningKey& lowerBound, const TOwningKey& upperBound) {
+                    LOG_DEBUG_IF(verboseLogging, "Merging %v ranges into [%v .. %v]",
+                        count,
+                        lowerBound,
+                        upperBound);
+                    resultRanges.emplace_back(lowerBound, upperBound);
+                };
+
                 for (int index = 1; index < keyRanges.size(); ++index) {
                     auto lowerBound = keyRanges[index].first;
                     auto upperBound = keyRanges[index - 1].second;
@@ -473,17 +481,12 @@ private:
                     std::tie(totalSampleCount, partitionCount) = GetBoundSampleKeys(tabletSnapshot, upperBound, lowerBound);
 
                     if (totalSampleCount != 0 || partitionCount != 0) {
-                        resultRanges.emplace_back(keyRanges[lastIndex].first, upperBound);
-
-                        LOG_DEBUG_IF(verboseLogging, "Merging %v ranges into %v", 
-                            index - lastIndex,
-                            Format("[%v .. %v]", keyRanges[lastIndex].first, upperBound));
-
+                        addRange(index - lastIndex, keyRanges[lastIndex].first, upperBound);
                         lastIndex = index;
                     }
                 }
 
-                resultRanges.emplace_back(keyRanges[lastIndex].first, keyRanges.back().second);
+                addRange(keyRanges.size() - lastIndex, keyRanges[lastIndex].first, keyRanges.back().second);
             } else {
                 resultRanges = keyRanges;
             }
