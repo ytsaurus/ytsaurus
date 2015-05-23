@@ -143,18 +143,14 @@ public:
 
     virtual void Invoke(const TClosure& callback) override
     {
-        auto guard = TSystemLockGuard::Acquire(Owner_);
+        auto lockGuard = TSystemLockGuard::Acquire(Owner_);
 
-        auto doInvoke = [] (IInvokerPtr invoker, const TClosure& callback, TSystemLockGuard /*guard*/) {
-            TCurrentInvokerGuard guard(std::move(invoker));
+        auto doInvoke = [=, this_ = MakeStrong(this)] (TSystemLockGuard /*lockGuard*/) {
+            TCurrentInvokerGuard currentInvokerGuard(this_);
             callback.Run();
         };
 
-        Owner_->AutomatonInvoker_->Invoke(BIND(
-            doInvoke,
-            MakeStrong(this),
-            callback,
-            Passed(std::move(guard))));
+        Owner_->AutomatonInvoker_->Invoke(BIND(doInvoke, Passed(std::move(lockGuard))));
     }
 
 private:
@@ -177,23 +173,20 @@ public:
 
     virtual void Invoke(const TClosure& callback) override
     {
-        auto guard = TUserLockGuard::TryAcquire(Owner_);
-        if (!guard)
+        auto lockGuard = TUserLockGuard::TryAcquire(Owner_);
+        if (!lockGuard)
             return;
 
-        auto doInvoke = [=, this_ = MakeStrong(this)] (IInvokerPtr invoker, const TClosure& callback) {
+        auto doInvoke = [=, this_ = MakeStrong(this)] () {
             if (Owner_->GetState() != EPeerState::Leading &&
                 Owner_->GetState() != EPeerState::Following)
                 return;
 
-            TCurrentInvokerGuard guard(std::move(invoker));
+            TCurrentInvokerGuard guard(this_);
             callback.Run();
         };
 
-        UnderlyingInvoker_->Invoke(BIND(
-            doInvoke,
-            MakeStrong(this),
-            callback));
+        UnderlyingInvoker_->Invoke(BIND(doInvoke));
     }
 
 private:
