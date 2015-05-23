@@ -37,7 +37,7 @@ public:
     }
 
 private:
-    TCancelableContextPtr Context_;
+    const TCancelableContextPtr Context_;
 
 };
 
