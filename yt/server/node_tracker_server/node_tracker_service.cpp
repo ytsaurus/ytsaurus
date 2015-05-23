@@ -59,9 +59,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, RegisterNode)
     {
-        UNUSED(response);
-
-        ValidateActiveLeader();
+        ValidatePeer(EPeerKind::Leader);
 
         auto worldInitializer = Bootstrap_->GetWorldInitializer();
         if (worldInitializer->CheckProvisionLock()) {
@@ -101,7 +99,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, FullHeartbeat)
     {
-        ValidateActiveLeader();
+        ValidatePeer(EPeerKind::Leader);
 
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
@@ -130,7 +128,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, IncrementalHeartbeat)
     {
-        ValidateActiveLeader();
+        ValidatePeer(EPeerKind::Leader);
 
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();

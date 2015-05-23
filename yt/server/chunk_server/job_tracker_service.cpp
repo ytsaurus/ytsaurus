@@ -26,6 +26,7 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NHydra;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
@@ -51,7 +52,7 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, Heartbeat)
     {
-        ValidateActiveLeader();
+        ValidatePeer(EPeerKind::Leader);
 
         auto nodeId = request->node_id();
 

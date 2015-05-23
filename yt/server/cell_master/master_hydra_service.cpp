@@ -19,7 +19,7 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
         bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(),
         NRpc::TServiceId(serviceName, bootstrap->GetCellId()),
         logger,
-    protocolVersion)
+        protocolVersion)
     , Bootstrap_(bootstrap)
 {
     YCHECK(Bootstrap_);

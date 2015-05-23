@@ -43,22 +43,41 @@ void THydraServiceBase::OnStopLeading()
     EpochAutomatonInvoker_.Reset();
 }
 
-void THydraServiceBase::ValidateActiveLeader()
+void THydraServiceBase::ValidatePeer(EPeerKind kind)
 {
-    if (!ServiceHydraManager_->IsActiveLeader()) {
-        THROW_ERROR_EXCEPTION(
-            NRpc::EErrorCode::Unavailable,
-            "Not an active leader");
-    }
-}
+    switch (kind) {
+        case EPeerKind::Leader:
+            if (!ServiceHydraManager_->IsActiveLeader()) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Not an active leader");
+            }
+            break;
 
-void THydraServiceBase::ValidateActivePeer()
-{
-    if (!ServiceHydraManager_->IsActiveLeader() && !ServiceHydraManager_->IsActiveFollower()) {
-        THROW_ERROR_EXCEPTION(
-            NRpc::EErrorCode::Unavailable,
-            "Not an active peer");
+        case EPeerKind::Follower:
+            if (!ServiceHydraManager_->IsActiveFollower()) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Not an active follower");
+            }
+            break;
+
+        case EPeerKind::LeaderOrFollower:
+            if (!ServiceHydraManager_->IsActiveLeader() && !ServiceHydraManager_->IsActiveFollower()) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Not an active peer");
+            }
+            break;
+
+        default:
+            YUNREACHABLE();
     }
+
+    auto cancelableInvoker = ServiceHydraManager_
+        ->GetAutomatonCancelableContext()
+        ->CreateInvoker(GetCurrentInvoker());
+    SetCurrentInvoker(std::move(cancelableInvoker));
 }
 
 bool THydraServiceBase::IsUp(TCtxDiscoverPtr context) const

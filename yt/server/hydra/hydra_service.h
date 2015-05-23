@@ -24,8 +24,7 @@ protected:
 
     IInvokerPtr EpochAutomatonInvoker_;
 
-    void ValidateActiveLeader();
-    void ValidateActivePeer();
+    void ValidatePeer(EPeerKind kind);
 
 private:
     // Avoid name clash when inheriting from both THydraServiceBase and TCompositeAutomatonPart.
