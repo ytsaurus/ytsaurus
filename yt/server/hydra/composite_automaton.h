@@ -93,11 +93,16 @@ class TCompositeAutomatonPart
 public:
     TCompositeAutomatonPart(
         IHydraManagerPtr hydraManager,
-        TCompositeAutomatonPtr automaton);
+        TCompositeAutomatonPtr automaton,
+        IInvokerPtr automatonInvoker);
 
 protected:
     const IHydraManagerPtr HydraManager_;
     TCompositeAutomaton* const Automaton_;
+    const IInvokerPtr AutomatonInvoker_;
+
+    IInvokerPtr EpochAutomatonInvoker_;
+
 
     void RegisterSaver(
         ESerializationPriority priority,
@@ -154,6 +159,9 @@ private:
     void RegisterMethod(
         const Stroka& name,
         TCallback<void(TMutationContext*)> handler);
+
+    void OnMyLeaderActive();
+    void OnMyStopLeading();
 
 };
 

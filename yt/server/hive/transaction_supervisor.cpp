@@ -65,7 +65,8 @@ public:
             HiveLogger)
         , TCompositeAutomatonPart(
             hydraManager,
-            automaton)
+            automaton,
+            automatonInvoker)
         , Config_(config)
         , ResponseKeeper_(responseKeeper)
         , HiveManager_(hiveManager)

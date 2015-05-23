@@ -47,8 +47,8 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto HiveTracingService = Stroka("HiveManager");
-static auto ClientHostAnnotation = Stroka("client_host");
+static const auto HiveTracingService = Stroka("HiveManager");
+static const auto ClientHostAnnotation = Stroka("client_host");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,7 +71,8 @@ public:
             HiveLogger)
         , TCompositeAutomatonPart(
             hydraManager,
-            automaton)
+            automaton,
+            automatonInvoker)
         , SelfCellId_(selfCellId)
         , Config_(config)
         , CellDirectory_(cellDirectory)

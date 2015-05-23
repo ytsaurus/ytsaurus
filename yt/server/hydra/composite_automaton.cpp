@@ -7,6 +7,8 @@
 #include <core/misc/serialize.h>
 #include <core/misc/checkpointable_stream.h>
 
+#include <core/actions/cancelable_context.h>
+
 #include <core/profiling/profile_manager.h>
 
 #include <util/stream/buffered.h>
@@ -36,9 +38,11 @@ void TLoadContext::Reset()
 
 TCompositeAutomatonPart::TCompositeAutomatonPart(
     IHydraManagerPtr hydraManager,
-    TCompositeAutomatonPtr automaton)
-    : HydraManager_(hydraManager)
+    TCompositeAutomatonPtr automaton,
+    IInvokerPtr automatonInvoker)
+    : HydraManager_(std::move(hydraManager))
     , Automaton_(automaton.Get())
+    , AutomatonInvoker_(std::move(automatonInvoker))
 {
     YCHECK(HydraManager_);
     YCHECK(Automaton_);
@@ -48,7 +52,9 @@ TCompositeAutomatonPart::TCompositeAutomatonPart(
     HydraManager_->SubscribeLeaderRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
     HydraManager_->SubscribeLeaderRecoveryComplete(BIND(&TThis::OnLeaderRecoveryComplete, MakeWeak(this)));
     HydraManager_->SubscribeLeaderActive(BIND(&TThis::OnLeaderActive, MakeWeak(this)));
+    HydraManager_->SubscribeLeaderActive(BIND(&TThis::OnMyLeaderActive, MakeWeak(this)));
     HydraManager_->SubscribeStopLeading(BIND(&TThis::OnStopLeading, MakeWeak(this)));
+    HydraManager_->SubscribeStopLeading(BIND(&TThis::OnMyStopLeading, MakeWeak(this)));
 
     HydraManager_->SubscribeStartFollowing(BIND(&TThis::OnStartFollowing, MakeWeak(this)));
     HydraManager_->SubscribeStartFollowing(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
@@ -173,6 +179,18 @@ void TCompositeAutomatonPart::OnRecoveryStarted()
 
 void TCompositeAutomatonPart::OnRecoveryComplete()
 { }
+
+void TCompositeAutomatonPart::OnMyLeaderActive()
+{
+    EpochAutomatonInvoker_ = HydraManager_
+        ->GetAutomatonCancelableContext()
+        ->CreateInvoker(AutomatonInvoker_);
+}
+
+void TCompositeAutomatonPart::OnMyStopLeading()
+{
+    EpochAutomatonInvoker_.Reset();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

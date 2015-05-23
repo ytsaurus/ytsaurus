@@ -24,24 +24,8 @@ THydraServiceBase::THydraServiceBase(
         serviceId,
         logger,
         protocolVersion)
-    , AutomatonInvoker_(automatonInvoker)
     , ServiceHydraManager_(hydraManager)
-{
-    ServiceHydraManager_->SubscribeLeaderActive(BIND(&THydraServiceBase::OnLeaderActive, MakeWeak(this)));
-    ServiceHydraManager_->SubscribeStopLeading(BIND(&THydraServiceBase::OnStopLeading, MakeWeak(this)));
-}
-
-void THydraServiceBase::OnLeaderActive()
-{
-    EpochAutomatonInvoker_ = ServiceHydraManager_
-        ->GetAutomatonCancelableContext()
-        ->CreateInvoker(AutomatonInvoker_);
-}
-
-void THydraServiceBase::OnStopLeading()
-{
-    EpochAutomatonInvoker_.Reset();
-}
+{ }
 
 void THydraServiceBase::ValidatePeer(EPeerKind kind)
 {

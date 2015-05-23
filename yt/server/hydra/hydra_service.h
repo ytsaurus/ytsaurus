@@ -20,18 +20,11 @@ protected:
         const NLogging::TLogger& logger,
         int protocolVersion = NRpc::TProxyBase::DefaultProtocolVersion);
 
-    const IInvokerPtr AutomatonInvoker_;
-
-    IInvokerPtr EpochAutomatonInvoker_;
-
     void ValidatePeer(EPeerKind kind);
 
 private:
     // Avoid name clash when inheriting from both THydraServiceBase and TCompositeAutomatonPart.
     const IHydraManagerPtr ServiceHydraManager_;
-
-    void OnLeaderActive();
-    void OnStopLeading();
 
     virtual bool IsUp(TCtxDiscoverPtr context) const override;
 
