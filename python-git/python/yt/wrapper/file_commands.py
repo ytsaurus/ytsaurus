@@ -132,8 +132,8 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
         if yt_filename is None:
             yt_filename = os.path.basename(destination)
 
-    if placement_strategy == "replace" and exists(prefix, client=client):
-        remove(destination, client=client)
+    if placement_strategy == "replace":
+        remove(destination, force=True, client=client)
 
     logger.debug("Uploading file '%s' with strategy '%s'", filename, placement_strategy)
 
