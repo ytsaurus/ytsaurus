@@ -64,7 +64,7 @@ public:
             .SetCancelable(true)
             .SetInvoker(Bootstrap_->GetQueryPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
-            .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomnatonThreadQueue::Write)));
+            .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write)));
     }
 
 private:
