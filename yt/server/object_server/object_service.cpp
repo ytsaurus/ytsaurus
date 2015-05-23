@@ -354,7 +354,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    ValidateActivePeer();
+    ValidatePeer(EPeerKind::Leader);
 
     auto session = New<TExecuteSession>(
         Bootstrap_,
@@ -367,9 +367,9 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
     UNUSED(request);
     UNUSED(response);
 
-    context->SetRequestInfo();
+    ValidatePeer(EPeerKind::Leader);
 
-    ValidateActiveLeader();
+    context->SetRequestInfo();
 
     auto objectManager = Bootstrap_->GetObjectManager();
     context->ReplyFrom(objectManager->GCCollect());
@@ -377,12 +377,12 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
 {
+    ValidatePeer(EPeerKind::Leader);
+
     bool setReadOnly = request->set_read_only();
 
     context->SetRequestInfo("SetReadOnly: %v",
         setReadOnly);
-
-    ValidateActiveLeader();
 
     auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
 

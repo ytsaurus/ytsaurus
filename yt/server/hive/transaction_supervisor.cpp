@@ -149,7 +149,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, CommitTransaction)
     {
-        ValidateActiveLeader();
+        ValidatePeer(EPeerKind::Leader);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto participantCellIds = FromProto<TCellId>(request->participant_cell_ids());
@@ -170,7 +170,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, AbortTransaction)
     {
-        ValidateActiveLeader();
+        ValidatePeer(EPeerKind::Leader);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         bool force = request->force();
@@ -191,7 +191,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, PingTransaction)
     {
-        ValidateActiveLeader();
+        ValidatePeer(EPeerKind::Leader);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 

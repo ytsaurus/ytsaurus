@@ -58,12 +58,13 @@ public:
         YCHECK(Slot_);
         YCHECK(Bootstrap_);
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)
+            .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
             .SetCancelable(true)
             .SetInvoker(Bootstrap_->GetQueryPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
-            .SetInvoker(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Write)));
+            .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomnatonThreadQueue::Write)));
     }
 
 private:
@@ -73,7 +74,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, StartTransaction)
     {
-        ValidateActiveLeader();
+        ValidatePeer(EPeerKind::Leader);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto startTimestamp = TTimestamp(request->start_timestamp());
@@ -97,6 +98,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Read)
     {
+        ValidatePeer(EPeerKind::Leader);
+
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto timestamp = TTimestamp(request->timestamp());
         auto requestData = DecompressWithEnvelope(request->Attachments());
@@ -116,8 +119,6 @@ private:
             config->MaxQueryRetries,
             Logger,
             [&] () {
-                ValidateActiveLeader();
-
                 auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
                 TWireProtocolReader reader(requestData);
@@ -141,6 +142,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)
     {
+        ValidatePeer(EPeerKind::Leader);
+
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
@@ -167,8 +170,6 @@ private:
         auto tabletManager = Slot_->GetTabletManager();
 
         while (!reader.IsFinished()) {
-            ValidateActiveLeader();
-
             tabletManager->Write(
                 tabletSnapshot,
                 transactionId,
