@@ -98,8 +98,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Read)
     {
-        ValidatePeer(EPeerKind::Leader);
-
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto timestamp = TTimestamp(request->timestamp());
         auto requestData = DecompressWithEnvelope(request->Attachments());
