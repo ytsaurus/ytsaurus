@@ -52,9 +52,9 @@ public:
             TransactionServerLogger)
         , TCompositeAutomatonPart(
             hydraManager,
-            automaton)
+            automaton,
+            automatonInvoker)
         , Config_(config)
-        , AutomatonInvoker_(automatonInvoker)
     {
         YCHECK(Config_);
         YCHECK(AutomatonInvoker_);
@@ -91,8 +91,7 @@ public:
     }
 
 private:
-    TTimestampManagerConfigPtr Config_;
-    IInvokerPtr AutomatonInvoker_;
+    const TTimestampManagerConfigPtr Config_;
 
     TActionQueuePtr TimestampQueue_;
     IInvokerPtr TimestampInvoker_;

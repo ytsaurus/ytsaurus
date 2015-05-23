@@ -65,7 +65,8 @@ TTabletAutomatonPart::TTabletAutomatonPart(
     TBootstrap* bootstrap)
     : TCompositeAutomatonPart(
         slot->GetHydraManager(),
-        slot->GetAutomaton())
+        slot->GetAutomaton(),
+        slot->GetAutomatonInvoker())
     , Slot_(slot)
     , Bootstrap_(bootstrap)
 {

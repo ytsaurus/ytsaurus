@@ -29,7 +29,8 @@ TLoadContext& TMasterAutomaton::LoadContext()
 TMasterAutomatonPart::TMasterAutomatonPart(TBootstrap* bootstrap)
     : TCompositeAutomatonPart(
         bootstrap->GetHydraFacade()->GetHydraManager(),
-        bootstrap->GetHydraFacade()->GetAutomaton())
+        bootstrap->GetHydraFacade()->GetAutomaton(),
+        bootstrap->GetHydraFacade()->GetAutomatonInvoker())
     , Bootstrap_(bootstrap)
 { }
 
