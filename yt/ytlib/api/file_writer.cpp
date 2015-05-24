@@ -74,7 +74,7 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> Write(const TRef& data) override
+    virtual TFuture<void> Write(const TSharedRef& data) override
     {
         return BIND(&TFileWriter::DoWrite, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
@@ -218,7 +218,7 @@ private:
 
     }
 
-    void DoWrite(const TRef& data)
+    void DoWrite(const TSharedRef& data)
     {
         ValidateAborted();
 

@@ -189,7 +189,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             }
 
             struct TSnapshotBuilderBufferTag { };
-            auto buffer = TBlob(TSnapshotBuilderBufferTag(), RemoteWriteBufferSize, false);
+            auto buffer = TSharedMutableRef::Allocate<TSnapshotBuilderBufferTag>(RemoteWriteBufferSize, false);
             TFileInput fileInput(job.FileName);
             TBufferedInput bufferedInput(&fileInput, RemoteWriteBufferSize);
 
@@ -200,7 +200,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 }
 
                 {
-                    auto result = WaitFor(writer->Write(TRef(buffer.Begin(), bytesRead)));
+                    auto result = WaitFor(writer->Write(buffer.Slice(0, bytesRead)));
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 }
             }
