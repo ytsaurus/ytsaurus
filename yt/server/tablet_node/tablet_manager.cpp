@@ -431,12 +431,16 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TTabletAutomatonPart::OnBeforeSnapshotLoaded();
+
         DoClear();
     }
 
     virtual void OnAfterSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnAfterSnapshotLoaded();
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
@@ -452,6 +456,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TTabletAutomatonPart::Clear();
+
         DoClear();
     }
 
@@ -465,6 +471,10 @@ private:
 
     virtual void OnLeaderRecoveryComplete() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnLeaderRecoveryComplete();
+
         YCHECK(PrelockedTransactions_.empty());
 
         for (const auto& pair : TabletMap_) {
@@ -475,6 +485,10 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnLeaderActive();
+
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
             CheckIfFullyUnlocked(tablet);
@@ -484,6 +498,10 @@ private:
 
     virtual void OnStopLeading() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnStopLeading();
+
         while (!PrelockedTransactions_.empty()) {
             auto* transaction = PrelockedTransactions_.front();
             PrelockedTransactions_.pop();
@@ -514,11 +532,19 @@ private:
 
     virtual void OnStartFollowing() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnStartFollowing();
+
         YUNREACHABLE();
     }
 
     virtual void OnStopFollowing() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnStopFollowing();
+
         YUNREACHABLE();
     }
 

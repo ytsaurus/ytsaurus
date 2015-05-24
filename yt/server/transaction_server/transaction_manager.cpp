@@ -658,6 +658,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
         DoClear();
     }
 
@@ -685,12 +687,16 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TMasterAutomatonPart::Clear();
+
         DoClear();
     }
 
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnLeaderActive();
 
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
@@ -705,6 +711,8 @@ private:
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnStopLeading();
 
         // Reset all transiently prepared transactions back into active state.
         for (const auto& pair : TransactionMap_) {

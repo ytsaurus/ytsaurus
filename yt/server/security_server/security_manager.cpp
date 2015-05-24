@@ -1172,6 +1172,8 @@ private:
 
     virtual void OnBeforeSnapshotLoaded() override
     {
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
         DoClear();
 
         RecomputeResources_ = false;
@@ -1204,6 +1206,8 @@ private:
 
     virtual void OnAfterSnapshotLoaded() override
     {
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
         // Reconstruct account name map.
         AccountNameMap_.clear();
         for (const auto& pair : AccountMap_) {
@@ -1291,6 +1295,8 @@ private:
 
     virtual void Clear() override
     {
+        TMasterAutomatonPart::Clear();
+
         DoClear();
         InitBuiltins();
         ResetAuthenticatedUser();
@@ -1416,6 +1422,8 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        TMasterAutomatonPart::OnLeaderActive();
+
         RequestTracker_->Start();
 
         for (const auto& pair : UserMap_) {
@@ -1426,6 +1434,8 @@ private:
 
     virtual void OnStopLeading() override
     {
+        TMasterAutomatonPart::OnStopLeading();
+
         RequestTracker_->Stop();
     }
 

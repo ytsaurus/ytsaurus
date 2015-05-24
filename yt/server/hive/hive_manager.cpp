@@ -657,6 +657,8 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        TCompositeAutomatonPart::OnLeaderActive();
+
         for (const auto& pair : MailboxMap_) {
             auto* mailbox = pair.second;
             SetMailboxDisconnected(mailbox);
@@ -678,6 +680,8 @@ private:
     
     virtual void Clear() override
     {
+        TCompositeAutomatonPart::Clear();
+
         MailboxMap_.Clear();
     }
 

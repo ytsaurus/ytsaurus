@@ -1135,6 +1135,8 @@ private:
 
     virtual void OnAfterSnapshotLoaded() override
     {
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
         // Compute chunk replica count.
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         TotalReplicaCount_ = 0;
@@ -1148,6 +1150,8 @@ private:
 
     virtual void Clear() override
     {
+        TMasterAutomatonPart::Clear();
+
         ChunkMap_.Clear();
         ChunkListMap_.Clear();
         TotalReplicaCount_ = 0;
@@ -1232,6 +1236,8 @@ private:
 
     virtual void OnRecoveryStarted() override
     {
+        TMasterAutomatonPart::OnRecoveryStarted();
+
         Profiler.SetEnabled(false);
 
         NeedToRecomputeStatistics_ = false;
@@ -1239,6 +1245,8 @@ private:
 
     virtual void OnRecoveryComplete() override
     {
+        TMasterAutomatonPart::OnRecoveryComplete();
+
         Profiler.SetEnabled(true);
 
         if (NeedToRecomputeStatistics_) {
@@ -1249,6 +1257,8 @@ private:
 
     virtual void OnLeaderRecoveryComplete() override
     {
+        TMasterAutomatonPart::OnLeaderRecoveryComplete();
+
         LOG_INFO("Scheduling full chunk refresh");
         PROFILE_TIMING ("/full_chunk_refresh_schedule_time") {
             ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap_);
@@ -1260,6 +1270,8 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        TMasterAutomatonPart::OnLeaderActive();
+
         ChunkPlacement_->Start();
         ChunkReplicator_->Start();
         ChunkSealer_->Start();
@@ -1267,6 +1279,8 @@ private:
 
     virtual void OnStopLeading() override
     {
+        TMasterAutomatonPart::OnStopLeading();
+
         if (ChunkPlacement_) {
             ChunkPlacement_->Stop();
             ChunkPlacement_.Reset();

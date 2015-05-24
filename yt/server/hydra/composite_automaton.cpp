@@ -52,9 +52,7 @@ TCompositeAutomatonPart::TCompositeAutomatonPart(
     HydraManager_->SubscribeLeaderRecoveryComplete(BIND(&TThis::OnRecoveryComplete, MakeWeak(this)));
     HydraManager_->SubscribeLeaderRecoveryComplete(BIND(&TThis::OnLeaderRecoveryComplete, MakeWeak(this)));
     HydraManager_->SubscribeLeaderActive(BIND(&TThis::OnLeaderActive, MakeWeak(this)));
-    HydraManager_->SubscribeLeaderActive(BIND(&TThis::OnMyLeaderActive, MakeWeak(this)));
     HydraManager_->SubscribeStopLeading(BIND(&TThis::OnStopLeading, MakeWeak(this)));
-    HydraManager_->SubscribeStopLeading(BIND(&TThis::OnMyStopLeading, MakeWeak(this)));
 
     HydraManager_->SubscribeStartFollowing(BIND(&TThis::OnStartFollowing, MakeWeak(this)));
     HydraManager_->SubscribeStartFollowing(BIND(&TThis::OnRecoveryStarted, MakeWeak(this)));
@@ -160,10 +158,16 @@ void TCompositeAutomatonPart::OnLeaderRecoveryComplete()
 { }
 
 void TCompositeAutomatonPart::OnLeaderActive()
-{ }
+{
+    EpochAutomatonInvoker_ = HydraManager_
+        ->GetAutomatonCancelableContext()
+        ->CreateInvoker(AutomatonInvoker_);
+}
 
 void TCompositeAutomatonPart::OnStopLeading()
-{ }
+{
+    EpochAutomatonInvoker_.Reset();
+}
 
 void TCompositeAutomatonPart::OnStartFollowing()
 { }
@@ -179,18 +183,6 @@ void TCompositeAutomatonPart::OnRecoveryStarted()
 
 void TCompositeAutomatonPart::OnRecoveryComplete()
 { }
-
-void TCompositeAutomatonPart::OnMyLeaderActive()
-{
-    EpochAutomatonInvoker_ = HydraManager_
-        ->GetAutomatonCancelableContext()
-        ->CreateInvoker(AutomatonInvoker_);
-}
-
-void TCompositeAutomatonPart::OnMyStopLeading()
-{
-    EpochAutomatonInvoker_.Reset();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

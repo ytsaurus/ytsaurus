@@ -774,6 +774,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
         DoClear();
     }
 
@@ -795,6 +797,8 @@ private:
 
     virtual void OnAfterSnapshotLoaded() override
     {
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
         AddressToCell_.clear();
 
         for (const auto& pair : TabletCellMap_) {
@@ -823,6 +827,8 @@ private:
     virtual void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::Clear();
 
         DoClear();
     }
@@ -1329,6 +1335,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TMasterAutomatonPart::OnLeaderActive();
+
         TabletTracker_->Start();
 
         auto cellDirectory = Bootstrap_->GetCellDirectory();
@@ -1349,6 +1357,8 @@ private:
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnStopLeading();
 
         TabletTracker_->Stop();
 
