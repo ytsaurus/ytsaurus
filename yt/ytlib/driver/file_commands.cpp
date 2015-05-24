@@ -92,22 +92,18 @@ void TWriteFileCommand::DoExecute()
     auto input = Context_->Request().InputStream;
 
     while (true) {
-        auto readBytes = WaitFor(input->Read(buffer));
-        THROW_ERROR_EXCEPTION_IF_FAILED(readBytes);
+        auto bytesRead = WaitFor(input->Read(buffer))
+            .ValueOrThrow();
 
-        if (readBytes.Value() == 0)
+        if (bytesRead == 0)
             break;
 
-        {
-            auto result = WaitFor(writer->Write(TRef(buffer.Begin(), readBytes.Value())));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(writer->Write(buffer.Slice(0, bytesRead)))
+            .ThrowOnError();
     }
 
-    {
-        auto result = WaitFor(writer->Close());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
+    WaitFor(writer->Close())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
