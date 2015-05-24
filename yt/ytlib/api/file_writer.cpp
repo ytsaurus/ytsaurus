@@ -76,9 +76,13 @@ public:
 
     virtual TFuture<void> Write(const TSharedRef& data) override
     {
-        return BIND(&TFileWriter::DoWrite, MakeStrong(this))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
-            .Run(data);
+        ValidateAborted();
+
+        if (Writer_->Write(data)) {
+            return VoidFuture;
+        }
+
+        return Writer_->GetReadyEvent();
     }
 
     virtual TFuture<void> Close() override
