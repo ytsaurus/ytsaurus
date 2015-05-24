@@ -310,7 +310,8 @@ public:
             invokeWrite = (Queue_.size() == 1);
         }
         if (invokeWrite) {
-            WriteMore(data);
+            UnderlyingStream_->Write(data).Subscribe(
+                BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
         }
         return promise;
     }
@@ -329,16 +330,26 @@ private:
     TError Error_;
 
 
-    void WriteMore(const TSharedRef& data)
-    {
-        UnderlyingStream_->Write(data).Subscribe(
-            BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
-    }
-
     void OnWritten(const TError& error)
     {
+        auto pendingBlock = NotifyAndFetchNext(error);
+        while (pendingBlock) {
+            auto asyncWriteResult = UnderlyingStream_->Write(pendingBlock);
+            auto mayWriteResult = asyncWriteResult.TryGet();
+            if (!mayWriteResult || !mayWriteResult->IsOK()) {
+                asyncWriteResult.Subscribe(
+                    BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
+                break;
+            }
+
+            pendingBlock = NotifyAndFetchNext(TError());
+        }
+    }
+
+    TSharedRef NotifyAndFetchNext(const TError& error)
+    {
         TPromise<void> promise;
-        TSharedRef pendingData;
+        TSharedRef pendingBlock;
         {
             TGuard<TSpinLock> guard(SpinLock_);
             auto& entry = Queue_.front();
@@ -348,13 +359,11 @@ private:
             }
             Queue_.pop();
             if (!Queue_.empty()) {
-                pendingData = Queue_.front().Block;
+                pendingBlock = Queue_.front().Block;
             }
         }
         promise.Set(error);
-        if (pendingData) {
-            WriteMore(pendingData);
-        }
+        return pendingBlock;
     }
 
 };
