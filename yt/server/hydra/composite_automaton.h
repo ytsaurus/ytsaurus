@@ -160,9 +160,6 @@ private:
         const Stroka& name,
         TCallback<void(TMutationContext*)> handler);
 
-    void OnMyLeaderActive();
-    void OnMyStopLeading();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeAutomatonPart)

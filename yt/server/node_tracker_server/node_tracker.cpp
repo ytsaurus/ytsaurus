@@ -682,6 +682,8 @@ private:
 
     virtual void Clear() override
     {
+        TMasterAutomatonPart::Clear();
+
         NodeIdGenerator_.Reset();
         NodeMap_.Clear();
         RackMap_.Clear();
@@ -698,6 +700,8 @@ private:
 
     virtual void OnAfterSnapshotLoaded() override
     {
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
         AddressToNodeMap_.clear();
         HostNameToNodeMap_.clear();
         TransactionToNodeMap_.clear();
@@ -735,6 +739,8 @@ private:
 
     virtual void OnRecoveryStarted() override
     {
+        TMasterAutomatonPart::OnRecoveryStarted();
+
         Profiler.SetEnabled(false);
 
         // Reset runtime info.
@@ -749,6 +755,8 @@ private:
 
     virtual void OnRecoveryComplete() override
     {
+        TMasterAutomatonPart::OnRecoveryComplete();
+
         Profiler.SetEnabled(true);
 
         for (const auto& pair : NodeMap_) {
@@ -764,6 +772,8 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        TMasterAutomatonPart::OnLeaderActive();
+
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
             if (node->GetState() == ENodeState::Unregistered) {

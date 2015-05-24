@@ -1290,6 +1290,8 @@ void TCypressManager::OnBeforeSnapshotLoaded()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
     DoClear();
 }
 
@@ -1316,6 +1318,10 @@ void TCypressManager::LoadValues(NCellMaster::TLoadContext& context)
 
 void TCypressManager::OnAfterSnapshotLoaded()
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
     // Reconstruct immediate ancestor sets.
     for (const auto& pair : NodeMap) {
         auto* node = pair.second;
@@ -1393,6 +1399,8 @@ void TCypressManager::DoClear()
 void TCypressManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::Clear();
 
     DoClear();
     InitBuiltin();
@@ -1675,12 +1683,16 @@ void TCypressManager::OnLeaderActive()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    TMasterAutomatonPart::OnLeaderActive();
+
     AccessTracker->Start();
 }
 
 void TCypressManager::OnStopLeading()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::OnStopLeading();
 
     AccessTracker->Stop();
 }

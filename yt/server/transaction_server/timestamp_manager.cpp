@@ -234,6 +234,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TCompositeAutomatonPart::Clear();
+
         PersistentTimestamp_ = NullTimestamp;
     }
 
@@ -253,6 +255,8 @@ private:
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TCompositeAutomatonPart::OnLeaderActive();
 
         LOG_INFO("Persistent timestamp is %v",
             PersistentTimestamp_);
@@ -288,6 +292,8 @@ private:
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TCompositeAutomatonPart::OnStopLeading();
 
         TimestampInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(TimestampThread);

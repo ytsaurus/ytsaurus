@@ -804,6 +804,8 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        TCompositeAutomatonPart::OnLeaderActive();
+
         for (const auto& pair : PersistentCommitMap_) {
             auto* commit = pair.second;
             CheckForPhaseTwo(commit);
@@ -812,12 +814,16 @@ private:
 
     virtual void OnStopLeading() override
     {
+        TCompositeAutomatonPart::OnStopLeading();
+
         TransientCommitMap_.Clear();
     }
 
 
     virtual void Clear() override
     {
+        TCompositeAutomatonPart::Clear();
+
         PersistentCommitMap_.Clear();
         TransientCommitMap_.Clear();
     }

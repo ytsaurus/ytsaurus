@@ -381,6 +381,10 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnLeaderActive();
+
         // Recreate leases for all active transactions.
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
@@ -395,6 +399,8 @@ private:
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnStopLeading();
 
         // Reset all transiently prepared transactions back into active state.
         // Mark all transactions are finished to release pending readers.
@@ -417,9 +423,11 @@ private:
         TransactionMap_.SaveValues(context);
     }
 
-    void OnBeforeSnapshotLoaded() override
+    virtual void OnBeforeSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnBeforeSnapshotLoaded();
 
         DoClear();
     }
@@ -438,14 +446,17 @@ private:
         TransactionMap_.LoadValues(context);
     }
 
+
     void DoClear()
     {
         TransactionMap_.Clear();
     }
 
-    void Clear() override
+    virtual void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::Clear();
 
         DoClear();
     }
