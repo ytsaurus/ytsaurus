@@ -49,11 +49,13 @@ target_link_libraries( yt-yson-python
   ${PYTHON_LIBRARY}
 )
 
-set_target_properties( driver_python PROPERTIES
+set_target_properties( yt-driver-python 
+  PROPERTIES
   LINK_FLAGS "-static-libstdc++"
 )
 
-set_target_properties( yson_python PROPERTIES
+set_target_properties( yt-yson-python 
+  PROPERTIES
   LINK_FLAGS "-static-libstdc++"
 )
 

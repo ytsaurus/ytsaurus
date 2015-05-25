@@ -1530,7 +1530,7 @@ IObjectProxyPtr TLinkNodeProxy::GetTargetProxy() const
 bool TLinkNodeProxy::IsBroken(const NObjectServer::TObjectId& id) const
 {
     if (IsVersionedType(TypeFromId(id))) {
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->FindNode(TVersionedNodeId(id));
         if (!node) {
             return true;

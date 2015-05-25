@@ -1489,7 +1489,7 @@ private:
         job->ResourceUsage() = ZeroNodeResources();
 
         TError error("Job preempted");
-        error.Attributes().Set("abort_reason", EAbortReason(EAbortReason::Preemption));
+        error.Attributes().Set("abort_reason", EAbortReason::Preemption);
         AbortJob(job, error);
     }
 
