@@ -1206,6 +1206,8 @@ bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
 
 bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transaction)
 {
+    return true;
+    /*
     auto transactionManager = Bootstrap_->GetTransactionManager();
     auto transactions = transactionManager->GetTransactionPath(transaction);
 
@@ -1281,6 +1283,7 @@ bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transac
         }
         currentNode = parentNode;
     }
+    */
 }
 
 TCypressNodeList TCypressManager::GetNodeOriginators(
