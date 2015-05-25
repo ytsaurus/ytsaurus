@@ -1192,14 +1192,91 @@ TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
 
 bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
 {
+    auto* currentNode = trunkNode;
     while (true) {
-        if (!IsObjectAlive(trunkNode)) {
+        if (!IsObjectAlive(currentNode)) {
             return true;
         }
-        if (trunkNode == RootNode) {
+        if (currentNode == RootNode) {
             return false;
         }
-        trunkNode = trunkNode->GetParent();
+        currentNode = currentNode->GetParent();
+    }
+}
+
+bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transaction)
+{
+    auto transactionManager = Bootstrap->GetTransactionManager();
+    auto transactions = transactionManager->GetTransactionPath(transaction);
+
+    auto hasChild = [&] (TCypressNodeBase* parentTrunkNode, TCypressNodeBase* childTrunkNode) {
+        // Compute child key or index.
+        TNullable<Stroka> key;
+        for (const auto* currentTransaction : transactions) {
+            TVersionedNodeId versionedId(parentTrunkNode->GetId(), GetObjectId(currentTransaction));
+            const auto* parentNode = FindNode(versionedId);
+            if (parentNode) {
+                switch (parentNode->GetType()) {
+                    case EObjectType::MapNode: {
+                        const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
+                        auto it = parentMapNode->ChildToKey().find(childTrunkNode);
+                        if (it != parentMapNode->ChildToKey().end()) {
+                            key = it->second;
+                        }
+                        break;        
+                    }
+
+                    case EObjectType::ListNode: {
+                        const auto* parentListNode = static_cast<const TListNode*>(parentNode);
+                        auto it = parentListNode->ChildToIndex().find(childTrunkNode);
+                        return it != parentListNode->ChildToIndex().end();
+                    }
+                }
+                
+            }
+            if (key) {
+                break;
+            }
+        }
+
+        if (!key) {
+            return false;
+        }
+
+        // Look for thombstones.
+        for (const auto* currentTransaction : transactions) {
+            TVersionedNodeId versionedId(parentTrunkNode->GetId(), GetObjectId(currentTransaction));
+            const auto* parentNode = FindNode(versionedId);
+            if (parentNode) {
+                // NB: List parents are already handled above.
+                const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
+                auto it = parentMapNode->KeyToChild().find(*key);
+                if (it != parentMapNode->KeyToChild().end() && it->second != childTrunkNode) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    };
+
+
+    auto* currentNode = trunkNode;
+    while (true) {
+        if (!IsObjectAlive(currentNode)) {
+            return false;
+        }
+        if (currentNode == RootNode) {
+            return true;
+        }
+        auto* parentNode = currentNode->GetParent();
+        if (!parentNode) {
+            return false;
+        }
+        if (!hasChild(parentNode, currentNode)) {
+            return false;
+        }
+        currentNode = parentNode;
     }
 }
 

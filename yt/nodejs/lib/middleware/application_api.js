@@ -13,7 +13,7 @@ exports.that = function YtApplicationApi()
     var driver = YtRegistry.get("driver");
     var coordinator = YtRegistry.get("coordinator");
     var watcher = new YtEioWatcher(logger, config);
-    var rate_check_cache = lru_cache({
+    var sticky_cache = lru_cache({
         max: config.api.rate_check_cache_size,
         maxAge: config.api.rate_check_cache_age,
     });
@@ -24,7 +24,7 @@ exports.that = function YtApplicationApi()
             driver,
             coordinator,
             watcher,
-            rate_check_cache,
+            sticky_cache,
             req.pauser
         )).dispatch(req, rsp);
     };

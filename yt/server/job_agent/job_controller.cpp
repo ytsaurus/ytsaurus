@@ -6,13 +6,12 @@
 
 #include <ytlib/node_tracker_client/helpers.h>
 
-#include <server/misc/memory_usage_tracker.h>
-
 #include <server/scheduler/job_resources.h>
 
 #include <server/data_node/master_connector.h>
 
 #include <server/exec_agent/slot_manager.h>
+#include <server/exec_agent/public.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -89,7 +88,7 @@ TNodeResources TJobController::GetResourceLimits()
     result.set_seal_slots(Config_->ResourceLimits->SealSlots);
 
     const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-    result.set_memory(tracker->GetTotalFree() + tracker->GetUsed(EMemoryCategory::Job));
+    result.set_memory(tracker->GetFree() + tracker->GetUsed(EMemoryConsumer::Job));
 
     return result;
 }
@@ -114,9 +113,9 @@ void TJobController::StartWaitingJobs()
 
     {
         auto usedResources = GetResourceUsage(false);
-        auto memoryToRelease = tracker->GetUsed(EMemoryCategory::Job) - usedResources.memory();
+        auto memoryToRelease = tracker->GetUsed(EMemoryConsumer::Job) - usedResources.memory();
         if (memoryToRelease > 0) {
-            tracker->Release(EMemoryCategory::Job, memoryToRelease);
+            tracker->Release(EMemoryConsumer::Job, memoryToRelease);
             resourcesUpdated = true;
         }
     }
@@ -139,7 +138,7 @@ void TJobController::StartWaitingJobs()
         }
 
         if (jobResources.memory()) {
-            auto error = tracker->TryAcquire(EMemoryCategory::Job, jobResources.memory());
+            auto error = tracker->TryAcquire(EMemoryConsumer::Job, jobResources.memory());
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
                     job->GetId());
@@ -250,7 +249,7 @@ bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
 
     if (delta.memory() > 0) {
         auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        auto error = tracker->TryAcquire(EMemoryCategory::Job, delta.memory());
+        auto error = tracker->TryAcquire(EMemoryConsumer::Job, delta.memory());
         if (!error.IsOK()) {
             return false;
         }

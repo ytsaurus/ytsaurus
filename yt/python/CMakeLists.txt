@@ -49,6 +49,14 @@ target_link_libraries( yt-yson-python
   ${PYTHON_LIBRARY}
 )
 
+set_target_properties( driver_python PROPERTIES
+  LINK_FLAGS "-static-libstdc++"
+)
+
+set_target_properties( yson_python PROPERTIES
+  LINK_FLAGS "-static-libstdc++"
+)
+
 exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
   ${CMAKE_BINARY_DIR}/lib/libyt-driver-python.so

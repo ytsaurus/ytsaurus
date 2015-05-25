@@ -1570,7 +1570,11 @@ void TOperationControllerBase::OnJobStarted(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    UNUSED(job);
+    LogEventFluently(ELogEventType::JobStarted)
+        .Item("job_id").Value(job->GetId())
+        .Item("operation_id").Value(job->GetOperation()->GetId())
+        .Item("resource_limits").Value(job->ResourceLimits())
+        .Item("node_address").Value(job->GetNode()->GetDefaultAddress());
 
     JobCounter.Start(1);
 }

@@ -58,7 +58,6 @@ public:
         TOperationControllerBase::Persist(context);
 
         using NYT::Persist;
-        Persist(context, RemoteCopyTask_);
         Persist(context, RemoteCopyTaskGroup_);
         Persist(context, JobIOConfig_);
         Persist(context, JobSpecTemplate_);
@@ -78,15 +77,11 @@ private:
             : Controller_(nullptr)
         { }
 
-        TRemoteCopyTask(
-                TRemoteCopyController* controller,
-                int jobCount)
+        TRemoteCopyTask(TRemoteCopyController* controller, int index)
             : TTask(controller)
             , Controller_(controller)
-            , ChunkPool_(CreateUnorderedChunkPool(
-                Controller_->NodeDirectory,
-                jobCount,
-                Controller_->Config->MaxChunkStripesPerJob))
+            , ChunkPool_(CreateAtomicChunkPool(Controller_->NodeDirectory))
+            , Index_(index)
         { }
 
         virtual Stroka GetId() const override
@@ -136,6 +131,8 @@ private:
         TRemoteCopyController* Controller_;
 
         std::unique_ptr<IChunkPool> ChunkPool_;
+
+        int Index_;
 
         virtual bool IsMemoryReserveEnabled() const override
         {
@@ -219,7 +216,7 @@ private:
         virtual void OnJobCompleted(TJobletPtr joblet) override
         {
             TTask::OnJobCompleted(joblet);
-            RegisterOutput(joblet, joblet->JobIndex);
+            RegisterOutput(joblet, Index_);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet) override
@@ -322,16 +319,38 @@ private:
             return;
         }
 
-        RemoteCopyTask_ = New<TRemoteCopyTask>(this, jobCount);
-        RemoteCopyTask_->Initialize();
-        RemoteCopyTask_->AddInput(stripes);
-        RemoteCopyTask_->FinishInput();
-        RegisterTask(RemoteCopyTask_);
+        BuildTasks(stripes);
 
         LOG_INFO("Inputs processed");
 
         InitJobIOConfig();
         InitJobSpecTemplate();
+    }
+    
+    void BuildTasks(const std::vector<TChunkStripePtr>& stripes)
+    {
+        auto addTask = [this] (const std::vector<TChunkStripePtr>& stripes, int index) {
+            auto task = New<TRemoteCopyTask>(this, index);
+            task->Initialize();
+            task->AddInput(stripes);
+            task->FinishInput();
+            RegisterTask(task);
+        };
+
+        i64 currentDataSize = 0;
+        std::vector<TChunkStripePtr> currentStripes;
+        for (auto stripe : stripes) {
+            currentStripes.push_back(stripe);
+            currentDataSize += stripe->GetStatistics().DataSize;
+            if (currentDataSize >= Spec_->DataSizePerJob || currentStripes.size() == Config_->MaxChunkStripesPerJob) {
+                addTask(currentStripes, Tasks.size());
+                currentStripes.clear();
+                currentDataSize = 0;
+            }
+        }
+        if (!currentStripes.empty()) {
+            addTask(currentStripes, Tasks.size());
+        }
     }
 
     virtual void CustomizeJoblet(TJobletPtr joblet) override
@@ -349,7 +368,7 @@ private:
 
     virtual bool IsCompleted() const override
     {
-        return RemoteCopyTask_->IsCompleted();
+        return Tasks.size() == JobCounter.GetCompleted();
     }
 
     // Progress reporting.
