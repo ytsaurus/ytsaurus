@@ -33,8 +33,9 @@ def main():
     from yt.wrapper.pickling import load
     __operation, __attributes, __operation_type, __input_format, __output_format, __keys = load(open(__operation_dump))
 
+    from yt.wrapper.py_runner_helpers import WrappedStreams
     import yt.wrapper.format_config as format_config
-    import yt.yson 
+    import yt.yson
     from yt.wrapper.format import YsonFormat
     config_dict = load(open(__config_dump_filename))
     for key, value in config_dict.iteritems():
@@ -66,7 +67,8 @@ def main():
                     itertools.starmap(__operation,
                         itertools.groupby(__rows, lambda row: extract_key(row, __keys))))
 
-    __output_format.dump_rows(__result, sys.stdout, raw=raw)
+    with WrappedStreams() as streams:
+        __output_format.dump_rows(__result, streams.get_original_stdout(), raw=raw)
 
     # Read out all input
     for row in __rows:

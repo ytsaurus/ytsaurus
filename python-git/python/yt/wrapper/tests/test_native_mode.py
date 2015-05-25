@@ -336,6 +336,38 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.run_map(change_field, table, table)
         self.assertItemsEqual(["z=8\n", "z=8\n"], yt.read_table(table))
 
+    def test_python_operations_io(self):
+        """ All access (except read-only) to stdin/out during the operation should be disabled """
+        table = TEST_DIR + "/table_io_test"
+
+        yt.write_table(table, ["x=1\n", "y=2\n"])
+
+        import sys
+
+        def print_(rec):
+            print 'message'
+
+        @yt.raw
+        def write(rec):
+            sys.stdout.write('message')
+
+        @yt.raw
+        def input_(rec):
+            x = input()
+
+        @yt.raw
+        def read(rec):
+            x = sys.stdin.read()
+
+        @yt.raw
+        def close(rec):
+            sys.stdin.close()
+
+        test_mappers = [print_, write, input_, read, close]
+        for mapper in test_mappers:
+            with pytest.raises(yt.YtError):
+                yt.run_map(mapper, table, table)
+
     @add_failed_operation_stderrs_to_error_message
     def test_yamr_python_operations(self):
         def yamr_func(key, records):
