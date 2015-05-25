@@ -8,7 +8,7 @@ namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TLiteralValue& literalValue)
+Stroka LiteralValueToString(const TLiteralValue& literalValue)
 {
     switch (literalValue.Tag()) {
         case NAst::TLiteralValue::TagOf<i64>():
@@ -46,7 +46,7 @@ Stroka InferName(const TExpression* expr)
     if (auto commaExpr = expr->As<TCommaExpression>()) {
         return InferName(commaExpr->Lhs.Get()) + ", " + InferName(commaExpr->Rhs.Get());
     } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        return ToString(literalExpr->Value);
+        return LiteralValueToString(literalExpr->Value);
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         return referenceExpr->ColumnName;
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
@@ -90,7 +90,7 @@ Stroka InferName(const TExpression* expr)
                 if (j) {
                     result += ", ";
                 }
-                result += ToString(inExpr->Values[i][j]);
+                result += LiteralValueToString(inExpr->Values[i][j]);
             }
 
             if (inExpr->Values[i].size() > 1) {
