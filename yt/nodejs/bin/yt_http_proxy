@@ -197,6 +197,7 @@ config = {
         heartbeat_interval: 5000,
         heartbeat_drift: 500,
         fitness_la_coefficient: 1,
+        fitness_net_coefficient: 0.05,
         fitness_phi_coefficient: 6,
         fitness_rnd_coefficient: 1,
         fitness_dmp_coefficient: 0.3,

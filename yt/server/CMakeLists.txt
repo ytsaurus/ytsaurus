@@ -59,12 +59,12 @@ target_link_libraries( ytserver
   ytext-lfalloc
 )
 
-if (NOT WIN32)
-  set_target_properties( ytserver
-    PROPERTIES
-    LINK_FLAGS "-static-libstdc++"
-  )
-endif()
+
+set_target_properties( ytserver
+  PROPERTIES
+  LINK_FLAGS "-static-libstdc++"
+)
+
 
 target_link_libraries( ytserver_lib
   ytlib

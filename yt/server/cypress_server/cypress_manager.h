@@ -125,6 +125,7 @@ public:
         bool includeRoot = true);
 
     bool IsOrphaned(TCypressNodeBase* trunkNode);
+    bool IsAlive(TCypressNodeBase* trunkNode, NTransactionServer::TTransaction* transaction);
 
     //! Returns the list consisting of the trunk node
     //! and all of its existing versioned overrides up to #transaction;

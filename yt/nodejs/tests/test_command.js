@@ -1,9 +1,12 @@
 var lru_cache = require("lru-cache");
 var qs = require("querystring");
+var Q = require("q");
 
 var YtDriver = require("../lib/driver").that;
+var YtError = require("../lib/error").that;
 var YtCommand = require("../lib/command").that;
 
+var binding = require("../lib/ytnode");
 var utils = require("../lib/utils");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,12 +19,12 @@ var die = require("./common_http").die;
 function spawnServer(driver, watcher, done) {
     var logger = stubLogger();
     var coordinator = stubCoordinator();
-    var rate_check_cache = lru_cache({ max: 5, maxAge: 5000 });
+    var sticky_cache = lru_cache({ max: 5, maxAge: 5000 });
     return srv(function(req, rsp) {
         var pause = utils.Pause(req);
         req.authenticated_user = "root";
         return (new YtCommand(
-            logger, driver, coordinator, watcher, rate_check_cache, pause
+            logger, driver, coordinator, watcher, sticky_cache, pause
         )).dispatch(req, rsp);
     }, done);
 }
@@ -1398,6 +1401,75 @@ describe("YtCommand - v3 output format selection", function() {
             rsp.should.be.http2xx;
             rsp.should.have.content_disposition("inline; filename=\"yt_sys_operations_111_jobs_222_stderr\"");
             rsp.should.have.content_type("text/plain");
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+});
+
+describe("YtCommand - specific behaviour", function() {
+    var V = "/v3";
+
+    beforeEach(function(done) {
+        this.driver = stubDriver(true);
+        this.server = spawnServer(this.driver, stubWatcher(false), done);
+        this.stub   = sinon.spy(this.driver, "execute");
+    });
+
+    afterEach(function(done) {
+        die(this.server, done);
+        this.driver = null;
+        this.server = null;
+        this.stub   = null;
+    });
+
+    it("should reply with 503 on AllTargetNodesFailed error", function(done) {
+        var stub = this.stub;
+        stub.returns(Q.reject(
+            new YtError("YTADMIN-1685").withCode(binding.AllTargetNodesFailedYtErrorCode)
+        ));
+        ask("PUT", V + "/write",
+        {},
+        function(rsp) {
+            rsp.statusCode.should.eql(503);
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should reply with 503 on Unavailable error", function(done) {
+        var stub = this.stub;
+        stub.returns(Q.reject(
+            new YtError("Unavailable").withCode(binding.UnavailableYtErrorCode)
+        ));
+        ask("PUT", V + "/write",
+        {},
+        function(rsp) {
+            rsp.statusCode.should.eql(503);
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should reply with 403 on UserBanned error", function(done) {
+        var stub = this.stub;
+        stub.returns(Q.reject(
+            new YtError("Banned").withCode(binding.UserBannedYtErrorCode)
+        ));
+        ask("PUT", V + "/write",
+        {},
+        function(rsp) {
+            rsp.statusCode.should.eql(403);
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should reply with 429 on RequestRateLimit error", function(done) {
+        var stub = this.stub;
+        stub.returns(Q.reject(
+            new YtError("RequestRateLimitExceeded").withCode(binding.RequestRateLimitExceededYtErrorCode)
+        ));
+        ask("PUT", V + "/write",
+        {},
+        function(rsp) {
+            rsp.statusCode.should.eql(429);
             stub.should.have.been.calledOnce;
         }, done).end();
     });

@@ -537,8 +537,6 @@ void TObjectManager::OnBeforeSnapshotLoaded()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
     DoClear();
 }
 
@@ -642,15 +640,11 @@ void TObjectManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    TMasterAutomatonPart::Clear();
-
     DoClear();
 }
 
 void TObjectManager::OnRecoveryStarted()
 {
-    TMasterAutomatonPart::OnRecoveryStarted();
-
     Profiler.SetEnabled(false);
 
     GarbageCollector_->UnlockAll();
@@ -666,8 +660,6 @@ void TObjectManager::OnRecoveryStarted()
 
 void TObjectManager::OnRecoveryComplete()
 {
-    TMasterAutomatonPart::OnRecoveryComplete();
-
     Profiler.SetEnabled(true);
 }
 
@@ -675,16 +667,12 @@ void TObjectManager::OnLeaderActive()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    TMasterAutomatonPart::OnLeaderActive();
-
     GarbageCollector_->Start();
 }
 
 void TObjectManager::OnStopLeading()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    TMasterAutomatonPart::OnStopLeading();
 
     GarbageCollector_->Stop();
 }
