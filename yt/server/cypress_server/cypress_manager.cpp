@@ -1206,7 +1206,7 @@ bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
 
 bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transaction)
 {
-    auto transactionManager = Bootstrap->GetTransactionManager();
+    auto transactionManager = Bootstrap_->GetTransactionManager();
     auto transactions = transactionManager->GetTransactionPath(transaction);
 
     auto hasChild = [&] (TCypressNodeBase* parentTrunkNode, TCypressNodeBase* childTrunkNode) {
@@ -1223,7 +1223,7 @@ bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transac
                         if (it != parentMapNode->ChildToKey().end()) {
                             key = it->second;
                         }
-                        break;        
+                        break;
                     }
 
                     case EObjectType::ListNode: {
@@ -1231,6 +1231,9 @@ bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transac
                         auto it = parentListNode->ChildToIndex().find(childTrunkNode);
                         return it != parentListNode->ChildToIndex().end();
                     }
+
+                    default:
+                        YUNREACHABLE();
                 }
                 
             }
