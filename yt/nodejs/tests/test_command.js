@@ -1,6 +1,6 @@
 var lru_cache = require("lru-cache");
 var qs = require("querystring");
-var Q = require("q");
+var Q = require("bluebird");
 
 var YtDriver = require("../lib/driver").that;
 var YtError = require("../lib/error").that;
@@ -1407,23 +1407,21 @@ describe("YtCommand - v3 output format selection", function() {
 });
 
 describe("YtCommand - specific behaviour", function() {
-    var V = "/v3";
+    var V = "/v2";
 
     beforeEach(function(done) {
         this.driver = stubDriver(true);
         this.server = spawnServer(this.driver, stubWatcher(false), done);
-        this.stub   = sinon.spy(this.driver, "execute");
     });
 
     afterEach(function(done) {
         die(this.server, done);
         this.driver = null;
         this.server = null;
-        this.stub   = null;
     });
 
     it("should reply with 503 on AllTargetNodesFailed error", function(done) {
-        var stub = this.stub;
+        var stub = sinon.stub(this.driver, "execute");
         stub.returns(Q.reject(
             new YtError("YTADMIN-1685").withCode(binding.AllTargetNodesFailedYtErrorCode)
         ));
@@ -1436,7 +1434,7 @@ describe("YtCommand - specific behaviour", function() {
     });
 
     it("should reply with 503 on Unavailable error", function(done) {
-        var stub = this.stub;
+        var stub = sinon.stub(this.driver, "execute");
         stub.returns(Q.reject(
             new YtError("Unavailable").withCode(binding.UnavailableYtErrorCode)
         ));
@@ -1449,7 +1447,7 @@ describe("YtCommand - specific behaviour", function() {
     });
 
     it("should reply with 403 on UserBanned error", function(done) {
-        var stub = this.stub;
+        var stub = sinon.stub(this.driver, "execute");
         stub.returns(Q.reject(
             new YtError("Banned").withCode(binding.UserBannedYtErrorCode)
         ));
@@ -1462,7 +1460,7 @@ describe("YtCommand - specific behaviour", function() {
     });
 
     it("should reply with 429 on RequestRateLimit error", function(done) {
-        var stub = this.stub;
+        var stub = sinon.stub(this.driver, "execute");
         stub.returns(Q.reject(
             new YtError("RequestRateLimitExceeded").withCode(binding.RequestRateLimitExceededYtErrorCode)
         ));
