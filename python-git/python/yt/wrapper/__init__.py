@@ -31,8 +31,6 @@ from py_wrapper import aggregator, raw, raw_io, simple
 from yt.packages.requests import HTTPError, ConnectionError
 from string_iter_io import StringIterIO
 
-from py_runner_helpers import WrappedStreams
-
 from common import get_version
 VERSION = get_version()
 
