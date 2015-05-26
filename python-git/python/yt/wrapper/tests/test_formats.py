@@ -28,6 +28,8 @@ def test_string_iter_io_readline():
 
 def check_format(format, string, row):
     assert format.loads_row(string) == row
+    if format.is_raw_load_supported():
+        assert format.load_row(StringIO(string), raw=True) == string
     assert format.load_row(StringIO(string)) == row
     assert list(format.load_rows(StringIO(string))) == [row]
 

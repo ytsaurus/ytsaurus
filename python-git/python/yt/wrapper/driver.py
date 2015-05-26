@@ -54,7 +54,9 @@ class ResponseStream(object):
             self._fetch()
 
         while length > 0:
-            right = min(len(self._buffer), self._pos + length)
+            right = self._pos + length
+            if len(self._buffer) < right:
+                right = len(self._buffer)
             result.append(self._buffer[self._pos:right])
             length -= right - self._pos
             self._pos = right
