@@ -15,6 +15,9 @@ import sys
 import shutil
 import types
 
+# Modules below are imported to force their addition to modules archive
+import py_runner_helpers
+
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 
 def is_running_interactively():
