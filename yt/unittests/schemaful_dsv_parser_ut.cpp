@@ -108,6 +108,29 @@ TEST(TSchemafulDsvParserTest, TooManyRows)
     EXPECT_THROW({ ParseSchemafulDsv(input, NYTree::GetNullYsonConsumer(), config); }, std::exception);
 }
 
+TEST(TSchemafulDsvParserTest, SpecialSymbols)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    auto value = Stroka("6\0", 2);
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("a"));
+        EXPECT_CALL(Mock, OnStringScalar("5\r"));
+        EXPECT_CALL(Mock, OnKeyedItem("b"));
+        EXPECT_CALL(Mock, OnStringScalar(value));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input("5\r\t6\0\n", 6);
+
+    auto config = New<TSchemafulDsvFormatConfig>();
+    config->Columns.push_back("a");
+    config->Columns.push_back("b");
+
+    ParseSchemafulDsv(input, &Mock, config);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
