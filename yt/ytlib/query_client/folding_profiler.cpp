@@ -16,6 +16,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (JoinOp)
     (FilterOp)
     (GroupOp)
+    (HavingOp)
     (OrderOp)
     (ProjectOp)
 
@@ -167,6 +168,11 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
             groupClause->GroupedTableSchema);
 
         schema = groupClause->GetTableSchema();
+    }
+
+    if (query->HavingClause) {
+        Fold(static_cast<int>(EFoldingObjectType::HavingOp));
+        codegenSource = MakeCodegenFilterOp(Profile(query->HavingClause, schema), std::move(codegenSource));
     }
 
     if (auto orderClause = query->OrderClause.Get()) {

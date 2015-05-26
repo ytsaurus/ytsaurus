@@ -320,6 +320,7 @@ struct TQuery
         , JoinClause(other.JoinClause)
         , WhereClause(other.WhereClause)
         , GroupClause(other.GroupClause)
+        , HavingClause(other.HavingClause)
         , ProjectClause(other.ProjectClause)
         , OrderClause(other.OrderClause)
         , Limit(other.Limit)
@@ -336,6 +337,7 @@ struct TQuery
     TConstJoinClausePtr JoinClause;
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
+    TConstExpressionPtr HavingClause;
     TConstProjectClausePtr ProjectClause;
     TConstOrderClausePtr OrderClause;
 
