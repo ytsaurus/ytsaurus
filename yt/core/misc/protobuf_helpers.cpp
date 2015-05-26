@@ -23,7 +23,15 @@ bool SerializeToProto(const google::protobuf::Message& message, TSharedRef* data
 
 bool DeserializeFromProto(google::protobuf::Message* message, const TRef& data)
 {
-    return message->ParsePartialFromArray(data.Begin(), data.Size());
+    // See comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
+    // to find out more about protobuf message size limits.
+    ArrayInputStream arrayInputStream(data.Begin(), data.Size());
+    CodedInputStream codedInputStream(&arrayInputStream);
+    codedInputStream.SetTotalBytesLimit(
+        data.Size() + 1,
+        data.Size() + 1);
+
+    return message->ParsePartialFromCodedStream(&codedInputStream);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,19 +118,7 @@ bool DeserializeFromProtoWithEnvelope(
     auto codec = NCompression::GetCodec(codecId);
     auto serializedMessage = codec->Decompress(compressedMessage);
 
-    // See comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
-    // to find out more about protobuf message size limits.
-    ArrayInputStream arrayInputStream(serializedMessage.Begin(), serializedMessage.Size());
-    CodedInputStream codedInputStream(&arrayInputStream);
-    codedInputStream.SetTotalBytesLimit(
-        serializedMessage.Size() + 1,
-        serializedMessage.Size() + 1);
-
-    if (!message->ParsePartialFromCodedStream(&codedInputStream)) {
-        return false;
-    }
-
-    return true;
+    return DeserializeFromProto(message, serializedMessage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
