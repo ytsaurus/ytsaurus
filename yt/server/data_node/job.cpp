@@ -255,7 +255,7 @@ protected:
 private:
     void DoSetFinished(EJobState finalState, const TError& error)
     {
-        if (JobState_ != EJobState::Running)
+        if (JobState_ != EJobState::Running && JobState_ != EJobState::Waiting)
             return;
 
         JobPhase_ = EJobPhase::Finished;
