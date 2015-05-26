@@ -56,18 +56,18 @@ def main():
 
     __rows = __input_format.load_rows(sys.stdin, raw=raw)
 
-    if __attributes.get("is_aggregator", False):
-        __result = __operation(__rows)
-    else:
-        if __operation_type == "mapper" or raw:
-            __result = itertools.chain.from_iterable(itertools.imap(__operation, __rows))
-        else:
-            __result = \
-                itertools.chain.from_iterable(
-                    itertools.starmap(__operation,
-                        itertools.groupby(__rows, lambda row: extract_key(row, __keys))))
-
     with WrappedStreams() as streams:
+        if __attributes.get("is_aggregator", False):
+            __result = __operation(__rows)
+        else:
+            if __operation_type == "mapper" or raw:
+                __result = itertools.chain.from_iterable(itertools.imap(__operation, __rows))
+            else:
+                __result = \
+                    itertools.chain.from_iterable(
+                        itertools.starmap(__operation,
+                            itertools.groupby(__rows, lambda row: extract_key(row, __keys))))
+
         __output_format.dump_rows(__result, streams.get_original_stdout(), raw=raw)
 
     # Read out all input
