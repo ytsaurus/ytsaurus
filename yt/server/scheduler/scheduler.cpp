@@ -105,6 +105,7 @@ public:
         TSchedulerConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
+        , ConfigAtStart_(ConvertToNode(Config_))
         , Bootstrap_(bootstrap)
         , BackgroundQueue_(New<TActionQueue>("Background"))
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
@@ -701,6 +702,7 @@ private:
     friend class TSchedulingContext;
 
     TSchedulerConfigPtr Config_;
+    INodePtr ConfigAtStart_;
     TBootstrap* Bootstrap_;
 
     TActionQueuePtr BackgroundQueue_;
@@ -990,14 +992,27 @@ private:
             return;
         }
 
+        auto oldConfig = ConvertToNode(Config_);
+
         try {
-            if (!ReconfigureYsonSerializable(Config_, TYsonString(rsp->value())))
-                return;
+            auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
+
+            try {
+                Config_->Load(ConfigAtStart_, /* validate */ true, /* setDefaults */ true);
+                Config_->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Error updating cell scheduler configuration");
+                Config_->Load(oldConfig, /* validate */ true, /* setDefaults */ true);
+            }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing updated scheduler configuration");
         }
 
-        LOG_INFO("Scheduler configuration updated");
+        auto newConfig = ConvertToNode(Config_);
+
+        if (!NYTree::AreNodesEqual(oldConfig, newConfig)) {
+            LOG_INFO("Scheduler configuration updated");
+        }
     }
 
 
