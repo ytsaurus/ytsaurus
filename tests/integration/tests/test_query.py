@@ -142,7 +142,7 @@ class TestQuery(YTEnvSetup):
         self._sync_create_cells(3, 1)
 
         self._create_table(
-        create("table", "//tmp/jl",
+            "//tmp/jl",
             [
                 {"name": "a", "type": "int64"},
                 {"name": "b", "type": "int64"},
