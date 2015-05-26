@@ -406,6 +406,22 @@ class YamrFormat(Format):
 
     def load_rows(self, stream, raw=None):
         unparsed = self._is_raw(raw)
+        # NB: separate processing of unparsed mode for optimization
+        if unparsed and not self.lenval:
+            prefix = ""
+            while True:
+                chunk = stream.read(1024 * 1024)
+                if not chunk:
+                    if prefix:
+                        yield prefix + "\n"
+                    break
+                lines = chunk.split("\n")
+                yield prefix + lines[0] + "\n"
+                for line in lines[1:-1]:
+                    yield line + "\n"
+                prefix = lines[-1]
+            return
+
         table_index = 0
         while True:
             row = self._load_row(stream, unparsed=unparsed)
