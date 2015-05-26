@@ -167,11 +167,11 @@ private:
         Context_->Reply(error);
     }
 
-    bool OnChunk(
+    virtual bool OnChunk(
         TChunk* chunk,
         i64 rowIndex,
         const TReadLimit& lowerLimit,
-        const TReadLimit& upperLimit)
+        const TReadLimit& upperLimit) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

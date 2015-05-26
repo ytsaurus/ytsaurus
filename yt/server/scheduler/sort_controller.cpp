@@ -70,7 +70,7 @@ public:
     { }
 
     // Persistence.
-    virtual void Persist(TPersistenceContext& context)
+    virtual void Persist(TPersistenceContext& context) override
     {
         TOperationControllerBase::Persist(context);
 
@@ -2072,7 +2072,7 @@ private:
         return result;
     }
 
-    virtual bool IsRowCountPreserved() const
+    virtual bool IsRowCountPreserved() const override
     {
         return true;
     }
