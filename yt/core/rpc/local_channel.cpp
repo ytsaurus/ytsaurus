@@ -112,7 +112,7 @@ private:
             }
         }
 
-        virtual TYsonString GetEndpointDescription() const
+        virtual TYsonString GetEndpointDescription() const override
         {
             return ConvertToYsonString(Stroka("<local>"));
         }
