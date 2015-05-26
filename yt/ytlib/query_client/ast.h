@@ -220,6 +220,7 @@ struct TQuery
     TNullableNamedExpressionList SelectExprs;
     TExpressionPtr WherePredicate;
     TNullableNamedExpressionList GroupExprs;
+    TExpressionPtr HavingPredicate;
     TNullableIdentifierList OrderFields;
     i64 Limit = 0;
 };

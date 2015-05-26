@@ -130,6 +130,10 @@ Stroka InferName(TConstQueryPtr query)
         str = JoinToString(query->GroupClause->GroupItems, namedItemFormatter);
         clauses.push_back(Stroka("GROUP BY ") + str);
     }
+    if (query->HavingClause) {
+        str = InferName(query->HavingClause);
+        clauses.push_back(Stroka("HAVING ") + str);
+    }
     if (query->OrderClause) {
         str = JoinToString(query->OrderClause->OrderColumns);
         clauses.push_back(Stroka("ORDER BY ") + str);
@@ -1151,6 +1155,37 @@ TConstGroupClausePtr BuildGroupClause(
     return groupClause;
 }
 
+TConstExpressionPtr BuildHavingClause(
+    NAst::TExpressionPtr& expressionAst,
+    const Stroka& source,
+    const TSchemaProxyPtr& schemaProxy,
+    IFunctionRegistry* functionRegistry)
+{
+    auto typedPredicate = schemaProxy->BuildTypedExpression(
+        expressionAst.Get(),
+        source,
+        functionRegistry);
+
+    if (typedPredicate.size() != 1) {
+        THROW_ERROR_EXCEPTION("Expecting scalar expression")
+            << TErrorAttribute("source", expressionAst->GetSource(source));
+    }
+
+    auto predicate = typedPredicate.front();
+
+    CheckExpressionDepth(predicate);
+
+    auto actualType = predicate->Type;
+    EValueType expectedType(EValueType::Boolean);
+    if (actualType != expectedType) {
+        THROW_ERROR_EXCEPTION("HAVING-clause is not a boolean expression")
+            << TErrorAttribute("actual_type", actualType)
+            << TErrorAttribute("expected_type", expectedType);
+    }
+
+    return predicate;
+}
+
 TConstProjectClausePtr BuildProjectClause(
     NAst::TNullableNamedExpressionList& expressionsAst,
     const Stroka& source,
@@ -1195,6 +1230,13 @@ void PrepareQuery(
 
     if (ast.GroupExprs) {
         query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy, functionRegistry);
+    }
+
+    if (ast.HavingPredicate) {
+        if (!query->GroupClause) {
+            THROW_ERROR_EXCEPTION("Expected GROUP BY before HAVING");
+        }
+        query->HavingClause = BuildHavingClause(ast.HavingPredicate, source, schemaProxy, functionRegistry);
     }
 
     if (ast.OrderFields) {
@@ -1637,6 +1679,10 @@ void ToProto(NProto::TQuery* proto, TConstQueryPtr original)
         ToProto(proto->mutable_group_clause(), original->GroupClause);
     }
 
+    if (original->HavingClause) {
+        ToProto(proto->mutable_having_clause(), original->HavingClause);
+    }
+
     if (original->OrderClause) {
         ToProto(proto->mutable_order_clause(), original->OrderClause);
     }
@@ -1759,6 +1805,10 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
 
     if (serialized.has_group_clause()) {
         query->GroupClause = FromProto(serialized.group_clause());       
+    }
+
+    if (serialized.has_having_clause()) {
+        query->HavingClause = FromProto(serialized.having_clause());
     }
 
     if (serialized.has_order_clause()) {

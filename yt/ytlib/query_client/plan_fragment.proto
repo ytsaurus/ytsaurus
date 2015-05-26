@@ -136,6 +136,7 @@ message TQuery
     optional TJoinClause join_clause = 7;
     optional TExpression predicate = 8;
     optional TGroupClause group_clause = 9;
+    optional TExpression having_clause = 12;
     optional TOrderClause order_clause = 11;
     optional TProjectClause project_clause = 10;
 }

@@ -79,6 +79,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         query->InputRowLimit,
         query->OutputRowLimit);
 
+    topQuery->HavingClause = query->HavingClause;
     topQuery->OrderClause = query->OrderClause;
     topQuery->Limit = query->Limit;
 

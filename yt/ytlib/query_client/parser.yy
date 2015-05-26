@@ -63,6 +63,7 @@
 
 %token KwFrom "keyword `FROM`"
 %token KwWhere "keyword `WHERE`"
+%token KwHaving "keyword `HAVING`"
 %token KwLimit "keyword `LIMIT`"
 %token KwJoin "keyword `JOIN`"
 %token KwUsing "keyword `USING`"
@@ -107,6 +108,7 @@
 %type <TNullableNamedExpressionList> select-clause-impl
 %type <TExpressionPtr> where-clause-impl
 %type <TNamedExpressionList> group-by-clause-impl
+%type <TExpressionPtr> having-clause-impl
 %type <TIdentifierList> order-by-clause-impl
 %type <i64> limit-clause-impl
 
@@ -146,7 +148,7 @@ head
 ;
 
 parse-query
-    : select-clause from-clause where-clause group-by-clause order-by-clause limit-clause
+    : select-clause from-clause where-clause group-by-clause having-clause order-by-clause limit-clause
 ;
 
 parse-job-query
@@ -194,6 +196,14 @@ group-by-clause
     |
 ;
 
+having-clause
+    : having-clause-impl[having]
+        {
+            head->As<TQuery>().HavingPredicate = $having;
+        }
+    |
+;
+
 order-by-clause
     : order-by-clause-impl[order]
         {
@@ -232,6 +242,13 @@ group-by-clause-impl
     : KwGroupBy named-expression-list[exprs]
         {
             $$ = $exprs;
+        }
+;
+
+having-clause-impl
+    : KwHaving or-op-expr[predicate]
+        {
+            $$ = $predicate;
         }
 ;
 
