@@ -78,10 +78,7 @@ TFuture<void> TSequentialReader::FetchNextBlock()
     }
 
     ++FirstReadyWindowIndex_;
-
-    auto promise = NewPromise<void>();
-    promise.SetFrom(Window_[FirstReadyWindowIndex_].Block.ToFuture());
-    return promise.ToFuture();
+    return Window_[FirstReadyWindowIndex_].Block.ToFuture().As<void>();
 }
 
 void TSequentialReader::OnGotBlocks(
