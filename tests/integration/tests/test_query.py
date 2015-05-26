@@ -48,6 +48,16 @@ class TestQuery(YTEnvSetup):
 
         sort(in_=path, out=path, sort_by=["a", "b"])
 
+    def _create_table(self, path, schema, key_columns, data):
+        create("table", path,
+            attributes = {
+                "schema": schema,
+                "key_columns": key_columns
+            })
+        mount_table(path)
+        self._wait_for_tablet_state(path, ["mounted"])
+        insert_rows(path, data)
+
     # TODO(sandello): TableMountCache is not invalidated at the moment,
     # so table names must be unique.
 
@@ -185,72 +195,59 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_join(self):
-
         self._sync_create_cells(3, 1)
 
+        self._create_table(
         create("table", "//tmp/jl",
-            attributes = {
-                "schema": [
-                    {"name": "a", "type": "int64"},
-                    {"name": "b", "type": "int64"},
-                    {"name": "c", "type": "int64"}],
-                "key_columns": ["a", "b"]
-            })
+            [
+                {"name": "a", "type": "int64"},
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "int64"}],
+            ["a", "b"],
+            [
+                {"a": 1, "b": 2, "c": 80 },
+                {"a": 1, "b": 3, "c": 71 },
+                {"a": 1, "b": 4, "c": 62 },
+                {"a": 2, "b": 1, "c": 53 },
+                {"a": 2, "b": 2, "c": 44 },
+                {"a": 2, "b": 3, "c": 35 },
+                {"a": 2, "b": 4, "c": 26 },
+                {"a": 3, "b": 1, "c": 17 }
+            ]);
 
-        mount_table("//tmp/jl")
-        self._wait_for_tablet_state("//tmp/jl", ["mounted"])
-
-        create("table", "//tmp/jr",
-            attributes = {
-                "schema": [
-                    {"name": "c", "type": "int64"},
-                    {"name": "d", "type": "int64"},
-                    {"name": "e", "type": "int64"}],
-                "key_columns": ["c"]
-            })
-
-        mount_table("//tmp/jr")
-        self._wait_for_tablet_state("//tmp/jr", ["mounted"])
-
-        data = [
-            {"a": 1, "b": 2, "c": 0 },
-            {"a": 1, "b": 3, "c": 1 },
-            {"a": 1, "b": 4, "c": 2 },
-            {"a": 2, "b": 1, "c": 3 },
-            {"a": 2, "b": 2, "c": 4 },
-            {"a": 2, "b": 3, "c": 5 },
-            {"a": 2, "b": 4, "c": 6 },
-            {"a": 3, "b": 1, "c": 7 }]
-
-        insert_rows("//tmp/jl", data)
-
-        data = [
-            {"d": 1, "e": 2, "c": 0 },
-            {"d": 1, "e": 3, "c": 1 },
-            {"d": 1, "e": 4, "c": 2 },
-            {"d": 2, "e": 1, "c": 3 },
-            {"d": 2, "e": 2, "c": 4 },
-            {"d": 2, "e": 3, "c": 5 },
-            {"d": 2, "e": 4, "c": 6 },
-            {"d": 3, "e": 1, "c": 7 }]
-
-        insert_rows("//tmp/jr", data)
+        self._create_table(
+            "//tmp/jr",
+            [
+                {"name": "c", "type": "int64"},
+                {"name": "d", "type": "int64"},
+                {"name": "e", "type": "int64"}],
+            ["c"],
+            [
+                {"d": 1, "e": 2, "c": 80 },
+                {"d": 1, "e": 3, "c": 71 },
+                {"d": 1, "e": 4, "c": 62 },
+                {"d": 2, "e": 1, "c": 53 },
+                {"d": 2, "e": 2, "c": 44 },
+                {"d": 2, "e": 3, "c": 35 },
+                {"d": 2, "e": 4, "c": 26 },
+                {"d": 3, "e": 1, "c": 17 }
+            ]);
 
         expected = [
-            {"a": 1, "b": 2, "c": 0, "d": 1, "e": 2},
-            {"a": 1, "b": 3, "c": 1, "d": 1, "e": 3},
-            {"a": 1, "b": 4, "c": 2, "d": 1, "e": 4},
-            {"a": 2, "b": 1, "c": 3, "d": 2, "e": 1},
-            {"a": 2, "b": 2, "c": 4, "d": 2, "e": 2},
-            {"a": 2, "b": 3, "c": 5, "d": 2, "e": 3},
-            {"a": 2, "b": 4, "c": 6, "d": 2, "e": 4},
-            {"a": 3, "b": 1, "c": 7, "d": 3, "e": 1}]
+            {"a": 1, "b": 2, "c": 80, "d": 1, "e": 2},
+            {"a": 1, "b": 3, "c": 71, "d": 1, "e": 3},
+            {"a": 1, "b": 4, "c": 62, "d": 1, "e": 4},
+            {"a": 2, "b": 1, "c": 53, "d": 2, "e": 1},
+            {"a": 2, "b": 2, "c": 44, "d": 2, "e": 2},
+            {"a": 2, "b": 3, "c": 35, "d": 2, "e": 3},
+            {"a": 2, "b": 4, "c": 26, "d": 2, "e": 4},
+            {"a": 3, "b": 1, "c": 17, "d": 3, "e": 1}]
 
         actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using c where a < 4")
         assert expected == actual
 
         expected = [
-            {"a": 2, "b": 1, "c": 3, "d": 2, "e": 1}]
+            {"a": 2, "b": 1, "c": 53, "d": 2, "e": 1}]
 
         actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using c where (a, b) IN ((2, 1))")
         assert expected == actual
