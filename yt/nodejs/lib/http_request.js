@@ -206,9 +206,7 @@ YtHttpRequest.prototype.fire = function()
     if (self.noresolve) {
         addr = Q.resolve([self.host]);
     } else {
-        var addr4 = _resolveIPv4(self.host);
-        var addr6 = _resolveIPv6(self.host);
-        addr = addr6.catch(function() { return addr4; });
+        addr = _resolveIPv6(self.host).catch(function() { return _resolveIPv4(self.host); });
     }
 
     return addr.then(impl);
