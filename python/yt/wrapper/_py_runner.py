@@ -33,7 +33,7 @@ def main():
     from yt.wrapper.pickling import load
     __operation, __attributes, __operation_type, __input_format, __output_format, __keys = load(open(__operation_dump))
 
-    from py_runner_helpers import WrappedStreams
+    import _py_runner_helpers
     import yt.wrapper.format_config as format_config
     import yt.yson
     from yt.wrapper.format import YsonFormat
@@ -56,7 +56,7 @@ def main():
 
     __rows = __input_format.load_rows(sys.stdin, raw=raw)
 
-    with WrappedStreams() as streams:
+    with _py_runner_helpers.WrappedStreams() as streams:
         if __attributes.get("is_aggregator", False):
             __result = __operation(__rows)
         else:
