@@ -17,6 +17,7 @@
 #include <core/profiling/timing.h>
 
 #include <ytlib/hydra/hydra_manager.pb.h>
+#include <ytlib/hydra/version.h>
 
 #include <server/hydra/changelog.h>
 #include <server/hydra/file_changelog_dispatcher.h>
@@ -156,6 +157,11 @@ public:
 
         for (int id = minDirtyId; id <= maxDirtyId; ++id) {
             AnalyzeChangelog(id);
+        }
+
+        DumpAnalysisResults();
+
+        for (int id = minDirtyId; id <= maxDirtyId; ++id) {
             ReplayChangelog(id);
         }
 
@@ -183,7 +189,7 @@ private:
     yhash_set<TChunkId> CreateChunkIds_;
     yhash_set<TChunkId> RemoveChunkIds_;
     yhash_set<TChunkId> AppendChunkIds_;
-    yhash_map<TChunkId, int> ChunkIdToFirstRelevantRecordId_;
+    yhash_map<TChunkId, TVersion> ChunkIdToFirstRelevantVersion_;
 
     struct TSplitEntry
     {
@@ -205,16 +211,16 @@ private:
     yhash_map<TChunkId, TSplitEntry> SplitMap_;
 
 
-    int GetFirstRelevantRecordId(const TChunkId& chunkId)
+    TVersion GetFirstRelevantVersion(const TChunkId& chunkId)
     {
-        auto it = ChunkIdToFirstRelevantRecordId_.find(chunkId);
-        YCHECK(it != ChunkIdToFirstRelevantRecordId_.end());
+        auto it = ChunkIdToFirstRelevantVersion_.find(chunkId);
+        YCHECK(it != ChunkIdToFirstRelevantVersion_.end());
         return it->second;
     }
 
     void ScanChangelog(
         int changelogId,
-        const std::function<void(int recordId, const TMultiplexedRecord& record)>& handler)
+        const std::function<void(TVersion version, const TMultiplexedRecord& record)>& handler)
     {
         int startRecordId = 0;
         auto multiplexedChangelog = Callbacks_->OpenMultiplexedChangelog(changelogId);
@@ -233,7 +239,7 @@ private:
                 TMultiplexedRecord record;
                 record.Header = *reinterpret_cast<const TMultiplexedRecordHeader*>(recordData.Begin());
                 record.Data = recordData.Slice(sizeof (TMultiplexedRecordHeader), recordData.Size());
-                handler(currentRecordId, record);
+                handler(TVersion(changelogId, currentRecordId), record);
                 ++currentRecordId;
             }
 
@@ -248,19 +254,14 @@ private:
     {
         LOG_INFO("Analyzing dirty multiplexed changelog (ChangelogId: %v)", changelogId);
 
-        CreateChunkIds_.clear();
-        RemoveChunkIds_.clear();
-        AppendChunkIds_.clear();
-        ChunkIdToFirstRelevantRecordId_.clear();
-
-        ScanChangelog(changelogId, [&] (int recordId, const TMultiplexedRecord& record) {
+        ScanChangelog(changelogId, [&] (TVersion version, const TMultiplexedRecord& record) {
             const auto& chunkId = record.Header.ChunkId;
             switch (record.Header.Type) {
                 case EMultiplexedRecordType::Append: {
                     YCHECK(RemoveChunkIds_.find(chunkId) == RemoveChunkIds_.end());
-                    auto it = ChunkIdToFirstRelevantRecordId_.find(chunkId);
-                    if (it == ChunkIdToFirstRelevantRecordId_.end()) {
-                        YCHECK(ChunkIdToFirstRelevantRecordId_.insert(std::make_pair(chunkId, recordId)).second);
+                    auto it = ChunkIdToFirstRelevantVersion_.find(chunkId);
+                    if (it == ChunkIdToFirstRelevantVersion_.end()) {
+                        YCHECK(ChunkIdToFirstRelevantVersion_.insert(std::make_pair(chunkId, version)).second);
                     }
                     AppendChunkIds_.insert(chunkId);
                     break;
@@ -271,7 +272,7 @@ private:
                     YCHECK(CreateChunkIds_.find(chunkId) == CreateChunkIds_.end());
                     CreateChunkIds_.insert(chunkId);
                     RemoveChunkIds_.erase(chunkId);
-                    ChunkIdToFirstRelevantRecordId_[chunkId] = recordId;
+                    ChunkIdToFirstRelevantVersion_[chunkId] = version;
                     break;
 
                 case EMultiplexedRecordType::Remove:
@@ -279,19 +280,22 @@ private:
                     RemoveChunkIds_.insert(chunkId);
                     CreateChunkIds_.erase(chunkId);
                     AppendChunkIds_.erase(chunkId);
-                    ChunkIdToFirstRelevantRecordId_[chunkId] = recordId;
+                    ChunkIdToFirstRelevantVersion_[chunkId] = version;
                     break;
                 default:
                     YUNREACHABLE();
             }
         });
+    }
 
+    void DumpAnalysisResults()
+    {
         auto dumpChunkIds = [&] (const yhash_set<TChunkId>& chunkIds, const Stroka& action) {
             for (const auto& chunkId : chunkIds) {
-                LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantRecordId: %v)",
+                LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantVersion: {%v})",
                     action,
                     chunkId,
-                    GetFirstRelevantRecordId(chunkId));
+                    GetFirstRelevantVersion(chunkId));
             }
         };
 
@@ -304,9 +308,9 @@ private:
     {
         LOG_INFO("Replaying dirty multiplexed changelog (ChangelogId: %v)", changelogId);
 
-        ScanChangelog(changelogId, [&] (int recordId, const TMultiplexedRecord& record) {
+        ScanChangelog(changelogId, [&] (TVersion version, const TMultiplexedRecord& record) {
             const auto& chunkId = record.Header.ChunkId;
-            if (recordId < GetFirstRelevantRecordId(chunkId))
+            if (version < GetFirstRelevantVersion(chunkId))
                 return;
 
             switch (record.Header.Type) {
