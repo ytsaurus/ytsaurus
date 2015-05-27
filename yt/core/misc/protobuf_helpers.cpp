@@ -35,7 +35,16 @@ TSharedRef SerializeToProto(const google::protobuf::MessageLite& message)
 
 bool TryDeserializeFromProto(google::protobuf::MessageLite* message, const TRef& data)
 {
-    return message->ParsePartialFromArray(data.Begin(), data.Size());
+    // See comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
+    // to find out more about protobuf message size limits.
+    CodedInputStream codedInputStream(
+        reinterpret_cast<const ui8*>(data.Begin()),
+        static_cast<int>(data.Size()));
+    codedInputStream.SetTotalBytesLimit(
+        data.Size() + 1,
+        data.Size() + 1);
+
+    return message->ParsePartialFromCodedStream(&codedInputStream);
 }
 
 void DeserializeFromProto(google::protobuf::MessageLite* message, const TRef& data)
@@ -134,23 +143,7 @@ bool TryDeserializeFromProtoWithEnvelope(
     auto codec = NCompression::GetCodec(codecId);
     auto serializedMessage = codec->Decompress(compressedMessage);
 
-    // See comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
-    // to find out more about protobuf message size limits.
-    CodedInputStream codedInputStream(
-        reinterpret_cast<const ui8*>(serializedMessage.Begin()),
-        static_cast<int>(serializedMessage.Size()));
-    codedInputStream.SetTotalBytesLimit(
-        serializedMessage.Size() + 1,
-        serializedMessage.Size() + 1);
-
-    // Raise recursion limit.
-    codedInputStream.SetRecursionLimit(1024);
-
-    if (!message->ParsePartialFromCodedStream(&codedInputStream)) {
-        return false;
-    }
-
-    return true;
+    return TryDeserializeFromProto(message, serializedMessage);
 }
 
 void DeserializeFromProtoWithEnvelope(
