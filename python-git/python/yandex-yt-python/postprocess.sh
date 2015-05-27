@@ -3,6 +3,7 @@
 
 export YT_PROXY=locke.yt.yandex.net
 export YT_TOKEN=1da6afc98d189e8ba59d2ea39f29d0f1 #teamcity user
+export PYTHONPATH="."
 DEST="//home/files"
 YT="yt/wrapper/yt"
 UBUNTU_VERSION="$(lsb_release --short --codename )"
