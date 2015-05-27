@@ -33,7 +33,7 @@ def main():
     from yt.wrapper.pickling import load
     __operation, __attributes, __operation_type, __input_format, __output_format, __keys = load(open(__operation_dump))
 
-    from yt.wrapper.py_runner_helpers import WrappedStreams
+    from py_runner_helpers import WrappedStreams
     import yt.wrapper.format_config as format_config
     import yt.yson
     from yt.wrapper.format import YsonFormat
