@@ -299,7 +299,7 @@ YtCoordinator.prototype._refresh = function()
             failing = true;
         }
 
-        sync = Q.nfcall(fs.readFile, "/proc/net/dev")
+        sync = Q.promisify(fs.readFile)("/proc/net/dev")
         .then(function(data) {
             var lines = data.toString().split("\n");
             var bytes = 0;
@@ -311,7 +311,7 @@ YtCoordinator.prototype._refresh = function()
             }
             return bytes;
         })
-        .fail(function(error) {
+        .catch(function(error) {
             var error = YtError.ensureWrapped(err);
             self.logger.error(
                 "An error occured while reading network load information",
