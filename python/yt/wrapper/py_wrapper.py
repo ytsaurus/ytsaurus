@@ -15,10 +15,10 @@ import sys
 import shutil
 import types
 
-# Modules below are imported to force their addition to modules archive
-import py_runner_helpers
-
 LOCATION = os.path.dirname(os.path.abspath(__file__))
+
+# Modules below are imported to force their addition to modules archive
+OPERATION_REQUIRED_MODULES = ['py_runner_helpers']
 
 def is_running_interactively():
     # Does not work in bpython
@@ -66,6 +66,10 @@ def find_file(path):
 def create_modules_archive(tempfiles_manager):
     if config.PYTHON_CREATE_MODULES_ARCHIVE is not None:
         return config.PYTHON_CREATE_MODULES_ARCHIVE()
+
+    for module_name in OPERATION_REQUIRED_MODULES:
+        module_info = imp.find_module(module_name, [LOCATION])
+        imp.load_module(module_name, *module_info)
 
     compressed_files = set()
     zip_filename = tempfiles_manager.create_tempfile(dir=config.LOCAL_TMP_DIR,
