@@ -1,6 +1,8 @@
 var events = require("events");
 var util = require("util");
 
+var YtReservoir = require("./reservoir").that;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 var getHrtime = function()
@@ -22,56 +24,13 @@ var getNormalCdf = function(x, mean, stddev)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtACFSample(window_size)
-{
-    this._window_size = window_size;
-    this._window = [];
-
-    this._sum = 0.0;
-    this._sum_sq = 0.0;
-
-    var self = this;
-    Object.defineProperty(this, "length", {
-        get: function() {
-            return self._window.length;
-        }
-    });
-    Object.defineProperty(this, "mean", {
-        get: function() {
-            return self._sum / self.length;
-        }
-    });
-    Object.defineProperty(this, "variance", {
-        get: function() {
-            return self._sum_sq / self.length - self.mean * self.mean;
-        }
-    });
-    Object.defineProperty(this, "stddev", {
-        get: function() {
-            return Math.sqrt(self.variance);
-        }
-    });
-}
-
-YtACFSample.prototype.push = function(value)
-{
-    if (this._window.length >= this._window_size) {
-        var dropped = this._window.shift();
-        this._sum -= dropped;
-        this._sum_sq -= dropped * dropped;
-    }
-    this._window.push(value);
-    this._sum += value;
-    this._sum_sq += value * value;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 function YtAccrualFailureDetector(
     window_size, phi_threshold, min_stddev,
     heartbeat_tolerance, heartbeat_estimate)
 {
-    this.sample = new YtACFSample(window_size);
+    "use strict";
+
+    this.sample = new YtReservoir(window_size);
     this.last_at = null;
 
     this.phi_threshold = phi_threshold;
@@ -90,6 +49,8 @@ util.inherits(YtAccrualFailureDetector, events.EventEmitter);
 
 YtAccrualFailureDetector.prototype.heartbeat = function(now)
 {
+    "use strict";
+
     if (typeof(now) === "undefined") {
         now = getHrtime();
     }
@@ -126,11 +87,14 @@ YtAccrualFailureDetector.prototype.heartbeat = function(now)
 
 YtAccrualFailureDetector.prototype.heartbeatTS = function(date)
 {
+    "use strict";
     return this.heartbeat(+(date || new Date()));
 };
 
 YtAccrualFailureDetector.prototype.phi = function(now)
 {
+    "use strict";
+
     if (typeof(now) === "undefined") {
         now = getHrtime();
     }
@@ -153,6 +117,7 @@ YtAccrualFailureDetector.prototype.phi = function(now)
 
 YtAccrualFailureDetector.prototype.phiTS = function(date)
 {
+    "use strict";
     return this.phi(+(date || new Date()));
 };
 

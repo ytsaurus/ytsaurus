@@ -44,7 +44,12 @@ if (NOT WIN32)
   )
 endif()
 
+set_target_properties( yt PROPERTIES
+  LINK_FLAGS "-static-libstdc++"
+)
+
 install(
   TARGETS yt
   RUNTIME DESTINATION bin
 )
+

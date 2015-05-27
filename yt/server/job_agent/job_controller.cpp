@@ -6,8 +6,6 @@
 
 #include <ytlib/node_tracker_client/helpers.h>
 
-#include <server/misc/memory_usage_tracker.h>
-
 #include <server/scheduler/job_resources.h>
 
 #include <server/data_node/master_connector.h>
@@ -15,6 +13,8 @@
 #include <server/exec_agent/slot_manager.h>
 
 #include <server/cell_node/bootstrap.h>
+
+#include <server/misc/memory_usage_tracker.h>
 
 namespace NYT {
 namespace NJobAgent {

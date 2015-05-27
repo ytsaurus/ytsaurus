@@ -1192,14 +1192,83 @@ TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
 
 bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
 {
+    auto* currentNode = trunkNode;
     while (true) {
-        if (!IsObjectAlive(trunkNode)) {
+        if (!IsObjectAlive(currentNode)) {
             return true;
         }
-        if (trunkNode == RootNode) {
+        if (currentNode == RootNode) {
             return false;
         }
-        trunkNode = trunkNode->GetParent();
+        currentNode = currentNode->GetParent();
+    }
+}
+
+bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transaction)
+{
+    auto hasChild = [&] (TCypressNodeBase* parentTrunkNode, TCypressNodeBase* childTrunkNode) {
+        // Compute child key or index.
+        auto parentOriginators = GetNodeOriginators(transaction, parentTrunkNode);
+        TNullable<Stroka> key;
+        for (const auto* parentNode : parentOriginators) {
+            if (IsMapLikeType(parentNode->GetType())) {
+                const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
+                auto it = parentMapNode->ChildToKey().find(childTrunkNode);
+                if (it != parentMapNode->ChildToKey().end()) {
+                    key = it->second;
+                }
+            } else if (IsListLikeType(parentNode->GetType())) {
+                const auto* parentListNode = static_cast<const TListNode*>(parentNode);
+                auto it = parentListNode->ChildToIndex().find(childTrunkNode);
+                return it != parentListNode->ChildToIndex().end();
+            } else {
+                YUNREACHABLE();
+            }
+
+            if (key) {
+                break;
+            }
+        }
+
+        if (!key) {
+            return false;
+        }
+
+        // Look for thombstones.
+        for (const auto* parentNode : parentOriginators) {
+            if (IsMapLikeType(parentNode->GetType())) {
+                const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
+                auto it = parentMapNode->KeyToChild().find(*key);
+                if (it != parentMapNode->KeyToChild().end() && it->second != childTrunkNode) {
+                    return false;
+                }
+            } else if (IsListLikeType(parentNode->GetType())) {
+                // Do nothing.
+            } else {
+                YUNREACHABLE();
+            }
+        }
+
+        return true;
+    };
+
+
+    auto* currentNode = trunkNode;
+    while (true) {
+        if (!IsObjectAlive(currentNode)) {
+            return false;
+        }
+        if (currentNode == RootNode) {
+            return true;
+        }
+        auto* parentNode = currentNode->GetParent();
+        if (!parentNode) {
+            return false;
+        }
+        if (!hasChild(parentNode, currentNode)) {
+            return false;
+        }
+        currentNode = parentNode;
     }
 }
 
@@ -1548,40 +1617,30 @@ void TCypressManager::ListSubtreeNodes(
         subtreeNodes->push_back(trunkNode);
     }
 
-    switch (trunkNode->GetType()) {
-        case EObjectType::MapNode: {
-            auto originators = GetNodeReverseOriginators(transaction, trunkNode);
-            yhash_map<Stroka, TCypressNodeBase*> children;
-            for (const auto* node : originators) {
-                const auto* mapNode = static_cast<const TMapNode*>(node);
-                for (const auto& pair : mapNode->KeyToChild()) {
-                    if (pair.second) {
-                        children[pair.first] = pair.second;
-                    } else {
-                        // NB: erase may fail.
-                        children.erase(pair.first);
-                    }
+    if (IsMapLikeType(trunkNode->GetType())) {
+        auto originators = GetNodeReverseOriginators(transaction, trunkNode);
+        yhash_map<Stroka, TCypressNodeBase*> children;
+        for (const auto* node : originators) {
+            const auto* mapNode = static_cast<const TMapNode*>(node);
+            for (const auto& pair : mapNode->KeyToChild()) {
+                if (pair.second) {
+                    children[pair.first] = pair.second;
+                } else {
+                    // NB: erase may fail.
+                    children.erase(pair.first);
                 }
             }
-
-            for (const auto& pair : children) {
-                ListSubtreeNodes(pair.second, transaction, true, subtreeNodes);
-            }
-
-            break;
         }
 
-        case EObjectType::ListNode: {
-            auto* node = GetVersionedNode(trunkNode, transaction);
-            auto* listRoot = static_cast<TListNode*>(node);
-            for (auto* trunkChild : listRoot->IndexToChild()) {
-                ListSubtreeNodes(trunkChild, transaction, true, subtreeNodes);
-            }
-            break;
+        for (const auto& pair : children) {
+            ListSubtreeNodes(pair.second, transaction, true, subtreeNodes);
         }
-
-        default:
-            break;
+    } else if (IsListLikeType(trunkNode->GetType())) {
+        auto* node = GetVersionedNode(trunkNode, transaction);
+        auto* listRoot = static_cast<TListNode*>(node);
+        for (auto* trunkChild : listRoot->IndexToChild()) {
+            ListSubtreeNodes(trunkChild, transaction, true, subtreeNodes);
+        }
     }
 }
 
