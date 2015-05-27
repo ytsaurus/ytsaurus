@@ -127,8 +127,8 @@ TEST(TSchemafulDsvParserTest, SpecialSymbols)
     Stroka input("5\r\t6\0\n", 6);
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns.push_back("a");
-    config->Columns.push_back("b");
+    config->Columns->push_back("a");
+    config->Columns->push_back("b");
 
     ParseSchemafulDsv(input, &Mock, config);
 }
