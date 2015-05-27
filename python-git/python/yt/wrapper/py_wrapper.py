@@ -18,7 +18,7 @@ import types
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 
 # Modules below are imported to force their addition to modules archive
-OPERATION_REQUIRED_MODULES = ['py_runner_helpers']
+OPERATION_REQUIRED_MODULES = ['_py_runner_helpers']
 
 def is_running_interactively():
     # Does not work in bpython
