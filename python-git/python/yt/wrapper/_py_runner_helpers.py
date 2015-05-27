@@ -5,7 +5,7 @@ class YtStandardStreamAccessError(YtError):
     pass
 
 class StreamWrapper(object):
-    ALLOWED_ATTRIBUTES = set("fileno,isatty,tell,encoding,name,mode".split(","))
+    ALLOWED_ATTRIBUTES = set(["fileno", "isatty", "tell", "encoding", "name", "mode"])
 
     def __init__(self, original_stream):
         self.original_stream = original_stream
@@ -13,7 +13,8 @@ class StreamWrapper(object):
     def __getattr__(self, attr):
         if attr in self.ALLOWED_ATTRIBUTES:
             return self.original_stream.__getattribute__(attr)
-        raise YtStandardStreamAccessError("Stdin, stdout are inaccessible for not raw io operation")
+        raise YtStandardStreamAccessError("Stdin, stdout are inaccessible for Python operations"
+                                          " without raw_io attribute")
 
 class WrappedStreams(object):
     def __init__(self, wrap_stdin=True, wrap_stdout=True):
