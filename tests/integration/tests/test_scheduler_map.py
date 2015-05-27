@@ -943,7 +943,7 @@ print row + table_index
         command = 'python -c "import os; os.read(0, 5);"'
 
         op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command,
-                 spec={"mapper": {"input_format" : "dsv", "check_input_fully_consumed": True}})
+                spec={ "mapper": { "input_format" : "dsv", "check_input_fully_consumed": True}})
         # if all jobs failed then operation is also failed
         with pytest.raises(YtError): track_op(op_id)
 
@@ -957,8 +957,10 @@ print row + table_index
         write("//tmp/t1", data)
 
         map(in_="//tmp/t1", out="//tmp/t2", command="head -1",
-                 spec={"mapper": {"input_format" : "dsv", "output_format" : "dsv"}})
-        assert read("//tmp/t2") == [{"foo": "bar"}]
+            spec={"mapper": {"input_format" : "dsv", "output_format" : "dsv"}})
+
+        assert read("//tmp/t2") == [{"foo": "bar"}] 
+
 
     def test_live_preview(self):
         create_user("u")

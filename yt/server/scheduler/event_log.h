@@ -26,6 +26,7 @@ DEFINE_ENUM(ELogEventType,
     (OperationFailed)
     (OperationAborted)
     (FairShareInfo)
+    (OperationPrepared)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
