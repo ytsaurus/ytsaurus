@@ -254,6 +254,7 @@ void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& u
             "Failed to increase resource usage (OldUsage: {%s}, NewUsage: {%s})",
             ~FormatResources(oldUsage),
             ~FormatResources(usage)));
+        return;
     }
 
     job->SetResourceUsage(usage);
