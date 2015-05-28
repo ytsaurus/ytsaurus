@@ -357,6 +357,8 @@ void TUnversionedValueCallingConvention::CheckResultType(
 
 TUserDefinedFunction::TUserDefinedFunction(
     const Stroka& functionName,
+    const Stroka& symbolName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     std::vector<TType> argumentTypes,
     TType repeatedArgType,
     TType resultType,
@@ -364,10 +366,12 @@ TUserDefinedFunction::TUserDefinedFunction(
     ICallingConventionPtr callingConvention)
     : TTypedFunction(
         functionName,
+        typeArgumentConstraints,
         std::vector<TType>(argumentTypes.begin(), argumentTypes.end()),
         repeatedArgType,
         resultType)
     , FunctionName_(functionName)
+    , SymbolName_(symbolName)
     , ImplementationFile_(implementationFile)
     , ResultType_(resultType)
     , ArgumentTypes_(argumentTypes)
@@ -375,13 +379,21 @@ TUserDefinedFunction::TUserDefinedFunction(
 { }
 
 ICallingConventionPtr GetCallingConvention(
-    ECallingConvention callingConvention)
+    ECallingConvention callingConvention,
+    int repeatedArgIndex,
+    TType repeatedArgType)
 {
     switch (callingConvention) {
         case ECallingConvention::Simple:
             return New<TSimpleCallingConvention>();
         case ECallingConvention::UnversionedValue:
-            return New<TUnversionedValueCallingConvention>(-1);
+            if (repeatedArgType.TryAs<EValueType>()
+                && repeatedArgType.As<EValueType>() == EValueType::Null)
+            {
+                return New<TUnversionedValueCallingConvention>(-1);
+            } else {
+                return New<TUnversionedValueCallingConvention>(repeatedArgIndex);
+            }
         default:
             YUNREACHABLE();
     }
@@ -395,38 +407,63 @@ TUserDefinedFunction::TUserDefinedFunction(
     ECallingConvention callingConvention)
     : TUserDefinedFunction(
         functionName,
+        functionName,
+        std::unordered_map<TTypeArgument, TUnionType>(),
         argumentTypes,
         EValueType::Null,
         resultType,
         implementationFile,
-        GetCallingConvention(callingConvention))
+        GetCallingConvention(callingConvention, argumentTypes.size(), EValueType::Null))
 { }
 
 TUserDefinedFunction::TUserDefinedFunction(
     const Stroka& functionName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     std::vector<TType> argumentTypes,
     TType repeatedArgType,
     TType resultType,
     TSharedRef implementationFile)
     : TUserDefinedFunction(
         functionName,
+        functionName,
+        typeArgumentConstraints,
         argumentTypes,
         repeatedArgType,
         resultType,
         implementationFile,
-        New<TUnversionedValueCallingConvention>(argumentTypes.size()))
+        GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType))
+{ }
+
+TUserDefinedFunction::TUserDefinedFunction(
+    const Stroka& functionName,
+    const Stroka& symbolName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+    std::vector<TType> argumentTypes,
+    TType repeatedArgType,
+    TType resultType,
+    TSharedRef implementationFile)
+    : TUserDefinedFunction(
+        functionName,
+        symbolName,
+        typeArgumentConstraints,
+        argumentTypes,
+        repeatedArgType,
+        resultType,
+        implementationFile,
+        GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType))
 { }
 
 Function* GetLlvmFunction(
     TCGContext& builder,
     const Stroka& functionName,
+    const Stroka& symbolName,
     std::vector<Value*> argumentValues,
     TSharedRef implementationFile,
     TType resultType,
     ICallingConventionPtr callingConvention)
 {
     auto module = builder.Module->GetModule();
-    auto callee = module->getFunction(StringRef(functionName));
+    auto callee = module->getFunction(StringRef(symbolName));
     if (!callee) {
         auto diag = SMDiagnostic();
         auto buffer = MemoryBufferRef(
@@ -451,7 +488,7 @@ Function* GetLlvmFunction(
                 functionName);
         }
 
-        callee = module->getFunction(StringRef(functionName));
+        callee = module->getFunction(StringRef(symbolName));
         callingConvention->CheckCallee(
             functionName,
             callee,
@@ -474,6 +511,7 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
         auto callee = GetLlvmFunction(
             builder,
             this_->FunctionName_,
+            this_->SymbolName_,
             argumentValues,
             this_->ImplementationFile_,
             this_->ResultType_,
@@ -493,12 +531,14 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
 
 TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
     const Stroka& aggregateName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     TType argumentType,
     TType resultType,
-    EValueType stateType,
+    TType stateType,
     TSharedRef implementationFile,
     ICallingConventionPtr callingConvention)
     : AggregateName_(aggregateName)
+    , TypeArgumentConstraints_(typeArgumentConstraints)
     , ArgumentType_(argumentType)
     , ResultType_(resultType)
     , StateType_(stateType)
@@ -508,18 +548,20 @@ TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
 
 TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
     const Stroka& aggregateName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     TType argumentType,
     TType resultType,
-    EValueType stateType,
+    TType stateType,
     TSharedRef implementationFile,
     ECallingConvention callingConvention)
     : TUserDefinedAggregateFunction(
         aggregateName,
+        typeArgumentConstraints,
         argumentType,
         resultType,
         stateType,
         implementationFile,
-        GetCallingConvention(callingConvention))
+        GetCallingConvention(callingConvention, 1, EValueType::Null))
 { }
 
 Stroka TUserDefinedAggregateFunction::GetName() const
@@ -541,6 +583,7 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
 
             auto callee = GetLlvmFunction(
                 builder,
+                functionName,
                 functionName,
                 argumentValues,
                 this_->ImplementationFile_,
@@ -650,7 +693,14 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
 EValueType TUserDefinedAggregateFunction::GetStateType(
     EValueType type) const
 {
-    return StateType_;
+    return TypingFunction(
+        TypeArgumentConstraints_,
+        std::vector<TType>{ArgumentType_},
+        EValueType::Null,
+        StateType_,
+        AggregateName_,
+        std::vector<EValueType>{type},
+        TStringBuf());
 }
 
 EValueType TUserDefinedAggregateFunction::InferResultType(
@@ -658,6 +708,7 @@ EValueType TUserDefinedAggregateFunction::InferResultType(
     const TStringBuf& source) const
 {
     return TypingFunction(
+        TypeArgumentConstraints_,
         std::vector<TType>{ArgumentType_},
         EValueType::Null,
         ResultType_,

@@ -131,6 +131,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "simple_hash",
+        std::unordered_map<TTypeArgument, TUnionType>(),
         std::vector<TType>{},
         hashTypes,
         EValueType::Uint64,
@@ -138,6 +139,7 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "farm_hash",
+        std::unordered_map<TTypeArgument, TUnionType>(),
         std::vector<TType>{},
         hashTypes,
         EValueType::Uint64,
@@ -150,23 +152,80 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         builtinImplementations,
         ECallingConvention::UnversionedValue));
 
+    auto typeArg = 0;
+    auto castConstraints = std::unordered_map<TTypeArgument, TUnionType>();
+    castConstraints[typeArg] = std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double};
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "int64",
+        castConstraints,
+        std::vector<TType>{typeArg},
+        EValueType::Null,
+        EValueType::Int64,
+        builtinImplementations));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "uint64",
+        castConstraints,
+        std::vector<TType>{typeArg},
+        EValueType::Null,
+        EValueType::Uint64,
+        builtinImplementations));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "double",
+        "double_cast",
+        castConstraints,
+        std::vector<TType>{typeArg},
+        EValueType::Null,
+        EValueType::Double,
+        builtinImplementations));
+
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
-    registry->RegisterFunction(New<TCastFunction>(
-        EValueType::Int64,
-        "int64"));
-    registry->RegisterFunction(New<TCastFunction>(
-        EValueType::Uint64,
-        "uint64"));
-    registry->RegisterFunction(New<TCastFunction>(
-        EValueType::Double,
-        "double"));
 
-    registry->RegisterAggregateFunction(New<TAggregateFunction>("sum"));
-    registry->RegisterAggregateFunction(New<TAggregateFunction>("min"));
-    registry->RegisterAggregateFunction(New<TAggregateFunction>("max"));
+    auto constraints = std::unordered_map<TTypeArgument, TUnionType>();
+    constraints[typeArg] = std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double,
+        EValueType::String};
+    auto sumConstraints = std::unordered_map<TTypeArgument, TUnionType>();
+    sumConstraints[typeArg] = std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double};
+
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "sum",
+        sumConstraints,
+        typeArg,
+        typeArg,
+        typeArg,
+        aggregatesImplementation,
+        ECallingConvention::UnversionedValue));
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "min",
+        constraints,
+        typeArg,
+        typeArg,
+        typeArg,
+        aggregatesImplementation,
+        ECallingConvention::UnversionedValue));
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "max",
+        constraints,
+        typeArg,
+        typeArg,
+        typeArg,
+        aggregatesImplementation,
+        ECallingConvention::UnversionedValue));
     registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
         "avg",
+        std::unordered_map<TTypeArgument, TUnionType>(),
         EValueType::Int64,
         EValueType::Double,
         EValueType::String,
@@ -290,7 +349,7 @@ class TCypressAggregateDescriptor
 public:
     Stroka Name;
     TDescriptorType ArgumentType;
-    EValueType StateType;
+    TDescriptorType StateType;
     TDescriptorType ResultType;
     ECallingConvention CallingConvention;
 
@@ -438,6 +497,7 @@ void TCypressFunctionRegistry::LookupAndRegisterFunction(const Stroka& functionN
     } else {
         UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
             cypressDescriptor->Name,
+            std::unordered_map<TTypeArgument, TUnionType>(),
             cypressDescriptor->GetArgumentsTypes(),
             cypressDescriptor->RepeatedArgumentType->Type,
             cypressDescriptor->ResultType.Type,
@@ -480,9 +540,10 @@ void TCypressFunctionRegistry::LookupAndRegisterAggregate(const Stroka& aggregat
 
     UdfRegistry_->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
         aggregateName,
+        std::unordered_map<TTypeArgument, TUnionType>(),
         cypressDescriptor->ArgumentType.Type,
         cypressDescriptor->ResultType.Type,
-        cypressDescriptor->StateType,
+        cypressDescriptor->StateType.Type,
         implementationFile,
         cypressDescriptor->CallingConvention));
 }

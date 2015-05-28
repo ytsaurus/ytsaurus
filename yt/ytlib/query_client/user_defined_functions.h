@@ -93,6 +93,16 @@ public:
 
     TUserDefinedFunction(
         const Stroka& functionName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::vector<TType> argumentTypes,
+        TType repeatedArgType,
+        TType resultType,
+        TSharedRef implementationFile);
+
+    TUserDefinedFunction(
+        const Stroka& functionName,
+        const Stroka& symbolName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
         TType resultType,
@@ -105,6 +115,7 @@ public:
 
 private:
     Stroka FunctionName_;
+    Stroka SymbolName_;
     TSharedRef ImplementationFile_;
     TType ResultType_;
     std::vector<TType> ArgumentTypes_;
@@ -112,6 +123,8 @@ private:
 
     TUserDefinedFunction(
         const Stroka& functionName,
+        const Stroka& symbolName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
         TType resultType,
@@ -127,9 +140,10 @@ class TUserDefinedAggregateFunction
 public:
     TUserDefinedAggregateFunction(
         const Stroka& aggregateName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         TType argumentType,
         TType resultType,
-        EValueType stateType,
+        TType stateType,
         TSharedRef implementationFile,
         ECallingConvention callingConvention);
 
@@ -148,17 +162,19 @@ public:
 
 private:
     Stroka AggregateName_;
+    std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
     TType ArgumentType_;
     TType ResultType_;
-    EValueType StateType_;
+    TType StateType_;
     TSharedRef ImplementationFile_;
     ICallingConventionPtr CallingConvention_;
 
     TUserDefinedAggregateFunction(
         const Stroka& aggregateName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         TType argumentType,
         TType resultType,
-        EValueType stateType,
+        TType stateType,
         TSharedRef implementationFile,
         ICallingConventionPtr callingConvention);
 };

@@ -30,6 +30,7 @@ Stroka TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> gene
 }
 
 EValueType TypingFunction(
+    const std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     const std::vector<TType>& expectedArgTypes,
     TType repeatedArgType,
     TType resultType,
@@ -39,14 +40,17 @@ EValueType TypingFunction(
 {
     std::unordered_map<TTypeArgument, EValueType> genericAssignments;
 
+    auto typeInUnion = [&] (TUnionType unionType, EValueType type) {
+        return std::find(
+            unionType.begin(),
+            unionType.end(),
+            type) != unionType.end();
+    };
+
     auto isSubtype = [&] (EValueType type1, TType type2) {
         YCHECK(!type2.TryAs<TTypeArgument>());
         if (auto* unionType = type2.TryAs<TUnionType>()) {
-            auto exists = std::find(
-                unionType->begin(),
-                unionType->end(),
-                type1);
-            return exists != unionType->end();
+            return typeInUnion(*unionType, type1);
         } else if (auto* concreteType = type2.TryAs<EValueType>()) {
             return type1 == *concreteType;
         }
@@ -109,6 +113,22 @@ EValueType TypingFunction(
         }
     }
 
+    for (auto constraint : typeArgumentConstraints) {
+        auto typeArg = constraint.first;
+        auto allowedTypes = constraint.second;
+        if (genericAssignments.count(typeArg)
+            && !typeInUnion(allowedTypes, genericAssignments[typeArg]))
+        {
+            THROW_ERROR_EXCEPTION(
+                "Invalid type inferred for type argument %v to function %Qv: expected %Qv, got %Qv",
+                typeArg,
+                functionName,
+                TypeToString(allowedTypes, genericAssignments),
+                TypeToString(typeArg, genericAssignments))
+                << TErrorAttribute("expression", source);
+        }
+    }
+
     if (auto* genericResult = resultType.TryAs<TTypeArgument>()) {
         if (!genericAssignments.count(*genericResult)) {
             THROW_ERROR_EXCEPTION(
@@ -133,10 +153,12 @@ EValueType TypingFunction(
 
 TTypedFunction::TTypedFunction(
     const Stroka& functionName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     std::vector<TType> argumentTypes,
     TType repeatedArgumentType,
     TType resultType)
     : FunctionName_(functionName)
+    , TypeArgumentConstraints_(typeArgumentConstraints)
     , ArgumentTypes_(argumentTypes)
     , RepeatedArgumentType_(repeatedArgumentType)
     , ResultType_(resultType)
@@ -144,9 +166,11 @@ TTypedFunction::TTypedFunction(
 
 TTypedFunction::TTypedFunction(
     const Stroka& functionName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     std::vector<TType> argumentTypes,
     TType resultType)
     : FunctionName_(functionName)
+    , TypeArgumentConstraints_(typeArgumentConstraints)
     , ArgumentTypes_(argumentTypes)
     , RepeatedArgumentType_(EValueType::Null)
     , ResultType_(resultType)
@@ -162,6 +186,7 @@ EValueType TTypedFunction::InferResultType(
     const TStringBuf& source) const
 {
     return TypingFunction(
+        TypeArgumentConstraints_,
         ArgumentTypes_,
         RepeatedArgumentType_,
         ResultType_,
@@ -206,6 +231,7 @@ TCodegenExpression TCodegenFunction::MakeCodegenExpr(
 
 TIfFunction::TIfFunction() : TTypedFunction(
     "if",
+    std::unordered_map<TTypeArgument, TUnionType>(),
     std::vector<TType>{ EValueType::Boolean, 0, 0 },
     0)
 { }
@@ -249,9 +275,10 @@ TCGValue TIfFunction::CodegenValue(
 
 TIsPrefixFunction::TIsPrefixFunction()
     : TTypedFunction(
-      "is_prefix",
-      std::vector<TType>{ EValueType::String, EValueType::String },
-      EValueType::Boolean)
+        "is_prefix",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{ EValueType::String, EValueType::String },
+        EValueType::Boolean)
 { }
 
 TCGValue TIsPrefixFunction::CodegenValue(
@@ -306,260 +333,6 @@ TKeyTriePtr TIsPrefixFunction::ExtractKeyRange(
     }
 
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCastFunction::TCastFunction(
-    EValueType resultType,
-    const Stroka& functionName)
-    : TTypedFunction(
-        functionName,
-        std::vector<TType>{ CastTypes_ },
-        resultType)
-{ }
-
-const TUnionType TCastFunction::CastTypes_ = TUnionType{
-    EValueType::Int64,
-    EValueType::Uint64,
-    EValueType::Double};
-
-TCGValue TCastFunction::CodegenValue(
-    std::vector<TCodegenExpression> codegenArgs,
-    EValueType type,
-    const Stroka& name,
-    TCGContext& builder,
-    Value* row) const
-{
-    YCHECK(codegenArgs.size() == 1);
-    return codegenArgs[0](builder, row).Cast(builder, type);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TAggregateFunction::TAggregateFunction(
-    Stroka name)
-    : Name_(name)
-{ }
-
-Stroka TAggregateFunction::GetName() const
-{
-    return Name_;
-}
-
-TCodegenAggregateInit MakeCodegenInitialize(
-    EValueType type,
-    const Stroka& name)
-{
-    return [
-        type
-    ] (TCGContext& builder, Value* row) {
-        return TCGValue::CreateNull(builder, type);
-    };
-}
-
-TCodegenAggregateUpdate MakeCodegenUpdate(
-    const Stroka& aggregateFunction,
-    EValueType type,
-    const Stroka& nameStroka)
-{
-    return [
-            aggregateFunction,
-            type,
-            MOVE(nameStroka)
-        ] (TCGContext& builder, Value* aggregateStatePtr, Value* newValuePtr) {
-            Twine name = nameStroka.c_str();
-
-            auto aggregateValue = TCGValue::CreateFromLlvmValue(
-                builder,
-                aggregateStatePtr,
-                type,
-                name + ".aggregate");
-            auto newValue = TCGValue::CreateFromLlvmValue(
-                builder,
-                newValuePtr,
-                type,
-                name + ".new_value");
-
-            return CodegenIf<TCGContext, TCGValue>(
-                builder,
-                newValue.IsNull(),
-                [&] (TCGContext& builder) {
-                    return aggregateValue;
-                },
-                [&] (TCGContext& builder) {
-                    return CodegenIf<TCGContext, TCGValue>(
-                        builder,
-                        aggregateValue.IsNull(),
-                        [&] (TCGContext& builder) {
-                            return newValue;
-                        },
-                        [&] (TCGContext& builder) {
-                            Value* newData = newValue.GetData();
-                            Value* aggregateData = aggregateValue.GetData();
-                            Value* resultData = nullptr;
-                            Value* resultLength = nullptr;
-
-                            // TODO(lukyan): support other types
-
-                            if (aggregateFunction == "sum") {
-                                switch (type) {
-                                    case EValueType::Int64:
-                                    case EValueType::Uint64:
-                                        resultData = builder.CreateAdd(
-                                            aggregateData,
-                                            newData);
-                                        break;
-                                    case EValueType::Double:
-                                        resultData = builder.CreateFAdd(
-                                            aggregateData,
-                                            newData);
-                                        break;
-                                    default:
-                                        YUNIMPLEMENTED();
-                                }
-                            } else if (aggregateFunction == "min") {
-                                Value* compareResult = nullptr;
-                                switch (type) {
-                                    case EValueType::Int64:
-                                        compareResult = builder.CreateICmpSLE(aggregateData, newData);
-                                        break;
-                                    case EValueType::Uint64:
-                                        compareResult = builder.CreateICmpULE(aggregateData, newData);
-                                        break;
-                                    case EValueType::Double:
-                                        compareResult = builder.CreateFCmpULE(aggregateData, newData);
-                                        break;
-                                    case EValueType::String:
-                                        compareResult = CodegenLexicographicalCompare(
-                                            builder,
-                                            aggregateData,
-                                            aggregateValue.GetLength(),
-                                            newData,
-                                            newValue.GetLength());
-                                        break;
-                                    default:
-                                        YUNIMPLEMENTED();
-                                }
-
-                                resultLength = builder.CreateSelect(
-                                    compareResult,
-                                    aggregateValue.GetLength(),
-                                    newValue.GetLength());
-                                resultData = builder.CreateSelect(
-                                    compareResult,
-                                    aggregateData,
-                                    newData);
-                            } else if (aggregateFunction == "max") {
-                                Value* compareResult = nullptr;
-                                switch (type) {
-                                    case EValueType::Int64:
-                                        compareResult = builder.CreateICmpSGE(aggregateData, newData);
-                                        break;
-                                    case EValueType::Uint64:
-                                        compareResult = builder.CreateICmpUGE(aggregateData, newData);
-                                        break;
-                                    case EValueType::Double:
-                                        compareResult = builder.CreateFCmpUGE(aggregateData, newData);
-                                        break;
-                                    case EValueType::String:
-                                        compareResult = builder.CreateNot(CodegenLexicographicalCompare(
-                                            builder,
-                                            aggregateData,
-                                            aggregateValue.GetLength(),
-                                            newData,
-                                            newValue.GetLength()));
-                                        break;
-                                    default:
-                                        YUNIMPLEMENTED();
-                                }
-
-                                resultLength = builder.CreateSelect(
-                                    compareResult,
-                                    aggregateValue.GetLength(),
-                                    newValue.GetLength());
-                                resultData = builder.CreateSelect(
-                                    compareResult,
-                                    aggregateData,
-                                    newData);
-                            } else {
-                                YUNIMPLEMENTED();
-                            }
-
-                            return TCGValue::CreateFromValue(
-                                builder,
-                                builder.getInt1(false),
-                                resultLength,
-                                resultData,
-                                type,
-                                "result");
-                        });
-
-                });
-        };
-}
-
-TCodegenAggregateMerge MakeCodegenMerge(
-    const Stroka& aggregateFunction,
-    EValueType type,
-    const Stroka& name)
-{
-    return MakeCodegenUpdate(aggregateFunction, type, name);
-}
-
-TCodegenAggregateFinalize MakeCodegenFinalize(
-    EValueType type,
-    const Stroka& name)
-{
-    return [
-        type
-    ] (TCGContext& builder, Value* aggState) {
-        return TCGValue::CreateFromLlvmValue(
-            builder,
-            aggState,
-            type);
-    };
-}
-
-const TCodegenAggregate TAggregateFunction::MakeCodegenAggregate(
-    EValueType type,
-    const Stroka& name) const
-{
-    TCodegenAggregate codegenAggregate;
-    codegenAggregate.Initialize = MakeCodegenInitialize(type, name);
-    codegenAggregate.Update = MakeCodegenUpdate(GetName(), type, name);
-    codegenAggregate.Merge = MakeCodegenMerge(GetName(), type, name);
-    codegenAggregate.Finalize = MakeCodegenFinalize(type, name);
-    return codegenAggregate;
-}
-
-EValueType TAggregateFunction::GetStateType(
-    EValueType type) const
-{
-    return type;
-}
-
-EValueType TAggregateFunction::InferResultType(
-    EValueType argumentType,
-    const TStringBuf& source) const
-{
-    auto validTypes = std::vector<EValueType>{
-        EValueType::Int64,
-        EValueType::Uint64,
-        EValueType::Double,
-        EValueType::String};
-
-    if (std::find(validTypes.begin(), validTypes.end(), argumentType) != validTypes.end()) {
-        return argumentType;
-    }
-    THROW_ERROR_EXCEPTION(
-        "Wrong type for argument to aggregate function %Qv: expected %Qv, got %Qv",
-        GetName(),
-        TypeToString(
-            validTypes,
-            std::unordered_map<TTypeArgument, EValueType>()),
-        argumentType)
-        << TErrorAttribute("expression", source);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
