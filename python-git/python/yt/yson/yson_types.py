@@ -22,7 +22,7 @@ class YsonType(object):
 
 class YsonString(str, YsonType):
     def __eq__(self, other):
-        if not isinstance(other, str):
+        if not isinstance(other, basestring):
             return False
         return str(self) == str(other) and YsonType.__eq__(self, other)
 
