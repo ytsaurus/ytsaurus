@@ -288,7 +288,7 @@ const TRow* InsertGroupRow(
         for (int index = 0; index < valueCount; ++index) {
             context->PermanentBuffer->Capture(&row[index]);
         }
-        *rowPtr = TRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
+        AllocatePermanentRow(context, valueCount, rowPtr);
         return nullptr;
     } else {
         return &*inserted.first;
