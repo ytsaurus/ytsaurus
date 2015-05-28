@@ -2811,6 +2811,89 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, HavingClause1)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=2;b=20",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"t", EValueType::Int64},
+    });
+
+    auto result = BuildRows({
+        "x=1;t=20",
+    }, resultSplit);
+
+    Evaluate("a as x, sum(b) as t FROM [//t] group by a having a = 1", split, source, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, HavingClause2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=2;b=20",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"t", EValueType::Int64},
+    });
+
+    auto result = BuildRows({
+        "x=1;t=20",
+    }, resultSplit);
+
+    Evaluate("a as x, sum(b) as t FROM [//t] group by a having sum(b) = 20", split, source, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, HavingClause3)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=2;b=20",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+    }, resultSplit);
+
+    Evaluate("a as x FROM [//t] group by a having sum(b) = 20", split, source, result);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, IsNull)
 {
     auto split = MakeSplit({
