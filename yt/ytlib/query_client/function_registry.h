@@ -69,7 +69,8 @@ private:
     const TFunctionRegistryPtr BuiltinRegistry_;
     const TFunctionRegistryPtr UdfRegistry_;
 
-    void LookupAndRegister(const Stroka& functionName);
+    void LookupAndRegisterFunction(const Stroka& functionName);
+    void LookupAndRegisterAggregate(const Stroka& aggregateName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
