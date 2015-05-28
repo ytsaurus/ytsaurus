@@ -2210,6 +2210,7 @@ protected:
             ECallingConvention::UnversionedValue);
         SumUdf_ = New<TUserDefinedFunction>(
             "sum_udf",
+            std::unordered_map<TTypeArgument, TUnionType>(),
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
             EValueType::Int64,
@@ -3881,11 +3882,7 @@ TEST_F(TQueryEvaluateTest, TestStringAgg)
         "b=\"fo\";c=\"two\"",
     }, resultSplit);
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(New<TAggregateFunction>("min"));
-    registry->WithFunction(New<TAggregateFunction>("max"));
-
-    Evaluate("min(a) as b, max(a) as c from [//t] group by 1", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("min(a) as b, max(a) as c from [//t] group by 1", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, WronglyTypedAggregate)

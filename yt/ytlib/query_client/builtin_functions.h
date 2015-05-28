@@ -14,6 +14,7 @@ typedef std::vector<EValueType> TUnionType;
 typedef TVariant<EValueType, TTypeArgument, TUnionType> TType;
 
 EValueType TypingFunction(
+    const std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     const std::vector<TType>& expectedArgTypes,
     TType repeatedArgType,
     TType resultType,
@@ -27,12 +28,14 @@ class TTypedFunction
 public:
     TTypedFunction(
         const Stroka& functionName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgumentType,
         TType resultType);
 
     TTypedFunction(
         const Stroka& functionName,
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType resultType);
 
@@ -44,6 +47,7 @@ public:
 
 private:
     Stroka FunctionName_;
+    std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
     std::vector<TType> ArgumentTypes_;
     TType RepeatedArgumentType_;
     TType ResultType_;
@@ -110,52 +114,6 @@ public:
         const TIntrusivePtr<const TFunctionExpression>& expr,
         const TKeyColumns& keyColumns,
         const TRowBufferPtr& rowBuffer) const override;
-};
-
-class TCastFunction
-    : public TTypedFunction
-    , public TCodegenFunction
-    , public TUniversalRangeFunction
-{
-public:
-    TCastFunction(
-        EValueType resultType,
-        const Stroka& functionName);
-
-    virtual TCGValue CodegenValue(
-        std::vector<TCodegenExpression> codegenArgs,
-        EValueType type,
-        const Stroka& name,
-        TCGContext& builder,
-        Value* row) const override;
-
-private:
-    static const TUnionType CastTypes_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TAggregateFunction
-    : public IAggregateFunctionDescriptor
-{
-public:
-    TAggregateFunction(Stroka name);
-
-    virtual Stroka GetName() const override;
-
-    virtual const TCodegenAggregate MakeCodegenAggregate(
-        EValueType type,
-        const Stroka& name) const override;
-
-    virtual EValueType GetStateType(
-        EValueType type) const override;
-
-    virtual EValueType InferResultType(
-        EValueType argumentType,
-        const TStringBuf& source) const override;
-
-private:
-    const Stroka Name_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
