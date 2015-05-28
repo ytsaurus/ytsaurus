@@ -1305,7 +1305,7 @@ TPlanFragmentPtr PreparePlanFragment(
             planFragment->Ordered = true;
         }
     } else if (query->OrderClause) {
-        THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT", name);
+        THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }
 
     planFragment->Query = query;
