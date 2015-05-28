@@ -219,7 +219,7 @@ bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
     // Do this check in the first place in order to avoid weird behavior
     // when decreasing resource usage leads to job abortion because of 
     // other memory consuming subsystems (e.g. ChunkMeta),
-    if (Dominates(delta, ZeroNodeResources())) {
+    if (Dominates(ZeroNodeResources(), delta)) {
         return true;
     }
 
