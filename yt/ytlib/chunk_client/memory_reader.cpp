@@ -14,10 +14,10 @@ class TMemoryReader
 {
 public:
     TMemoryReader(
-        TChunkMeta meta,
-        std::vector<TSharedRef> blocks)
-        : Meta_(std::move(meta))
-        , Blocks_(std::move(blocks))
+        const TChunkMeta& meta,
+        const std::vector<TSharedRef>& blocks)
+        : Meta_(meta)
+        , Blocks_(blocks)
     { }
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
@@ -56,12 +56,14 @@ public:
     }
 
 private:
-    TChunkMeta Meta_;
-    std::vector<TSharedRef> Blocks_;
+    const TChunkMeta Meta_;
+    const std::vector<TSharedRef> Blocks_;
 
 };
 
-IChunkReaderPtr CreateMemoryReader(const TChunkMeta& meta, const std::vector<TSharedRef>& blocks)
+IChunkReaderPtr CreateMemoryReader(
+    const TChunkMeta& meta,
+    const std::vector<TSharedRef>& blocks)
 {
     return New<TMemoryReader>(meta, blocks);
 }
