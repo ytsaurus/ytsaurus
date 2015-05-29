@@ -9,7 +9,7 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<ISchemalessWriterPtr(NVersionedTableClient::TNameTablePtr)> TSchemalessWriterFactory;
+typedef std::function<ISchemalessWriterPtr(TNameTablePtr)> TSchemalessWriterFactory;
 
 ISchemafulWriterPtr CreateSchemafulWriterAdapter(TSchemalessWriterFactory createWriter);
 

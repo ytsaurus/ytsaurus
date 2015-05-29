@@ -3540,11 +3540,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
 
-    if (config->Query) {
-        ToProto(jobSpec->mutable_query(), config->Query.Get());
-        ToProto(jobSpec->mutable_input_schema(), config->InputSchema.Get());
-    }
-
     {
         // Set input and output format.
         TFormat inputFormat(EFormatType::Yson);

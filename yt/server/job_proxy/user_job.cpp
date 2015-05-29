@@ -73,6 +73,7 @@ using namespace NPipes;
 using namespace NQueryClient;
 
 using NJobTrackerClient::NProto::TJobResult;
+using NJobTrackerClient::NProto::TJobSpec;
 using NScheduler::NProto::TUserJobSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -583,6 +584,7 @@ private:
     }
 
     void PrepareInputActionsQuery(
+        TSchedulerJobSpecExt& spec,
         int jobDescriptor,
         const TFormat& format,
         TAsyncWriterPtr asyncOutput)
@@ -610,8 +612,8 @@ private:
         InputActions_.push_back(BIND([=] () {
             try {
                 auto registry = CreateBuiltinFunctionRegistry();
-                auto queryString = FromProto<Stroka>(UserJobSpec_.query());
-                auto schema = FromProto<TTableSchema>(UserJobSpec_.input_schema());
+                auto queryString = FromProto<Stroka>(spec.input_query());
+                auto schema = FromProto<TTableSchema>(spec.input_schema());
                 auto query = PrepareJobQuery(queryString, schema, registry.Get());
                 auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
                 evaluator->Run(query, reader, writer, registry);
@@ -641,8 +643,12 @@ private:
         // NB: we do not bother to close it. Anyway, job proxy process would not live long.
         auto readFD = pipe.ReleaseReadFD();
 
-        if (UserJobSpec_.has_query()) {
-            PrepareInputActionsQuery(jobDescriptor, format, asyncOutput);
+        auto host = Host.Lock();
+        YCHECK(host);
+
+        auto jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        if (jobSpec.has_input_query()) {
+            PrepareInputActionsQuery(jobSpec, jobDescriptor, format, asyncOutput);
         } else {
             PrepareInputActionsPassthrough(jobDescriptor, format, asyncOutput);
         }

@@ -984,12 +984,9 @@ print row + table_index
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write("//tmp/t1", {"a": "b"})
-        op_id = map(dont_track=True,
-            in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"mapper": {"query": "a", "input_schema": [{"name":"a", "type": "string"}]}})
 
-        get("//sys/operations/%s/@spec" % op_id)
-        track_op(op_id)
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
 
         assert read("//tmp/t2") == [{"a": "b"}]
 
@@ -998,12 +995,9 @@ print row + table_index
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write("//tmp/t1", {"a": "b", "c": "d"})
-        op_id = map(dont_track=True,
-            in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"mapper": {"query": "a", "input_schema": [{"name":"a", "type": "string"}]}})
 
-        get("//sys/operations/%s/@spec" % op_id)
-        track_op(op_id)
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
 
         assert read("//tmp/t2") == [{"a": "b"}]
 
@@ -1012,11 +1006,8 @@ print row + table_index
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write("//tmp/t1", [{"a": i} for i in xrange(2)])
-        op_id = map(dont_track=True,
-            in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"mapper": {"query": "a where a > 0", "input_schema": [{"name":"a", "type": "int64"}]}})
 
-        get("//sys/operations/%s/@spec" % op_id)
-        track_op(op_id)
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={"input_query": "a where a > 0", "input_schema": [{"name":"a", "type": "int64"}]})
 
         assert read("//tmp/t2") == [{"a": 1}]

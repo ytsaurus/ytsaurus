@@ -619,6 +619,11 @@ private:
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+
+        if (Spec->InputQuery) {
+            ToProto(schedulerJobSpecExt->mutable_input_query(), Spec->InputQuery.Get());
+            ToProto(schedulerJobSpecExt->mutable_input_schema(), Spec->InputSchema.Get());
+        }
     }
 
 };
@@ -709,6 +714,11 @@ private:
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+
+        if (Spec->InputQuery) {
+            ToProto(schedulerJobSpecExt->mutable_input_query(), Spec->InputQuery.Get());
+            ToProto(schedulerJobSpecExt->mutable_input_schema(), Spec->InputSchema.Get());
+        }
     }
 
 };
