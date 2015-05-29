@@ -6,8 +6,6 @@
 
 #include <numeric>
 
-#include <core/logging/log.h> // FIXME(babenko): remove this
-
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -272,7 +270,8 @@ TVersionedRow TVersionedRowBuilder::FinishRow()
         DeleteTimestamps_.end());
 
     auto row = TVersionedRow::Allocate(
-        Buffer_->GetPool(), Keys_.size(),
+        Buffer_->GetPool(),
+        Keys_.size(),
         Values_.size(), 
         WriteTimestamps_.size(), 
         DeleteTimestamps_.size());
