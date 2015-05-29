@@ -176,11 +176,19 @@ if(YT_BUILD_ENABLE_PYTHON)
   add_subdirectory(cmake/deps-pycxx)
 endif()
 
+execute_process(COMMAND lsb_release --codename --short
+                OUTPUT_VARIABLE LSB_RELEASE)
+if(${LSB_RELEASE} MATCHES "trusty")
+  set(DCH_VENDOR_FLAG "--vendor")
+else()
+  set(DCH_VENDOR_FLAG "--distributor")
+endif()
+
 add_custom_target( package touch package-stamp
   COMMAND cp -r ${CMAKE_SOURCE_DIR}/debian ${CMAKE_BINARY_DIR}/debian
   COMMAND mkdir -p ARTIFACTS
   COMMAND dch
-    --distributor "yandex"
+    ${DCH_VENDOR_FLAG} "yandex"
     --distribution "unstable"
     --newversion "${YT_VERSION}"
     --urgency "low"
