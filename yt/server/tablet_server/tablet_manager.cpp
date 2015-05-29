@@ -1062,6 +1062,11 @@ private:
             if (!response)
                 return;
 
+            LOG_DEBUG("Requesting Hive cell reconfiguration (Address: %v, CellId: %v, ConfigVersion: %v)",
+                node->GetDefaultAddress(),
+                cell->GetId(),
+                cell->GetConfigVersion());
+
             auto* protoInfo = response->add_hive_cells_to_reconfigure();
             ToProto(protoInfo->mutable_cell_descriptor(), cell->GetDescriptor());
         };
@@ -1069,6 +1074,10 @@ private:
         auto requestUnregisterCell = [&] (const TTabletCellId& cellId) {
             if (!response)
                 return;
+
+            LOG_DEBUG("Requesting Hive cell unregistration (Address: %v, CellId: %v)",
+                node->GetDefaultAddress(),
+                cellId);
 
             auto* unregisterInfo = response->add_hive_cells_to_unregister();
             ToProto(unregisterInfo->mutable_cell_id(), cellId);
