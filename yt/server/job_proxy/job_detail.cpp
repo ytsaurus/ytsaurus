@@ -72,6 +72,7 @@ TJobResult TSimpleJobBase::Run()
 
         LOG_INFO("Reading and writing");
         {
+            //FIXME(savrus) use GetJobSpec() to get Query and Schema
             PipeReaderToWriter(Reader_, Writer_, 10000, true);
         }
 

@@ -39,12 +39,6 @@ message TUserJobSpec
     // The user command to be executed.
     required string shell_command = 2;
 
-    // Query to execute.
-    optional string query = 19;
-
-    // Schema for the query.
-    optional NYT.NVersionedTableClient.NProto.TTableSchemaExt input_schema = 20;
-
     // Input format description (in YSON).
     required string input_format = 3;
 
@@ -147,6 +141,12 @@ message TSchedulerJobSpecExt
     optional bool enable_sort_verification = 11 [default = true];
 
     optional TUserJobSpec user_job_spec = 12;
+
+    // Query to execute.
+    optional string input_query = 13;
+
+    // Schema for the query.
+    optional NYT.NVersionedTableClient.NProto.TTableSchemaExt input_schema = 14;
 }
 
 message TSchedulerJobResultExt
