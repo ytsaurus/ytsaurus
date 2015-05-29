@@ -72,7 +72,7 @@ TChunkReadGuard::~TChunkReadGuard()
 
 TChunkReadGuard::operator bool() const
 {
-    return Chunk_ != nullptr;
+    return Chunk_.operator bool();
 }
 
 void swap(TChunkReadGuard& lhs, TChunkReadGuard& rhs)

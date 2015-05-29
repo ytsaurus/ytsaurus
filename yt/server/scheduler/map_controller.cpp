@@ -44,7 +44,7 @@ public:
     {
         TOperationControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
-            .DoIf(Spec->Mapper, [&] (TFluentMap fluent) {
+            .DoIf(Spec->Mapper.operator bool(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("mapper").BeginMap()
                         .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))

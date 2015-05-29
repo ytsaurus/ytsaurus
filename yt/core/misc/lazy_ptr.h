@@ -49,7 +49,7 @@ public:
 
     bool HasValue() const throw()
     {
-        return Value;
+        return Value.operator bool();
     }
 
 private:

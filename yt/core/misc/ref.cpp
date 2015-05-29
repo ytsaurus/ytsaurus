@@ -241,7 +241,7 @@ void TSharedRefArray::Reset()
 
 TSharedRefArray::operator bool() const
 {
-    return Impl_ != nullptr;
+    return Impl_.operator bool();
 }
 
 int TSharedRefArray::Size() const

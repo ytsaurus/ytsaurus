@@ -241,7 +241,7 @@ bool TJournalChunk::HasAttachedChangelog() const
 {
     YCHECK(!Removing_);
 
-    return Changelog_ != nullptr;
+    return Changelog_.operator bool();
 }
 
 IChangelogPtr TJournalChunk::GetAttachedChangelog() const

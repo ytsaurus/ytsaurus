@@ -350,7 +350,7 @@ private:
         auto blockStore = Bootstrap_->GetBlockStore();
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
 
-        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId) != nullptr);
+        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId).operator bool());
         response->set_throttling(IsOutThrottling());
 
         if (IsOutThrottling()) {
@@ -432,7 +432,7 @@ private:
         ValidateConnected();
 
         auto chunkStore = Bootstrap_->GetChunkStore();
-        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId) != nullptr);
+        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId).operator bool());
 
         response->set_throttling(IsOutThrottling());
 

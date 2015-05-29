@@ -437,7 +437,7 @@ TPendingReadSizeGuard::~TPendingReadSizeGuard()
 
 TPendingReadSizeGuard::operator bool() const
 {
-    return Owner_ != nullptr;
+    return Owner_.operator bool();
 }
 
 i64 TPendingReadSizeGuard::GetSize() const

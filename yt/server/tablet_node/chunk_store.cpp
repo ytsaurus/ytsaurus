@@ -238,7 +238,7 @@ void TChunkStore::SetBackingStore(IStorePtr store)
 bool TChunkStore::HasBackingStore() const
 {
     TReaderGuard guard(BackingStoreLock_);
-    return BackingStore_ != nullptr;
+    return BackingStore_.operator bool();
 }
 
 EInMemoryMode TChunkStore::GetInMemoryMode() const
@@ -489,7 +489,7 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("compressed_data_size").Value(miscExt.compressed_data_size())
         .Item("uncompressed_data_size").Value(miscExt.uncompressed_data_size())
         .Item("key_count").Value(miscExt.row_count())
-        .DoIf(backingStore, [&] (TFluentMap fluent) {
+        .DoIf(backingStore.operator bool(), [&] (TFluentMap fluent) {
             fluent.Item("backing_store_id").Value(backingStore->GetId());
         });
 }
