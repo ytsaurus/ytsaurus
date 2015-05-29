@@ -60,7 +60,6 @@ set( SRCS
   ${BASE}/skip_list_ut.cpp
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
-#  ${BASE}/static_memory_store_ut.cpp
   ${BASE}/statistics_ut.cpp
   ${BASE}/store_manager_ut.cpp
   ${BASE}/stracer_ut.cpp
@@ -75,7 +74,6 @@ set( SRCS
   ${BASE}/varint_ut.cpp
   ${BASE}/versioned_blocks_ut.cpp
   ${BASE}/versioned_chunks_ut.cpp
-#  ${BASE}/versioned_table_client_ut.cpp
   ${BASE}/weak_ptr_ut.cpp
   ${BASE}/yamr_parser_ut.cpp
   ${BASE}/yamr_writer_ut.cpp
