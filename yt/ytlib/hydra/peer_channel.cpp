@@ -22,11 +22,11 @@ IChannelPtr CreatePeerChannel(
     EPeerKind kind)
 {
     auto realmChannelFactory = CreateRealmChannelFactory(
-    	channelFactory,
-    	config->CellId);
+        channelFactory,
+        config->CellId);
     auto balancingChannel = CreateBalancingChannel(
-    	config,
-    	realmChannelFactory,
+        config,
+        realmChannelFactory,
         BIND([=] (TReqDiscover* request) {
             auto* ext = request->MutableExtension(TPeerKindExt::peer_kind_ext);
             ext->set_peer_kind(static_cast<int>(kind));
