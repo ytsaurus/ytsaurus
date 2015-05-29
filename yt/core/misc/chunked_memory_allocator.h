@@ -7,7 +7,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDefaulTChunkedMemoryAllocatorTag { };
+struct TDefaultChunkedMemoryAllocatorTag
+{ };
 
 //! Mimics TChunkedMemoryPool but acts as an allocator returning shared refs.
 class TChunkedMemoryAllocator
@@ -20,7 +21,7 @@ public:
     explicit TChunkedMemoryAllocator(
         i64 chunkSize = DefaultChunkSize,
         double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio,
-        TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TDefaulTChunkedMemoryAllocatorTag>());
+        TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TDefaultChunkedMemoryAllocatorTag>());
 
     template <class TTag>
     explicit TChunkedMemoryAllocator(
