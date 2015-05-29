@@ -74,6 +74,7 @@ using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NTabletClient;
 using namespace NHydra;
+using namespace NHive;
 using namespace NTransactionServer;
 using namespace NTabletServer::NProto;
 using namespace NNodeTrackerServer;
@@ -886,15 +887,15 @@ private:
             auto* protoInfo = response->add_tablet_slots_configure();
 
             const auto& cellId = cell->GetId();
-            ToProto(protoInfo->mutable_cell_id(), cell->GetId());
-            protoInfo->set_config_version(cell->GetConfigVersion());
-            protoInfo->set_config(ConvertToYsonString(cell->GetConfig()).Data());
+            auto cellDescriptor = cell->GetDescriptor();
+
+            ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             protoInfo->set_peer_id(cell->GetPeerId(node));
             
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot configuration update requested (Address: %v, CellId: %v, Version: %v)",
                 node->GetDefaultAddress(),
                 cellId,
-                cell->GetConfigVersion());
+                cellDescriptor.ConfigVersion);
         };
 
         auto requestRemoveSlot = [&] (const TTabletCellId& cellId) {
@@ -936,7 +937,8 @@ private:
             if (state == EPeerState::None)
                 continue;
 
-            auto cellId = FromProto<TTabletCellId>(slotInfo.cell_id());
+            auto cellInfo = FromProto<TCellInfo>(slotInfo.cell_info());
+            const auto& cellId = cellInfo.CellId;
             auto* cell = FindTabletCell(cellId);
             if (!IsObjectAlive(cell)) {
                 LOG_INFO_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
@@ -998,10 +1000,10 @@ private:
                 slot.Cell->GetId(),
                 slot.PeerId,
                 slot.PeerState,
-                slotInfo.config_version());
+                cellInfo.ConfigVersion);
 
             // Request slot reconfiguration if states are appropriate and versions differ.
-            if (slotInfo.config_version() != slot.Cell->GetConfigVersion()) {
+            if (cellInfo.ConfigVersion != slot.Cell->GetConfigVersion()) {
                 requestConfigureSlot(slot.Cell);
             }
         }
@@ -1061,9 +1063,7 @@ private:
                 return;
 
             auto* protoInfo = response->add_hive_cells_to_reconfigure();
-            auto config = cell->GetConfig()->ToElection(cell->GetId());
-            protoInfo->set_config_version(cell->GetConfigVersion());
-            protoInfo->set_config(ConvertToYsonString(config).Data());
+            ToProto(protoInfo->mutable_cell_descriptor(), cell->GetDescriptor());
         };
 
         auto requestUnregisterCell = [&] (const TTabletCellId& cellId) {
@@ -1394,9 +1394,7 @@ private:
     void UpdateCellDirectory(TTabletCell* cell)
     {
         auto cellDirectory = Bootstrap_->GetCellDirectory();
-        cellDirectory->RegisterCell(
-            cell->GetConfig()->ToElection(cell->GetId()),
-            cell->GetConfigVersion());
+        cellDirectory->ReconfigureCell(cell->GetDescriptor());
     }
 
 

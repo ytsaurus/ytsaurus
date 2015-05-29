@@ -83,13 +83,11 @@ public:
     TImpl(
         TTableMountCacheConfigPtr config,
         IChannelPtr masterChannel,
-        TCellDirectoryPtr cellDirectory,
-        const Stroka& networkName)
+        TCellDirectoryPtr cellDirectory)
         : TExpiringCache(config)
         , Config_(config)
         , ObjectProxy_(masterChannel)
         , CellDirectory_(cellDirectory)
-        , NetworkName_(networkName)
     { }
 
     TFuture<TTableMountInfoPtr> GetTableInfo(const TYPath& path)
@@ -107,10 +105,9 @@ private:
     const TTableMountCacheConfigPtr Config_;
     TObjectServiceProxy ObjectProxy_;
     const TCellDirectoryPtr CellDirectory_;
-    const Stroka NetworkName_;
 
 
-    virtual TFuture <TTableMountInfoPtr> DoGet(const TYPath& path) override
+    virtual TFuture<TTableMountInfoPtr> DoGet(const TYPath& path) override
     {
         LOG_DEBUG("Requesting table mount info (Path: %v)",
             path);
@@ -139,32 +136,27 @@ private:
                 tableInfo->Sorted = rsp->sorted();
                 tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns();
 
-                auto nodeDirectory = New<TNodeDirectory>();
-                nodeDirectory->MergeFrom(rsp->node_directory());
-
                 for (const auto& protoTabletInfo : rsp->tablets()) {
                     auto tabletInfo = New<TTabletInfo>();
+                    tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
                     tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
                     tabletInfo->State = ETabletState(protoTabletInfo.state());
                     tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
 
                     if (protoTabletInfo.has_cell_id()) {
-                        auto cellConfig = New<TCellConfig>();
-                        tabletInfo->CellId = cellConfig->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
-                        for (auto nodeId : protoTabletInfo.replica_node_ids()) {
-                            if (nodeId == InvalidNodeId) {
-                                cellConfig->Addresses.push_back(Null);
-                            } else {
-                                auto descriptor = nodeDirectory->GetDescriptor(nodeId);
-                                auto address = descriptor.GetAddressOrThrow(NetworkName_);
-                                cellConfig->Addresses.push_back(address);
-                                tabletInfo->Replicas.push_back(TTabletReplica(nodeId, descriptor));
-                            }
-                        }
-                        CellDirectory_->RegisterCell(cellConfig, protoTabletInfo.cell_config_version());
+                        tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
                     }
 
                     tableInfo->Tablets.push_back(tabletInfo);
+                }
+
+                for (const auto& protoDescriptor : rsp->tablet_cells()) {
+                    auto descriptor = FromProto<TCellDescriptor>(protoDescriptor);
+                    if (CellDirectory_->ReconfigureCell(descriptor)) {
+                        LOG_DEBUG("Hive cell reconfigured (CellId: %v, ConfigVersion: %v)",
+                            descriptor.CellId,
+                            descriptor.ConfigVersion);
+                    }
                 }
 
                 LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v)",
@@ -184,13 +176,11 @@ private:
 TTableMountCache::TTableMountCache(
     TTableMountCacheConfigPtr config,
     IChannelPtr masterChannel,
-    TCellDirectoryPtr cellDirectory,
-    const Stroka& networkName)
+    TCellDirectoryPtr cellDirectory)
     : Impl_(New<TImpl>(
         config,
         masterChannel,
-        cellDirectory,
-        networkName))
+        cellDirectory))
 { }
 
 TTableMountCache::~TTableMountCache()

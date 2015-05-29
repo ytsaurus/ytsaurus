@@ -219,7 +219,6 @@ private:
                         LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
                         auto planFragment = New<TPlanFragment>();
-                        planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                         planFragment->Timestamp = fragment->Timestamp;
                         planFragment->DataSources.push_back({
                             fragment->ForeignDataId,
@@ -270,7 +269,6 @@ private:
 
         auto timestamp = fragment->Timestamp;
 
-        auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
         TDataSources rangeSources;
@@ -297,7 +295,7 @@ private:
         LOG_DEBUG("Splitting %v sources", rangeSources.size());
 
         auto rowBuffer = New<TRowBuffer>();
-        auto splits = Split(rangeSources, rowBuffer, nodeDirectory, true, Logger, fragment->VerboseLogging);
+        auto splits = Split(rangeSources, rowBuffer, true, Logger, fragment->VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
         std::vector<TDataSources> groupedSplits;
@@ -341,7 +339,7 @@ private:
                     }));
 
                 for (const auto& dataSplit : groupedSplit) {
-                    bottomSplitReaders.push_back(GetReader(dataSplit, timestamp, nodeDirectory));
+                    bottomSplitReaders.push_back(GetReader(dataSplit, timestamp));
                 }
                 return CreateUnorderedSchemafulReader(bottomSplitReaders);
             });
@@ -381,11 +379,10 @@ private:
 
         auto timestamp = fragment->Timestamp;
 
-        auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
         auto rowBuffer = New<TRowBuffer>();
-        auto splits = Split(fragment->DataSources, rowBuffer, nodeDirectory, true, Logger, fragment->VerboseLogging);
+        auto splits = Split(fragment->DataSources, rowBuffer, true, Logger, fragment->VerboseLogging);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
@@ -410,7 +407,7 @@ private:
                 return RefinePredicate(dataSplit.Range, expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                return GetReader(dataSplit, timestamp, nodeDirectory);
+                return GetReader(dataSplit, timestamp);
             });
         }
 
@@ -426,7 +423,6 @@ private:
     TDataSources Split(
         const TDataSources& splits,
         TRowBufferPtr rowBuffer,
-        TNodeDirectoryPtr nodeDirectory,
         bool mergeRanges,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
@@ -709,8 +705,7 @@ private:
 
     ISchemafulReaderPtr GetReader(
         const TDataSource& source,
-        TTimestamp timestamp,
-        TNodeDirectoryPtr nodeDirectory)
+        TTimestamp timestamp)
     {
         ValidateReadTimestamp(timestamp);
 
@@ -718,7 +713,7 @@ private:
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetChunkReader(source, timestamp, std::move(nodeDirectory));
+                return GetChunkReader(source, timestamp);
 
             case EObjectType::Tablet:
                 return GetTabletReader(source, timestamp);
@@ -749,19 +744,17 @@ private:
 
     ISchemafulReaderPtr GetChunkReader(
         const TDataSource& source,
-        TTimestamp timestamp,
-        TNodeDirectoryPtr nodeDirectory)
+        TTimestamp timestamp)
     {
         auto futureReader = BIND(&TQueryExecutor::DoGetChunkReader, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
-            .Run(source, timestamp, std::move(nodeDirectory));
+            .Run(source, timestamp);
         return New<TLazySchemafulReader>(std::move(futureReader));
     }
 
     ISchemafulReaderPtr DoGetChunkReader(
         const TDataSource& source,
-        TTimestamp timestamp,
-        TNodeDirectoryPtr nodeDirectory)
+        TTimestamp timestamp)
     {
         auto chunkId = source.Id;
         auto lowerBound = source.Range.first;
@@ -798,7 +791,7 @@ private:
                 Bootstrap_->GetConfig()->TabletNode->ChunkReader,
                 options,
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
-                nodeDirectory,
+                New<TNodeDirectory>(),
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 chunkId,
                 TChunkReplicaList(),

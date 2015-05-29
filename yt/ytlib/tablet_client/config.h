@@ -6,8 +6,6 @@
 
 #include <core/ytree/yson_serializable.h>
 
-#include <ytlib/election/config.h>
-
 #include <ytlib/hydra/config.h>
 
 namespace NYT {
@@ -38,14 +36,6 @@ public:
     TTabletCellConfig()
     {
         RegisterParameter("addresses", Addresses);
-    }
-
-    NElection::TCellConfigPtr ToElection(const NElection::TCellId& cellId) const
-    {
-        auto result = New<NElection::TCellConfig>();
-        result->CellId = cellId;
-        result->Addresses = Addresses;
-        return result;
     }
 };
 

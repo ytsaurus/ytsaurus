@@ -45,6 +45,8 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NTracing;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto HiveTracingService = Stroka("HiveManager");

@@ -211,7 +211,6 @@ TQueryStatistics CoordinateAndExecute(
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
     std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop)
 {
-    auto nodeDirectory = fragment->NodeDirectory;
     auto query = fragment->Query;
     auto Logger = BuildLogger(query);
 

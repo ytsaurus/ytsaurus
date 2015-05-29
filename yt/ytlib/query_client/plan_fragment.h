@@ -409,7 +409,8 @@ DEFINE_REFCOUNTED_TYPE(TQuery)
 
 struct TDataSource
 {
-    TGuid Id;
+    //! Either a chunk id, a table id or a tablet id.
+    NObjectClient::TObjectId Id;
     TRowRange Range;
 };
 
@@ -424,8 +425,6 @@ struct TPlanFragment
 
     Stroka Source;
 
-    TNodeDirectoryPtr NodeDirectory;
-    
     TTimestamp Timestamp;
 
     const TRowBufferPtr KeyRangesRowBuffer = New<TRowBuffer>();

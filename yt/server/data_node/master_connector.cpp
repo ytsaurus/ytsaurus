@@ -56,6 +56,7 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NTabletNode;
 using namespace NHydra;
+using namespace NHive;
 using namespace NObjectClient;
 using namespace NCellNode;
 
@@ -378,10 +379,9 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
     for (auto slot : slotManager->Slots()) {
         auto* protoSlotInfo = request->add_tablet_slots();
         if (slot) {
-            ToProto(protoSlotInfo->mutable_cell_id(), slot->GetCellId());
+            ToProto(protoSlotInfo->mutable_cell_info(), slot->GetCellDescriptor().ToInfo());
             protoSlotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
             protoSlotInfo->set_peer_id(slot->GetPeerId());
-            protoSlotInfo->set_config_version(slot->GetCellConfigVersion());
             ToProto(protoSlotInfo->mutable_prerequisite_transaction_id(), slot->GetPrerequisiteTransactionId());
         } else {
             protoSlotInfo->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
@@ -412,12 +412,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
     }
 
     auto cellDirectory = Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory();
-    auto cellDescriptors = cellDirectory->GetRegisteredCells();
-    for (const auto& descriptor : cellDescriptors) {
-        auto* protoCellInfo = request->add_hive_cells();
-        ToProto(protoCellInfo->mutable_cell_id(), descriptor.Config->CellId);
-        protoCellInfo->set_config_version(descriptor.Version);
-    }
+    ToProto(request->mutable_hive_cells(), cellDirectory->GetRegisteredCells());
 
     request->Invoke().Subscribe(
         BIND(&TMasterConnector::OnIncrementalNodeHeartbeatResponse, MakeStrong(this))
@@ -559,12 +554,11 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
     }
 
     for (const auto& info : rsp->tablet_slots_configure()) {
-        auto cellId = FromProto<TCellId>(info.cell_id());
-        YCHECK(cellId != NullCellId);
-        auto slot = slotManager->FindSlot(cellId);
+        auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
+        auto slot = slotManager->FindSlot(descriptor.CellId);
         if (!slot) {
             LOG_WARNING("Requested to configure a non-existing slot %v, ignored",
-                cellId);
+                descriptor.CellId);
             continue;
         }
         slotManager->ConfigureSlot(slot, info);
@@ -582,12 +576,11 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
     }
 
     for (const auto& info : rsp->hive_cells_to_reconfigure()) {
-        auto config = ConvertTo<TCellConfigPtr>(TYsonString(info.config()));
-        int configVersion = info.config_version();
-        if (cellDirectory->RegisterCell(config, configVersion)) {
+        auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
+        if (cellDirectory->ReconfigureCell(descriptor)) {
             LOG_DEBUG("Hive cell reconfigured (CellId: %v, ConfigVersion: %v)",
-                config->CellId,
-                configVersion);
+                descriptor.CellId,
+                descriptor.ConfigVersion);
         }
     }
 
