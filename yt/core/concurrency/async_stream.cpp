@@ -9,12 +9,35 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+template <class T>
+TErrorOr<T> WaitForWithStrategy(TFuture<T> future, ESyncStreamAdapterStrategy strategy)
+{
+    switch (strategy) {
+
+        case ESyncStreamAdapterStrategy::WaitFor:
+            return WaitFor(future);
+        case ESyncStreamAdapterStrategy::Get:
+            return future.Get();
+        default:
+            YUNREACHABLE();
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSyncInputStreamAdapter
     : public TInputStream
 {
 public:
-    explicit TSyncInputStreamAdapter(IAsyncInputStreamPtr underlyingStream)
+    TSyncInputStreamAdapter(
+        IAsyncInputStreamPtr underlyingStream,
+        ESyncStreamAdapterStrategy strategy)
         : UnderlyingStream_(underlyingStream)
+        , Strategy_(strategy)
     {
         YCHECK(UnderlyingStream_);
     }
@@ -24,20 +47,25 @@ public:
 
 private:
     const IAsyncInputStreamPtr UnderlyingStream_;
+    const ESyncStreamAdapterStrategy Strategy_;
 
 
     virtual size_t DoRead(void* buf, size_t len) override
     {
         auto buffer = TSharedMutableRef(buf, len, nullptr);
-        return WaitFor(UnderlyingStream_->Read(buffer))
+        return WaitForWithStrategy(UnderlyingStream_->Read(buffer), Strategy_)
             .ValueOrThrow();
     }
 
 };
 
-std::unique_ptr<TInputStream> CreateSyncAdapter(IAsyncInputStreamPtr underlyingStream)
+std::unique_ptr<TInputStream> CreateSyncAdapter(
+    IAsyncInputStreamPtr underlyingStream,
+    ESyncStreamAdapterStrategy strategy)
 {
-    return std::unique_ptr<TInputStream>(new TSyncInputStreamAdapter(underlyingStream));
+    return std::unique_ptr<TInputStream>(new TSyncInputStreamAdapter(
+        underlyingStream,
+        strategy));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,8 +114,11 @@ class TSyncOutputStreamAdapter
     : public TOutputStream
 {
 public:
-    explicit TSyncOutputStreamAdapter(IAsyncOutputStreamPtr underlyingStream)
+    TSyncOutputStreamAdapter(
+        IAsyncOutputStreamPtr underlyingStream,
+        ESyncStreamAdapterStrategy strategy)
         : UnderlyingStream_(underlyingStream)
+        , Strategy_(strategy)
     {
         YCHECK(UnderlyingStream_);
     }
@@ -97,18 +128,23 @@ public:
 
 private:
     const IAsyncOutputStreamPtr UnderlyingStream_;
+    const ESyncStreamAdapterStrategy Strategy_;
 
     virtual void DoWrite(const void* buf, size_t len) override
     {
         auto buffer = TSharedRef(buf, len, nullptr);
-        WaitFor(UnderlyingStream_->Write(buffer))
+        WaitForWithStrategy(UnderlyingStream_->Write(buffer), Strategy_)
             .ThrowOnError();
     }
 };
 
-std::unique_ptr<TOutputStream> CreateSyncAdapter(IAsyncOutputStreamPtr underlyingStream)
+std::unique_ptr<TOutputStream> CreateSyncAdapter(
+    IAsyncOutputStreamPtr underlyingStream,
+    ESyncStreamAdapterStrategy strategy)
 {
-    return std::unique_ptr<TOutputStream>(new TSyncOutputStreamAdapter(underlyingStream));
+    return std::unique_ptr<TOutputStream>(new TSyncOutputStreamAdapter(
+        underlyingStream,
+        strategy));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
