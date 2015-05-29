@@ -6,6 +6,7 @@ import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_info.proto";
 import "yt/ytlib/hydra/hydra_manager.proto";
+import "yt/ytlib/hive/cell_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,16 +58,9 @@ message TRspFullHeartbeat
 message TTabletSlotInfo
 {
     required int32 peer_state = 1;
-    optional NYT.NProto.TGuid cell_id = 2;
-    optional int32 peer_id = 3;
-    optional int32 config_version = 4;
-    optional NYT.NProto.TGuid prerequisite_transaction_id = 5;
-}
-
-message THiveCellInfo
-{
-    required NYT.NProto.TGuid cell_id = 1;
-    required int32 config_version = 2;
+    optional int32 peer_id = 2;
+    optional NYT.NHive.NProto.TCellInfo cell_info = 3;
+    optional NYT.NProto.TGuid prerequisite_transaction_id = 4;
 }
 
 message TTabletStatistics
@@ -113,7 +107,7 @@ message TReqIncrementalHeartbeat
     repeated TTabletInfo tablets = 8;
 
     // Hive Manager stuff.
-    repeated THiveCellInfo hive_cells = 7;
+    repeated NHive.NProto.TCellInfo hive_cells = 7;
 }
 
 message TCreateTabletSlotInfo
@@ -125,10 +119,8 @@ message TCreateTabletSlotInfo
 
 message TConfigureTabletSlotInfo
 {
-    required NYT.NProto.TGuid cell_id = 1;
-    required int32 config_version = 2;
-    required bytes config = 3; // NTabletClient::TTabletCellConfig
-    required int32 peer_id = 4;
+    required NYT.NHive.NProto.TCellDescriptor cell_descriptor = 1;
+    required int32 peer_id = 2;
 }
 
 message TRemoveTabletSlotInfo
@@ -143,8 +135,7 @@ message TUnregisterHiveCellInfo
 
 message TReconfigureHiveCellInfo
 {
-    required int32 config_version = 1;
-    required bytes config = 2; // NElection::TCellConfig
+    required NYT.NHive.NProto.TCellDescriptor cell_descriptor = 1;
 }
 
 message TRspIncrementalHeartbeat

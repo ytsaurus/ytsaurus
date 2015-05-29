@@ -147,7 +147,7 @@ public:
     //! Marks the location as disabled.
     void Disable(const TError& reason);
 
-    //! Permantenly removes the files comprising a given chunk.
+    //! Permanently removes the files comprising a given chunk.
     void RemoveChunkFiles(const TChunkId& chunkId);
 
     //! Moves the files comprising a given chunk into trash directory.

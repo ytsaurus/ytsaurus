@@ -317,45 +317,42 @@ private:
     }
 
 
-    std::vector<std::pair<TDataSource, TChunkReplica>> Split(
+    std::vector<std::pair<TDataSource, Stroka>> Split(
         TGuid objectId,
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer,
-        TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
-        std::vector<std::pair<TDataSource, TChunkReplica>> newSources;
+        std::vector<std::pair<TDataSource, Stroka>> result;
 
         if (TypeFromId(objectId) == EObjectType::Table) {
-            newSources = SplitTableFurther(objectId, ranges, rowBuffer, std::move(nodeDirectory));
+            result = SplitTableFurther(objectId, ranges, std::move(rowBuffer));
             LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
-                newSources.size(),
+                result.size(),
                 objectId);
         }
 
-        return newSources;
+        return result;
     }
 
-    std::vector<std::pair<TDataSource, TChunkReplica>> SplitTableFurther(
+    std::vector<std::pair<TDataSource, Stroka>> SplitTableFurther(
         TGuid tableId,
         const std::vector<TRowRange>& ranges,
-        TRowBufferPtr rowBuffer,
-        TNodeDirectoryPtr nodeDirectory)
+        TRowBufferPtr rowBuffer)
     {
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
         return tableInfo->Sorted
-            ? SplitSortedTableFurther(tableId, ranges, rowBuffer, std::move(nodeDirectory))
-            : SplitUnsortedTableFurther(tableId, ranges, rowBuffer, std::move(nodeDirectory), std::move(tableInfo));
+            ? SplitSortedTableFurther(tableId, ranges, std::move(rowBuffer))
+            : SplitUnsortedTableFurther(tableId, ranges, std::move(rowBuffer), std::move(tableInfo));
     }
 
-    std::vector<std::pair<TDataSource, TChunkReplica>> SplitSortedTableFurther(
+    std::vector<std::pair<TDataSource, Stroka>> SplitSortedTableFurther(
         TGuid tableId,
         const std::vector<TRowRange>& ranges,
-        TRowBufferPtr rowBuffer,
-        TNodeDirectoryPtr nodeDirectory)
+        TRowBufferPtr rowBuffer)
     {
         // TODO(babenko): refactor and optimize
         TObjectServiceProxy proxy(MasterChannel_);
@@ -367,11 +364,14 @@ private:
         auto rsp = WaitFor(proxy.Execute(req))
             .ValueOrThrow();
 
+        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(rsp->node_directory());
 
         auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
 
-        std::vector<std::pair<TDataSource, TChunkReplica>> result;
+        std::vector<std::pair<TDataSource, Stroka>> result;
+
+        const auto& networkName = Connection_->GetConfig()->NetworkName;
 
         for (auto& chunkSpec : chunkSpecs) {
             auto chunkKeyColumns = FindProtoExtension<TKeyColumnsExt>(chunkSpec.chunk_meta().extensions());
@@ -392,28 +392,29 @@ private:
             auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
             if (replicas.empty()) {
                 auto objectId = GetObjectIdFromDataSplit(chunkSpec);
-                THROW_ERROR_EXCEPTION("No alive replicas for source %v",
+                THROW_ERROR_EXCEPTION("No alive replicas for chunk %v",
                     objectId);
             }
             auto replica = replicas[RandomNumber(replicas.size())];
 
-
             auto keyRange = GetBothBoundsFromDataSplit(chunkSpec);
 
-            result.emplace_back(TDataSource{
+            auto dataSource = TDataSource{
                 GetObjectIdFromDataSplit(chunkSpec),
-                TRowRange(rowBuffer->Capture(keyRange.first.Get()), rowBuffer->Capture(keyRange.second.Get()))},
-                replica);
+                TRowRange(rowBuffer->Capture(keyRange.first.Get()), rowBuffer->Capture(keyRange.second.Get()))};
+
+            const auto& descriptor = nodeDirectory->GetDescriptor(replica);
+            const auto& address = descriptor.GetAddressOrThrow(networkName);
+            result.emplace_back(dataSource, address);
         }
 
         return result;
     }
 
-    std::vector<std::pair<TDataSource, TChunkReplica>> SplitUnsortedTableFurther(
+    std::vector<std::pair<TDataSource, Stroka>> SplitUnsortedTableFurther(
         TGuid tableId,
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer,
-        TNodeDirectoryPtr nodeDirectory,
         TTableMountInfoPtr tableInfo)
     {
         if (tableInfo->Tablets.empty()) {
@@ -421,7 +422,9 @@ private:
                 tableId);
         }
 
-        std::vector<std::pair<TDataSource, TChunkReplica>> subsources;
+        auto cellDirectory = Connection_->GetCellDirectory();
+
+        std::vector<std::pair<TDataSource, Stroka>> subsources;
         for (const auto& range : ranges) {
             auto lowerBound = range.first;
             auto upperBound = range.second;
@@ -456,19 +459,14 @@ private:
                 subsource.Range.first = rowBuffer->Capture(std::max(lowerBound, pivotKey.Get()));
                 subsource.Range.second = rowBuffer->Capture(std::min(upperBound, nextPivotKey.Get()));
 
-                const auto& replicas = tabletInfo->Replicas;
-
-                if (replicas.empty()) {
-                    auto objectId = tabletInfo->TabletId;
-                    THROW_ERROR_EXCEPTION("No alive replicas for source %v",
-                        objectId);
+                auto addresses = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
+                if (addresses.empty()) {
+                    THROW_ERROR_EXCEPTION("No alive replicas for tablet %v",
+                        tabletInfo->TabletId);
                 }
 
-                auto replica = replicas[RandomNumber(replicas.size())];
-                nodeDirectory->AddDescriptor(replica.Id, replica.Descriptor);
-                TChunkReplica chunkReplica(replica.Id, 0);
-
-                subsources.emplace_back(std::move(subsource), chunkReplica);
+                const auto& address = addresses[RandomNumber(addresses.size())];
+                subsources.emplace_back(std::move(subsource), address);
             }
         }
 
@@ -499,7 +497,6 @@ private:
             isOrdered,
             [&] (TConstQueryPtr subquery, int index) {
                 auto subfragment = New<TPlanFragment>(fragment->Source);
-                subfragment->NodeDirectory = fragment->NodeDirectory;
                 subfragment->Timestamp = fragment->Timestamp;
                 subfragment->ForeignDataId = fragment->ForeignDataId;
                 subfragment->Query = subquery;
@@ -527,7 +524,6 @@ private:
         TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer)
     {
-        auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
         const auto& dataSources = fragment->DataSources;
@@ -544,44 +540,33 @@ private:
 
         LOG_DEBUG("Splitting pruned splits");
 
-        std::vector<std::pair<TDataSource, TChunkReplica>> allSplits;
-
+        std::vector<std::pair<TDataSource, Stroka>> allSplits;
         for (int index = 0; index < dataSources.size(); ++index) {
             auto id = dataSources[index].Id;
             const auto& ranges = prunedRanges[index];
-
-            auto splits = Split(id, ranges, rowBuffer, nodeDirectory, Logger, fragment->VerboseLogging);
-            std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
+            auto splits = Split(id, ranges, rowBuffer, Logger, fragment->VerboseLogging);
+            allSplits.insert(allSplits.begin(), splits.begin(), splits.end());
         }
 
-        LOG_DEBUG("Regrouping %v splits", allSplits.size());
-
-        std::map<ui32, TDataSources> groupsByChunkReplica;
+        yhash_map<Stroka, TDataSources> groupsByAddress;
         for (const auto& split : allSplits) {
-            groupsByChunkReplica[split.second.GetNodeId()].push_back(split.first);
-        }
-
-        std::map<Stroka, TDataSources> groupsByLocation;
-        for (const auto& group : groupsByChunkReplica) {
-            auto descriptor = nodeDirectory->GetDescriptor(TChunkReplica(group.first, 0));
-            auto address = descriptor.GetAddressOrThrow(Connection_->GetConfig()->NetworkName);
-            auto& targetSources = groupsByLocation[address];
-            targetSources.insert(targetSources.end(), group.second.begin(), group.second.end());
+            const auto& address = split.second;
+            groupsByAddress[address].push_back(split.first);
         }
 
         std::vector<std::pair<TDataSources, Stroka>> groupedSplits;
-        std::vector<TRowRange> ranges;
-        for (const auto& group : groupsByLocation) {
+        for (const auto& group : groupsByAddress) {
             if (group.second.empty()) {
                 continue;
             }
             groupedSplits.emplace_back(group.second, group.first);
-            ranges.push_back(GetRange(group.second));
         }
 
-        LOG_DEBUG("Regrouped into %v groups", groupsByLocation.size());
+        LOG_DEBUG("Regrouped %v splits into %v groups",
+            allSplits.size(),
+            groupsByAddress.size());
 
-        return DoCoordinateAndExecute(fragment, writer, ranges.size(), false, [&] (int index) {
+        return DoCoordinateAndExecute(fragment, writer, groupedSplits.size(), false, [&] (int index) {
             return groupedSplits[index];
         });
     }
@@ -590,7 +575,6 @@ private:
         TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer)
     {
-        auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
         const auto& dataSources = fragment->DataSources;
@@ -607,32 +591,32 @@ private:
 
         LOG_DEBUG("Splitting pruned splits");
 
-        std::vector<std::pair<TDataSource, TChunkReplica>> allSplits;
+        std::vector<std::pair<TDataSource, Stroka>> allSplits;
 
         for (int index = 0; index < dataSources.size(); ++index) {
-            auto id = dataSources[index].Id;
+            const auto& id = dataSources[index].Id;
             const auto& ranges = prunedRanges[index];
 
-            auto splits = Split(id, ranges, rowBuffer, nodeDirectory, Logger, fragment->VerboseLogging);
+            auto splits = Split(id, ranges, rowBuffer, Logger, fragment->VerboseLogging);
             std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
         }
 
         LOG_DEBUG("Sorting %v splits", allSplits.size());
 
-        std::sort(allSplits.begin(), allSplits.end(), [] (const std::pair<TDataSource, TChunkReplica>& lhs, const std::pair<TDataSource, TChunkReplica>& rhs) {
-            return lhs.first.Range.first < rhs.first.Range.first;
-        });
+        std::sort(
+            allSplits.begin(),
+            allSplits.end(),
+            [] (const std::pair<TDataSource, Stroka>& lhs, const std::pair<TDataSource, Stroka>& rhs) {
+                return lhs.first.Range.first < rhs.first.Range.first;
+            });
 
-        std::vector<TRowRange> ranges;
-        for (auto const& split : allSplits) {
-            ranges.push_back(split.first.Range);
-        }
-
-        return DoCoordinateAndExecute(fragment, writer, ranges.size(), true, [&] (int index) {
-            auto descriptor = nodeDirectory->GetDescriptor(allSplits[index].second);
-            auto address = descriptor.GetAddressOrThrow(Connection_->GetConfig()->NetworkName);
-            LOG_DEBUG("Delegating to tablet %v", allSplits[index].first.Id);
-            return std::make_pair(TDataSources(1, allSplits[index].first), address);
+        return DoCoordinateAndExecute(fragment, writer, allSplits.size(), true, [&] (int index) {
+            const auto& split = allSplits[index];
+            const auto& address = split.second;
+            LOG_DEBUG("Delegating to tablet %v at %v",
+                split.first.Id,
+                address);
+            return std::make_pair(TDataSources(1, split.first), address);
         });
     }
 
@@ -650,7 +634,6 @@ private:
             proxy.SetDefaultTimeout(config->QueryTimeout);
 
             auto req = proxy.Execute();
-            fragment->NodeDirectory->DumpTo(req->mutable_node_directory());
 
             TDuration serializationTime;
             {

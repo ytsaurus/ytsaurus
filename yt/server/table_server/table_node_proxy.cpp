@@ -447,8 +447,7 @@ private:
         auto schema = tabletManager->GetTableSchema(table);
         ToProto(response->mutable_schema(), schema);
 
-        TNodeDirectoryBuilder builder(response->mutable_node_directory());
-
+        yhash_set<TTabletCell*> cells;
         for (auto* tablet : table->Tablets()) {
             auto* cell = tablet->GetCell();
             auto* protoTablet = response->add_tablets();
@@ -457,17 +456,12 @@ private:
             ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
             if (cell) {
                 ToProto(protoTablet->mutable_cell_id(), cell->GetId());
-                protoTablet->set_cell_config_version(cell->GetConfigVersion());
-                for (const auto& peer : cell->Peers()) {
-                    auto* node = peer.Node;
-                    if (node) {
-                        builder.Add(node);
-                        protoTablet->add_replica_node_ids(node->GetId());
-                    } else {
-                        protoTablet->add_replica_node_ids(InvalidNodeId);
-                    }
-                }
+                cells.insert(cell);
             }
+        }
+
+        for (const auto* cell : cells) {
+            ToProto(response->add_tablet_cells(), cell->GetDescriptor());
         }
 
         context->Reply();

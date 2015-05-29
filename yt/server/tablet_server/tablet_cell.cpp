@@ -11,7 +11,7 @@
 namespace NYT {
 namespace NTabletServer {
 
-using namespace NElection;
+using namespace NHive;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NCellMaster;
@@ -198,6 +198,17 @@ ETabletCellHealth TTabletCell::GetHealth() const
     }
 
     return ETabletCellHealth::Failed;
+}
+
+TCellDescriptor TTabletCell::GetDescriptor() const
+{
+    TCellDescriptor descriptor;
+    descriptor.CellId = Id;
+    descriptor.ConfigVersion = ConfigVersion_;
+    for (const auto& peer : Peers_) {
+        descriptor.Peers.push_back(peer.Descriptor);
+    }
+    return descriptor;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

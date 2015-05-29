@@ -103,8 +103,9 @@ public:
 
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
-            GetBusChannelFactory());
-        CellDirectory_->RegisterCell(config->Master);
+            GetBusChannelFactory(),
+            Config_->NetworkName);
+        CellDirectory_->ReconfigureCell(Config_->Master);
 
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache,
@@ -113,8 +114,7 @@ public:
         TableMountCache_ = New<TTableMountCache>(
             Config_->TableMountCache,
             GetMasterChannel(EMasterChannelKind::Cache),
-            CellDirectory_,
-            Config_->NetworkName);
+            CellDirectory_);
 
         FunctionRegistry_ = CreateFunctionRegistry(
             CreateClient(TClientOptions()));

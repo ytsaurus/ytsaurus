@@ -1297,8 +1297,7 @@ TPlanFragmentPtr PreparePlanFragment(
     PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
 
     auto planFragment = New<TPlanFragment>(source);
-    planFragment->NodeDirectory = New<TNodeDirectory>();
-    
+
     if (ast.Limit) {
         query->Limit = ast.Limit;
         if (!query->OrderClause) {
@@ -1784,7 +1783,6 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
 {
     auto result = New<TPlanFragment>(serialized.source());
 
-    result->NodeDirectory = New<TNodeDirectory>();
     result->Query = FromProto(serialized.query());
     result->Ordered = serialized.ordered();
     result->VerboseLogging = serialized.verbose_logging();

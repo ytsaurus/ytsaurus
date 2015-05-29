@@ -19,3 +19,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/transaction_supervisor_service.proto YT_SOURCE_FILES )
+protoc( ${BASE}/cell_directory.proto YT_SOURCE_FILES )

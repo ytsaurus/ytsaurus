@@ -325,8 +325,9 @@ void TBootstrap::DoInitialize()
 
     CellDirectory_ = New<TCellDirectory>(
         Config_->CellDirectory,
-        GetBusChannelFactory());
-    CellDirectory_->RegisterCell(Config_->Master);
+        GetBusChannelFactory(),
+        NNodeTrackerClient::InterconnectNetworkName);
+    CellDirectory_->ReconfigureCell(Config_->Master);
 
     HiveManager_ = New<THiveManager>(
         Config_->HiveManager,

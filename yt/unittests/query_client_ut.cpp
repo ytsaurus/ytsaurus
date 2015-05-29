@@ -91,7 +91,6 @@ using namespace NConcurrency;
 using namespace NYPath;
 using namespace NObjectClient;
 using namespace NVersionedTableClient;
-using namespace NNodeTrackerClient;
 using namespace NApi;
 
 using ::testing::_;
@@ -2156,7 +2155,6 @@ struct TQueryExecutor
             [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
                 auto planFragment = New<TPlanFragment>();
 
-                planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                 planFragment->Timestamp = fragment->Timestamp;
                 planFragment->DataSources.push_back({
                     fragment->ForeignDataId, {

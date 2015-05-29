@@ -47,7 +47,6 @@ struct TTabletInfo
     NTabletClient::ETabletState State;
     NVersionedTableClient::TOwningKey PivotKey;
     NTabletClient::TTabletCellId CellId;
-    SmallVector<TTabletReplica, TypicalCellSize> Replicas;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletInfo)
@@ -82,8 +81,7 @@ public:
     TTableMountCache(
         TTableMountCacheConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NHive::TCellDirectoryPtr cellDirectory,
-        const Stroka& networkName);
+        NHive::TCellDirectoryPtr cellDirectory);
     ~TTableMountCache();
 
     TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path);
