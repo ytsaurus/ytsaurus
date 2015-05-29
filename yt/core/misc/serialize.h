@@ -586,30 +586,31 @@ struct TStrokaSerializer
     }
 };
 
+template <class TUnderlyingSerializer = TDefaultSerializer>
 struct TNullableSerializer
 {
     template <class T, class C>
-    static void Save(C& context, const T& nullable)
+    static void Save(C& context, const TNullable<T>& nullable)
     {
         using NYT::Save;
 
         Save(context, nullable.HasValue());
 
         if (nullable) {
-            Save(context, *nullable);
+            TUnderlyingSerializer::Save(context, *nullable);
         }
     }
 
     template <class T, class C>
-    static void Load(C& context, T& nullable)
+    static void Load(C& context, TNullable<T>& nullable)
     {
         using NYT::Load;
 
         bool hasValue = LoadSuspended<bool>(context);
 
         if (hasValue) {
-            typename T::TValueType temp;
-            Load(context, temp);
+            T temp;
+            TUnderlyingSerializer::Load(context, temp);
             nullable.Assign(std::move(temp));
         } else {
             nullable.Reset();
@@ -1236,7 +1237,7 @@ struct TSerializerTraits<Stroka, C, void>
 template <class T, class C>
 struct TSerializerTraits<TNullable<T>, C, void>
 {
-    typedef TNullableSerializer TSerializer;
+    typedef TNullableSerializer<> TSerializer;
 };
 
 template <class T, class A, class C>
