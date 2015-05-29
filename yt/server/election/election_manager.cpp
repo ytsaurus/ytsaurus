@@ -562,7 +562,7 @@ TYsonProducer TElectionManager::TImpl::GetMonitoringProducer()
                         fluent.Item().Value(CellManager->GetPeerAddress(id));
                     })
                 .EndList()
-                .DoIf(epochContext, [&] (TFluentMap fluent) {
+                .DoIf(epochContext.operator bool(), [&] (TFluentMap fluent) {
                     fluent
                         .Item("leader_id").Value(epochContext->LeaderId)
                         .Item("epoch_id").Value(epochContext->EpochId);

@@ -509,7 +509,7 @@ void swap(TPromise<T>& lhs, TPromise<T>& rhs)
 template <class T>
 TFutureBase<T>::operator bool() const
 {
-    return Impl_ != nullptr;
+    return Impl_.operator bool();
 }
 
 template <class T>
@@ -713,7 +713,7 @@ inline TFuture<void>::TFuture(TIntrusivePtr<NYT::NDetail::TFutureState<void>> im
 template <class T>
 TPromiseBase<T>::operator bool() const
 {
-    return Impl_ != nullptr;
+    return Impl_.operator bool();
 }
 
 template <class T>

@@ -178,11 +178,9 @@ public:
         return  T_;
     }
 
-    // Implicit conversion to bool.
-    typedef T* TIntrusivePtr::*TUnspecifiedBoolType;
-    operator TUnspecifiedBoolType() const // noexcept
+    explicit operator bool() const
     {
-        return T_ ? &TIntrusivePtr::T_ : nullptr;
+        return T_ != nullptr;
     }
 
     //! Swap the pointer with the other one.
