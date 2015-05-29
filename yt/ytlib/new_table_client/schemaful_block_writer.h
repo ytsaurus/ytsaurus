@@ -52,7 +52,8 @@ public:
     TBlock FlushBlock();
 
 private:
-    struct TColumn {
+    struct TColumn
+    {
         TChunkedOutputStream Stream;
         // Bit is set, if corresponding value is not null.
         TDynBitMap NullBitmap;
