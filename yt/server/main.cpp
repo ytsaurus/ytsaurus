@@ -276,7 +276,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
     } else {
         if (!cgroups.empty()) {
-            LOG_WARNING("CGroups are explicitely disabled in config. Ignore --cgroup parameter");
+            LOG_WARNING("CGroups are explicitely disabled in config; ignoring --cgroup parameter");
         }
     }
 
