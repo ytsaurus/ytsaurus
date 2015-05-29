@@ -93,7 +93,7 @@ IAsyncInputStreamPtr CreateCopyingAdapter(IAsyncZeroCopyInputStreamPtr underlyin
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Similar to IAsyncOutputStream but is essentially zero-copy, i.e.
-//! produces a sequence of memory blocks with shared ownership.
+//! consumes a sequence of memory blocks with shared ownership.
 struct IAsyncZeroCopyOutputStream
     : public virtual TRefCounted
 {
