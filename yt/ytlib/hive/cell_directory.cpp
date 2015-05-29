@@ -106,10 +106,7 @@ public:
     {
         TReaderGuard guard(SpinLock_);
         auto it = CellMap_.find(cellId);
-        if (it == CellMap_.end()) {
-            return nullptr;
-        }
-        return it->second.Channels[peerKind];
+        return it == CellMap_.end() ? nullptr : it->second.Channels[peerKind];
     }
 
     IChannelPtr GetChannelOrThrow(const TCellId& cellId, EPeerKind peerKind)
