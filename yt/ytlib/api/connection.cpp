@@ -80,7 +80,7 @@ public:
                 EPeerKind::LeaderOrFollower);
         } else {
             // Disable cache.
-            MasterChannels_[EMasterChannelKind::Cache] = GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+            MasterChannels_[EMasterChannelKind::Cache] = GetMasterChannel(EMasterChannelKind::Leader);
         }
 
         auto timestampProviderConfig = Config_->TimestampProvider;
