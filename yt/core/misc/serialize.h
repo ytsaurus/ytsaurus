@@ -504,10 +504,11 @@ struct TSharedRefSerializer
     static void Load(C& context, TSharedRef& value)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
-        value = TSharedMutableRef::Allocate(size, false);
+        auto mutableValue = TSharedMutableRef::Allocate(size, false);
 
         auto* input = context.GetInput();
-        YCHECK(input->Load(value.Begin(), value.Size()) == value.Size());
+        YCHECK(input->Load(mutableValue.Begin(), mutableValue.Size()) == mutableValue.Size());
+        value = mutableValue;
 
         SERIALIZATION_DUMP_WRITE(context, "TSharedRef %v", DumpRangeToHex(value));
     }
