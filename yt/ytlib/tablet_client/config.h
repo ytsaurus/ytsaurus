@@ -17,11 +17,7 @@ namespace NTabletClient {
 class TTabletCellOptions
     : public NHydra::TRemoteSnapshotStoreOptions
     , public NHydra::TRemoteChangelogStoreOptions
-{
-public:
-    TTabletCellOptions()
-    { }
-};
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TTabletCellOptions)
 
@@ -45,11 +41,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellConfig)
 
 class TTableMountCacheConfig
     : public TExpiringCacheConfig
-{
-public:
-    TTableMountCacheConfig()
-    { }
-};
+{  };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountCacheConfig)
 
