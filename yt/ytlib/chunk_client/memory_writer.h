@@ -14,20 +14,23 @@ class TMemoryWriter
     : public IChunkWriter
 {
 public:
+    // IChunkWriter implementation.
     virtual TFuture<void> Open() override;
     virtual bool WriteBlock(const TSharedRef& block) override;
     virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
     virtual TFuture<void> GetReadyEvent() override;
     virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override;
 
-    // Unimplemented.
+    //! Unimplemented.
     virtual const NProto::TChunkInfo& GetChunkInfo() const override;
+    //! Unimplemented.
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
+    //! Returns #NullChunkId.
     virtual TChunkId GetChunkId() const override;
 
     //! Can only be called after the writer is closed.
     std::vector<TSharedRef>& GetBlocks();
-
+    //! Can only be called after the writer is closed.
     NProto::TChunkMeta& GetChunkMeta();
 
 private:
