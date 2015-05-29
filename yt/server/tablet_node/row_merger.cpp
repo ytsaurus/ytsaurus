@@ -166,6 +166,16 @@ TVersionedRowMerger::TVersionedRowMerger(
     Cleanup();
 }
 
+TTimestamp TVersionedRowMerger::GetCurrentTimestamp() const
+{
+    return CurrentTimestamp_;
+}
+
+TTimestamp TVersionedRowMerger::GetMajorTimestamp() const
+{
+    return MajorTimestamp_;
+}
+
 void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
 {
     if (!row)
