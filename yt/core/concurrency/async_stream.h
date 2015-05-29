@@ -31,7 +31,9 @@ struct IAsyncInputStream
 DEFINE_REFCOUNTED_TYPE(IAsyncInputStream)
 
 //! Creates a synchronous adapter from a given asynchronous stream.
-std::unique_ptr<TInputStream> CreateSyncAdapter(IAsyncInputStreamPtr underlyingStream);
+std::unique_ptr<TInputStream> CreateSyncAdapter(
+    IAsyncInputStreamPtr underlyingStream,
+    ESyncStreamAdapterStrategy strategy = ESyncStreamAdapterStrategy::WaitFor);
 
 //! Creates an asynchronous adapter from a given synchronous stream.
 IAsyncInputStreamPtr CreateAsyncAdapter(TInputStream* underlyingStream);
@@ -54,7 +56,9 @@ struct IAsyncOutputStream
 DEFINE_REFCOUNTED_TYPE(IAsyncOutputStream)
 
 //! Creates a synchronous adapter from a given asynchronous stream.
-std::unique_ptr<TOutputStream> CreateSyncAdapter(IAsyncOutputStreamPtr underlyingStream);
+std::unique_ptr<TOutputStream> CreateSyncAdapter(
+    IAsyncOutputStreamPtr underlyingStream,
+    ESyncStreamAdapterStrategy strategy = ESyncStreamAdapterStrategy::WaitFor);
 
 //! Creates an asynchronous adapter from a given synchronous stream.
 IAsyncOutputStreamPtr CreateAsyncAdapter(TOutputStream* underlyingStream);
