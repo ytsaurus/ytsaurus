@@ -51,6 +51,8 @@ def _match(path, source_tokens, destination_tokens, result):
             if path[current_index:current_index + len(token)] != token:
                 return
             current_index += len(token)
+    if current_index != len(path):
+        return
     result.append((path, "".join(destination_path_parts)))
 
 def _get_prefix(tokens, cluster_type):
