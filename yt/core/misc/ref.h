@@ -208,6 +208,23 @@ public:
         return TSharedRef(ref, std::move(holder));
     }
 
+    //! Creates a copy of a given TRef.
+    //! The memory is marked with a given tag.
+    static TSharedRef MakeCopy(const TRef& ref, TRefCountedTypeCookie tagCookie)
+    {
+        auto blob = TBlob(tagCookie, ref.Size(), false);
+        ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
+        return FromBlob(std::move(blob));
+    }
+
+    //! Creates a copy of a given TRef.
+    //! The memory is marked with a given tag.
+    template <class TTag>
+    static TSharedRef MakeCopy(const TRef& ref)
+    {
+        return MakeCopy(ref, GetRefCountedTypeCookie<TTag>());
+    }
+
     //! Creates a TSharedRef for a part of existing range.
     TSharedRef Slice(size_t startOffset, size_t endOffset) const
     {
@@ -325,6 +342,23 @@ public:
         auto ref = TMutableRef::FromBlob(blob);
         auto holder = New<TBlobHolder>(std::move(blob));
         return TSharedMutableRef(ref, std::move(holder));
+    }
+
+    //! Creates a copy of a given TRef.
+    //! The memory is marked with a given tag.
+    static TSharedMutableRef MakeCopy(const TRef& ref, TRefCountedTypeCookie tagCookie)
+    {
+        auto blob = TBlob(tagCookie, ref.Size(), false);
+        ::memcpy(blob.Begin(), ref.Begin(), ref.Size());
+        return FromBlob(std::move(blob));
+    }
+
+    //! Creates a copy of a given TRef.
+    //! The memory is marked with a given tag.
+    template <class TTag>
+    static TSharedMutableRef MakeCopy(const TRef& ref)
+    {
+        return MakeCopy(ref, GetRefCountedTypeCookie<TTag>());
     }
 
     //! Creates a reference for a part of existing range.
