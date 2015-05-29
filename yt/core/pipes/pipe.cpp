@@ -11,9 +11,7 @@ namespace NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int TPipe::InvalidFD = -1;
-
-TPipe::TPipe() 
+TPipe::TPipe()
 { }
 
 TPipe::TPipe(TPipe&& pipe)
@@ -116,7 +114,9 @@ void TPipe::CloseWriteFD()
 
 Stroka ToString(const TPipe& pipe)
 {
-    return Format("ReadFD: %v, WriteFD: %v", pipe.GetReadFD(), pipe.GetWriteFD());
+    return Format("ReadFD: %v, WriteFD: %v",
+        pipe.GetReadFD(),
+        pipe.GetWriteFD());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
