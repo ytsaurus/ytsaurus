@@ -11,7 +11,7 @@ class TPipe
     : public TNonCopyable
 {
 public:
-    static const int InvalidFD;
+    static const int InvalidFD = -1;
 
     TPipe();
     TPipe(TPipe&& pipe);
@@ -56,7 +56,7 @@ public:
     void Clear();
 
 private:
-    int MinFD_;
+    const int MinFD_;
     std::vector<int> ReservedFDs_;
 };
 
