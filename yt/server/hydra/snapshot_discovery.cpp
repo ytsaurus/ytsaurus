@@ -22,13 +22,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRemoteSnapshotParams::TRemoteSnapshotParams()
-    : PeerId(InvalidPeerId)
-    , SnapshotId(InvalidSegmentId)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSnapshotDiscovery
     : public TRefCounted
 {
@@ -38,8 +31,6 @@ public:
         TCellManagerPtr cellManager)
         : Config_(config)
         , CellManager_(cellManager)
-        , Promise_(NewPromise<TRemoteSnapshotParams>())
-        , Logger(HydraLogger)
     {
         YCHECK(Config_);
         YCHECK(CellManager_);
@@ -83,15 +74,15 @@ public:
     }
 
 private:
-    TDistributedHydraManagerConfigPtr Config_;
-    NElection::TCellManagerPtr CellManager_;
+    const TDistributedHydraManagerConfigPtr Config_;
+    const NElection::TCellManagerPtr CellManager_;
 
-    TPromise<TRemoteSnapshotParams> Promise_;
+    TPromise<TRemoteSnapshotParams> Promise_ = NewPromise<TRemoteSnapshotParams>;
 
     TSpinLock SpinLock_;
     TRemoteSnapshotParams Params_;
 
-    NLogging::TLogger Logger;
+    NLogging::TLogger Logger = HydraLogger;
 
 
     void OnResponse(
