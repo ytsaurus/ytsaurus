@@ -88,6 +88,7 @@ set( SRCS
   ${BASE}/ytree_fluent_ut.cpp
   ${BASE}/yverify_ut.cpp
   ${BASE}/zigzag_ut.cpp
+  ${BASE}/persistent_queue_ut.cpp
   ${BASE}/udf/invalid_ir.h
 )
 

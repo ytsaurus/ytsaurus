@@ -117,6 +117,8 @@ set( HDRS
   ${BASE}/protobuf_helpers-inl.h
   ${BASE}/protobuf_helpers.h
   ${BASE}/public.h
+  ${BASE}/persistent_queue.h
+  ${BASE}/persistent_queue-inl.h
   ${BASE}/random-inl.h
   ${BASE}/random.h
   ${BASE}/raw_formatter.h
