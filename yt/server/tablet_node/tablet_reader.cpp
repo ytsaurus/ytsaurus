@@ -659,7 +659,6 @@ public:
             TabletSnapshot_->Config,
             currentTimestamp,
             majorTimestamp)
-        , Timestamp_(AllCommittedTimestamp)
         , LowerBound_(std::move(lowerBound))
         , UpperBound_(std::move(upperBound))
     { }
@@ -700,26 +699,28 @@ private:
     const std::vector<IStorePtr> Stores_;
     TChunkedMemoryPool Pool_;
     TVersionedRowMerger RowMerger_;
-    TTimestamp Timestamp_;
     const TOwningKey LowerBound_;
     const TOwningKey UpperBound_;
     
 
     void DoOpen()
     {
-        LOG_DEBUG("Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v, StoreIds: [%v])",
+        LOG_DEBUG(
+            "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, "
+            "CurrentTimestamp: %v, MajorTimestamp: %v, StoreIds: [%v])",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->Slot->GetCellId(),
             LowerBound_,
             UpperBound_,
-            Timestamp_,
+            RowMerger_.GetCurrentTimestamp(),
+            RowMerger_.GetMajorTimestamp(),
             JoinToString(Stores_, TStoreIdFormatter()));
 
         for (const auto& store : Stores_) {
             this->AddReader(store->CreateReader(
                 LowerBound_,
                 UpperBound_,
-                Timestamp_,
+                AllCommittedTimestamp,
                 TColumnFilter()));
         }
 
