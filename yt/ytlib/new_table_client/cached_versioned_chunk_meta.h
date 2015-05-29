@@ -37,7 +37,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, KeyPadding);
 
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
-        NChunkClient::IChunkReaderPtr asyncReader,
+        NChunkClient::IChunkReaderPtr chunkReader,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns);
 
