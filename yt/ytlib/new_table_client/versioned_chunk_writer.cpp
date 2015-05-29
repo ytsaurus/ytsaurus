@@ -45,6 +45,8 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override;
 
+    virtual i64 GetRowCount() const override;
+
     virtual i64 GetMetaSize() const override;
     virtual i64 GetDataSize() const override;
 
@@ -130,10 +132,10 @@ TFuture<void> TVersionedChunkWriter::Open()
 {
     try {
         ValidateTableSchemaAndKeyColumns(Schema_, KeyColumns_);
+        return VoidFuture;
     } catch (const std::exception& ex) {
         return MakeFuture<void>(ex);
     }
-    return VoidFuture;
 }
 
 bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
@@ -164,10 +166,8 @@ bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
 
 TFuture<void> TVersionedChunkWriter::Close()
 {
-    if (RowCount_ == 0) {
-        // Empty chunk.
-        return VoidFuture;
-    }
+    // psushin@ forbids empty chunks :)
+    YCHECK(RowCount_ > 0);
 
     return BIND(&TVersionedChunkWriter::DoClose, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
@@ -177,6 +177,11 @@ TFuture<void> TVersionedChunkWriter::Close()
 TFuture<void> TVersionedChunkWriter::GetReadyEvent()
 {
     return EncodingChunkWriter_->GetReadyEvent();
+}
+
+i64 TVersionedChunkWriter::GetRowCount() const
+{
+    return RowCount_;
 }
 
 i64 TVersionedChunkWriter::GetMetaSize() const

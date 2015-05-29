@@ -20,7 +20,10 @@ namespace NVersionedTableClient {
 struct IVersionedChunkWriter
     : public IVersionedWriter
     , public virtual NChunkClient::IChunkWriterBase
-{ };
+{
+    //! Returns the number of rows written so far.
+    virtual i64 GetRowCount() const = 0;
+};
 
 DEFINE_REFCOUNTED_TYPE(IVersionedChunkWriter)
 
