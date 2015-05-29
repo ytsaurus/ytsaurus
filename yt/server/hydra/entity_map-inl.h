@@ -335,7 +335,7 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadValues(TContext& context)
     SERIALIZATION_DUMP_WRITE(context, "values[%v]", LoadKeys_.size());
 
     SERIALIZATION_DUMP_INDENT(context) {
-        for (size_t index = 0; index < LoadKeys_.size(); ++index) {
+        for (size_t index = 0; index != LoadKeys_.size(); ++index) {
             SERIALIZATION_DUMP_WRITE(context, "%v =>", LoadKeys_[index]);
             SERIALIZATION_DUMP_INDENT(context) {
                 Load(context, *LoadValues_[index]);
