@@ -74,7 +74,7 @@ class TestSchedulerOther(YTEnvSetup):
         op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3")
 
         time.sleep(2)
-        self.Env._kill_service("scheduler")
+        self.Env.kill_service("scheduler")
         self.Env.start_schedulers("scheduler")
 
         track_op(op_id)
