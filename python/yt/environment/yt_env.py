@@ -194,7 +194,9 @@ class YTEnv(object):
             message += 'Alarm! %s (pid %d) was not killed after 50 iterations\n' % (name, proc.pid)
         return message, ok
 
-    def _kill_service(self, name):
+    def kill_service(self, name):
+        print "Killing", name
+
         ok = True
         message = ""
         for p in self._process_to_kill[name]:
@@ -206,7 +208,7 @@ class YTEnv(object):
 
         if ok:
             self._process_to_kill[name] = []
-
+        
         return ok, message
 
 
@@ -214,7 +216,7 @@ class YTEnv(object):
         total_ok = True
         total_message = ""
         for name in self.configs:
-            ok, message = self._kill_service(name)
+            ok, message = self.kill_service(name)
             if not ok:
                 total_ok = False
                 total_message += message + "\n\n"
@@ -254,6 +256,7 @@ class YTEnv(object):
             assert False, "Process unexpectedly terminated"
 
     def _run_ytserver(self, service_name, name):
+        print "Starting", name
         for i in xrange(len(self.configs[name])):
             command = [
                 'ytserver', "--" + service_name,
@@ -412,19 +415,19 @@ class YTEnv(object):
             nodes_status = {}
 
             scheduler_good_marker = re.compile(r".*Node online.*")
-            good_marker = re.compile(r".*Node online .*NodeId: (\d+).*")
-            bad_marker = re.compile(r".*Node unregistered .*NodeId: (\d+).*")
+            node_good_marker = re.compile(r".*Node online .*Address: ([a-zA-z0-9:_\-.]+).*")
+            node_bad_marker = re.compile(r".*Node unregistered .*Address: ([a-zA-z0-9:_\-.]+).*")
 
             def update_status(marker, line, status, value):
                 match = marker.match(line)
                 if match:
-                    node_id = match.group(1)
-                    if node_id not in status:
-                        status[node_id] = value
+                    address = match.group(1)
+                    if address not in status:
+                        status[address] = value
 
             for line in reversed(open(self.leader_log).readlines()):
-                update_status(good_marker, line, nodes_status, True)
-                update_status(bad_marker, line, nodes_status, False)
+                update_status(node_good_marker, line, nodes_status, True)
+                update_status(node_bad_marker, line, nodes_status, False)
 
             schedulers_ready = True
             for log in scheduler_logs:
