@@ -249,6 +249,7 @@ public:
                 ->SetAction(BIND(
                     &TImpl::HydraLeaderExecuteWrite,
                     MakeStrong(this),
+                    transaction,
                     prelockedCountDelta,
                     writeRecord))
                 ->Commit();
@@ -856,11 +857,14 @@ private:
         }
     }
 
-    void HydraLeaderExecuteWrite(int rowCount, const TTransactionWriteRecord& writeRecord)
+    void HydraLeaderExecuteWrite(
+        TTransaction* transaction,
+        int rowCount,
+        const TTransactionWriteRecord& writeRecord)
     {
         for (int index = 0; index < rowCount; ++index) {
             YASSERT(!PrelockedTransactions_.empty());
-            auto* transaction = PrelockedTransactions_.front();
+            YASSERT(transaction == PrelockedTransactions_.front());
             PrelockedTransactions_.pop();
 
             auto rowRef = transaction->PrelockedRows().front();
