@@ -343,6 +343,11 @@ YtCommand.prototype._getUser = function() {
         throw new YtError("Failed to identify user credentials.");
     }
 
+    if (this.name === "ping_tx") {
+        // Do not check stickness for `ping_tx` command.
+        return;
+    }
+
     var sticky_result = this.sticky_cache.get(this.user);
     if (typeof(sticky_result) !== "undefined") {
         this.rsp.statusCode = sticky_result.code;
