@@ -4,6 +4,7 @@
 
 #include <core/rpc/balancing_channel.h>
 #include <core/rpc/helpers.h>
+#include <core/rpc/rpc.pb.h>
 
 #include <ytlib/hydra/hydra_service.pb.h>
 
