@@ -1,15 +1,12 @@
 #include "etc_executors.h"
 #include "preprocess.h"
 
+#include <core/concurrency/scheduler.h>
+
 #include <ytlib/driver/driver.h>
 
-#include <core/logging/log_manager.h>
-
-#include <ytlib/hydra/hydra_service_proxy.h>
-
-#include <ytlib/object_client/object_service_proxy.h>
-
 #include <ytlib/api/connection.h>
+#include <ytlib/api/admin.h>
 
 namespace NYT {
 namespace NDriver {
@@ -17,29 +14,27 @@ namespace NDriver {
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
-using namespace NHydra;
-using namespace NObjectClient;
+using namespace NApi;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBuildSnapshotExecutor::TBuildSnapshotExecutor()
-    : SetReadOnlyArg("", "set_read_only", "set the master to read only mode", false)
+    : CellIdArg("", "cell_id", "cell id where the snapshot must be built", false, NElection::TCellId(), "GUID")
+    , SetReadOnlyArg("", "set_read_only", "set the master to read only mode", false)
 {
     CmdLine.add(SetReadOnlyArg);
 }
 
 void TBuildSnapshotExecutor::DoExecute()
 {
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader));
-    proxy.SetDefaultTimeout(Null); // infinity
-    auto req = proxy.BuildSnapshot();
-    req->set_set_read_only(SetReadOnlyArg.getValue());
+    auto admin = Driver->GetConnection()->CreateAdmin();
+    TBuildSnapshotOptions options;
+    options.CellId = CellIdArg.getValue();
 
-    auto rspOrError = req->Invoke().Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error building snapshot");
-    const auto& rsp = rspOrError.Value();
+    int snapshotId = WaitFor(admin->BuildSnapshot(options))
+        .ValueOrThrow();
 
-    int snapshotId = rsp->snapshot_id();
     printf("Snapshot %d is built\n", snapshotId);
 }
 
@@ -50,16 +45,11 @@ Stroka TBuildSnapshotExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGCCollectExecutor::TGCCollectExecutor()
-{ }
-
 void TGCCollectExecutor::DoExecute()
 {
-    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel(NApi::EMasterChannelKind::Leader));
-    proxy.SetDefaultTimeout(Null); // infinity
-    auto req = proxy.GCCollect();
-    auto rspOrError = req->Invoke().Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error collecting garbage");
+    auto admin = Driver->GetConnection()->CreateAdmin();
+    WaitFor(admin->GCCollect())
+        .ThrowOnError();
 }
 
 Stroka TGCCollectExecutor::GetCommandName() const
