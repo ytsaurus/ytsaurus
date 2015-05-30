@@ -165,7 +165,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         op_id = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
                             spec={"cluster_name": "remote"})
 
-        self.Env._kill_service("scheduler")
+        self.Env.kill_service("scheduler")
         time.sleep(1)
         self.Env.start_schedulers("scheduler")
 

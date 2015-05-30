@@ -59,7 +59,7 @@ class TestHackChangelog(YTEnvSetup):
         set("//home/@test_attribute", 123)
         assert "test_attribute" in get("//home/@")
 
-        self.Env._kill_service("master")
+        self.Env.kill_service("master")
 
         self.truncate_changelog(record_count)
 

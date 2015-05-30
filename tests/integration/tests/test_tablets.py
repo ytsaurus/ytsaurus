@@ -17,13 +17,16 @@ class TestTablets(YTEnvSetup):
         while not predicate():
             sleep(1)
 
+    def _wait_for_cells(self, ids):
+        print "Waiting for tablet cells to become healthy..."
+        self._wait(lambda: all(get("//sys/tablet_cells/" + id + "/@health") == "good" for id in ids))
+
     def _sync_create_cells(self, size, count):
         ids = []
         for _ in xrange(count):
             ids.append(create_tablet_cell(size))
-
-        print "Waiting for tablet cells to become healthy..."
-        self._wait(lambda: all(get("//sys/tablet_cells/" + id + "/@health") == "good" for id in ids))
+        self._wait_for_cells(ids)
+        return ids
 
     def _create_table(self, path):
         create("table", path,
@@ -587,4 +590,30 @@ class TestTablets(YTEnvSetup):
         assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 1}]) == []
         assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 0}]) == [{"key": 77, "key2": 0, "value": "77"}]
         assert select_rows("sum(1) as s from [//tmp/t] where is_null(key2) group by 0") == [{"s": 100}]
+
+    def test_snapshots(self):
+        cell_ids = self._sync_create_cells(1, 1)
+        assert len(cell_ids) == 1
+        cell_id = cell_ids[0]
+
+        self._create_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
         
+        rows = [{"key": i, "value": str(i)} for i in xrange(100)]
+        insert_rows("//tmp/t", rows)
+
+        build_snapshot(cell_id=cell_id)
+
+        snapshots = ls("//sys/tablet_cells/" + cell_id + "/snapshots")
+        assert len(snapshots) == 1
+
+        self.Env.kill_service("node")
+        # Wait for make sure all leases have expired
+        time.sleep(3.0)
+        self.Env.start_nodes("node")
+
+        self._wait_for_cells(cell_ids)
+
+        keys = [{"key": i} for i in xrange(100)]
+        actual = lookup_rows("//tmp/t", keys);
+        self.assertItemsEqual(actual, rows);
