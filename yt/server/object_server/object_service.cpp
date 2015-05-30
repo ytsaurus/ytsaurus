@@ -62,7 +62,6 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
     }
 
 private:
@@ -70,7 +69,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GCCollect);
-    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, BuildSnapshot);
 
 };
 
@@ -373,32 +371,6 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
 
     auto objectManager = Bootstrap_->GetObjectManager();
     context->ReplyFrom(objectManager->GCCollect());
-}
-
-DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
-{
-    ValidatePeer(EPeerKind::Leader);
-
-    bool setReadOnly = request->set_read_only();
-
-    context->SetRequestInfo("SetReadOnly: %v",
-        setReadOnly);
-
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-
-    if (setReadOnly) {
-        hydraManager->SetReadOnly(true);
-    }
-
-    hydraManager->BuildSnapshot().Subscribe(BIND([=] (const TErrorOr<int>& errorOrSnapshotId) {
-        if (!errorOrSnapshotId.IsOK()) {
-            context->Reply(errorOrSnapshotId);
-            return;
-        }
-
-        response->set_snapshot_id(errorOrSnapshotId.Value());
-        context->Reply();
-    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

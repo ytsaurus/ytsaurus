@@ -11,14 +11,20 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <ytlib/hydra/hydra_service_proxy.h>
+
+#include <ytlib/hive/cell_directory.h>
+
 namespace NYT {
 namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
-using namespace NObjectClient;
 using namespace NRpc;
+using namespace NObjectClient;
+using namespace NTabletClient;
+using namespace NHydra;
 
 DECLARE_REFCOUNTED_CLASS(TAdmin)
 
@@ -49,9 +55,12 @@ public:
                 DROP_BRACES args)); \
     }
 
-    IMPLEMENT_METHOD(int, BuildSnapshot, (const TBuildSnapshotOptions& options), (options))
-
-    IMPLEMENT_METHOD(void, GCCollect, (const TGCCollectOptions& options), (options))
+    IMPLEMENT_METHOD(int, BuildSnapshot, (
+        const TBuildSnapshotOptions& options),
+        (options))
+    IMPLEMENT_METHOD(void, GCCollect, (
+        const TGCCollectOptions& options),
+        (options))
 
 private:
     const IConnectionPtr Connection_;
@@ -84,10 +93,16 @@ private:
 
     int DoBuildSnapshot(const TBuildSnapshotOptions& options)
     {
-        TObjectServiceProxy proxy(LeaderChannel_);
+        auto cellId = options.CellId == NullCellId
+            ? Connection_->GetConfig()->Master->CellId
+            : options.CellId;
+        auto cellDirectory = Connection_->GetCellDirectory();
+        auto channel = cellDirectory->GetChannelOrThrow(cellId);
+
+        THydraServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Null); // infinity
 
-        auto req = proxy.BuildSnapshot();
+        auto req = proxy.ForceBuildSnapshot();
         req->set_set_read_only(options.SetReadOnly);
 
         auto rsp = WaitFor(req->Invoke())

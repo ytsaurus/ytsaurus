@@ -77,7 +77,7 @@ private:
     const TDistributedHydraManagerConfigPtr Config_;
     const NElection::TCellManagerPtr CellManager_;
 
-    TPromise<TRemoteSnapshotParams> Promise_ = NewPromise<TRemoteSnapshotParams>;
+    TPromise<TRemoteSnapshotParams> Promise_ = NewPromise<TRemoteSnapshotParams>();
 
     TSpinLock SpinLock_;
     TRemoteSnapshotParams Params_;
