@@ -23,6 +23,7 @@ TBuildSnapshotExecutor::TBuildSnapshotExecutor()
     : CellIdArg("", "cell_id", "cell id where the snapshot must be built", false, NElection::TCellId(), "GUID")
     , SetReadOnlyArg("", "set_read_only", "set the master to read only mode", false)
 {
+    CmdLine.add(CellIdArg);
     CmdLine.add(SetReadOnlyArg);
 }
 
