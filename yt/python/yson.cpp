@@ -1,5 +1,5 @@
 #include "public.h"
-#include "common.h"
+#include "helpers.h"
 #include "stream.h"
 #include "serialize.h"
 #include "shutdown.h"
@@ -168,13 +168,13 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class yson_module
-    : public Py::ExtensionModule<yson_module>
+class TYsonModule
+    : public Py::ExtensionModule<TYsonModule>
 {
 public:
-    yson_module()
-        // It should be the same as .so file name
-        : Py::ExtensionModule<yson_module>("yson_lib")
+    TYsonModule()
+        // This should match .so file name.
+        : Py::ExtensionModule<TYsonModule>("yson_lib")
     {
         PyEval_InitThreads();
 
@@ -183,18 +183,21 @@ public:
         TYsonIterator::InitType();
         TRawYsonIterator::InitType();
 
-        add_keyword_method("load", &yson_module::Load, "load YSON from stream");
-        add_keyword_method("loads", &yson_module::Loads, "load YSON from string");
+        add_keyword_method("load", &TYsonModule::Load, "Loads YSON from stream");
+        add_keyword_method("loads", &TYsonModule::Loads, "Loads YSON from string");
 
-        add_keyword_method("dump", &yson_module::Dump, "dump YSON to stream");
-        add_keyword_method("dumps", &yson_module::Dumps, "dump YSON to string");
+        add_keyword_method("dump", &TYsonModule::Dump, "Dumps YSON to stream");
+        add_keyword_method("dumps", &TYsonModule::Dumps, "Dumps YSON to string");
 
-        initialize("Yson python bindings");
+        initialize("Python bindings for YSON");
     }
 
     Py::Object Load(const Py::Tuple& args_, const Py::Dict& kwargs_)
     {
-        return LoadImpl(args_, kwargs_, nullptr);
+        auto args = args_;
+        auto kwargs = kwargs_;
+
+        return LoadImpl(args, kwargs, nullptr);
     }
 
     Py::Object Loads(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -204,6 +207,7 @@ public:
 
         auto pythonString = ConvertToString(ExtractArgument(args, kwargs, "string"));
         auto string = Stroka(PyString_AsString(*pythonString), pythonString.size());
+
         std::unique_ptr<TInputStream> stringStream(new TOwningStringInput(string));
 
         return LoadImpl(args, kwargs, std::move(stringStream));
@@ -211,32 +215,35 @@ public:
 
     Py::Object Dump(const Py::Tuple& args_, const Py::Dict& kwargs_)
     {
-        DumpImpl(args_, kwargs_, nullptr);
+        auto args = args_;
+        auto kwargs = kwargs_;
+
+        DumpImpl(args, kwargs, nullptr);
 
         return Py::None();
     }
 
     Py::Object Dumps(const Py::Tuple& args_, const Py::Dict& kwargs_)
     {
+        auto args = args_;
+        auto kwargs = kwargs_;
+
         Stroka result;
         TStringOutput stringOutput(result);
 
-        DumpImpl(args_, kwargs_, &stringOutput);
+        DumpImpl(args, kwargs, &stringOutput);
         return Py::String(~result, result.Size());
     }
 
-    virtual ~yson_module()
+    virtual ~TYsonModule()
     { }
 
 private:
     Py::Object LoadImpl(
-        const Py::Tuple& args_,
-        const Py::Dict& kwargs_,
+        Py::Tuple& args,
+        Py::Dict& kwargs,
         std::unique_ptr<TInputStream> inputStream)
     {
-        auto args = args_;
-        auto kwargs = kwargs_;
-
         // Holds inputStreamWrap if passed non-trivial stream argument
         TInputStream* inputStreamPtr;
         if (!inputStream) {
@@ -269,9 +276,7 @@ private:
             raw = Py::Boolean(arg);
         }
 
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw CreateYsonError("Incorrect arguments");
-        }
+        ValidateArgumentsEmpty(args, kwargs);
 
         if (ysonType == NYson::EYsonType::MapFragment) {
             throw CreateYsonError("Map fragment is not supported");
@@ -319,11 +324,8 @@ private:
         }
     }
 
-    void DumpImpl(const Py::Tuple& args_, const Py::Dict& kwargs_, TOutputStream* outputStream)
+    void DumpImpl(Py::Tuple& args, Py::Dict& kwargs, TOutputStream* outputStream)
     {
-        auto args = args_;
-        auto kwargs = kwargs_;
-
         auto obj = ExtractArgument(args, kwargs, "object");
 
         // Holds outputStreamWrap if passed non-trivial stream argument
@@ -346,7 +348,7 @@ private:
             outputStream = bufferedOutputStream.get();
         }
 
-        NYson::EYsonFormat ysonFormat = NYson::EYsonFormat::Text;
+        auto ysonFormat = NYson::EYsonFormat::Text;
         if (HasArgument(args, kwargs, "yson_format")) {
             auto arg = ExtractArgument(args, kwargs, "yson_format");
             ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertToStroka(ConvertToString(arg)));
@@ -376,9 +378,7 @@ private:
             ignoreInnerAttributes = Py::Boolean(arg);
         }
 
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw CreateYsonError("Incorrect arguments");
-        }
+        ValidateArgumentsEmpty(args, kwargs);
 
         NYson::TYsonWriter writer(outputStream, ysonFormat, ysonType, false, booleanAsString, indent);
         if (ysonType == NYson::EYsonType::Node) {
@@ -425,7 +425,7 @@ private:
 
 extern "C" EXPORT_SYMBOL void inityson_lib()
 {
-    static NYT::NPython::yson_module* yson = new NYT::NPython::yson_module;
+    static NYT::NPython::TYsonModule* yson = new NYT::NPython::TYsonModule;
     UNUSED(yson);
 }
 

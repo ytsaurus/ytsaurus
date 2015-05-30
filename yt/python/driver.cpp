@@ -1,5 +1,5 @@
 #include "public.h"
-#include "common.h"
+#include "helpers.h"
 #include "stream.h"
 #include "serialize.h"
 #include "response.h"
@@ -30,6 +30,8 @@
 
 #include <ytlib/hydra/hydra_service_proxy.h>
 
+#include <ytlib/tablet_client/public.h>
+
 #include <contrib/libs/pycxx/Objects.hxx>
 #include <contrib/libs/pycxx/Extensions.hxx>
 
@@ -45,6 +47,7 @@ using namespace NDriver;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NTabletClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -68,10 +71,9 @@ public:
     TDriver(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
         : Py::PythonClass<TDriver>::PythonClass(self, args, kwargs)
     {
-        Py::Object configDict = ExtractArgument(args, kwargs, "config");
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments");
-        }
+        auto configDict = ExtractArgument(args, kwargs, "config");
+        ValidateArgumentsEmpty(args, kwargs);
+
         auto config = New<TDriverConfig>();
         auto configNode = ConvertToNode(configDict);
         try {
@@ -79,6 +81,7 @@ public:
         } catch(const std::exception& ex) {
             throw Py::RuntimeError(Stroka("Error loading driver configuration\n") + ex.what());
         }
+
         DriverInstance_ = CreateDriver(config);
     }
 
@@ -88,14 +91,14 @@ public:
     static void InitType()
     {
         behaviors().name("Driver");
-        behaviors().doc("Represents YT driver");
+        behaviors().doc("Represents a YT driver");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
 
         PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "Executes the request");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptor, GetCommandDescriptor, "Describes the command");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
-        PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force master to build a snapshot");
+        PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Run garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clear metadata caches");
 
@@ -105,9 +108,7 @@ public:
     Py::Object Execute(Py::Tuple& args, Py::Dict& kwargs)
     {
         auto pyRequest = ExtractArgument(args, kwargs, "request");
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments");
-        }
+        ValidateArgumentsEmpty(args, kwargs);
 
         Py::Callable classType(TDriverResponse::type());
         Py::PythonClassObject<TDriverResponse> pythonResponse(classType.apply(Py::Tuple(), Py::Dict()));
@@ -155,9 +156,7 @@ public:
     Py::Object GetCommandDescriptor(Py::Tuple& args, Py::Dict& kwargs)
     {
         auto commandName = ConvertToStroka(ConvertToString(ExtractArgument(args, kwargs, "command_name")));
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments");
-        }
+        ValidateArgumentsEmpty(args, kwargs);
 
         Py::Callable class_type(TCommandDescriptor::type());
         Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
@@ -173,9 +172,7 @@ public:
 
     Py::Object GetCommandDescriptors(Py::Tuple& args, Py::Dict& kwargs)
     {
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments");
-        }
+        ValidateArgumentsEmpty(args, kwargs);
 
         try {
             auto descriptors = Py::List();
@@ -196,9 +193,7 @@ public:
     {
         auto lightPoolSize = Py::Int(ExtractArgument(args, kwargs, "light_pool_size"));
         auto heavyPoolSize = Py::Int(ExtractArgument(args, kwargs, "heavy_pool_size"));
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments");
-        }
+        ValidateArgumentsEmpty(args, kwargs);
 
         NDriver::TDispatcher::Get()->Configure(lightPoolSize, heavyPoolSize);
 
@@ -223,35 +218,35 @@ public:
 
     Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict& kwargs)
     {
-        bool setReadOnly = false;
-        if (args.length() > 0 || kwargs.length() > 0) {
-            setReadOnly = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "set_read_only")));
+        auto options = NApi::TBuildSnapshotOptions();
+
+        if (HasArgument(args, kwargs, "set_read_only")) {
+            options.SetReadOnly = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "set_read_only")));
         }
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments");
+
+        if (HasArgument(args, kwargs, "cell_id")) {
+            auto cellIdStr = ConvertToStroka(ConvertToString(ExtractArgument(args, kwargs, "cell_id")));
+            options.CellId = TTabletCellId::FromString(cellIdStr);
         }
+
+        ValidateArgumentsEmpty(args, kwargs);
 
         try {
             auto admin = DriverInstance_->GetConnection()->CreateAdmin();
-            auto options = NApi::TBuildSnapshotOptions();
-            options.SetReadOnly = setReadOnly;
             int snapshotId = WaitFor(admin->BuildSnapshot(options))
                 .ValueOrThrow();
-            printf("Snapshot %d is built\n", snapshotId);
+            return Py::Long(snapshotId);
         } catch (const TErrorException& ex) {
             return ConvertTo<Py::Object>(ex.Error());
         } catch (const std::exception& ex) {
             throw CreateYtError(ex.what());
         }
-        return Py::None();
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, BuildSnapshot)
 
     Py::Object ClearMetadataCaches(Py::Tuple& args, Py::Dict& kwargs)
     {
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments");
-        }
+        ValidateArgumentsEmpty(args, kwargs);
 
         try {
             DriverInstance_->GetConnection()->ClearMetadataCaches();
@@ -269,14 +264,13 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-
-class driver_module
-    : public Py::ExtensionModule<driver_module>
+class TDriverModule
+    : public Py::ExtensionModule<TDriverModule>
 {
 public:
-    driver_module()
-        // It should be the same as .so file name
-        : Py::ExtensionModule<driver_module>("driver_lib")
+    TDriverModule()
+        // This should be the same as .so file name.
+        : Py::ExtensionModule<TDriverModule>("driver_lib")
     {
         PyEval_InitThreads();
 
@@ -287,10 +281,10 @@ public:
         TDriverResponse::InitType();
         TCommandDescriptor::InitType();
 
-        add_keyword_method("configure_logging", &driver_module::ConfigureLogging, "configure logging of driver instances");
-        add_keyword_method("configure_tracing", &driver_module::ConfigureTracing, "configure tracing");
+        add_keyword_method("configure_logging", &TDriverModule::ConfigureLogging, "Configures YT driver logging");
+        add_keyword_method("configure_tracing", &TDriverModule::ConfigureTracing, "Configures YT driver tracing");
 
-        initialize("Python bindings for driver");
+        initialize("Python bindings for YT driver");
 
         Py::Dict moduleDict(moduleDictionary());
         moduleDict["Driver"] = TDriver::type();
@@ -303,10 +297,7 @@ public:
         auto kwargs = kwargs_;
 
         auto config = ConvertToNode(ExtractArgument(args, kwargs, "config"));
-
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw CreateYtError("Incorrect arguments");
-        }
+        ValidateArgumentsEmpty(args, kwargs);
 
         NLogging::TLogManager::Get()->Configure(config->AsMap());
 
@@ -319,17 +310,14 @@ public:
         auto kwargs = kwargs_;
 
         auto config = ConvertToNode(ExtractArgument(args, kwargs, "config"));
-
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw CreateYtError("Incorrect arguments");
-        }
+        ValidateArgumentsEmpty(args, kwargs);
 
         NTracing::TTraceManager::Get()->Configure(config->AsMap());
 
         return Py::None();
     }
 
-    virtual ~driver_module()
+    virtual ~TDriverModule()
     { }
 };
 
@@ -348,11 +336,11 @@ public:
 
 extern "C" EXPORT_SYMBOL void initdriver_lib()
 {
-    static NYT::NPython::driver_module* driver = new NYT::NPython::driver_module;
+    static const auto* driver = new NYT::NPython::TDriverModule;
     UNUSED(driver);
 }
 
-// symbol required for the debug version
+// This symbol is required for debug version.
 extern "C" EXPORT_SYMBOL void initdriver_lib_d()
 {
     initdriver_lib();

@@ -1,4 +1,4 @@
-#include "common.h"
+#include "helpers.h"
 #include "buffered_stream.h"
 
 namespace NYT {
@@ -145,17 +145,13 @@ TBufferedStreamWrap::TBufferedStreamWrap(Py::PythonClassInstance *self, Py::Tupl
     : Py::PythonClass<TBufferedStreamWrap>::PythonClass(self, args, kwargs)
     , Stream_(New<TBufferedStream>(Py::Int(ExtractArgument(args, kwargs, "size")).asLongLong()))
 {
-    if (args.length() > 0 || kwargs.length() > 0) {
-        throw Py::RuntimeError("Incorrect arguments for read command");
-    }
+    ValidateArgumentsEmpty(args, kwargs);
 }
 
 Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto size = Py::Int(ExtractArgument(args, kwargs, "size"));
-    if (args.length() > 0 || kwargs.length() > 0) {
-        throw Py::RuntimeError("Incorrect arguments for read function");
-    }
+    ValidateArgumentsEmpty(args, kwargs);
 
     TSharedRef result;
     {
@@ -168,9 +164,7 @@ Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
 
 Py::Object TBufferedStreamWrap::Empty(Py::Tuple& args, Py::Dict& kwargs)
 {
-    if (args.length() > 0 || kwargs.length() > 0) {
-        throw Py::RuntimeError("Incorrect arguments for empty function");
-    }
+    ValidateArgumentsEmpty(args, kwargs);
     return Py::Boolean(Stream_->Empty());
 }
 

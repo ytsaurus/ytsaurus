@@ -1,14 +1,13 @@
 #pragma once
 
-#include <core/misc/intrusive_ptr.h>
+#include <core/misc/public.h>
 
 namespace NYT {
 namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TBufferedStream;
-typedef TIntrusivePtr<TBufferedStream> TBufferedStreamPtr;
+DECLARE_REFCOUNTED_CLASS(TBufferedStream)
 
 ///////////////////////////////////////////////////////////////////////////////
 
