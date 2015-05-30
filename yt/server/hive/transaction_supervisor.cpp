@@ -101,11 +101,11 @@ public:
             BIND(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
-            ESerializationPriority::Keys,
+            ESyncSerializationPriority::Keys,
             "TransactionSupervisor.Keys",
             BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "TransactionSupervisor.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
     }

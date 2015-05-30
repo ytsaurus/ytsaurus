@@ -97,6 +97,9 @@ public:
             NObjectServer::ObjectServerLogger,
             NObjectServer::ObjectServerProfiler);
 
+        TDistributedHydraManagerOptions hydraManagerOptions;
+        hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
+        hydraManagerOptions.UseFork = true;
         HydraManager_ = CreateDistributedHydraManager(
             Config_->HydraManager,
             Bootstrap_->GetControlInvoker(),
@@ -106,7 +109,7 @@ public:
             Bootstrap_->GetCellManager(),
             Bootstrap_->GetChangelogStore(),
             Bootstrap_->GetSnapshotStore(),
-            ResponseKeeper_);
+            hydraManagerOptions);
 
         HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
         HydraManager_->SubscribeLeaderRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
@@ -138,10 +141,9 @@ public:
         WaitFor(reader->Open())
             .ThrowOnError();
 
-        auto syncReader = CreateSyncAdapter(CreateCopyingAdapter(reader));
         Automaton_->SetSerializationDumpEnabled(true);
         Automaton_->Clear();
-        Automaton_->LoadSnapshot(syncReader.get());
+        Automaton_->LoadSnapshot(reader);
     }
 
     TMasterAutomatonPtr GetAutomaton() const

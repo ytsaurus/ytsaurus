@@ -112,7 +112,7 @@ public:
         TCellManagerPtr cellManager,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
-        TResponseKeeperPtr responseKeeper)
+        const TDistributedHydraManagerOptions& options)
         : TServiceBase(
             controlInvoker,
             NRpc::TServiceId(THydraServiceProxy::GetServiceName(), cellManager->GetCellId()),
@@ -125,7 +125,7 @@ public:
         , AutomatonInvoker_(automatonInvoker)
         , ChangelogStore_(changelogStore)
         , SnapshotStore_(snapshotStore)
-        , ResponseKeeper_(responseKeeper)
+        , Options_(options)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
         VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
@@ -143,6 +143,7 @@ public:
             ControlInvoker_,
             SnapshotStore_,
             ChangelogStore_,
+            Options_,
             Profiler);
 
         ElectionManager_ = New<TElectionManager>(
@@ -405,6 +406,7 @@ private:
     const IInvokerPtr AutomatonInvoker_;
     const IChangelogStorePtr ChangelogStore_;
     const ISnapshotStorePtr SnapshotStore_;
+    const TDistributedHydraManagerOptions Options_;
     const TResponseKeeperPtr ResponseKeeper_;
 
     std::atomic<bool> ReadOnly_ = {false};
@@ -970,7 +972,7 @@ private:
                 DecoratedAutomaton_,
                 ChangelogStore_,
                 SnapshotStore_,
-                ResponseKeeper_,
+                Options_.ResponseKeeper,
                 epochContext.Get());
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
@@ -1006,8 +1008,8 @@ private:
             LOG_INFO("Leader active");
 
             ActiveLeader_ = true;
-            if (ResponseKeeper_) {
-                ResponseKeeper_->Start();
+            if (Options_.ResponseKeeper) {
+                Options_.ResponseKeeper->Start();
             }
             LeaderActive_.Fire();
 
@@ -1109,8 +1111,8 @@ public:
             VERIFY_THREAD_AFFINITY(ControlThread);
 
             ActiveFollower_ = true;
-            if (ResponseKeeper_) {
-                ResponseKeeper_->Start();
+            if (Options_.ResponseKeeper) {
+                Options_.ResponseKeeper->Start();
             }
 
             SystemLockGuard_.Release();
@@ -1167,7 +1169,7 @@ public:
             DecoratedAutomaton_,
             ChangelogStore_,
             SnapshotStore_,
-            ResponseKeeper_,
+            Options_.ResponseKeeper,
             epochContext.Get(),
             version);
 
@@ -1253,13 +1255,16 @@ IHydraManagerPtr CreateDistributedHydraManager(
     TCellManagerPtr cellManager,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
-    TResponseKeeperPtr responseKeeper)
+    const TDistributedHydraManagerOptions& options)
 {
     YCHECK(config);
     YCHECK(controlInvoker);
     YCHECK(automatonInvoker);
     YCHECK(automaton);
     YCHECK(rpcServer);
+    YCHECK(cellManager);
+    YCHECK(changelogStore);
+    YCHECK(snapshotStore);
 
     return New<TDistributedHydraManager>(
         config,
@@ -1270,7 +1275,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
         cellManager,
         changelogStore,
         snapshotStore,
-        responseKeeper);
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -194,11 +194,11 @@ public:
             BIND(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
-            ESerializationPriority::Keys,
+            ESyncSerializationPriority::Keys,
             "TabletManager.Keys",
             BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "TabletManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 

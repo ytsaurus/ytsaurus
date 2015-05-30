@@ -128,11 +128,11 @@ public:
             BIND(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
-            ESerializationPriority::Keys,
+            ESyncSerializationPriority::Keys,
             "NodeTracker.Keys",
             BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "NodeTracker.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 

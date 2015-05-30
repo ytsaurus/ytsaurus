@@ -95,6 +95,7 @@ public:
             bootstrap)
         , Config_(config)
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
+        , TabletMap_(TTabletMapTraits(this))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -104,15 +105,22 @@ public:
         RegisterLoader(
             "TabletManager.Values",
             BIND(&TImpl::LoadValues, Unretained(this)));
+        RegisterLoader(
+            "TabletManager.Async",
+            BIND(&TImpl::LoadAsync, Unretained(this)));
 
         RegisterSaver(
-            ESerializationPriority::Keys,
+            ESyncSerializationPriority::Keys,
             "TabletManager.Keys",
             BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "TabletManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
+        RegisterSaver(
+            EAsyncSerializationPriority::Default,
+            "TabletManager.Async",
+            BIND(&TImpl::SaveAsync, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraMountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
@@ -184,7 +192,8 @@ public:
         // NB: No yielding beyond this point.
         // May access tablet and transaction.
 
-        auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
+        const auto& tabletId = tabletSnapshot->TabletId;
+        auto* tablet = GetTabletOrThrow(tabletId);
 
         auto transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
@@ -222,21 +231,26 @@ public:
         int prelockedCountDelta = prelockedCountAfter - prelockedCountBefore;
         if (prelockedCountDelta > 0) {
             LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v)",
-                transaction->GetId(),
-                tablet->GetTabletId(),
+                transactionId,
+                tabletId,
                 prelockedCountDelta);
 
             auto readerEnd = reader->GetCurrent();
-            auto requestData = reader->Slice(readerBegin, readerEnd);
-            auto compressedRequestData = ChangelogCodec_->Compress(requestData);
+            auto recordData = reader->Slice(readerBegin, readerEnd);
+            auto compressedRecordData = ChangelogCodec_->Compress(recordData);
+            auto writeLogRecord = TTransactionWriteLogRecord{tabletId, recordData};
 
             TReqExecuteWrite hydraRequest;
-            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
-            ToProto(hydraRequest.mutable_tablet_id(), tablet->GetTabletId());
+            ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
             hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
-            hydraRequest.set_compressed_data(ToString(compressedRequestData));
+            hydraRequest.set_compressed_data(ToString(compressedRecordData));
             CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-                ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), prelockedCountDelta))
+                ->SetAction(BIND(
+                    &TImpl::HydraLeaderExecuteWrite,
+                    MakeStrong(this),
+                    prelockedCountDelta,
+                    writeLogRecord))
                 ->Commit();
         }
 
@@ -392,7 +406,24 @@ private:
 
     ICodec* const ChangelogCodec_;
 
-    TEntityMap<TTabletId, TTablet> TabletMap_;
+    class TTabletMapTraits
+    {
+    public:
+        explicit TTabletMapTraits(TImpl* owner)
+            : Owner_(owner)
+        { }
+
+        std::unique_ptr<TTablet> Create(const TTabletId& id) const
+        {
+            return std::make_unique<TTablet>(id, Owner_->Slot_);
+        }
+
+    private:
+        TImpl* const Owner_;
+
+    };
+
+    TEntityMap<TTabletId, TTablet, TTabletMapTraits> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
 
     TRingQueue<TTransaction*> PrelockedTransactions_;
@@ -412,6 +443,27 @@ private:
         TabletMap_.SaveValues(context);
     }
 
+    TCallback<void(TSaveContext&)> SaveAsync()
+    {
+        std::vector<std::pair<TTabletId, TCallback<void(TSaveContext&)>>> capturedTablets;
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
+            capturedTablets.push_back(std::make_pair(tablet->GetTabletId(), tablet->AsyncSave()));
+        }
+
+        return BIND(
+            [
+                =,
+                capturedTablets = std::move(capturedTablets)
+            ] (TSaveContext& context) {
+                using NYT::Save;
+                for (const auto& pair : capturedTablets) {
+                    Save(context, pair.first);
+                    pair.second.Run(context);
+                }
+            });
+    }
+
     void LoadKeys(TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -424,6 +476,23 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TabletMap_.LoadValues(context);
+    }
+
+    void LoadAsync(TLoadContext& context)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        SERIALIZATION_DUMP_WRITE(context, "tablets[%v]", TabletMap_.size());
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (size_t index = 0; index != TabletMap_.size(); ++index) {
+                auto tabletId = LoadSuspended<TTabletId>(context);
+                auto* tablet = GetTablet(tabletId);
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", tabletId);
+                SERIALIZATION_DUMP_INDENT(context) {
+                    tablet->AsyncLoad(context);
+                }
+            }
+        }
     }
 
 
@@ -448,6 +517,23 @@ private:
             if (tablet->GetState() >= ETabletState::WaitingForLocks) {
                 YCHECK(UnmountingTablets_.insert(tablet).second);
             }
+        }
+
+        auto transactionManager = Slot_->GetTransactionManager();
+        for (const auto& pair : transactionManager->Transactions()) {
+            auto* transaction = pair.second;
+            int rowCount = 0;
+            for (const auto& record : transaction->WriteLog()) {
+                auto* tablet = GetTablet(record.TabletId);
+                TWireProtocolReader reader(record.Data);
+                while (!reader.IsFinished()) {
+                    ExecuteSingleWrite(tablet, transaction, &reader, false);
+                    ++rowCount;
+                }
+            }
+            LOG_DEBUG("Transaction write log applied (TransactionId: %v, RowCount: %v)",
+                transaction->GetId(),
+                rowCount);
         }
     }
 
@@ -770,7 +856,7 @@ private:
         }
     }
 
-    void HydraLeaderExecuteWrite(int rowCount)
+    void HydraLeaderExecuteWrite(int rowCount, const TTransactionWriteLogRecord& writeLogRecord)
     {
         for (int index = 0; index < rowCount; ++index) {
             YASSERT(!PrelockedTransactions_.empty());
@@ -783,10 +869,14 @@ private:
             if (ValidateAndDiscardRowRef(rowRef)) {
                 rowRef.Store->GetTablet()->GetStoreManager()->ConfirmRow(transaction, rowRef);
             }
+
+            transaction->WriteLog().Enqueue(writeLogRecord);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (RowCount: %v)",
-            rowCount);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, RowCount: %v, WriteLogRecordSize: %v)",
+            writeLogRecord.TabletId,
+            rowCount,
+            writeLogRecord.Data.Size());
     }
 
     void HydraFollowerExecuteWrite(const TReqExecuteWrite& request) noexcept
@@ -800,17 +890,24 @@ private:
 
         auto codecId = ECodec(request.codec());
         auto* codec = GetCodec(codecId);
-        auto compressedRequestData = TSharedRef::FromString(request.compressed_data());
-        auto requestData = codec->Decompress(compressedRequestData);
+        auto compressedRecordData = TSharedRef::FromString(request.compressed_data());
+        auto recordData = codec->Decompress(compressedRecordData);
+        auto writeLogRecord = TTransactionWriteLogRecord{tabletId, recordData};
 
-        TWireProtocolReader reader(requestData);
+        TWireProtocolReader reader(recordData);
+        int rowCount = 0;
         while (!reader.IsFinished()) {
             ExecuteSingleWrite(tablet, transaction, &reader, false);
+            ++rowCount;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v)",
-            transaction->GetId(),
-            tablet->GetTabletId());
+        transaction->WriteLog().Enqueue(writeLogRecord);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v, RowCount: %v, WriteLogRecordSize: %v)",
+            transactionId,
+            tabletId,
+            rowCount,
+            recordData.Size());
     }
 
     void HydraRotateStore(const TReqRotateStore& request)

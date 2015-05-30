@@ -15,6 +15,7 @@
 #include <ytlib/new_table_client/row_buffer.h>
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <ytlib/new_table_client/versioned_row.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -97,12 +98,14 @@ public:
 
     TDynamicRow MigrateRow(
         TTransaction* transaction,
-        const TDynamicRow row);
+        TDynamicRow row);
 
     void ConfirmRow(TTransaction* transaction, TDynamicRow row);
     void PrepareRow(TTransaction* transaction, TDynamicRow row);
     void CommitRow(TTransaction* transaction, TDynamicRow row);
     void AbortRow(TTransaction* transaction, TDynamicRow row);
+
+    TDynamicRow FindRow(NVersionedTableClient::TUnversionedRow key);
 
     int GetValueCount() const;
     int GetKeyCount() const;
@@ -141,6 +144,9 @@ public:
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
 
+    virtual TCallback<void(TSaveContext&)> AsyncSave() override;
+    virtual void AsyncLoad(TLoadContext& context) override;
+
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
     DEFINE_SIGNAL(void(TDynamicRow row, int lockIndex), RowBlocked)
@@ -162,6 +168,8 @@ private:
 
     TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;
     TTimestamp MaxTimestamp_ = NTransactionClient::MinTimestamp;
+
+    std::vector<TTimestamp> RevisionToTimestamp_;
 
 
     TDynamicRow AllocateRow();
@@ -186,16 +194,22 @@ private:
         ui32 lockMask,
         bool deleteFlag);
 
-    TValueList AddUncommittedFixedValue(TDynamicRow row, const TVersionedValue& value);
+    TValueList PrepareFixedValue(TDynamicRow row, int index);
+    void AddRevision(TDynamicRow row, ui32 revision, ERevisionListKind kind);
+    void SetKeys(TDynamicRow dstRow, TUnversionedValue* srcKeys);
+    void SetKeys(TDynamicRow dstRow, TDynamicRow srcRow);
+    void LoadRow(TVersionedRow row, yhash_map<TTimestamp, ui32>* timestampToRevision);
 
-    void AddTimestamp(TDynamicRow row, TTimestamp timestamp, ETimestampListKind kind);
-    void SetKeys(TDynamicRow row, TUnversionedRow key);
-
-    void CaptureValue(TUnversionedValue* dst, const TUnversionedValue& src);
-    void CaptureValue(TVersionedValue* dst, const TVersionedValue& src);
-    void CaptureValueData(TUnversionedValue* dst, const TUnversionedValue& src);
+    void CaptureUncommittedValue(TDynamicValue* dst, const TDynamicValue& src, int index);
+    ui32 CaptureTimestamp(TTimestamp timestamp, yhash_map<TTimestamp, ui32>* timestampToRevision);
+    void CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, yhash_map<TTimestamp, ui32>* timestampToRevision);
+    void CaptureUnversionedValue(TDynamicValue* dst, const TUnversionedValue& src);
     TDynamicValueData CaptureStringValue(TDynamicValueData src);
     TDynamicValueData CaptureStringValue(const TUnversionedValue& src);
+
+    ui32 GetLatestRevision() const;
+    ui32 RegisterRevision(TTimestamp timestamp);
+    TTimestamp TimestampFromRevision(ui32 revision);
 
     void OnMemoryUsageUpdated();
 

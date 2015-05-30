@@ -90,6 +90,9 @@ public:
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
 
+    virtual TCallback<void(TSaveContext&)> AsyncSave() override;
+    virtual void AsyncLoad(TLoadContext& context) override;
+
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 private:

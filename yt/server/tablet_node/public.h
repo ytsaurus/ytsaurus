@@ -191,17 +191,20 @@ struct TDynamicRowHeader;
 class TDynamicRow;
 struct TDynamicRowRef;
 
+union TDynamicValueData;
+struct TDynamicValue;
+
 struct TEditListHeader;
 template <class T>
 class TEditList;
-typedef TEditList<NVersionedTableClient::TVersionedValue> TValueList;
-typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
+using TValueList = TEditList<TDynamicValue>;
+using TRevisionList = TEditList<ui32>;
 
 class TSchemafulRowMerger;
 class TVersionedRowMerger;
 
-typedef NVersionedTableClient::TTableWriterOptions TTabletWriterOptions;
-typedef NVersionedTableClient::TTableWriterOptionsPtr TTabletWriterOptionsPtr;
+using TTabletWriterOptions = NVersionedTableClient::TTableWriterOptions;
+using TTabletWriterOptionsPtr =  NVersionedTableClient::TTableWriterOptionsPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -349,11 +349,11 @@ public:
             BIND(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
-            ESerializationPriority::Keys,
+            ESyncSerializationPriority::Keys,
             "ChunkManager.Keys",
             BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "ChunkManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
     }

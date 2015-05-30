@@ -15,14 +15,14 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a generic infrastructure for building snapshots via fork.
-class TSnapshotBuilderBase
-    : public TRefCounted
+class TForkSnapshotBuilderBase
+    : public virtual TRefCounted
 {
 public:
-    TFuture<void> Run();
+    TFuture<void> Fork();
 
 protected:
-    ~TSnapshotBuilderBase();
+    ~TForkSnapshotBuilderBase();
 
     //! Must be initialized in the deriving class.
     NLogging::TLogger Logger;

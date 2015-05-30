@@ -462,16 +462,26 @@ void TChunkStore::CheckRowLocks(
 void TChunkStore::Save(TSaveContext& context) const
 {
     TStoreBase::Save(context);
-
-    using NYT::Save;
-    Save(context, ChunkMeta_);
 }
 
 void TChunkStore::Load(TLoadContext& context)
 {
     TStoreBase::Load(context);
+}
 
+TCallback<void(TSaveContext&)> TChunkStore::AsyncSave()
+{
+    return BIND([=, this_ = MakeStrong(this)] (TSaveContext& context) {
+        using NYT::Save;
+
+        Save(context, ChunkMeta_);
+    });
+}
+
+void TChunkStore::AsyncLoad(TLoadContext& context)
+{
     using NYT::Load;
+
     Load(context, ChunkMeta_);
 
     PrecacheProperties();

@@ -413,6 +413,9 @@ class TTabletNodeConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! Number of threads in tablet snapshot pool.
+    int SnapshotThreadPoolSize;
+
     //! Maximum number of tablet managers to run.
     int Slots;
 
@@ -460,6 +463,10 @@ public:
 
     TTabletNodeConfig()
     {
+        RegisterParameter("snapshot_thread_pool_size", SnapshotThreadPoolSize)
+            .GreaterThanOrEqual(0)
+            .Default(4);
+
         RegisterParameter("slots", Slots)
             .GreaterThanOrEqual(0)
             .Default(4);

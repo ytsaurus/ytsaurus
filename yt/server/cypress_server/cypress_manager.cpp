@@ -487,11 +487,11 @@ TCypressManager::TCypressManager(
         BIND(&TCypressManager::LoadValues, Unretained(this)));
 
     RegisterSaver(
-        ESerializationPriority::Keys,
+        ESyncSerializationPriority::Keys,
         "CypressManager.Keys",
         BIND(&TCypressManager::SaveKeys, Unretained(this)));
     RegisterSaver(
-        ESerializationPriority::Values,
+        ESyncSerializationPriority::Values,
         "CypressManager.Values",
         BIND(&TCypressManager::SaveValues, Unretained(this)));
 

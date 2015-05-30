@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "automaton.h"
 
 #include <core/misc/property.h>
 
@@ -30,6 +31,7 @@ struct TPartitionSnapshot
 {
     TPartitionId Id;
     TOwningKey PivotKey;
+    TOwningKey NextPivotKey;
     TKeyListPtr SampleKeys;
     std::vector<IStorePtr> Stores;
 };
@@ -43,6 +45,8 @@ class TPartition
 {
 public:
     static const int EdenIndex = -1;
+
+    DEFINE_BYVAL_RO_PROPERTY(TPartitionSnapshotPtr, Snapshot);
 
     DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet);
     DEFINE_BYVAL_RO_PROPERTY(TPartitionId, Id);
@@ -64,18 +68,21 @@ public:
         TTablet* tablet,
         const TPartitionId& id,
         int index,
-        TOwningKey pivotKey,
-        TOwningKey nextPivotKey);
+        TOwningKey pivotKey = TOwningKey(),
+        TOwningKey nextPivotKey = TOwningKey());
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+    TCallback<void(TSaveContext&)> AsyncSave();
+    void AsyncLoad(TLoadContext& context);
 
     i64 GetUncompressedDataSize() const;
     i64 GetUnmergedRowCount() const;
 
     bool IsEden() const;
 
-    TPartitionSnapshotPtr BuildSnapshot() const;
+    TPartitionSnapshotPtr RebuildSnapshot();
 
 };
 

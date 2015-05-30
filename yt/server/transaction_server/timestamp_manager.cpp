@@ -78,7 +78,7 @@ public:
             "TimestampManager",
             BIND(&TImpl::Load, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "TimestampManager",
             BIND(&TImpl::Save, Unretained(this)));
 

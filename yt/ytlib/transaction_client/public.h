@@ -57,6 +57,7 @@ const TTimestamp SyncLastCommittedTimestamp   = 0x3fffffffffffff01ULL;
 //! Never leads to row blocking but may miss some concurrent writes.
 const TTimestamp AsyncLastCommittedTimestamp  = 0x3fffffffffffff04ULL;
 //! Used to fetch all committed values during e.g. flushes or compactions.
+//! Returns all versions that were committed at the moment the reader was created.
 //! Never leads to row blocking but may miss some concurrent writes.
 const TTimestamp AllCommittedTimestamp        = 0x3fffffffffffff03ULL;
 
