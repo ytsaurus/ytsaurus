@@ -105,8 +105,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
-    typedef TCLAP::ValueArg<NCypressClient::ELockMode> TModeArg;
-    TModeArg ModeArg;
+    TCLAP::ValueArg<NCypressClient::ELockMode> ModeArg;
     TCLAP::SwitchArg WaitableArg;
 
     virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
