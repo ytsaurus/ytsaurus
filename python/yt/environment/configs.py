@@ -191,6 +191,7 @@ def get_node_config():
         };
 
         transaction_manager = {
+            default_transaction_timeout = 1000;
             ping_period = 500;
         };
 
