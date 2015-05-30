@@ -1,7 +1,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/python )
 set( SRCS
   ${BASE}/buffered_stream.cpp
-  ${BASE}/common.cpp  
+  ${BASE}/helpers.cpp
   ${BASE}/descriptor.cpp
   ${BASE}/response.cpp
   ${BASE}/serialize.cpp
@@ -11,9 +11,8 @@ set( SRCS
 
 set( HDRS
   ${BASE}/buffered_stream.h
-  ${BASE}/common.h
+  ${BASE}/helpers.h
   ${BASE}/descriptor.h
-  ${BASE}/gil.h
   ${BASE}/public.h
   ${BASE}/response.h
   ${BASE}/serialize.h

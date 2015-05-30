@@ -56,6 +56,8 @@ private:
     TSharedRef ExtractChunk(size_t size);
 };
 
+DEFINE_REFCOUNTED_TYPE(TBufferedStream)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TBufferedStreamWrap
