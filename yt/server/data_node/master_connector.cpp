@@ -341,7 +341,7 @@ void TMasterConnector::SendFullNodeHeartbeat()
         BIND(&TMasterConnector::OnFullNodeHeartbeatResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
 
-    LOG_DEBUG("Full node heartbeat sent to master (%v)",
+    LOG_INFO("Full node heartbeat sent to master (%v)",
         request->statistics());
 }
 
@@ -418,7 +418,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         BIND(&TMasterConnector::OnIncrementalNodeHeartbeatResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
 
-    LOG_DEBUG("Incremental node heartbeat sent to master (%v, AddedChunks: %v, RemovedChunks: %v)",
+    LOG_INFO("Incremental node heartbeat sent to master (%v, AddedChunks: %v, RemovedChunks: %v)",
         request->statistics(),
         request->added_chunks_size(),
         request->removed_chunks_size());
@@ -456,7 +456,7 @@ void TMasterConnector::OnFullNodeHeartbeatResponse(const TNodeTrackerServiceProx
         return;
     }
 
-    LOG_DEBUG("Successfully reported full node heartbeat to master");
+    LOG_INFO("Successfully reported full node heartbeat to master");
 
     // Schedule another full heartbeat.
     if (Config_->FullHeartbeatPeriod) {
@@ -490,7 +490,7 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
 
     auto rack = rsp->has_rack() ? MakeNullable(rsp->rack()) : Null;
 
-    LOG_DEBUG("Successfully reported incremental node heartbeat to master (Rack: %v)",
+    LOG_INFO("Successfully reported incremental node heartbeat to master (Rack: %v)",
         rack);
 
     {
@@ -611,7 +611,7 @@ void TMasterConnector::SendJobHeartbeat()
         BIND(&TMasterConnector::OnJobHeartbeatResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
 
-    LOG_DEBUG("Job heartbeat sent to master (ResourceUsage: {%v})",
+    LOG_INFO("Job heartbeat sent to master (ResourceUsage: {%v})",
         FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 }
 
@@ -629,7 +629,7 @@ void TMasterConnector::OnJobHeartbeatResponse(const TJobTrackerServiceProxy::TEr
         return;
     }
 
-    LOG_DEBUG("Successfully reported job heartbeat to master");
+    LOG_INFO("Successfully reported job heartbeat to master");
 
     const auto& rsp = rspOrError.Value();
     auto jobController = Bootstrap_->GetJobController();
