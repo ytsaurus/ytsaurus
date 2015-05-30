@@ -152,11 +152,15 @@ public:
             controlInvoker,
             New<TElectionCallbacks>(this));
 
+        GuardedAutomatonInvoker_ = CreateGuardedAutomatonInvoker(AutomatonInvoker_);
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LogMutations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceBuildSnapshot)
+            .SetInvoker(GuardedAutomatonInvoker_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RotateChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
 
@@ -407,7 +411,6 @@ private:
     const IChangelogStorePtr ChangelogStore_;
     const ISnapshotStorePtr SnapshotStore_;
     const TDistributedHydraManagerOptions Options_;
-    const TResponseKeeperPtr ResponseKeeper_;
 
     std::atomic<bool> ReadOnly_ = {false};
     std::atomic<bool> ActiveLeader_ = {false};
@@ -420,6 +423,7 @@ private:
     TElectionManagerPtr ElectionManager_;
 
     TDecoratedAutomatonPtr DecoratedAutomaton_;
+    IInvokerPtr GuardedAutomatonInvoker_;
 
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
@@ -639,6 +643,28 @@ private:
             .ValueOrThrow();
 
         response->set_checksum(result.Checksum);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, ForceBuildSnapshot)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        bool setReadOnly = request->set_read_only();
+
+        context->SetRequestInfo("SetReadOnly: %v",
+            setReadOnly);
+
+        SetReadOnly(setReadOnly);
+
+        int snapshotId = WaitFor(BuildSnapshot())
+            .ValueOrThrow();
+
+        context->SetResponseInfo("SnapshotId: %v",
+            snapshotId);
+
+        response->set_snapshot_id(snapshotId);
 
         context->Reply();
     }

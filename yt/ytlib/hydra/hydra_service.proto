@@ -95,3 +95,15 @@ message TRspRotateChangelog
 { }
                                                                               
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqForceBuildSnapshot
+{
+    optional bool set_read_only = 1 [default = false];
+}
+
+message TRspForceBuildSnapshot
+{
+    required int32 snapshot_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
