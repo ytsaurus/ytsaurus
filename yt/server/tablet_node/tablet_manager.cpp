@@ -43,6 +43,7 @@
 #include <server/hydra/mutation.h>
 #include <server/hydra/mutation_context.h>
 
+#include <server/tablet_node/transaction_manager.h>
 #include <server/tablet_node/tablet_manager.pb.h>
 
 #include <server/tablet_server/tablet_manager.pb.h>
@@ -203,7 +204,7 @@ public:
         ValidateTransactionActive(transaction);
         ValidateMemoryLimit();
 
-        int prelockedCountBefore = PrelockedTransactions_.size();
+        int prelockedCountBefore = transaction->PrelockedRows().size();
         auto readerBegin = reader->GetCurrent();
 
         TError error;
@@ -227,7 +228,7 @@ public:
             }
         }
 
-        int prelockedCountAfter = PrelockedTransactions_.size();
+        int prelockedCountAfter = transaction->PrelockedRows().size();
         int prelockedCountDelta = prelockedCountAfter - prelockedCountBefore;
         if (prelockedCountDelta > 0) {
             LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v)",
@@ -249,7 +250,7 @@ public:
                 ->SetAction(BIND(
                     &TImpl::HydraLeaderExecuteWrite,
                     MakeStrong(this),
-                    transaction,
+                    transactionId,
                     prelockedCountDelta,
                     writeRecord))
                 ->Commit();
@@ -427,8 +428,6 @@ private:
     TEntityMap<TTabletId, TTablet, TTabletMapTraits> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
 
-    TRingQueue<TTransaction*> PrelockedTransactions_;
-
     yhash_set<TDynamicMemoryStorePtr> OrphanedStores_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -562,8 +561,6 @@ private:
 
         TTabletAutomatonPart::OnLeaderRecoveryComplete();
 
-        YCHECK(PrelockedTransactions_.empty());
-
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
             StartTabletEpoch(tablet);
@@ -589,23 +586,16 @@ private:
 
         TTabletAutomatonPart::OnStopLeading();
 
-        while (!PrelockedTransactions_.empty()) {
-            auto* transaction = PrelockedTransactions_.front();
-            PrelockedTransactions_.pop();
-
-            auto rowRef = transaction->PrelockedRows().front();
-            transaction->PrelockedRows().pop();
-
-            if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(transaction, rowRef);
-            }
-        }
-
-        // Actually redundant: all prelocked rows were popped above.
         auto transactionManager = Slot_->GetTransactionManager();
         for (const auto& pair : transactionManager->Transactions()) {
             auto* transaction = pair.second;
-            transaction->PrelockedRows().clear();
+            while (!transaction->PrelockedRows().empty()) {
+                auto rowRef = transaction->PrelockedRows().front();
+                transaction->PrelockedRows().pop();
+                if (ValidateAndDiscardRowRef(rowRef)) {
+                    rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(transaction, rowRef);
+                }
+            }
         }
 
         for (const auto& pair : TabletMap_) {
@@ -858,15 +848,17 @@ private:
     }
 
     void HydraLeaderExecuteWrite(
-        TTransaction* transaction,
+        const TTransactionId& transactionId,
         int rowCount,
         const TTransactionWriteRecord& writeRecord)
     {
-        for (int index = 0; index < rowCount; ++index) {
-            YASSERT(!PrelockedTransactions_.empty());
-            YASSERT(transaction == PrelockedTransactions_.front());
-            PrelockedTransactions_.pop();
+        auto transactionManager = Slot_->GetTransactionManager();
+        auto* transaction = transactionManager->FindTransaction(transactionId);
+        if (!transaction)
+            return;
 
+        for (int index = 0; index < rowCount; ++index) {
+            YASSERT(!transaction->PrelockedRows().empty());
             auto rowRef = transaction->PrelockedRows().front();
             transaction->PrelockedRows().pop();
 
@@ -1360,7 +1352,6 @@ private:
         if (prelock) {
             ValidateTabletMounted(tablet);
             ValidateTransactionActive(transaction);
-            PrelockedTransactions_.push(transaction);
             transaction->PrelockedRows().push(rowRef);
         }
     }
