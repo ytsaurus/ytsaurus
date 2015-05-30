@@ -260,7 +260,12 @@ public:
                 Bootstrap_->GetTabletChannelFactory(),
                 configureInfo.peer_id());
 
-            Automaton_ = New<TTabletAutomaton>(Owner_);
+            auto slotManager = Bootstrap_->GetTabletSlotManager();
+            auto snapshotInvoker = CreateSerializedInvoker(slotManager->GetSnapshotPoolInvoker());
+
+            Automaton_ = New<TTabletAutomaton>(
+                Owner_,
+                snapshotInvoker);
 
             std::vector<TTransactionId> prerequisiteTransactionIds;
             prerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
@@ -288,6 +293,9 @@ public:
                 Logger,
                 TabletNodeProfiler);
 
+            TDistributedHydraManagerOptions hydraManagerOptions;
+            hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
+            hydraManagerOptions.UseFork = false;
             HydraManager_ = CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
@@ -297,7 +305,7 @@ public:
                 CellManager_,
                 changelogStore,
                 snapshotStore,
-                ResponseKeeper_);
+                hydraManagerOptions);
 
             HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
             HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));

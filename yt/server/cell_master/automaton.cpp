@@ -10,7 +10,8 @@ namespace NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterAutomaton::TMasterAutomaton(TBootstrap* bootstrap)
-    : SaveContext_(new TSaveContext())
+    : TCompositeAutomaton(nullptr)
+    , SaveContext_(new TSaveContext())
     , LoadContext_(new TLoadContext(bootstrap))
 { }
 
@@ -45,7 +46,7 @@ int TMasterAutomatonPart::GetCurrentSnapshotVersion()
 }
 
 void TMasterAutomatonPart::RegisterSaver(
-    NHydra::ESerializationPriority priority,
+    NHydra::ESyncSerializationPriority priority,
     const Stroka& name,
     TCallback<void(TSaveContext&)> saver)
 {

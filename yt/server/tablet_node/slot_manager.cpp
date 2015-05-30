@@ -7,6 +7,7 @@
 
 #include <core/misc/fs.h>
 
+#include <core/concurrency/action_queue.h>
 #include <core/concurrency/rw_spinlock.h>
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
@@ -50,6 +51,9 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
+        , SnapshotThreadPool_(New<TThreadPool>(
+            Config_->SnapshotThreadPoolSize,
+            "TabletSnapshot"))
         , SlotScanExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::OnScanSlots, Unretained(this)),
@@ -187,8 +191,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto snapshot = tablet->BuildSnapshot();
-        tablet->SetSnapshot(snapshot);
+        auto snapshot = tablet->RebuildSnapshot();
 
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
@@ -203,7 +206,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        tablet->SetSnapshot(nullptr);
+        tablet->ResetSnapshot();
 
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
@@ -219,8 +222,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto snapshot = tablet->BuildSnapshot();
-        tablet->SetSnapshot(snapshot);
+        auto snapshot = tablet->RebuildSnapshot();
 
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
@@ -252,6 +254,13 @@ public:
     }
 
 
+    IInvokerPtr GetSnapshotPoolInvoker()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return SnapshotThreadPool_->GetInvoker();
+    }
+
     IYPathServicePtr GetOrchidService()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -268,6 +277,8 @@ public:
 private:
     const TTabletNodeConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
+
+    TThreadPoolPtr SnapshotThreadPool_;
 
     int UsedSlotCount_ = 0;
     std::vector<TTabletSlotPtr> Slots_;
@@ -440,6 +451,11 @@ void TSlotManager::UnregisterTabletSnapshots(TTabletSlotPtr slot)
     Impl_->UnregisterTabletSnapshots(std::move(slot));
 }
 
+IInvokerPtr TSlotManager::GetSnapshotPoolInvoker()
+{
+    return Impl_->GetSnapshotPoolInvoker();
+}
+
 IYPathServicePtr TSlotManager::GetOrchidService()
 {
     return Impl_->GetOrchidService();
@@ -448,6 +464,7 @@ IYPathServicePtr TSlotManager::GetOrchidService()
 DELEGATE_SIGNAL(TSlotManager, void(), BeginSlotScan, *Impl_);
 DELEGATE_SIGNAL(TSlotManager, void(TTabletSlotPtr), ScanSlot, *Impl_);
 DELEGATE_SIGNAL(TSlotManager, void(), EndSlotScan, *Impl_);
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

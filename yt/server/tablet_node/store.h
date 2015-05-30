@@ -100,8 +100,15 @@ struct IStore
     DECLARE_INTERFACE_SIGNAL(void(i64 delta), MemoryUsageUpdated);
 
 
+    //! Serializes the synchronous part of the state.
     virtual void Save(TSaveContext& context) const = 0;
+    //! Deserializes the synchronous part of the state.
     virtual void Load(TLoadContext& context) = 0;
+
+    //! Serializes the asynchronous part of the state.
+    virtual TCallback<void(TSaveContext&)> AsyncSave() = 0;
+    //! Deserializes the asynchronous part of the state.
+    virtual void AsyncLoad(TLoadContext& context) = 0;
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) = 0;
 

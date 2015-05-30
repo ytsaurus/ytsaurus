@@ -52,9 +52,9 @@ void TPartition::Save(TSaveContext& context) const
 
     Save(context, SamplingTime_);
     Save(context, SamplingRequestTime_);
-    Save(context, *SampleKeys_);
 
     TSizeSerializer::Save(context, Stores_.size());
+    // NB: This is not stable.
     for (auto store : Stores_) {
         Save(context, store->GetId());
     }
@@ -66,15 +66,36 @@ void TPartition::Load(TLoadContext& context)
 
     Load(context, SamplingTime_);
     Load(context, SamplingRequestTime_);
-    Load(context, *SampleKeys_);
 
-    // COMPAT(babenko)
-    int storeCount = context.GetVersion() < 6 ? Load<size_t>(context) : TSizeSerializer::Load(context);
-    for (int index = 0; index < storeCount; ++index) {
-        auto storeId = Load<TStoreId>(context);
-        auto store = Tablet_->GetStore(storeId);
-        YCHECK(Stores_.insert(store).second);
+    int storeCount = TSizeSerializer::LoadSuspended(context);
+    SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
+    SERIALIZATION_DUMP_INDENT(context) {
+        for (int index = 0; index < storeCount; ++index) {
+            auto storeId = Load<TStoreId>(context);
+            auto store = Tablet_->GetStore(storeId);
+            YCHECK(Stores_.insert(store).second);
+        }
     }
+}
+
+TCallback<void(TSaveContext&)> TPartition::AsyncSave()
+{
+    return BIND([snapshot = Snapshot_] (TSaveContext& context) {
+        using NYT::Save;
+
+        Save(context, snapshot->PivotKey);
+        Save(context, snapshot->NextPivotKey);
+        Save(context, *snapshot->SampleKeys);
+    });
+}
+
+void TPartition::AsyncLoad(TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, PivotKey_);
+    Load(context, NextPivotKey_);
+    Load(context, *SampleKeys_);
 }
 
 i64 TPartition::GetUncompressedDataSize() const
@@ -100,14 +121,15 @@ bool TPartition::IsEden() const
     return Index_ == EdenIndex;
 }
 
-TPartitionSnapshotPtr TPartition::BuildSnapshot() const
+TPartitionSnapshotPtr TPartition::RebuildSnapshot()
 {
-    auto snapshot = New<TPartitionSnapshot>();
-    snapshot->Id = Id_;
-    snapshot->PivotKey = PivotKey_;
-    snapshot->SampleKeys = SampleKeys_;
-    snapshot->Stores.insert(snapshot->Stores.end(), Stores_.begin(), Stores_.end());
-    return snapshot;
+    Snapshot_ = New<TPartitionSnapshot>();
+    Snapshot_->Id = Id_;
+    Snapshot_->PivotKey = PivotKey_;
+    Snapshot_->NextPivotKey = NextPivotKey_;
+    Snapshot_->SampleKeys = SampleKeys_;
+    Snapshot_->Stores.insert(Snapshot_->Stores.end(), Stores_.begin(), Stores_.end());
+    return Snapshot_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

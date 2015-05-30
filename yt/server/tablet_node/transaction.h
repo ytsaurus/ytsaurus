@@ -6,6 +6,7 @@
 #include <core/misc/property.h>
 #include <core/misc/ref_tracked.h>
 #include <core/misc/ring_queue.h>
+#include <core/misc/persistent_queue.h>
 
 #include <core/actions/future.h>
 
@@ -17,6 +18,21 @@
 
 namespace NYT {
 namespace NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTransactionWriteLogRecord
+{
+    TTabletId TabletId;
+    TSharedRef Data;
+
+    void Save(TSaveContext& context) const;
+    void Load(TLoadContext& context);
+};
+
+const size_t TransactionWriteLogChunkSize = 256;
+using TTransactionWriteLog = TPersistentQueue<TTransactionWriteLogRecord, TransactionWriteLogChunkSize>;
+using TTransactionWriteLogSnapshot = TPersistentQueueSnapshot<TTransactionWriteLogRecord, TransactionWriteLogChunkSize>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,12 +52,16 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TDynamicRowRef>, LockedRows);
     DEFINE_BYREF_RW_PROPERTY(TRingQueue<TDynamicRowRef>, PrelockedRows);
+    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, WriteLog);
 
 public:
     explicit TTransaction(const TTransactionId& id);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+    TCallback<void(TSaveContext&)> AsyncSave();
+    void AsyncLoad(TLoadContext& context);
 
     TFuture<void> GetFinished() const;
     void SetFinished();

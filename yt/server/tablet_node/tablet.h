@@ -33,7 +33,9 @@ struct TTabletSnapshot
     NObjectClient::TObjectId TableId;
     TTabletSlotPtr Slot;
     TTableMountConfigPtr Config;
-
+    TTabletWriterOptionsPtr WriterOptions;
+    TOwningKey PivotKey;
+    TOwningKey NextPivotKey;
     NVersionedTableClient::TTableSchema Schema;
     NVersionedTableClient::TKeyColumns KeyColumns;
 
@@ -87,7 +89,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
     DEFINE_BYVAL_RO_PROPERTY(TTabletSlotPtr, Slot);
 
-    DEFINE_BYVAL_RW_PROPERTY(TTabletSnapshotPtr, Snapshot);
+    DEFINE_BYVAL_RO_PROPERTY(TTabletSnapshotPtr, Snapshot);
 
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TTableSchema, Schema);
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
@@ -108,7 +110,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::deque<TStoreId>, PreloadStoreIds);
 
 public:
-    explicit TTablet(const TTabletId& tabletId);
+    TTablet(
+        const TTabletId& tabletId,
+        TTabletSlotPtr slot);
     TTablet(
         TTableMountConfigPtr config,
         TTabletWriterOptionsPtr writerOptions,
@@ -164,6 +168,9 @@ public:
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
+    TCallback<void(TSaveContext&)> AsyncSave();
+    void AsyncLoad(TLoadContext& context);
+
     int GetSchemaColumnCount() const;
     int GetKeyColumnCount() const;
     int GetColumnLockCount() const;
@@ -172,7 +179,8 @@ public:
     void StopEpoch();
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
 
-    TTabletSnapshotPtr BuildSnapshot() const;
+    TTabletSnapshotPtr RebuildSnapshot();
+    void ResetSnapshot();
 
     const TDynamicRowKeyComparer& GetRowKeyComparer() const;
 

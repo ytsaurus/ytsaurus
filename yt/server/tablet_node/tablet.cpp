@@ -71,9 +71,11 @@ TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TKey key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTablet::TTablet(const TTabletId& tabletId)
+TTablet::TTablet(
+    const TTabletId& tabletId,
+    TTabletSlotPtr slot)
     : TabletId_(tabletId)
-    , Slot_(nullptr)
+    , Slot_(slot)
     , Config_(New<TTableMountConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
 { }
@@ -165,30 +167,22 @@ void TTablet::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, TableId_);
+    Save(context, GetPersistentState());
     Save(context, Schema_);
     Save(context, KeyColumns_);
-    Save(context, PivotKey_);
-    Save(context, NextPivotKey_);
-    Save(context, GetPersistentState());
-    Save(context, *Config_);
-    Save(context, *WriterOptions_);
-
-    auto saveStore = [&] (IStorePtr store) {
-        Save(context, store->GetId());
-        store->Save(context);
-    };
 
     TSizeSerializer::Save(context, Stores_.size());
+    // NB: This is not stable.
     for (const auto& pair : Stores_) {
-        saveStore(pair.second);
+        const auto& store = pair.second;
+        Save(context, store->GetId());
+        store->Save(context);
     }
 
     Save(context, ActiveStore_ ? ActiveStore_->GetId() : NullStoreId);
 
     auto savePartition = [&] (const TPartition& partition) {
         Save(context, partition.GetId());
-        Save(context, partition.GetPivotKey());
-        Save(context, partition.GetNextPivotKey());
         partition.Save(context);
     };
 
@@ -204,37 +198,27 @@ void TTablet::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    Slot_ = context.GetSlot();
+    auto tabletManager = Slot_->GetTabletManager();
 
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 5) {
-        Load(context, TableId_);
-    }
+    Load(context, TableId_);
+    Load(context, State_);
+    // TODO(babenko): consider moving schema and key columns to async part
     Load(context, Schema_);
     Load(context, KeyColumns_);
-    Load(context, PivotKey_);
-    Load(context, NextPivotKey_);
-    Load(context, State_);
-    Load(context, *Config_);
-    Load(context, *WriterOptions_);
 
     // NB: Call Initialize here since stores that we're about to create
     // may request some tablet properties (e.g. column lock count) during construction.
     Initialize();
 
-    auto loadStore = [&] () -> IStorePtr {
-        auto storeId = Load<TStoreId>(context);
-        auto tabletManager = Slot_->GetTabletManager();
-        auto store = tabletManager->CreateStore(this, storeId);
-        store->Load(context);
-        return store;
-    };
-
-    // COMPAT(babenko)
-    int storeCount = context.GetVersion() < 6 ? Load<size_t>(context) : TSizeSerializer::Load(context);
-    for (int index = 0; index < storeCount; ++index) {
-        auto store = loadStore();
-        YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
+    int storeCount = TSizeSerializer::LoadSuspended(context);
+    SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
+    SERIALIZATION_DUMP_INDENT(context) {
+        for (int index = 0; index < storeCount; ++index) {
+            auto storeId = Load<TStoreId> (context);
+            auto store = tabletManager->CreateStore(this, storeId);
+            YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
+            store->Load(context);
+        }
     }
 
     auto activeStoreId = Load<TStoreId>(context);
@@ -243,35 +227,110 @@ void TTablet::Load(TLoadContext& context)
     }
 
     auto loadPartition = [&] (int index) -> std::unique_ptr<TPartition> {
-        auto partitionId = Load<TPartitionId>(context);
-        auto pivotKey = Load<TOwningKey>(context);
-        auto nextPivotKey = Load<TOwningKey>(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() < 6 && index == TPartition::EdenIndex) {
-            pivotKey = PivotKey_;
-            nextPivotKey = NextPivotKey_;
+        auto partitionId = LoadSuspended<TPartitionId>(context);
+        SERIALIZATION_DUMP_WRITE(context, "%v =>", partitionId);
+        SERIALIZATION_DUMP_INDENT(context) {
+            auto partition = std::make_unique<TPartition>(
+                this,
+                partitionId,
+                index);
+            Load(context, *partition);
+            for (auto store : partition->Stores()) {
+                store->SetPartition(partition.get());
+            }
+            return partition;
         }
-        auto partition = std::make_unique<TPartition>(
-            this,
-            partitionId,
-            index,
-            std::move(pivotKey),
-            std::move(nextPivotKey));
-        Load(context, *partition);
-        for (auto store : partition->Stores()) {
-            store->SetPartition(partition.get());
-        }
-        return partition;
     };
 
-    Eden_ = loadPartition(TPartition::EdenIndex);
+    SERIALIZATION_DUMP_WRITE(context, "partitions");
+    SERIALIZATION_DUMP_INDENT(context) {
+        Eden_ = loadPartition(TPartition::EdenIndex);
 
-    // COMPAT(babenko)
-    int partitionCount = context.GetVersion() < 6 ? Load<size_t>(context) : TSizeSerializer::Load(context);
-    for (int index = 0; index < partitionCount; ++index) {
-        auto partition = loadPartition(index);
-        YCHECK(PartitionMap_.insert(std::make_pair(partition->GetId(), partition.get())).second);
-        PartitionList_.push_back(std::move(partition));
+        int partitionCount = TSizeSerializer::LoadSuspended(context);
+        for (int index = 0; index < partitionCount; ++index) {
+            auto partition = loadPartition(index);
+            YCHECK(PartitionMap_.insert(std::make_pair(partition->GetId(), partition.get())).second);
+            PartitionList_.push_back(std::move(partition));
+        }
+    }
+}
+
+TCallback<void(TSaveContext&)> TTablet::AsyncSave()
+{
+    std::vector<std::pair<TStoreId, TCallback<void(TSaveContext&)>>> capturedStores;
+    for (const auto& pair : Stores_) {
+        const auto& store = pair.second;
+        capturedStores.push_back(std::make_pair(store->GetId(), store->AsyncSave()));
+    }
+
+    auto capturedEden = Eden_->AsyncSave();
+
+    std::vector<TCallback<void(TSaveContext&)>> capturedPartitions;
+    for (const auto& partition : PartitionList_) {
+        capturedPartitions.push_back(partition->AsyncSave());
+    }
+
+    return BIND(
+        [
+            snapshot = Snapshot_,
+            capturedStores = std::move(capturedStores),
+            capturedEden = std::move(capturedEden),
+            capturedPartitions = std::move(capturedPartitions)
+        ] (TSaveContext& context) {
+            using NYT::Save;
+
+            Save(context, *snapshot->Config);
+            Save(context, *snapshot->WriterOptions);
+            Save(context, snapshot->PivotKey);
+            Save(context, snapshot->NextPivotKey);
+
+            capturedEden.Run(context);
+            for (const auto& callback : capturedPartitions) {
+                callback.Run(context);
+            }
+
+            // NB: This is not stable.
+            for (const auto& pair : capturedStores) {
+                Save(context, pair.first);
+                pair.second.Run(context);
+            }
+        });
+}
+
+void TTablet::AsyncLoad(TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, *Config_);
+    Load(context, *WriterOptions_);
+    Load(context, PivotKey_);
+    Load(context, NextPivotKey_);
+
+    auto loadPartition = [&] (const std::unique_ptr<TPartition>& partition) {
+        SERIALIZATION_DUMP_WRITE(context, "%v =>", partition->GetId());
+        SERIALIZATION_DUMP_INDENT(context) {
+            partition->AsyncLoad(context);
+        }
+    };
+
+    SERIALIZATION_DUMP_WRITE(context, "partitions");
+    SERIALIZATION_DUMP_INDENT(context) {
+        loadPartition(Eden_);
+        for (const auto& partition : PartitionList_) {
+            loadPartition(partition);
+        }
+    }
+
+    SERIALIZATION_DUMP_WRITE(context, "stores[%v]", Stores_.size());
+    SERIALIZATION_DUMP_INDENT(context) {
+        for (int index = 0; index < Stores_.size(); ++index) {
+            auto storeId = Load<TStoreId> (context);
+            SERIALIZATION_DUMP_WRITE(context, "%v =>", storeId);
+            SERIALIZATION_DUMP_INDENT(context) {
+                auto store = GetStore(storeId);
+                store->AsyncLoad(context);
+            }
+        }
     }
 }
 
@@ -543,25 +602,33 @@ IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
     return EpochAutomatonInvokers_[queue];
 }
 
-TTabletSnapshotPtr TTablet::BuildSnapshot() const
+TTabletSnapshotPtr TTablet::RebuildSnapshot()
 {
-    auto tabletSnapshot = New<TTabletSnapshot>();
-    tabletSnapshot->TabletId = TabletId_;
-    tabletSnapshot->TableId = TableId_;
-    tabletSnapshot->Slot = Slot_;
-    tabletSnapshot->Config = Config_;
-    tabletSnapshot->Schema = Schema_;
-    tabletSnapshot->KeyColumns = KeyColumns_;
-    tabletSnapshot->Eden = Eden_->BuildSnapshot();
-    tabletSnapshot->Partitions.reserve(PartitionList_.size());
+    Snapshot_ = New<TTabletSnapshot>();
+    Snapshot_->TabletId = TabletId_;
+    Snapshot_->TableId = TableId_;
+    Snapshot_->Slot = Slot_;
+    Snapshot_->Config = Config_;
+    Snapshot_->WriterOptions = WriterOptions_;
+    Snapshot_->PivotKey = PivotKey_;
+    Snapshot_->NextPivotKey = NextPivotKey_;
+    Snapshot_->Schema = Schema_;
+    Snapshot_->KeyColumns = KeyColumns_;
+    Snapshot_->Eden = Eden_->RebuildSnapshot();
+    Snapshot_->Partitions.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
-        auto partitionSnapshot = partition->BuildSnapshot();
-        tabletSnapshot->Partitions.push_back(partitionSnapshot);
-        tabletSnapshot->StoreCount += partitionSnapshot->Stores.size();
+        auto partitionSnapshot = partition->RebuildSnapshot();
+        Snapshot_->Partitions.push_back(partitionSnapshot);
+        Snapshot_->StoreCount += partitionSnapshot->Stores.size();
     }
-    tabletSnapshot->RowKeyComparer = RowKeyComparer_;
-    tabletSnapshot->PerformanceCounters = PerformanceCounters_;
-    return tabletSnapshot;
+    Snapshot_->RowKeyComparer = RowKeyComparer_;
+    Snapshot_->PerformanceCounters = PerformanceCounters_;
+    return Snapshot_;
+}
+
+void TTablet::ResetSnapshot()
+{
+    Snapshot_.Reset();
 }
 
 void TTablet::Initialize()

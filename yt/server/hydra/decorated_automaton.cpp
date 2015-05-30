@@ -9,20 +9,21 @@
 #include "snapshot_discovery.h"
 
 #include <core/misc/proc.h>
+#include <core/misc/blob.h>
 
 #include <core/actions/invoker_detail.h>
 
 #include <core/concurrency/scheduler.h>
+
+#include <core/pipes/async_reader.h>
+#include <core/pipes/pipe.h>
 
 #include <ytlib/election/cell_manager.h>
 
 #include <ytlib/hydra/hydra_service.pb.h>
 #include <ytlib/hydra/hydra_manager.pb.h>
 
-#include <core/pipes/async_reader.h>
-#include <core/pipes/pipe.h>
-
-#include <server/misc/snapshot_builder_detail.h>
+#include <server/misc/fork_snapshot_builder.h>
 
 #include <util/random/random.h>
 
@@ -196,140 +197,85 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDecoratedAutomaton::TSnapshotBuilder
-    : public TSnapshotBuilderBase
+class TDecoratedAutomaton::TSnapshotBuilderBase
+    : public virtual TRefCounted
 {
 public:
-    TSnapshotBuilder(
+    TSnapshotBuilderBase(
         TDecoratedAutomatonPtr owner,
         TVersion snapshotVersion)
         : Owner_(owner)
-        , SnapshotVersion_(snapshotVersion)
-        , SnapshotId_(SnapshotVersion_.SegmentId + 1)
+          , SnapshotVersion_(snapshotVersion)
+          , SnapshotId_(SnapshotVersion_.SegmentId + 1)
+    { }
+
+    ~TSnapshotBuilderBase()
     {
-        Logger = Owner_->Logger;
-        Logger.AddTag("SnapshotId: %v", SnapshotId_);
+        ReleaseLock();
     }
 
     TFuture<TRemoteSnapshotParams> Run()
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
+        auto* logger = GetLogger();
+        *logger = Owner_->Logger;
+        logger->AddTag("SnapshotId: %v", SnapshotId_);
+
         try {
-            Meta_.set_prev_record_count(SnapshotVersion_.RecordId);
+            TryAcquireLock();
 
-            if (Owner_->BuildingSnapshot_.test_and_set()) {
-                THROW_ERROR_EXCEPTION("Cannot start building snapshot %v since another snapshot is still being constructed",
-                    SnapshotId_);
-            }
+            TSnapshotMeta meta;
+            meta.set_prev_record_count(SnapshotVersion_.RecordId);
 
-            auto pipe = TPipeFactory().Create();
-            LOG_INFO("Snapshot transfer pipe opened [%v]", pipe);
+            SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
-            InputStream_ = pipe.CreateAsyncReader();
-            OutputFile_ = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
-
-            SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, Meta_);
-
-            AsyncTransferResult_ = BIND(&TSnapshotBuilder::TransferLoop, MakeStrong(this))
-                .AsyncVia(GetWatchdogInvoker())
-                .Run();
-
-            return TSnapshotBuilderBase::Run().Apply(
-                BIND(&TSnapshotBuilder::OnFinished, MakeStrong(this))
+            return DoRun().Apply(
+                BIND(&TSnapshotBuilderBase::OnFinished, MakeStrong(this))
                     .AsyncVia(GetHydraIOInvoker()));
         } catch (const std::exception& ex) {
+            ReleaseLock();
             return MakeFuture<TRemoteSnapshotParams>(TError(ex));
         }
     }
 
-private:
+protected:
     const TDecoratedAutomatonPtr Owner_;
     const TVersion SnapshotVersion_;
     const int SnapshotId_;
 
-    TSnapshotMeta Meta_;
-
-    TAsyncReaderPtr InputStream_;
-    std::unique_ptr<TFile> OutputFile_;
-
-    TFuture<void> AsyncTransferResult_;
     ISnapshotWriterPtr SnapshotWriter_;
 
 
-    virtual TDuration GetTimeout() const override
+    virtual TFuture<void> DoRun() = 0;
+    virtual NLogging::TLogger* GetLogger() = 0;
+
+    void TryAcquireLock()
     {
-        return Owner_->Config_->SnapshotBuildTimeout;
+        if (Owner_->BuildingSnapshot_.test_and_set()) {
+            THROW_ERROR_EXCEPTION("Cannot start building snapshot %v since another snapshot is still being constructed",
+                SnapshotId_);
+        }
+        LockAcquired_ = true;
     }
 
-    virtual void RunChild() override
+    void ReleaseLock()
     {
-        CloseAllDescriptors({
-            2, // stderr
-            int(OutputFile_->GetHandle())
-        });
-        TFileOutput output(*OutputFile_);
-        Owner_->SaveSnapshot(&output);
-        OutputFile_->Close();
+        if (LockAcquired_) {
+            Owner_->BuildingSnapshot_.clear();
+            LockAcquired_ = false;
+        }
     }
 
-    virtual void RunParent() override
+private:
+    bool LockAcquired_ = false;
+
+
+    TRemoteSnapshotParams OnFinished(const TError& error)
     {
-        OutputFile_->Close();
-    }
+        ReleaseLock();
 
-    virtual void Cleanup() override
-    {
-        Owner_->BuildingSnapshot_.clear();
-    }
-
-    void TransferLoop()
-    {
-        LOG_INFO("Snapshot transfer loop started");
-
-        {
-            auto result = WaitFor(SnapshotWriter_->Open());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-
-        auto zeroCopyReader = CreateZeroCopyAdapter(InputStream_, SnapshotTransferBlockSize);
-        auto zeroCopyWriter = CreateZeroCopyAdapter(SnapshotWriter_);
-
-        TFuture<void> lastWriteResult;
-        i64 bytesTotal = 0;
-
-        while (true) {
-            auto result = WaitFor(zeroCopyReader->Read());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-
-            const auto& block = result.Value();
-            if (!block)
-                break;
-
-            bytesTotal += block.Size();
-            lastWriteResult = zeroCopyWriter->Write(block);
-        }
-
-        if (lastWriteResult) {
-            auto error = WaitFor(lastWriteResult);
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
-
-        LOG_INFO("Snapshot transfer loop completed (BytesTotal: %v)",
-             bytesTotal);
-    }
-
-    TRemoteSnapshotParams OnFinished()
-    {
-        {
-            auto error = WaitFor(AsyncTransferResult_);
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
-
-        {
-            auto error = WaitFor(SnapshotWriter_->Close());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
+        error.ThrowOnError();
 
         const auto& params = SnapshotWriter_->GetParams();
 
@@ -344,6 +290,285 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDecoratedAutomaton::TForkSnapshotBuilder
+    : public TSnapshotBuilderBase
+    , public TForkSnapshotBuilderBase
+{
+public:
+    TForkSnapshotBuilder(
+        TDecoratedAutomatonPtr owner,
+        TVersion snapshotVersion)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
+    { }
+
+private:
+    TAsyncReaderPtr InputStream_;
+    std::unique_ptr<TFile> OutputFile_;
+
+    TFuture<void> AsyncTransferResult_;
+
+
+    virtual TFuture<void> DoRun() override
+    {
+        VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
+
+        auto pipe = TPipeFactory().Create();
+        LOG_INFO("Snapshot transfer pipe opened (Pipe: {%v})",
+            pipe);
+
+        InputStream_ = pipe.CreateAsyncReader();
+        OutputFile_ = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
+
+        AsyncTransferResult_ = BIND(&TForkSnapshotBuilder::TransferLoop, MakeStrong(this))
+            .AsyncVia(GetWatchdogInvoker())
+            .Run();
+
+        return Fork().Apply(
+            BIND(&TForkSnapshotBuilder::OnFinished, MakeStrong(this))
+                .AsyncVia(GetHydraIOInvoker()));
+    }
+
+    virtual NLogging::TLogger* GetLogger() override
+    {
+        return &Logger;
+    }
+
+    virtual TDuration GetTimeout() const override
+    {
+        return Owner_->Config_->SnapshotBuildTimeout;
+    }
+
+    virtual void RunChild() override
+    {
+        CloseAllDescriptors({
+            2, // stderr
+            int(OutputFile_->GetHandle())
+        });
+        TFileOutput output(*OutputFile_);
+        auto writer = CreateAsyncAdapter(&output);
+        Owner_->SaveSnapshot(writer)
+            .Get()
+            .ThrowOnError();
+        OutputFile_->Close();
+    }
+
+    virtual void RunParent() override
+    {
+        OutputFile_->Close();
+    }
+
+    virtual void Cleanup() override
+    {
+        ReleaseLock();
+    }
+
+    void TransferLoop()
+    {
+        LOG_INFO("Snapshot transfer loop started");
+
+        WaitFor(SnapshotWriter_->Open())
+            .ThrowOnError();
+
+        auto zeroCopyReader = CreateZeroCopyAdapter(InputStream_, SnapshotTransferBlockSize);
+        auto zeroCopyWriter = CreateZeroCopyAdapter(SnapshotWriter_);
+
+        TFuture<void> lastWriteResult;
+        i64 size = 0;
+
+        while (true) {
+            auto block = WaitFor(zeroCopyReader->Read())
+                .ValueOrThrow();
+
+            if (!block)
+                break;
+
+            size += block.Size();
+            lastWriteResult = zeroCopyWriter->Write(block);
+        }
+
+        if (lastWriteResult) {
+            WaitFor(lastWriteResult)
+                .ThrowOnError();
+        }
+
+        LOG_INFO("Snapshot transfer loop completed (Size: %v)",
+            size);
+    }
+
+    void OnFinished()
+    {
+        WaitFor(SnapshotWriter_->Close())
+            .ThrowOnError();
+
+        WaitFor(AsyncTransferResult_)
+            .ThrowOnError();
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDecoratedAutomaton::TSwitchableSnapshotWriter
+    : public IAsyncOutputStream
+{
+public:
+    explicit TSwitchableSnapshotWriter(const NLogging::TLogger& logger)
+        : Logger(logger)
+    { }
+
+    void SwitchToAsync(IAsyncOutputStreamPtr underlyingStream)
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        UnderlyingStream_ = CreateZeroCopyAdapter(underlyingStream);
+        for (const auto& syncBlock : SyncBlocks_) {
+            ForwardBlock(syncBlock);
+        }
+    }
+
+    TFuture<void> Finish()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        return LastForwardResult_;
+    }
+
+    virtual TFuture<void> Write(const TSharedRef& block) override
+    {
+        struct TBlockTag { };
+        auto blockCopy = TSharedRef::MakeCopy<TBlockTag>(block);
+
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (UnderlyingStream_) {
+            LOG_TRACE("Got async snapshot block (Size: %v)", blockCopy.Size());
+            AsyncSize_ += block.Size();
+            return ForwardBlock(blockCopy);
+        } else {
+            LOG_TRACE("Got sync snapshot block (Size: %v)", blockCopy.Size());
+            SyncBlocks_.push_back(blockCopy);
+            SyncSize_ += block.Size();
+            return VoidFuture;
+        }
+    }
+
+    i64 GetSyncSize() const
+    {
+        YCHECK(UnderlyingStream_);
+        return SyncSize_;
+    }
+
+    i64 GetAsyncSize() const
+    {
+        YCHECK(UnderlyingStream_);
+        return AsyncSize_;
+    }
+
+private:
+    const NLogging::TLogger Logger;
+
+    TSpinLock SpinLock_;
+    i64 SyncSize_ = 0;
+    i64 AsyncSize_ = 0;
+    IAsyncZeroCopyOutputStreamPtr UnderlyingStream_;
+    std::vector<TSharedRef> SyncBlocks_;
+    TFuture<void> LastForwardResult_ = VoidFuture;
+
+
+    TFuture<void> ForwardBlock(const TSharedRef& block)
+    {
+        return LastForwardResult_ = UnderlyingStream_->Write(block);
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDecoratedAutomaton::TNoForkSnapshotBuilder
+    : public TSnapshotBuilderBase
+{
+public:
+    TNoForkSnapshotBuilder(
+        TDecoratedAutomatonPtr owner,
+        TVersion snapshotVersion)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
+    { }
+
+private:
+    NLogging::TLogger Logger;
+
+    TPromise<void> RunPromise_ = NewPromise<void>();
+    TIntrusivePtr<TSwitchableSnapshotWriter> SwitchableSnapshotWriter_;
+
+    TFuture<void> AsyncSnapshotResult_;
+
+
+    virtual TFuture<void> DoRun() override
+    {
+        VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
+
+        SwitchableSnapshotWriter_ = New<TSwitchableSnapshotWriter>(Logger);
+
+        auto asyncOpenResult = SnapshotWriter_->Open();
+
+        LOG_INFO("Snapshot sync phase started");
+
+        AsyncSnapshotResult_ = Owner_->SaveSnapshot(SwitchableSnapshotWriter_);
+
+        LOG_INFO("Snapshot sync phase completed");
+
+        // NB: Only switch to async writer when the sync phase is complete.
+        asyncOpenResult.Subscribe(
+            BIND(&TNoForkSnapshotBuilder::OnWriterOpened, MakeStrong(this))
+                .Via(GetHydraIOInvoker()));
+
+        return RunPromise_;
+    }
+
+    virtual NLogging::TLogger* GetLogger() override
+    {
+        return &Logger;
+    }
+
+    void OnWriterOpened(const TError& error)
+    {
+        try {
+            error.ThrowOnError();
+
+            LOG_INFO("Switching to async snapshot writer");
+
+            SwitchableSnapshotWriter_->SwitchToAsync(SnapshotWriter_);
+
+            AsyncSnapshotResult_.Subscribe(
+                BIND(&TNoForkSnapshotBuilder::OnSnapshotSaved, MakeStrong(this))
+                    .Via(GetHydraIOInvoker()));
+        } catch (const std::exception& ex) {
+            RunPromise_.TrySet(TError(ex));
+        }
+    }
+
+    void OnSnapshotSaved(const TError& error)
+    {
+        try {
+            error.ThrowOnError();
+
+            LOG_INFO("Snapshot async phase completed (SyncSize: %v, AsyncSize: %v)",
+                SwitchableSnapshotWriter_->GetSyncSize(),
+                SwitchableSnapshotWriter_->GetAsyncSize());
+
+            WaitFor(SwitchableSnapshotWriter_->Finish())
+                .ThrowOnError();
+
+            WaitFor(SnapshotWriter_->Close())
+                .ThrowOnError();
+
+            RunPromise_.TrySet();
+        } catch (const std::exception& ex) {
+            RunPromise_.TrySet(TError(ex));
+        }
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDecoratedAutomaton::TDecoratedAutomaton(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
@@ -352,6 +577,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     IInvokerPtr controlInvoker,
     ISnapshotStorePtr snapshotStore,
     IChangelogStorePtr changelogStore,
+    const TDistributedHydraManagerOptions& options,
     const NProfiling::TProfiler& profiler)
     : State_(EPeerState::Stopped)
     , Config_(config)
@@ -362,6 +588,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(snapshotStore)
     , ChangelogStore_(changelogStore)
+    , Options_(options)
     , BatchCommitTimeCounter_("/batch_commit_time")
     , Logger(HydraLogger)
     , Profiler(profiler)
@@ -445,17 +672,20 @@ void TDecoratedAutomaton::Clear()
     AutomatonVersion_ = TVersion();
 }
 
-void TDecoratedAutomaton::SaveSnapshot(TOutputStream* output)
+TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
 {
-    YCHECK(output);
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    Automaton_->SaveSnapshot(output);
+    TContextSwitchedGuard guard(BIND([] () {
+        // Context switches are not allowed during sync phase.
+        YUNREACHABLE();
+    }));
+
+    return Automaton_->SaveSnapshot(writer);
 }
 
-void TDecoratedAutomaton::LoadSnapshot(TVersion version, TInputStream* input)
+void TDecoratedAutomaton::LoadSnapshot(TVersion version, IAsyncZeroCopyInputStreamPtr reader)
 {
-    YCHECK(input);
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     LOG_INFO("Started loading snapshot %v to reach version %v",
@@ -467,7 +697,7 @@ void TDecoratedAutomaton::LoadSnapshot(TVersion version, TInputStream* input)
     PROFILE_TIMING ("/snapshot_load_time") {
         Automaton_->Clear();
         try {
-            Automaton_->LoadSnapshot(input);
+            Automaton_->LoadSnapshot(reader);
         } catch (...) {
             // Don't leave the state corrupted.
             Automaton_->Clear();
@@ -625,8 +855,8 @@ void TDecoratedAutomaton::DoRotateChangelog()
         LOG_WARNING("Changelog %v is already sealed",
             loggedVersion.SegmentId);
     } else {
-        auto result = WaitFor(Changelog_->Seal(Changelog_->GetRecordCount()));
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        WaitFor(Changelog_->Seal(Changelog_->GetRecordCount()))
+            .ThrowOnError();
     }
 
     TChangelogMeta meta;
@@ -635,9 +865,8 @@ void TDecoratedAutomaton::DoRotateChangelog()
     auto newChangelogOrError = WaitFor(ChangelogStore_->CreateChangelog(
         loggedVersion.SegmentId + 1,
         meta));
-    THROW_ERROR_EXCEPTION_IF_FAILED(newChangelogOrError);
 
-    Changelog_ = newChangelogOrError.Value();
+    Changelog_ = newChangelogOrError.ValueOrThrow();
     LoggedVersion_ = loggedVersion.Rotate();
 
     LOG_INFO("Changelog rotated");
@@ -817,7 +1046,9 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
     if (GetAutomatonVersion() != SnapshotVersion_)
         return;
 
-    auto builder = New<TSnapshotBuilder>(this, SnapshotVersion_);
+    auto builder = Options_.UseFork
+       ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SnapshotVersion_))
+       : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this, SnapshotVersion_));
     SnapshotParamsPromise_.SetFrom(builder->Run());
 }
 

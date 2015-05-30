@@ -70,7 +70,7 @@ TFuture<void> TSnapshotBuilder::Run()
             operation->GetId());
     }
 
-    return TSnapshotBuilderBase::Run().Apply(
+    return Fork().Apply(
         BIND(&TSnapshotBuilder::OnBuilt, MakeStrong(this))
             .AsyncVia(Scheduler->GetSnapshotIOInvoker()));
 }
@@ -119,7 +119,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
 {
     auto operation = job.Operation;
 
-    NLogging::TLogger Logger(this->Logger);
+    auto Logger = this->Logger;
     Logger.AddTag("OperationId: %v",
         job.Operation->GetId());
 

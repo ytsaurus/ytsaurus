@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "snapshot_builder_detail.h"
+#include "fork_snapshot_builder.h"
 
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/periodic_executor.h>
@@ -21,16 +21,16 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto WatchdogCheckPeriod = TDuration::MilliSeconds(100);
-static TLazyIntrusivePtr<TActionQueue> WatchdogQueue(TActionQueue::CreateFactory("SnapshotWD"));
+static const TLazyIntrusivePtr<TActionQueue> WatchdogQueue(TActionQueue::CreateFactory("SnapshotWD"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSnapshotBuilderBase::~TSnapshotBuilderBase()
+TForkSnapshotBuilderBase::~TForkSnapshotBuilderBase()
 {
     YCHECK(ChildPid_ < 0);
 }
 
-TFuture<void> TSnapshotBuilderBase::Run()
+TFuture<void> TForkSnapshotBuilderBase::Fork()
 {
 #ifndef _unix_
     THROW_ERROR_EXCEPTION("Building snapshots is not supported on this platform");
@@ -53,7 +53,7 @@ TFuture<void> TSnapshotBuilderBase::Run()
         }
 
         DoRunParent();
-        Result_.OnCanceled(BIND(&TSnapshotBuilderBase::OnCanceled, MakeWeak(this)));
+        Result_.OnCanceled(BIND(&TForkSnapshotBuilderBase::OnCanceled, MakeWeak(this)));
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error building snapshot");
         DoCleanup();
@@ -64,7 +64,7 @@ TFuture<void> TSnapshotBuilderBase::Run()
 #endif
 }
 
-void TSnapshotBuilderBase::DoRunChild()
+void TForkSnapshotBuilderBase::DoRunChild()
 {
     try {
         RunChild();
@@ -76,7 +76,7 @@ void TSnapshotBuilderBase::DoRunChild()
     }
 }
 
-void TSnapshotBuilderBase::DoRunParent()
+void TForkSnapshotBuilderBase::DoRunParent()
 {
     LOG_INFO("Fork succeded (ChildPid: %v)", ChildPid_);
 
@@ -86,23 +86,23 @@ void TSnapshotBuilderBase::DoRunParent()
 
     WatchdogExecutor_ = New<TPeriodicExecutor>(
         WatchdogQueue->GetInvoker(),
-        BIND(&TSnapshotBuilderBase::OnWatchdogCheck, MakeStrong(this)),
+        BIND(&TForkSnapshotBuilderBase::OnWatchdogCheck, MakeStrong(this)),
         WatchdogCheckPeriod);
     WatchdogExecutor_->Start();
 }
 
-void TSnapshotBuilderBase::RunParent()
+void TForkSnapshotBuilderBase::RunParent()
 { }
 
-void TSnapshotBuilderBase::Cleanup()
+void TForkSnapshotBuilderBase::Cleanup()
 { }
 
-IInvokerPtr TSnapshotBuilderBase::GetWatchdogInvoker()
+IInvokerPtr TForkSnapshotBuilderBase::GetWatchdogInvoker()
 {
     return WatchdogQueue->GetInvoker();
 }
 
-void TSnapshotBuilderBase::OnWatchdogCheck()
+void TForkSnapshotBuilderBase::OnWatchdogCheck()
 {
 #ifdef _unix_
     if (ChildPid_ < 0)
@@ -134,7 +134,7 @@ void TSnapshotBuilderBase::OnWatchdogCheck()
 #endif
 }
 
-void TSnapshotBuilderBase::DoCleanup()
+void TForkSnapshotBuilderBase::DoCleanup()
 {
     ChildPid_ = -1;
     if (WatchdogExecutor_) {
@@ -145,13 +145,13 @@ void TSnapshotBuilderBase::DoCleanup()
     Cleanup();
 }
 
-void TSnapshotBuilderBase::OnCanceled()
+void TForkSnapshotBuilderBase::OnCanceled()
 {
     LOG_INFO("Snapshot builder canceled");
-    WatchdogQueue->GetInvoker()->Invoke(BIND(&TSnapshotBuilderBase::DoCancel, MakeStrong(this)));
+    WatchdogQueue->GetInvoker()->Invoke(BIND(&TForkSnapshotBuilderBase::DoCancel, MakeStrong(this)));
 }
 
-void TSnapshotBuilderBase::DoCancel()
+void TForkSnapshotBuilderBase::DoCancel()
 {
     if (ChildPid_ < 0)
         return;

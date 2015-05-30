@@ -323,11 +323,11 @@ TObjectManager::TObjectManager(
         BIND(&TObjectManager::LoadSchemas, Unretained(this)));
 
     RegisterSaver(
-        ESerializationPriority::Keys,
+        ESyncSerializationPriority::Keys,
         "ObjectManager.Keys",
         BIND(&TObjectManager::SaveKeys, Unretained(this)));
     RegisterSaver(
-        ESerializationPriority::Values,
+        ESyncSerializationPriority::Values,
         "ObjectManager.Values",
         BIND(&TObjectManager::SaveValues, Unretained(this)));
 
