@@ -21,7 +21,7 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTransactionWriteLogRecord
+struct TTransactionWriteRecord
 {
     TTabletId TabletId;
     TSharedRef Data;
@@ -31,8 +31,8 @@ struct TTransactionWriteLogRecord
 };
 
 const size_t TransactionWriteLogChunkSize = 256;
-using TTransactionWriteLog = TPersistentQueue<TTransactionWriteLogRecord, TransactionWriteLogChunkSize>;
-using TTransactionWriteLogSnapshot = TPersistentQueueSnapshot<TTransactionWriteLogRecord, TransactionWriteLogChunkSize>;
+using TTransactionWriteLog = TPersistentQueue<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
+using TTransactionWriteLogSnapshot = TPersistentQueueSnapshot<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
