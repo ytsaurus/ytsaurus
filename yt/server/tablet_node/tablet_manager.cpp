@@ -238,7 +238,7 @@ public:
             auto readerEnd = reader->GetCurrent();
             auto recordData = reader->Slice(readerBegin, readerEnd);
             auto compressedRecordData = ChangelogCodec_->Compress(recordData);
-            auto writeLogRecord = TTransactionWriteLogRecord{tabletId, recordData};
+            auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
 
             TReqExecuteWrite hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
@@ -250,7 +250,7 @@ public:
                     &TImpl::HydraLeaderExecuteWrite,
                     MakeStrong(this),
                     prelockedCountDelta,
-                    writeLogRecord))
+                    writeRecord))
                 ->Commit();
         }
 
@@ -856,7 +856,7 @@ private:
         }
     }
 
-    void HydraLeaderExecuteWrite(int rowCount, const TTransactionWriteLogRecord& writeLogRecord)
+    void HydraLeaderExecuteWrite(int rowCount, const TTransactionWriteRecord& writeRecord)
     {
         for (int index = 0; index < rowCount; ++index) {
             YASSERT(!PrelockedTransactions_.empty());
@@ -870,13 +870,13 @@ private:
                 rowRef.Store->GetTablet()->GetStoreManager()->ConfirmRow(transaction, rowRef);
             }
 
-            transaction->WriteLog().Enqueue(writeLogRecord);
+            transaction->WriteLog().Enqueue(writeRecord);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, RowCount: %v, WriteLogRecordSize: %v)",
-            writeLogRecord.TabletId,
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, RowCount: %v, WriteRecordSize: %v)",
+            writeRecord.TabletId,
             rowCount,
-            writeLogRecord.Data.Size());
+            writeRecord.Data.Size());
     }
 
     void HydraFollowerExecuteWrite(const TReqExecuteWrite& request) noexcept
@@ -892,7 +892,7 @@ private:
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request.compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
-        auto writeLogRecord = TTransactionWriteLogRecord{tabletId, recordData};
+        auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
 
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
@@ -901,9 +901,9 @@ private:
             ++rowCount;
         }
 
-        transaction->WriteLog().Enqueue(writeLogRecord);
+        transaction->WriteLog().Enqueue(writeRecord);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v, RowCount: %v, WriteLogRecordSize: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v, RowCount: %v, WriteRecordSize: %v)",
             transactionId,
             tabletId,
             rowCount,

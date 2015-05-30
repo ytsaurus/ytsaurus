@@ -22,14 +22,14 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTransactionWriteLogRecord::Save(TSaveContext& context) const
+void TTransactionWriteRecord::Save(TSaveContext& context) const
 {
     using NYT::Save;
     Save(context, TabletId);
     Save(context, Data);
 }
 
-void TTransactionWriteLogRecord::Load(TLoadContext& context)
+void TTransactionWriteRecord::Load(TLoadContext& context)
 {
     using NYT::Load;
     Load(context, TabletId);
@@ -93,7 +93,7 @@ void TTransaction::AsyncLoad(TLoadContext& context)
 
     int recordCount = TSizeSerializer::Load(context);
     for (int index = 0; index < recordCount; ++index) {
-        WriteLog_.Enqueue(Load<TTransactionWriteLogRecord>(context));
+        WriteLog_.Enqueue(Load<TTransactionWriteRecord>(context));
     }
 }
 
