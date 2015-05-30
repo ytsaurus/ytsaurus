@@ -869,9 +869,9 @@ private:
             if (ValidateAndDiscardRowRef(rowRef)) {
                 rowRef.Store->GetTablet()->GetStoreManager()->ConfirmRow(transaction, rowRef);
             }
-
-            transaction->WriteLog().Enqueue(writeRecord);
         }
+
+        transaction->WriteLog().Enqueue(writeRecord);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, RowCount: %v, WriteRecordSize: %v)",
             writeRecord.TabletId,
