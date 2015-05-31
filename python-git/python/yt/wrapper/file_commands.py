@@ -60,7 +60,8 @@ def upload_file(stream, destination, file_writer=None, client=None):
     :param destination: (string or `TablePath`) destination path in Cypress
     :param file_writer: (dict) spec of upload operation
     """
-    if hasattr(stream, 'fileno'):
+    # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO (it has bug with default iteration)
+    if hasattr(stream, 'read'):
         # read files by chunks, not by lines
         stream = chunk_iter(stream, config.CHUNK_SIZE)
 
