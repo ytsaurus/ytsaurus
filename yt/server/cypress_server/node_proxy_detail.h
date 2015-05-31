@@ -172,7 +172,7 @@ protected:
 
     virtual bool CanHaveChildren() const;
     
-    virtual void SetChild(
+    virtual void SetChildNode(
         NYTree::INodeFactoryPtr factory,
         const NYPath::TYPath& path,
         NYTree::INodePtr value,
@@ -355,7 +355,7 @@ private:
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
     
-    virtual void SetChild(
+    virtual void SetChildNode(
         NYTree::INodeFactoryPtr factory,
         const NYPath::TYPath& path,
         NYTree::INodePtr value,
@@ -395,7 +395,7 @@ public:
 private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode> TBase;
 
-    virtual void SetChild(
+    virtual void SetChildNode(
         NYTree::INodeFactoryPtr factory,
         const NYPath::TYPath& path,
         NYTree::INodePtr value,
