@@ -8,6 +8,7 @@
 #include <core/concurrency/parallel_awaiter.h>
 
 #include <util/system/thread.h>
+#include <core/misc/ref_counted_tracker.h>
 
 namespace NYT {
 namespace {
@@ -638,13 +639,22 @@ TEST_F(TFutureTest, PropagateErrorAsync)
     EXPECT_FALSE(f2.Get().IsOK());
 }
 
-TEST_F(TFutureTest, Timeout)
+TEST_F(TFutureTest, WithTimeoutSuccess)
+{
+    auto p = NewPromise<void>();
+    auto f1 = p.ToFuture();
+    auto f2 = f1.WithTimeout(TDuration::MilliSeconds(100));
+    Sleep(TDuration::MilliSeconds(10));
+    p.Set();
+    EXPECT_TRUE(f2.Get().IsOK());
+}
+
+TEST_F(TFutureTest, WithTimeoutFail)
 {
     auto p = NewPromise<int>();
     auto f1 = p.ToFuture();
     auto f2 = f1.WithTimeout(SleepQuantum);
-    auto result = f2.Get();
-    EXPECT_EQ(NYT::EErrorCode::Timeout, result.GetCode());
+    EXPECT_EQ(NYT::EErrorCode::Timeout, f2.Get().GetCode());
 }
 
 TEST_W(TFutureTest, BlockingHolder)
