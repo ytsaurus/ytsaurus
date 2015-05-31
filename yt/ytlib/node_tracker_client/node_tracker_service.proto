@@ -96,7 +96,7 @@ message TReqIncrementalHeartbeat
 
     // Node Tracker stuff.
     required TNodeStatistics statistics = 2;
-    repeated string alerts = 3;
+    repeated NYT.NProto.TError alerts = 3;
 
     // Chunk Manager stuff.
     repeated TChunkAddInfo added_chunks = 4;

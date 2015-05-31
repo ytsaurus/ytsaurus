@@ -63,6 +63,8 @@ DECLARE_REFCOUNTED_CLASS(TDiskHealthCheckerConfig)
 DECLARE_REFCOUNTED_CLASS(TDataNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TPeerBlockTableConfig)
 
+using TAlertId = TGuid;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,

@@ -415,9 +415,9 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location, const TError& reason
     // Register an alert and
     // schedule an out-of-order heartbeat to notify the master about the disaster.
     auto masterConnector = Bootstrap_->GetMasterConnector();
-    masterConnector->RegisterAlert(Format("Chunk store at %v is disabled\n%v",
-        location->GetPath(),
-        reason));
+    masterConnector->RegisterAlert(TError("Chunk store at %v is disabled",
+        location->GetPath())
+        << reason);
     masterConnector->ForceRegister();
 }
 

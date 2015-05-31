@@ -635,7 +635,7 @@ private:
                 statistics);
 
             node->Statistics() = statistics;
-            node->Alerts() = FromProto<Stroka>(request.alerts());
+            node->Alerts() = FromProto<TError>(request.alerts());
 
             RenewNodeLease(node);
 
