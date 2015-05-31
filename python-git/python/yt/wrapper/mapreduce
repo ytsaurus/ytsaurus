@@ -29,7 +29,6 @@ from yt.wrapper.table import check_prefix
 from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, chunk_iter_stream
 import yt.wrapper.config as config
 import yt.yson as yson
-import yt.logger as logger
 import yt.wrapper as yt
 
 import os
@@ -38,7 +37,7 @@ import types
 import simplejson as json
 from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
 from operator import attrgetter
-from itertools import imap
+from itertools import imap, groupby
 
 def unlist_destination_tables(tables):
     if tables is None:
@@ -531,13 +530,15 @@ Examples:
                            replication_factor=replication_factor,
                            compression_codec=args.codec)
         else:
-            logger.warning("In case of command '-write -dst A -dst B' all input records are load into memory and parsed")
-            records = [[] for _ in xrange(len(dst))]
-            for record in outputformat.load_rows(sys.stdin):
-                records[record.tableIndex].append(record)
             with yt.PingableTransaction():
-                for index, table in enumerate(dst):
-                    yt.write_table(table, records[index], format=outputformat, raw=False,
+                visited = set()
+                for key, records in groupby(outputformat.load_rows(sys.stdin), key=lambda rec: rec.tableIndex):
+                    table = dst[key]
+                    if key in visited:
+                        table.append = True
+                    visited.add(key)
+
+                    yt.write_table(table, records, format=outputformat, raw=False,
                                    table_writer=args.tablewriter,
                                    replication_factor=replication_factor,
                                    compression_codec=args.codec)
