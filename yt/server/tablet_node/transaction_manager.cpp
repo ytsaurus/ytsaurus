@@ -53,11 +53,8 @@ public:
             slot,
             bootstrap)
         , Config_(config)
-        , Logger(TabletNodeLogger)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
-
-        Logger.AddTag("CellId: %v", Slot_->GetCellId());
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -264,8 +261,6 @@ private:
     const TTransactionManagerConfigPtr Config_;
 
     TEntityMap<TTransactionId, TTransaction> TransactionMap_;
-
-    NLogging::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
