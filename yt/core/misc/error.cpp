@@ -1,7 +1,8 @@
 #include "stdafx.h"
 #include "error.h"
+#include "address.h"
+#include "serialize.h"
 
-#include <core/misc/address.h>
 #include <core/misc/error.pb.h>
 
 #include <core/ytree/convert.h>
@@ -19,6 +20,18 @@ namespace NYT {
 
 using namespace NYTree;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TErrorCode::Save(TStreamSaveContext& context) const
+{
+    NYT::Save(context, Value_);
+}
+
+void TErrorCode::Load(TStreamLoadContext& context)
+{
+    NYT::Load(context, Value_);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,6 +196,24 @@ void TError::ThrowOnError() const
 TError TError::Wrap() const
 {
     return *this;
+}
+
+void TErrorOr<void>::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, Code_);
+    Save(context, Message_);
+    Save(context, Attributes_);
+    Save(context, InnerErrors_);
+}
+
+void TErrorOr<void>::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, Code_);
+    Load(context, Message_);
+    Load(context, Attributes_);
+    Load(context, InnerErrors_);
 }
 
 void TError::CaptureOriginAttributes()

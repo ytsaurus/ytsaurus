@@ -25,6 +25,9 @@ public:
 
     operator int() const;
 
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
+
 private:
     int Value_;
 
@@ -86,13 +89,16 @@ public:
 
     bool IsOK() const;
 
-	void ThrowOnError() const;
+    void ThrowOnError() const;
 
     TNullable<TError> FindMatching(TErrorCode code) const;
 
     template <class... TArgs>
     TError Wrap(TArgs&&... args) const;
     TError Wrap() const;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 
 private:
     TErrorCode Code_;
