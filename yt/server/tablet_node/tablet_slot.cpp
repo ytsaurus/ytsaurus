@@ -83,6 +83,8 @@ public:
         , AutomatonQueue_(New<TFairShareActionQueue>(
             Format("TabletSlot:%v", SlotIndex_),
             TEnumTraits<EAutomatonThreadQueue>::GetDomainNames()))
+        , SnapshotQueue_(New<TActionQueue>(
+            Format("TabletSnap:%v", SlotIndex_)))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
@@ -181,6 +183,11 @@ public:
         return GuardedAutomatonInvokers_[queue];
     }
 
+    IInvokerPtr GetSnapshotInvoker() const
+    {
+        return SnapshotQueue_->GetInvoker();
+    }
+
     THiveManagerPtr GetHiveManager() const
     {
         return HiveManager_;
@@ -260,12 +267,9 @@ public:
                 Bootstrap_->GetTabletChannelFactory(),
                 configureInfo.peer_id());
 
-            auto slotManager = Bootstrap_->GetTabletSlotManager();
-            auto snapshotInvoker = CreateSerializedInvoker(slotManager->GetSnapshotPoolInvoker());
-
             Automaton_ = New<TTabletAutomaton>(
                 Owner_,
-                snapshotInvoker);
+                GetSnapshotInvoker());
 
             std::vector<TTransactionId> prerequisiteTransactionIds;
             prerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
@@ -406,6 +410,7 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
 
     const TFairShareActionQueuePtr AutomatonQueue_;
+    const TActionQueuePtr SnapshotQueue_;
 
     mutable EPeerState State_ = EPeerState::None;
     TPeerId PeerId_ = InvalidPeerId;
@@ -645,6 +650,11 @@ IInvokerPtr TTabletSlot::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) c
 IInvokerPtr TTabletSlot::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
     return Impl_->GetGuardedAutomatonInvoker(queue);
+}
+
+IInvokerPtr TTabletSlot::GetSnapshotInvoker() const
+{
+    return Impl_->GetSnapshotInvoker();
 }
 
 THiveManagerPtr TTabletSlot::GetHiveManager() const
