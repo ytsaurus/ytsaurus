@@ -59,14 +59,15 @@ public:
         if (!service) {
             auto error = TError(
                 EErrorCode::NoSuchService,
-                "Service is not registered (Service: %v, RealmId: %v)",
-                serviceId.ServiceName,
-                serviceId.RealmId);
+                "Service is not registered")
+                << TErrorAttribute("service", serviceId.ServiceName)
+                << TErrorAttribute("realm_id", serviceId.RealmId);
             responseHandler->HandleError(error);
             return nullptr;
         }
 
         auto serializedRequest = request->Serialize();
+
 
         auto session = New<TSession>(
             std::move(responseHandler),
@@ -103,7 +104,6 @@ private:
     public:
         TSession(IClientResponseHandlerPtr handler, const TNullable<TDuration>& timeout)
             : Handler_(std::move(handler))
-            , Replied_(false)
         {
             if (timeout) {
                 TDelayedExecutor::Submit(
@@ -147,7 +147,7 @@ private:
     private:
         const IClientResponseHandlerPtr Handler_;
 
-        std::atomic<bool> Replied_;
+        std::atomic<bool> Replied_ = {false};
 
 
         bool AcquireLock()
