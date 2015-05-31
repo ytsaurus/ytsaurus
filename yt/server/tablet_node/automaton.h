@@ -57,6 +57,8 @@ protected:
     const TTabletSlotPtr Slot_;
     NCellNode::TBootstrap* const Bootstrap_;
 
+    NLogging::TLogger Logger;
+
 
     explicit TTabletAutomatonPart(
         TTabletSlotPtr slot,

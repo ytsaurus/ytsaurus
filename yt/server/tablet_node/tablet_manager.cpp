@@ -78,7 +78,6 @@ using namespace NHive::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
 static const auto BlockedRowWaitQuantum = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -531,7 +530,7 @@ private:
                     ++rowCount;
                 }
             }
-            LOG_DEBUG("Transaction write log applied (TransactionId: %v, RowCount: %v)",
+            LOG_DEBUG_IF(rowCount > 0, "Transaction write log applied (TransactionId: %v, RowCount: %v)",
                 transaction->GetId(),
                 rowCount);
         }
