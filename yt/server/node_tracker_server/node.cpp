@@ -119,7 +119,12 @@ void TNode::Load(NCellMaster::TLoadContext& context)
         Load(context, RegisterTime_);
     }
     Load(context, Statistics_);
-    Load(context, Alerts_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 118) {
+        Load(context, Alerts_);
+    } else {
+        YCHECK(TSizeSerializer::Load(context) == 0);
+    }
     // COMPAT(babenko)
     if (context.GetVersion() >= 106) {
         Load(context, Rack_);

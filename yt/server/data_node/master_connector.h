@@ -71,7 +71,19 @@ public:
     /*!
      *  Thread affinity: any
      */
-    void RegisterAlert(const Stroka& alert);
+    TAlertId RegisterAlert(const TError& alert);
+
+    //! Removes an earlier registered alert message.
+    /*!
+     *  Thread affinity: any
+     */
+    void UnregisterAlert(const TAlertId& id);
+
+    //! Returns the list of all registered alerts.
+    /*!
+     *  Thread affinity: any
+     */
+    std::vector<TError> GetAlerts();
 
     //! Returns a statically known map for the local addresses.
     /*!
@@ -123,8 +135,8 @@ private:
 
     //! Protects #Alerts.
     TSpinLock AlertsLock_;
-    //! A list of registered alerts.
-    std::vector<Stroka> Alerts_;
+    //! A map of registered alerts.
+    yhash_map<TAlertId, TError> Alerts_;
 
     TSpinLock LocalDescriptorLock_;
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;

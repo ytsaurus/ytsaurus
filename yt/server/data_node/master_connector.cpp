@@ -144,12 +144,29 @@ TNodeId TMasterConnector::GetNodeId() const
     return NodeId_;
 }
 
-void TMasterConnector::RegisterAlert(const Stroka& alert)
+TAlertId TMasterConnector::RegisterAlert(const TError& alert)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    
+
+    auto id = TAlertId::Create();
     TGuard<TSpinLock> guard(AlertsLock_);
-    Alerts_.push_back(alert);
+    YCHECK(Alerts_.insert(std::make_pair(id, alert)).second);
+}
+
+void TMasterConnector::UnregisterAlert(const TAlertId& id)
+{
+    TGuard<TSpinLock> guard(AlertsLock_);
+    YCHECK(Alerts_.erase(id) == 1);
+}
+
+std::vector<TError> TMasterConnector::GetAlerts()
+{
+    TGuard<TSpinLock> guard(AlertsLock_);
+    std::vector<TError> alerts;
+    for (const auto& pair : Alerts_) {
+        alerts.push_back(pair.second);
+    }
+    return alerts;
 }
 
 const TAddressMap& TMasterConnector::GetLocalAddresses() const
@@ -358,10 +375,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
 
     *request->mutable_statistics() = ComputeStatistics();
 
-    {
-        TGuard<TSpinLock> guard(AlertsLock_);
-        ToProto(request->mutable_alerts(), Alerts_);
-    }
+    ToProto(request->mutable_alerts(), GetAlerts());
 
     ReportedAdded_.clear();
     for (auto chunk : AddedSinceLastSuccess_) {

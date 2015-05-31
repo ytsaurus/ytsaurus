@@ -54,7 +54,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TInstant, RegisterTime);
 
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, Alerts);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TError>, Alerts);
 
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
