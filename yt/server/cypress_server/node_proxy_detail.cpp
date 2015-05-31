@@ -660,7 +660,7 @@ bool TNontemplateCypressNodeProxyBase::CanHaveChildren() const
     return false;
 }
 
-void TNontemplateCypressNodeProxyBase::SetChild(
+void TNontemplateCypressNodeProxyBase::SetChildNode(
     INodeFactoryPtr /*factory*/,
     const TYPath& /*path*/,
     INodePtr /*value*/,
@@ -783,7 +783,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         request,
         response);
 
-    SetChild(factory, path, newProxy, request->recursive());
+    SetChildNode(factory, path, newProxy, request->recursive());
 
     factory->Commit();
 
@@ -856,7 +856,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
     auto clonedProxy = GetProxy(clonedTrunkImpl);
 
-    SetChild(factory, targetPath, clonedProxy, recursive);
+    SetChildNode(factory, targetPath, clonedProxy, recursive);
 
     factory->Commit();
 
@@ -1114,7 +1114,7 @@ bool TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
     return TBase::DoInvoke(context);
 }
 
-void TMapNodeProxy::SetChild(
+void TMapNodeProxy::SetChildNode(
     INodeFactoryPtr factory,
     const TYPath& path,
     INodePtr value,
@@ -1315,7 +1315,7 @@ int TListNodeProxy::GetChildIndex(IConstNodePtr child)
     return it->second;
 }
 
-void TListNodeProxy::SetChild(
+void TListNodeProxy::SetChildNode(
     INodeFactoryPtr factory,
     const TYPath& path,
     INodePtr value,
