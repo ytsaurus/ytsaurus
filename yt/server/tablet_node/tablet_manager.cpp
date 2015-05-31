@@ -852,9 +852,7 @@ private:
         const TTransactionWriteRecord& writeRecord)
     {
         auto transactionManager = Slot_->GetTransactionManager();
-        auto* transaction = transactionManager->FindTransaction(transactionId);
-        if (!transaction)
-            return;
+        auto* transaction = transactionManager->GetTransaction(transactionId);
 
         for (int index = 0; index < rowCount; ++index) {
             YASSERT(!transaction->PrelockedRows().empty());
