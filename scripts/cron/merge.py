@@ -66,7 +66,8 @@ def merge(table):
                                "unavailable_chunk_tactics": "fail",
                                "job_io": {
                                    "table_writer": {
-                                       "desired_chunk_size": desired_chunk_size
+                                       "desired_chunk_size": desired_chunk_size,
+                                       "max_row_weight": 128 * 1024 * 1024
                                    }
                                }})
 
