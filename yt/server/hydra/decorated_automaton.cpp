@@ -408,6 +408,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  The stream goes through the following sequence of states:
+ *  1. initially it is created in sync mode
+ *  2. then it is suspended
+ *  3. then it is resumed in async mode
+ *
+ */
 class TDecoratedAutomaton::TSwitchableSnapshotWriter
     : public IAsyncOutputStream
 {
@@ -416,13 +423,23 @@ public:
         : Logger(logger)
     { }
 
-    void SwitchToAsync(IAsyncOutputStreamPtr underlyingStream)
+    void Suspend()
     {
         TGuard<TSpinLock> guard(SpinLock_);
+        SuspendedPromise_ = NewPromise<void>();
+    }
+
+    void ResumeAsAsync(IAsyncOutputStreamPtr underlyingStream)
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        auto suspendedPromise = SuspendedPromise_;
+        SuspendedPromise_.Reset();
         UnderlyingStream_ = CreateZeroCopyAdapter(underlyingStream);
         for (const auto& syncBlock : SyncBlocks_) {
             ForwardBlock(syncBlock);
         }
+        guard.Release();
+        suspendedPromise.Set();
     }
 
     TFuture<void> Finish()
@@ -445,7 +462,7 @@ public:
             LOG_TRACE("Got sync snapshot block (Size: %v)", blockCopy.Size());
             SyncBlocks_.push_back(blockCopy);
             SyncSize_ += block.Size();
-            return VoidFuture;
+            return SuspendedPromise_ ? SuspendedPromise_.ToFuture() : VoidFuture;
         }
     }
 
@@ -465,6 +482,7 @@ private:
     const NLogging::TLogger Logger;
 
     TSpinLock SpinLock_;
+    TPromise<void> SuspendedPromise_;
     i64 SyncSize_ = 0;
     i64 AsyncSize_ = 0;
     IAsyncZeroCopyOutputStreamPtr UnderlyingStream_;
@@ -514,6 +532,8 @@ private:
 
         LOG_INFO("Snapshot sync phase completed");
 
+        SwitchableSnapshotWriter_->Suspend();
+
         // NB: Only switch to async writer when the sync phase is complete.
         asyncOpenResult.Subscribe(
             BIND(&TNoForkSnapshotBuilder::OnWriterOpened, MakeStrong(this))
@@ -534,7 +554,7 @@ private:
 
             LOG_INFO("Switching to async snapshot writer");
 
-            SwitchableSnapshotWriter_->SwitchToAsync(SnapshotWriter_);
+            SwitchableSnapshotWriter_->ResumeAsAsync(SnapshotWriter_);
 
             AsyncSnapshotResult_.Subscribe(
                 BIND(&TNoForkSnapshotBuilder::OnSnapshotSaved, MakeStrong(this))
