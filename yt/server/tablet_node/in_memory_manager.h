@@ -30,7 +30,7 @@ DEFINE_REFCOUNTED_TYPE(TInterceptedChunkData)
  *  Ensures that chunk stores of in-memory tables are preloaded when a node starts.
  *
  *  Provides means for intercepting data write-out during flushes and compactions
- *  and thus enable new chunk stores to be created with all blocks already resident.
+ *  and thus enables new chunk stores to be created with all blocks already resident.
  */
 class TInMemoryManager
     : public TRefCounted
