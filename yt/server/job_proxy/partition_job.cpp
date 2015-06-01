@@ -43,19 +43,63 @@ public:
         TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
 
         auto keyColumns = FromProto<TKeyColumns>(PartitionJobSpecExt_.sort_key_columns());
-        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+        NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
-        Reader_ = CreateSchemalessParallelMultiChunkReader(
-            config->JobIO->TableReader,
-            New<TMultiChunkReaderOptions>(),
-            host->GetMasterChannel(),
-            host->GetBlockCache(),
-            host->GetNodeDirectory(),
-            std::move(chunkSpecs),
-            nameTable,
-            TColumnFilter(),
-            TKeyColumns());
+        ReaderFactory_ = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
+            YCHECK(!Reader_);
+            Reader_ = CreateSchemalessParallelMultiChunkReader(
+                config->JobIO->TableReader,
+                New<TMultiChunkReaderOptions>(),
+                host->GetMasterChannel(),
+                host->GetBlockCache(),
+                host->GetNodeDirectory(),
+                std::move(chunkSpecs),
+                nameTable,
+                columnFilter,
+                TKeyColumns());
+            return Reader_;
+        };
 
+        YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
+        const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
+
+        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
+        auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
+
+        auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
+
+        WriterFactory_ = [=] (TNameTablePtr nameTable) mutable {
+            YCHECK(!Writer_);
+            Writer_ = CreatePartitionMultiChunkWriter(
+                config->JobIO->TableWriter,
+                options,
+                nameTable,
+                keyColumns,
+                host->GetMasterChannel(),
+                transactionId,
+                chunkListId,
+                GetPartitioner());
+            return Writer_;
+        };
+    }
+
+private:
+    const TPartitionJobSpecExt& PartitionJobSpecExt_;
+    std::vector<TOwningKey> PartitionKeys_;
+    TNameTablePtr NameTable_;
+
+    virtual void CreateReader() override
+    {
+        ReaderFactory_(NameTable_, TColumnFilter());
+    }
+
+    virtual void CreateWriter() override
+    {
+        WriterFactory_(NameTable_);
+    }
+
+    std::unique_ptr<IPartitioner> GetPartitioner()
+    {
         std::unique_ptr<IPartitioner> partitioner;
         if (PartitionJobSpecExt_.partition_keys_size() > 0) {
             YCHECK(PartitionJobSpecExt_.partition_keys_size() + 1 == PartitionJobSpecExt_.partition_count());
@@ -70,30 +114,8 @@ public:
                 PartitionJobSpecExt_.partition_count(),
                 PartitionJobSpecExt_.reduce_key_column_count());
         }
-
-        YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
-        const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
-
-        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
-        auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
-
-        auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
-
-        Writer_ = CreatePartitionMultiChunkWriter(
-            config->JobIO->TableWriter,
-            options,
-            nameTable,
-            keyColumns,
-            host->GetMasterChannel(),
-            transactionId,
-            chunkListId,
-            std::move(partitioner));
+        return partitioner;
     }
-
-private:
-    const TPartitionJobSpecExt& PartitionJobSpecExt_;
-    std::vector<TOwningKey> PartitionKeys_;
-
 };
 
 IJobPtr CreatePartitionJob(IJobHost* host)

@@ -72,6 +72,11 @@ public:
 private:
     const TSortJobSpecExt& SortJobSpecExt_;
 
+    virtual void CreateReader() override
+    { }
+
+    virtual void CreateWriter() override
+    { }
 };
 
 IJobPtr CreateSimpleSortJob(IJobHost* host)
