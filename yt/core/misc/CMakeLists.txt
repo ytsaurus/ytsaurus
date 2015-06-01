@@ -69,6 +69,8 @@ set( HDRS
   ${BASE}/chunked_memory_allocator.h
   ${BASE}/chunked_memory_allocator-inl.h
   ${BASE}/chunked_output_stream.h
+  ${BASE}/chunked_vector.h
+  ${BASE}/chunked_vector-inl.h
   ${BASE}/collection_helpers-inl.h
   ${BASE}/collection_helpers.h
   ${BASE}/common.h
