@@ -151,6 +151,7 @@ TAlertId TMasterConnector::RegisterAlert(const TError& alert)
     auto id = TAlertId::Create();
     TGuard<TSpinLock> guard(AlertsLock_);
     YCHECK(Alerts_.insert(std::make_pair(id, alert)).second);
+    return id;
 }
 
 void TMasterConnector::UnregisterAlert(const TAlertId& id)
