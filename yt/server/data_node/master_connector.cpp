@@ -30,6 +30,8 @@
 #include <ytlib/api/connection.h>
 #include <ytlib/api/client.h>
 
+#include <server/misc/memory_usage_tracker.h>
+
 #include <server/job_agent/job_controller.h>
 
 #include <server/tablet_node/slot_manager.h>
@@ -305,6 +307,21 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     auto slotManager = Bootstrap_->GetTabletSlotManager();
     result.set_available_tablet_slots(slotManager->GetAvailableTabletSlotCount());
     result.set_used_tablet_slots(slotManager->GetUsedTableSlotCount());
+
+    auto* memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
+    auto* protoMemory = result.mutable_memory();
+    protoMemory->set_total_limit(memoryUsageTracker->GetTotalLimit());
+    protoMemory->set_total_used(memoryUsageTracker->GetTotalUsed());
+    for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+        auto* protoCategory = protoMemory->add_categories();
+        protoCategory->set_type(static_cast<int>(category));
+        auto limit = memoryUsageTracker->GetLimit(category);
+        if (limit < std::numeric_limits<i64>::max()) {
+            protoCategory->set_limit(limit);
+        }
+        auto used = memoryUsageTracker->GetUsed(category);
+        protoCategory->set_used(used);
+    }
 
     return result;
 }
