@@ -501,29 +501,6 @@ TOwningKey RowToKey(
     const NVersionedTableClient::TKeyColumns& keyColumns,
     TUnversionedRow row);
 
-// XXX(babenko): consider dropping
-void SaveRowKeys(
-    TSaveContext& context,
-    const NVersionedTableClient::TTableSchema& schema,
-    const NVersionedTableClient::TKeyColumns& keyColumns,
-    TDynamicRow row);
-
-// XXX(babenko): consider dropping
-void LoadRowKeys(
-    TLoadContext& context,
-    const NVersionedTableClient::TTableSchema& schema,
-    const NVersionedTableClient::TKeyColumns& keyColumns,
-    TChunkedMemoryPool* pool,
-    TDynamicRow row);
-
-// XXX(babenko): consider dropping
-void LoadRowKeys(
-    TLoadContext& context,
-    const NVersionedTableClient::TTableSchema& schema,
-    const NVersionedTableClient::TKeyColumns& keyColumns,
-    TChunkedMemoryPool* pool,
-    NVersionedTableClient::TUnversionedRowBuilder* builder);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode
