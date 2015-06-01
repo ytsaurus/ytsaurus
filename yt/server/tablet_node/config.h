@@ -116,7 +116,10 @@ public:
             .Default(1000000);
         RegisterParameter("max_memory_store_value_count", MaxMemoryStoreValueCount)
             .GreaterThan(0)
-            .Default(10000000);
+            .Default(10000000)
+            // NB: This limit is really important; please consult babenko@
+            // before changing it.
+            .LessThanOrEqual(SoftRevisionsPerDynamicMemoryStoreLimit);
         RegisterParameter("max_memory_store_pool_size", MaxMemoryStorePoolSize)
             .GreaterThan(0)
             .Default((i64) 1024 * 1024 * 1024);

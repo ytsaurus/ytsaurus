@@ -7,6 +7,7 @@
 #include "transaction.h"
 
 #include <core/misc/property.h>
+#include <core/misc/chunked_vector.h>
 
 #include <core/actions/signal.h>
 
@@ -169,7 +170,9 @@ private:
     TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;
     TTimestamp MaxTimestamp_ = NTransactionClient::MinTimestamp;
 
-    std::vector<TTimestamp> RevisionToTimestamp_;
+    static const size_t RevisionsPerChunk = 1ULL << 13;
+    static const size_t MaxRevisionChunks = HardRevisionsPerDynamicMemoryStoreLimit / RevisionsPerChunk + 1;
+    TChunkedVector<TTimestamp, RevisionsPerChunk> RevisionToTimestamp_;
 
 
     TDynamicRow AllocateRow();
