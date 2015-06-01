@@ -22,6 +22,12 @@ try:
 except ImportError:
     cjson = None
 
+try:
+    import statbox_bindings.tskv
+except ImportError:
+    statbox_bindings = None
+
+
 class YtFormatError(YtError):
     """Wrong format"""
     pass
@@ -197,7 +203,10 @@ class DsvFormat(Format):
             return None
         if self._is_raw(raw):
             return line
-        parsed_line = self._parse(line)
+        if statbox_bindings is not None:
+            parsed_line = statbox_bindings.tskv.unpack_dict(line.rstrip("\n"))
+        else:
+            parsed_line = self._parse(line)
         if self.enable_table_index:
             parsed_line[self.table_index_column] = int(parsed_line[self.table_index_column])
         return parsed_line
@@ -220,18 +229,24 @@ class DsvFormat(Format):
                 return string
             return self._escape(string, {'\n': '\\n', '\r': '\\r', '\t': '\\t', '\0': '\\0'})
 
-        length = len(row)
-        for i, item in enumerate(row.iteritems()):
-            stream.write(escape_key(str(item[0])))
-            stream.write("=")
-            stream.write(escape_value(str(item[1])))
-            stream.write("\n" if i == length - 1 else "\t")
+        if statbox_bindings is not None:
+            stream.write(statbox_bindings.tskv.pack_dict(row))
+            stream.write("\n")
+        else:
+            length = len(row)
+            for i, item in enumerate(row.iteritems()):
+                stream.write(escape_key(str(item[0])))
+                stream.write("=")
+                stream.write(escape_value(str(item[1])))
+                stream.write("\n" if i == length - 1 else "\t")
 
     def _dump_rows(self, rows, stream):
         for row in rows:
             self.dump_row(row, stream)
 
     def loads_row(self, string):
+        if statbox_bindings is not None:
+            return statbox_bindings.tskv.unpack_dict(string.rstrip("\n"))
         return self._parse(string)
 
     def _parse(self, string):
