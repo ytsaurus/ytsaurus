@@ -53,7 +53,8 @@ static const int SnapshotRowsPerRead = 1024;
 static const ui32 UncommittedRevision = 0;
 static const ui32 MaxRevision = std::numeric_limits<ui32>::max();
 
-struct TDynamicMemoryStoreFetcherPoolTag { };
+struct TDynamicMemoryStoreReaderPoolTag
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,7 +114,7 @@ public:
         , KeyColumnCount_(Store_->KeyColumnCount_)
         , SchemaColumnCount_(Store_->SchemaColumnCount_)
         , ColumnLockCount_(Store_->ColumnLockCount_)
-        , Pool_(TDynamicMemoryStoreFetcherPoolTag(), TabletReaderPoolSize)
+        , Pool_(TDynamicMemoryStoreReaderPoolTag(), TabletReaderPoolSize)
         , FixedValueListSnapshots_(SchemaColumnCount_)
     {
         YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);
