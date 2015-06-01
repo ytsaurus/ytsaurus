@@ -629,7 +629,10 @@ TDynamicMemoryStore::TDynamicMemoryStore(
 {
     StoreState_ = EStoreState::ActiveDynamic;
 
-    RevisionToTimestamp_.push_back(UncommittedTimestamp);
+    // Reserve the vector to prevent reallocations and thus enable accessing
+    // it from arbitrary threads.
+    RevisionToTimestamp_.ReserveChunks(MaxRevisionChunks);
+    RevisionToTimestamp_.PushBack(UncommittedTimestamp);
     YCHECK(TimestampFromRevision(UncommittedRevision) == UncommittedTimestamp);
 
     LOG_DEBUG("Dynamic memory store created (TabletId: %v)",
@@ -1529,13 +1532,14 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
 
 ui32 TDynamicMemoryStore::GetLatestRevision() const
 {
-    return RevisionToTimestamp_.size() - 1;
+    return RevisionToTimestamp_.Size() - 1;
 }
 
 ui32 TDynamicMemoryStore::RegisterRevision(TTimestamp timestamp)
 {
     YASSERT(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
-    RevisionToTimestamp_.push_back(timestamp);
+    YASSERT(RevisionToTimestamp_.Size() < HardRevisionsPerDynamicMemoryStoreLimit);
+    RevisionToTimestamp_.PushBack(timestamp);
     return GetLatestRevision();
 }
 

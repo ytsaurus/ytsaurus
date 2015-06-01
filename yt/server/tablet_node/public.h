@@ -206,6 +206,12 @@ class TVersionedRowMerger;
 using TTabletWriterOptions = NVersionedTableClient::TTableWriterOptions;
 using TTabletWriterOptionsPtr =  NVersionedTableClient::TTableWriterOptionsPtr;
 
+//! This is the hard limit.
+//! Moreover, it is quite expensive to be graceful in preventing it from being exceeded.
+//! The soft limit, thus, is significantly smaller.
+static const i64 HardRevisionsPerDynamicMemoryStoreLimit = 1ULL << 26;
+static const i64 SoftRevisionsPerDynamicMemoryStoreLimit = 1ULL << 25;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode
