@@ -8,6 +8,8 @@
 #include <ytlib/job_tracker_client/job.pb.h>
 
 #include <ytlib/new_table_client/public.h>
+#include <ytlib/new_table_client/schemaful_reader_adapter.h>
+#include <ytlib/new_table_client/schemaful_writer_adapter.h>
 
 #include <ytlib/scheduler/job.pb.h>
 
@@ -55,9 +57,13 @@ protected:
 
     NVersionedTableClient::ISchemalessMultiChunkReaderPtr Reader_;
     NVersionedTableClient::ISchemalessMultiChunkWriterPtr Writer_;
+    NVersionedTableClient::TSchemalessReaderFactory ReaderFactory_;
+    NVersionedTableClient::TSchemalessWriterFactory WriterFactory_;
 
     i64 TotalRowCount_;
 
+    virtual void CreateReader() = 0;
+    virtual void CreateWriter() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

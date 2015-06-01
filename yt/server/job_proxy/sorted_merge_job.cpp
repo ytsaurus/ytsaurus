@@ -84,6 +84,11 @@ public:
 private:
     const TMergeJobSpecExt& MergeJobSpecExt_;
 
+    virtual void CreateReader() override
+    { }
+
+    virtual void CreateWriter() override
+    { }
 };
 
 IJobPtr CreateSortedMergeJob(IJobHost* host)
