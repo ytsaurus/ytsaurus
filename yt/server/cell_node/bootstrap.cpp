@@ -499,7 +499,7 @@ TChunkCachePtr TBootstrap::GetChunkCache() const
     return ChunkCache;
 }
 
-TNodeMemoryTracker* TBootstrap::GetMemoryUsageTracker()
+TNodeMemoryTracker* TBootstrap::GetMemoryUsageTracker() const
 {
     return MemoryUsageTracker.get();
 }
