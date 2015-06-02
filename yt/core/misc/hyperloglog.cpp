@@ -22,9 +22,8 @@ HyperLogLog::HyperLogLog(int precision)
     , ZeroCounts_(std::vector<long>(RegisterCount_))
 { }
 
-void HyperLogLog::Add(ui64 value)
+void HyperLogLog::AddHash(ui64 hash)
 {
-    TFingerprint hash = FarmHash(value);
     auto zeroes = 1;
     hash |= ((ui64)1 << 63);
     auto bit = RegisterCount_;
@@ -38,6 +37,16 @@ void HyperLogLog::Add(ui64 value)
     if (ZeroCounts_[index] < zeroes) {
         ZeroCounts_[index] = zeroes;
     }
+}
+
+void HyperLogLog::Add(ui64 value)
+{
+    AddHash(FarmHash(value));
+}
+
+void HyperLogLog::Add(char* data, size_t length)
+{
+    AddHash(FarmHash(data, length));
 }
 
 void HyperLogLog::Merge(HyperLogLog that)
