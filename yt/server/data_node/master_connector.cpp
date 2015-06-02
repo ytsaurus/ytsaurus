@@ -146,29 +146,22 @@ TNodeId TMasterConnector::GetNodeId() const
     return NodeId_;
 }
 
-TAlertId TMasterConnector::RegisterAlert(const TError& alert)
+void TMasterConnector::RegisterAlert(const TError& alert)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto id = TAlertId::Create();
     TGuard<TSpinLock> guard(AlertsLock_);
-    YCHECK(Alerts_.insert(std::make_pair(id, alert)).second);
-    return id;
-}
-
-void TMasterConnector::UnregisterAlert(const TAlertId& id)
-{
-    TGuard<TSpinLock> guard(AlertsLock_);
-    YCHECK(Alerts_.erase(id) == 1);
+    StaticAlerts_.push_back(alert);
 }
 
 std::vector<TError> TMasterConnector::GetAlerts()
 {
-    TGuard<TSpinLock> guard(AlertsLock_);
     std::vector<TError> alerts;
-    for (const auto& pair : Alerts_) {
-        alerts.push_back(pair.second);
-    }
+    CheckForAlerts_.Fire(&alerts);
+
+    TGuard<TSpinLock> guard(AlertsLock_);
+    alerts.insert(alerts.end(), StaticAlerts_.begin(), StaticAlerts_.end());
+
     return alerts;
 }
 
