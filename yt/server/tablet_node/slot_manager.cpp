@@ -30,6 +30,7 @@ using namespace NFS;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NDataNode;
 using namespace NHydra;
@@ -73,7 +74,7 @@ public:
     {
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return
-            tracker->GetUsed(NCellNode::EMemoryCategory::TabletDynamic) >
+            tracker->GetUsed(EMemoryCategory::TabletDynamic) >
             Config_->MemoryLimit;
     }
 
@@ -81,7 +82,7 @@ public:
     {
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return
-            tracker->GetUsed(NCellNode::EMemoryCategory::TabletDynamic) - passiveUsage >
+            tracker->GetUsed(EMemoryCategory::TabletDynamic) - passiveUsage >
             Config_->MemoryLimit * Config_->ForcedRotationsMemoryRatio;
     }
 

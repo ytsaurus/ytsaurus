@@ -167,7 +167,7 @@ private:
                 "TotalMemoryUsage: %v, TabletMemoryUsage: %v, "
                 "MemoryLimit: %v)",
                 candidate.TabletId,
-                Bootstrap_->GetMemoryUsageTracker()->GetUsed(NCellNode::EMemoryCategory::TabletDynamic),
+                Bootstrap_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::TabletDynamic),
                 candidate.MemoryUsage,
                 Config_->MemoryLimit);
 

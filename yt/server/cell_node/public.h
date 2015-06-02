@@ -2,6 +2,8 @@
 
 #include <core/misc/public.h>
 
+#include <ytlib/node_tracker_client/public.h>
+
 #include <server/misc/public.h>
 
 namespace NYT {
@@ -11,21 +13,9 @@ namespace NCellNode {
 
 class TBootstrap;
 
-class TCellNodeConfig;
-typedef TIntrusivePtr<TCellNodeConfig> TCellNodeConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TCellNodeConfig)
 
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EMemoryCategory,
-    (Footprint)
-    (BlockCache)
-    (ChunkMeta)
-    (Job)
-    (TabletStatic)
-    (TabletDynamic)
-);
-
-using TNodeMemoryTracker = TMemoryUsageTracker<EMemoryCategory>;
+using TNodeMemoryTracker = TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
