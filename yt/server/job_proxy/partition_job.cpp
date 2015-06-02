@@ -45,7 +45,9 @@ public:
         auto keyColumns = FromProto<TKeyColumns>(PartitionJobSpecExt_.sort_key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-        Reader_ = CreateSchemalessParallelMultiChunkReader(
+        // NB: don't create parallel reader to eliminate non-deterministic behavior,
+        // which is a nightmare for restarted (lost) jobs.
+        Reader_ = CreateSchemalessSequentialMultiChunkReader(
             config->JobIO->TableReader,
             New<TMultiChunkReaderOptions>(),
             host->GetMasterChannel(),
