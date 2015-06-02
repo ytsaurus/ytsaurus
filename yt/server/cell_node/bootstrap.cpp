@@ -226,6 +226,8 @@ void TBootstrap::DoRun()
         localAddresses,
         this);
 
+    MasterConnector->SubscribeCheckForAlerts(BIND(&TBootstrap::CheckForAlerts, this));
+
     ChunkStore = New<NDataNode::TChunkStore>(Config->DataNode, this);
 
     ChunkCache = New<TChunkCache>(Config->DataNode, this);
@@ -643,6 +645,29 @@ TAddressMap TBootstrap::GetLocalAddresses()
     }
 
     return addresses;
+}
+
+void TBootstrap::CheckForAlerts(std::vector<TError>* alerts)
+{
+    // NB: Don't used IsXXXExceeded helpers to be atomic.
+    auto totalUsed = MemoryUsageTracker->GetTotalUsed();
+    auto totalLimit = MemoryUsageTracker->GetTotalLimit();
+    if (totalUsed > totalLimit) {
+        alerts->push_back(TError("Total memory limit exceeded")
+            << TErrorAttribute("used", totalUsed)
+            << TErrorAttribute("limit", totalLimit));
+    }
+
+    for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+        auto used = MemoryUsageTracker->GetUsed(category);
+        auto limit = MemoryUsageTracker->GetLimit(category);
+        if (totalUsed > totalLimit) {
+            alerts->push_back(TError("Memory limit exceeded for category %Qlv",
+                category)
+                << TErrorAttribute("used", used)
+                << TErrorAttribute("limit", limit));
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
