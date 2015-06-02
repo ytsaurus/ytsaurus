@@ -45,6 +45,7 @@ set( SRCS
   ${BASE}/subprocess.cpp
   ${BASE}/url.cpp
   ${BASE}/varint.cpp
+  ${BASE}/hyperloglog.cpp
 )
 set( HDRS
   ${BASE}/address.h
@@ -146,6 +147,7 @@ set( HDRS
   ${BASE}/varint.h
   ${BASE}/weak_ptr.h
   ${BASE}/zigzag.h
+  ${BASE}/hyperloglog.h
 )
 
 list(APPEND YT_SOURCE_FILES
