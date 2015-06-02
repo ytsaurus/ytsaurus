@@ -43,6 +43,11 @@ class TMasterConnector
     : public TRefCounted
 {
 public:
+    //! Raised with each heartbeat.
+    //! Subscribers may provide additional dynamic alerts to be reported to master.
+    DEFINE_SIGNAL(void(std::vector<TError>* alerts), CheckForAlerts);
+
+public:
     //! Creates an instance.
     TMasterConnector(
         TDataNodeConfigPtr config,
@@ -71,19 +76,7 @@ public:
     /*!
      *  Thread affinity: any
      */
-    TAlertId RegisterAlert(const TError& alert);
-
-    //! Removes an earlier registered alert message.
-    /*!
-     *  Thread affinity: any
-     */
-    void UnregisterAlert(const TAlertId& id);
-
-    //! Returns the list of all registered alerts.
-    /*!
-     *  Thread affinity: any
-     */
-    std::vector<TError> GetAlerts();
+    void RegisterAlert(const TError& alert);
 
     //! Returns a statically known map for the local addresses.
     /*!
@@ -135,13 +128,20 @@ private:
 
     //! Protects #Alerts.
     TSpinLock AlertsLock_;
-    //! A map of registered alerts.
-    yhash_map<TAlertId, TError> Alerts_;
+    //! A list of statically registered alerts.
+    std::vector<TError> StaticAlerts_;
 
     TSpinLock LocalDescriptorLock_;
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
-    
+
+    //! Returns the list of all active alerts, including those induced
+    //! by |CheckForAlerts| subscribers.
+    /*!
+     *  Thread affinity: any
+     */
+    std::vector<TError> GetAlerts();
+
     //! Schedules a new node heartbeat via TDelayedExecutor.
     void ScheduleNodeHeartbeat();
 
