@@ -89,7 +89,7 @@ TNodeResources TJobController::GetResourceLimits()
     result.set_seal_slots(Config_->ResourceLimits->SealSlots);
 
     const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-    result.set_memory(tracker->GetLimit(EMemoryCategory::Jobs));
+    result.set_memory(tracker->GetUsed(EMemoryCategory::Jobs) + tracker->GetTotalFree());
 
     return result;
 }
