@@ -209,6 +209,7 @@ public:
             InitFirstBlocks(tableChunkReader);
             if (LowerLimit_.HasKey()) {
                 tableChunkReader->SkipToKey(LowerLimit_.GetKey());
+                tableChunkReader->BeginRowIndex_ = tableChunkReader->CurrentRowIndex_;
             }
 
             LOG_DEBUG("Reader successfully initilized");
