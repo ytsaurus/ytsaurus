@@ -156,19 +156,18 @@ void TBootstrap::DoRun()
         JoinToString(Config->ClusterConnection->Master->Addresses));
 
     MemoryUsageTracker = std::make_unique<TNodeMemoryTracker>(
-        Config->ExecAgent->JobController->ResourceLimits->Memory,
-        std::vector<std::pair<EMemoryCategory, i64>>{},
+        Config->ResourceLimits->Memory,
+        std::vector<std::pair<EMemoryCategory, i64>>{
+            {EMemoryCategory::Jobs, Config->ExecAgent->JobController->ResourceLimits->Memory},
+            {EMemoryCategory::TabletStatic, Config->TabletNode->ResourceLimits->TabletStaticMemoryLimit},
+            {EMemoryCategory::TabletDynamic, Config->TabletNode->ResourceLimits->TabletDynamicMemoryLimit}
+        },
         Logger,
         TProfiler("/cell_node/memory_usage"));
 
     {
-        auto result = MemoryUsageTracker->TryAcquire(
-            EMemoryCategory::Footprint,
-            FootprintMemorySize);
-        if (!result.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error allocating footprint memory")
-                << result;
-        }
+        auto result = MemoryUsageTracker->TryAcquire(EMemoryCategory::Footprint, FootprintMemorySize);
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving footprint memory");
     }
 
     auto clusterConnection = CreateConnection(Config->ClusterConnection);

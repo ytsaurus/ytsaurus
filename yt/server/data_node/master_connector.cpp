@@ -308,7 +308,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     result.set_available_tablet_slots(slotManager->GetAvailableTabletSlotCount());
     result.set_used_tablet_slots(slotManager->GetUsedTableSlotCount());
 
-    auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+    const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
     auto* protoMemory = result.mutable_memory();
     protoMemory->set_total_limit(tracker->GetTotalLimit());
     protoMemory->set_total_used(tracker->GetTotalUsed());

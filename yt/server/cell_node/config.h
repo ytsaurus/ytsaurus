@@ -21,6 +21,23 @@ namespace NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TResourceLimitsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    i64 Memory;
+
+    TResourceLimitsConfig()
+    {
+        // Very low default, override for production use.
+        RegisterParameter("memory", Memory)
+            .GreaterThanOrEqual(0)
+            .Default((i64) 5 * 1024 * 1024 * 1024);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
+
 class TCellNodeConfig
     : public TServerConfig
 {
@@ -52,7 +69,11 @@ public:
     //! Metadata cache service configuration.
     NObjectServer::TMasterCacheServiceConfigPtr MasterCacheService;
 
+    //! Known node addresses.
     NNodeTrackerClient::TAddressMap Addresses;
+
+    //! Limits for the node process and all jobs controlled by it.
+    TResourceLimitsConfigPtr ResourceLimits;
 
     TCellNodeConfig()
     {
@@ -60,8 +81,6 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("rpc_port", RpcPort)
             .Default(9000);
-        RegisterParameter("addresses", Addresses)
-            .Default();
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10000);
         RegisterParameter("cluster_connection", ClusterConnection)
@@ -76,8 +95,10 @@ public:
             .DefaultNew();
         RegisterParameter("master_cache_service", MasterCacheService)
             .DefaultNew();
-
-        SetKeepOptions(true);
+        RegisterParameter("addresses", Addresses)
+            .Default();
+        RegisterParameter("resource_limits", ResourceLimits)
+            .DefaultNew();
     }
 };
 

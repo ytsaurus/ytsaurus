@@ -62,7 +62,7 @@ public:
     {
         LOG_INFO("Initializing tablet node");
 
-        Slots_.resize(Config_->Slots);
+        Slots_.resize(Config_->ResourceLimits->Slots);
 
         SlotScanExecutor_->Start();
 
@@ -73,9 +73,7 @@ public:
     bool IsOutOfMemory() const
     {
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        return
-            tracker->GetUsed(EMemoryCategory::TabletDynamic) >
-            Config_->MemoryLimit;
+        return tracker->IsExceeded(EMemoryCategory::TabletDynamic);
     }
 
     bool IsRotationForced(i64 passiveUsage) const
@@ -83,7 +81,7 @@ public:
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return
             tracker->GetUsed(EMemoryCategory::TabletDynamic) - passiveUsage >
-            Config_->MemoryLimit * Config_->ForcedRotationsMemoryRatio;
+            tracker->GetLimit(EMemoryCategory::TabletDynamic) * Config_->ForcedRotationsMemoryRatio;
     }
 
     
@@ -91,7 +89,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return Config_->Slots - UsedSlotCount_;
+        return Config_->ResourceLimits->Slots - UsedSlotCount_;
     }
 
     int GetUsedTabletSlotCount() const
@@ -447,7 +445,6 @@ IYPathServicePtr TSlotManager::GetOrchidService()
 DELEGATE_SIGNAL(TSlotManager, void(), BeginSlotScan, *Impl_);
 DELEGATE_SIGNAL(TSlotManager, void(TTabletSlotPtr), ScanSlot, *Impl_);
 DELEGATE_SIGNAL(TSlotManager, void(), EndSlotScan, *Impl_);
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

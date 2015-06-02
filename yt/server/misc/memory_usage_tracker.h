@@ -25,10 +25,12 @@ public:
     i64 GetTotalLimit() const;
     i64 GetTotalUsed() const;
     i64 GetTotalFree() const;
+    bool IsTotalExceeded() const;
 
     i64 GetLimit(ECategory category) const;
     i64 GetUsed(ECategory category) const;
     i64 GetFree(ECategory category) const;
+    bool IsExceeded(ECategory category) const;
 
     // Always succeeds, can lead to an overcommit.
     void Acquire(ECategory category, i64 size);

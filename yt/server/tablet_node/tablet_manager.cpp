@@ -1560,7 +1560,7 @@ private:
     }
 
 
-    static EMemoryCategory GetMemoryConsumerFromStore(IStorePtr store)
+    static EMemoryCategory GetMemoryCategoryFromStore(IStorePtr store)
     {
         switch (store->GetType()) {
             case EStoreType::DynamicMemory:
@@ -1572,13 +1572,13 @@ private:
         }
     }
 
-    static void OnStoreMemoryUsageUpdated(NCellNode::TBootstrap* bootstrap, EMemoryCategory consumer, i64 delta)
+    static void OnStoreMemoryUsageUpdated(NCellNode::TBootstrap* bootstrap, EMemoryCategory category, i64 delta)
     {
         auto* tracker = bootstrap->GetMemoryUsageTracker();
         if (delta >= 0) {
-            tracker->Acquire(consumer, delta);
+            tracker->Acquire(category, delta);
         } else {
-            tracker->Release(consumer, -delta);
+            tracker->Release(category, -delta);
         }
     }
 
@@ -1587,7 +1587,7 @@ private:
         store->SubscribeMemoryUsageUpdated(BIND(
             &TImpl::OnStoreMemoryUsageUpdated,
             Bootstrap_,
-            GetMemoryConsumerFromStore(store)));
+            GetMemoryCategoryFromStore(store)));
     }
 
     void ValidateMemoryLimit()

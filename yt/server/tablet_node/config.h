@@ -412,18 +412,45 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TResourceLimitsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Maximum number of Tablet Managers to run.
+    int Slots;
+
+    //! Maximum amount of memory static tablets (i.e. "in-memory tables") are allowed to occupy.
+    i64 TabletStaticMemoryLimit;
+
+    //! Maximum amount of memory dynamics tablets are allowed to occupy.
+    i64 TabletDynamicMemoryLimit;
+
+    TResourceLimitsConfig()
+    {
+        RegisterParameter("slots", Slots)
+            .GreaterThanOrEqual(0)
+            .Default(4);
+        RegisterParameter("tablet_static_memory_limit", TabletStaticMemoryLimit)
+            .Default(std::numeric_limits<i64>::max());
+        RegisterParameter("tablet_dynamic_memory_limit", TabletDynamicMemoryLimit)
+            .GreaterThanOrEqual(0)
+            .Default((i64) 1024 * 1024 * 1024);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Maximum number of tablet managers to run.
-    int Slots;
-
-    //! Maximum amount of memory tablets are allowed to occupy.
-    i64 MemoryLimit;
-
     //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
     double ForcedRotationsMemoryRatio;
+
+    //! Limits resources consumed by tablets.
+    TResourceLimitsConfigPtr ResourceLimits;
 
     //! Remote snapshots.
     NHydra::TRemoteSnapshotStoreConfigPtr Snapshots;
@@ -463,16 +490,12 @@ public:
 
     TTabletNodeConfig()
     {
-        RegisterParameter("slots", Slots)
-            .GreaterThanOrEqual(0)
-            .Default(4);
-
-        RegisterParameter("memory_limit", MemoryLimit)
-            .GreaterThanOrEqual(0)
-            .Default((i64) 1024 * 1024 * 1024);
         RegisterParameter("forced_rotations_memory_ratio", ForcedRotationsMemoryRatio)
             .InRange(0.0, 1.0)
             .Default(0.8);
+
+        RegisterParameter("resource_limits", ResourceLimits)
+            .DefaultNew();
 
         RegisterParameter("snapshots", Snapshots)
             .DefaultNew();

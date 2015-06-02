@@ -58,6 +58,12 @@ i64 TMemoryUsageTracker<ECategory>::GetTotalFree() const
 }
 
 template <class ECategory>
+bool TMemoryUsageTracker<ECategory>::IsTotalExceeded() const
+{
+    return TotalUsedCounter_.Current > TotalLimit_;
+}
+
+template <class ECategory>
 i64 TMemoryUsageTracker<ECategory>::GetLimit(ECategory category) const
 {
     return Categories_[category].Limit;
@@ -73,6 +79,16 @@ template <class ECategory>
 i64 TMemoryUsageTracker<ECategory>::GetFree(ECategory category) const
 {
     return std::min(GetLimit(category) - GetUsed(category), GetTotalFree());
+}
+
+template <class ECategory>
+bool TMemoryUsageTracker<ECategory>::IsExceeded(ECategory category) const
+{
+    if (IsTotalExceeded()) {
+        return true;
+    }
+    const auto& data = Categories_[category];
+    return data.UsedCounter.Current > data.Limit;
 }
 
 template <class ECategory>
