@@ -24,6 +24,7 @@ namespace NDataNode {
 
 using namespace NConcurrency;
 using namespace NCellNode;
+using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 

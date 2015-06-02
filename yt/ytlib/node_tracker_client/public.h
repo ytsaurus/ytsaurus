@@ -53,6 +53,15 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchRack)    (1603))
 );
 
+DEFINE_ENUM(EMemoryCategory,
+    ((Footprint)      (0))
+    ((BlockCache)     (1))
+    ((ChunkMeta)      (2))
+    ((Job)            (3))
+    ((TabletStatic)   (4))
+    ((TabletDynamic)  (5))
+);
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NNodeTrackerClient

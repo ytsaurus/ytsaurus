@@ -35,6 +35,7 @@ using namespace NCypressClient;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectServer;
 
@@ -145,6 +146,16 @@ private:
                                     .Item("enabled").Value(locationStatistics.enabled())
                                 .EndMap();
                         })
+                        .Item("memory").BeginMap()
+                            .Item("total").BeginMap()
+                                .Item("used").Value(statistics.memory().total_used())
+                                .Item("limit").Value(statistics.memory().total_limit())
+                                .DoFor(statistics.memory().categories(), [] (TFluentMap fluent, const TMemoryStatistics::TCategory& category) {
+                                    fluent.Item(FormatEnum(EMemoryCategory(category.type()))).BeginMap()
+                                    .EndMap();
+                                })
+                            .EndMap()
+                        .EndMap()
                     .EndMap();
                 return true;
             }

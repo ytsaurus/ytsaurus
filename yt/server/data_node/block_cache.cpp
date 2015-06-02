@@ -39,7 +39,7 @@ public:
     void Initialize()
     {
         auto result = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(
-            NCellNode::EMemoryCategory::BlockCache,
+            EMemoryCategory::BlockCache,
             Config_->BlockCache->GetTotalCapacity());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving memory for block cache");
     }

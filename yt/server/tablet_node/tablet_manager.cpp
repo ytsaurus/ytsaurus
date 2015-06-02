@@ -73,6 +73,7 @@ using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectClient;
+using namespace NNodeTrackerClient;
 using namespace NHive;
 using namespace NHive::NProto;
 
