@@ -76,7 +76,7 @@ private:
     i64 RowIndex_ = 0;
 
     TFuture<void> ReadyEvent_;
-    int TableIndex_;
+    int TableIndex_ = 0;
 
     void DoOpen();
 
@@ -105,7 +105,6 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         bool enableTableIndex)
     : Logger(TableClientLogger)
     , EnableTableIndex_(enableTableIndex)
-    , TableIndex_(0)
 {
     YCHECK(!readers.empty());
     int rowsPerSession = RowBufferSize / readers.size();
@@ -140,21 +139,28 @@ TFuture<void> TSchemalessSortedMergingReader::Open()
 
 void TSchemalessSortedMergingReader::DoOpen()
 {
-    std::vector<TFuture<void>> openErrors;
-    for (auto& session : SessionHolder_) {
-        openErrors.push_back(session.Reader->Open());
-    }
-
-    for (auto& asyncError : openErrors) {
-        auto error = WaitFor(asyncError);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to open schemaless merging reader");
-    }
-
-    for (auto& session : SessionHolder_) {
-        if (session.Reader->Read(&session.Rows)) {
-            YCHECK(!session.Rows.empty());
-            SessionHeap_.push_back(&session);
+    try {
+        std::vector<TFuture<void>> openErrors;
+        for (auto& session : SessionHolder_) {
+            openErrors.push_back(session.Reader->Open());
         }
+
+        WaitFor(Combine(openErrors))
+            .ThrowOnError();
+
+        for (auto& session : SessionHolder_) {
+            while (session.Reader->Read(&session.Rows)) {
+                if (!session.Rows.empty()) {
+                    SessionHeap_.push_back(&session);
+                    break;
+                }
+
+                WaitFor(session.Reader->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to open schemaless merging reader") << ex;
     }
 
     if (!SessionHeap_.empty()) {
