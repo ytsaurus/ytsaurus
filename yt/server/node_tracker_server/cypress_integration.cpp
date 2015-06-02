@@ -150,11 +150,16 @@ private:
                             .Item("total").BeginMap()
                                 .Item("used").Value(statistics.memory().total_used())
                                 .Item("limit").Value(statistics.memory().total_limit())
-                                .DoFor(statistics.memory().categories(), [] (TFluentMap fluent, const TMemoryStatistics::TCategory& category) {
-                                    fluent.Item(FormatEnum(EMemoryCategory(category.type()))).BeginMap()
-                                    .EndMap();
-                                })
                             .EndMap()
+                            .DoFor(statistics.memory().categories(), [] (TFluentMap fluent, const TMemoryStatistics::TCategory& category) {
+                                fluent.Item(FormatEnum(EMemoryCategory(category.type())))
+                                    .BeginMap()
+                                        .DoIf(category.has_limit(), [&] (TFluentMap fluent) {
+                                            fluent.Item("limit").Value(category.limit());
+                                        })
+                                        .Item("used").Value(category.used())
+                                    .EndMap();
+                            })
                         .EndMap()
                     .EndMap();
                 return true;
