@@ -23,6 +23,8 @@
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 
+#include <server/misc/memory_usage_tracker.h>
+
 #include <server/cell_node/bootstrap.h>
 
 namespace NYT {
@@ -32,6 +34,7 @@ using namespace NHydra;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,6 +97,9 @@ private:
 
     void ScanSlot(TTabletSlotPtr slot)
     {
+        if (IsMemoryLimitExceeded())
+            return;
+
         if (slot->GetAutomatonState() != EPeerState::Leading)
             return;
 
@@ -167,6 +173,9 @@ private:
         TChunkStorePtr store,
         const NLogging::TLogger& Logger)
     {
+        if (IsMemoryLimitExceeded())
+            return;
+
         auto mode = tablet->GetConfig()->InMemoryMode;
         if (mode == EInMemoryMode::None || mode == EInMemoryMode::Disabled)
             return;
@@ -293,6 +302,9 @@ private:
             if (type != BlockType_)
                 return;
 
+            if (Owner_->IsMemoryLimitExceeded())
+                return;
+
             TGuard<TSpinLock> guard(SpinLock_);
 
             auto it = ChunkIds_.find(id.ChunkId);
@@ -374,6 +386,12 @@ private:
             mode);
 
         return data;
+    }
+
+    bool IsMemoryLimitExceeded() const
+    {
+        const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+        return tracker->IsExceeded(EMemoryCategory::TabletStatic);
     }
 
 };
