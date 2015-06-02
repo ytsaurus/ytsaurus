@@ -373,7 +373,7 @@ private:
             auto& columnInfo = tableChunkReader->GetColumnInfo(id);
             columnInfo.ChunkKeyIndex = i;
 
-            tableChunkReader->EmptyKey_.push_back(MakeUnversionedSentinelValue(EValueType::Null, id));
+            tableChunkReader->EmptyKey_[i] = MakeUnversionedSentinelValue(EValueType::Null, id);
 
             Channel_.AddColumn(chunkKeyColumns[i]);
         }
@@ -589,9 +589,9 @@ i32 TLegacyTableChunkReader::GetRangeIndex() const
 void TLegacyTableChunkReader::ResetCurrentRow()
 {
     YASSERT(CurrentKey_.size() == EmptyKey_.size());
-    std::memcpy(CurrentKey_.data(), EmptyKey_.data(), EmptyKey_.size() * sizeof(TUnversionedRow));
+    std::memcpy(CurrentKey_.data(), EmptyKey_.data(), EmptyKey_.size() * sizeof(TUnversionedValue));
     CurrentRow_.resize(KeyColumns_.size());
-    std::memcpy(CurrentRow_.data(), EmptyKey_.data(), KeyColumns_.size() * sizeof(TUnversionedRow));
+    std::memcpy(CurrentRow_.data(), EmptyKey_.data(), KeyColumns_.size() * sizeof(TUnversionedValue));
 }
 
 void TLegacyTableChunkReader::FinishReader()
