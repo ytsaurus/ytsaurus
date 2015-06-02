@@ -24,11 +24,12 @@ public:
     void Start();
 
 private:
-    TSchedulerConnectorConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
-    IInvokerPtr ControlInvoker;
+    const TSchedulerConnectorConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
+    const IInvokerPtr ControlInvoker_;
 
-    NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor;
+    NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
+
 
     void SendHeartbeat();
     void OnHeartbeatResponse(const NJobTrackerClient::TJobTrackerServiceProxy::TErrorOrRspHeartbeatPtr& rspOrError);
