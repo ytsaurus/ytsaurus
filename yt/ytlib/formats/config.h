@@ -205,16 +205,14 @@ public:
 
             for (const auto& name : KeyColumnNames) {
                 if (!names.insert(name).second) {
-                    THROW_ERROR_EXCEPTION(
-                        "Duplicate column name encountered in \"key_column_names\": %Qv",
+                    THROW_ERROR_EXCEPTION("Duplicate column %Qv found in \"key_column_names\"",
                         name);
                 }
             }
 
             for (const auto& name : SubkeyColumnNames) {
                 if (!names.insert(name).second) {
-                    THROW_ERROR_EXCEPTION(
-                        "Duplicate column name encountered in \"subkey_column_names\": %Qv",
+                    THROW_ERROR_EXCEPTION("Duplicate column %Qv found in \"subkey_column_names\"",
                         name);
                 }
             }
