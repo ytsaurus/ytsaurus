@@ -420,19 +420,19 @@ public:
     int Slots;
 
     //! Maximum amount of memory static tablets (i.e. "in-memory tables") are allowed to occupy.
-    i64 TabletStaticMemoryLimit;
+    i64 TabletStaticMemory;
 
     //! Maximum amount of memory dynamics tablets are allowed to occupy.
-    i64 TabletDynamicMemoryLimit;
+    i64 TabletDynamicMemory;
 
     TResourceLimitsConfig()
     {
         RegisterParameter("slots", Slots)
             .GreaterThanOrEqual(0)
             .Default(4);
-        RegisterParameter("tablet_static_memory_limit", TabletStaticMemoryLimit)
+        RegisterParameter("tablet_static_memory", TabletStaticMemory)
             .Default(std::numeric_limits<i64>::max());
-        RegisterParameter("tablet_dynamic_memory_limit", TabletDynamicMemoryLimit)
+        RegisterParameter("tablet_dynamic_memory", TabletDynamicMemory)
             .GreaterThanOrEqual(0)
             .Default((i64) 1024 * 1024 * 1024);
     }

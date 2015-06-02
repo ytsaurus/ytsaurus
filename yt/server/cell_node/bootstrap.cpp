@@ -159,8 +159,8 @@ void TBootstrap::DoRun()
         Config->ResourceLimits->Memory,
         std::vector<std::pair<EMemoryCategory, i64>>{
             {EMemoryCategory::Jobs, Config->ExecAgent->JobController->ResourceLimits->Memory},
-            {EMemoryCategory::TabletStatic, Config->TabletNode->ResourceLimits->TabletStaticMemoryLimit},
-            {EMemoryCategory::TabletDynamic, Config->TabletNode->ResourceLimits->TabletDynamicMemoryLimit}
+            {EMemoryCategory::TabletStatic, Config->TabletNode->ResourceLimits->TabletStaticMemory },
+            {EMemoryCategory::TabletDynamic, Config->TabletNode->ResourceLimits->TabletDynamicMemory }
         },
         Logger,
         TProfiler("/cell_node/memory_usage"));
