@@ -308,18 +308,18 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     result.set_available_tablet_slots(slotManager->GetAvailableTabletSlotCount());
     result.set_used_tablet_slots(slotManager->GetUsedTableSlotCount());
 
-    auto* memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
+    auto* tracker = Bootstrap_->GetMemoryUsageTracker();
     auto* protoMemory = result.mutable_memory();
-    protoMemory->set_total_limit(memoryUsageTracker->GetTotalLimit());
-    protoMemory->set_total_used(memoryUsageTracker->GetTotalUsed());
+    protoMemory->set_total_limit(tracker->GetTotalLimit());
+    protoMemory->set_total_used(tracker->GetTotalUsed());
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
         auto* protoCategory = protoMemory->add_categories();
         protoCategory->set_type(static_cast<int>(category));
-        auto limit = memoryUsageTracker->GetLimit(category);
+        auto limit = tracker->GetLimit(category);
         if (limit < std::numeric_limits<i64>::max()) {
             protoCategory->set_limit(limit);
         }
-        auto used = memoryUsageTracker->GetUsed(category);
+        auto used = tracker->GetUsed(category);
         protoCategory->set_used(used);
     }
 

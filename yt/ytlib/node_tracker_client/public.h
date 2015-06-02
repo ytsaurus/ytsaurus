@@ -12,6 +12,7 @@ namespace NNodeTrackerClient {
 namespace NProto {
 
 class TNodeStatistics;
+class TNodeResources;
 
 class TNodeDescriptor;
 class TNodeDirectory;

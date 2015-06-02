@@ -55,13 +55,12 @@ struct IJob
     virtual NYTree::TYsonString Strace() const = 0;
 };
 
-typedef
-    TCallback<
-        IJobPtr(
-            const TJobId& jobId,
-            const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-            NJobTrackerClient::NProto::TJobSpec&& jobSpec)
-    > TJobFactory;
+DEFINE_REFCOUNTED_TYPE(IJob)
+
+using TJobFactory = TCallback<IJobPtr(
+    const TJobId& jobId,
+    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    NJobTrackerClient::NProto::TJobSpec&& jobSpec)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
