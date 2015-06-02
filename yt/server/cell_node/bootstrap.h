@@ -136,7 +136,7 @@ private:
 
     void DoRun();
     NNodeTrackerClient::TAddressMap GetLocalAddresses();
-
+    void CheckForAlerts(std::vector<TError>* alerts);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
