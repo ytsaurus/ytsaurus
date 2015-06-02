@@ -163,13 +163,14 @@ private:
             if (!tabletSnapshot)
                 continue;
 
+            const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
             LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %v, "
                 "TotalMemoryUsage: %v, TabletMemoryUsage: %v, "
                 "MemoryLimit: %v)",
                 candidate.TabletId,
-                Bootstrap_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::TabletDynamic),
+                tracker->GetUsed(EMemoryCategory::TabletDynamic),
                 candidate.MemoryUsage,
-                Config_->MemoryLimit);
+                tracker->GetLimit(EMemoryCategory::TabletDynamic));
 
             auto slot = tabletSnapshot->Slot;
             auto invoker = slot->GetGuardedAutomatonInvoker();

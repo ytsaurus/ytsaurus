@@ -27,22 +27,28 @@ public:
         // These are some very low default limits.
         // Override for production use.
         RegisterParameter("user_slots", UserSlots)
+            .GreaterThanOrEqual(0)
             .Default(1);
         RegisterParameter("cpu", Cpu)
+            .GreaterThanOrEqual(0)
             .Default(1);
         RegisterParameter("network", Network)
+            .GreaterThanOrEqual(0)
             .Default(100);
-        // Very low default, override for production use.
         RegisterParameter("memory", Memory)
-            .GreaterThanOrEqual((i64) 1024 * 1024 * 1024)
-            .Default((i64)  5 * 1024 * 1024 * 1024);
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<i64>::max());
         RegisterParameter("replication_slots", ReplicationSlots)
+            .GreaterThanOrEqual(0)
             .Default(16);
         RegisterParameter("removal_slots", RemovalSlots)
+            .GreaterThanOrEqual(0)
             .Default(16);
         RegisterParameter("repair_slots", RepairSlots)
+            .GreaterThanOrEqual(0)
             .Default(4);
         RegisterParameter("seal_slots", SealSlots)
+            .GreaterThanOrEqual(0)
             .Default(16);
     }
 };
