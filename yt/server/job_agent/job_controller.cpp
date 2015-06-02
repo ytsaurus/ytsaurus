@@ -89,7 +89,7 @@ TNodeResources TJobController::GetResourceLimits()
     result.set_seal_slots(Config_->ResourceLimits->SealSlots);
 
     const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-    result.set_memory(tracker->GetTotalFree() + tracker->GetUsed(EMemoryCategory::Job));
+    result.set_memory(tracker->GetTotalFree() + tracker->GetUsed(EMemoryCategory::Jobs));
 
     return result;
 }
@@ -114,9 +114,9 @@ void TJobController::StartWaitingJobs()
 
     {
         auto usedResources = GetResourceUsage(false);
-        auto memoryToRelease = tracker->GetUsed(EMemoryCategory::Job) - usedResources.memory();
+        auto memoryToRelease = tracker->GetUsed(EMemoryCategory::Jobs) - usedResources.memory();
         if (memoryToRelease > 0) {
-            tracker->Release(EMemoryCategory::Job, memoryToRelease);
+            tracker->Release(EMemoryCategory::Jobs, memoryToRelease);
             resourcesUpdated = true;
         }
     }
@@ -139,7 +139,7 @@ void TJobController::StartWaitingJobs()
         }
 
         if (jobResources.memory()) {
-            auto error = tracker->TryAcquire(EMemoryCategory::Job, jobResources.memory());
+            auto error = tracker->TryAcquire(EMemoryCategory::Jobs, jobResources.memory());
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
                     job->GetId());
@@ -250,7 +250,7 @@ bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
 
     if (delta.memory() > 0) {
         auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        auto error = tracker->TryAcquire(EMemoryCategory::Job, delta.memory());
+        auto error = tracker->TryAcquire(EMemoryCategory::Jobs, delta.memory());
         if (!error.IsOK()) {
             return false;
         }
