@@ -26,6 +26,8 @@
 #include <ytlib/node_tracker_client/helpers.h>
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/job_tracker_client/job.pb.h>
+
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>

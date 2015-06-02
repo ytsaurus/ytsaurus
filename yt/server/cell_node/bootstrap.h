@@ -55,7 +55,7 @@ public:
     NRpc::IServerPtr GetRpcServer() const;
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
-    NJobAgent::TJobTrackerPtr GetJobController() const;
+    NJobAgent::TJobControllerPtr GetJobController() const;
     NTabletNode::TSlotManagerPtr GetTabletSlotManager() const;
     NTabletNode::TSecurityManagerPtr GetSecurityManager() const;
     NTabletNode::TInMemoryManagerPtr GetInMemoryManager() const;
@@ -104,7 +104,7 @@ private:
     std::unique_ptr<NHttp::TServer> HttpServer;
     NRpc::IChannelFactoryPtr TabletChannelFactory;
     NYTree::IMapNodePtr OrchidRoot;
-    NJobAgent::TJobTrackerPtr JobController;
+    NJobAgent::TJobControllerPtr JobController;
     NExecAgent::TSlotManagerPtr ExecSlotManager;
     NExecAgent::TEnvironmentManagerPtr EnvironmentManager;
     NJobProxy::TJobProxyConfigPtr JobProxyConfig;

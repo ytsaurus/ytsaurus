@@ -454,7 +454,7 @@ IMapNodePtr TBootstrap::GetOrchidRoot() const
     return OrchidRoot;
 }
 
-TJobTrackerPtr TBootstrap::GetJobController() const
+TJobControllerPtr TBootstrap::GetJobController() const
 {
     return JobController;
 }
