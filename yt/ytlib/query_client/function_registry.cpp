@@ -451,7 +451,7 @@ TDescriptor LookupDescriptor(
     try {
         cypressDescriptor = ConvertToNode(cypressFunctionOrError.Value())
             ->Attributes()
-            .Get<TDescriptor>(descriptorAttribute);
+            .Find<TDescriptor>(descriptorAttribute);
     } catch (const TErrorException& exception) {
         THROW_ERROR_EXCEPTION(
             "Error while deserializing UDF descriptor from Cypress")
