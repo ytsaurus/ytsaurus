@@ -727,7 +727,7 @@ TDataStatistics TLegacyTableChunkReader::GetDataStatistics() const
     result.set_chunk_count(1);
 
     if (SequentialReader_) {
-        result.set_row_count(CurrentRowIndex_ - BeginRowIndex_ + 1);
+        result.set_row_count(CurrentRowIndex_ - BeginRowIndex_);
         result.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
         result.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
     }
