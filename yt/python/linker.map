@@ -1,0 +1,7 @@
+{
+global:
+    init*_lib;
+    init*_lib_d;
+local:
+    *;
+};
