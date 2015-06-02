@@ -79,14 +79,14 @@ TMapExecutor::TMapExecutor()
     , OutArg("", "out", "output table path", false, "YPATH")
     , CommandArg("", "command", "mapper shell command", true, "", "STRING")
     , FileArg("", "file", "additional file path", false, "YPATH")
-    , QueryArg("", "query", "optional query", false, "", "STRING")
+    , InputQueryArg("", "input_query", "optional input query", false, "", "STRING")
     , InputSchemaArg("", "input_schema", "input table schema", false, "", "YSON")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
     CmdLine.add(CommandArg);
     CmdLine.add(FileArg);
-    CmdLine.add(QueryArg);
+    CmdLine.add(InputQueryArg);
     CmdLine.add(InputSchemaArg);
 }
 
@@ -103,14 +103,14 @@ void TMapExecutor::BuildParameters(IYsonConsumer* consumer)
             .Item("mapper").BeginMap()
                 .Item("command").Value(CommandArg.getValue())
                 .Item("file_paths").Value(files)
-                .DoIf(!QueryArg.getValue().empty(), [=] (TFluentMap fluent) {
-                    fluent.Item("query").Value(QueryArg.getValue());
-                })
-                .DoIf(!InputSchemaArg.getValue().empty(), [=] (TFluentMap fluent) {
-                    fluent.Item("input_schema").Value(
-                        ConvertTo<TTableSchema>(TYsonString(InputSchemaArg.getValue(), EYsonType::Node)));
-                })
             .EndMap()
+            .DoIf(!InputQueryArg.getValue().empty(), [=] (TFluentMap fluent) {
+                fluent.Item("input_query").Value(InputQueryArg.getValue());
+            })
+            .DoIf(!InputSchemaArg.getValue().empty(), [=] (TFluentMap fluent) {
+                fluent.Item("input_schema").Value(
+                    ConvertTo<TTableSchema>(TYsonString(InputSchemaArg.getValue(), EYsonType::Node)));
+            })
         .EndMap();
 
     TTransactedExecutor::BuildParameters(consumer);
@@ -309,6 +309,8 @@ TMapReduceExecutor::TMapReduceExecutor()
     , ReducerFileArg("", "reducer_file", "additional reducer file path", false, "YPATH")
     , SortByArg("", "sort_by", "columns to sort by", true, "", "YSON_LIST_FRAGMENT")
     , ReduceByArg("", "reduce_by", "columns to reduce by (if not specified then assumed to be equal to \"sort_by\")", false, "", "YSON_LIST_FRAGMENT")
+    , InputQueryArg("", "input_query", "optional input query", false, "", "STRING")
+    , InputSchemaArg("", "input_schema", "input table schema", false, "", "YSON")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
@@ -320,6 +322,8 @@ TMapReduceExecutor::TMapReduceExecutor()
     CmdLine.add(ReducerFileArg);
     CmdLine.add(SortByArg);
     CmdLine.add(ReduceByArg);
+    CmdLine.add(InputQueryArg);
+    CmdLine.add(InputSchemaArg);
 }
 
 void TMapReduceExecutor::BuildParameters(IYsonConsumer* consumer)
@@ -359,6 +363,13 @@ void TMapReduceExecutor::BuildParameters(IYsonConsumer* consumer)
                 .Item("command").Value(ReducerCommandArg.getValue())
                 .Item("file_paths").Value(reducerFiles)
             .EndMap()
+            .DoIf(!InputQueryArg.getValue().empty(), [=] (TFluentMap fluent) {
+                fluent.Item("input_query").Value(InputQueryArg.getValue());
+            })
+            .DoIf(!InputSchemaArg.getValue().empty(), [=] (TFluentMap fluent) {
+                fluent.Item("input_schema").Value(
+                    ConvertTo<TTableSchema>(TYsonString(InputSchemaArg.getValue(), EYsonType::Node)));
+            })
        .EndMap();
 
     TTransactedExecutor::BuildParameters(consumer);
