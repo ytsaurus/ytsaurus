@@ -9,6 +9,7 @@
 function(UDF udf output)
   get_filename_component( _realpath ${udf} REALPATH )
   get_filename_component( _filename ${_realpath} NAME_WE )
+  get_filename_component( _extension ${_realpath} EXT )
 
   set(_bc_dirname ${CMAKE_BINARY_DIR}/bin/)
   set(_bc_filename ${_filename}.bc)
@@ -23,14 +24,28 @@ function(UDF udf output)
     PATHS $ENV{LLVM_ROOT}/bin
   )
 
+  find_program(CLANGPP_EXECUTABLE
+    NAMES clang++-3.6 clang++
+    PATHS $ENV{LLVM_ROOT}/bin
+  )
+
+  if(${_extension} STREQUAL ".cpp") 
+    set(_compiler ${CLANGPP_EXECUTABLE} -std=c++1y)
+  else()
+    set(_compiler ${CLANG_EXECUTABLE})
+  endif()
+
   add_custom_command(
     OUTPUT
       ${_h_file}
     COMMAND
       ${CMAKE_COMMAND} -E make_directory ${_h_dirname}
     COMMAND
-      ${CLANG_EXECUTABLE} -c
+      ${_compiler} -c
         -I${_include_dir}
+        -I${CMAKE_SOURCE_DIR}/yt
+        -I${CMAKE_SOURCE_DIR}
+        -I${CMAKE_BINARY_DIR}/include
         -emit-llvm
         -o ${_bc_filename}
         ${_realpath}
