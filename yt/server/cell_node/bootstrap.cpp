@@ -226,7 +226,7 @@ void TBootstrap::DoRun()
         localAddresses,
         this);
 
-    MasterConnector->SubscribeCheckForAlerts(BIND(&TBootstrap::CheckForAlerts, this));
+    MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
 
     ChunkStore = New<NDataNode::TChunkStore>(Config->DataNode, this);
 
@@ -647,7 +647,7 @@ TAddressMap TBootstrap::GetLocalAddresses()
     return addresses;
 }
 
-void TBootstrap::CheckForAlerts(std::vector<TError>* alerts)
+void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
 {
     // NB: Don't used IsXXXExceeded helpers to be atomic.
     auto totalUsed = MemoryUsageTracker->GetTotalUsed();

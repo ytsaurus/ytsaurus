@@ -45,7 +45,7 @@ class TMasterConnector
 public:
     //! Raised with each heartbeat.
     //! Subscribers may provide additional dynamic alerts to be reported to master.
-    DEFINE_SIGNAL(void(std::vector<TError>* alerts), CheckForAlerts);
+    DEFINE_SIGNAL(void(std::vector<TError>* alerts), PopulateAlerts);
 
 public:
     //! Creates an instance.
@@ -136,7 +136,7 @@ private:
 
 
     //! Returns the list of all active alerts, including those induced
-    //! by |CheckForAlerts| subscribers.
+    //! by |PopulateAlerts| subscribers.
     /*!
      *  Thread affinity: any
      */

@@ -149,6 +149,9 @@ TNodeId TMasterConnector::GetNodeId() const
 void TMasterConnector::RegisterAlert(const TError& alert)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YCHECK(!alert.IsOK());
+
+    LOG_WARNING(alert, "Static alert registered");
 
     TGuard<TSpinLock> guard(AlertsLock_);
     StaticAlerts_.push_back(alert);
@@ -157,7 +160,11 @@ void TMasterConnector::RegisterAlert(const TError& alert)
 std::vector<TError> TMasterConnector::GetAlerts()
 {
     std::vector<TError> alerts;
-    CheckForAlerts_.Fire(&alerts);
+    PopulateAlerts_.Fire(&alerts);
+
+    for (const auto& alert : alerts) {
+        LOG_WARNING(alert, "Dynamic alert registered");
+    }
 
     TGuard<TSpinLock> guard(AlertsLock_);
     alerts.insert(alerts.end(), StaticAlerts_.begin(), StaticAlerts_.end());
