@@ -647,7 +647,7 @@ TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* pool, int valueCou
 
 namespace {
 
-void ValidateValue(const TUnversionedValue& value)
+void ValidateDynamicValue(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::String:
@@ -779,16 +779,40 @@ void ValidateValueType(
     }
 }
 
+void ValidateStaticValue(const TUnversionedValue& value)
+{
+    ValidateDataValueType(EValueType(value.Type));
+    switch (value.Type) {
+        case EValueType::String:
+        case EValueType::Any:
+            if (value.Length > MaxRowWeightLimit) {
+                THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
+                    value.Length,
+                    MaxRowWeightLimit);
+            }
+            break;
+
+        case EValueType::Double:
+            if (std::isnan(value.Data.Double)) {
+                THROW_ERROR_EXCEPTION("Value of type \"double\" is not a number");
+            }
+            break;
+
+        default:
+            break;
+    }
+}
+
 void ValidateDataValue(const TUnversionedValue& value)
 {
     ValidateDataValueType(EValueType(value.Type));
-    ValidateValue(value);
+    ValidateDynamicValue(value);
 }
 
 void ValidateKeyValue(const TUnversionedValue& value)
 {
     ValidateKeyValueType(EValueType(value.Type));
-    ValidateValue(value);
+    ValidateDynamicValue(value);
 }
 
 void ValidateRowValueCount(int count)
