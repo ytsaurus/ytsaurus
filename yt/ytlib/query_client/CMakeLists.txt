@@ -79,3 +79,4 @@ protoc( ${BASE}/query_service.proto YT_SOURCE_FILES )
 
 udf( ${BASE}/udf/builtin_functions.c YT_SOURCE_FILES )
 udf( ${BASE}/udf/builtin_aggregates.c YT_SOURCE_FILES )
+udf( ${BASE}/udf/hyperloglog.cpp YT_SOURCE_FILES )
