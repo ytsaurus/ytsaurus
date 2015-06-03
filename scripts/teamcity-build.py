@@ -280,9 +280,9 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                 sandbox_archive),
                 status="WARNING")
             shutil.copytree(sandbox_current, sandbox_archive)
-            mkdirp(os.path.join(sandbox_current, "build"))
+            mkdirp(os.path.join(sandbox_archive, "build"))
             for file in working_files_to_archive:
-                shutil.copy(os.path.join(options.working_directory, file), os.path.join(sandbox_current, "build"))
+                shutil.copy(os.path.join(options.working_directory, file), os.path.join(sandbox_archive, "build"))
 
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
