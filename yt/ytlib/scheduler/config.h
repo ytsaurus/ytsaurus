@@ -238,14 +238,14 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInputlyQueriableSpec
+class TInputlyQueryableSpec
     : public virtual NYTree::TYsonSerializable
 {
 public:
     TNullable<Stroka> InputQuery;
     TNullable<NVersionedTableClient::TTableSchema> InputSchema;
 
-    TInputlyQueriableSpec()
+    TInputlyQueryableSpec()
     {
         RegisterParameter("input_query", InputQuery)
             .Default();
@@ -264,7 +264,7 @@ public:
 
 class TMapOperationSpec
     : public TOperationSpecBase
-    , public TInputlyQueriableSpec
+    , public TInputlyQueryableSpec
 {
 public:
     TUserJobSpecPtr Mapper;
@@ -388,12 +388,12 @@ public:
 
 class TUnorderedMergeOperationSpec
     : public TMergeOperationSpec
-    , public TInputlyQueriableSpec
+    , public TInputlyQueryableSpec
 { };
 
 class TOrderedMergeOperationSpec
     : public TMergeOperationSpec
-    , public TInputlyQueriableSpec
+    , public TInputlyQueryableSpec
 { };
 
 class TSortedMergeOperationSpec
@@ -609,7 +609,7 @@ public:
 
 class TMapReduceOperationSpec
     : public TSortOperationSpecBase
-    , public TInputlyQueriableSpec
+    , public TInputlyQueryableSpec
 {
 public:
     std::vector<NYPath::TRichYPath> OutputTablePaths;
