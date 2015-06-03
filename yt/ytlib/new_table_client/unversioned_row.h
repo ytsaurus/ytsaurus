@@ -419,10 +419,13 @@ void ValidateValueType(
     const TTableSchema& schema,
     int schemaId);
 
-//! Checks that #value is allowed to appear in data. Throws on failure.
+//! Checks that #value is allowed to appear in static tables' data. Throws on failure.
+void ValidateStaticValue(const TUnversionedValue& value);
+
+//! Checks that #value is allowed to appear in dynamic tables' data. Throws on failure.
 void ValidateDataValue(const TUnversionedValue& value);
 
-//! Checks that #value is allowed to appear in keys. Throws on failure.
+//! Checks that #value is allowed to appear in dynamic tables' keys. Throws on failure.
 void ValidateKeyValue(const TUnversionedValue& value);
 
 //! Checks that #count represents an allowed number of values in a row. Throws on failure.
