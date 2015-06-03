@@ -373,6 +373,12 @@ private:
         TInvocationGuard(TInvocationGuard&& other) = default;
         TInvocationGuard(const TInvocationGuard& other) = delete;
 
+        void Activate()
+        {
+            YASSERT(!Activated_);
+            Activated_ = true;
+        }
+
         void Reset()
         {
             Owner_.Reset();
@@ -381,12 +387,13 @@ private:
         ~TInvocationGuard()
         {
             if (Owner_) {
-                Owner_->OnFinished();
+                Owner_->OnFinished(Activated_);
             }
         }
 
     private:
         TIntrusivePtr<TSerializedInvoker> Owner_;
+        bool Activated_ = false;
 
     };
 
@@ -406,6 +413,8 @@ private:
 
     void RunCallback(TInvocationGuard invocationGuard)
     {
+        invocationGuard.Activate();
+
         TCurrentInvokerGuard currentInvokerGuard(this);
         TContextSwitchedGuard contextSwitchGuard(BIND(
             &TSerializedInvoker::OnContextSwitched,
@@ -421,13 +430,15 @@ private:
     void OnContextSwitched(TInvocationGuard* invocationGuard)
     {
         invocationGuard->Reset();
-        OnFinished();
+        OnFinished(true);
     }
 
-    void OnFinished()
+    void OnFinished(bool scheduleMore)
     {
         Lock_.clear(std::memory_order_release);
-        TrySchedule();
+        if (scheduleMore) {
+            TrySchedule();
+        }
     }
 
 };
