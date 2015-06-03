@@ -10,13 +10,12 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<HyperLogLog, int> GenerateHyperLogLog(
+std::pair<HyperLogLog<14>, int> GenerateHyperLogLog(
     TRandomGenerator& rng,
     int size,
-    int targetCardinality,
-    int precision)
+    int targetCardinality)
 {
-    auto hll = HyperLogLog(precision);
+    auto hll = HyperLogLog<14>();
 
     int cardinality = 1;
     ui64 n = 0;
@@ -45,8 +44,7 @@ void TestCardinality(
         auto hll = GenerateHyperLogLog(
             rng,
             size,
-            targetCardinality,
-            14);
+            targetCardinality);
         auto err = ((double)hll.first.EstimateCardinality() - hll.second) / hll.second;
         error += err;
     }
