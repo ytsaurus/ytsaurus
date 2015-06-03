@@ -661,7 +661,7 @@ void TBootstrap::CheckForAlerts(std::vector<TError>* alerts)
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
         auto used = MemoryUsageTracker->GetUsed(category);
         auto limit = MemoryUsageTracker->GetLimit(category);
-        if (totalUsed > totalLimit) {
+        if (used > limit) {
             alerts->push_back(TError("Memory limit exceeded for category %Qlv",
                 category)
                 << TErrorAttribute("used", used)
