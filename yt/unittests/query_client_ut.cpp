@@ -29,6 +29,7 @@
 
 #include <ytlib/query_client/folding_profiler.h>
 
+
 #include <tuple>
 
 #define _MIN_ "<\"type\"=\"min\">#"
@@ -3978,9 +3979,32 @@ TEST_F(TQueryEvaluateTest, WronglyTypedAggregate)
         "a=\"\""
     };
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-
     EvaluateExpectingError("avg(a) from [//t] group by 1", split, source);
+}
+
+TEST_F(TQueryEvaluateTest, CardinalityAggregate)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 20000; j++) {
+            source.push_back("a=" + ToString(j));
+        }
+    }
+
+    auto resultSplit = MakeSplit({
+        {"upper", EValueType::Boolean},
+        {"lower", EValueType::Boolean},
+    });
+
+    auto result = BuildRows({
+        "upper=%true;lower=%true"
+    }, resultSplit);
+
+    Evaluate("cardinality(a) < 20200u as upper, cardinality(a) > 19800u as lower from [//t] group by 1", split, source, result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

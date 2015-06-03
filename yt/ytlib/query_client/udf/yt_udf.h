@@ -21,7 +21,7 @@ typedef union TUnversionedValueData
     uint64_t Uint64;
     double Double;
     int8_t Boolean;
-    const char* String;
+    char* String;
 } TUnversionedValueData;
 
 typedef struct TUnversionedValue

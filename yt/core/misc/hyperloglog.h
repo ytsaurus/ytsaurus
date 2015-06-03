@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-
 #include <core/misc/farm_hash.h>
 
 namespace NYT {
@@ -16,7 +15,7 @@ public:
 
     void Add(char* data, size_t length);
 
-    void Merge(HyperLogLog that);
+    void Merge(HyperLogLog* that);
 
     ui64 EstimateCardinality();
 
@@ -80,14 +79,13 @@ void HyperLogLog<precision>::Add(char* data, size_t length)
 }
 
 template<int precision>
-void HyperLogLog<precision>::Merge(HyperLogLog<precision> that)
+void HyperLogLog<precision>::Merge(HyperLogLog<precision>* that)
 {
-    auto thatCount = that.ZeroCounts_.begin();
-    for (auto& count : ZeroCounts_) {
-        if (count < *thatCount) {
-            count = *thatCount;
+    for (int i = 0; i < RegisterCount_; i++) {
+        auto thatCount = that->ZeroCounts_[i];
+        if (ZeroCounts_[i] < thatCount) {
+            ZeroCounts_[i] = thatCount;
         }
-        thatCount++;
     }
 }
 

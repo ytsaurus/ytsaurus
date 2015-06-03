@@ -5,6 +5,7 @@
 
 #include "udf/builtin_functions.h"
 #include "udf/builtin_aggregates.h"
+#include "udf/hyperloglog.h"
 
 #include <ytlib/api/public.h>
 #include <ytlib/api/client.h>
@@ -100,6 +101,11 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
     auto aggregatesImplementation = TSharedRef(
         builtin_aggregates_bc,
         builtin_aggregates_bc_len,
+        nullptr);
+
+    auto hyperloglogImplementation = TSharedRef(
+        hyperloglog_bc,
+        hyperloglog_bc_len,
         nullptr);
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
@@ -230,6 +236,19 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         EValueType::Double,
         EValueType::String,
         aggregatesImplementation,
+        ECallingConvention::UnversionedValue));
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "cardinality",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<EValueType>{
+            EValueType::String,
+            EValueType::Uint64,
+            EValueType::Int64,
+            EValueType::Double,
+            EValueType::Boolean},
+        EValueType::Uint64,
+        EValueType::String,
+        hyperloglogImplementation,
         ECallingConvention::UnversionedValue));
 }
 
