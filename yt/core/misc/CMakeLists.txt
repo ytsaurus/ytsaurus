@@ -45,7 +45,6 @@ set( SRCS
   ${BASE}/subprocess.cpp
   ${BASE}/url.cpp
   ${BASE}/varint.cpp
-  ${BASE}/hyperloglog.cpp
 )
 set( HDRS
   ${BASE}/address.h
