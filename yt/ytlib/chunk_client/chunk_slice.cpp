@@ -493,6 +493,14 @@ void ToProto(TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice)
     }
 
     SetProtoExtension(chunkSpec->mutable_chunk_meta()->mutable_extensions(), chunkSlice.SizeOverrideExt);
+
+    // NB(psushin): probably, #ToProto should never ever filter anything...
+    std::vector<int> extensionTags = {
+        TProtoExtensionTag<TMiscExt>::Value,
+        TProtoExtensionTag<TBoundaryKeysExt>::Value,
+        TProtoExtensionTag<TSizeOverrideExt>::Value };
+    auto filteredMeta = FilterChunkMetaByExtensionTags(chunkSpec->chunk_meta(), extensionTags);
+    *chunkSpec->mutable_chunk_meta() = filteredMeta;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
