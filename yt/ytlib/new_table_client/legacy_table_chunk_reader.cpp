@@ -209,7 +209,6 @@ public:
             InitFirstBlocks(tableChunkReader);
             if (LowerLimit_.HasKey()) {
                 tableChunkReader->SkipToKey(LowerLimit_.GetKey());
-                tableChunkReader->BeginRowIndex_ = tableChunkReader->CurrentRowIndex_;
             }
 
             LOG_DEBUG("Reader successfully initilized");
@@ -562,6 +561,7 @@ bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
         auto row = TUnversionedRow::Allocate(&MemoryPool_, CurrentRow_.size());
         std::copy(CurrentRow_.begin(), CurrentRow_.end(), row.Begin());
         rows->push_back(row);
+        ++RowCount_;
 
         if (!FetchNextRow() || CurrentRow_.empty()) {
             return true;
@@ -727,7 +727,7 @@ TDataStatistics TLegacyTableChunkReader::GetDataStatistics() const
     result.set_chunk_count(1);
 
     if (SequentialReader_) {
-        result.set_row_count(CurrentRowIndex_ - BeginRowIndex_);
+        result.set_row_count(RowCount_);
         result.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
         result.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
     }

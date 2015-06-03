@@ -96,6 +96,7 @@ private:
     i64 CurrentRowIndex_ = -1;
     i64 BeginRowIndex_ = 0;
     i64 EndRowIndex_ = 0;
+    i64 RowCount_ = 0;
 
     int UnfetchedChannelIndex_ = -1;
 
