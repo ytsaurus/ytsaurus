@@ -493,7 +493,7 @@ TNullable<TChunkDescriptor> TLocation::RepairBlobChunk(const TChunkId& chunkId)
             metaFileName);
         NFS::Remove(dataFileName);
         NFS::Remove(metaFileName);
-    }  if (!hasMeta && hasData) {
+    } else if (!hasMeta && hasData) {
         LOG_WARNING("Chunk meta file %v is missing, moving data file %v to trash",
             metaFileName,
             dataFileName);
