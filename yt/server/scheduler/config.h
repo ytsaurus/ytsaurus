@@ -105,6 +105,8 @@ public:
 
     TDuration ChunkScratchPeriod;
 
+    TDuration ClusterInfoLoggingPeriod;
+
     //! Number of chunks scratched per one LocateChunks.
     int MaxChunksPerScratch;
 
@@ -240,9 +242,10 @@ public:
             .Default(TDuration::Minutes(60));
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(15));
-
         RegisterParameter("chunk_scratch_period", ChunkScratchPeriod)
             .Default(TDuration::Seconds(10));
+        RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("max_chunks_per_scratch", MaxChunksPerScratch)
             .Default(1000)

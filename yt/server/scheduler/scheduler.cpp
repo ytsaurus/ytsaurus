@@ -186,6 +186,12 @@ public:
 
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
+
+        LoggingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::OnLogging, MakeWeak(this)),
+            Config_->ClusterInfoLoggingPeriod);
+        LoggingExecutor_->Start();
     }
 
 
@@ -737,6 +743,8 @@ private:
     TNodeResources TotalResourceLimits_;
     TNodeResources TotalResourceUsage_;
 
+    TPeriodicExecutorPtr LoggingExecutor_;
+
     Stroka ServiceAddress_;
 
     NTableClient::IAsyncWriterPtr EventLogWriter_;
@@ -766,6 +774,19 @@ private:
 
         ProfileResources(TotalResourceLimitsProfiler_, TotalResourceLimits_);
         ProfileResources(TotalResourceUsageProfiler_, TotalResourceUsage_);
+    }
+
+
+    void OnLogging()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (IsConnected()) {
+            LogEventFluently(ELogEventType::ClusterInfo)
+                .Item("node_count").Value(GetExecNodeCount())
+                .Item("resource_limits").Value(TotalResourceLimits_)
+                .Item("resource_usage").Value(TotalResourceUsage_);
+        }
     }
 
 

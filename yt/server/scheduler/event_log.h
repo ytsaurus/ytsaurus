@@ -27,6 +27,7 @@ DECLARE_ENUM(ELogEventType,
     (OperationAborted)
     (FairShareInfo)
     (OperationPrepared)
+    (ClusterInfo)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
