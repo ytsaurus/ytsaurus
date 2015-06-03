@@ -8,6 +8,8 @@
 
 #include <ytlib/hydra/public.h>
 
+#include <ytlib/hive/cell_directory.h>
+
 #include <ytlib/node_tracker_client/node_statistics.h>
 
 #include <server/hydra/entity_map.h>
@@ -83,6 +85,10 @@ public:
         NNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response),
         IncrementalHeartbeat);
 
+    //! Fired when the list of registered cells is being constructed.
+    DECLARE_SIGNAL(void(std::vector<NHive::TCellDescriptor>* descriptors),
+        PopulateCellDescriptors);
+
 
     //! Returns a node registered at the given address (|nullptr| if none).
     TNode* FindNodeByAddress(const Stroka& address);
@@ -126,6 +132,7 @@ public:
     TRack* GetRackByNameOrThrow(const Stroka& name);
 
 
+    //! Returns the total cluster statistics, aggregated over all nodes.
     NNodeTrackerClient::TTotalNodeStatistics GetTotalNodeStatistics();
 
     //! Returns the number of nodes in |Registered| state.
@@ -133,6 +140,10 @@ public:
 
     //! Returns the number of nodes in |Online| state.
     int GetOnlineNodeCount();
+
+
+    //! Returns the list of all known cell descriptors.
+    std::vector<NHive::TCellDescriptor> GetCellDescriptors();
 
 private:
     class TImpl;

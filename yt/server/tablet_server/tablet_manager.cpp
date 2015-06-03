@@ -212,6 +212,7 @@ public:
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
+        nodeTracker->SubscribePopulateCellDescriptors(BIND(&TImpl::OnPopulateCellDescriptors, MakeWeak(this)));
     }
 
     void Initialize()
@@ -1109,6 +1110,14 @@ private:
 
         for (auto* cell : missingCells) {
             requestReconfigureCell(cell);
+        }
+    }
+
+    void OnPopulateCellDescriptors(std::vector<TCellDescriptor>* descriptors)
+    {
+        for (const auto& pair : TabletCellMap_) {
+            const auto* tablet = pair.second;
+            descriptors->push_back(tablet->GetDescriptor());
         }
     }
 

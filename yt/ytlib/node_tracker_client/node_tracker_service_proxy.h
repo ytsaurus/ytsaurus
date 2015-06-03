@@ -22,7 +22,7 @@ public:
 
     static int GetProtocolVersion()
     {
-        return 3;
+        return 4;
     }
 
     explicit TNodeTrackerServiceProxy(NRpc::IChannelPtr channel)
@@ -32,6 +32,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterNode);
     DEFINE_RPC_PROXY_METHOD(NProto, FullHeartbeat);
     DEFINE_RPC_PROXY_METHOD(NProto, IncrementalHeartbeat);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetRegisteredCells);
 
 };
 

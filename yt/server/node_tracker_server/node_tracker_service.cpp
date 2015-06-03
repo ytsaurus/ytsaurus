@@ -7,6 +7,8 @@
 
 #include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
+#include <ytlib/hive/cell_directory.h>
+
 #include <server/hydra/rpc_helpers.h>
 
 #include <server/object_server/object_manager.h>
@@ -51,6 +53,7 @@ public:
                 .SetInvoker(bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Heartbeat)));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
                 .SetRequestHeavy(true));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(GetRegisteredCells));
         }
 
 private:
@@ -153,6 +156,19 @@ private:
             ->CreateIncrementalHeartbeatMutation(context)
             ->Commit()
             .Subscribe(CreateRpcResponseHandler(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, GetRegisteredCells)
+    {
+        ValidatePeer(EPeerKind::Leader);
+
+        context->SetRequestInfo();
+
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        ToProto(response->mutable_cell_descriptors(), nodeTracker->GetCellDescriptors());
+
+        context->SetResponseInfo("DescriptorCount: %v",
+            response->cell_descriptors_size());
     }
 
 };
