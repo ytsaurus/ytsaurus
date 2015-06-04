@@ -9,12 +9,12 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<HyperLogLog<8>, int> GenerateHyperLogLog(
+std::pair<THyperLogLog<8>, int> GenerateHyperLogLog(
     TRandomGenerator& rng,
     int size,
     int targetCardinality)
 {
-    auto hll = HyperLogLog<8>();
+    auto hll = THyperLogLog<8>();
 
     int cardinality = 1;
     ui64 n = 0;
