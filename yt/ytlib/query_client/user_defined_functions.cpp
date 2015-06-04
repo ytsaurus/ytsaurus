@@ -496,6 +496,7 @@ Function* GetLlvmFunction(
             argumentValues,
             resultType);
     }
+    callee->addFnAttr(Attribute::AttrKind::AlwaysInline);
     return callee;
 }
 
