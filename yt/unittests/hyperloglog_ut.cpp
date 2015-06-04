@@ -1,4 +1,3 @@
-#include <iostream>
 #include "stdafx.h"
 #include "framework.h"
 
@@ -10,12 +9,12 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<HyperLogLog<14>, int> GenerateHyperLogLog(
+std::pair<HyperLogLog<8>, int> GenerateHyperLogLog(
     TRandomGenerator& rng,
     int size,
     int targetCardinality)
 {
-    auto hll = HyperLogLog<14>();
+    auto hll = HyperLogLog<8>();
 
     int cardinality = 1;
     ui64 n = 0;
@@ -57,12 +56,11 @@ void TestCardinality(
 TEST(HyperLogLogTest, Random)
 {
     auto rng = TRandomGenerator(123);
-    TestCardinality(rng, 1000000, 200, 10);
-    TestCardinality(rng, 1000000, 1000, 10);
-    TestCardinality(rng, 1000000, 50000, 10);
-    TestCardinality(rng, 1000000, 250000, 10);
-    TestCardinality(rng, 1000000, 500000, 10);
-    TestCardinality(rng, 1000000, 750000, 10);
+    TestCardinality(rng, 100000, 200, 10);
+    TestCardinality(rng, 100000, 1000, 10);
+    TestCardinality(rng, 100000, 5000, 10);
+    TestCardinality(rng, 100000, 10000, 10);
+    TestCardinality(rng, 100000, 50000, 10);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

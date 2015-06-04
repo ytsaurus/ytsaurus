@@ -29,7 +29,6 @@
 
 #include <ytlib/query_client/folding_profiler.h>
 
-
 #include <tuple>
 
 #define _MIN_ "<\"type\"=\"min\">#"
@@ -3990,7 +3989,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
 
     std::vector<Stroka> source;
     for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 20000; j++) {
+        for (int j = 0; j < 2000; j++) {
             source.push_back("a=" + ToString(j));
         }
     }
@@ -4004,7 +4003,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
         "upper=%true;lower=%true"
     }, resultSplit);
 
-    Evaluate("cardinality(a) < 20200u as upper, cardinality(a) > 19800u as lower from [//t] group by 1", split, source, result);
+    Evaluate("cardinality(a) < 2020u as upper, cardinality(a) > 1980u as lower from [//t] group by 1", split, source, result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
