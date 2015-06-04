@@ -136,7 +136,6 @@ DEFINE_ENUM(EAutomatonThreadQueue,
 );
 
 DEFINE_ENUM(EInMemoryMode,
-    (Disabled) // COMPAT(babenko)
     (None)
     (Compressed)
     (Uncompressed)

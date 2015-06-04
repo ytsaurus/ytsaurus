@@ -690,7 +690,7 @@ private:
                 tablet,
                 &descriptor.chunk_meta());
             storeManager->AddStore(store);
-            if (mountConfig->InMemoryMode != EInMemoryMode::None && mountConfig->InMemoryMode != EInMemoryMode::Disabled) {
+            if (mountConfig->InMemoryMode != EInMemoryMode::None) {
                 storeManager->ScheduleStorePreload(store);
             }
         }
@@ -1002,7 +1002,7 @@ private:
             storeManager->AddStore(store);
 
             auto chunkData = inMemoryManager->EvictInterceptedChunkData(storeId);
-            if (mountConfig->InMemoryMode != EInMemoryMode::None && mountConfig->InMemoryMode != EInMemoryMode::Disabled) {
+            if (mountConfig->InMemoryMode != EInMemoryMode::None) {
                 if (!storeManager->TryPreloadStoreFromInterceptedData(store, chunkData)) {
                     storeManager->ScheduleStorePreload(store);
                 }

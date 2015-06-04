@@ -540,7 +540,7 @@ bool TStoreManager::TryPreloadStoreFromInterceptedData(
     YCHECK(state == EStorePreloadState::None);
 
     auto mode = Tablet_->GetConfig()->InMemoryMode;
-    YCHECK(mode != EInMemoryMode::None && mode != EInMemoryMode::Disabled);
+    YCHECK(mode != EInMemoryMode::None);
 
     if (!chunkData) {
         LOG_WARNING("Intercepted chunk data for in-memory store is missing (StoreId: %v)",
@@ -631,7 +631,7 @@ void TStoreManager::UpdateInMemoryMode()
         if (store->GetType() == EStoreType::Chunk) {
             auto chunkStore = store->AsChunk();
             chunkStore->SetInMemoryMode(mode);
-            if (mode != EInMemoryMode::None && mode != EInMemoryMode::Disabled) {
+            if (mode != EInMemoryMode::None) {
                 ScheduleStorePreload(chunkStore);
             }
         }
