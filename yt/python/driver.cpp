@@ -207,12 +207,10 @@ public:
             auto admin = DriverInstance_->GetConnection()->CreateAdmin();
             WaitFor(admin->GCCollect())
                 .ThrowOnError();
-        } catch (const TErrorException& ex) {
-            return ConvertTo<Py::Object>(ex.Error());
+            return Py::None();
         } catch (const std::exception& ex) {
             throw CreateYtError(ex.what());
         }
-        return Py::None();
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GCCollect)
 
@@ -236,8 +234,6 @@ public:
             int snapshotId = WaitFor(admin->BuildSnapshot(options))
                 .ValueOrThrow();
             return Py::Long(snapshotId);
-        } catch (const TErrorException& ex) {
-            return ConvertTo<Py::Object>(ex.Error());
         } catch (const std::exception& ex) {
             throw CreateYtError(ex.what());
         }
@@ -250,11 +246,10 @@ public:
 
         try {
             DriverInstance_->GetConnection()->ClearMetadataCaches();
+            return Py::None();
         } catch (const std::exception& error) {
             throw CreateYtError(error.what());
         }
-
-        return Py::None();
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
 
