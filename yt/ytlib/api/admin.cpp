@@ -15,6 +15,8 @@
 
 #include <ytlib/hive/cell_directory.h>
 
+#include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -24,7 +26,9 @@ using namespace NConcurrency;
 using namespace NRpc;
 using namespace NObjectClient;
 using namespace NTabletClient;
+using namespace NNodeTrackerClient;
 using namespace NHydra;
+using namespace NHive;
 
 DECLARE_REFCOUNTED_CLASS(TAdmin)
 
@@ -93,22 +97,38 @@ private:
 
     int DoBuildSnapshot(const TBuildSnapshotOptions& options)
     {
-        auto cellId = options.CellId == NullCellId
-            ? Connection_->GetConfig()->Master->CellId
-            : options.CellId;
         auto cellDirectory = Connection_->GetCellDirectory();
-        auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
-        THydraServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Null); // infinity
+        {
+            TNodeTrackerServiceProxy proxy(LeaderChannel_);
+            auto req = proxy.GetRegisteredCells();
 
-        auto req = proxy.ForceBuildSnapshot();
-        req->set_set_read_only(options.SetReadOnly);
+            auto rsp = WaitFor(req->Invoke())
+                .ValueOrThrow();
 
-        auto rsp = WaitFor(req->Invoke())
-            .ValueOrThrow();
+            auto descriptors = FromProto<TCellDescriptor>(rsp->cell_descriptors());
+            for (const auto& descriptor : descriptors) {
+                cellDirectory->ReconfigureCell(descriptor);
+            }
+        }
 
-        return rsp->snapshot_id();
+        {
+            auto cellId = options.CellId == NullCellId
+                  ? Connection_->GetConfig()->Master->CellId
+                  : options.CellId;
+            auto channel = cellDirectory->GetChannelOrThrow(cellId);
+
+            THydraServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(Null); // infinity
+
+            auto req = proxy.ForceBuildSnapshot();
+            req->set_set_read_only(options.SetReadOnly);
+
+            auto rsp = WaitFor(req->Invoke())
+                .ValueOrThrow();
+
+            return rsp->snapshot_id();
+        }
     }
 
     void DoGCCollect(const TGCCollectOptions& /*options*/)
