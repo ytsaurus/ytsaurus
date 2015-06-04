@@ -1721,14 +1721,10 @@ private:
 
             for (const auto& pair : clustersNode->GetChildren()) {
                 const auto& clusterName = pair.first;
-                auto clusterAttributes = ConvertToAttributes(pair.second);
-
-                auto cellTag = clusterAttributes->Get<TCellTag>("cell_tag");
-                auto defaultNetwork = clusterAttributes->Find<Stroka>("default_network");
-                auto connectionConfig = clusterAttributes->Get<NApi::TConnectionConfigPtr>("connection");
-
-                ClusterDirectory->UpdateCluster(clusterName, connectionConfig, cellTag, defaultNetwork);
+                auto config = ConvertTo<NApi::TConnectionConfigPtr>(pair.second);
+                ClusterDirectory->UpdateCluster(clusterName, config);
             }
+
             LOG_DEBUG("Cluster directory updated successfully");
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error updating cluster directory");

@@ -10,6 +10,9 @@
 
 #include <ytlib/node_tracker_client/node_directory_builder.h>
 
+#include <ytlib/api/connection.h>
+#include <ytlib/api/config.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -413,22 +416,14 @@ private:
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).Data());
 
         auto clusterDirectory = Host->GetClusterDirectory();
-        auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(
-            TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-        remoteCopyJobSpecExt->set_connection_config(
-            ConvertToYsonString(clusterDirectory->GetConnectionConfigOrThrow(Spec_->ClusterName)).Data());
-
-        auto networkName = NNodeTrackerClient::InterconnectNetworkName;
+        auto connection = clusterDirectory->GetConnectionOrThrow(Spec_->ClusterName);
+        auto connectionConfig = CloneYsonSerializable(connection->GetConfig());
         if (Spec_->NetworkName) {
-            networkName = *Spec_->NetworkName;
-        } else {
-            auto defaultNetwork = clusterDirectory->GetDefaultNetwork(Spec_->ClusterName);
-            if (defaultNetwork) {
-                networkName = *defaultNetwork;
-            }
+            connectionConfig->NetworkName = *Spec_->NetworkName;
         }
 
-        remoteCopyJobSpecExt->set_network_name(networkName);
+        auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
+        remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionConfig).Data());
     }
 
 };
