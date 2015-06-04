@@ -35,7 +35,7 @@ TPersistentQueueIterator<T, ChunkSize> TPersistentQueueIterator<T, ChunkSize>::o
 }
 
 template <class T, size_t ChunkSize>
-T& TPersistentQueueIterator<T, ChunkSize>::operator*() const
+const T& TPersistentQueueIterator<T, ChunkSize>::operator*() const
 {
     return CurrentChunk_->Elements[CurrentIndex_];
 }

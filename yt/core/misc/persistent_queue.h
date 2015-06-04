@@ -30,7 +30,6 @@ struct TPersistentQueueChunk
     T Elements[ChunkSize];
 };
 
-// TODO(babenko): implement const iterators
 template <class T, size_t ChunkSize>
 class TPersistentQueueIterator
 {
@@ -40,7 +39,7 @@ public:
     TPersistentQueueIterator& operator++();    // prefix
     TPersistentQueueIterator  operator++(int); // postfix
 
-    T& operator * () const;
+    const T& operator * () const;
 
     bool operator == (const TPersistentQueueIterator& other) const;
     bool operator != (const TPersistentQueueIterator& other) const;
