@@ -332,7 +332,11 @@ def build_python_packages(options):
             if line.startswith(" " * 5) and not line.startswith(" " * 6):
                 versions.append(line.split()[0])
 
-        return sorted(versions, reverse=True, cmp=versions_cmp)[0]
+        versions.sort(reverse=True, cmp=versions_cmp)
+        if versions:
+            return versions[0]
+        else:
+            return "0"
 
     if not options.package:
         return
