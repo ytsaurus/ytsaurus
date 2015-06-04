@@ -160,7 +160,7 @@ class TestJobProber(YTEnvSetup):
 
         for pid, trace in result['traces'].iteritems():
             if trace['trace'] != "attach: ptrace(PTRACE_ATTACH, ...): No such process\n":
-                assert trace['trace'].startswith("Process {0} attached - interrupt to quit".format(pid))
+                assert trace['trace'].startswith("Process {0} attached".format(pid))
         track_op(op_id)
 
 
