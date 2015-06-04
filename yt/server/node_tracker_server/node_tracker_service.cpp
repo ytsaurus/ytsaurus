@@ -169,6 +169,8 @@ private:
 
         context->SetResponseInfo("DescriptorCount: %v",
             response->cell_descriptors_size());
+
+        context->Reply();
     }
 
 };
