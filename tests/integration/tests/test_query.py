@@ -484,3 +484,34 @@ class TestQuery(YTEnvSetup):
         expected = [{"m": "a1000bcd"}]
         actual = select_rows("min(lower(a)) as m from [//tmp/ca] group by 1")
         self.assertItemsEqual(actual, expected)
+
+    def test_cardinality(self):
+        self._sync_create_cells(3, 3)
+
+        create("table", "//tmp/card",
+            attributes = {
+                "schema": [
+                    {"name": "a", "type": "int64"},
+                    {"name": "b", "type": "int64"}],
+                "key_columns": ["a"]
+            })
+
+        pivots = [[i*1000] for i in xrange(0,20)]
+        pivots.insert(0, [])
+        reshard_table("//tmp/card", pivots)
+
+        mount_table("//tmp/card")
+
+        self._wait_for_tablet_state("//tmp/card", ["mounted"])
+
+        data = [{"a" : i} for i in xrange(0,20000)]
+        insert_rows("//tmp/card", data)
+        insert_rows("//tmp/card", data)
+        insert_rows("//tmp/card", data)
+        insert_rows("//tmp/card", data)
+
+        actual = select_rows("cardinality(a) as b from [//tmp/card] group by a % 2 as k order by k limit 2")
+        assert actual[0]["b"] > .95 * 10000
+        assert actual[0]["b"] < 1.05 * 10000
+        assert actual[1]["b"] > .95 * 10000
+        assert actual[1]["b"] < 1.05 * 10000
