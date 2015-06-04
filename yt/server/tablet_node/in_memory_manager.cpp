@@ -177,7 +177,7 @@ private:
             return;
 
         auto mode = tablet->GetConfig()->InMemoryMode;
-        if (mode == EInMemoryMode::None || mode == EInMemoryMode::Disabled)
+        if (mode == EInMemoryMode::None)
             return;
 
         EBlockType blockType;
@@ -352,7 +352,6 @@ private:
                 case EInMemoryMode::Uncompressed:
                     return EBlockType::UncompressedData;
 
-                case EInMemoryMode::Disabled:
                 case EInMemoryMode::None:
                     return EBlockType::None;
 
