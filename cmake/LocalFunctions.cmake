@@ -31,8 +31,10 @@ function(UDF udf output)
 
   if(${_extension} STREQUAL ".cpp") 
     set(_compiler ${CLANGPP_EXECUTABLE} -std=c++1y)
+    set(_depends ${_include_dir}/yt_udf_cpp.h)
   else()
     set(_compiler ${CLANG_EXECUTABLE})
+    set(_depends ${_include_dir}/yt_udf.h)
   endif()
 
   add_custom_command(
@@ -54,7 +56,8 @@ function(UDF udf output)
     MAIN_DEPENDENCY
       ${_realpath}
     DEPENDS
-      ${_include_dir}/yt_udf.h
+      ${_depends}
+      ${_include_dir}/yt_udf_types.h
     WORKING_DIRECTORY
       ${_bc_dirname}
     COMMENT "Generating LLVM bitcode for ${_filename}..."
