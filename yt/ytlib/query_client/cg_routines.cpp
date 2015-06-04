@@ -484,6 +484,11 @@ ui64 SimpleHash(const TUnversionedValue* begin, const TUnversionedValue* end)
     return result;
 }
 
+extern "C" i64 FarmHashString(char* data, i64 len)
+{
+    return NFarmHashPrivate::Hash64(data, len);
+}
+
 ui64 FarmHash(
     const TUnversionedValue* begin,
     const TUnversionedValue* end)
@@ -528,6 +533,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
 #undef REGISTER_ROUTINE
 
     registry->RegisterRoutine("memcmp", std::memcmp);
+    registry->RegisterRoutine("_ZN16NFarmHashPrivate6Hash64EPKcm", NRoutines::FarmHashString);
 }
 
 TRoutineRegistry* GetQueryRoutineRegistry()
