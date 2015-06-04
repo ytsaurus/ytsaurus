@@ -256,7 +256,7 @@ void TVersionedRangeChunkReader::InitFirstBlock()
         SchemaIdMapping_,
         Timestamp_));
 
-    if (LowerLimit_.HasRowIndex()) {
+    if (LowerLimit_.HasRowIndex()  && CurrentRowIndex_ < LowerLimit_.GetRowIndex()) {
         YCHECK(BlockReader_->SkipToRowIndex(LowerLimit_.GetRowIndex() - CurrentRowIndex_));
         CurrentRowIndex_ = LowerLimit_.GetRowIndex();
     }
