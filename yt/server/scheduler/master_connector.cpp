@@ -693,7 +693,7 @@ private:
         void CheckOperationTransactions()
         {
             std::vector<TFuture<void>> asyncResults;
-            for (auto operation : Result.Operations) {
+            for (auto operation : Result.RevivingOperations) {
                 operation->SetState(EOperationState::Reviving);
 
                 auto checkTransaction = [&] (TOperationPtr operation, TTransactionPtr transaction) {
@@ -711,15 +711,11 @@ private:
                         })));
                 };
 
-                if (operation->GetState() != EOperationState::Aborting) {
-                    operation->SetState(EOperationState::Reviving);
-
-                    // NB: Async transaction is not checked.
-                    checkTransaction(operation, operation->GetUserTransaction());
-                    checkTransaction(operation, operation->GetSyncSchedulerTransaction());
-                    checkTransaction(operation, operation->GetInputTransaction());
-                    checkTransaction(operation, operation->GetOutputTransaction());
-                }
+                // NB: Async transaction is not checked.
+                checkTransaction(operation, operation->GetUserTransaction());
+                checkTransaction(operation, operation->GetSyncSchedulerTransaction());
+                checkTransaction(operation, operation->GetInputTransaction());
+                checkTransaction(operation, operation->GetOutputTransaction());
             }
 
             WaitFor(Combine(asyncResults))
@@ -729,7 +725,7 @@ private:
         // - Check snapshots for existence and validate versions.
         void DownloadSnapshots()
         {
-            for (auto operation : Result.Operations) {
+            for (auto operation : Result.RevivingOperations) {
                 if (!operation->GetCleanStart()) {
                     if (!DownloadSnapshot(operation)) {
                         operation->SetCleanStart(true);
