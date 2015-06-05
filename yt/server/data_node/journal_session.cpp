@@ -119,11 +119,16 @@ TFuture<void> TJournalSession::DoPutBlocks(
             recordCount - 1);
     }
 
+    TFuture<void> lastAppendResult;
     for (int index = recordCount - startBlockIndex;
          index < static_cast<int>(blocks.size());
          ++index)
     {
-        LastAppendResult_ = changelog->Append(blocks[index]);
+        lastAppendResult = changelog->Append(blocks[index]);
+    }
+
+    if (lastAppendResult) {
+        LastAppendResult_ = lastAppendResult.ToUncancelable();
     }
 
     return VoidFuture;
