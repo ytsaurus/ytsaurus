@@ -927,8 +927,6 @@ TFuture<void> TJournalDispatcher::TImpl::AppendMultiplexedRecord(
         }
         ClearActiveChangelogs();
 
-        guard.Release();
-
         int oldId = MultiplexedChangelogId_;
         int newId = MultiplexedChangelogId_ + 1;
 
