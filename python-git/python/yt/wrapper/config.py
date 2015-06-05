@@ -2,6 +2,7 @@ import os
 import sys
 import types
 
+import common
 import default_config
 
 # NB: Magic!
@@ -78,6 +79,7 @@ class Config(types.ModuleType):
 
             "RETRY_READ": "read_retries/enable",
             "USE_RETRIES_DURING_WRITE": "write_retries/enable",
+            "USE_RETRIES_DURING_UPLOAD": "write_retries/enable",
 
             "CHUNK_SIZE": "write_retries/chunk_size",
 
@@ -117,6 +119,7 @@ class Config(types.ModuleType):
                     .setter(lambda ojb_self, value, key=key: self._set(self.shortcuts[key], value)))
 
         self.default_config_module = default_config
+        self.common_module = common
 
         self._init()
         self._update_from_env()
@@ -208,6 +211,9 @@ class Config(types.ModuleType):
 
     def __setitem__(self, key, value):
         self.config[key] = value
+
+    def update_config(self, patch):
+        self.common_module.update(self.config, patch)
 
     def get_config(self, client):
         if client is not None:

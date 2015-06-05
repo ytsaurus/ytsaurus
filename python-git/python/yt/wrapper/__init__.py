@@ -36,3 +36,4 @@ VERSION = get_version()
 
 # For PyCharm checks
 import config
+from config import update_config
