@@ -1826,7 +1826,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Aborting operation (OperationId: %s)", ~ToString(operation->GetId()));
+        LOG_INFO("Aborting operation (OperationId: %v)", operation->GetId());
 
         YCHECK(operation->GetState() == EOperationState::Aborting);
 
