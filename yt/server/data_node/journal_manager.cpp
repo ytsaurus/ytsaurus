@@ -583,10 +583,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock_);
-
         // Construct the multiplexed data record and append it.
-        auto multiplexedData = TSharedMutableRef::Allocate(
+        struct TMultiplexedRecordTag { };
+        auto multiplexedData = TSharedMutableRef::Allocate<TMultiplexedRecordTag>(
             record.Data.Size() +
             sizeof (TMultiplexedRecordHeader));
         std::copy(
@@ -597,6 +596,9 @@ private:
             record.Data.Begin(),
             record.Data.End(),
             multiplexedData.Begin() + sizeof (TMultiplexedRecordHeader));
+
+        TGuard<TSpinLock> guard(SpinLock_);
+
         auto appendResult = MultiplexedChangelog_->Append(multiplexedData);
 
         // Check if it is time to rotate.
@@ -614,10 +616,7 @@ private:
             // * all outstanding barriers to become set
             std::vector<TFuture<void>> barriers(Barriers_.begin(), Barriers_.end());
             barriers.push_back(multiplexedFlushResult);
-
             Barriers_.clear();
-
-            guard.Release();
 
             auto combinedBarrier = Combine(barriers);
 
