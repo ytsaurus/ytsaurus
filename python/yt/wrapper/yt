@@ -670,6 +670,7 @@ def main():
                                                "by default YT_PROXY from environment")
     config_parser.add_argument("--prefix", help="specify common prefix for all relative paths, "
                                                 "by default YT_PREFIX from environment")
+    config_parser.add_argument("--config", action=ParseStructuredArgument, help="specify configuration")
     config_parser.add_argument("--tx", help="perform command in the context of the given "
                                             "transaction, by default 0-0-0-0")
     config_parser.add_argument("--ping-ancestor-txs", action="store_true",
@@ -685,6 +686,7 @@ def main():
     parser.add_argument("--version", action="version", version="Version: YT wrapper " + yt.get_version())
 
     subparsers = parser.add_subparsers(metavar="command")
+
 
     def extract_help(help, function):
         if not help:
@@ -779,8 +781,8 @@ def main():
         if len(sys.argv) > 1 and sys.argv[1] in aliases:
             sys.argv = sys.argv[0:1] + aliases[sys.argv[1]] + sys.argv[2:]
 
-
     config_args, unparsed = config_parser.parse_known_args()
+
     if config_args.tx is not None:
         yt.config.TRANSACTION = config_args.tx
         yt.config.PING_ANCESTOR_TRANSACTIONS = config_args.ping_ancestor_txs
@@ -789,11 +791,12 @@ def main():
     if config_args.prefix is not None:
         yt.config.PREFIX = config_args.prefix
     yt.config.TRACE = config_args.trace
+    yt.config.update_config(config_args.config)
 
     args = parser.parse_args(unparsed)
 
     func_args = dict(vars(args))
-    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy"):
+    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config"):
         func_args.pop(key)
     args.func(**func_args)
 
