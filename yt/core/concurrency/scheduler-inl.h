@@ -22,12 +22,6 @@ TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker)
     YASSERT(future);
     YASSERT(invoker);
 
-    if (future.IsCanceled()) {
-        return TError(
-            NYT::EErrorCode::Canceled,
-            "Attempt to wait for a canceled future");
-    }
-
     auto* scheduler = TryGetCurrentScheduler();
     if (scheduler) {
         scheduler->WaitFor(future.template As<void>(), std::move(invoker));
