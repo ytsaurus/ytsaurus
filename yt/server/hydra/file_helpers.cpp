@@ -23,6 +23,11 @@ void TFileWrapper::Flush()
     File_.Flush();
 }
 
+void TFileWrapper::FlushData()
+{
+    File_.FlushData();
+}
+
 void TFileWrapper::Write(const void* buffer, size_t length)
 {
     File_.Write(buffer, length);
