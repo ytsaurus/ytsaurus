@@ -929,6 +929,7 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         yt.config.RETRY_READ = yt.config.RETRY_READ
         yt.config.USE_RETRIES_DURING_WRITE = yt.config.USE_RETRIES_DURING_WRITE
+        yt.config.USE_RETRIES_DURING_UPLOAD = yt.config.USE_RETRIES_DURING_UPLOAD
 
         yt.config.CHUNK_SIZE = yt.config.CHUNK_SIZE
 
@@ -944,6 +945,16 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.config.MEMORY_LIMIT = 1024
         yt.config.POOL = "pool"
         yt.config.INTERMEDIATE_DATA_ACCOUNT = "account"
+
+    def test_config(self):
+        yt.write_table("//tmp/in", ["a=b\n"])
+
+        old_format = yt.config["tabular_data_format"]
+        yt.config.update_config({"tabular_data_format": yt.JsonFormat()})
+
+        assert '{"a":"b"}\n' == yt.read_table("//tmp/in", raw=True).read()
+
+        yt.config["tabular_data_format"] = old_format
 
 
 # Map method for test operations with python entities
