@@ -54,7 +54,7 @@ i64 TMemoryUsageTracker<ECategory>::GetTotalUsed() const
 template <class ECategory>
 i64 TMemoryUsageTracker<ECategory>::GetTotalFree() const
 {
-    return GetTotalLimit() - GetTotalUsed();
+    return std::max(GetTotalLimit() - GetTotalUsed(), 0LL);
 }
 
 template <class ECategory>
@@ -78,7 +78,7 @@ i64 TMemoryUsageTracker<ECategory>::GetUsed(ECategory category) const
 template <class ECategory>
 i64 TMemoryUsageTracker<ECategory>::GetFree(ECategory category) const
 {
-    return std::min(GetLimit(category) - GetUsed(category), GetTotalFree());
+    return std::max(std::min(GetLimit(category) - GetUsed(category), GetTotalFree()), 0LL);
 }
 
 template <class ECategory>
