@@ -134,9 +134,6 @@ public:
     //! Checks if the value is set.
     bool IsSet() const;
 
-    //! Checks if the future is canceled.
-    bool IsCanceled() const;
-
     //! Gets the value.
     /*!
      *  This call will block until the value is set.

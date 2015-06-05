@@ -670,7 +670,7 @@ TEST_W(TFutureTest, NonblockingHolder)
     auto future = promise.ToFuture();
     MakeHolder(future, false);
     EXPECT_FALSE(future.IsSet());
-    EXPECT_TRUE(future.IsCanceled());
+    EXPECT_TRUE(promise.IsCanceled());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -526,13 +526,6 @@ bool TFutureBase<T>::IsSet() const
 }
 
 template <class T>
-bool TFutureBase<T>::IsCanceled() const
-{
-    YASSERT(Impl_);
-    return Impl_->IsCanceled();
-}
-
-template <class T>
 const TErrorOr<T>& TFutureBase<T>::Get() const
 {
     YASSERT(Impl_);

@@ -414,17 +414,7 @@ TEST_F(TSchedulerTest, PropagateFiberCancelationToFuture)
 
     Sleep(TDuration::MilliSeconds(10));
 
-    EXPECT_TRUE(f1.IsCanceled());
-}
-
-TEST_W(TSchedulerTest, WaitForCanceledFuture)
-{
-    auto promise = NewPromise<void>();
-    auto future = promise.ToFuture();
-    future.Cancel();
-    EXPECT_TRUE(future.IsCanceled());
-    auto error = WaitFor(future);
-    EXPECT_EQ(NYT::EErrorCode::Canceled, error.GetCode());
+    EXPECT_TRUE(p1.IsCanceled());
 }
 
 TEST_F(TSchedulerTest, AsyncViaCanceledBeforeStart)
