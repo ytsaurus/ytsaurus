@@ -680,7 +680,7 @@ private:
     {
         auto flushError = WaitFor(flushResult);
         if (!flushError.IsOK()) {
-            LOG_FATAL(flushError);
+            LOG_FATAL(flushError, "Error flushing multiplexed changelog");
         }
 
         auto changelog = CreateMultiplexedChangelog(newId);
@@ -699,7 +699,7 @@ private:
 
         auto error = WaitFor(combinedBarrier);
         if (!error.IsOK()) {
-            LOG_FATAL(error);
+            LOG_FATAL(error, "Error waiting for multiplexed changelog barrier");
         }
 
         MarkMultiplexedChangelogClean(id);
