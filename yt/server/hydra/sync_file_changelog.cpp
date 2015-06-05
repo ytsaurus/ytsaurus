@@ -432,8 +432,8 @@ public:
 
         LOG_DEBUG("Flushing changelog");
 
-        DataFile_->Flush();
-        IndexFile_->Flush();
+        DataFile_->FlushData();
+        IndexFile_->FlushData();
         LastFlushed_ = TInstant::Now();
 
         LOG_DEBUG("Changelog flushed");
