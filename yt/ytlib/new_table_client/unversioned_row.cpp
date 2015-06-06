@@ -1236,13 +1236,13 @@ void Deserialize(TOwningKey& key, INodePtr node)
 
 void TUnversionedOwningRow::Save(TStreamSaveContext& context) const
 {
-    ::NYT::Save(context, SerializeToString(Get()));
+    NYT::Save(context, SerializeToString(Get()));
 }
 
 void TUnversionedOwningRow::Load(TStreamLoadContext& context)
 {
     Stroka data;
-    ::NYT::Load(context, data);
+    NYT::Load(context, data);
     *this = DeserializeFromString(data);
 }
 
