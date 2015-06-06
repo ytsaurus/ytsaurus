@@ -792,6 +792,8 @@ private:
             SchedulePartitionsSampling(tablet);
         }
 
+        UpdateTabletSnapshot(tablet);
+
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
             tabletId);
     }
