@@ -1121,7 +1121,7 @@ class Finalizer(object):
                         "--spec '{{"
                            "combine_chunks=true;"
                            "data_size_per_job={2}"
-                        "}}'".format(table, mode, data_size_per_job, get_config(self.client).http.PROXY))
+                        "}}'".format(table, mode, data_size_per_job, get_config(self.client)["proxy"]["url"]))
 
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
@@ -1415,7 +1415,7 @@ def run_remote_copy(source_table, destination_table, cluster_name,
         current_token = get_config(client)["proxy"]["token"]
 
         get_config(client)["proxy"]["url"] = remote_proxy
-        get_config(client)["proxy"]["token"] = get_value(remote_cluster_token, get_config(client).http.TOKEN)
+        get_config(client)["proxy"]["token"] = get_value(remote_cluster_token, get_config(client)["proxy"]["token"])
         src_attributes = get(source_table[0] + "/@")
 
         get_config(client)["proxy"]["url"] = current_proxy
