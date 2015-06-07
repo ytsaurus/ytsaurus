@@ -15,6 +15,8 @@
 
 #include <server/table_server/public.h>
 
+#include <server/tablet_node/public.h>
+
 #include <server/cell_master/public.h>
 
 namespace NYT {
@@ -24,14 +26,26 @@ namespace NTabletServer {
 
 struct TTabletStatistics
 {
-    TNullable<int> PartitionCount = 0;
-    TNullable<int> StoreCount = 0;
     i64 UnmergedRowCount = 0;
     i64 UncompressedDataSize = 0;
     i64 CompressedDataSize = 0;
+    i64 MemorySize = 0;
     i64 DiskSpace = 0;
     int ChunkCount = 0;
+
+    // These are null for unmounted tablets.
+    // When computing aggregated statistics, however, nulls coerce to 0.
+    TNullable<int> PartitionCount;
+    TNullable<int> StoreCount = 0;
+
+    void Persist(NCellMaster::TPersistenceContext& context);
 };
+
+TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs);
+TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
+
+TTabletStatistics& operator -= (TTabletStatistics& lhs, const TTabletStatistics& rhs);
+TTabletStatistics  operator -  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
 
 void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consumer);
 
@@ -79,6 +93,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NVersionedTableClient::TOwningKey, PivotKey);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TTabletStatistics, NodeStatistics);
     DEFINE_BYREF_RW_PROPERTY(TTabletPerformanceCounters, PerformanceCounters);
+    // Only makes sense for mounted tablets.
+    DEFINE_BYVAL_RW_PROPERTY(NTabletNode::EInMemoryMode, InMemoryMode);
 
 public:
     explicit TTablet(const TTabletId& id);

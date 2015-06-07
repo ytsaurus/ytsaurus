@@ -1384,6 +1384,8 @@ private:
         if (options.CellId != NullTabletCellId) {
             ToProto(req->mutable_cell_id(), options.CellId);
         }
+        req->set_estimated_uncompressed_size(options.EstimatedUncompressedSize);
+        req->set_estimated_compressed_size(options.EstimatedCompressedSize);
 
         const auto& proxy = ObjectProxies_[EMasterChannelKind::Leader];
         WaitFor(proxy->Execute(req))

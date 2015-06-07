@@ -1,11 +1,14 @@
 #pragma once
 
 #include "public.h"
+#include "tablet.h"
 
 #include <core/misc/ref_tracked.h>
 #include <core/misc/property.h>
 #include <core/misc/small_vector.h>
 #include <core/misc/nullable.h>
+
+#include <core/yson/public.h>
 
 #include <ytlib/hive/cell_directory.h>
 
@@ -51,6 +54,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellOptionsPtr, Options);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTablet*>, Tablets);
+    DEFINE_BYREF_RW_PROPERTY(TTabletStatistics, TotalStatistics);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, PrerequisiteTransaction);
 

@@ -134,6 +134,12 @@ private:
             return true;
         }
 
+        if (key == "total_statistics") {
+            BuildYsonFluently(consumer)
+                .Value(cell->TotalStatistics());
+            return true;
+        }
+
         if (key == "prerequisite_transaction_id" && cell->GetPrerequisiteTransaction()) {
             BuildYsonFluently(consumer)
                 .Value(cell->GetPrerequisiteTransaction()->GetId());
