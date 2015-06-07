@@ -141,7 +141,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
 
     if (PyString_Check(obj.ptr())) {
         consumer->OnStringScalar(ConvertToStringBuf(ConvertToString(obj)));
-    } else if (obj.isUnicode()) {
+    } else if (PyUnicode_Check(obj.ptr())) {
         Py::String encoded = Py::String(PyUnicode_AsUTF8String(obj.ptr()), true);
         consumer->OnStringScalar(ConvertToStringBuf(ConvertToString(encoded)));
     } else if (obj.isMapping()) {
