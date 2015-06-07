@@ -297,8 +297,8 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
 
     # NB: Configured by common rule now.
     #memory_limit = get_value(memory_limit, get_config(client).MEMORY_LIMIT)
-    #if memory_limit is not None:
-    #    spec = update({op_type: {"memory_limit": int(memory_limit)}}, spec)
+    if memory_limit is not None:
+        spec = update({op_type: {"memory_limit": int(memory_limit)}}, spec)
     return spec, files + additional_files
 
 def _configure_spec(spec, client):
