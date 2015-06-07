@@ -17,21 +17,81 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, UnmergedRowCount);
+    Persist(context, UncompressedDataSize);
+    Persist(context, CompressedDataSize);
+    Persist(context, MemorySize);
+    Persist(context, DiskSpace);
+    Persist(context, ChunkCount);
+
+    Persist(context, PartitionCount);
+    Persist(context, StoreCount);
+}
+
+TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs)
+{
+    lhs.UnmergedRowCount += rhs.UnmergedRowCount;
+    lhs.UncompressedDataSize += rhs.UncompressedDataSize;
+    lhs.CompressedDataSize += rhs.UncompressedDataSize;
+    lhs.MemorySize += rhs.MemorySize;
+    lhs.DiskSpace += rhs.DiskSpace;
+    lhs.ChunkCount += rhs.ChunkCount;
+
+    lhs.PartitionCount = lhs.PartitionCount.Get(0) + rhs.PartitionCount.Get(0);
+    lhs.StoreCount = lhs.StoreCount.Get(0) + rhs.StoreCount.Get(0);
+
+    return lhs;
+}
+
+TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+{
+    auto result = lhs;
+    result += rhs;
+    return result;
+}
+
+TTabletStatistics& operator -= (TTabletStatistics& lhs, const TTabletStatistics& rhs)
+{
+    lhs.UnmergedRowCount -= rhs.UnmergedRowCount;
+    lhs.UncompressedDataSize -= rhs.UncompressedDataSize;
+    lhs.CompressedDataSize -= rhs.UncompressedDataSize;
+    lhs.MemorySize -= rhs.MemorySize;
+    lhs.DiskSpace -= rhs.DiskSpace;
+    lhs.ChunkCount -= rhs.ChunkCount;
+
+    lhs.PartitionCount = lhs.PartitionCount.Get(0) - rhs.PartitionCount.Get(0);
+    lhs.StoreCount = lhs.StoreCount.Get(0) - rhs.StoreCount.Get(0);
+
+    return lhs;
+}
+
+TTabletStatistics  operator -  (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+{
+    auto result = lhs;
+    result -= rhs;
+    return result;
+}
+
 void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
+            .Item("unmerged_row_count").Value(statistics.UnmergedRowCount)
+            .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
+            .Item("compressed_data_size").Value(statistics.CompressedDataSize)
+            .Item("memory_size").Value(statistics.MemorySize)
+            .Item("disk_space").Value(statistics.DiskSpace)
+            .Item("chunk_count").Value(statistics.ChunkCount)
             .DoIf(static_cast<bool>(statistics.PartitionCount), [&] (TFluentMap fluent) {
                 fluent.Item("partition_count").Value(*statistics.PartitionCount);
             })
             .DoIf(static_cast<bool>(statistics.StoreCount), [&] (TFluentMap fluent) {
                 fluent.Item("store_count").Value(*statistics.StoreCount);
             })
-            .Item("unmerged_row_count").Value(statistics.UnmergedRowCount)
-            .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
-            .Item("compressed_data_size").Value(statistics.CompressedDataSize)
-            .Item("disk_space").Value(statistics.DiskSpace)
-            .Item("chunk_count").Value(statistics.ChunkCount)
         .EndMap();
 }
 
@@ -57,6 +117,7 @@ TTablet::TTablet(const TTabletId& id)
     , State_(ETabletState::Unmounted)
     , Table_(nullptr)
     , Cell_(nullptr)
+    , InMemoryMode_(NTabletNode::EInMemoryMode::None)
 { }
 
 void TTablet::Save(TSaveContext& context) const
@@ -70,6 +131,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Cell_);
     Save(context, PivotKey_);
     Save(context, NodeStatistics_);
+    Save(context, InMemoryMode_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -90,6 +152,10 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 111) {
         Load(context, NodeStatistics_);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 119) {
+        Load(context, InMemoryMode_);
     }
 }
 

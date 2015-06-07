@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "tablet_cell.h"
 
 #include <ytlib/new_table_client/public.h>
 
@@ -44,7 +45,9 @@ public:
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        TTabletCellId cellId);
+        const TTabletCellId& cellId,
+        i64 estimatedUncompressedSize,
+        i64 estimatedCompressedSize);
 
     void UnmountTable(
         NTableServer::TTableNode* table,

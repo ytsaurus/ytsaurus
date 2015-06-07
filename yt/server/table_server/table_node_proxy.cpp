@@ -331,7 +331,11 @@ private:
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
         auto cellId = request->has_cell_id() ? FromProto<TTabletCellId>(request->cell_id()) : NullTabletCellId;
-        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v",
+        i64 estimatedUncompressedSize = request->estimated_uncompressed_size();
+        i64 estimatedCompressedSize = request->estimated_compressed_size();
+        context->SetRequestInfo(
+            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, "
+            "EstimatedUncompressedSize: %v, EsimatedCompressedSize: %v",
             firstTabletIndex,
             lastTabletIndex,
             cellId);
@@ -346,7 +350,9 @@ private:
             impl,
             firstTabletIndex,
             lastTabletIndex,
-            cellId);
+            cellId,
+            estimatedUncompressedSize,
+            estimatedCompressedSize);
 
         context->Reply();
     }

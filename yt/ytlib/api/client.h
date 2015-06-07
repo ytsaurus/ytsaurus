@@ -84,6 +84,13 @@ struct TMountTableOptions
     , public TTabletRangeOptions
 {
     NTabletClient::TTabletCellId CellId;
+    //! A lower estimate for the table's uncompressed size.
+    //! Used for balancing tablets across tablet cells.
+    //! Default is 1 Tb.
+    i64 EstimatedUncompressedSize = (i64) 1 * 1024 * 1024 * 1024 * 1024;
+    //! Same as above but for compressed size.
+    //! Default is 100 Gb.
+    i64 EstimatedCompressedSize = (i64) 100 * 1024 * 1024 * 1024;
 };
 
 struct TUnmountTableOptions
