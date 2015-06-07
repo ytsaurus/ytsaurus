@@ -25,7 +25,7 @@ class Yt(object):
         if proxy is not None:
             self.config["proxy"]["url"] = proxy
         if token is not None:
-            self.config["proxy"]["token"] = token
+            self.config["token"] = token
 
         # TODO(ignat): It is copy-paste of config option. I need avoid it in some way.
         self.RETRY = None
