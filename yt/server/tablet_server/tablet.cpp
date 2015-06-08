@@ -32,7 +32,7 @@ void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, StoreCount);
 }
 
-TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs)
+TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     lhs.UnmergedRowCount += rhs.UnmergedRowCount;
     lhs.UncompressedDataSize += rhs.UncompressedDataSize;
@@ -47,14 +47,14 @@ TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics&
     return lhs;
 }
 
-TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+TTabletStatistics operator +(const TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     auto result = lhs;
     result += rhs;
     return result;
 }
 
-TTabletStatistics& operator -= (TTabletStatistics& lhs, const TTabletStatistics& rhs)
+TTabletStatistics& operator -=(TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     lhs.UnmergedRowCount -= rhs.UnmergedRowCount;
     lhs.UncompressedDataSize -= rhs.UncompressedDataSize;
@@ -69,7 +69,7 @@ TTabletStatistics& operator -= (TTabletStatistics& lhs, const TTabletStatistics&
     return lhs;
 }
 
-TTabletStatistics  operator -  (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+TTabletStatistics operator -(const TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     auto result = lhs;
     result -= rhs;
