@@ -105,13 +105,6 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
-%type <TNullableNamedExpressionList> select-clause-impl
-%type <TExpressionPtr> where-clause-impl
-%type <TNamedExpressionList> group-by-clause-impl
-%type <TExpressionPtr> having-clause-impl
-%type <TIdentifierList> order-by-clause-impl
-%type <i64> limit-clause-impl
-
 %type <TIdentifierList> identifier-list
 %type <TNamedExpressionList> named-expression-list
 %type <TNamedExpression> named-expression
@@ -163,9 +156,13 @@ parse-expression
 ;
 
 select-clause
-    : select-clause-impl[select]
+    : named-expression-list[projections]
         {
-            head->As<TQuery>().SelectExprs = $select;
+            head->As<TQuery>().SelectExprs = $projections;
+        }
+    | Asterisk
+        {
+            head->As<TQuery>().SelectExprs = TNullableNamedExpressionList();
         }
 ;
 
@@ -181,89 +178,43 @@ from-clause
 ;
 
 where-clause
-    : where-clause-impl[where]
+    : KwWhere or-op-expr[predicate]
         {
-            head->As<TQuery>().WherePredicate = $where;
+            head->As<TQuery>().WherePredicate = $predicate;
         }
     |
 ;
 
 group-by-clause
-    : group-by-clause-impl[group]
+    : KwGroupBy named-expression-list[exprs]
         {
-            head->As<TQuery>().GroupExprs = $group;
+            head->As<TQuery>().GroupExprs = $exprs;
         }
     |
 ;
 
 having-clause
-    : having-clause-impl[having]
+    : KwHaving or-op-expr[predicate]
         {
-            head->As<TQuery>().HavingPredicate = $having;
+            head->As<TQuery>().HavingPredicate = $predicate;
         }
     |
 ;
 
 order-by-clause
-    : order-by-clause-impl[order]
+    : KwOrderBy identifier-list[fields]
         {
-            head->As<TQuery>().OrderFields = $order;
+            head->As<TQuery>().OrderFields = $fields;
         }
     |
 ;
 
 limit-clause
-    : limit-clause-impl[limit]
+    : KwLimit Int64Literal[limit]
         {
             head->As<TQuery>().Limit = $limit;
         }
     |
-;
-
-select-clause-impl
-    : named-expression-list[projections]
-        {
-            $$ = $projections;
-        }
-    | Asterisk
-        {
-            $$ = TNullableNamedExpressionList();
-        }
-;
-
-where-clause-impl
-    : KwWhere or-op-expr[predicate]
-        {
-            $$ = $predicate;
-        }
-;
-
-group-by-clause-impl
-    : KwGroupBy named-expression-list[exprs]
-        {
-            $$ = $exprs;
-        }
-;
-
-having-clause-impl
-    : KwHaving or-op-expr[predicate]
-        {
-            $$ = $predicate;
-        }
-;
-
-order-by-clause-impl
-    : KwOrderBy identifier-list[fields]
-        {
-            $$ = $fields;
-        }
-;
-
-limit-clause-impl
-    : KwLimit Int64Literal[limit]
-        {
-            $$ = $limit;
-        }
 ;
 
 identifier-list
