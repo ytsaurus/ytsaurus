@@ -1086,7 +1086,10 @@ private:
             if (!tablet || tablet->GetState() != ETabletState::Mounted)
                 continue;
 
+            auto* cell = tablet->GetCell();
+            cell->TotalStatistics() -= GetTabletStatistics(tablet);
             tablet->NodeStatistics() = tabletInfo.statistics();
+            cell->TotalStatistics() += GetTabletStatistics(tablet);
 
             auto updatePerformanceCounter = [&] (TTabletPerformanceCounter* counter, i64 curValue) {
                 i64 prevValue = counter->Count;
@@ -1363,9 +1366,11 @@ private:
             }
 
             // Apply all requested changes.
+            cell->TotalStatistics() -= GetTabletStatistics(tablet);
             auto* chunkList = table->GetChunkList()->Children()[tablet->GetIndex()]->AsChunkList();
             chunkManager->AttachToChunkList(chunkList, chunksToAttach);
             chunkManager->DetachFromChunkList(chunkList, chunksToDetach);
+            cell->TotalStatistics() += GetTabletStatistics(tablet);
 
             // Unstage just attached chunks.
             // Update table resource usage.
