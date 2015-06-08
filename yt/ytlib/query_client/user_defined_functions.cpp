@@ -453,7 +453,27 @@ TUserDefinedFunction::TUserDefinedFunction(
         GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType))
 { }
 
-Function* GetLlvmFunction(
+Function* GetSharedObjectFunction(
+    TCGContext& builder,
+    const Stroka& functionName,
+    const Stroka& symbolName,
+    std::unique_ptr<llvm::object::ObjectFile> sharedObject,
+    std::vector<Type*> argumentTypes,
+    EValueType resultType)
+{
+    builder.Module->AddObjectFile(std::move(sharedObject), functionName);
+    auto functionType = FunctionType::get(
+        TDataTypeBuilder::get(builder.getContext(), resultType),
+        ArrayRef<Type*>(argumentTypes),
+        false);
+    return Function::Create(
+        functionType,
+        Function::ExternalLinkage,
+        symbolName.c_str(),
+        builder.Module->GetModule());
+}
+
+Function* GetLlvmBitcodeFunction(
     TCGContext& builder,
     const Stroka& functionName,
     const Stroka& symbolName,
@@ -500,22 +520,62 @@ Function* GetLlvmFunction(
     return callee;
 }
 
+Function* GetLlvmFunction(
+    TCGContext& builder,
+    const Stroka& functionName,
+    const Stroka& symbolName,
+    std::vector<Value*> argumentValues,
+    EValueType resultType,
+    TSharedRef implementationFile,
+    ICallingConventionPtr callingConvention)
+{
+    auto buffer = llvm::MemoryBufferRef(
+        llvm::StringRef(implementationFile.Begin(), implementationFile.Size()),
+        llvm::StringRef());
+    auto objectFileError = llvm::object::ObjectFile::createObjectFile(buffer);
+
+    if (!objectFileError) {
+        return GetLlvmBitcodeFunction(
+            builder,
+            functionName,
+            symbolName,
+            argumentValues,
+            implementationFile,
+            resultType,
+            callingConvention);
+    } else {
+        std::vector<Type*> argumentLlvmTypes;
+        for (auto value: argumentValues) {
+            argumentLlvmTypes.push_back(value->getType());
+        }
+
+        return GetSharedObjectFunction(
+            builder,
+            functionName,
+            symbolName,
+            std::move(*objectFileError),
+            argumentLlvmTypes,
+            resultType);
+    }
+}
+
 TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     const Stroka& name) const
 {
-    auto codegenBody = [
-        this_ = MakeStrong(this)
-    ] (std::vector<Value*> argumentValues, TCGContext& builder) {
 
+    auto codegenBody = [
+        this_ = MakeStrong(this),
+        type
+    ] (std::vector<Value*> argumentValues, TCGContext& builder) {
         auto callee = GetLlvmFunction(
             builder,
             this_->FunctionName_,
             this_->SymbolName_,
             argumentValues,
+            type,
             this_->ImplementationFile_,
-            this_->ResultType_,
             this_->CallingConvention_);
         auto result = builder.CreateCall(callee, argumentValues);
         return result;
@@ -574,22 +634,25 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
     EValueType type,
     const Stroka& name) const
 {
+    auto resultType = InferResultType(type, "");
     auto makeCodegenBody = [
-        this_ = MakeStrong(this)
+        this_ = MakeStrong(this),
+        resultType
     ] (const Stroka& functionName) {
         return [
             this_,
+            resultType,
             functionName
         ] (std::vector<Value*> argumentValues, TCGContext& builder) {
-
             auto callee = GetLlvmFunction(
                 builder,
                 functionName,
                 functionName,
                 argumentValues,
+                resultType,
                 this_->ImplementationFile_,
-                this_->ResultType_,
                 this_->CallingConvention_);
+
             return builder.CreateCall(callee, argumentValues);
         };
     };

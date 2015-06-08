@@ -24,6 +24,8 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/Host.h>
 
+#include <llvm/Object/ObjectFile.h>
+
 namespace NYT {
 namespace NCodegen {
 
@@ -80,6 +82,7 @@ private:
         MangleSymbol("memcmp"),
         MangleSymbol("memcpy"),
         MangleSymbol("nanosleep"),
+        MangleSymbol("llabs"),
         MangleSymbol("tolower"),
         MangleSymbol("toupper"),
         MangleSymbol("log"),
@@ -153,6 +156,13 @@ public:
             Finalize();
         }
         return Engine_->getFunctionAddress(name.c_str());
+    }
+
+    void AddObjectFile(
+        std::unique_ptr<llvm::object::ObjectFile> sharedObject,
+        const Stroka& functionName)
+    {
+        Engine_->addObjectFile(std::move(sharedObject));
     }
 
 private:
@@ -312,6 +322,13 @@ llvm::LLVMContext& TCGModule::GetContext()
 uint64_t TCGModule::GetFunctionAddress(const Stroka& name)
 {
     return Impl_->GetFunctionAddress(name);
+}
+
+void TCGModule::AddObjectFile(
+    std::unique_ptr<llvm::object::ObjectFile> sharedObject,
+    const Stroka& functionName)
+{
+    Impl_->AddObjectFile(std::move(sharedObject), functionName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
