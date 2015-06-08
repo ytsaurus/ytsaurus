@@ -161,7 +161,7 @@ def get_proxy_url(proxy=None, check=True, client=None):
     return proxy
 
 def _request_api(proxy, version=None, client=None):
-    proxy = get_proxy_url(proxy)
+    proxy = get_proxy_url(proxy, client=client)
     location = "api" if version is None else "api/" + version
     return make_get_request_with_retries("http://{0}/{1}".format(proxy, location))
 
