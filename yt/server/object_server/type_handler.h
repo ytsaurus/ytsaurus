@@ -96,7 +96,7 @@ struct IObjectTypeHandler
         TRspCreateObjects* response) = 0;
 
     //! Performs the necessary cleanup.
-    virtual void Destroy(TObjectBase* object) = 0;
+    virtual void Destroy(TObjectBase* object) throw() = 0;
 
     //! Given #object, returns its staging transaction or |nullptr| is #object
     //! is not staged.

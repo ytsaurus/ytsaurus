@@ -132,7 +132,7 @@ public:
         , Map_(map)
     { }
 
-    virtual void Destroy(TObjectBase* object) override
+    virtual void Destroy(TObjectBase* object) throw() override
     {
         // Clear ACD, if any.
         auto* acd = this->FindAcd(object);
