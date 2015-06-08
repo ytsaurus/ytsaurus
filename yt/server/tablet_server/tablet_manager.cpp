@@ -291,7 +291,24 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto cellMapNodeProxy = GetCellMapNode();
-        cellMapNodeProxy->RemoveChild(ToString(cell->GetId()));
+        auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cell->GetId()));
+        auto cypressCellNodeProxy = dynamic_cast<ICypressNodeProxy*>(cellNodeProxy.Get());
+
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto locks = cypressManager->ListSubtreeLocks(cypressCellNodeProxy->GetTrunkNode(), nullptr, true);
+
+        // NB: std::set ensures stable order.
+        std::set<TTransaction*> transactions;
+        for (const auto* lock : locks) {
+            transactions.insert(lock->GetTransaction());
+        }
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        for (auto* transaction : transactions) {
+            transactionManager->AbortTransaction(transaction, true);
+        }
+
+        cellMapNodeProxy->RemoveChild(cellNodeProxy);
 
         auto hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->RemoveMailbox(cell->GetId());

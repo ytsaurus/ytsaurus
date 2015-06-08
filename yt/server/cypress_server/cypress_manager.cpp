@@ -1190,6 +1190,20 @@ TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
     return result;
 }
 
+std::vector<TLock*> TCypressManager::ListSubtreeLocks(
+    TCypressNodeBase* trunkNode,
+    TTransaction * transaction,
+    bool includeRoot)
+{
+    auto nodes = ListSubtreeNodes(trunkNode, transaction, includeRoot);
+    std::vector<TLock*> locks;
+    for (const auto* node : nodes) {
+        locks.insert(locks.end(), node->AcquiredLocks().begin(), node->AcquiredLocks().end());
+        locks.insert(locks.end(), node->PendingLocks().begin(), node->PendingLocks().end());
+    }
+    return locks;
+}
+
 bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
 {
     auto* currentNode = trunkNode;
