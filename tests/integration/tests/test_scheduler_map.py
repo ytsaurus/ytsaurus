@@ -468,7 +468,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         jobs_path = "//sys/operations/" + op_id + "/jobs"
         for job_id in ls(jobs_path):
-            assert len(download(jobs_path + "/" + job_id + "/fail_contexts/0")) > 0
+            assert len(download(jobs_path + "/" + job_id + "/fail_context")) > 0
 
     def test_dump_job_context(self):
         create("table", "//tmp/t1")
