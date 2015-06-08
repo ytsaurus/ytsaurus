@@ -167,17 +167,17 @@ class Yamr(object):
             error.inner_errors = [YamrError(stderr, proc.returncode)]
             raise error
 
-    def create_read_range_commands(self, ranges, table, fastbone, read_transaction_id=None):
+    def create_read_range_commands(self, ranges, table, fastbone, transaction_id=None):
         commands = []
-        if read_transaction_id is None:
-            read_transaction_id = "yt_" + generate_uuid()
+        if transaction_id is None:
+            transaction_id = "yt_" + generate_uuid()
         for i, range in enumerate(ranges):
             start, end = range
             if self.proxies:
                 command = 'curl "http://{0}/table/{1}?subkey=1&lenval=1&startindex={2}&endindex={3}"'\
                         .format(self.proxies[i % len(self.proxies)], quote_plus(table), start, end)
             else:
-                shared_tx_str = ("-sharedtransactionid " + read_transaction_id) if self.supports_shared_transactions else ""
+                shared_tx_str = ("-sharedtransactionid " + transaction_id) if self.supports_shared_transactions else ""
                 command = '{0} MR_USER={1} USER=yt ./{2} -server {3} {4} -read {5}:[{6},{7}] -lenval -subkey {8}\n'\
                         .format(self.opts, self.mr_user, self.binary_name, self.server, self._make_fastbone(fastbone), table, start, end, shared_tx_str)
             commands.append(command)
