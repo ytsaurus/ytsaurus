@@ -201,30 +201,40 @@ private:
 
                 LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
 
+                auto foreignExecuteCallback = [&] (
+                    const TQueryPtr& subquery,
+                    TGuid dataId,
+                    ISchemafulWriterPtr writer) -> TQueryStatistics
+                {
+                    LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
+
+                    auto planFragment = New<TPlanFragment>();
+                    planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+                    planFragment->Timestamp = fragment->Timestamp;
+                    planFragment->DataSources.push_back({
+                        dataId,
+                        {
+                            planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
+                            planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
+                        }});
+
+                    planFragment->Query = subquery;
+                    planFragment->VerboseLogging = fragment->VerboseLogging;
+
+                    auto subqueryResult = remoteExecutor->Execute(planFragment, writer);
+
+                    return WaitFor(subqueryResult)
+                        .ValueOrThrow();
+                };
+
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-                    .Run(subquery, mergingReader, pipe->GetWriter(), [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
-                        LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
-
-                        auto planFragment = New<TPlanFragment>();
-                        planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-                        planFragment->Timestamp = fragment->Timestamp;
-                        planFragment->DataSources.push_back({
-                            fragment->ForeignDataId,
-                            {
-                                planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                                planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
-                            }});
-
-                        planFragment->Query = subquery;
-                        planFragment->VerboseLogging = fragment->VerboseLogging;
-
-                        auto subqueryResult = remoteExecutor->Execute(planFragment, writer);
-
-                        return WaitFor(subqueryResult)
-                            .ValueOrThrow();
-                    },
-                    FunctionRegistry_);
+                    .Run(
+                        subquery,
+                        mergingReader,
+                        pipe->GetWriter(),
+                        foreignExecuteCallback,
+                        FunctionRegistry_);
 
                 asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {

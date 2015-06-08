@@ -97,7 +97,7 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 
     TTableSchema schema = query->TableSchema;
 
-    if (auto joinClause = query->JoinClause.Get()) {
+    for (const auto& joinClause : query->JoinClauses) {
         Fold(static_cast<int>(EFoldingObjectType::JoinOp));
 
         Profile(schema);
@@ -111,7 +111,17 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
             codegenSource = MakeCodegenFilterOp(Profile(selfFilter, schema), std::move(codegenSource));
         }
 
-        codegenSource = MakeCodegenJoinOp(joinClause->JoinColumns, schema, std::move(codegenSource));
+        codegenSource = MakeCodegenJoinOp(
+            Variables_->JoinEvaluators.size(),
+            joinClause->JoinColumns,
+            schema,
+            std::move(codegenSource));
+
+
+        Variables_->JoinEvaluators.push_back(GetJoinEvaluator(
+            *joinClause,
+            query->WhereClause,
+            schema));
 
         schema = joinClause->JoinedTableSchema;
     }

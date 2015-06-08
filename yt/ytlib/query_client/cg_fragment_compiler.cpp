@@ -1120,11 +1120,13 @@ void CodegenScanOp(
 }
 
 TCodegenSource MakeCodegenJoinOp(
+    int index,
     std::vector<Stroka> joinColumns,
     TTableSchema sourceSchema,
     TCodegenSource codegenSource)
 {
     return [
+        index,
         MOVE(joinColumns),
         MOVE(sourceSchema),
         codegenSource = std::move(codegenSource)
@@ -1242,6 +1244,7 @@ TCodegenSource MakeCodegenJoinOp(
             builder.Module->GetRoutine("JoinOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
+                builder.getInt32(index),
                 CodegenGroupHasherFunction(keyTypes, *builder.Module),
                 CodegenGroupComparerFunction(keyTypes, *builder.Module),
 

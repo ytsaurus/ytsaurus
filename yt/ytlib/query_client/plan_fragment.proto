@@ -101,6 +101,7 @@ message TJoinClause
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt joined_table_schema = 2;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
+    required NYT.NProto.TGuid foreign_data_id = 5;
 }
 
 message TGroupClause
@@ -133,7 +134,7 @@ message TQuery
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt table_schema = 5;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 6;
 
-    optional TJoinClause join_clause = 7;
+    repeated TJoinClause join_clauses = 7;
     optional TExpression predicate = 8;
     optional TGroupClause group_clause = 9;
     optional TExpression having_clause = 12;
@@ -148,7 +149,6 @@ message TPlanFragment
 
     repeated NYT.NProto.TGuid data_id = 3;
     required bytes data_bounds = 8;
-    required NYT.NProto.TGuid foreign_data_id = 4;
 
     required TQuery query = 5;
     required bool ordered = 6;

@@ -1011,15 +1011,11 @@ public:
         auto tableSchema = GetTableSchema();
 
         for (const auto& column : Self_->GetTableSchema()->Columns()) {
-            if (!tableSchema->FindColumn(column.Name)) {
-                AddColumn(tableSchema, column);
-            }
+            GetColumnPtr(column.Name);
         }
 
         for (const auto& column : Foreign_->GetTableSchema()->Columns()) {
-            if (!tableSchema->FindColumn(column.Name)) {
-                AddColumn(tableSchema, column);
-            }
+            GetColumnPtr(column.Name);
         }
     }
 
@@ -1285,48 +1281,36 @@ TPlanFragmentPtr PreparePlanFragment(
     auto& ast = astHead.As<NAst::TQuery>();
     
     TDataSplit selfDataSplit;
-    TDataSplit foreignDataSplit;
 
     auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
     TSchemaProxyPtr schemaProxy;
-    
-    if (auto simpleSource = ast.Source->As<NAst::TSimpleSource>()) {
-        LOG_DEBUG("Getting initial data split for %v", simpleSource->Path);
 
-        selfDataSplit = WaitFor(callbacks->GetInitialSplit(simpleSource->Path, timestamp)).ValueOrThrow();
-        auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
-        auto keyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
+    auto table = ast.Table;
+    LOG_DEBUG("Getting initial data split for %v", table.Path);
 
-        query->KeyColumns = keyColumns;
-        schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema, keyColumns.size());
-    } else if (auto joinSource = ast.Source->As<NAst::TJoinSource>()) {
-        LOG_DEBUG("Getting initial data split for %v and %v", joinSource->LeftPath, joinSource->RightPath);
+    selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp)).ValueOrThrow();
+    auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
+    auto keyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
 
-        std::vector<TFuture<TDataSplit>> splitFutures({
-            callbacks->GetInitialSplit(joinSource->LeftPath, timestamp),
-            callbacks->GetInitialSplit(joinSource->RightPath, timestamp)
-        });
+    query->KeyColumns = keyColumns;
+    schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema, keyColumns.size());
 
-        auto splits = WaitFor(Combine<TDataSplit>(splitFutures)).ValueOrThrow();
+    for (const auto& join : ast.Joins) {
+        auto foreignDataSplit = WaitFor(callbacks->GetInitialSplit(join.Table.Path, timestamp)).ValueOrThrow();
 
-        selfDataSplit = splits[0];
-        auto selfTableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
-        auto selfKeyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
-
-        foreignDataSplit = splits[1];
         auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
         auto foreignKeyColumns = GetKeyColumnsFromDataSplit(foreignDataSplit);
 
         auto joinClause = New<TJoinClause>();
-        
-        const auto& joinFields = joinSource->Fields;
-        joinClause->JoinColumns = joinFields;
+        joinClause->JoinColumns = join.Fields;
+        joinClause->ForeignKeyColumns = foreignKeyColumns;
+        joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
 
-        auto selfSourceProxy = New<TSimpleSchemaProxy>(&query->TableSchema, selfTableSchema, selfKeyColumns.size());
         auto foreignSourceProxy = New<TSimpleSchemaProxy>(&joinClause->ForeignTableSchema, foreignTableSchema, foreignKeyColumns.size());
+
         // Merge columns.
-        for (const auto& name : joinFields) {
-            const auto* selfColumn = selfSourceProxy->GetColumnPtr(name);
+        for (const auto& name : join.Fields) {
+            const auto* selfColumn = schemaProxy->GetColumnPtr(name);
             const auto* foreignColumn = foreignSourceProxy->GetColumnPtr(name);
 
             if (!selfColumn || !foreignColumn) {
@@ -1344,14 +1328,10 @@ TPlanFragmentPtr PreparePlanFragment(
 
         schemaProxy = New<TJoinSchemaProxy>(
             &joinClause->JoinedTableSchema, 
-            selfSourceProxy,
+            schemaProxy,
             foreignSourceProxy);
-        
-        query->KeyColumns = selfKeyColumns;
-        joinClause->ForeignKeyColumns = foreignKeyColumns;
-        query->JoinClause = std::move(joinClause);
-    } else {
-        YUNREACHABLE();
+
+        query->JoinClauses.push_back(std::move(joinClause));
     }
 
     PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
@@ -1379,10 +1359,6 @@ TPlanFragmentPtr PreparePlanFragment(
         GetObjectIdFromDataSplit(selfDataSplit),
         rowRange});
 
-    if (query->JoinClause) {
-        planFragment->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
-    }
-    
     return planFragment;
 }
 
@@ -1635,6 +1611,7 @@ void ToProto(NProto::TJoinClause* proto, TConstJoinClausePtr original)
     ToProto(proto->mutable_joined_table_schema(), original->JoinedTableSchema);
     ToProto(proto->mutable_foreign_table_schema(), original->ForeignTableSchema);
     ToProto(proto->mutable_foreign_key_columns(), original->ForeignKeyColumns);
+    ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
 }
 
 void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
@@ -1667,9 +1644,7 @@ void ToProto(NProto::TQuery* proto, TConstQueryPtr original)
     ToProto(proto->mutable_table_schema(), original->TableSchema);
     ToProto(proto->mutable_key_columns(), original->KeyColumns);
 
-    if (original->JoinClause) {
-        ToProto(proto->mutable_join_clause(), original->JoinClause);
-    }
+    ToProto(proto->mutable_join_clauses(), original->JoinClauses);
 
     if (original->WhereClause) {
         ToProto(proto->mutable_predicate(), original->WhereClause);
@@ -1736,6 +1711,7 @@ TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
     FromProto(&result->JoinedTableSchema, serialized.joined_table_schema());
     FromProto(&result->ForeignTableSchema, serialized.foreign_table_schema());
     FromProto(&result->ForeignKeyColumns, serialized.foreign_key_columns());
+    FromProto(&result->ForeignDataId, serialized.foreign_data_id());
 
     return result;
 }
@@ -1795,8 +1771,9 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
     FromProto(&query->TableSchema, serialized.table_schema());
     FromProto(&query->KeyColumns, serialized.key_columns());
 
-    if (serialized.has_join_clause()) {
-        query->JoinClause = FromProto(serialized.join_clause());
+    query->JoinClauses.reserve(serialized.join_clauses_size());
+    for (int i = 0; i < serialized.join_clauses_size(); ++i) {
+        query->JoinClauses.push_back(FromProto(serialized.join_clauses(i)));
     }
 
     if (serialized.has_predicate()) {
@@ -1838,7 +1815,6 @@ void ToProto(NProto::TPlanFragment* proto, TConstPlanFragmentPtr fragment)
 
     ToProto(proto->mutable_data_bounds(), ToString(MergeRefs(writer.Flush())));
 
-    ToProto(proto->mutable_foreign_data_id(), fragment->ForeignDataId);
     proto->set_ordered(fragment->Ordered);
     proto->set_verbose_logging(fragment->VerboseLogging);
     
@@ -1869,8 +1845,6 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
         dataSource.Range = TRowRange(lowerBound, upperBound);
         result->DataSources.push_back(dataSource);
     }
-
-    FromProto(&result->ForeignDataId, serialized.foreign_data_id());
 
     return result;
 }

@@ -234,6 +234,8 @@ struct TJoinClause
     TKeyColumns ForeignKeyColumns;
     std::vector<Stroka> JoinColumns;
 
+    TGuid ForeignDataId;
+
     // TODO: Use ITableSchemaInterface
     TTableSchema JoinedTableSchema;
 
@@ -317,7 +319,7 @@ struct TQuery
         , Id(TGuid::Create())
         , TableSchema(other.TableSchema)
         , KeyColumns(other.KeyColumns)
-        , JoinClause(other.JoinClause)
+        , JoinClauses(other.JoinClauses)
         , WhereClause(other.WhereClause)
         , GroupClause(other.GroupClause)
         , HavingClause(other.HavingClause)
@@ -334,7 +336,7 @@ struct TQuery
     TTableSchema TableSchema;
     TKeyColumns KeyColumns;
 
-    TConstJoinClausePtr JoinClause;
+    std::vector<TConstJoinClausePtr> JoinClauses;
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
     TConstExpressionPtr HavingClause;
@@ -353,8 +355,8 @@ struct TQuery
             return GroupClause->GetTableSchema();
         }
 
-        if (JoinClause) {
-            return JoinClause->GetTableSchema();
+        if (!JoinClauses.empty()) {
+            return JoinClauses.back()->GetTableSchema();
         }
 
         return TableSchema;
@@ -386,7 +388,6 @@ struct TPlanFragment
 
     const TRowBufferPtr KeyRangesRowBuffer = New<TRowBuffer>();
     TDataSources DataSources;
-    TGuid ForeignDataId;
 
     TConstQueryPtr Query;
     bool Ordered = false;

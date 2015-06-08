@@ -105,6 +105,8 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
+%type <TTableDescriptor> table-descriptor
+
 %type <TIdentifierList> identifier-list
 %type <TNamedExpressionList> named-expression-list
 %type <TNamedExpression> named-expression
@@ -166,15 +168,30 @@ select-clause
         }
 ;
 
+table-descriptor
+    : Identifier[path] Identifier[alias]
+        {
+            $$ = TTableDescriptor(Stroka($path), Stroka($alias));
+        }
+    |   Identifier[path]
+        {
+            $$ = TTableDescriptor(Stroka($path), Stroka());
+        }
+;
+
 from-clause
-    : KwFrom Identifier[path]
+    : KwFrom table-descriptor[table] join-clause
         {
-            head->As<TQuery>().Source = New<TSimpleSource>(Stroka($path));
+            head->As<TQuery>().Table = $table;
         }
-    | KwFrom Identifier[left_path] KwJoin Identifier[right_path] KwUsing identifier-list[fields]
+;
+
+join-clause
+    : join-clause KwJoin table-descriptor[table] KwUsing identifier-list[fields]
         {
-            head->As<TQuery>().Source = New<TJoinSource>(Stroka($left_path), Stroka($right_path), $fields);
+            head->As<TQuery>().Joins.emplace_back($table, $fields);
         }
+    |
 ;
 
 where-clause

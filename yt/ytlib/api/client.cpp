@@ -501,7 +501,6 @@ private:
                 auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->NodeDirectory = fragment->NodeDirectory;
                 subfragment->Timestamp = fragment->Timestamp;
-                subfragment->ForeignDataId = fragment->ForeignDataId;
                 subfragment->Query = subquery;
                 subfragment->RangeExpansionLimit = fragment->RangeExpansionLimit,
                 subfragment->VerboseLogging = fragment->VerboseLogging;

@@ -252,6 +252,65 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using c where (a, b) IN ((2, 1))")
         assert expected == actual
 
+    def test_join_many(self):
+        self._sync_create_cells(1, 1)
+
+        self._create_table(
+            "//tmp/a",
+            [
+                {"name": "a", "type": "int64"},
+                {"name": "c", "type": "string"}],
+            ["a"],
+            [
+                {"a": 1, "c": "a"},
+                {"a": 2, "c": "b"},
+                {"a": 3, "c": "c"},
+                {"a": 4, "c": "a"},
+                {"a": 5, "c": "b"},
+                {"a": 6, "c": "c"}
+            ]);
+
+        self._create_table(
+            "//tmp/b",
+            [
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "string"},
+                {"name": "d", "type": "string"}],
+            ["b"],
+            [
+                {"b": 100, "c": "a", "d": "X"},
+                {"b": 200, "c": "b", "d": "Y"},
+                {"b": 300, "c": "c", "d": "X"},
+                {"b": 400, "c": "a", "d": "Y"},
+                {"b": 500, "c": "b", "d": "X"},
+                {"b": 600, "c": "c", "d": "Y"}
+            ]);
+
+        self._create_table(
+            "//tmp/c",
+            [
+                {"name": "d", "type": "string"},
+                {"name": "e", "type": "int64"}],
+            ["d"],
+            [
+                {"d": "X", "e": 1234},
+                {"d": "Y", "e": 5678}
+            ]);
+
+        expected = [
+            {"a": 2, "c": "b", "b": 200, "d": "Y", "e": 5678},
+            {"a": 2, "c": "b", "b": 500, "d": "X", "e": 1234},
+
+            {"a": 3, "c": "c", "b": 300, "d": "X", "e": 1234},
+            {"a": 3, "c": "c", "b": 600, "d": "Y", "e": 5678},
+
+            {"a": 4, "c": "a", "b": 100, "d": "X", "e": 1234},
+            {"a": 4, "c": "a", "b": 400, "d": "Y", "e": 5678}]
+
+        actual = select_rows("* from [//tmp/a] join [//tmp/b] using c join [//tmp/c] using d where a in (2,3,4)") 
+        assert sorted(expected) == sorted(actual)
+
+
     def test_types(self):
         create("table", "//tmp/t")
 

@@ -184,6 +184,7 @@ void SaveJoinRow(
 
 void JoinOpHelper(
     TExecutionContext* context,
+    int index,
     ui64 (*groupHasher)(TRow),
     char (*groupComparer)(TRow, TRow),
     void** collectRowsClosure,
@@ -212,7 +213,7 @@ void JoinOpHelper(
         allRows.size());
 
     std::vector<TRow> joinedRows;
-    context->JoinEvaluator(
+    context->JoinEvaluators[index](
         context,
         groupHasher,
         groupComparer,

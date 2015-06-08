@@ -323,14 +323,17 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // "identifier"
       char dummy11[sizeof(TStringBuf)];
 
+      // table-descriptor
+      char dummy12[sizeof(TTableDescriptor)];
+
       // "double literal"
-      char dummy12[sizeof(double)];
+      char dummy13[sizeof(double)];
 
       // "int64 literal"
-      char dummy13[sizeof(i64)];
+      char dummy14[sizeof(i64)];
 
       // "uint64 literal"
-      char dummy14[sizeof(ui64)];
+      char dummy15[sizeof(ui64)];
 };
 
     /// Symbol semantic values.
@@ -448,6 +451,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TTableDescriptor v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const double v, const location_type& l);
 
@@ -758,7 +763,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const unsigned char yytable_[];
 
-  static const signed char yycheck_[];
+  static const unsigned char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -874,7 +879,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     {
       yyeof_ = 0,
       yylast_ = 129,     ///< Last index in yytable_.
-      yynnts_ = 33,  ///< Number of nonterminal symbols.
+      yynnts_ = 35,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 36, ///< Termination state number.
       yyterror_ = 1,
