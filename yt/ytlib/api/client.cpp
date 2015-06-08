@@ -1401,7 +1401,7 @@ private:
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
         if (options.LastTabletIndex) {
-            req->set_first_tablet_index(*options.LastTabletIndex);
+            req->set_last_tablet_index(*options.LastTabletIndex);
         }
         req->set_force(options.Force);
 
