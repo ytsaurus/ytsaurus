@@ -942,9 +942,11 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         yt.config.format.TABULAR_DATA_FORMAT = yt.config.format.TABULAR_DATA_FORMAT
 
-        yt.config.MEMORY_LIMIT = 1024
+        yt.config.MEMORY_LIMIT = 1024 * 1024 * 1024
         yt.config.POOL = "pool"
-        yt.config.INTERMEDIATE_DATA_ACCOUNT = "account"
+        yt.config.INTERMEDIATE_DATA_ACCOUNT = "tmp"
+        # Reset spec options
+        yt.config["spec_defaults"] = {}
 
     def test_config(self):
         yt.write_table("//tmp/in", ["a=b\n"])
