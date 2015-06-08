@@ -36,7 +36,7 @@ TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics&
 {
     lhs.UnmergedRowCount += rhs.UnmergedRowCount;
     lhs.UncompressedDataSize += rhs.UncompressedDataSize;
-    lhs.CompressedDataSize += rhs.UncompressedDataSize;
+    lhs.CompressedDataSize += rhs.CompressedDataSize;
     lhs.MemorySize += rhs.MemorySize;
     lhs.DiskSpace += rhs.DiskSpace;
     lhs.ChunkCount += rhs.ChunkCount;
@@ -58,7 +58,7 @@ TTabletStatistics& operator -= (TTabletStatistics& lhs, const TTabletStatistics&
 {
     lhs.UnmergedRowCount -= rhs.UnmergedRowCount;
     lhs.UncompressedDataSize -= rhs.UncompressedDataSize;
-    lhs.CompressedDataSize -= rhs.UncompressedDataSize;
+    lhs.CompressedDataSize -= rhs.CompressedDataSize;
     lhs.MemorySize -= rhs.MemorySize;
     lhs.DiskSpace -= rhs.DiskSpace;
     lhs.ChunkCount -= rhs.ChunkCount;
