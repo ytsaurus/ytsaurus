@@ -3,6 +3,8 @@
 #include "string.h"
 #include "process.h"
 
+#include <core/tools/registry.h>
+
 #include <core/logging/log.h>
 
 #include <core/misc/string.h>
@@ -50,7 +52,7 @@ std::vector<int> GetPidsByUid(int uid)
             continue;
         }
 
-        auto path = Sprintf("/proc/%d", pid);
+        auto path = Format("/proc/%v", pid);
         struct stat buf;
         int res = ::stat(~path, &buf);
 
@@ -61,7 +63,7 @@ std::vector<int> GetPidsByUid(int uid)
         } else {
             // Assume that the process has already completed.
             auto errno_ = errno;
-            LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %d: stat failed",
+            LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %v: stat failed",
                 pid);
             YCHECK(errno_ == ENOENT || errno_ == ENOTDIR);
         }
@@ -119,7 +121,7 @@ std::vector<Stroka> GetProcessCommandLine(int pid)
 void RemoveDirAsRoot(const Stroka& path)
 {
     // Child process
-    YCHECK(setuid(0) == 0);
+    SafeSetUid(0);
     execl("/bin/rm", "/bin/rm", "-rf", path.c_str(), (void*)nullptr);
 
     THROW_ERROR_EXCEPTION("Failed to remove directory %Qv: execl failed",
@@ -178,7 +180,7 @@ bool TryDup2(int oldFD, int newFD)
     }
 }
 
-bool TryClose(int fd)
+bool TryClose(int fd, bool ignoreBadFD)
 {
     while (true) {
         auto res = ::close(fd);
@@ -192,18 +194,18 @@ bool TryClose(int fd)
             // http://rb.yandex-team.ru/arc/r/44030/
             // before editing.
             case EINTR:
-            // If the descriptor is no longer valid, just ignore it.
-            case EBADF:
                 return true;
+            case EBADF:
+                return ignoreBadFD;
             default:
                 return false;
         }
     }
 }
 
-void SafeClose(int fd)
+void SafeClose(int fd, bool ignoreBadFD)
 {
-    if (!TryClose(fd)) {
+    if (!TryClose(fd, ignoreBadFD)) {
         THROW_ERROR TError::FromSystem();
     }
 }
@@ -265,31 +267,47 @@ void SafePipe(int fd[2])
 #endif
 }
 
-void SafeMakeNonblocking(int fd)
+bool TryMakeNonblocking(int fd)
 {
     auto res = fcntl(fd, F_GETFL);
 
     if (res == -1) {
-        THROW_ERROR_EXCEPTION("fcntl failed to get descriptor flags")
-            << TError::FromSystem();
+        return false;
     }
 
     res = fcntl(fd, F_SETFL, res | O_NONBLOCK);
 
     if (res == -1) {
-        THROW_ERROR_EXCEPTION("fcntl failed to set descriptor flags")
+        return false;
+    }
+
+    return true;
+}
+
+void SafeMakeNonblocking(int fd)
+{
+    if (!TryMakeNonblocking(fd)) {
+        THROW_ERROR_EXCEPTION("Failed to set nonblocking mode for descriptor %v", fd)
+            << TError::FromSystem();
+    }
+}
+
+void SafeSetUid(int uid)
+{
+    if (setuid(uid) != 0) {
+        THROW_ERROR_EXCEPTION("setuid failed to set uid to %v", uid)
             << TError::FromSystem();
     }
 }
 
 #else
 
-bool TryClose(int /* fd */)
+bool TryClose(int /* fd */, bool /* ignoreBadFD */)
 {
     YUNIMPLEMENTED();
 }
 
-void SafeClose(int /* fd */)
+void SafeClose(int /* fd */, bool /* ignoreBadFD */)
 {
     YUNIMPLEMENTED();
 }
@@ -334,7 +352,17 @@ void SafePipe(int /* fd */ [2])
     YUNIMPLEMENTED();
 }
 
+bool TryMakeNonblocking(int /* fd */)
+{
+    YUNIMPLEMENTED();
+}
+
 void SafeMakeNonblocking(int /* fd */)
+{
+    YUNIMPLEMENTED();
+}
+
+void SafeSetUid(int /* uid */)
 {
     YUNIMPLEMENTED();
 }
@@ -367,6 +395,15 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
     YCHECK(::closedir(dirStream) == 0);
 #endif
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRemoveDirAsRootTool::operator()(const Stroka& arg) const
+{
+    RemoveDirAsRoot(arg);
+}
+
+REGISTER_TOOL(TRemoveDirAsRootTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

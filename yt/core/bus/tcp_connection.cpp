@@ -11,8 +11,6 @@
 
 #include <core/ytree/convert.h>
 
-#include <core/profiling/profile_manager.h>
-
 #include <util/system/error.h>
 
 #include <errno.h>
@@ -34,42 +32,6 @@ static const size_t MaxBatchReadSize = 64 * 1024;
 static const size_t MaxFragmentsPerWrite = 256;
 static const size_t MaxBatchWriteSize    = 64 * 1024;
 static const size_t MaxWriteCoalesceSize = 4 * 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTcpInterfaceStatistics
-{
-    TTcpInterfaceStatistics()
-        : ReceiveTimeCounter("/receive_time")
-        , ReceiveSizeCounter("/receive_size")
-        , InHandlerTimeCounter("/in_handler_time")
-        , InByteCounter("/in_bytes")
-        , InPacketCounter("/in_packets")
-        , SendTimeCounter("/send_time")
-        , SendSizeCounter("/send_size")
-        , OutHandlerTimeCounter("/out_handler_time")
-        , OutBytesCounter("/out_bytes")
-        , OutPacketCounter("/out_packets")
-        , PendingOutPacketCounter("/pending_out_packets")
-        , PendingOutByteCounter("/pending_out_bytes")
-    { }
-    
-    NProfiling::TAggregateCounter ReceiveTimeCounter;
-    NProfiling::TAggregateCounter ReceiveSizeCounter;
-    NProfiling::TAggregateCounter InHandlerTimeCounter;
-    NProfiling::TSimpleCounter InByteCounter;
-    NProfiling::TSimpleCounter InPacketCounter;
-
-    NProfiling::TAggregateCounter SendTimeCounter;
-    NProfiling::TAggregateCounter SendSizeCounter;
-    NProfiling::TAggregateCounter OutHandlerTimeCounter;
-    NProfiling::TSimpleCounter OutBytesCounter;
-    NProfiling::TSimpleCounter OutPacketCounter;
-    NProfiling::TAggregateCounter PendingOutPacketCounter;
-    NProfiling::TAggregateCounter PendingOutByteCounter;
-};
-
-static TEnumIndexedVector<TTcpInterfaceStatistics, ETcpInterfaceType> TcpInterfaceStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,13 +62,13 @@ TTcpConnection::TTcpConnection(
 #ifdef _linux_
     , Priority_(priority)
 #endif
-    , Handler_(handler)
-    , InterfaceStatistics_(&TcpInterfaceStatistics[InterfaceType_])
+    , Handler_(std::move(handler))
+    , ProfilingData_(TTcpDispatcher::Get()->GetProfilingData(InterfaceType_))
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
-    , ReadBuffer_(TTcpConnectionReadBufferTag(), MinBatchReadSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(handler);
+    YASSERT(Handler_);
+    YASSERT(DispatcherThread_);
 
     Logger = BusLogger;
     Logger.AddTag("ConnectionId: %v, Address: %v",
@@ -114,8 +76,7 @@ TTcpConnection::TTcpConnection(
         Address_);
 
     Profiler = BusProfiler;
-    auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("interface", FormatEnum(InterfaceType_));
-    Profiler.TagIds().push_back(tagId);
+    Profiler.TagIds().push_back(ProfilingData_->TagId);
 
     switch (ConnectionType_) {
         case EConnectionType::Client:
@@ -131,9 +92,6 @@ TTcpConnection::TTcpConnection(
         default:
             YUNREACHABLE();
     }
-
-    WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionWriteBufferTag()));
-    WriteBuffers_[0]->Reserve(MaxBatchWriteSize);
 
     UpdateConnectionCount(+1);
 }
@@ -170,6 +128,8 @@ void TTcpConnection::Cleanup()
 void TTcpConnection::SyncInitialize()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
+
+    InitBuffers();
 
     switch (ConnectionType_) {
         case EConnectionType::Client:
@@ -228,11 +188,11 @@ void TTcpConnection::UpdatePendingOut(int countDelta, i64 sizeDelta)
 {
     {
         int value = (Statistics().PendingOutPackets += countDelta);
-        Profiler.Update(InterfaceStatistics_->PendingOutPacketCounter, value);
+        Profiler.Update(ProfilingData_->PendingOutPacketCounter, value);
     }
     {
         size_t value = (Statistics().PendingOutBytes += sizeDelta);
-        Profiler.Update(InterfaceStatistics_->PendingOutByteCounter, value);
+        Profiler.Update(ProfilingData_->PendingOutByteCounter, value);
     }
 }
 
@@ -359,6 +319,14 @@ void TTcpConnection::SyncClose(const TError& error)
     DispatcherThread_->AsyncUnregister(this);
 }
 
+void TTcpConnection::InitBuffers()
+{
+    ReadBuffer_ = TBlob(TTcpConnectionReadBufferTag(), MinBatchReadSize, false);
+
+    WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionWriteBufferTag()));
+    WriteBuffers_[0]->Reserve(MaxBatchWriteSize);
+}
+
 void TTcpConnection::InitFD()
 {
 #ifdef _win_
@@ -448,13 +416,11 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         }
     }
 
-    {
+    PROFILE_TIMING ("/connect_time") {
         int result;
-        PROFILE_TIMING ("/connect_time") {
-            do {
-                result = connect(Socket_, netAddress.GetSockAddr(), netAddress.GetLength());
-            } while (result < 0 && errno == EINTR);
-        }
+        do {
+            result = connect(Socket_, netAddress.GetSockAddr(), netAddress.GetLength());
+        } while (result < 0 && errno == EINTR);
 
         if (result != 0) {
             int error = LastSystemError();
@@ -609,21 +575,21 @@ void TTcpConnection::OnSocketRead()
 bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 {
     ssize_t result;
-    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->ReceiveTimeCounter) {
+    PROFILE_AGGREGATED_TIMING (ProfilingData_->ReceiveTimeCounter) {
         do {
             result = recv(Socket_, buffer, size, 0);
         } while (result < 0 && errno == EINTR);
-    }
-
-    if (!CheckReadError(result)) {
-        *bytesRead = 0;
-        return false;
+    
+        if (!CheckReadError(result)) {
+            *bytesRead = 0;
+            return false;
+        }
     }
 
     *bytesRead = result;
 
-    Profiler.Increment(InterfaceStatistics_->InByteCounter, *bytesRead);
-    Profiler.Update(InterfaceStatistics_->ReceiveSizeCounter, *bytesRead);
+    Profiler.Increment(ProfilingData_->InByteCounter, *bytesRead);
+    Profiler.Update(ProfilingData_->ReceiveSizeCounter, *bytesRead);
 
     LOG_TRACE("%v bytes read", *bytesRead);
 
@@ -678,7 +644,7 @@ bool TTcpConnection::AdvanceDecoder(size_t size)
 
 bool TTcpConnection::OnPacketReceived()
 {
-    Profiler.Increment(InterfaceStatistics_->InPacketCounter);
+    Profiler.Increment(ProfilingData_->InPacketCounter);
     switch (Decoder_.GetPacketType()) {
         case EPacketType::Ack:
             return OnAckPacketReceived();
@@ -713,7 +679,7 @@ bool TTcpConnection::OnAckPacketReceived()
 
     LOG_DEBUG("Ack received (PacketId: %v)", Decoder_.GetPacketId());
 
-    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->OutHandlerTimeCounter) {
+    PROFILE_AGGREGATED_TIMING (ProfilingData_->OutHandlerTimeCounter) {
         if (unackedMessage.Promise) {
             unackedMessage.Promise.Set(TError());
         }
@@ -735,7 +701,7 @@ bool TTcpConnection::OnMessagePacketReceived()
     }
 
     auto message = Decoder_.GetMessage();
-    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->InHandlerTimeCounter) {
+    PROFILE_AGGREGATED_TIMING (ProfilingData_->InHandlerTimeCounter) {
         Handler_->HandleMessage(std::move(message), this);
     }
 
@@ -826,12 +792,12 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
         size_t size = std::min(fragment.Size(), bytesAvailable);
 #ifdef _win_
         WSABUF item;
-        item.buf = fragment.Begin();
+        item.buf = const_cast<char*>(fragment.Begin());
         item.len = static_cast<ULONG>(size);
         SendVector_.push_back(item);
 #else
         struct iovec item;
-        item.iov_base = fragment.Begin();
+        item.iov_base = const_cast<char*>(fragment.Begin());
         item.iov_len = size;
         SendVector_.push_back(item);
 #endif
@@ -839,28 +805,28 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
         bytesAvailable -= size;
     }
 
-    ssize_t result;
+    PROFILE_AGGREGATED_TIMING (ProfilingData_->SendTimeCounter) {
+        ssize_t result;
 #ifdef _win_
-    DWORD bytesWritten_ = 0;
-    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->SendTimeCounter) {
+        DWORD bytesWritten_ = 0;
         result = WSASend(Socket_, SendVector_.data(), SendVector_.size(), &bytesWritten_, 0, NULL, NULL);
-    }
-    *bytesWritten = static_cast<size_t>(bytesWritten_);
+        *bytesWritten = static_cast<size_t>(bytesWritten_);
 #else
-    PROFILE_AGGREGATED_TIMING (InterfaceStatistics_->SendTimeCounter) {
         do {
             result = writev(Socket_, SendVector_.data(), SendVector_.size());
         } while (result < 0 && errno == EINTR);
-    }
-    *bytesWritten = result >= 0 ? result : 0;
+        *bytesWritten = result >= 0 ? result : 0;
 #endif
+        bool isOK = CheckWriteError(result);
 
-    Profiler.Increment(InterfaceStatistics_->OutBytesCounter, *bytesWritten);
-    Profiler.Update(InterfaceStatistics_->SendSizeCounter, *bytesWritten);
+        if (!isOK) {
+            Profiler.Increment(ProfilingData_->OutBytesCounter, *bytesWritten);
+            Profiler.Update(ProfilingData_->SendSizeCounter, *bytesWritten);
+            LOG_TRACE("%v bytes written", *bytesWritten);
+        }
 
-    LOG_TRACE("%v bytes written", *bytesWritten);
-
-    return CheckWriteError(result);
+        return isOK;
+    }
 }
 
 void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
@@ -1028,7 +994,7 @@ void TTcpConnection::OnPacketSent()
 
 
     UpdatePendingOut(-1, -packet->Size);
-    Profiler.Increment(InterfaceStatistics_->OutPacketCounter);
+    Profiler.Increment(ProfilingData_->OutPacketCounter);
 
     delete packet;
     EncodedPackets_.pop();
@@ -1117,7 +1083,7 @@ void TTcpConnection::DiscardOutcomingMessages(const TError& error)
 {
     TQueuedMessage queuedMessage;
     while (QueuedMessages_.Dequeue(&queuedMessage)) {
-        LOG_DEBUG("Outcoming message dequeued (PacketId: %v)",
+        LOG_DEBUG("Outcoming message discarded (PacketId: %v)",
             queuedMessage.PacketId);
         if (queuedMessage.Promise) {
             queuedMessage.Promise.Set(error);
@@ -1156,8 +1122,7 @@ bool TTcpConnection::IsSocketError(ssize_t result)
 #ifdef _win_
     return
         result != WSAEWOULDBLOCK &&
-        result != WSAEINPROGRESS &&
-        result != 0;
+        result != WSAEINPROGRESS;
 #else
     return
         result != EWOULDBLOCK &&

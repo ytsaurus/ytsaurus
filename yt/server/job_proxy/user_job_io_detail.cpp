@@ -110,10 +110,11 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
 {
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
     return CreateSchemalessMultiChunkWriter(
-        JobIOConfig_->NewTableWriter,
+        JobIOConfig_->TableWriter,
         options,
         nameTable,
         keyColumns,
+        TOwningKey(),
         Host_->GetMasterChannel(),
         transactionId,
         chunkListId,
@@ -145,21 +146,19 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
 {
     if (isParallel) {
         return CreateSchemalessParallelMultiChunkReader(
-            JobIOConfig_->NewTableReader,
+            JobIOConfig_->TableReader,
             options,
             Host_->GetMasterChannel(),
-            Host_->GetCompressedBlockCache(),
-            Host_->GetUncompressedBlockCache(),
+            Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             chunkSpecs,
             nameTable);
     } else {
         return CreateSchemalessSequentialMultiChunkReader(
-            JobIOConfig_->NewTableReader,
+            JobIOConfig_->TableReader,
             options,
             Host_->GetMasterChannel(),
-            Host_->GetCompressedBlockCache(),
-            Host_->GetUncompressedBlockCache(),
+            Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             chunkSpecs,
             nameTable);

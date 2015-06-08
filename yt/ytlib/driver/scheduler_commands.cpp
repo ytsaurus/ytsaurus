@@ -17,9 +17,9 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDumpJobInputContextCommand::DoExecute()
+void TDumpJobContextCommand::DoExecute()
 {
-    WaitFor(Context_->GetClient()->DumpJobInputContext(Request_->JobId, Request_->Path))
+    WaitFor(Context_->GetClient()->DumpJobContext(Request_->JobId, Request_->Path))
         .ThrowOnError();
 }
 

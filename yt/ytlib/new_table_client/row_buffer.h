@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "unversioned_row.h"
 
 #include <core/misc/chunked_memory_pool.h>
 
@@ -9,25 +10,25 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDefaultRowBufferPoolTag  { };
+
 //! Holds data for a bunch of rows.
 /*!
- *  Internally, implemented as a pair of chunked pools: one for aligned
- *  data (row headers and row values) and another for unaligned data (string values).
+ *  Acts as a ref-counted wrapped around TChunkedMemoryPool plus a bunch
+ *  of helpers.
  */
 class TRowBuffer
+    : public TIntrinsicRefCounted
 {
 public:
     explicit TRowBuffer(
-        i64 alignedPoolChunkSize = TChunkedMemoryPool::DefaultChunkSize,
-        i64 unalignedPoolChunkSize = TChunkedMemoryPool::DefaultChunkSize,
-        double maxPoolSmallBlockRatio = TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio);
+        i64 chunkSize = TChunkedMemoryPool::DefaultChunkSize,
+        double maxSmallBlockRatio = TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio,
+        TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TDefaultRowBufferPoolTag>());
 
-    TChunkedMemoryPool* GetAlignedPool();
-    const TChunkedMemoryPool* GetAlignedPool() const;
+    TChunkedMemoryPool* GetPool();
 
-    TChunkedMemoryPool* GetUnalignedPool();
-    const TChunkedMemoryPool* GetUnalignedPool() const;
-
+    void Capture(TUnversionedValue* value);
     TVersionedValue Capture(const TVersionedValue& value);
     TUnversionedValue Capture(const TUnversionedValue& value);
 
@@ -40,10 +41,11 @@ public:
     void Clear();
 
 private:
-    TChunkedMemoryPool AlignedPool_;
-    TChunkedMemoryPool UnalignedPool_;
+    TChunkedMemoryPool Pool_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TRowBuffer)
 
 ////////////////////////////////////////////////////////////////////////////////
 

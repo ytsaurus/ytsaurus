@@ -5,7 +5,6 @@
 #include "operation_controller.h"
 #include "job.h"
 #include "exec_node.h"
-#include "config.h"
 
 #include <core/logging/log.h>
 
@@ -40,9 +39,11 @@ class TOperationControllerBase;
 
 extern const double ApproximateSizesBoostFactor;
 
+extern const Stroka RootPoolName;
+
 extern const NLogging::TLogger SchedulerLogger;
 extern const NLogging::TLogger OperationLogger;
-extern NProfiling::TProfiler SchedulerProfiler;
+extern const NProfiling::TProfiler SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////
 

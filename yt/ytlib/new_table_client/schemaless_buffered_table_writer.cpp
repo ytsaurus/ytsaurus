@@ -48,20 +48,19 @@ public:
 public:
     void Write(const std::vector<TUnversionedRow>& rows)
     {
-        auto capturedRows = RowBuffer_.Capture(rows);
-
+        auto capturedRows = RowBuffer_->Capture(rows);
         Rows_.insert(Rows_.end(), capturedRows.begin(), capturedRows.end());
     }
 
     void Clear()
     {
         Rows_.clear();
-        RowBuffer_.Clear();
+        RowBuffer_->Clear();
     }
 
     i64 GetSize() const
     {
-        return RowBuffer_.GetSize();
+        return RowBuffer_->GetSize();
     }
 
     bool IsEmpty() const
@@ -70,7 +69,7 @@ public:
     }
 
 private:
-    TRowBuffer RowBuffer_;
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
 };
 
@@ -84,11 +83,13 @@ class TBufferedTableWriter
 public:
     TBufferedTableWriter(
         TBufferedTableWriterConfigPtr config,
+        TRemoteWriterOptionsPtr options,
         IChannelPtr masterChannel,
         TTransactionManagerPtr transactionManager,
         TNameTablePtr nameTable,
         const TYPath& path)
         : Config_(config)
+        , Options_(options)
         , MasterChannel_(masterChannel)
         , TransactionManager_(transactionManager)
         , NameTable_(nameTable)
@@ -96,11 +97,10 @@ public:
         , FlushExecutor_(New<TPeriodicExecutor>(
             TDispatcher::Get()->GetWriterInvoker(),
             BIND(&TBufferedTableWriter::OnPeriodicFlush, Unretained(this)), Config_->FlushPeriod))
-        , Logger(TableClientLogger)
     {
         EmptyBuffers_.push(Buffers_);
         EmptyBuffers_.push(Buffers_ + 1);
-        
+
         Logger.AddTag("Path: %v", Path_);
     }
 
@@ -157,13 +157,14 @@ public:
     }
 
 private:
-    TBufferedTableWriterConfigPtr Config_;
-    IChannelPtr MasterChannel_;
-    TTransactionManagerPtr TransactionManager_;
-    TNameTablePtr NameTable_;
-    TYPath Path_;
+    const TBufferedTableWriterConfigPtr Config_;
+    const TRemoteWriterOptionsPtr Options_;
+    const IChannelPtr MasterChannel_;
+    const TTransactionManagerPtr TransactionManager_;
+    const TNameTablePtr NameTable_;
+    const TYPath Path_;
 
-    TPeriodicExecutorPtr FlushExecutor_;
+    const TPeriodicExecutorPtr FlushExecutor_;
 
     // Double buffering.
     TBuffer Buffers_[2];
@@ -178,13 +179,13 @@ private:
     // Only accessed in writer thread.
     int FlushedBufferCount_ = 0;
 
-    NLogging::TLogger Logger;
+    NLogging::TLogger Logger = TableClientLogger;
 
 
     void OnPeriodicFlush()
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        
+
         if (CurrentBuffer_ && !CurrentBuffer_->IsEmpty()) {
             RotateBuffers();
         }
@@ -230,6 +231,7 @@ private:
 
             auto writer = CreateSchemalessTableWriter(
                 Config_,
+                Options_,
                 richPath,
                 NameTable_,
                 TKeyColumns(),
@@ -267,6 +269,7 @@ private:
 
 ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
+    TRemoteWriterOptionsPtr options,
     IChannelPtr masterChannel,
     TTransactionManagerPtr transactionManager,
     TNameTablePtr nameTable,
@@ -274,6 +277,7 @@ ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
 {
     return New<TBufferedTableWriter>(
         config,
+        options,
         masterChannel,
         transactionManager,
         nameTable,

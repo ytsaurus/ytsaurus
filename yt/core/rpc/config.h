@@ -100,7 +100,7 @@ public:
             .Default(10);
         RegisterParameter("retry_timeout", RetryTimeout)
             .GreaterThanOrEqual(TDuration::Zero())
-            .Default(Null);
+            .Default();
     }
 };
 

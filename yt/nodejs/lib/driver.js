@@ -21,7 +21,6 @@ var _SIMPLE_EXECUTE_FORMAT = binding.CreateV8Node("json");
 
 function promisinglyPipe(source, destination)
 {
-    "use strict";
     return new Q(function(resolve, reject) {
         var debug = __DBG.Tagged("Pipe");
 
@@ -101,7 +100,6 @@ function promisinglyPipe(source, destination)
 
 function YtDriver(config, echo)
 {
-    "use strict";
     this.__DBG = __DBG.Tagged();
 
     this.low_watermark = config.low_watermark;
@@ -123,7 +121,6 @@ YtDriver.prototype.execute = function(
     response_parameters_consumer
 )
 {
-    "use strict";
     this.__DBG("execute");
 
     var wrapped_input_stream = new YtWritableStream(this.low_watermark, this.high_watermark);
@@ -194,7 +191,6 @@ YtDriver.prototype.execute = function(
 
 YtDriver.prototype.executeSimple = function(name, parameters, data)
 {
-    "use strict";
     this.__DBG("executeSimple");
 
     var input_stream = new utils.MemoryInputStream(data && JSON.stringify(data));
@@ -218,13 +214,11 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
 
 YtDriver.prototype.find_command_descriptor = function(name)
 {
-    "use strict";
     this.__DBG("find_command_descriptor");
     return this._binding.FindCommandDescriptor(name);
 };
 
 YtDriver.prototype.get_command_descriptors = function() {
-    "use strict";
     this.__DBG("get_command_descriptors");
     return this._binding.GetCommandDescriptors();
 };

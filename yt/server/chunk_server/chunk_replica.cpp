@@ -19,7 +19,7 @@ using namespace NChunkClient;
 Stroka ToString(TNodePtrWithIndex value)
 {
     return Format("%v/%v",
-        value.GetPtr()->GetAddress(),
+        value.GetPtr()->GetDefaultAddress(),
         value.GetIndex());
 }
 

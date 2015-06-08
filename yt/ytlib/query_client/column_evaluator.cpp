@@ -18,13 +18,18 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnEvaluator::TColumnEvaluator(const TTableSchema& schema, int keySize)
+TColumnEvaluator::TColumnEvaluator(
+    const TTableSchema& schema,
+    int keySize,
+    const IFunctionRegistryPtr functionRegistry)
     : Schema_(schema)
     , KeySize_(keySize)
+    , FunctionRegistry_(functionRegistry)
 #ifdef YT_USE_LLVM
     , Evaluators_(keySize)
     , Variables_(keySize)
-    , References_(keySize)
+    , ReferenceIds_(keySize)
+    , Expressions_(keySize)
 #endif
 { }
 
@@ -35,39 +40,62 @@ void TColumnEvaluator::PrepareEvaluator(int index)
     YCHECK(Schema_.Columns()[index].Expression);
 
     if (!Evaluators_[index]) {
-        auto expr = PrepareExpression(Schema_.Columns()[index].Expression.Get(), Schema_);
-        Evaluators_[index] = Profile(expr, Schema_, nullptr, &Variables_[index], &References_[index])();
+        yhash_set<Stroka> references;
+        Expressions_[index] = PrepareExpression(
+            Schema_.Columns()[index].Expression.Get(),
+            Schema_,
+            FunctionRegistry_.Get());
+        Evaluators_[index] = Profile(
+            Expressions_[index],
+            Schema_,
+            nullptr,
+            &Variables_[index],
+            &references,
+            FunctionRegistry_)();
+
+        for (const auto& reference : references) {
+            ReferenceIds_[index].push_back(Schema_.GetColumnIndexOrThrow(reference));
+        }
+        std::sort(ReferenceIds_[index].begin(), ReferenceIds_[index].end());
     }
 #else
     THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
 #endif
 }
 
-void TColumnEvaluator::EvaluateKey(TRow fullRow, TRowBuffer& buffer, int index)
+void TColumnEvaluator::EvaluateKey(TRow fullRow, const TRowBufferPtr& buffer, int index)
 {
+    YCHECK(index < fullRow.GetCount());
+
 #ifdef YT_USE_LLVM
     PrepareEvaluator(index);
 
     TQueryStatistics statistics;
     TExecutionContext executionContext;
-    executionContext.Schema = Schema_;
+    executionContext.Schema = &Schema_;
     executionContext.LiteralRows = &Variables_[index].LiteralRows;
-    executionContext.PermanentBuffer = &buffer;
-    executionContext.OutputBuffer = &buffer;
-    executionContext.IntermediateBuffer = &buffer;
+    executionContext.PermanentBuffer = buffer;
+    executionContext.OutputBuffer = buffer;
+    executionContext.IntermediateBuffer = buffer;
     executionContext.Statistics = &statistics;
+#ifndef NDEBUG
+    int dummy;
+    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
+#endif
 
     Evaluators_[index](
         &fullRow[index],
         fullRow,
         Variables_[index].ConstantsRowBuilder.GetRow(),
         &executionContext);
+
+    fullRow[index].Id = index;
 #else
     THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
 #endif
 }
 
-void TColumnEvaluator::EvaluateKeys(TRow fullRow, TRowBuffer& buffer)
+void TColumnEvaluator::EvaluateKeys(TRow fullRow, const TRowBufferPtr& buffer)
 {
     for (int index = 0; index < KeySize_; ++index) {
         if (Schema_.Columns()[index].Expression) {
@@ -76,18 +104,13 @@ void TColumnEvaluator::EvaluateKeys(TRow fullRow, TRowBuffer& buffer)
     }
 }
 
-void TColumnEvaluator::EvaluateKeys(
-    TRow fullRow,
-    TRowBuffer& buffer,
-    const TRow partialRow,
+TRow TColumnEvaluator::EvaluateKeys(
+    TRow partialRow,
+    const TRowBufferPtr& buffer,
     const TNameTableToSchemaIdMapping& idMapping)
 {
-    int columnCount = fullRow.GetCount();
     bool keyColumnSeen[MaxKeyColumnCount] {};
-
-    for (int index = 0; index < columnCount; ++index) {
-        fullRow[index].Type = EValueType::Null;
-    }
+    int columnCount = 0;
 
     for (int index = 0; index < partialRow.GetCount(); ++index) {
         int id = partialRow[index].Id;
@@ -102,10 +125,6 @@ void TColumnEvaluator::EvaluateKeys(
         YCHECK(schemaId < Schema_.Columns().size());
         const auto& column = Schema_.Columns()[schemaId];
 
-        if (schemaId >= columnCount) {
-            THROW_ERROR_EXCEPTION("Unexpected column %Qv", column.Name);
-        }
-
         if (column.Expression) {
             THROW_ERROR_EXCEPTION(
                 "Column %Qv is computed automatically and should not be provided by user",
@@ -119,23 +138,51 @@ void TColumnEvaluator::EvaluateKeys(
             }
 
             keyColumnSeen[schemaId] = true;
+        } else {
+            ++columnCount;
         }
+    }
 
-        fullRow[schemaId] = partialRow[index];
+    columnCount += KeySize_;
+    auto fullRow = TUnversionedRow::Allocate(buffer->GetPool(), columnCount);
+
+    for (int index = 0; index < KeySize_; ++index) {
+        fullRow[index].Type = EValueType::Null;
+    }
+
+    int dataColumnId = KeySize_;
+    for (int index = 0; index < partialRow.GetCount(); ++index) {
+        int id = partialRow[index].Id;
+        int schemaId = idMapping[id];
+
+        if (schemaId < KeySize_) {
+            fullRow[schemaId] = partialRow[index];
+        } else {
+            fullRow[dataColumnId] = partialRow[index];
+            fullRow[dataColumnId].Id = schemaId;
+            ++dataColumnId;
+        }
     }
 
     EvaluateKeys(fullRow, buffer);
-
-    for (int index = 0; index < columnCount; ++index) {
-        fullRow[index].Id = index;
-    }
+    return fullRow;
 }
 
-const yhash_set<Stroka>& TColumnEvaluator::GetReferences(int index)
+const std::vector<int>& TColumnEvaluator::GetReferenceIds(int index)
 {
 #ifdef YT_USE_LLVM
     PrepareEvaluator(index);
-    return References_[index];
+    return ReferenceIds_[index];
+#else
+    THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
+#endif
+}
+
+TConstExpressionPtr TColumnEvaluator::GetExpression(int index)
+{
+#ifdef YT_USE_LLVM
+    PrepareEvaluator(index);
+    return Expressions_[index];
 #else
     THROW_ERROR_EXCEPTION("Computed colums require LLVM enabled in build");
 #endif
@@ -169,33 +216,41 @@ class TColumnEvaluatorCache::TImpl
     : public TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedColumnEvaluator>
 {
 public:
-    explicit TImpl(TColumnEvaluatorCacheConfigPtr config)
+    explicit TImpl(
+        TColumnEvaluatorCacheConfigPtr config,
+        const IFunctionRegistryPtr functionRegistry)
         : TSyncSlruCacheBase(config->CGCache)
+        , FunctionRegistry_(functionRegistry)
     { }
 
     TColumnEvaluatorPtr Get(const TTableSchema& schema, int keySize)
     {
         llvm::FoldingSetNodeID id;
-        Profile(schema, keySize, &id);
+        Profile(schema, keySize, &id, FunctionRegistry_);
 
         auto cachedEvaluator = Find(id);
         if (!cachedEvaluator) {
-            auto evaluator = New<TColumnEvaluator>(schema, keySize);
+            auto evaluator = New<TColumnEvaluator>(schema, keySize, FunctionRegistry_);
             cachedEvaluator = New<TCachedColumnEvaluator>(id, evaluator);
             TryInsert(cachedEvaluator, &cachedEvaluator);
         }
 
         return cachedEvaluator->GetColumnEvaluator();
     }
+
+private:
+    const IFunctionRegistryPtr FunctionRegistry_;
 };
 
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnEvaluatorCache::TColumnEvaluatorCache(TColumnEvaluatorCacheConfigPtr config)
+TColumnEvaluatorCache::TColumnEvaluatorCache(
+    TColumnEvaluatorCacheConfigPtr config,
+    const IFunctionRegistryPtr functionRegistry)
 #ifdef YT_USE_LLVM
-    : Impl_(New<TImpl>(std::move(config)))
+    : Impl_(New<TImpl>(std::move(config), functionRegistry))
 #endif
 { }
 

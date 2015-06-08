@@ -49,14 +49,13 @@ NYTree::ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType()
 template <class TChunkOwner>
 std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
     const NCypressServer::TVersionedNodeId& id,
-    NTransactionServer::TTransaction* transaction,
     NCypressServer::INodeTypeHandler::TReqCreate* request,
     NCypressServer::INodeTypeHandler::TRspCreate* response)
 {
-    auto chunkManager = this->Bootstrap->GetChunkManager();
-    auto objectManager = this->Bootstrap->GetObjectManager();
+    auto chunkManager = this->Bootstrap_->GetChunkManager();
+    auto objectManager = this->Bootstrap_->GetObjectManager();
 
-    auto node = TBase::DoCreate(id, transaction, request, response);
+    auto node = TBase::DoCreate(id, request, response);
 
     // Create an empty chunk list and reference it from the node.
     auto* chunkList = chunkManager->CreateChunkList();
@@ -72,7 +71,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
 {
     TBase::DoDestroy(node);
 
-    auto objectManager = TBase::Bootstrap->GetObjectManager();
+    auto objectManager = TBase::Bootstrap_->GetObjectManager();
 
     auto* chunkList = node->GetChunkList();
     if (chunkList) {
@@ -88,7 +87,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
 {
     TBase::DoBranch(originatingNode, branchedNode);
 
-    auto objectManager = TBase::Bootstrap->GetObjectManager();
+    auto objectManager = TBase::Bootstrap_->GetObjectManager();
 
     auto* chunkList = originatingNode->GetChunkList();
 
@@ -144,9 +143,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::MergeChunkLists(
     TChunkOwner* originatingNode,
     TChunkOwner* branchedNode)
 {
-    auto hydraManager = TBase::Bootstrap->GetHydraFacade()->GetHydraManager();
-    auto chunkManager = TBase::Bootstrap->GetChunkManager();
-    auto objectManager = TBase::Bootstrap->GetObjectManager();
+    auto hydraManager = TBase::Bootstrap_->GetHydraFacade()->GetHydraManager();
+    auto chunkManager = TBase::Bootstrap_->GetChunkManager();
+    auto objectManager = TBase::Bootstrap_->GetObjectManager();
 
     auto* originatingChunkList = originatingNode->GetChunkList();
     auto* branchedChunkList = branchedNode->GetChunkList();
@@ -234,7 +233,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
 {
     TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
-    auto objectManager = TBase::Bootstrap->GetObjectManager();
+    auto objectManager = TBase::Bootstrap_->GetObjectManager();
 
     auto* chunkList = sourceNode->GetChunkList();
     YCHECK(!clonedNode->GetChunkList());

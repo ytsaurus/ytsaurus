@@ -42,7 +42,7 @@ public:
         for (const auto& pair : nodeTracker->Nodes()) {
             auto* node = pair.second;
             int total = node->GetTotalTabletSlots();
-            int used = tabletManager->GetAssignedTabletCellCount(node->GetAddress());
+            int used = tabletManager->GetAssignedTabletCellCount(node->GetDefaultAddress());
             int spare = total - used;
             if (used < total) {
                 MinusSpareSlotsToNode_.insert(std::make_pair(-spare, node));
@@ -57,7 +57,7 @@ public:
         for (auto it = MinusSpareSlotsToNode_.begin(); it != MinusSpareSlotsToNode_.end(); ++it) {
             int spare = it->first;
             auto* node = it->second;
-            if (forbiddenAddresses.count(node->GetAddress()) == 0) {
+            if (forbiddenAddresses.count(node->GetDefaultAddress()) == 0) {
                 MinusSpareSlotsToNode_.erase(it);
                 --spare;
                 if (spare > 0) {
@@ -70,7 +70,8 @@ public:
     }
 
 private:
-    NCellMaster::TBootstrap* Bootstrap_;
+    NCellMaster::TBootstrap* const Bootstrap_;
+
     // NB: "Minus" is to avoid iterating backwards and converting reserve iterator to forward iterator
     // in call to erase.
     std::multimap<int, TNode*> MinusSpareSlotsToNode_;
@@ -186,7 +187,7 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
         auto* peerInfo = request.add_peer_infos();
         peerInfo->set_peer_id(peerId);
         ToProto(peerInfo->mutable_node_descriptor(), node->GetDescriptor());
-        forbiddenAddresses.insert(node->GetAddress());
+        forbiddenAddresses.insert(node->GetDefaultAddress());
     }
 
     if (request.peer_infos_size() == 0)

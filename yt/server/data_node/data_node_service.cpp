@@ -13,7 +13,6 @@
 #include "session.h"
 #include "master_connector.h"
 
-#include <server/cell_node/public.h>
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/string.h>
@@ -26,8 +25,9 @@
 #include <core/rpc/service_detail.h>
 
 #include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/action_queue.h>
+
+#include <core/profiling/profile_manager.h>
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/private.h>
@@ -63,9 +63,9 @@ using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Profiler = DataNodeProfiler;
-static auto ProfilingPeriod = TDuration::MilliSeconds(100);
+static const auto& Profiler = DataNodeProfiler;
 
+static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 static const size_t MaxSampleSize = 4 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,6 +125,10 @@ public:
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
 
+        for (auto type : TEnumTraits<EWriteSessionType>::GetDomainValues()) {
+            SessionTypeToTag_[type] = NProfiling::TProfileManager::Get()->RegisterTag("type", type);
+        }
+
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TDataNodeService::OnProfiling, MakeWeak(this)),
@@ -133,11 +137,13 @@ public:
     }
 
 private:
-    TDataNodeConfigPtr Config_;
-    TActionQueuePtr WorkerThread_;
-    TBootstrap* Bootstrap_;
+    const TDataNodeConfigPtr Config_;
+    const TActionQueuePtr WorkerThread_;
+    TBootstrap* const Bootstrap_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
+
+    TEnumIndexedVector<NProfiling::TTagId, EWriteSessionType> SessionTypeToTag_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
@@ -240,14 +246,14 @@ private:
         int firstBlockIndex = request->first_block_index();
         int blockCount = static_cast<int>(request->Attachments().size());
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
-        bool enableCaching = request->enable_caching();
+        bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, EnableCaching: %v, FlushBlocks: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v",
             chunkId,
             firstBlockIndex,
             lastBlockIndex,
-            enableCaching,
+            populateCache,
             flushBlocks);
 
         ValidateConnected();
@@ -259,7 +265,7 @@ private:
         auto result = session->PutBlocks(
             firstBlockIndex,
             request->Attachments(),
-            enableCaching);
+            populateCache);
         
         // Flush blocks if needed.
         if (flushBlocks) {
@@ -279,19 +285,19 @@ private:
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
-        auto target = FromProto<TNodeDescriptor>(request->target());
+        auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, TargetAddress: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, Target: %v",
             chunkId,
             firstBlockIndex,
             lastBlockIndex,
-            target.GetDefaultAddress());
+            targetDescriptor);
 
         ValidateConnected();
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
-        session->SendBlocks(firstBlockIndex, blockCount, target)
+        session->SendBlocks(firstBlockIndex, blockCount, targetDescriptor)
             .Subscribe(BIND([=] (const TError& error) {
                 if (error.IsOK()) {
                     context->Reply();
@@ -299,7 +305,7 @@ private:
                     context->Reply(TError(
                         NChunkClient::EErrorCode::PipelineFailed,
                         "Error putting blocks to %v",
-                        target.GetDefaultAddress())
+                        targetDescriptor.GetDefaultAddress())
                         << error);
                 }
             }));
@@ -325,265 +331,137 @@ private:
     }
 
 
-    class TGetBlockSetSession
-        : public TIntrinsicRefCounted
-    {
-    public:
-        typedef NRpc::TTypedServiceContext<TReqGetBlockSet, TRspGetBlockSet> TCtxGetBlockSet;
-        typedef TIntrusivePtr<TCtxGetBlockSet> TCtxGetBlockSetPtr;
-
-        TGetBlockSetSession(
-            TIntrusivePtr<TDataNodeService> owner,
-            TCtxGetBlockSetPtr context)
-            : Owner_(std::move(owner))
-            , Context_(std::move(context))
-            , Logger(DataNodeLogger)
-            , Awaiter_(New<TParallelAwaiter>(Owner_->Bootstrap_->GetControlInvoker()))
-            , BlocksWithData_(0)
-            , BlocksSize_(0)
-        { }
-
-        void Run()
-        {
-            const auto& request = Context_->Request();
-            auto& response = Context_->Response();
-
-            auto chunkId = FromProto<TChunkId>(request.chunk_id());
-            bool enableCaching = request.enable_caching();
-            auto sessionType = EReadSessionType(request.session_type());
-
-            Context_->SetRequestInfo("BlockIds: %v:%v, EnableCaching: %v, SessionType: %v",
-                chunkId,
-                JoinToString(request.block_indexes()),
-                enableCaching,
-                sessionType);
-
-            Owner_->ValidateConnected();
-
-            auto chunkStore = Owner_->Bootstrap_->GetChunkStore();
-            auto blockStore = Owner_->Bootstrap_->GetBlockStore();
-            auto peerBlockTable = Owner_->Bootstrap_->GetPeerBlockTable();
-
-            response.set_has_complete_chunk(chunkStore->FindChunk(chunkId) != nullptr);
-            response.set_throttling(Owner_->IsOutThrottling());
-
-            if (response.throttling()) {
-                // Cannot send the actual data to the client due to throttling.
-                // Let's try to suggest some other peers.
-                for (int blockIndex : request.block_indexes()) {
-                    TBlockId blockId(chunkId, blockIndex);
-                    const auto& peers = peerBlockTable->GetPeers(blockId);
-                    if (!peers.empty()) {
-                        auto* peerDescriptor = response.add_peer_descriptors();
-                        peerDescriptor->set_block_index(blockIndex);
-                        for (const auto& peer : peers) {
-                            ToProto(peerDescriptor->add_node_descriptors(), peer.Descriptor);
-                        }
-                        LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
-                            blockId,
-                            static_cast<int>(peers.size()));
-                    }
-                }
-            } else {
-                response.Attachments().resize(request.block_indexes().size());
-
-                // Assign decreasing priorities to block requests to take advantage of sequential read.
-                i64 priority = Context_->GetPriority();
-
-                for (int index = 0; index < request.block_indexes().size(); ++index) {
-                    int blockIndex = request.block_indexes(index);
-
-                    LOG_DEBUG("Fetching block (BlockId: %v:%v)",
-                        chunkId,
-                        blockIndex);
-
-                    Awaiter_->Await(
-                        blockStore->FindBlock(
-                            chunkId,
-                            blockIndex,
-                            priority,
-                            enableCaching),
-                        BIND(
-                            &TGetBlockSetSession::OnBlockFound,
-                            MakeStrong(this),
-                            index));
-
-                    --priority;
-                }
-            }
-
-            Awaiter_->Complete(
-                BIND(&TGetBlockSetSession::OnComplete, MakeStrong(this)));
-        }
-
-    private:
-        TIntrusivePtr<TDataNodeService> Owner_;
-        TCtxGetBlockSetPtr Context_;
-        NLogging::TLogger Logger;
-
-        TParallelAwaiterPtr Awaiter_;
-
-        // Updated multiple times.
-        std::atomic<int> BlocksWithData_;
-        std::atomic<i64> BlocksSize_;
-
-
-        void OnBlockFound(int index, const TErrorOr<TSharedRef>& blockOrError)
-        {
-            if (!blockOrError.IsOK()) {
-                // Something went wrong while fetching the blocks.
-                Awaiter_->Cancel();
-                Context_->Reply(blockOrError);
-                return;
-            }
-
-            const auto& block = blockOrError.Value();
-            if (block) {
-                auto& response = Context_->Response();
-                response.Attachments()[index] = block;
-                BlocksWithData_ += 1;
-                BlocksSize_ += block.Size();
-            }
-        }
-
-        void OnComplete()
-        {
-            const auto& request = Context_->Request();
-            auto& response = Context_->Response();
-            auto chunkId = FromProto<TChunkId>(request.chunk_id());
-            auto peerBlockTable = Owner_->Bootstrap_->GetPeerBlockTable();
-
-            // Register the peer that we had just sent the reply to.
-            if (request.has_peer_descriptor() && request.has_peer_expiration_time()) {
-                auto descriptor = FromProto<TNodeDescriptor>(request.peer_descriptor());
-                auto expirationTime = TInstant(request.peer_expiration_time());
-                TPeerInfo peerInfo(descriptor, expirationTime);
-                for (int blockIndex : request.block_indexes()) {
-                    peerBlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peerInfo);
-                }
-            }
-
-            Context_->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
-                response.has_complete_chunk(),
-                response.throttling(),
-                BlocksWithData_.load(),
-                response.peer_descriptors_size(),
-                BlocksSize_.load());
-
-            // Throttle response.
-            auto sessionType = EReadSessionType(request.session_type());
-            auto throttler = Owner_->Bootstrap_->GetOutThrottler(sessionType);
-            Context_->ReplyFrom(throttler->Throttle(BlocksSize_));
-        }
-
-    };
-
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
-        New<TGetBlockSetSession>(this, std::move(context))->Run();
-    }
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto blockIndexes = NYT::FromProto<int>(request->block_indexes());
+        bool populateCache = request->populate_cache();
+        auto sessionType = EReadSessionType(request->session_type());
 
-    class TGetBlockRangeSession
-        : public TIntrinsicRefCounted
-    {
-    public:
-        typedef NRpc::TTypedServiceContext<TReqGetBlockRange, TRspGetBlockRange> TCtxGetBlockRange;
-        typedef TIntrusivePtr<TCtxGetBlockRange> TCtxGetBlockRangePtr;
+        context->SetRequestInfo("BlockIds: %v:[%v], PopulateCache: %v, SessionType: %v",
+            chunkId,
+            JoinToString(blockIndexes),
+            populateCache,
+            sessionType);
 
-        TGetBlockRangeSession(TIntrusivePtr<TDataNodeService> owner, TCtxGetBlockRangePtr context)
-            : Owner_(std::move(owner))
-            , Context_(std::move(context))
-            , BlocksWithData_(0)
-            , BlocksSize_(0)
-        { }
+        ValidateConnected();
 
-        void Run()
-        {
-            const auto& request = Context_->Request();
-            auto& response = Context_->Response();
+        auto chunkStore = Bootstrap_->GetChunkStore();
+        auto blockStore = Bootstrap_->GetBlockStore();
+        auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
 
-            auto chunkId = FromProto<TChunkId>(request.chunk_id());
-            auto sessionType = EReadSessionType(request.session_type());
-            int firstBlockIndex = request.first_block_index();
-            int blockCount = request.block_count();
+        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId).operator bool());
+        response->set_throttling(IsOutThrottling());
 
-            Context_->SetRequestInfo("BlockIds: %v:%v-%v, SessionType: %v",
+        if (IsOutThrottling()) {
+            // Cannot send the actual data to the client due to throttling.
+            // Let's try to suggest some other peers.
+            for (int blockIndex : request->block_indexes()) {
+                auto blockId = TBlockId(chunkId, blockIndex);
+                const auto& peers = peerBlockTable->GetPeers(blockId);
+                if (!peers.empty()) {
+                    auto* peerDescriptor = response->add_peer_descriptors();
+                    peerDescriptor->set_block_index(blockIndex);
+                    for (const auto& peer : peers) {
+                        ToProto(peerDescriptor->add_node_descriptors(), peer.Descriptor);
+                    }
+                    LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
+                        blockId,
+                        peers.size());
+                }
+            }
+        } else {
+            auto blockCache = Bootstrap_->GetBlockCache();
+            auto asyncBlocks = blockStore->ReadBlocks(
                 chunkId,
-                firstBlockIndex,
-                firstBlockIndex + blockCount - 1,
-                sessionType);
+                blockIndexes,
+                context->GetPriority(),
+                blockCache,
+                populateCache);
+            response->Attachments() = WaitFor(asyncBlocks)
+                .ValueOrThrow();
+        }
 
-            Owner_->ValidateConnected();
 
-            auto chunkStore = Owner_->Bootstrap_->GetChunkStore();
-            auto blockStore = Owner_->Bootstrap_->GetBlockStore();
-
-            response.set_has_complete_chunk(chunkStore->FindChunk(chunkId) != nullptr);
-            response.set_throttling(Owner_->IsOutThrottling());
-
-            if (response.throttling()) {
-                OnComplete();
-            } else {
-                blockStore
-                    ->FindBlocks(
-                        chunkId,
-                        firstBlockIndex,
-                        blockCount,
-                        Context_->GetPriority())
-                    .Subscribe(BIND(&TGetBlockRangeSession::OnGotBlocks, MakeStrong(this)));
+        int blocksWithData = 0;
+        for (const auto& block : response->Attachments()) {
+            if (block) {
+                ++blocksWithData;
             }
         }
 
-    private:
-        TIntrusivePtr<TDataNodeService> Owner_;
-        TCtxGetBlockRangePtr Context_;
+        i64 blocksSize = GetByteSize(response->Attachments());
 
-        // Updated just once.
-        int BlocksWithData_;
-        i64 BlocksSize_;
-
-
-        void OnGotBlocks(const TErrorOr<std::vector<TSharedRef>>& blocksOrError)
-        {
-            if (!blocksOrError.IsOK()) {
-                // Something went wrong while fetching the blocks.
-                Context_->Reply(blocksOrError);
-                return;
+        // Register the peer that we had just sent the reply to.
+        if (request->has_peer_descriptor() && request->has_peer_expiration_time()) {
+            auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
+            auto expirationTime = TInstant(request->peer_expiration_time());
+            TPeerInfo peerInfo(descriptor, expirationTime);
+            for (int blockIndex : request->block_indexes()) {
+                peerBlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peerInfo);
             }
-
-            const auto& blocks = blocksOrError.Value();
-            auto& response = Context_->Response();
-            for (const auto& block : blocks) {
-                response.Attachments().push_back(block);
-                BlocksWithData_ += 1;
-                BlocksSize_ += block.Size();
-            }
-
-            OnComplete();
         }
 
-        void OnComplete()
-        {
-            const auto& request = Context_->Request();
-            auto& response = Context_->Response();
+        context->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
+            response->has_complete_chunk(),
+            response->throttling(),
+            blocksWithData,
+            response->peer_descriptors_size(),
+            blocksSize);
 
-            Context_->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksSize: %v",
-                response.has_complete_chunk(),
-                response.throttling(),
-                BlocksWithData_,
-                BlocksSize_);
-
-            // Throttle response.
-            auto sessionType = EReadSessionType(request.session_type());
-            auto throttler = Owner_->Bootstrap_->GetOutThrottler(sessionType);
-            Context_->ReplyFrom(throttler->Throttle(BlocksSize_));
-        }
-
-    };
+        // Throttle response.
+        auto throttler = Bootstrap_->GetOutThrottler(sessionType);
+        context->ReplyFrom(throttler->Throttle(blocksSize));
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
     {
-        New<TGetBlockRangeSession>(this, std::move(context))->Run();
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto sessionType = EReadSessionType(request->session_type());
+        int firstBlockIndex = request->first_block_index();
+        int blockCount = request->block_count();
+        bool populateCache = request->populate_cache();
+
+        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, SessionType: %v",
+            chunkId,
+            firstBlockIndex,
+            firstBlockIndex + blockCount - 1,
+            populateCache,
+            sessionType);
+
+        ValidateConnected();
+
+        auto chunkStore = Bootstrap_->GetChunkStore();
+        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId).operator bool());
+
+        response->set_throttling(IsOutThrottling());
+
+        if (!IsOutThrottling()) {
+            auto blockStore = Bootstrap_->GetBlockStore();
+            auto blockCache = Bootstrap_->GetBlockCache();
+            auto asyncBlocks = blockStore->ReadBlocks(
+                chunkId,
+                firstBlockIndex,
+                blockCount,
+                context->GetPriority(),
+                blockCache,
+                populateCache);
+            response->Attachments() = WaitFor(asyncBlocks)
+                .ValueOrThrow();
+        }
+
+        int blocksWithData = response->Attachments().size();
+        i64 blocksSize = GetByteSize(response->Attachments());
+
+        context->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksSize: %v",
+            response->has_complete_chunk(),
+            response->throttling(),
+            blocksWithData,
+            blocksSize);
+
+        // Throttle response.
+        auto throttler = Bootstrap_->GetOutThrottler(sessionType);
+        context->ReplyFrom(throttler->Throttle(blocksSize));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
@@ -604,9 +482,9 @@ private:
         ValidateConnected();
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
-        auto chunk = chunkRegistry->GetChunk(chunkId);
-        auto asyncChunkMeta = chunk->GetMeta(context->GetPriority(), extensionTags);
+        auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
+        auto asyncChunkMeta = chunk->ReadMeta(context->GetPriority(), extensionTags);
         asyncChunkMeta.Subscribe(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
             if (!metaOrError.IsOK()) {
                 context->Reply(metaOrError);
@@ -635,7 +513,7 @@ private:
         auto keyColumns = NYT::FromProto<Stroka>(request->key_columns());
         for (const auto& chunkSpec : request->chunk_specs()) {
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-            auto* splittedChunk = response->add_splitted_chunks();
+            auto* splits = response->add_splits();
             auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
             if (!chunk) {
@@ -644,32 +522,30 @@ private:
                     "No such chunk %v",
                     chunkId);
                 LOG_WARNING(error);
-                ToProto(splittedChunk->mutable_error(), error);
+                ToProto(splits->mutable_error(), error);
                 continue;
             }
 
-            auto asyncResult = chunk->GetMeta(context->GetPriority());
+            auto asyncResult = chunk->ReadMeta(context->GetPriority());
             asyncResults.push_back(asyncResult.Apply(
                 BIND(
                     &TDataNodeService::MakeChunkSplits,
                     MakeStrong(this),
                     &chunkSpec,
-                    splittedChunk,
+                    splits,
                     request->min_split_size(),
                     keyColumns)
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
-        // ToDo(psushin): replace with ReplyFrom when it supports cancelation.
-        auto error = WaitFor(Combine(asyncResults));
-        context->Reply(error);
+        context->ReplyFrom(Combine(asyncResults));
     }
 
     void MakeChunkSplits(
         const NChunkClient::NProto::TChunkSpec* chunkSpec,
-        NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
+        NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splits,
         i64 minSplitSize,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
+        const TKeyColumns& keyColumns,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
@@ -703,30 +579,33 @@ private:
                 keyColumns.size());
 
             for (const auto& slice : slices) {
-                ToProto(splittedChunk->add_chunk_specs(), *slice);
+                ToProto(splits->add_chunk_specs(), *slice);
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             LOG_WARNING(error);
-            ToProto(splittedChunk->mutable_error(), error);
+            ToProto(splits->mutable_error(), error);
         }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetTableSamples)
     {
-        context->SetRequestInfo("KeyColumnCount: %v, ChunkCount: %v",
-            request->key_columns_size(),
+        auto keyColumns = FromProto<Stroka>(request->key_columns());
+
+        context->SetRequestInfo("KeyColumns: [%v], ChunkCount: %v",
+            JoinToString(keyColumns),
             request->sample_requests_size());
 
         ValidateConnected();
 
+        auto chunkStore = Bootstrap_->GetChunkStore();
+
         std::vector<TFuture<void>> asyncResults;
-        auto keyColumns = FromProto<Stroka>(request->key_columns());
         for (const auto& sampleRequest : request->sample_requests()) {
             auto* sampleResponse = response->add_sample_responses();
             auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
-            auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
+            auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk) {
                 auto error = TError(
                     NChunkClient::EErrorCode::NoSuchChunk,
@@ -737,8 +616,8 @@ private:
                 continue;
             }
 
-            auto asyncResult = chunk->GetMeta(context->GetPriority());
-            asyncResults.push_back(asyncResult.Apply(
+            auto asyncChunkMeta = chunk->ReadMeta(context->GetPriority());
+            asyncResults.push_back(asyncChunkMeta.Apply(
                 BIND(
                     &TDataNodeService::ProcessSample,
                     MakeStrong(this),
@@ -748,15 +627,13 @@ private:
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
-        // ToDo(psushin): replace with ReplyFrom when it supports cancelation.
-        auto error = WaitFor(Combine(asyncResults));
-        context->Reply(error);
+        context->ReplyFrom(Combine(asyncResults));
     }
 
     void ProcessSample(
-        const NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
-        NChunkClient::NProto::TRspGetTableSamples::TChunkSamples* sampleResponse,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
+        const TReqGetTableSamples::TSampleRequest* sampleRequest,
+        TRspGetTableSamples::TChunkSamples* sampleResponse,
+        const TKeyColumns& keyColumns,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
@@ -802,8 +679,8 @@ private:
     void ProcessOldChunkSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta)
+        const TKeyColumns& keyColumns,
+        const TChunkMeta& chunkMeta)
     {
         auto samplesExt = GetProtoExtension<TOldSamplesExt>(chunkMeta.extensions());
         std::vector<TSample> samples;
@@ -862,16 +739,23 @@ private:
     void ProcessVersionedChunkSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta)
+        const TKeyColumns& keyColumns,
+        const TChunkMeta& chunkMeta)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
 
         auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
         auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
 
-        if (chunkKeyColumns != keyColumns) {
-            auto error = TError("Key columns mismatch in chunk %v: expected [%v], actual [%v]",
+        int prefixLength = std::min(chunkKeyColumns.size(), keyColumns.size());
+        bool isCompatibleKeyColumns = std::equal(
+            chunkKeyColumns.begin(), 
+            chunkKeyColumns.begin() + prefixLength, 
+            keyColumns.begin());
+
+        // Requested key can be wider than stored.
+        if (!isCompatibleKeyColumns || chunkKeyColumns.size() > prefixLength) {
+            auto error = TError("Incompatible key columns in chunk %v: requested key columns [%v], chunk key columns [%v]",
                 chunkId,
                 JoinToString(keyColumns),
                 JoinToString(chunkKeyColumns));
@@ -887,6 +771,18 @@ private:
             samplesExt.entries().end(),
             std::back_inserter(samples),
             sampleRequest->sample_count());
+
+        int keySizeDelta = prefixLength - keyColumns.size();
+        if (keySizeDelta < 0) {
+            // Requested key is wider than the keys stored in chunk.
+            std::vector<TUnversionedValue> values(keyColumns.size(), MakeUnversionedSentinelValue(EValueType::Null, 0));
+            for (int i = 0; i < samples.size(); ++i) {
+                auto row = FromProto<TUnversionedOwningRow>(samples[i]);
+                YCHECK(row.GetCount() == chunkKeyColumns.size());
+                std::copy(row.Begin(), row.End(), values.begin());
+                samples[i] = SerializeToString(values.data(), values.data() + keyColumns.size());
+            }
+        }
 
         ToProto(chunkSamples->mutable_keys(), samples);
     }
@@ -1065,7 +961,10 @@ private:
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         for (auto type : TEnumTraits<EWriteSessionType>::GetDomainValues()) {
-            Profiler.Enqueue("/session_count/" + FormatEnum(type), sessionManager->GetSessionCount(type));
+            Profiler.Enqueue(
+                "/session_count",
+                sessionManager->GetSessionCount(type),
+                {SessionTypeToTag_[type]});
         }
     }
 };

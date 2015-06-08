@@ -36,7 +36,7 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////
 
-static NProfiling::TProfiler Profiler("/operations/merge");
+static const NProfiling::TProfiler Profiler("/operations/merge");
 
 ////////////////////////////////////////////////////////////////////
 
@@ -270,7 +270,6 @@ protected:
         {
             TTask::OnJobCompleted(joblet);
 
-            RegisterInput(joblet);
             RegisterOutput(joblet, PartitionIndex);
         }
 
@@ -529,7 +528,7 @@ protected:
 
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
-        if (0.9 * miscExt.compressed_data_size() >= Spec->JobIO->NewTableWriter->DesiredChunkSize) {
+        if (0.9 * miscExt.compressed_data_size() >= Spec->JobIO->TableWriter->DesiredChunkSize) {
             return true;
         }
 
@@ -796,12 +795,12 @@ private:
             }
         }
 
-        // ...and the output table must be cleared (regardless of "overwrite" attribute).
+        // ...and the output table must be cleared (regardless of requested "append" attribute).
         {
             auto& table = OutputTables[0];
-            table.Clear = true;
-            table.Overwrite = true;
+            table.UpdateMode = EUpdateMode::Overwrite;
             table.LockMode = ELockMode::Exclusive;
+            table.AppendRequested = false;
         }
     }
 
@@ -977,7 +976,7 @@ protected:
 
         auto specKeyColumns = GetSpecKeyColumns();
         LOG_INFO("Spec key columns are %v",
-            specKeyColumns ? ~ConvertToYsonString(*specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
+            specKeyColumns ? ConvertToYsonString(*specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
 
         KeyColumns = CheckInputTablesSorted(specKeyColumns);
         LOG_INFO("Adjusted key columns are %v",
@@ -1333,7 +1332,7 @@ private:
         TSortedMergeControllerBase::DoInitialize();
 
         auto& table = OutputTables[0];
-        table.Clear = true;
+        table.UpdateMode = EUpdateMode::Overwrite;
         table.LockMode = ELockMode::Exclusive;
     }
 
@@ -1454,7 +1453,7 @@ private:
         TSortedMergeControllerBase::DoInitialize();
 
         if (Spec->Reducer && Spec->Reducer->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in reducer: maximum allowed %d, actual %" PRISZT,
+            THROW_ERROR_EXCEPTION("Too many user files in reducer: maximum allowed %v, actual %v",
                 Config->MaxUserFileCount,
                 Spec->Reducer->FilePaths.size());
         }

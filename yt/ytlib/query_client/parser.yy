@@ -14,7 +14,7 @@
 
 %parse-param {TLexer& lexer}
 %parse-param {TAstHead* head}
-%parse-param {TRowBuffer* rowBuffer}
+%parse-param {TRowBufferPtr rowBuffer}
 %parse-param {const Stroka& source}
 
 %code requires {
@@ -69,12 +69,17 @@
 %token KwJoin "keyword `JOIN`"
 %token KwUsing "keyword `USING`"
 %token KwGroupBy "keyword `GROUP BY`"
+%token KwOrderBy "keyword `ORDER BY`"
 %token KwAs "keyword `AS`"
 
 %token KwAnd "keyword `AND`"
 %token KwOr "keyword `OR`"
+%token KwNot "keyword `NOT`"
 %token KwBetween "keyword `BETWEEN`"
 %token KwIn "keyword `IN`"
+
+%token KwFalse "keyword `TRUE`"
+%token KwTrue "keyword `FALSE`"
 
 %token <TStringBuf> Identifier "identifier"
 
@@ -101,16 +106,18 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
-%type <TNullableNamedExprs> select-clause
-%type <TExpressionPtr> where-clause
-%type <TNamedExpressionList> group-by-clause
-%type <i64> limit-clause
+%type <TNullableNamedExpressionList> select-clause-impl
+%type <TExpressionPtr> where-clause-impl
+%type <TNamedExpressionList> group-by-clause-impl
+%type <TIdentifierList> order-by-clause-impl
+%type <i64> limit-clause-impl
 
 %type <TIdentifierList> identifier-list
 %type <TNamedExpressionList> named-expression-list
 %type <TNamedExpression> named-expression
 
 %type <TExpressionPtr> expression
+%type <TExpressionPtr> not-op-expr
 %type <TExpressionPtr> or-op-expr
 %type <TExpressionPtr> and-op-expr
 %type <TExpressionPtr> relational-op-expr
@@ -135,70 +142,30 @@
 %%
 
 head
-    : StrayWillParseQuery head-clause
-    | StrayWillParseJobQuery head-job-clause
-    | StrayWillParseExpression named-expression[expression]
-        {
-            head->As<TNamedExpression>() = $expression;
-        }
+    : StrayWillParseQuery parse-query
+    | StrayWillParseJobQuery parse-job-query
+    | StrayWillParseExpression parse-expression
 ;
 
-head-clause
-    : select-clause[select] from-clause
-        {
-            head->As<TQuery>().SelectExprs = $select;
-        }
-    | select-clause[select] from-clause head-clause-tail
-        {
-            head->As<TQuery>().SelectExprs = $select;
-        }
+parse-query
+    : select-clause from-clause where-clause group-by-clause order-by-clause limit-clause
 ;
 
-head-job-clause
-    : select-clause[select]
-        {
-            head->As<TQuery>().SelectExprs = $select;
-        }
-    | select-clause[select] head-clause-tail
-        {
-            head->As<TQuery>().SelectExprs = $select;
-        }
+parse-job-query
+    : select-clause where-clause
 ;
 
-
-head-clause-tail
-    : where-clause[where]
+parse-expression
+    : expression[expr]
         {
-            head->As<TQuery>().WherePredicate = $where;
-        }
-    | group-by-clause[group]
-        {
-            head->As<TQuery>().GroupExprs = $group;
-        }
-    | limit-clause[limit]
-        {
-            head->As<TQuery>().Limit = $limit;
-        }
-    | where-clause[where] group-by-clause[group]
-        {
-            head->As<TQuery>().WherePredicate = $where;
-            head->As<TQuery>().GroupExprs = $group;
-        }
-    | where-clause[where] limit-clause[limit]
-        {
-            head->As<TQuery>().WherePredicate = $where;
-            head->As<TQuery>().Limit = $limit;
+            head->As<TExpressionPtr>() = $expr;
         }
 ;
 
 select-clause
-    : named-expression-list[projections]
+    : select-clause-impl[select]
         {
-            $$ = $projections;
-        }
-    | Asterisk
-        {
-            $$ = TNullableNamedExprs();
+            head->As<TQuery>().SelectExprs = $select;
         }
 ;
 
@@ -213,6 +180,77 @@ from-clause
         }
 ;
 
+where-clause
+    : where-clause-impl[where]
+        {
+            head->As<TQuery>().WherePredicate = $where;
+        }
+    |
+;
+
+group-by-clause
+    : group-by-clause-impl[group]
+        {
+            head->As<TQuery>().GroupExprs = $group;
+        }
+    |
+;
+
+order-by-clause
+    : order-by-clause-impl[order]
+        {
+            head->As<TQuery>().OrderFields = $order;
+        }
+    |
+;
+
+limit-clause
+    : limit-clause-impl[limit]
+        {
+            head->As<TQuery>().Limit = $limit;
+        }
+    |
+;
+
+select-clause-impl
+    : named-expression-list[projections]
+        {
+            $$ = $projections;
+        }
+    | Asterisk
+        {
+            $$ = TNullableNamedExpressionList();
+        }
+;
+
+where-clause-impl
+    : KwWhere or-op-expr[predicate]
+        {
+            $$ = $predicate;
+        }
+;
+
+group-by-clause-impl
+    : KwGroupBy named-expression-list[exprs]
+        {
+            $$ = $exprs;
+        }
+;
+
+order-by-clause-impl
+    : KwOrderBy identifier-list[fields]
+        {
+            $$ = $fields;
+        }
+;
+
+limit-clause-impl
+    : KwLimit Int64Literal[limit]
+        {
+            $$ = $limit;
+        }
+;
+
 identifier-list
     : identifier-list[list] Comma Identifier[value]
         {
@@ -222,27 +260,6 @@ identifier-list
     | Identifier[value]
         {
             $$.push_back(Stroka($value));
-        }
-;
-
-where-clause
-    : KwWhere or-op-expr[predicate]
-        {
-            $$ = $predicate;
-        }
-;
-
-group-by-clause
-    : KwGroupBy named-expression-list[exprs]
-        {
-            $$ = $exprs;
-        }
-;
-
-limit-clause
-    : KwLimit Int64Literal[limit]
-        {
-            $$ = $limit;
         }
 ;
 
@@ -284,9 +301,18 @@ or-op-expr
 ;
 
 and-op-expr
-    : and-op-expr[lhs] KwAnd relational-op-expr[rhs]
+    : and-op-expr[lhs] KwAnd not-op-expr[rhs]
         {
             $$ = New<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
+        }
+    | not-op-expr
+        { $$ = $1; }
+;
+
+not-op-expr
+    : KwNot relational-op-expr[expr]
+        {
+            $$ = New<TUnaryOpExpression>(@$, EUnaryOp::Not, $expr);
         }
     | relational-op-expr
         { $$ = $1; }
@@ -414,6 +440,10 @@ literal-expr
         { $$ = MakeUnversionedDoubleValue($1); }
     | StringLiteral
         { $$ = rowBuffer->Capture(MakeUnversionedStringValue($1)); }
+    | KwFalse
+        { $$ = MakeUnversionedBooleanValue(false); }
+    | KwTrue
+        { $$ = MakeUnversionedBooleanValue(true); }
 ;
 
 literal-list

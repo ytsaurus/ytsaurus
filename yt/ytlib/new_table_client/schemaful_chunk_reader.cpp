@@ -43,6 +43,8 @@ using NChunkClient::NProto::TChunkSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkReaderMemoryPoolTag { };
+
 class TChunkReader
     : public ISchemafulReader
 {
@@ -50,7 +52,7 @@ public:
     TChunkReader(
         TChunkReaderConfigPtr config,
         NChunkClient::IChunkReaderPtr chunkReader,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit,
         TTimestamp timestamp);
@@ -61,8 +63,6 @@ public:
     virtual TFuture<void> GetReadyEvent() final override;
 
 private:
-    struct TChunkReaderMemoryPoolTag { };
-
     struct TColumn
     {
         int IndexInBlock;
@@ -70,9 +70,9 @@ private:
         int IndexInRow;
     };
 
-    TChunkReaderConfigPtr Config;
-    NChunkClient::IChunkReaderPtr ChunkReader;
-    IBlockCachePtr UncompressedBlockCache;
+    const TChunkReaderConfigPtr Config;
+    const NChunkClient::IChunkReaderPtr ChunkReader;
+    const IBlockCachePtr BlockCache;
 
     TTableSchema Schema;
     bool IncludeAllColumns;
@@ -109,13 +109,13 @@ private:
 TChunkReader::TChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
     TTimestamp timestamp)
     : Config(std::move(config))
     , ChunkReader(std::move(chunkReader))
-    , UncompressedBlockCache(std::move(uncompressedBlockCache))
+    , BlockCache(std::move(blockCache))
     , IncludeAllColumns(false)
     , MemoryPool(TChunkReaderMemoryPoolTag())
     , CurrentBlockIndex(0)
@@ -248,7 +248,7 @@ void TChunkReader::DoOpen()
         Config,
         std::move(blockSequence),
         ChunkReader,
-        UncompressedBlockCache,
+        BlockCache,
         NCompression::ECodec(misc.compression_codec()));
 
     if (SequentialReader->HasMoreBlocks()) {
@@ -352,7 +352,7 @@ void TChunkReader::OnNextBlock(const TError& error)
 ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
@@ -370,7 +370,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                     std::move(config),
                     std::move(chunkReader),
                     std::move(nameTable),
-                    std::move(uncompressedBlockCache),
+                    std::move(blockCache),
                     TKeyColumns(),
                     chunkMeta,
                     lowerLimit,
@@ -385,7 +385,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
             return New<TChunkReader>(
                 std::move(config),
                 std::move(chunkReader),
-                std::move(uncompressedBlockCache),
+                std::move(blockCache),
                 lowerLimit,
                 upperLimit,
                 timestamp);

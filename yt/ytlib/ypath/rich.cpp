@@ -197,7 +197,7 @@ void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
                 }
                 case ColumnSeparatorToken:
                 case EndColumnSelectorToken:
-                    channel.AddRange(TRange(begin));
+                    channel.AddRange(TColumnRange(begin));
                     break;
                 default:
                     ThrowUnexpectedToken(tokenizer.CurrentToken());
@@ -219,7 +219,7 @@ void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
     }
     tokenizer.ParseNext();
 
-    attributes->Set("channel", ConvertToYsonString(channel));
+    attributes->Set("columns", ConvertToYsonString(channel));
 }
 
 void ParseKeyPart(
@@ -395,7 +395,14 @@ bool TRichYPath::GetAppend() const
 
 TChannel TRichYPath::GetChannel() const
 {
-    return Attributes().Get("channel", TChannel::Universal());
+    if (Attributes().Contains("channel")) {
+        if (Attributes().Contains("columns")) {
+            THROW_ERROR_EXCEPTION("Conflicting attributes 'channel' and 'columns' in YPath");
+        }
+        return Attributes().Get("channel", TChannel::Universal());
+    } else {
+        return Attributes().Get("columns", TChannel::Universal());
+    }
 }
 
 std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const

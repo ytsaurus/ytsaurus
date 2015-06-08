@@ -16,6 +16,7 @@ TEST(TStracer, EmptyPidsList)
     auto result = Strace(std::vector<int>());
     EXPECT_TRUE(result.Traces.empty());
 }
+
 #ifdef _linux_
 TEST(TStracer, Basic)
 {
@@ -28,11 +29,8 @@ TEST(TStracer, Basic)
 
     if (pid == 0) {
         NConcurrency::SetCurrentThreadName("SomeCoolProcess");
-        int secondToRun = 20;
-        while (secondToRun > 0) {
+        while (true) {
             write(42, "hello\n", 6);
-            sleep(1);
-            --secondToRun;
         }
         exit(0);
     }

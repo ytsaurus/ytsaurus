@@ -21,6 +21,7 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         NChunkClient::IChunkWriterPtr chunkWriter,
+        NChunkClient::IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns = TKeyColumns());
 
     virtual TFuture<void> Open() override;
@@ -76,7 +77,8 @@ public:
     TSequentialChunkWriterBase(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        NChunkClient::IChunkWriterPtr asyncWriter,
+        NChunkClient::IChunkWriterPtr chunkWriter,
+        NChunkClient::IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns = TKeyColumns());
 
     virtual TFuture<void> Open() override;
@@ -126,7 +128,8 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         NChunkClient::IChunkWriterPtr chunkWriter,
-        TKeyColumns keyColumns);
+        NChunkClient::IBlockCachePtr blockCache,
+        const TKeyColumns& keyColumns);
 
     virtual NChunkClient::NProto::TChunkMeta GetMasterMeta() const override;
 

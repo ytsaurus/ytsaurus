@@ -2,8 +2,9 @@
 
 #include "public.h"
 
-#include <util/stream/input.h>
-#include <util/stream/output.h>
+#include <core/actions/future.h>
+
+#include <core/concurrency/public.h>
 
 namespace NYT {
 namespace NHydra {
@@ -13,8 +14,8 @@ namespace NHydra {
 struct IAutomaton
     : public virtual TRefCounted
 {
-    virtual void SaveSnapshot(TOutputStream* output) = 0;
-    virtual void LoadSnapshot(TInputStream* input) = 0;
+    virtual TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer) = 0;
+    virtual void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) = 0;
 
     virtual void Clear() = 0;
 

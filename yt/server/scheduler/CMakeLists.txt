@@ -3,15 +3,18 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/scheduler )
 set( SRCS
   ${BASE}/chunk_list_pool.cpp
   ${BASE}/chunk_pool.cpp
+  ${BASE}/event_log.cpp
   ${BASE}/exec_node.cpp
   ${BASE}/fair_share_strategy.cpp
   ${BASE}/helpers.cpp
   ${BASE}/job.cpp
+  ${BASE}/job_prober_service.cpp
   ${BASE}/job_resources.cpp
   ${BASE}/job_tracker_service.cpp
   ${BASE}/map_controller.cpp
   ${BASE}/master_connector.cpp
   ${BASE}/merge_controller.cpp
+  ${BASE}/null_strategy.cpp
   ${BASE}/operation.cpp
   ${BASE}/operation_controller_detail.cpp
   ${BASE}/private.cpp
@@ -23,22 +26,24 @@ set( SRCS
   ${BASE}/snapshot_builder.cpp
   ${BASE}/snapshot_downloader.cpp
   ${BASE}/sort_controller.cpp
-  ${BASE}/event_log.cpp
-  ${BASE}/job_prober_service.cpp
 )
 set( HDRS
   ${BASE}/chunk_list_pool.h
   ${BASE}/chunk_pool.h
   ${BASE}/config.h
+  ${BASE}/event_log.h
   ${BASE}/exec_node.h
   ${BASE}/fair_share_strategy.h
+  ${BASE}/helpers-inl.h
   ${BASE}/helpers.h
   ${BASE}/job.h
+  ${BASE}/job_prober_service.h
   ${BASE}/job_resources.h
   ${BASE}/job_tracker_service.h
   ${BASE}/map_controller.h
   ${BASE}/master_connector.h
   ${BASE}/merge_controller.h
+  ${BASE}/null_strategy.h
   ${BASE}/operation.h
   ${BASE}/operation_controller.h
   ${BASE}/operation_controller_detail.h
@@ -53,8 +58,6 @@ set( HDRS
   ${BASE}/snapshot_builder.h
   ${BASE}/snapshot_downloader.h
   ${BASE}/sort_controller.h
-  ${BASE}/event_log.h
-  ${BASE}/job_prober_service.h
 )
 
 list(APPEND YT_SOURCE_FILES

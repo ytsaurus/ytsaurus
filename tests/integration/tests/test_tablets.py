@@ -17,13 +17,16 @@ class TestTablets(YTEnvSetup):
         while not predicate():
             sleep(1)
 
+    def _wait_for_cells(self, ids):
+        print "Waiting for tablet cells to become healthy..."
+        self._wait(lambda: all(get("//sys/tablet_cells/" + id + "/@health") == "good" for id in ids))
+
     def _sync_create_cells(self, size, count):
         ids = []
         for _ in xrange(count):
             ids.append(create_tablet_cell(size))
-
-        print "Waiting for tablet cells to become healthy..."
-        self._wait(lambda: all(get("//sys/tablet_cells/" + id + "/@health") == "good" for id in ids))
+        self._wait_for_cells(ids)
+        return ids
 
     def _create_table(self, path):
         create("table", path,
@@ -40,6 +43,16 @@ class TestTablets(YTEnvSetup):
                     {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3"},
                     {"name": "value", "type": "string"}],
                 "key_columns": ["key1", "key2"]
+            })
+
+    def _create_table_with_hash(self, path):
+        create("table", path,
+            attributes = {
+                "schema": [
+                    {"name": "hash", "type": "uint64", "expression": "farm_hash(key)"},
+                    {"name": "key", "type": "int64"},
+                    {"name": "value", "type": "string"}],
+                "key_columns": ["hash", "key"]
             })
 
     def _get_tablet_leader_address(self, tablet_id):
@@ -74,7 +87,7 @@ class TestTablets(YTEnvSetup):
         return [tablet["pivot_key"] for tablet in tablets]
            
 
-    def test_mount1(self):
+    def test_mount(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t")
 
@@ -87,8 +100,7 @@ class TestTablets(YTEnvSetup):
         tablet_ids = get("//sys/tablet_cells/" + cell_id + "/@tablet_ids")
         assert tablet_ids == [tablet_id]
 
-
-    def test_unmount1(self):
+    def test_unmount(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t")
 
@@ -100,14 +112,9 @@ class TestTablets(YTEnvSetup):
         tablet = tablets[0]
         assert tablet["pivot_key"] == []
 
-        print "Waiting for table to become mounted..."
-        self._wait(lambda: get("//tmp/t/@tablets/0/state") == "mounted")
-
-        unmount_table("//tmp/t")
-
-        print "Waiting for table to become unmounted..."
-        self._wait(lambda: get("//tmp/t/@tablets/0/state") == "unmounted")
-
+        self._sync_mount_table("//tmp/t")
+        self._sync_unmount_table("//tmp/t")
+        
     def test_mount_unmount(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t")
@@ -117,14 +124,14 @@ class TestTablets(YTEnvSetup):
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
         actual = lookup_rows("//tmp/t", keys);
-        self.assertItemsEqual(rows, actual);
+        self.assertItemsEqual(actual, rows);
 
         self._sync_unmount_table("//tmp/t")
         with pytest.raises(YtError): lookup_rows("//tmp/t", keys)
 
         self._sync_mount_table("//tmp/t")
         actual = lookup_rows("//tmp/t", keys);
-        self.assertItemsEqual(rows, actual);
+        self.assertItemsEqual(actual, rows);
 
     def test_reshard_unmounted(self):
         self._sync_create_cells(1, 1)
@@ -189,7 +196,7 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
-    def test_computed_column(self):
+    def test_computed_columns(self):
         self._sync_create_cells(1, 1)
 
         create("table", "//tmp/t1",
@@ -208,20 +215,20 @@ class TestTablets(YTEnvSetup):
         insert_rows("//tmp/t", [{"key1": 1, "value": "2"}])
         expected = [{"key1": 1, "key2": 103, "value": "2"}]
         actual = select_rows("* from [//tmp/t]")
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
 
         insert_rows("//tmp/t", [{"key1": 2, "value": "2"}])
         expected = [{"key1": 1, "key2": 103, "value": "2"}]
         actual = lookup_rows("//tmp/t", [{"key1" : 1}])
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
         expected = [{"key1": 2, "key2": 203, "value": "2"}]
         actual = lookup_rows("//tmp/t", [{"key1": 2}])
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
 
         delete_rows("//tmp/t", [{"key1": 1}])
         expected = [{"key1": 2, "key2": 203, "value": "2"}]
         actual = select_rows("* from [//tmp/t]")
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
 
         with pytest.raises(YtError): insert_rows("//tmp/t", [{"key1": 3, "key2": 3, "value": "3"}])
         with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key1": 2, "key2": 203}])
@@ -229,11 +236,88 @@ class TestTablets(YTEnvSetup):
 
         expected = []
         actual = lookup_rows("//tmp/t", [{"key1": 3}])
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
 
         expected = [{"key1": 2, "key2": 203, "value": "2"}]
         actual = select_rows("* from [//tmp/t]")
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
+
+    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
+    def test_computed_hash(self):
+        self._sync_create_cells(1, 1)
+
+        self._create_table_with_hash("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+
+        row1 = [{"key": 1, "value": "2"}]
+        insert_rows("//tmp/t", row1)
+        actual = select_rows("key, value from [//tmp/t]")
+        self.assertItemsEqual(actual, row1)
+
+        row2 = [{"key": 2, "value": "2"}]
+        insert_rows("//tmp/t", row2)
+        actual = lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "value"])
+        self.assertItemsEqual(actual, row1)
+        actual = lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "value"])
+        self.assertItemsEqual(actual, row2)
+
+        delete_rows("//tmp/t", [{"key": 1}])
+        actual = select_rows("key, value from [//tmp/t]")
+        self.assertItemsEqual(actual, row2)
+
+    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
+    def test_computed_column_update_consistency(self):
+        self._sync_create_cells(1, 1)
+
+        create("table", "//tmp/t",
+            attributes = {
+                "schema": [
+                    {"name": "key1", "type": "int64", "expression": "key2"},
+                    {"name": "key2", "type": "int64"},
+                    {"name": "value1", "type": "string"},
+                    {"name": "value2", "type": "string"}],
+                "key_columns": ["key1", "key2"]
+            })
+        self._sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key2": 1, "value1": "2"}])
+        expected = [{"key1": 1, "key2": 1, "value1": "2"}]
+        actual = lookup_rows("//tmp/t", [{"key2" : 1}])
+        self.assertItemsEqual(actual, expected)
+
+        insert_rows("//tmp/t", [{"key2": 1, "value2": "3"}], update=True)
+        expected = [{"key1": 1, "key2": 1, "value1": "2", "value2": "3"}]
+        actual = lookup_rows("//tmp/t", [{"key2" : 1}])
+        self.assertItemsEqual(actual, expected)
+
+        insert_rows("//tmp/t", [{"key2": 1, "value1": "4"}], update=True)
+        expected = [{"key1": 1, "key2": 1, "value1": "4", "value2": "3"}]
+        actual = lookup_rows("//tmp/t", [{"key2" : 1}])
+        self.assertItemsEqual(actual, expected)
+
+    def test_reshard_data(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t1")
+        self._sync_mount_table("//tmp/t1")
+
+        def reshard(pivots):
+            self._sync_unmount_table("//tmp/t1")
+            reshard_table("//tmp/t1", pivots)
+            self._sync_mount_table("//tmp/t1")
+            #clear_metadata_caches()
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
+        insert_rows("//tmp/t1", rows)
+        self.assertItemsEqual(select_rows("* from [//tmp/t1]"), rows)
+
+        reshard([[], [1]])
+        self.assertItemsEqual(select_rows("* from [//tmp/t1]"), rows)
+
+        reshard([[], [1], [2]])
+        self.assertItemsEqual(select_rows("* from [//tmp/t1]"), rows)
+
+        reshard([[]])
+        self.assertItemsEqual(select_rows("* from [//tmp/t1]"), rows)
 
     def test_no_copy(self):
         self._sync_create_cells(1, 1)
@@ -255,8 +339,16 @@ class TestTablets(YTEnvSetup):
         self._sync_mount_table("//tmp/t1")
         self._sync_unmount_table("//tmp/t1")
 
+        table_id1 = get("//tmp/t1/@id")
+        tablet_id = get("//tmp/t1/@tablets/0/tablet_id")
+        assert get("#" + tablet_id + "/@table_id") == table_id1
+
         move("//tmp/t1", "//tmp/t2")
 
+        table_id2 = get("//tmp/t2/@id")
+        assert get("#" + tablet_id + "/@table_id") == table_id2
+
+        
     def test_any_value_type(self):
         self._sync_create_cells(1, 1)
         create("table", "//tmp/t1",
@@ -277,9 +369,9 @@ class TestTablets(YTEnvSetup):
 
         insert_rows("//tmp/t1", rows)
         actual = select_rows("* from [//tmp/t1]")
-        self.assertItemsEqual(rows, actual)
+        self.assertItemsEqual(actual, rows)
         actual = lookup_rows("//tmp/t1", [{"key": row["key"]} for row in rows])
-        self.assertItemsEqual(rows, actual)
+        self.assertItemsEqual(actual, rows)
 
     def test_swap(self):
         self.test_move_unmounted()
@@ -316,7 +408,7 @@ class TestTablets(YTEnvSetup):
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
         expected = [{"key": 1, "value": "test"}]
         actual = select_rows("* from [//tmp/t]", user="u")
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
 
     def test_select_denied(self):
         self._prepare_denied("read")
@@ -327,7 +419,7 @@ class TestTablets(YTEnvSetup):
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
         expected = [{"key": 1, "value": "test"}]
         actual = lookup_rows("//tmp/t", [{"key" : 1}], user="u")
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
 
     def test_lookup_denied(self):
         self._prepare_denied("read")
@@ -339,7 +431,7 @@ class TestTablets(YTEnvSetup):
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}], user="u")
         expected = [{"key": 1, "value": "test"}]
         actual = lookup_rows("//tmp/t", [{"key" : 1}])
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
 
     def test_insert_denied(self):
         self._prepare_denied("write")
@@ -351,8 +443,177 @@ class TestTablets(YTEnvSetup):
         delete_rows("//tmp/t", [{"key": 1}], user="u")
         expected = []
         actual = lookup_rows("//tmp/t", [{"key" : 1}])
-        self.assertItemsEqual(expected, actual)
+        self.assertItemsEqual(actual, expected)
 
     def test_delete_denied(self):
         self._prepare_denied("write")
         with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], user="u")
+
+    def test_read_from_chunks(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+
+        pivots = [[]] + [[x] for x in range(100, 1000, 100)]
+        reshard_table("//tmp/t", pivots)
+        assert self._get_pivot_keys("//tmp/t") == pivots
+
+        self._sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000, 2)]
+        insert_rows("//tmp/t", rows)
+
+        self._sync_unmount_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+
+        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(0, 1000)])
+        self.assertItemsEqual(actual, rows)
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(1, 1000, 2)]
+        insert_rows("//tmp/t", rows)
+
+        self._sync_unmount_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000)]
+        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(0, 1000)])
+        self.assertItemsEqual(actual, rows)
+
+        sleep(1)
+        for tablet in xrange(10):
+            path = "//tmp/t/@tablets/%s/performance_counters" % tablet
+            assert get(path + "/static_chunk_row_lookup_count") == 200
+            #assert get(path + "/static_chunk_row_lookup_false_positive_count") < 4
+            #assert get(path + "/static_chunk_row_lookup_true_negative_count") > 90
+
+    def test_store_rotation(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+
+        set("//tmp/t/@max_memory_store_key_count", 10)
+        self._sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = self._get_tablet_leader_address(tablet_id)
+        
+        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+
+        sleep(3.0)
+
+        tablet_data = self._find_tablet_orchid(address, tablet_id)
+        assert len(tablet_data["eden"]["stores"]) == 1
+        assert len(tablet_data["partitions"]) == 1
+        assert len(tablet_data["partitions"][0]["stores"]) == 1
+
+    def _test_in_memory(self, mode):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+
+        set("//tmp/t/@in_memory_mode", mode)
+        set("//tmp/t/@max_memory_store_key_count", 10)
+        self._sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = self._get_tablet_leader_address(tablet_id)
+        
+        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+
+        sleep(3.0)
+
+        def _get_store_orchid():
+            tablet_data = self._find_tablet_orchid(address, tablet_id)
+            assert len(tablet_data["eden"]["stores"]) == 1
+            assert len(tablet_data["partitions"]) == 1
+            assert len(tablet_data["partitions"][0]["stores"]) == 1
+            store_id = tablet_data["partitions"][0]["stores"].keys()[0]
+            return tablet_data["partitions"][0]["stores"][store_id]
+
+        store_data = _get_store_orchid()
+        assert store_data["preload_state"] == "complete"
+
+        set("//tmp/t/@in_memory_mode", "none")
+        remount_table("//tmp/t")
+
+        sleep(3.0)
+        
+        store_data = _get_store_orchid()
+        assert store_data["preload_state"] == "disabled"
+
+        set("//tmp/t/@in_memory_mode", mode)
+        remount_table("//tmp/t")
+
+        sleep(3.0)
+        
+        store_data = _get_store_orchid()
+        assert store_data["preload_state"] == "complete"
+
+    def test_in_memory_compressed(self):
+        self._test_in_memory("compressed")
+
+    def test_in_memory_uncompressed(self):
+        self._test_in_memory("uncompressed")
+
+    def test_update_key_columns_fail1(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+        with pytest.raises(YtError): set("//tmp/t/@key_columns", ["key", "key2"])
+
+    def test_update_key_columns_fail2(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        with pytest.raises(YtError): set("//tmp/t/@key_columns", ["key2", "key3"])
+
+    def test_update_key_columns_fail3(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        with pytest.raises(YtError): set("//tmp/t/@key_columns", [])
+
+    def test_update_key_columns_success(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        
+        self._sync_mount_table("//tmp/t")
+        rows1 = [{"key": i, "value": str(i)} for i in xrange(100)]
+        insert_rows("//tmp/t", rows1)
+        self._sync_unmount_table("//tmp/t")
+
+        set("//tmp/t/@key_columns", ["key", "key2"])
+        set("//tmp/t/@schema/after:0", {"name": "key2", "type": "int64"})
+        self._sync_mount_table("//tmp/t")
+
+        rows2 = [{"key": i, "key2": 0, "value": str(i)} for i in xrange(100)]
+        insert_rows("//tmp/t", rows2)
+        
+        assert lookup_rows("//tmp/t", [{"key" : 77}]) == [{"key": 77, "value": "77"}]
+        assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 1}]) == []
+        assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 0}]) == [{"key": 77, "key2": 0, "value": "77"}]
+        assert select_rows("sum(1) as s from [//tmp/t] where is_null(key2) group by 0") == [{"s": 100}]
+
+    def test_snapshots(self):
+        cell_ids = self._sync_create_cells(1, 1)
+        assert len(cell_ids) == 1
+        cell_id = cell_ids[0]
+
+        self._create_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+        
+        rows = [{"key": i, "value": str(i)} for i in xrange(100)]
+        insert_rows("//tmp/t", rows)
+
+        build_snapshot(cell_id=cell_id)
+
+        snapshots = ls("//sys/tablet_cells/" + cell_id + "/snapshots")
+        assert len(snapshots) == 1
+
+        self.Env.kill_service("node")
+        # Wait for make sure all leases have expired
+        time.sleep(3.0)
+        self.Env.start_nodes("node")
+
+        self._wait_for_cells(cell_ids)
+
+        keys = [{"key": i} for i in xrange(100)]
+        actual = lookup_rows("//tmp/t", keys);
+        self.assertItemsEqual(actual, rows);

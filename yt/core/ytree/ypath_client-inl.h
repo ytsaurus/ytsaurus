@@ -27,7 +27,9 @@ template <class TTypedRequest>
 TIntrusivePtr<typename TTypedRequest::TTypedResponse>
 SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request)
 {
-    return ExecuteVerb(service, request).Get().ValueOrThrow();
+    return ExecuteVerb(service, request)
+        .Get()
+        .ValueOrThrow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

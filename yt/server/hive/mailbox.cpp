@@ -19,7 +19,7 @@ TMailbox::TMailbox(const TCellId& cellId)
     : CellId_(cellId)
     , FirstOutcomingMessageId_(0)
     , LastIncomingMessageId_(-1)
-    , InFlightMessageCount_(0)
+    , PostMessagesInFlight_(false)
     , Connected_(false)
 { }
 

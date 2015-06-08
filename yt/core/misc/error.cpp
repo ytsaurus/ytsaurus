@@ -1,7 +1,8 @@
 #include "stdafx.h"
 #include "error.h"
+#include "address.h"
+#include "serialize.h"
 
-#include <core/misc/address.h>
 #include <core/misc/error.pb.h>
 
 #include <core/ytree/convert.h>
@@ -19,6 +20,18 @@ namespace NYT {
 
 using namespace NYTree;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TErrorCode::Save(TStreamSaveContext& context) const
+{
+    NYT::Save(context, Value_);
+}
+
+void TErrorCode::Load(TStreamLoadContext& context)
+{
+    NYT::Load(context, Value_);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,6 +198,24 @@ TError TError::Wrap() const
     return *this;
 }
 
+void TErrorOr<void>::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, Code_);
+    Save(context, Message_);
+    Save(context, Attributes_);
+    Save(context, InnerErrors_);
+}
+
+void TErrorOr<void>::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, Code_);
+    Load(context, Message_);
+    Load(context, Attributes_);
+    Load(context, InnerErrors_);
+}
+
 void TError::CaptureOriginAttributes()
 {
     Attributes().Set("host", TAddressResolver::Get()->GetLocalHostName());
@@ -349,7 +380,7 @@ void FromProto(TError* error, const NYT::NProto::TError& protoError)
     error->InnerErrors() = FromProto<TError>(protoError.inner_errors());
 }
 
-void Serialize(const TError& error, NYson::IYsonConsumer* consumer)
+void Serialize(const TError& error, NYson::IYsonConsumer* consumer, const std::function<void(NYson::IYsonConsumer*)>* valueProducer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -365,6 +396,10 @@ void Serialize(const TError& error, NYson::IYsonConsumer* consumer)
                         fluent
                             .Item().Value(innerError);
                     });
+            })
+            .DoIf(valueProducer != nullptr, [=] (TFluentMap fluent) {
+                fluent
+                    .Item("value").Do(BIND(*valueProducer));
             })
         .EndMap();
 }

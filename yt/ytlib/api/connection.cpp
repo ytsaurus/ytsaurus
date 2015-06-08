@@ -95,22 +95,26 @@ public:
 
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
-            GetBusChannelFactory());
-        CellDirectory_->RegisterCell(config->Master);
+            GetBusChannelFactory(),
+            Config_->NetworkName);
+        CellDirectory_->ReconfigureCell(Config_->Master);
 
-        CompressedBlockCache_ = CreateClientBlockCache(
-            Config_->CompressedBlockCache);
-
-        UncompressedBlockCache_ = CreateClientBlockCache(
-            Config_->UncompressedBlockCache);
+        BlockCache_ = CreateClientBlockCache(
+            Config_->BlockCache,
+            EBlockType::CompressedData|EBlockType::UncompressedData);
 
         TableMountCache_ = New<TTableMountCache>(
             Config_->TableMountCache,
             GetMasterChannel(EMasterChannelKind::Cache),
             CellDirectory_);
 
+        FunctionRegistry_ = CreateFunctionRegistry(
+            CreateClient(TClientOptions()));
+
         QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(Config_->ColumnEvaluatorCache);
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
+            Config_->ColumnEvaluatorCache,
+            FunctionRegistry_);
     }
 
     // IConnection implementation.
@@ -135,14 +139,9 @@ public:
         return NodeChannelFactory_;
     }
 
-    virtual IBlockCachePtr GetCompressedBlockCache() override
+    virtual IBlockCachePtr GetBlockCache() override
     {
-        return CompressedBlockCache_;
-    }
-
-    virtual IBlockCachePtr GetUncompressedBlockCache() override
-    {
-        return UncompressedBlockCache_;
+        return BlockCache_;
     }
 
     virtual TTableMountCachePtr GetTableMountCache() override
@@ -158,6 +157,11 @@ public:
     virtual TCellDirectoryPtr GetCellDirectory() override
     {
         return CellDirectory_;
+    }
+
+    virtual IFunctionRegistryPtr GetFunctionRegistry() override
+    {
+        return FunctionRegistry_;
     }
 
     virtual TEvaluatorPtr GetQueryEvaluator() override
@@ -192,11 +196,11 @@ private:
     TEnumIndexedVector<IChannelPtr, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     IChannelFactoryPtr NodeChannelFactory_;
-    IBlockCachePtr CompressedBlockCache_;
-    IBlockCachePtr UncompressedBlockCache_;
+    IBlockCachePtr BlockCache_;
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
+    IFunctionRegistryPtr FunctionRegistry_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 

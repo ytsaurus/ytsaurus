@@ -11,6 +11,8 @@
 
 #include <ytlib/node_tracker_client/node.pb.h>
 
+#include <ytlib/scheduler/statistics.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -35,14 +37,25 @@ public:
     //! The time when the job was started.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
+    //! True if this is a reincarnation of a lost job.
+    DEFINE_BYVAL_RO_PROPERTY(bool, Restarted);
+
     //! The time when the job was finished.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
+    DEFINE_BYVAL_RO_PROPERTY(TNullable<TInstant>, FinishTime);
+
+    //! Sets finish time and other timing statistics.
+    void FinalizeJob(const TInstant& finishTime);
 
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;
 
     //! Job result returned by node.
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::NProto::TJobResult, Result);
+
+    void SetResult(const NJobTrackerClient::NProto::TJobResult& result);
+
+    // Custom and builtin job statistics.
+    DEFINE_BYREF_RO_PROPERTY(TStatistics, Statistics);
 
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
@@ -75,6 +88,7 @@ public:
         TExecNodePtr node,
         TInstant startTime,
         const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+        bool restarted,
         TJobSpecBuilder specBuilder);
 
 };

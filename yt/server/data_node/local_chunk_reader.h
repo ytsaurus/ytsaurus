@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/callback.h>
+
 #include <ytlib/chunk_client/public.h>
 
 #include <server/cell_node/public.h>
@@ -19,7 +21,9 @@ namespace NDataNode {
 NChunkClient::IChunkReaderPtr CreateLocalChunkReader(
     NCellNode::TBootstrap* bootstrap,
     NChunkClient::TReplicationReaderConfigPtr config,
-    IChunkPtr chunk);
+    IChunkPtr chunk,
+    NChunkClient::IBlockCachePtr blockCache,
+    TClosure failureHandler = TClosure());
 
 ////////////////////////////////////////////////////////////////////////////////
 

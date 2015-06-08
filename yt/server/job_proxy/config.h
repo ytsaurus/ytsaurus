@@ -9,6 +9,8 @@
 
 #include <core/bus/config.h>
 
+#include <ytlib/cgroup/config.h>
+
 #include <ytlib/file_client/config.h>
 
 #include <ytlib/hydra/config.h>
@@ -21,7 +23,7 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxyConfig
-    : public NYTree::TYsonSerializable
+    : public NCGroup::TCGroupConfig
 {
 public:
     // Filled by exec agent.
@@ -42,10 +44,6 @@ public:
     TAddressResolverConfigPtr AddressResolver;
 
     double MemoryLimitMultiplier;
-
-    bool ForceEnableAccounting;
-
-    bool EnableCGroupMemoryHierarchy;
 
     TNullable<int> UserId;
 
@@ -81,10 +79,6 @@ public:
             .DefaultNew();
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
-        RegisterParameter("force_enable_accounting", ForceEnableAccounting)
-            .Default(false);
-        RegisterParameter("enable_cgroup_memory_hierarchy", EnableCGroupMemoryHierarchy)
-            .Default(false);
 
         RegisterParameter("user_id", UserId)
             .Default();

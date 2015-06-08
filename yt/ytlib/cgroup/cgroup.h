@@ -5,20 +5,22 @@
 #include <core/yson/public.h>
 
 #include <vector>
-#include <chrono>
 
 namespace NYT {
 namespace NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<Stroka> GetSupportedCGroups();
-
 void RemoveAllSubcgroups(const Stroka& path);
 
 void RunKiller(const Stroka& processGroupPath);
 
-void KillProcessGroup(const Stroka& processGroupPath);
+////////////////////////////////////////////////////////////////////////////////
+
+struct TKillProcessGroupTool
+{
+    void operator()(const Stroka& processGroupPath) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,6 +105,8 @@ class TCpuAccounting
     : public TCGroup
 {
 public:
+    static const Stroka Name;
+
     struct TStatistics
     {
         TDuration UserTime;
@@ -122,19 +126,21 @@ class TBlockIO
     : public TCGroup
 {
 public:
+    static const Stroka Name;
+
     struct TStatistics
     {
-        i64 BytesRead = 0;
-        i64 BytesWritten = 0;
-        i64 IORead = 0;
-        i64 IOWrite = 0;
+        ui64 BytesRead = 0;
+        ui64 BytesWritten = 0;
+        ui64 IORead = 0;
+        ui64 IOWrite = 0;
     };
 
     struct TStatisticsItem
     {
         Stroka DeviceId;
         Stroka Type;
-        i64 Value = 0;
+        ui64 Value = 0;
     };
 
     explicit TBlockIO(const Stroka& name);
@@ -158,15 +164,18 @@ class TMemory
     : public TCGroup
 {
 public:
+    static const Stroka Name;
+
     struct TStatistics
     {
-        i64 Rss = 0;
-        i64 MappedFile = 0;
+        ui64 Rss = 0;
+        ui64 MappedFile = 0;
     };
 
     explicit TMemory(const Stroka& name);
 
     TStatistics GetStatistics() const;
+    ui64 GetMaxMemoryUsage() const;
 
     void SetLimitInBytes(i64 bytes) const;
 
@@ -181,6 +190,8 @@ class TFreezer
     : public TCGroup
 {
 public:
+    static const Stroka Name;
+
     explicit TFreezer(const Stroka& name);
 
     Stroka GetState() const;
@@ -191,6 +202,14 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::map<Stroka, Stroka> ParseProcessCGroups(const Stroka& str);
+
+template <typename T>
+T GetCurrentCGroup()
+{
+    return T("");
+}
+
+bool IsValidCGroupType(const Stroka& type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

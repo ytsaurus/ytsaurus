@@ -10,27 +10,28 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TRef::AreBitwiseEqual(const TRef& lhs, const TRef& rhs)
-{
-    if (lhs.Size() != rhs.Size())
-        return false;
-    if (lhs.Size() == 0)
-        return true;
-    return memcmp(lhs.Begin(), rhs.Begin(), lhs.Size()) == 0;
-}
+static const char EmptyRefData[0] = {};
+const TRef EmptyRef(EmptyRefData, static_cast<size_t>(0));
+const TSharedRef EmptySharedRef(EmptyRef, nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRef::TBlobHolder::TBlobHolder(TBlob&& blob)
-    : Blob_(std::move(blob))
+    : Blob(std::move(blob))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedMutableRef::TBlobHolder::TBlobHolder(TBlob&& blob)
+    : Blob(std::move(blob))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSharedRef::TStringHolder::TStringHolder(const Stroka& string)
-    : Data_(string)
+    : Data(string)
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    , Cookie_(NullRefCountedTypeCookie)
+    , Cookie(NullRefCountedTypeCookie)
 #endif
 { }
 
@@ -45,15 +46,15 @@ TSharedRef::TStringHolder::~TStringHolder()
 
 void TSharedRef::TStringHolder::InitializeTracking(TRefCountedTypeCookie cookie)
 {
-    YASSERT(Cookie_ == NullRefCountedTypeCookie);
-    Cookie_ = cookie;
-    TRefCountedTracker::Get()->Allocate(Cookie_, Data_.length());
+    YASSERT(Cookie == NullRefCountedTypeCookie);
+    Cookie = cookie;
+    TRefCountedTracker::Get()->Allocate(Cookie, Data.length());
 }
 
 void TSharedRef::TStringHolder::FinalizeTracking()
 {
-    YASSERT(Cookie_ != NullRefCountedTypeCookie);
-    TRefCountedTracker::Get()->Free(Cookie_, Data_.length());
+    YASSERT(Cookie != NullRefCountedTypeCookie);
+    TRefCountedTracker::Get()->Free(Cookie, Data.length());
 }
 
 #endif
@@ -65,7 +66,17 @@ Stroka ToString(const TRef& ref)
     return Stroka(ref.Begin(), ref.End());
 }
 
+Stroka ToString(const TMutableRef& ref)
+{
+    return ToString(TRef(ref));
+}
+
 Stroka ToString(const TSharedRef& ref)
+{
+    return ToString(TRef(ref));
+}
+
+Stroka ToString(const TSharedMutableRef& ref)
 {
     return ToString(TRef(ref));
 }
@@ -211,6 +222,18 @@ TSharedRefArray::TSharedRefArray(std::vector<TSharedRef>&& parts)
     : Impl_(New<TImpl>(std::move(parts)))
 { }
 
+TSharedRefArray& TSharedRefArray::operator=(const TSharedRefArray& other)
+{
+    Impl_ = other.Impl_;
+    return *this;
+}
+
+TSharedRefArray& TSharedRefArray::operator=(TSharedRefArray&& other)
+{
+    Impl_ = std::move(other.Impl_);
+    return *this;
+}
+
 void TSharedRefArray::Reset()
 {
     Impl_.Reset();
@@ -218,7 +241,7 @@ void TSharedRefArray::Reset()
 
 TSharedRefArray::operator bool() const
 {
-    return Impl_ != nullptr;
+    return Impl_.operator bool();
 }
 
 int TSharedRefArray::Size() const
@@ -271,28 +294,6 @@ TSharedRefArray TSharedRefArray::Unpack(const TSharedRef& packedRef)
 std::vector<TSharedRef> TSharedRefArray::ToVector() const
 {
     return Impl_ ? Impl_->ToVector() : std::vector<TSharedRef>();
-}
-
-const TSharedRef* begin(const TSharedRefArray& array)
-{
-    return array.Begin();
-}
-
-const TSharedRef* end(const TSharedRefArray& array)
-{
-    return array.End();
-}
-
-void swap(TSharedRefArray& lhs, TSharedRefArray& rhs)
-{
-    using std::swap;
-    swap(lhs.Impl_, rhs.Impl_);
-}
-
-TSharedRefArray& TSharedRefArray::operator=(TSharedRefArray other)
-{
-    swap(*this, other);
-    return *this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

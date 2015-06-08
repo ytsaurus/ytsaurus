@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ytlib/chunk_client/data_statistics.pb.h>
+
 #include <core/ytree/forwarding_yson_consumer.h>
 #include <core/ytree/tree_builder.h>
 #include <core/ytree/convert.h>
@@ -16,11 +18,17 @@ namespace NScheduler {
 template <class T>
 class TBaseStatistics
 {
+protected:
+    typedef yhash_map<NYPath::TYPath, T> THash;
+
 public:
     T Get(const NYPath::TYPath& name) const;
 
+    typename THash::const_iterator begin() const;
+    typename THash::const_iterator end() const;
+
 protected:
-    yhash_map<NYPath::TYPath, T> Data_;
+    THash Data_;
 
     template <class U>
     friend void Serialize(const TBaseStatistics<U>& statistics, NYson::IYsonConsumer* consumer);
@@ -40,6 +48,11 @@ public:
     template <class T>
     void AddComplex(const NYPath::TYPath& path, const T& statistics);
 
+    template <class T>
+    T GetComplex(const NYPath::TYPath& path) const;
+
+    void AddSuffixToNames(const Stroka& suffix);
+
     void Merge(const TStatistics& other);
 
 private:
@@ -50,6 +63,11 @@ private:
 
 void Deserialize(TStatistics& value, NYTree::INodePtr node);
 
+NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics(const TStatistics& statistics);
+NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatistics& statistics);
+
+extern const NYTree::TYsonString SerializedEmptyStatistics;
+
 ////////////////////////////////////////////////////////////////////
 
 class TStatisticsConsumer
@@ -59,14 +77,14 @@ public:
     typedef TCallback<void(const TStatistics&)> TParsedStatisticsConsumer;
     explicit TStatisticsConsumer(TParsedStatisticsConsumer consumer, const NYPath::TYPath& path);
 
-    virtual void OnMyListItem() override;
-
 private:
     NYPath::TYPath Path_;
     std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
     TParsedStatisticsConsumer Consumer_;
 
+    virtual void OnMyListItem() override;
     void ProcessItem();
+
 };
 
 ////////////////////////////////////////////////////////////////////

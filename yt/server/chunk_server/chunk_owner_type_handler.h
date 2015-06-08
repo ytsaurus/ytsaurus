@@ -36,7 +36,6 @@ protected:
 
     virtual std::unique_ptr<TChunkOwner> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
-        NTransactionServer::TTransaction* transaction,
         NCypressServer::INodeTypeHandler::TReqCreate* request,
         NCypressServer::INodeTypeHandler::TRspCreate* response) override;
 

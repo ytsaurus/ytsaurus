@@ -5,6 +5,7 @@
 #include <ytlib/new_table_client/public.h>
 
 #include <ytlib/scheduler/job.pb.h>
+#include <ytlib/scheduler/public.h>
 
 namespace NYT {
 namespace NJobProxy {

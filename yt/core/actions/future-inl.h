@@ -509,7 +509,7 @@ void swap(TPromise<T>& lhs, TPromise<T>& rhs)
 template <class T>
 TFutureBase<T>::operator bool() const
 {
-    return Impl_ != nullptr;
+    return Impl_.operator bool();
 }
 
 template <class T>
@@ -523,13 +523,6 @@ bool TFutureBase<T>::IsSet() const
 {
     YASSERT(Impl_);
     return Impl_->IsSet();
-}
-
-template <class T>
-bool TFutureBase<T>::IsCanceled() const
-{
-    YASSERT(Impl_);
-    return Impl_->IsCanceled();
 }
 
 template <class T>
@@ -558,6 +551,22 @@ bool TFutureBase<T>::Cancel()
 {
     YASSERT(Impl_);
     return Impl_->Cancel();
+}
+
+template <class T>
+TFuture<T> TFutureBase<T>::ToUncancelable()
+{
+    if (!Impl_) {
+        return TFuture<T>();
+    }
+
+    auto promise = NewPromise<T>();
+
+    this->Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
+        promise.Set(value);
+    }));
+
+    return promise;
 }
 
 template <class T>
@@ -697,7 +706,7 @@ inline TFuture<void>::TFuture(TIntrusivePtr<NYT::NDetail::TFutureState<void>> im
 template <class T>
 TPromiseBase<T>::operator bool() const
 {
-    return Impl_ != nullptr;
+    return Impl_.operator bool();
 }
 
 template <class T>
@@ -987,6 +996,12 @@ TFutureHolder<T>::~TFutureHolder()
 }
 
 template <class T>
+TFutureHolder<T>::operator bool() const
+{
+    return static_cast<bool>(Future_);
+}
+
+template <class T>
 TFuture<T>& TFutureHolder<T>::Get()
 {
     return Future_;
@@ -996,6 +1011,30 @@ template <class T>
 const TFuture<T>& TFutureHolder<T>::Get() const
 {
     return Future_;
+}
+
+template <class T>
+const TFuture<T>& TFutureHolder<T>::operator*() const // noexcept
+{
+    return Future_;
+}
+
+template <class T>
+TFuture<T>& TFutureHolder<T>::operator*() // noexcept
+{
+    return Future_;
+}
+
+template <class T>
+const TFuture<T>* TFutureHolder<T>::operator->() const // noexcept
+{
+    return &Future_;
+}
+
+template <class T>
+TFuture<T>* TFutureHolder<T>::operator->() // noexcept
+{
+    return &Future_;
 }
 
 template <class T>

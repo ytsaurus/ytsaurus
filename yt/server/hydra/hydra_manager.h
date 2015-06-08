@@ -9,8 +9,6 @@
 
 #include <core/ytree/public.h>
 
-#include <server/election/public.h>
-
 namespace NYT {
 namespace NHydra {
 
@@ -61,17 +59,23 @@ struct IHydraManager
      */
     virtual bool IsActiveFollower() const = 0;
 
-    //! Returns the current epoch context, as viewed by the Control Thread.
+    //! Returns the cancelable context for the current epoch, as viewed by the Control Thread.
     /*!
      *  \note Thread affinity: ControlThread
      */
-    virtual NElection::TEpochContextPtr GetControlEpochContext() const = 0;
+    virtual TCancelableContextPtr GetControlCancelableContext() const = 0;
 
-    //! Returns the current epoch context, as viewed by the Automaton Thread.
+    //! Returns the cancelable context for the current epoch, as viewed by the Automaton Thread.
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    virtual NElection::TEpochContextPtr GetAutomatonEpochContext() const = 0;
+    virtual TCancelableContextPtr GetAutomatonCancelableContext() const = 0;
+
+    //! Returns the leading peer id, as viewed by the Automaton Thread.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual NElection::TPeerId GetAutomatonLeaderId() const = 0;
 
     //! When called at the leader returns a preset future.
     //! When called at a follower at instant T returns a future that gets set
@@ -108,7 +112,7 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture<int> BuildSnapshotDistributed() = 0;
+    virtual TFuture<int> BuildSnapshot() = 0;
 
     //! Produces monitoring info.
     /*!

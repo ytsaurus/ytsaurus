@@ -11,6 +11,18 @@ namespace NHive {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TCellDescriptor;
+class TCellInfo;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCellDescriptor;
+struct TCellInfo;
+
 DECLARE_REFCOUNTED_CLASS(TCellDirectory)
 DECLARE_REFCOUNTED_CLASS(TClusterDirectory)
 

@@ -95,8 +95,8 @@ namespace NDetail {
 template <class T, class TSignature>
 class TCallableAdapter;
 
-template <class R, class T, class... TArgs>
-class TCallableAdapter<T, R(T::*)(TArgs...)>
+template <class R, class T, class TBase, class... TArgs>
+class TCallableAdapter<T, R(TBase::*)(TArgs...)>
 {
 public:
     typedef NMpl::TTrueType IsCallable;
@@ -121,8 +121,8 @@ private:
     T Functor;
 };
 
-template <class R, class T, class... TArgs>
-class TCallableAdapter<T, R(T::*)(TArgs...) const>
+template <class R, class T, class TBase, class... TArgs>
+class TCallableAdapter<T, R(TBase::*)(TArgs...) const>
 {
 public:
     typedef NMpl::TTrueType IsCallable;

@@ -43,9 +43,14 @@ FORCED_INLINE size_t GetPaddingSize(size_t size)
 }
 
 //! Rounds up #size to the nearest factor of #SerializationAlignment.
-FORCED_INLINE size_t AlignUp(size_t size)
+FORCED_INLINE size_t AlignUp(size_t size, size_t align = SerializationAlignment)
 {
-    return (size + SerializationAlignment - 1) & ~(SerializationAlignment - 1);
+    return (size + align - 1) & ~(align - 1);
+}
+
+FORCED_INLINE char* AlignUp(char* ptr, size_t align = SerializationAlignment)
+{
+    return reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(ptr) + align - 1) & ~(align - 1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +100,7 @@ size_t WritePadded(TOutput& output, const TRef& ref)
 }
 
 template <class TInput>
-size_t ReadPadded(TInput& input, const TRef& ref)
+size_t ReadPadded(TInput& input, const TMutableRef& ref)
 {
     auto loadBytes = input.Load(ref.Begin(), ref.Size());
     YCHECK(loadBytes == ref.Size());
@@ -107,16 +112,14 @@ template <class TInput, class T>
 size_t ReadPodPadded(TInput& input, T& obj)
 {
     static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-    auto objRef = TRef::FromPod(obj);
-    return ReadPadded(input, objRef);
+    return ReadPadded(input, TMutableRef::FromPod(obj));
 }
 
 template <class TOutput, class T>
 size_t WritePodPadded(TOutput& output, const T& obj)
 {
     static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-    auto objRef = TRef::FromPod(obj);
-    return WritePadded(output, objRef);
+    return WritePadded(output, TRef::FromPod(obj));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,7 +139,7 @@ TSharedRef PackRefs(const T& parts)
     }
 
     struct TPackedRefsTag { };
-    auto result = TSharedRef::Allocate<TPackedRefsTag>(size, false);
+    auto result = TSharedMutableRef::Allocate<TPackedRefsTag>(size, false);
     TMemoryOutput output(result.Begin(), result.Size());
 
     WritePod(output, static_cast<i32>(parts.size()));
@@ -164,29 +167,18 @@ void UnpackRefs(const TSharedRef& packedRef, T* parts)
         i64 partSize;
         ReadPod(input, partSize);
 
-        TRef partRef(const_cast<char*>(input.Buf()), static_cast<size_t>(partSize));
-        parts->push_back(packedRef.Slice(partRef));
+        parts->push_back(packedRef.Slice(input.Buf(), input.Buf() + partSize));
 
         input.Skip(partSize);
     }
 }
 
 template <class T>
-size_t GetTotalSize(const std::vector<T>& parts)
-{
-    size_t size = 0;
-    for (const auto& part : parts) {
-        size += part.Size();
-    }
-    return size;
-}
-
-template <class T>
 TSharedRef MergeRefs(const std::vector<T>& parts)
 {
-    size_t size = GetTotalSize(parts);
+    size_t size = GetByteSize(parts);
     struct TMergedBlockTag { };
-    auto result = TSharedRef::Allocate<TMergedBlockTag>(size, false);
+    auto result = TSharedMutableRef::Allocate<TMergedBlockTag>(size, false);
     size_t pos = 0;
     for (const auto& part : parts) {
         std::copy(part.Begin(), part.End(), result.Begin() + pos);
@@ -214,10 +206,7 @@ class TStreamLoadContext
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TInputStream*, Input);
-
-#ifdef YT_ENABLE_SERIALIZATION_DUMP
     DEFINE_BYREF_RW_PROPERTY(TSerializationDumper, Dumper);
-#endif
 
 public:
     TStreamLoadContext();
@@ -437,7 +426,7 @@ struct TRangeSerializer
     }
 
     template <class C>
-    static void Load(C& context, const TRef& value)
+    static void Load(C& context, const TMutableRef& value)
     {
         auto* input = context.GetInput();
         YCHECK(input->Load(value.Begin(), value.Size()) == value.Size());
@@ -458,11 +447,9 @@ struct TPodSerializer
     static void Load(C& context, T& value)
     {
         SERIALIZATION_DUMP_SUSPEND(context) {
-            TRangeSerializer::Load(context, TRef::FromPod(value));
+            TRangeSerializer::Load(context, TMutableRef::FromPod(value));
         }
-#ifdef YT_ENABLE_SERIALIZATION_DUMP
         TSerializationDumpPodWriter<T>::Do(context, value);
-#endif
     }
 };
 
@@ -517,10 +504,11 @@ struct TSharedRefSerializer
     static void Load(C& context, TSharedRef& value)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
-        value = TSharedRef::Allocate(size, false);
+        auto mutableValue = TSharedMutableRef::Allocate(size, false);
 
         auto* input = context.GetInput();
-        YCHECK(input->Load(value.Begin(), value.Size()) == value.Size());
+        YCHECK(input->Load(mutableValue.Begin(), mutableValue.Size()) == mutableValue.Size());
+        value = mutableValue;
 
         SERIALIZATION_DUMP_WRITE(context, "TSharedRef %v", DumpRangeToHex(value));
     }
@@ -592,37 +580,38 @@ struct TStrokaSerializer
         value.resize(size);
 
         SERIALIZATION_DUMP_SUSPEND(context) {
-            TRangeSerializer::Load(context, TRef::FromString(value));
+            TRangeSerializer::Load(context, TMutableRef::FromString(value));
         }
 
         SERIALIZATION_DUMP_WRITE(context, "Stroka %Qv", value);
     }
 };
 
+template <class TUnderlyingSerializer = TDefaultSerializer>
 struct TNullableSerializer
 {
     template <class T, class C>
-    static void Save(C& context, const T& nullable)
+    static void Save(C& context, const TNullable<T>& nullable)
     {
         using NYT::Save;
 
         Save(context, nullable.HasValue());
 
         if (nullable) {
-            Save(context, *nullable);
+            TUnderlyingSerializer::Save(context, *nullable);
         }
     }
 
     template <class T, class C>
-    static void Load(C& context, T& nullable)
+    static void Load(C& context, TNullable<T>& nullable)
     {
         using NYT::Load;
 
         bool hasValue = LoadSuspended<bool>(context);
 
         if (hasValue) {
-            typename T::TValueType temp;
-            Load(context, temp);
+            T temp;
+            TUnderlyingSerializer::Load(context, temp);
             nullable.Assign(std::move(temp));
         } else {
             nullable.Reset();
@@ -791,10 +780,10 @@ struct TSorterSelector<std::map<K, V>, C, TSortedTag>
     typedef TNoopSorter<std::map<K, V>, C> TSorter;
 };
 
-template <class K, class C>
-struct TSorterSelector<yhash_set<K>, C, TSortedTag>
+template <class K, class H, class E, class A, class C>
+struct TSorterSelector<yhash_set<K, H, E, A>, C, TSortedTag>
 {
-    typedef TCollectionSorter<yhash_set<K>, TSetSorterComparer<C>> TSorter;
+    typedef TCollectionSorter<yhash_set<K, H, E, A>, TSetSorterComparer<C>> TSorter;
 };
 
 template <class K, class V, class C>
@@ -1249,7 +1238,7 @@ struct TSerializerTraits<Stroka, C, void>
 template <class T, class C>
 struct TSerializerTraits<TNullable<T>, C, void>
 {
-    typedef TNullableSerializer TSerializer;
+    typedef TNullableSerializer<> TSerializer;
 };
 
 template <class T, class A, class C>
@@ -1287,8 +1276,8 @@ struct TSerializerTraits<std::unordered_set<T, H, P, A>, C, void>
     typedef TSetSerializer<> TSerializer;
 };
 
-template <class T, class C>
-struct TSerializerTraits<yhash_set<T>, C, void>
+template <class T, class H, class E, class A, class C>
+struct TSerializerTraits<yhash_set<T, H, E, A>, C, void>
 {
     typedef TSetSerializer<> TSerializer;
 };
@@ -1317,8 +1306,8 @@ struct TSerializerTraits<std::unique_ptr<std::unordered_set<T, H, P, A>>, C, voi
     typedef TNullableSetSerializer<> TSerializer;
 };
 
-template <class T, class C>
-struct TSerializerTraits<std::unique_ptr<yhash_set<T>>, C, void>
+template <class T, class H, class E, class A, class C>
+struct TSerializerTraits<std::unique_ptr<yhash_set<T, H, E, A>>, C, void>
 {
     typedef TNullableSetSerializer<> TSerializer;
 };

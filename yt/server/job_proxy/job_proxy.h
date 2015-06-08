@@ -85,8 +85,7 @@ private:
 
     virtual NRpc::IChannelPtr GetMasterChannel() const override;
 
-    virtual NChunkClient::IBlockCachePtr GetCompressedBlockCache() const override;
-    virtual NChunkClient::IBlockCachePtr GetUncompressedBlockCache() const override;
+    virtual NChunkClient::IBlockCachePtr GetBlockCache() const override;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
 

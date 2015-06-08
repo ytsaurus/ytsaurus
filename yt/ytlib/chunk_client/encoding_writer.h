@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <core/actions/callback.h>
-#include <core/concurrency/action_queue.h>
 
 #include <core/misc/ref.h>
 #include <core/misc/async_stream_state.h>
@@ -11,6 +10,8 @@
 #include <core/concurrency/async_semaphore.h>
 
 #include <core/compression/public.h>
+
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -29,59 +30,66 @@ public:
     TEncodingWriter(
         TEncodingWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
-        IChunkWriterPtr chunkWriter);
+        IChunkWriterPtr chunkWriter,
+        IBlockCachePtr blockCache);
+
+    ~TEncodingWriter();
 
     bool IsReady() const;
     TFuture<void> GetReadyEvent();
 
-    void WriteBlock(const TSharedRef& block);
-    void WriteBlock(std::vector<TSharedRef>&& vectorizedBlock);
+    void WriteBlock(TSharedRef block);
+    void WriteBlock(std::vector<TSharedRef> vectorizedBlock);
 
     // Future is set when all block get written to underlying writer.
     TFuture<void> Flush();
 
-    ~TEncodingWriter();
-
 private:
-    TAtomic UncompressedSize_;
-    TAtomic CompressedSize_;
+    const TEncodingWriterConfigPtr Config_;
+    TEncodingWriterOptionsPtr Options_;
+    const IChunkWriterPtr ChunkWriter_;
+    const IBlockCachePtr BlockCache_;
 
-    // Protects #CompressionRatio_.
-    TSpinLock SpinLock;
-    double CompressionRatio_;
+    std::atomic<i64> UncompressedSize_ = {0};
+    std::atomic<i64> CompressedSize_ = {0};
 
-    TEncodingWriterConfigPtr Config;
-    IChunkWriterPtr ChunkWriter;
+    int AddedBlockIndex_ = 0;
+    int WrittenBlockIndex_ = 0;
 
-    IInvokerPtr CompressionInvoker;
-    NConcurrency::TAsyncSemaphore Semaphore;
-    NCompression::ICodec* Codec;
+    std::atomic<double> CompressionRatio_;
 
-    TAsyncStreamState State;
+    IInvokerPtr CompressionInvoker_;
+    NConcurrency::TAsyncSemaphore Semaphore_;
+    NCompression::ICodec* Codec_;
 
-    std::deque<TSharedRef> PendingBlocks;
+    TAsyncStreamState State_;
 
-    // True if OnReadyEventCallback is subscribed on AsyncWriter::ReadyEvent.
-    bool IsWaiting;
-    bool CloseRequested;
-    TCallback<void(const TError&)> OnReadyEventCallback;
-    TCallback<void()> TriggerWritingCallback;
+    std::deque<TSharedRef> PendingBlocks_;
+
+    // True if OnReadyEventCallback_ is subscribed on AsyncWriter::ReadyEvent.
+    bool IsWaiting_ = false;
+    bool CloseRequested_ = false;
+    TCallback<void(const TError&)> OnReadyEventCallback_;
+    TCallback<void()> TriggerWritingCallback_;
+
+    NLogging::TLogger Logger;
+
 
     void OnReadyEvent(const TError& error);
     void TriggerWriting();
     void WritePendingBlocks();
 
+    void DoCompressBlock(const TSharedRef& uncompressedBlock);
+    void DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock);
+
     void ProcessCompressedBlock(const TSharedRef& block, i64 delta);
 
-    void DoCompressBlock(const TSharedRef& block);
-    void DoCompressVector(const std::vector<TSharedRef>& vectorizedBlock);
-
     void VerifyBlock(
-        const TSharedRef& origin,
+        const TSharedRef& uncompressedBlock,
         const TSharedRef& compressedBlock);
 
     void VerifyVector(
-        const std::vector<TSharedRef>& origin,
+        const std::vector<TSharedRef>& uncompressedVectorizedBlock,
         const TSharedRef& compressedBlock);
 
     void SetCompressionRatio(double value);

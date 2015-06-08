@@ -55,19 +55,20 @@ public:
     NRpc::IServerPtr GetRpcServer() const;
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
-    NJobAgent::TJobTrackerPtr GetJobController() const;
+    NJobAgent::TJobControllerPtr GetJobController() const;
     NTabletNode::TSlotManagerPtr GetTabletSlotManager() const;
     NTabletNode::TSecurityManagerPtr GetSecurityManager() const;
+    NTabletNode::TInMemoryManagerPtr GetInMemoryManager() const;
     NExecAgent::TSlotManagerPtr GetExecSlotManager() const;
     NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
-    TNodeMemoryTracker* GetMemoryUsageTracker();
+    TNodeMemoryTracker* GetMemoryUsageTracker() const;
     NDataNode::TChunkStorePtr GetChunkStore() const;
     NDataNode::TChunkCachePtr GetChunkCache() const;
     NDataNode::TChunkRegistryPtr GetChunkRegistry() const;
     NDataNode::TSessionManagerPtr GetSessionManager() const;
     NDataNode::TBlockStorePtr GetBlockStore() const;
-    NChunkClient::IBlockCachePtr GetUncompressedBlockCache() const;
+    NChunkClient::IBlockCachePtr GetBlockCache() const;
     NDataNode::TPeerBlockTablePtr GetPeerBlockTable() const;
     NDataNode::TBlobReaderCachePtr GetBlobReaderCache() const;
     NDataNode::TJournalDispatcherPtr GetJournalDispatcher() const;
@@ -82,8 +83,6 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetInThrottler(NChunkClient::EWriteSessionType sessionType) const;
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EWriteSessionType sessionType) const;
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EReadSessionType sessionType) const;
-
-    const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
 
     const TGuid& GetCellId() const;
 
@@ -105,18 +104,18 @@ private:
     std::unique_ptr<NHttp::TServer> HttpServer;
     NRpc::IChannelFactoryPtr TabletChannelFactory;
     NYTree::IMapNodePtr OrchidRoot;
-    NJobAgent::TJobTrackerPtr JobController;
+    NJobAgent::TJobControllerPtr JobController;
     NExecAgent::TSlotManagerPtr ExecSlotManager;
     NExecAgent::TEnvironmentManagerPtr EnvironmentManager;
     NJobProxy::TJobProxyConfigPtr JobProxyConfig;
-    TMemoryUsageTracker<EMemoryConsumer> MemoryUsageTracker;
+    std::unique_ptr<TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>> MemoryUsageTracker;
     NExecAgent::TSchedulerConnectorPtr SchedulerConnector;
     NDataNode::TChunkStorePtr ChunkStore;
     NDataNode::TChunkCachePtr ChunkCache;
     NDataNode::TChunkRegistryPtr ChunkRegistry;
     NDataNode::TSessionManagerPtr SessionManager;
     NDataNode::TBlockStorePtr BlockStore;
-    NChunkClient::IBlockCachePtr UncompressedBlockCache;
+    NChunkClient::IBlockCachePtr BlockCache;
     NDataNode::TPeerBlockTablePtr PeerBlockTable;
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
     NDataNode::TBlobReaderCachePtr BlobReaderCache;
@@ -130,17 +129,17 @@ private:
 
     NTabletNode::TSlotManagerPtr TabletSlotManager;
     NTabletNode::TSecurityManagerPtr SecurityManager;
+    NTabletNode::TInMemoryManagerPtr InMemoryManager;
 
     NQueryClient::IExecutorPtr QueryExecutor;
 
-    NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
-
 
     void DoRun();
-
+    NNodeTrackerClient::TAddressMap GetLocalAddresses();
+    void PopulateAlerts(std::vector<TError>* alerts);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellNode
+} // namespace NTabletNode
 } // namespace NYT

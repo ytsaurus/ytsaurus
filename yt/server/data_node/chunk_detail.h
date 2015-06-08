@@ -22,6 +22,7 @@ struct TChunkDescriptor
 
     TChunkId Id;
     i64 DiskSpace = 0;
+
     // For journal chunks only.
     i64 RowCount = 0;
     bool Sealed = false;
@@ -55,10 +56,9 @@ protected:
 
     int Version_ = 0;
 
-    TRefCountedChunkMetaPtr Meta_;
-
     TSpinLock SpinLock_;
-    TPromise<void> RemovedPromise_; // if not null then remove is scheduled
+    TFuture<void> RemovedFuture_;  // if not null then remove is scheduled
+    TPromise<void> RemovedPromise_;
     int ReadLockCounter_ = 0;
     bool Removing_ = false;
 
@@ -71,7 +71,9 @@ protected:
     void StartAsyncRemove();
     virtual TFuture<void> AsyncRemove() = 0;
 
-    TRefCountedChunkMetaPtr FilterCachedMeta(const TNullable<std::vector<int>>& extensionTags) const;
+    static TRefCountedChunkMetaPtr FilterMeta(
+        TRefCountedChunkMetaPtr meta,
+        const TNullable<std::vector<int>>& extensionTags);
 
 };
 

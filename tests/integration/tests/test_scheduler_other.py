@@ -74,7 +74,7 @@ class TestSchedulerOther(YTEnvSetup):
         op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3")
 
         time.sleep(2)
-        self.Env._kill_service("scheduler")
+        self.Env.kill_service("scheduler")
         self.Env.start_schedulers("scheduler")
 
         track_op(op_id)
@@ -107,6 +107,37 @@ class TestSchedulerOther(YTEnvSetup):
 
         assert "aborted" == get("//sys/operations/" + op_id + "/@state")
 
+    def test_operation_time_limit(self):
+        create("table", "//tmp/in")
+        set("//tmp/in/@replication_factor", 1)
+
+        create("table", "//tmp/out1")
+        set("//tmp/out1/@replication_factor", 1)
+
+        create("table", "//tmp/out2")
+        set("//tmp/out2/@replication_factor", 1)
+
+        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+
+        # Default infinite time limit.
+        op1 = map(dont_track=True,
+            command="sleep 1.0; cat >/dev/null",
+            in_=["//tmp/in"],
+            out="//tmp/out1")
+
+        # Operation specific time limit.
+        op2 = map(dont_track=True,
+            command="sleep 1.0; cat >/dev/null",
+            in_=["//tmp/in"],
+            out="//tmp/out2",
+            spec={'time_limit': 800})
+
+        time.sleep(0.9)
+        assert get("//sys/operations/{0}/@state".format(op1)) != "failed"
+        assert get("//sys/operations/{0}/@state".format(op2)) == "failed"
+
+        track_op(op1)
+
 
 class TestSchedulerMaxChunkPerJob(YTEnvSetup):
     NUM_MASTERS = 3
@@ -115,23 +146,28 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "max_chunk_stripes_per_job" : 1
+            "max_chunk_stripes_per_job" : 1,
+            "max_chunk_count_per_fetch" : 1
         }
     }
 
     def test_max_chunk_stripes_per_job(self):
+        data = [{"foo": i} for i in xrange(5)]
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")
         create("table", "//tmp/out")
-        write_table("//tmp/in1", [{"foo": i} for i in xrange(5)], sorted_by="foo")
-        write_table("//tmp/in2", [{"foo": i} for i in xrange(5)], sorted_by="foo")
+        write_table("//tmp/in1", data, sorted_by="foo")
+        write_table("//tmp/in2", data, sorted_by="foo")
 
-        merge(mode="unordered", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", spec={"force_transform": True})
+        merge(mode="ordered", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", spec={"force_transform": True})
+        assert data + data == read_table("//tmp/out")
+
         map(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
         with pytest.raises(YtError):
             merge(mode="sorted", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
         with pytest.raises(YtError):
             reduce(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", reduce_by=["foo"])
+
 
 class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
     NUM_MASTERS = 3

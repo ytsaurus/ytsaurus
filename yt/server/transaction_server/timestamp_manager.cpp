@@ -52,9 +52,9 @@ public:
             TransactionServerLogger)
         , TCompositeAutomatonPart(
             hydraManager,
-            automaton)
+            automaton,
+            automatonInvoker)
         , Config_(config)
-        , AutomatonInvoker_(automatonInvoker)
     {
         YCHECK(Config_);
         YCHECK(AutomatonInvoker_);
@@ -78,7 +78,7 @@ public:
             "TimestampManager",
             BIND(&TImpl::Load, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "TimestampManager",
             BIND(&TImpl::Save, Unretained(this)));
 
@@ -91,8 +91,7 @@ public:
     }
 
 private:
-    TTimestampManagerConfigPtr Config_;
-    IInvokerPtr AutomatonInvoker_;
+    const TTimestampManagerConfigPtr Config_;
 
     TActionQueuePtr TimestampQueue_;
     IInvokerPtr TimestampInvoker_;
@@ -235,6 +234,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TCompositeAutomatonPart::Clear();
+
         PersistentTimestamp_ = NullTimestamp;
     }
 
@@ -255,13 +256,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TCompositeAutomatonPart::OnLeaderActive();
+
         LOG_INFO("Persistent timestamp is %v",
             PersistentTimestamp_);
 
         auto persistentTimestamp = PersistentTimestamp_;
         auto invoker = HydraManager_
-            ->GetAutomatonEpochContext()
-            ->CancelableContext
+            ->GetAutomatonCancelableContext()
             ->CreateInvoker(TimestampInvoker_);
 
         auto callback = BIND([=, this_ = MakeStrong(this)] () {
@@ -290,6 +292,8 @@ private:
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TCompositeAutomatonPart::OnStopLeading();
 
         TimestampInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(TimestampThread);

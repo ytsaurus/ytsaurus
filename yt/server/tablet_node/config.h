@@ -76,12 +76,9 @@ class TTableMountConfig
     : public TRetentionConfig
 {
 public:
-    bool EnableCodegen;
-
     int MaxMemoryStoreKeyCount;
     int MaxMemoryStoreValueCount;
-    i64 MaxMemoryStoreAlignedPoolSize;
-    i64 MaxMemoryStoreUnalignedPoolSize;
+    i64 MaxMemoryStorePoolSize;
     TDuration MemoryStoreAutoFlushPeriod;
 
     i64 MaxPartitionDataSize;
@@ -90,15 +87,15 @@ public:
 
     int MaxPartitionCount;
 
-    i64 MaxEdenDataSize;
-    int MaxEdenChunkCount;
-    int MaxPartitioningFanIn;
-    TDuration AutoPartitioningPeriod;
+    i64 MinPartitioningDataSize;
+    int MinPartitioningStoreCount;
+    i64 MaxPartitioningDataSize;
+    int MaxPartitioningStoreCount;
 
-    int MinCompactionChunkCount;
+    int MinCompactionStoreCount;
+    int MaxCompactionStoreCount;
     i64 CompactionDataSizeBase;
     double CompactionDataSizeRatio;
-    int MaxCompactionFanIn;
 
     int SamplesPerPartition;
 
@@ -108,67 +105,69 @@ public:
 
     EInMemoryMode InMemoryMode;
 
+    int MaxStoresPerTablet;
+
+    TNullable<ui64> ForcedCompactionRevision;
+
     TTableMountConfig()
     {
-        RegisterParameter("enable_codegen", EnableCodegen)
-            .Default(true);
-
         RegisterParameter("max_memory_store_key_count", MaxMemoryStoreKeyCount)
             .GreaterThan(0)
             .Default(1000000);
         RegisterParameter("max_memory_store_value_count", MaxMemoryStoreValueCount)
             .GreaterThan(0)
-            .Default(10000000);
-        RegisterParameter("max_memory_store_aligned_pool_size", MaxMemoryStoreAlignedPoolSize)
-            .GreaterThan(0)
-            .Default((i64) 1024 * 1024 * 1024);
-        RegisterParameter("max_memory_store_unaligned_pool_size", MaxMemoryStoreUnalignedPoolSize)
+            .Default(10000000)
+            // NB: This limit is really important; please consult babenko@
+            // before changing it.
+            .LessThanOrEqual(SoftRevisionsPerDynamicMemoryStoreLimit);
+        RegisterParameter("max_memory_store_pool_size", MaxMemoryStorePoolSize)
             .GreaterThan(0)
             .Default((i64) 1024 * 1024 * 1024);
         RegisterParameter("memory_store_auto_flush_period", MemoryStoreAutoFlushPeriod)
             .Default(TDuration::Hours(1));
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
-            .Default((i64) 256 * 1024 * 1024)
+            .Default((i64) 320 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("desired_partition_data_size", DesiredPartitionDataSize)
-            .Default((i64) 192 * 1024 * 1024)
+            .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("min_partition_data_size", MinPartitionDataSize)
-            .Default((i64) 16 * 1024 * 1024)
+            .Default((i64) 96 * 1024 * 1024)
             .GreaterThan(0);
 
         RegisterParameter("max_partition_count", MaxPartitionCount)
             .Default(10240)
             .GreaterThan(0);
 
-        RegisterParameter("max_eden_data_size", MaxEdenDataSize)
-            .Default((i64) 256 * 1024 * 1024)
+        RegisterParameter("min_partitioning_data_size", MinPartitioningDataSize)
+            .Default((i64) 64 * 1024 * 1024)
             .GreaterThan(0);
-        RegisterParameter("max_eden_chunk_count", MaxEdenChunkCount)
-            .Default(8)
+        RegisterParameter("min_partitioning_store_count", MinPartitioningStoreCount)
+            .Default(1)
             .GreaterThan(0);
-        RegisterParameter("max_partitioning_fan_in", MaxPartitioningFanIn)
-            .Default(10)
+        RegisterParameter("max_partitioning_data_size", MaxPartitioningDataSize)
+            .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
-        RegisterParameter("auto_partitioning_period", AutoPartitioningPeriod)
-            .Default(TDuration::Hours(1));
+        RegisterParameter("max_partitioning_store_count", MaxPartitioningStoreCount)
+            .Default(5)
+            .GreaterThan(0);
 
-        RegisterParameter("min_compaction_chunk_count", MinCompactionChunkCount)
+        RegisterParameter("min_compaction_store_count", MinCompactionStoreCount)
             .Default(3)
             .GreaterThan(1);
+        RegisterParameter("max_compaction_store_count", MaxCompactionStoreCount)
+            .Default(5)
+            .GreaterThan(0);
         RegisterParameter("compaction_data_size_base", CompactionDataSizeBase)
             .Default((i64) 16 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("compaction_data_size_ratio", CompactionDataSizeRatio)
             .Default(2.0)
             .GreaterThan(1.0);
-        RegisterParameter("max_compaction_fan_in", MaxCompactionFanIn)
-            .Default(5)
-            .GreaterThan(0);
 
         RegisterParameter("samples_per_partition", SamplesPerPartition)
-            .Default(0)
+            .Default(100)
             .GreaterThanOrEqual(0);
 
         RegisterParameter("backing_store_retention_time", BackingStoreRetentionTime)
@@ -176,10 +175,17 @@ public:
 
         RegisterParameter("max_read_fan_in", MaxReadFanIn)
             .GreaterThan(0)
-            .Default(20);
+            .Default(30);
 
         RegisterParameter("in_memory_mode", InMemoryMode)
-            .Default(EInMemoryMode::Disabled);
+            .Default(EInMemoryMode::None);
+
+        RegisterParameter("max_stores_per_tablet", MaxStoresPerTablet)
+            .Default(10000)
+            .GreaterThan(0);
+
+        RegisterParameter("forced_compaction_revision", ForcedCompactionRevision)
+            .Default(Null);
 
         RegisterValidator([&] () {
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {
@@ -188,8 +194,14 @@ public:
             if (DesiredPartitionDataSize >= MaxPartitionDataSize) {
                 THROW_ERROR_EXCEPTION("\"desired_partition_data_size\" must be less than \"max_partition_data_size\"");
             }
-            if (MaxCompactionFanIn <= MinCompactionChunkCount) {
-                THROW_ERROR_EXCEPTION("\"max_compaction_fan_in\" must be greater than \"min_compaction_chunk_count\"");
+            if (MaxPartitioningStoreCount < MinPartitioningStoreCount) {
+                THROW_ERROR_EXCEPTION("\"max_partitioning_store_count\" must be greater than or equal to \"min_partitioning_store_count\"");
+            }
+            if (MaxPartitioningDataSize < MinPartitioningDataSize) {
+                THROW_ERROR_EXCEPTION("\"max_partitioning_data_size\" must be greater than or equal to \"min_partitioning_data_size\"");
+            }
+            if (MaxCompactionStoreCount < MinCompactionStoreCount) {
+                THROW_ERROR_EXCEPTION("\"max_compaction_store_count\" must be greater than or equal to \"min_compaction_chunk_count\"");
             }
         });
     }
@@ -224,8 +236,7 @@ class TTabletManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    i64 AlignedPoolChunkSize;
-    i64 UnalignedPoolChunkSize;
+    i64 PoolChunkSize;
     double MaxPoolSmallBlockRatio;
 
     TDuration ErrorBackoffTime;
@@ -236,10 +247,7 @@ public:
 
     TTabletManagerConfig()
     {
-        RegisterParameter("aligned_pool_chunk_size", AlignedPoolChunkSize)
-            .GreaterThan(0)
-            .Default(64 * 1024);
-        RegisterParameter("unaligned_pool_chunk_size", UnalignedPoolChunkSize)
+        RegisterParameter("pool_chunk_size", PoolChunkSize)
             .GreaterThan(0)
             .Default(64 * 1024);
         RegisterParameter("max_pool_small_block_ratio", MaxPoolSmallBlockRatio)
@@ -267,6 +275,7 @@ class TStoreFlusherConfig
 public:
     int ThreadPoolSize;
     int MaxConcurrentFlushes;
+    i64 MinForcedFlushDataSize;
 
     TStoreFlusherConfig()
     {
@@ -276,6 +285,9 @@ public:
         RegisterParameter("max_concurrent_flushes", MaxConcurrentFlushes)
             .GreaterThan(0)
             .Default(1);
+        RegisterParameter("min_forced_flush_data_size", MinForcedFlushDataSize)
+            .GreaterThan(0)
+            .Default((i64) 1024 * 1024);
     }
 };
 
@@ -309,14 +321,15 @@ DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStorePreloaderConfig
+class TInMemoryManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
     int MaxConcurrentPreloads;
     i64 WindowSize;
+    TDuration InterceptedDataRetentionTime;
 
-    TStorePreloaderConfig()
+    TInMemoryManagerConfig()
     {
         RegisterParameter("max_concurrent_preloads", MaxConcurrentPreloads)
             .GreaterThan(0)
@@ -324,10 +337,12 @@ public:
         RegisterParameter("window_size", WindowSize)
             .GreaterThan(0)
             .Default((i64) 16 * 1024 * 1024);
+        RegisterParameter("intercepted_data_retention_time", InterceptedDataRetentionTime)
+            .Default(TDuration::Seconds(30));
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TStorePreloaderConfig)
+DEFINE_REFCOUNTED_TYPE(TInMemoryManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -397,18 +412,45 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TResourceLimitsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Maximum number of Tablet Managers to run.
+    int Slots;
+
+    //! Maximum amount of memory static tablets (i.e. "in-memory tables") are allowed to occupy.
+    i64 TabletStaticMemory;
+
+    //! Maximum amount of memory dynamics tablets are allowed to occupy.
+    i64 TabletDynamicMemory;
+
+    TResourceLimitsConfig()
+    {
+        RegisterParameter("slots", Slots)
+            .GreaterThanOrEqual(0)
+            .Default(4);
+        RegisterParameter("tablet_static_memory", TabletStaticMemory)
+            .Default(std::numeric_limits<i64>::max());
+        RegisterParameter("tablet_dynamic_memory", TabletDynamicMemory)
+            .GreaterThanOrEqual(0)
+            .Default((i64) 1024 * 1024 * 1024);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Maximum number of tablet managers to run.
-    int Slots;
-
-    //! Maximum amount of memory tablets are allowed to occupy.
-    i64 MemoryLimit;
-
     //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
     double ForcedRotationsMemoryRatio;
+
+    //! Limits resources consumed by tablets.
+    TResourceLimitsConfigPtr ResourceLimits;
 
     //! Remote snapshots.
     NHydra::TRemoteSnapshotStoreConfigPtr Snapshots;
@@ -428,7 +470,7 @@ public:
     TTabletManagerConfigPtr TabletManager;
     TStoreFlusherConfigPtr StoreFlusher;
     TStoreCompactorConfigPtr StoreCompactor;
-    TStorePreloaderConfigPtr StorePreloader;
+    TInMemoryManagerConfigPtr InMemoryManager;
     TPartitionBalancerConfigPtr PartitionBalancer;
     TSecurityManagerConfigPtr SecurityManager;
 
@@ -448,16 +490,12 @@ public:
 
     TTabletNodeConfig()
     {
-        RegisterParameter("slots", Slots)
-            .GreaterThanOrEqual(0)
-            .Default(4);
-
-        RegisterParameter("memory_limit", MemoryLimit)
-            .GreaterThanOrEqual(0)
-            .Default((i64) 1024 * 1024 * 1024);
         RegisterParameter("forced_rotations_memory_ratio", ForcedRotationsMemoryRatio)
             .InRange(0.0, 1.0)
             .Default(0.8);
+
+        RegisterParameter("resource_limits", ResourceLimits)
+            .DefaultNew();
 
         RegisterParameter("snapshots", Snapshots)
             .DefaultNew();
@@ -477,7 +515,7 @@ public:
             .DefaultNew();
         RegisterParameter("store_compactor", StoreCompactor)
             .DefaultNew();
-        RegisterParameter("store_preloader", StorePreloader)
+        RegisterParameter("in_memory_manager", InMemoryManager)
             .DefaultNew();
         RegisterParameter("partition_balancer", PartitionBalancer)
             .DefaultNew();

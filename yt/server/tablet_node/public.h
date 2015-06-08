@@ -15,7 +15,6 @@
 #include <server/hydra/public.h>
 
 #include <server/hive/public.h>
-#include <ytlib/new_table_client/schema.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -47,7 +46,7 @@ using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 using NTransactionClient::SyncLastCommittedTimestamp;
 using NTransactionClient::AsyncLastCommittedTimestamp;
-using NTransactionClient::AsyncAllCommittedTimestamp;
+using NTransactionClient::AllCommittedTimestamp;
 
 using NVersionedTableClient::EValueType;
 using NVersionedTableClient::TKey;
@@ -61,31 +60,31 @@ using NVersionedTableClient::TVersionedOwningRow;
 using NVersionedTableClient::TColumnFilter;
 using NVersionedTableClient::TTableSchema;
 using NVersionedTableClient::TColumnSchema;
+using NVersionedTableClient::TChunkReaderPerformanceCounters;
 
 using NHive::ETransactionState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int TypicalStoreCount = 64;
-
 DEFINE_ENUM(EPartitionState,
     (Normal)             // nothing special is happening
     (Splitting)          // split mutation is submitted
     (Merging)            // merge mutation is submitted
-    (Compacting)         // compaction (or partitioning) is in progress 
+    (Compacting)         // compaction is in progress
+    (Partitioning)       // partitioning is in progress
     (Sampling)           // sampling is in progress
 );
 
 DEFINE_ENUM(ETabletState,
     // The only good state admitting read and write requests.
-    (Mounted)
+    ((Mounted)           (0))
 
     // NB: All states below are for unmounting workflow only!
-    (WaitingForLocks)
-    (FlushPending)     // transient, transition to Flushing is pending
-    (Flushing)
-    (UnmountPending)   // transient, transition to Unmounted is pending
-    (Unmounted)
+    ((WaitingForLocks)   (1))
+    ((FlushPending)      (2)) // transient, transition to Flushing is pending
+    ((Flushing)          (3))
+    ((UnmountPending)    (4)) // transient, transition to Unmounted is pending
+    ((Unmounted)         (5))
 );
 
 DEFINE_ENUM(EStoreType,
@@ -94,32 +93,50 @@ DEFINE_ENUM(EStoreType,
 );
 
 DEFINE_ENUM(EStoreState,
-    (ActiveDynamic)         // dynamic, can receive updates
-    (PassiveDynamic)        // dynamic, rotated and cannot receive more updates
+    ((ActiveDynamic)        (0)) // dynamic, can receive updates
+    ((PassiveDynamic)       (1)) // dynamic, rotated and cannot receive more updates
 
-    (Persistent)            // stored in a chunk
+    ((Persistent)           (2)) // stored in a chunk
 
-    (Flushing)              // transient, flush is in progress
-    (FlushFailed)           // transient, waiting for back off to complete
+    ((Removing)             (6)) // transient, UpdateTabletStores mutation is being committed by node
+    ((RemoveCommitting)     (7)) // UpdateTabletStores request sent to master
+    ((RemoveFailed)         (8)) // transient, waiting for back off to complete
 
-    (Compacting)            // transient, compaction is in progress
-    (CompactionFailed)      // transient, waiting for back off to complete
+    ((Orphaned)             (9)) // belongs to a forcefully removed tablet
+    ((Removed)             (10)) // removed by rotation but still locked
+);
 
-    (RemoveCommitting)      // UpdateTabletStores request sent
-    (RemoveFailed)          // transient, waiting for back off to complete
+DEFINE_ENUM(EStoreFlushState,
+    (None)
+    (Running)
+    (Complete)
+    (Failed)
+);
 
-    (Orphaned)              // belongs to a forcefully removed tablet
-    (Removed)               // removed by rotation but still locked
+DEFINE_ENUM(EStoreCompactionState,
+    (None)
+    (Running)
+    (Failed)
+);
+
+DEFINE_ENUM(EStorePreloadState,
+    (Disabled)
+    (None)
+    (Scheduled)
+    (Running)
+    (Complete)
+    (Failed)
 );
 
 DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)
+    (Mutation)
     (Read)
     (Write)
 );
 
 DEFINE_ENUM(EInMemoryMode,
-    (Disabled)
+    (None)
     (Compressed)
     (Uncompressed)
 );
@@ -133,10 +150,11 @@ DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreFlusherConfig)
 DECLARE_REFCOUNTED_CLASS(TStoreCompactorConfig)
-DECLARE_REFCOUNTED_CLASS(TStorePreloaderConfig)
+DECLARE_REFCOUNTED_CLASS(TInMemoryManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TPartitionBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletChunkReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletNodeConfig)
 
 DECLARE_REFCOUNTED_CLASS(TSlotManager)
@@ -166,21 +184,33 @@ DECLARE_REFCOUNTED_CLASS(TChunkStore)
 DECLARE_REFCOUNTED_CLASS(TStoreManager)
 DECLARE_REFCOUNTED_CLASS(TSecurityManager)
 
+DECLARE_REFCOUNTED_STRUCT(TInterceptedChunkData)
+DECLARE_REFCOUNTED_CLASS(TInMemoryManager)
+
 struct TDynamicRowHeader;
 class TDynamicRow;
 struct TDynamicRowRef;
 
+union TDynamicValueData;
+struct TDynamicValue;
+
 struct TEditListHeader;
 template <class T>
 class TEditList;
-typedef TEditList<NVersionedTableClient::TVersionedValue> TValueList;
-typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
+using TValueList = TEditList<TDynamicValue>;
+using TRevisionList = TEditList<ui32>;
 
-class TUnversionedRowMerger;
+class TSchemafulRowMerger;
 class TVersionedRowMerger;
 
-typedef NVersionedTableClient::TMultiChunkWriterOptions TTabletWriterOptions;
-typedef NVersionedTableClient::TMultiChunkWriterOptionsPtr TTabletWriterOptionsPtr;
+using TTabletWriterOptions = NVersionedTableClient::TTableWriterOptions;
+using TTabletWriterOptionsPtr =  NVersionedTableClient::TTableWriterOptionsPtr;
+
+//! This is the hard limit.
+//! Moreover, it is quite expensive to be graceful in preventing it from being exceeded.
+//! The soft limit, thus, is significantly smaller.
+static const i64 HardRevisionsPerDynamicMemoryStoreLimit = 1ULL << 26;
+static const i64 SoftRevisionsPerDynamicMemoryStoreLimit = 1ULL << 25;
 
 ////////////////////////////////////////////////////////////////////////////////
 

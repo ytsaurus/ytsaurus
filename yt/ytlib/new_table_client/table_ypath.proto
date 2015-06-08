@@ -3,6 +3,8 @@ package NYT.NVersionedTableClient.NProto;
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/new_table_client/chunk_meta.proto";
+import "yt/ytlib/hydra/hydra_manager.proto";
+import "yt/ytlib/hive/cell_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,8 +81,8 @@ message TTabletInfo
     required NYT.NProto.TGuid tablet_id = 1;
     required int32 state = 2;
     required bytes pivot_key = 3;
-    optional int32 cell_config_version = 4;
-    optional bytes cell_config = 5; // NElection::TCellConfig
+    optional NYT.NProto.TGuid cell_id = 4;
+    optional int32 cell_config_version = 5;
     repeated int32 replica_node_ids = 6;
 }
 
@@ -90,8 +92,8 @@ message TRspGetMountInfo
     required TTableSchemaExt schema = 2;
     required TKeyColumnsExt key_columns = 3;
     repeated TTabletInfo tablets = 4;
-    required bool sorted = 5;
-    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
+    repeated NYT.NHive.NProto.TCellDescriptor tablet_cells = 5;
+    required bool sorted = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

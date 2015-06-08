@@ -98,9 +98,10 @@ public:
         auto* list = CreateUpdateList(operation);
         auto strategy = Bootstrap->GetScheduler()->GetStrategy();
 
+        auto path = GetOperationPath(id);
         auto batchReq = StartBatchRequest(list);
         {
-            auto req = TYPathProxy::Set(GetOperationPath(id));
+            auto req = TYPathProxy::Set(path);
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
                     .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operation))
@@ -124,12 +125,30 @@ public:
             batchReq->AddRequest(req);
         }
 
+        {
+            auto acl = NYTree::BuildYsonNodeFluently()
+                .BeginList()
+                    .Item().BeginMap()
+                        .Item("action").Value("allow")
+                        .Item("subjects").BeginList()
+                            .Item().Value(operation->GetAuthenticatedUser())
+                        .EndList()
+                        .Item("permissions").BeginList()
+                            .Item().Value("write")
+                        .EndList()
+                    .EndMap()
+                .EndList();
+
+
+            auto req = TYPathProxy::Set(path + "/@acl");
+            req->set_value(ConvertToYsonString(acl).Data());
+
+            batchReq->AddRequest(req);
+        }
+
         return batchReq->Invoke().Apply(
-            BIND(
-                &TImpl::OnOperationNodeCreated,
-                MakeStrong(this),
-                operation)
-            .AsyncVia(Bootstrap->GetControlInvoker()));
+            BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
+                .AsyncVia(Bootstrap->GetControlInvoker()));
     }
 
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation)
@@ -280,7 +299,7 @@ public:
         list->WatcherHandlers.push_back(handler);
     }
 
-    void AttachJobInputContext(const TYPath& path, const std::vector<TChunkId>& inputContexts)
+    void AttachJobContext(const TYPath& path, const std::vector<TChunkId>& inputContexts)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -292,7 +311,7 @@ public:
                 auto contextPath = Format("%v/%v",
                     path,
                     ToYPathLiteral(index));
-                auto req = MakeCreateFileRequest(contextPath, inputContext);
+                auto req = StartCreateFileRequest(contextPath, inputContext);
 
                 batchReq->AddRequest(req, "create_input_context");
             }
@@ -329,7 +348,7 @@ private:
     TPeriodicExecutorPtr OperationNodesUpdateExecutor;
     TPeriodicExecutorPtr WatchersExecutor;
     TPeriodicExecutorPtr SnapshotExecutor;
-    TPeriodicExecutorPtr ClusterDirectoryExecutor;
+    TPeriodicExecutorPtr ClusterDirectoryUpdateExecutor;
 
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
@@ -425,8 +444,7 @@ private:
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
                 .Via(CancelableControlInvoker));
 
-        StartRefresh();
-        StartSnapshots();
+        StartPeriodicActivities();
 
         MasterConnected_.Fire(result);
     }
@@ -586,7 +604,7 @@ private:
         void UpdateClusterDirectory()
         {
             Owner->Bootstrap->GetClusterDirectory()->UpdateSelf();
-            Owner->OnGotClusters(WaitFor(Owner->GetClusters()));
+            Owner->UpdateClusterDirectory();
         }
 
         // - Request operations and their states.
@@ -679,7 +697,7 @@ private:
         void CheckOperationTransactions()
         {
             std::vector<TFuture<void>> asyncResults;
-            for (auto operation : Result.Operations) {
+            for (auto operation : Result.RevivingOperations) {
                 operation->SetState(EOperationState::Reviving);
 
                 auto checkTransaction = [&] (TOperationPtr operation, TTransactionPtr transaction) {
@@ -697,15 +715,11 @@ private:
                         })));
                 };
 
-                if (operation->GetState() != EOperationState::Aborting) {
-                    operation->SetState(EOperationState::Reviving);
-
-                    // NB: Async transaction is not checked.
-                    checkTransaction(operation, operation->GetUserTransaction());
-                    checkTransaction(operation, operation->GetSyncSchedulerTransaction());
-                    checkTransaction(operation, operation->GetInputTransaction());
-                    checkTransaction(operation, operation->GetOutputTransaction());
-                }
+                // NB: Async transaction is not checked.
+                checkTransaction(operation, operation->GetUserTransaction());
+                checkTransaction(operation, operation->GetSyncSchedulerTransaction());
+                checkTransaction(operation, operation->GetInputTransaction());
+                checkTransaction(operation, operation->GetOutputTransaction());
             }
 
             WaitFor(Combine(asyncResults))
@@ -715,7 +729,7 @@ private:
         // - Check snapshots for existence and validate versions.
         void DownloadSnapshots()
         {
-            for (auto operation : Result.Operations) {
+            for (auto operation : Result.RevivingOperations) {
                 if (!operation->GetCleanStart()) {
                     if (!DownloadSnapshot(operation)) {
                         operation->SetCleanStart(true);
@@ -903,8 +917,7 @@ private:
         ClearUpdateLists();
         ClearWatcherLists();
 
-        StopRefresh();
-        StopSnapshots();
+        StopPeriodicActivities();
 
         CancelableContext->Cancel();
 
@@ -970,38 +983,45 @@ private:
     }
 
 
-    void StartRefresh()
+    void StartPeriodicActivities()
     {
         TransactionRefreshExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
             BIND(&TImpl::RefreshTransactions, MakeWeak(this)),
             Config->TransactionsRefreshPeriod,
-            EPeriodicExecutorMode::Manual);
+            EPeriodicExecutorMode::Automatic);
         TransactionRefreshExecutor->Start();
 
         OperationNodesUpdateExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateOperationNodes, MakeWeak(this)),
             Config->OperationsUpdatePeriod,
-            EPeriodicExecutorMode::Manual);
+            EPeriodicExecutorMode::Automatic);
         OperationNodesUpdateExecutor->Start();
 
         WatchersExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
             Config->WatchersUpdatePeriod,
-            EPeriodicExecutorMode::Manual);
+            EPeriodicExecutorMode::Automatic);
         WatchersExecutor->Start();
 
-        ClusterDirectoryExecutor = New<TPeriodicExecutor>(
+        ClusterDirectoryUpdateExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateClusterDirectory, MakeWeak(this)),
             Config->ClusterDirectoryUpdatePeriod,
-            EPeriodicExecutorMode::Manual);
-        ClusterDirectoryExecutor->Start();
+            EPeriodicExecutorMode::Automatic);
+        ClusterDirectoryUpdateExecutor->Start();
+
+        SnapshotExecutor = New<TPeriodicExecutor>(
+            CancelableControlInvoker,
+            BIND(&TImpl::BuildSnapshot, MakeWeak(this)),
+            Config->SnapshotPeriod,
+            EPeriodicExecutorMode::Automatic);
+        SnapshotExecutor->Start();
     }
 
-    void StopRefresh()
+    void StopPeriodicActivities()
     {
         if (TransactionRefreshExecutor) {
             TransactionRefreshExecutor->Stop();
@@ -1018,25 +1038,11 @@ private:
             WatchersExecutor.Reset();
         }
 
-        if (ClusterDirectoryExecutor) {
-            ClusterDirectoryExecutor->Stop();
-            ClusterDirectoryExecutor.Reset();
+        if (ClusterDirectoryUpdateExecutor) {
+            ClusterDirectoryUpdateExecutor->Stop();
+            ClusterDirectoryUpdateExecutor.Reset();
         }
-    }
 
-
-    void StartSnapshots()
-    {
-        SnapshotExecutor = New<TPeriodicExecutor>(
-            CancelableControlInvoker,
-            BIND(&TImpl::BuildSnapshot, MakeWeak(this)),
-            Config->SnapshotPeriod,
-            EPeriodicExecutorMode::Manual);
-        SnapshotExecutor->Start();
-    }
-
-    void StopSnapshots()
-    {
         if (SnapshotExecutor) {
             SnapshotExecutor->Stop();
             SnapshotExecutor.Reset();
@@ -1085,7 +1091,6 @@ private:
         }
 
         LOG_INFO("Refreshing transactions");
-        TransactionRefreshExecutor->ScheduleNext();
 
         yhash_map<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
 
@@ -1096,7 +1101,8 @@ private:
             if (batchRspOrError.IsOK()) {
                 batchRsps[cellTag] = batchRspOrError.Value();
             } else {
-                LOG_ERROR(batchRspOrError, "Error refreshing transactions");
+                LOG_ERROR(batchRspOrError, "Error refreshing transactions (CellTag: %v)",
+                    cellTag);
             }
         }
 
@@ -1104,13 +1110,15 @@ private:
 
         for (const auto& id : watchSet) {
             auto cellTag = CellTagFromId(id);
-            const auto& batchRsp = batchRsps[cellTag];
-            auto rspOrError = batchRsp->GetResponse("check_tx_" + ToString(id));
-            if (!rspOrError.IsOK()) {
-                deadTransactionIds.insert(id);
+            auto it = batchRsps.find(cellTag);
+            if (it != batchRsps.end()) {
+                const auto& batchRsp = it->second;
+                auto rspOrError = batchRsp->GetResponse("check_tx_" + ToString(id));
+                if (!rspOrError.IsOK()) {
+                    deadTransactionIds.insert(id);
+                }
             }
         }
-
 
         LOG_INFO("Transactions refreshed");
 
@@ -1255,14 +1263,19 @@ private:
             }
         }
 
-        Combine(asyncResults).Subscribe(
-             BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this))
-                .Via(CancelableControlInvoker));
-
         // Cleanup finished operations.
         for (auto operation : finishedOperations) {
             RemoveUpdateList(operation);
         }
+
+        auto result = WaitFor(Combine(asyncResults));
+        if (!result.IsOK()) {
+            LOG_ERROR(result, "Error updating operation nodes");
+            Disconnect();
+            return;
+        }
+
+        LOG_INFO("Operation nodes updated");
     }
 
     void OnOperationNodeUpdated(
@@ -1277,22 +1290,6 @@ private:
 
         LOG_DEBUG("Operation node updated (OperationId: %v)",
             operation->GetId());
-    }
-
-    void OnOperationNodesUpdated(const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        if (!error.IsOK()) {
-            LOG_ERROR(error);
-            Disconnect();
-            return;
-        }
-
-        LOG_INFO("Operation nodes updated");
-
-        OperationNodesUpdateExecutor->ScheduleNext();
     }
 
 
@@ -1431,7 +1428,7 @@ private:
                     for (const auto& failContextChunkId : request.FailContextChunkIds) {
                         if (failContextChunkId != NChunkServer::NullChunkId) {
                             auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId(), index);
-                            auto req = MakeCreateFileRequest(failContextPath, failContextChunkId);
+                            auto req = StartCreateFileRequest(failContextPath, failContextChunkId);
 
                             batchReq->AddRequest(req, "create_fail_context");
                         }
@@ -1635,8 +1632,6 @@ private:
                 BIND(&TImpl::OnOperationWatchersUpdated, MakeStrong(this), operation)
                     .Via(CancelableControlInvoker));
         }
-
-        WatchersExecutor->ScheduleNext();
     }
 
     void OnGlobalWatchersUpdated(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
@@ -1687,6 +1682,8 @@ private:
 
     void BuildSnapshot()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (!Config->EnableSnapshotBuilding)
             return;
 
@@ -1694,37 +1691,19 @@ private:
             Config,
             Bootstrap->GetScheduler(),
             Bootstrap->GetMasterClient());
-        builder->Run().Subscribe(BIND(&TImpl::OnSnapshotBuilt, MakeWeak(this))
-            .Via(CancelableControlInvoker));
-    }
 
-    void OnSnapshotBuilt(const TError& error)
-    {
-        SnapshotExecutor->ScheduleNext();
+        // NB: Result is logged in the builder.
+        WaitFor(builder->Run());
     }
 
 
     void UpdateClusterDirectory()
     {
-        GetClusters()
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
-                OnGotClusters(rspOrError);
-                OnClusterDirectoryUpdated();
-            }).Via(CancelableControlInvoker));
-    }
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-    void OnClusterDirectoryUpdated()
-    {
-        ClusterDirectoryExecutor->ScheduleNext();
-    }
+        auto asyncRspOrError = Proxy.Execute(TYPathProxy::Get("//sys/clusters"));
+        auto rspOrError = WaitFor(asyncRspOrError);
 
-    TFuture<TYPathProxy::TRspGetPtr> GetClusters()
-    {
-        return Proxy.Execute(TYPathProxy::Get("//sys/clusters"));
-    }
-
-    void OnGotClusters(const TYPathProxy::TErrorOrRspGetPtr& rspOrError)
-    {
         if (!rspOrError.IsOK()) {
             LOG_WARNING(rspOrError, "Error requesting cluster directory");
             return;
@@ -1742,21 +1721,18 @@ private:
 
             for (const auto& pair : clustersNode->GetChildren()) {
                 const auto& clusterName = pair.first;
-                auto clusterAttributes = ConvertToAttributes(pair.second);
-
-                auto cellTag = clusterAttributes->Get<TCellTag>("cell_tag");
-                auto defaultNetwork = clusterAttributes->Find<Stroka>("default_network");
-                auto connectionConfig = clusterAttributes->Get<NApi::TConnectionConfigPtr>("connection");
-
-                ClusterDirectory->UpdateCluster(clusterName, connectionConfig, cellTag, defaultNetwork);
+                auto config = ConvertTo<NApi::TConnectionConfigPtr>(pair.second);
+                ClusterDirectory->UpdateCluster(clusterName, config);
             }
+
             LOG_DEBUG("Cluster directory updated successfully");
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error updating cluster directory");
         }
     }
 
-    TCypressYPathProxy::TReqCreatePtr MakeCreateFileRequest(const TYPath& path, const TChunkId& chunkId)
+
+    TCypressYPathProxy::TReqCreatePtr StartCreateFileRequest(const TYPath& path, const TChunkId& chunkId)
     {
         auto req = TCypressYPathProxy::Create(path);
         GenerateMutationId(req);
@@ -1860,11 +1836,11 @@ void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatc
     Impl->AddOperationWatcherHandler(operation, handler);
 }
 
-void TMasterConnector::AttachJobInputContext(
+void TMasterConnector::AttachJobContext(
     const TYPath& path,
     const std::vector<TChunkId>& inputContexts)
 {
-    return Impl->AttachJobInputContext(path, inputContexts);
+    return Impl->AttachJobContext(path, inputContexts);
 }
 
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);

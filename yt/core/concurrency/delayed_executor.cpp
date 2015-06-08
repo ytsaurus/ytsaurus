@@ -157,14 +157,15 @@ private:
             }
         }
 
+        auto now = TInstant::Now();
         while (!ScheduledEntries_.empty()) {
             auto it = ScheduledEntries_.begin();
             const auto& entry = *it;
             if (entry->Canceled)
                 continue;
-            if (entry->Deadline > TInstant::Now())
+            if (entry->Deadline > now)
                 break;
-            entry->Callback.Run();
+            EnqueueCallback(entry->Callback);
             entry->Callback.Reset();
             entry->Iterator.Reset();
             ScheduledEntries_.erase(it);

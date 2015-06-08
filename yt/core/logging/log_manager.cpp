@@ -50,7 +50,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static TLogger Logger(SystemLoggingCategory);
-static auto& Profiler = LoggingProfiler;
+static const auto& Profiler = LoggingProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -261,6 +261,14 @@ public:
         }
     }
 
+    void Configure(TLogConfigPtr&& config)
+    {
+        if (LoggingThread_->IsRunning()) {
+            LoggerQueue_.Enqueue(std::move(config));
+            EventCount_.NotifyOne();
+        }
+    }
+
     void Shutdown()
     {
         EventQueue_->Shutdown();
@@ -293,6 +301,10 @@ public:
     void Enqueue(TLogEvent&& event)
     {
         if (ShutdownRequested_) {
+            if (event.Level == ELogLevel::Fatal) {
+                // Fatal events should not get out of this call.
+                Sleep(TDuration::Max());
+            }
             return;
         }
 
@@ -745,6 +757,11 @@ void TLogManager::Configure(INodePtr node)
 void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
 {
     Impl_->Configure(fileName, path);
+}
+
+void TLogManager::Configure(TLogConfigPtr&& config)
+{
+    Impl_->Configure(std::move(config));
 }
 
 void TLogManager::Shutdown()

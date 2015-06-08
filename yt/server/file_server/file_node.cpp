@@ -60,20 +60,19 @@ protected:
     {
         return CreateFileNodeProxy(
             this,
-            Bootstrap,
+            Bootstrap_,
             transaction,
             trunkNode);
     }
 
     virtual std::unique_ptr<TFileNode> DoCreate(
         const TVersionedNodeId& id,
-        TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) override
     {
         // NB: Validate everything before calling TBase::DoCreate to ensure atomicity.
         TChunk* chunk = nullptr;
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
         if (request->HasExtension(TReqCreateFileExt::create_file_ext)) {
             const auto& requestExt = request->GetExtension(TReqCreateFileExt::create_file_ext);
             auto chunkId = FromProto<TChunkId>(requestExt.chunk_id());
@@ -81,7 +80,7 @@ protected:
             chunk->ValidateConfirmed();
         }
 
-        auto node = TChunkOwnerTypeHandler::DoCreate(id, transaction, request, response);
+        auto node = TChunkOwnerTypeHandler::DoCreate(id, request, response);
 
         if (chunk) {
             auto* chunkList = node->GetChunkList();

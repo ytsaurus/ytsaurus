@@ -9,8 +9,6 @@ var utils = require("../utils");
 
 exports.that = function Middleware__YtIsolateRequest()
 {
-    "use strict";
-
     var logger = YtRegistry.get("logger");
 
     return function(req, rsp, next) {

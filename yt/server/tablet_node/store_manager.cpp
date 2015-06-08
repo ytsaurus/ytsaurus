@@ -7,6 +7,7 @@
 #include "config.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
+#include "in_memory_manager.h"
 #include "private.h"
 
 #include <core/misc/small_vector.h>
@@ -20,11 +21,12 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/versioned_reader.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/versioned_lookuper.h>
 
 #include <ytlib/tablet_client/config.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
+
+#include <ytlib/chunk_client/block_cache.h>
 
 #include <server/hydra/hydra_manager.h>
 
@@ -69,6 +71,9 @@ TStoreManager::TStoreManager(
             MaxTimestampToStore_.insert(std::make_pair(store->GetMaxTimestamp(), store));
         }
     }
+
+    // This schedules preload of in-memory tablets.
+    UpdateInMemoryMode();
 }
 
 TTablet* TStoreManager::GetTablet() const
@@ -105,13 +110,34 @@ void TStoreManager::StartEpoch(TTabletSlotPtr slot)
 {
     Tablet_->StartEpoch(slot);
     const auto& config = Tablet_->GetConfig();
-    LastRotated_ = TInstant::Now() - RandomDuration(config->AutoPartitioningPeriod);
+    LastRotated_ = TInstant::Now() - RandomDuration(config->MemoryStoreAutoFlushPeriod);
     RotationScheduled_ = false;
 }
 
 void TStoreManager::StopEpoch()
 {
     Tablet_->StopEpoch();
+
+    for (const auto& pair : Tablet_->Stores()) {
+        const auto& store = pair.second;
+        store->SetStoreState(store->GetPersistentStoreState());
+        switch (store->GetType()) {
+            case EStoreType::DynamicMemory: {
+                auto dynamicStore = store->AsDynamicMemory();
+                dynamicStore->SetFlushState(EStoreFlushState::None);
+                break;
+            }
+
+            case EStoreType::Chunk: {
+                auto chunkStore = store->AsChunk();
+                chunkStore->SetCompactionState(EStoreCompactionState::None);
+                break;
+            }
+
+            default:
+                YUNREACHABLE();
+        }
+    }
 }
 
 TDynamicRowRef TStoreManager::WriteRow(
@@ -224,12 +250,12 @@ ui32 TStoreManager::ComputeLockMask(TUnversionedRow row, ELockMode lockMode)
 
 void TStoreManager::CheckInactiveStoresLocks(
     TTransaction* transaction,
-    TUnversionedRow key,
+    TUnversionedRow row,
     ui32 lockMask)
 {
     for (const auto& store : LockedStores_) {
         store->CheckRowLocks(
-            key,
+            row,
             transaction,
             lockMask);
     }
@@ -244,7 +270,7 @@ void TStoreManager::CheckInactiveStoresLocks(
             store->AsDynamicMemory()->GetLockCount() > 0)
             continue;
         store->CheckRowLocks(
-            key,
+            row,
             transaction,
             lockMask);
     }
@@ -271,8 +297,7 @@ bool TStoreManager::IsOverflowRotationNeeded() const
     return
         store->GetKeyCount() >= config->MaxMemoryStoreKeyCount ||
         store->GetValueCount() >= config->MaxMemoryStoreValueCount ||
-        store->GetAlignedPoolCapacity() >= config->MaxMemoryStoreAlignedPoolSize ||
-        store->GetUnalignedPoolCapacity() >= config->MaxMemoryStoreUnalignedPoolSize;
+        store->GetPoolCapacity() >= config->MaxMemoryStorePoolSize;
 }
 
 bool TStoreManager::IsPeriodicRotationNeeded() const
@@ -309,9 +334,7 @@ bool TStoreManager::IsForcedRotationPossible() const
 
     const auto& store = Tablet_->GetActiveStore();
     // Check for "almost" initial size.
-    if (store->GetAlignedPoolCapacity() <=  2 * Config_->AlignedPoolChunkSize &&
-        store->GetUnalignedPoolCapacity() <= 2 * Config_->UnalignedPoolChunkSize)
-    {
+    if (store->GetPoolCapacity() <=  2 * Config_->PoolChunkSize) {
         return false;
     }
 
@@ -367,10 +390,8 @@ void TStoreManager::Rotate(bool createNewStore)
 
 void TStoreManager::AddStore(IStorePtr store)
 {
-    YCHECK(store->GetType() == EStoreType::Chunk);
-
+    Tablet_->AddStore(store);
     MaxTimestampToStore_.insert(std::make_pair(store->GetMaxTimestamp(), store));
-    return Tablet_->AddStore(store);
 }
 
 void TStoreManager::RemoveStore(IStorePtr store)
@@ -408,6 +429,213 @@ bool TStoreManager::IsStoreLocked(TDynamicMemoryStorePtr store) const
 const yhash_set<TDynamicMemoryStorePtr>& TStoreManager::GetLockedStores() const
 {
     return LockedStores_;
+}
+
+bool TStoreManager::IsStoreFlushable(IStorePtr store)
+{
+    if (store->GetStoreState() != EStoreState::PassiveDynamic) {
+        return false;
+    }
+
+    auto dynamicStore = store->AsDynamicMemory();
+
+    if (dynamicStore->GetFlushState() != EStoreFlushState::None) {
+        return false;
+    }
+
+    return true;
+}
+
+void TStoreManager::BeginStoreFlush(TDynamicMemoryStorePtr store)
+{
+    YCHECK(store->GetFlushState() == EStoreFlushState::None);
+    store->SetFlushState(EStoreFlushState::Running);
+}
+
+void TStoreManager::EndStoreFlush(TDynamicMemoryStorePtr store)
+{
+    YCHECK(store->GetFlushState() == EStoreFlushState::Running);
+    store->SetFlushState(EStoreFlushState::Complete);
+}
+
+void TStoreManager::BackoffStoreFlush(TDynamicMemoryStorePtr store)
+{
+    YCHECK(store->GetFlushState() == EStoreFlushState::Running);
+    store->SetFlushState(EStoreFlushState::Failed);
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND([=] () {
+            if (store->GetFlushState() == EStoreFlushState::Failed) {
+                store->SetFlushState(EStoreFlushState::None);
+            }
+        }).Via(Tablet_->GetEpochAutomatonInvoker()),
+        Config_->ErrorBackoffTime);
+}
+
+bool TStoreManager::IsStoreCompactable(IStorePtr store)
+{
+    if (store->GetStoreState() != EStoreState::Persistent) {
+        return false;
+    }
+
+    auto chunkStore = store->AsChunk();
+
+    // NB: Partitioning chunk stores with backing ones may interfere with conflict checking.
+    if (chunkStore->HasBackingStore()) {
+        return false;
+    }
+
+    if (chunkStore->GetCompactionState() != EStoreCompactionState::None) {
+        return false;
+    }
+
+    return true;
+}
+
+void TStoreManager::BeginStoreCompaction(TChunkStorePtr store)
+{
+    YCHECK(store->GetCompactionState() == EStoreCompactionState::None);
+    store->SetCompactionState(EStoreCompactionState::Running);
+}
+
+void TStoreManager::EndStoreCompaction(TChunkStorePtr store)
+{
+    YCHECK(store->GetCompactionState() == EStoreCompactionState::Running);
+    store->SetCompactionState(EStoreCompactionState::None);
+}
+
+void TStoreManager::BackoffStoreCompaction(TChunkStorePtr store)
+{
+    YCHECK(store->GetCompactionState() == EStoreCompactionState::Running);
+    store->SetCompactionState(EStoreCompactionState::Failed);
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND([=] () {
+            if (store->GetCompactionState() == EStoreCompactionState::Failed) {
+                store->SetCompactionState(EStoreCompactionState::None);
+            }
+        }).Via(Tablet_->GetEpochAutomatonInvoker()),
+        Config_->ErrorBackoffTime);
+}
+
+void TStoreManager::ScheduleStorePreload(TChunkStorePtr store)
+{
+    auto state = store->GetPreloadState();
+    YCHECK(state != EStorePreloadState::Disabled);
+
+    if (state != EStorePreloadState::None && state != EStorePreloadState::Failed)
+        return;
+
+    Tablet_->PreloadStoreIds().push_back(store->GetId());
+    store->SetPreloadState(EStorePreloadState::Scheduled);
+
+    LOG_INFO("Scheduled preload of in-memory store (StoreId: %v, Mode: %v)",
+        store->GetId(),
+        Tablet_->GetConfig()->InMemoryMode);
+}
+
+bool TStoreManager::TryPreloadStoreFromInterceptedData(
+    TChunkStorePtr store,
+    TInterceptedChunkDataPtr chunkData)
+{
+    auto state = store->GetPreloadState();
+    YCHECK(state == EStorePreloadState::None);
+
+    auto mode = Tablet_->GetConfig()->InMemoryMode;
+    YCHECK(mode != EInMemoryMode::None);
+
+    if (!chunkData) {
+        LOG_WARNING("Intercepted chunk data for in-memory store is missing (StoreId: %v)",
+            store->GetId());
+        return false;
+    }
+
+    if (mode != chunkData->InMemoryMode) {
+        LOG_WARNING("Intercepted chunk data for in-memory store has invalid mode (StoreId: %v, ExpectedMode: %v, ActualMode: %v)",
+            store->GetId(),
+            mode,
+            chunkData->InMemoryMode);
+        return false;
+    }
+
+    store->PreloadFromInterceptedData(chunkData);
+    store->SetPreloadState(EStorePreloadState::Complete);
+
+    LOG_INFO("In-memory store preloaded from intercepted chunk data (StoreId: %v, Mode: %v)",
+        store->GetId(),
+        mode);
+
+    return true;
+}
+
+TChunkStorePtr TStoreManager::PeekStoreForPreload()
+{
+    while (!Tablet_->PreloadStoreIds().empty()) {
+        auto id = Tablet_->PreloadStoreIds().front();
+        auto store = Tablet_->FindStore(id);
+        if (store) {
+            auto chunkStore = store->AsChunk();
+            if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
+                return chunkStore;
+            }
+        }
+        Tablet_->PreloadStoreIds().pop_front();
+    }
+    return nullptr;
+}
+
+void TStoreManager::BeginStorePreload(TChunkStorePtr store, TFuture<void> future)
+{
+    YCHECK(store->GetId() == Tablet_->PreloadStoreIds().front());
+    Tablet_->PreloadStoreIds().pop_front();
+    store->SetPreloadState(EStorePreloadState::Running);
+    store->SetPreloadFuture(future);
+}
+
+void TStoreManager::EndStorePreload(TChunkStorePtr store)
+{
+    store->SetPreloadState(EStorePreloadState::Complete);
+    store->SetPreloadFuture(TFuture<void>());
+}
+
+void TStoreManager::BackoffStorePreload(TChunkStorePtr store)
+{
+    if (store->GetPreloadState() != EStorePreloadState::Running)
+        return;
+
+    store->SetPreloadState(EStorePreloadState::Failed);
+    store->SetPreloadFuture(TFuture<void>());
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND([=] () {
+            if (store->GetPreloadState() == EStorePreloadState::Failed) {
+                ScheduleStorePreload(store);
+            }
+        }).Via(Tablet_->GetEpochAutomatonInvoker()),
+        Config_->ErrorBackoffTime);
+}
+
+void TStoreManager::Remount(TTableMountConfigPtr mountConfig, TTabletWriterOptionsPtr writerOptions)
+{
+    Tablet_->SetConfig(mountConfig);
+    Tablet_->SetWriterOptions(writerOptions);
+
+    UpdateInMemoryMode();
+}
+
+void TStoreManager::UpdateInMemoryMode()
+{
+    auto mode = Tablet_->GetConfig()->InMemoryMode;
+
+    Tablet_->PreloadStoreIds().clear();
+
+    for (const auto& pair : Tablet_->Stores()) {
+        const auto& store = pair.second;
+        if (store->GetType() == EStoreType::Chunk) {
+            auto chunkStore = store->AsChunk();
+            chunkStore->SetInMemoryMode(mode);
+            if (mode != EInMemoryMode::None) {
+                ScheduleStorePreload(chunkStore);
+            }
+        }
+    }
 }
 
 bool TStoreManager::IsRecovery() const

@@ -118,6 +118,11 @@ public:
         return UnderlyingReader_->GetNameTable();
     }
 
+    virtual TKeyColumns GetKeyColumns() const override
+    {
+        return KeyColumns_;
+    }
+
     virtual i64 GetTotalRowCount() const override
     {
         return Rows_.size();
@@ -126,6 +131,16 @@ public:
     virtual i64 GetSessionRowIndex() const override
     {
         return ReadRowCount_;
+    }
+
+    virtual i64 GetTableRowIndex() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual i32 GetRangeIndex() const override
+    {
+        YUNREACHABLE();
     }
 
 private:

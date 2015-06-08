@@ -18,11 +18,11 @@
 
 #include <core/profiling/profile_manager.h>
 
+#include <core/pipes/io_dispatcher.h>
+
 #include <ytlib/driver/dispatcher.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
-
-#include <ytlib/pipes/io_dispatcher.h>
 
 namespace NYT {
 

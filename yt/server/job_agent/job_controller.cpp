@@ -11,9 +11,10 @@
 #include <server/data_node/master_connector.h>
 
 #include <server/exec_agent/slot_manager.h>
-#include <server/exec_agent/public.h>
 
 #include <server/cell_node/bootstrap.h>
+
+#include <server/misc/memory_usage_tracker.h>
 
 namespace NYT {
 namespace NJobAgent {
@@ -33,10 +34,8 @@ static const auto& Logger = JobTrackerServerLogger;
 TJobController::TJobController(
     TJobControllerConfigPtr config,
     TBootstrap* bootstrap)
-    : Config(config)
-    , Bootstrap(bootstrap)
-    , StartScheduled(false)
-    , ResourcesUpdatedFlag(false)
+    : Config_(config)
+    , Bootstrap_(bootstrap)
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -44,20 +43,20 @@ TJobController::TJobController(
 
 void TJobController::RegisterFactory(EJobType type, TJobFactory factory)
 {
-    YCHECK(Factories.insert(std::make_pair(type, factory)).second);
+    YCHECK(Factories_.insert(std::make_pair(type, factory)).second);
 }
 
 TJobFactory TJobController::GetFactory(EJobType type)
 {
-    auto it = Factories.find(type);
-    YCHECK(it != Factories.end());
+    auto it = Factories_.find(type);
+    YCHECK(it != Factories_.end());
     return it->second;
 }
 
 IJobPtr TJobController::FindJob(const TJobId& jobId)
 {
-    auto it = Jobs.find(jobId);
-    return it == Jobs.end() ? nullptr : it->second;
+    auto it = Jobs_.find(jobId);
+    return it == Jobs_.end() ? nullptr : it->second;
 }
 
 IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId)
@@ -72,7 +71,7 @@ IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId)
 std::vector<IJobPtr> TJobController::GetJobs()
 {
     std::vector<IJobPtr> result;
-    for (const auto& pair : Jobs) {
+    for (const auto& pair : Jobs_) {
         result.push_back(pair.second);
     }
     return result;
@@ -81,16 +80,16 @@ std::vector<IJobPtr> TJobController::GetJobs()
 TNodeResources TJobController::GetResourceLimits()
 {
     TNodeResources result;
-    result.set_user_slots(Bootstrap->GetExecSlotManager()->GetSlotCount());
-    result.set_cpu(Config->ResourceLimits->Cpu);
-    result.set_network(Config->ResourceLimits->Network);
-    result.set_replication_slots(Config->ResourceLimits->ReplicationSlots);
-    result.set_removal_slots(Config->ResourceLimits->RemovalSlots);
-    result.set_repair_slots(Config->ResourceLimits->RepairSlots);
-    result.set_seal_slots(Config->ResourceLimits->SealSlots);
+    result.set_user_slots(Bootstrap_->GetExecSlotManager()->GetSlotCount());
+    result.set_cpu(Config_->ResourceLimits->Cpu);
+    result.set_network(Config_->ResourceLimits->Network);
+    result.set_replication_slots(Config_->ResourceLimits->ReplicationSlots);
+    result.set_removal_slots(Config_->ResourceLimits->RemovalSlots);
+    result.set_repair_slots(Config_->ResourceLimits->RepairSlots);
+    result.set_seal_slots(Config_->ResourceLimits->SealSlots);
 
-    const auto* tracker = Bootstrap->GetMemoryUsageTracker();
-    result.set_memory(tracker->GetFree() + tracker->GetUsed(EMemoryConsumer::Job));
+    const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+    result.set_memory(tracker->GetUsed(EMemoryCategory::Jobs) + tracker->GetTotalFree());
 
     return result;
 }
@@ -98,7 +97,7 @@ TNodeResources TJobController::GetResourceLimits()
 TNodeResources TJobController::GetResourceUsage(bool includeWaiting)
 {
     auto result = ZeroNodeResources();
-    for (const auto& pair : Jobs) {
+    for (const auto& pair : Jobs_) {
         if (includeWaiting || pair.second->GetState() != EJobState::Waiting) {
             auto usage = pair.second->GetResourceUsage();
             result += usage;
@@ -109,52 +108,61 @@ TNodeResources TJobController::GetResourceUsage(bool includeWaiting)
 
 void TJobController::StartWaitingJobs()
 {
-    auto* tracker = Bootstrap->GetMemoryUsageTracker();
+    auto* tracker = Bootstrap_->GetMemoryUsageTracker();
 
-    for (const auto& pair : Jobs) {
+    bool resourcesUpdated = false;
+
+    {
+        auto usedResources = GetResourceUsage(false);
+        auto memoryToRelease = tracker->GetUsed(EMemoryCategory::Jobs) - usedResources.memory();
+        if (memoryToRelease > 0) {
+            tracker->Release(EMemoryCategory::Jobs, memoryToRelease);
+            resourcesUpdated = true;
+        }
+    }
+
+    for (const auto& pair : Jobs_) {
         auto job = pair.second;
         if (job->GetState() != EJobState::Waiting)
             continue;
 
         auto usedResources = GetResourceUsage(false);
-        {
-            auto memoryToRelease = tracker->GetUsed(EMemoryConsumer::Job) - usedResources.memory();
-            YCHECK(memoryToRelease >= 0);
-            tracker->Release(EMemoryConsumer::Job, memoryToRelease);
-        }
-
         auto spareResources = GetResourceLimits() - usedResources;
         auto jobResources = job->GetResourceUsage();
 
-        if (Dominates(spareResources, jobResources)) {
-            auto error = tracker->TryAcquire(EMemoryConsumer::Job, jobResources.memory());
-
-            if (error.IsOK()) {
-                LOG_INFO("Starting job (JobId: %v)", job->GetId());
-
-                job->SubscribeResourcesReleased(
-                    BIND(&TJobController::OnResourcesReleased, MakeWeak(this))
-                        .Via(Bootstrap->GetControlInvoker()));
-
-                job->Start();
-            } else {
-                LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
-                    job->GetId());
-            }
-        } else {
+        if (!DominatesNonnegative(spareResources, jobResources)) {
             LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, SpareResources: %v, JobResources: %v)",
                 job->GetId(),
                 FormatResources(spareResources),
                 FormatResources(jobResources));
+            continue;
         }
+
+        if (jobResources.memory()) {
+            auto error = tracker->TryAcquire(EMemoryCategory::Jobs, jobResources.memory());
+            if (!error.IsOK()) {
+                LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
+                    job->GetId());
+                continue;
+            }
+        }
+
+        LOG_INFO("Starting job (JobId: %v)", job->GetId());
+
+        job->SubscribeResourcesUpdated(
+            BIND(&TJobController::OnResourcesUpdated, MakeWeak(this), MakeWeak(job))
+                .Via(Bootstrap_->GetControlInvoker()));
+
+        job->Start();
+
+        resourcesUpdated = true;
     }
 
-    if (ResourcesUpdatedFlag) {
-        ResourcesUpdatedFlag = false;
+    if (resourcesUpdated) {
         ResourcesUpdated_.Fire();
     }
 
-    StartScheduled = false;
+    StartScheduled_ = false;
 }
 
 IJobPtr TJobController::CreateJob(
@@ -175,7 +183,7 @@ IJobPtr TJobController::CreateJob(
         jobId,
         type);
 
-    YCHECK(Jobs.insert(std::make_pair(jobId, job)).second);
+    YCHECK(Jobs_.insert(std::make_pair(jobId, job)).second);
     ScheduleStart();
 
     return job;
@@ -183,11 +191,11 @@ IJobPtr TJobController::CreateJob(
 
 void TJobController::ScheduleStart()
 {
-    if (!StartScheduled) {
-        Bootstrap->GetControlInvoker()->Invoke(BIND(
+    if (!StartScheduled_) {
+        Bootstrap_->GetControlInvoker()->Invoke(BIND(
             &TJobController::StartWaitingJobs,
             MakeWeak(this)));
-        StartScheduled = true;
+        StartScheduled_ = true;
     }
 }
 
@@ -201,26 +209,38 @@ void TJobController::AbortJob(IJobPtr job)
 
 void TJobController::RemoveJob(IJobPtr job)
 {
-    LOG_INFO("Job removed (JobId: %v)",
-        job->GetId());
+    LOG_INFO("Job removed (JobId: %v)", job->GetId());
 
     YCHECK(job->GetPhase() > EJobPhase::Cleanup);
     YCHECK(job->GetResourceUsage() == ZeroNodeResources());
-    YCHECK(Jobs.erase(job->GetId()) == 1);
+    YCHECK(Jobs_.erase(job->GetId()) == 1);
 }
 
-void TJobController::OnResourcesReleased()
+void TJobController::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeResources& resourceDelta)
 {
-    ResourcesUpdatedFlag = true;
-    ScheduleStart();
+    if (!CheckResourceUsageDelta(resourceDelta)) {
+        auto job_ = job.Lock();
+        if (job_) {
+            job_->Abort(TError(
+                NExecAgent::EErrorCode::ResourceOverdraft,
+                "Failed to increase resource usage (ResourceDelta: {%v})",
+                FormatResources(resourceDelta)));
+        }
+        return;
+    }
+
+    if (!Dominates(resourceDelta, ZeroNodeResources())) {
+        // Some resources decreased.
+        ScheduleStart();
+    }
 }
 
 bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
 {
     // Do this check in the first place in order to avoid weird behavior
     // when decreasing resource usage leads to job abortion because of 
-    // other memory consuming subsystems (e.g. ChunkMeta),
-    if (Dominates(delta, ZeroNodeResources())) {
+    // other memory consuming subsystems (e.g. ChunkMeta)
+    if (Dominates(ZeroNodeResources(), delta)) {
         return true;
     }
 
@@ -229,8 +249,8 @@ bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
     }
 
     if (delta.memory() > 0) {
-        auto* tracker = Bootstrap->GetMemoryUsageTracker();
-        auto error = tracker->TryAcquire(EMemoryConsumer::Job, delta.memory());
+        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+        auto error = tracker->TryAcquire(EMemoryCategory::Jobs, delta.memory());
         if (!error.IsOK()) {
             return false;
         }
@@ -239,55 +259,15 @@ bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
     return true;
 }
 
-void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& usage)
-{
-    if (job->GetState() != EJobState::Running) {
-        // Outdated request.
-        return;
-    }
-
-    auto oldUsage = job->GetResourceUsage();
-    auto delta = usage - oldUsage;
-
-    if (!CheckResourceUsageDelta(delta)) {
-        job->Abort(TError(
-            NExecAgent::EErrorCode::ResourceOverdraft,
-            "Failed to increase resource usage (OldUsage: {%v}, NewUsage: {%v})",
-            FormatResources(oldUsage),
-            FormatResources(usage)));
-        return;
-    }
-
-    if (!Dominates(delta, ZeroNodeResources())) {
-        OnResourcesReleased();
-    }
-}
-
-void TJobController::UpdateJobProgress(IJobPtr job, double progress, const TJobStatistics& jobStatistics)
-{
-    if (job->GetState() != EJobState::Running) {
-        // Outdated request.
-        return;
-    }
-
-    job->SetProgress(progress);
-    job->SetJobStatistics(jobStatistics);
-}
-
-void TJobController::SetJobResult(IJobPtr job, const TJobResult& result)
-{
-    job->SetResult(result);
-}
-
 void TJobController::PrepareHeartbeat(TReqHeartbeat* request)
 {
-    auto masterConnector = Bootstrap->GetMasterConnector();
+    auto masterConnector = Bootstrap_->GetMasterConnector();
     request->set_node_id(masterConnector->GetNodeId());
-    ToProto(request->mutable_node_descriptor(), Bootstrap->GetLocalDescriptor());
+    ToProto(request->mutable_addresses(), masterConnector->GetLocalAddresses());
     *request->mutable_resource_limits() = GetResourceLimits();
     *request->mutable_resource_usage() = GetResourceUsage();
 
-    for (const auto& pair : Jobs) {
+    for (const auto& pair : Jobs_) {
         auto job = pair.second;
         auto type = EJobType(job->GetSpec().type());
         auto state = job->GetState();

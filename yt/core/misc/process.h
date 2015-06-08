@@ -1,7 +1,8 @@
 #pragma once
 
 #include "error.h"
-#include "pipe.h"
+
+#include <core/pipes/pipe.h>
 
 #include <vector>
 
@@ -22,6 +23,8 @@ public:
     TProcess(const TProcess& other) = delete;
     TProcess(TProcess&& other);
 
+    Stroka GetPath() const;
+
     static TProcess CreateCurrentProcessSpawner();
 
     void AddArgument(TStringBuf arg);
@@ -36,9 +39,13 @@ public:
     TError Wait();
     void Kill(int signal);
 
+    void KillAndWait() noexcept;
+
     int GetProcessId() const;
     bool Started() const;
     bool Finished() const;
+
+    Stroka GetCommandLine() const;
 
 private:
     struct TSpawnAction
@@ -56,7 +63,7 @@ private:
 
     int MaxSpawnActionFD_ = - 1;
 
-    TPipe Pipe_;
+    NPipes::TPipe Pipe_;
     std::vector<Stroka> StringHolder_;
     std::vector<char*> Args_;
     std::vector<char*> Env_;

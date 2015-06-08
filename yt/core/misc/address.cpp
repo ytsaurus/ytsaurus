@@ -31,8 +31,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLogging::TLogger Logger("Network");
-static NProfiling::TProfiler Profiler("/network");
+static const NLogging::TLogger Logger("Network");
+static const NProfiling::TProfiler Profiler("/network");
 
 static const auto WarningDuration = TDuration::MilliSeconds(100);
 static const char* FailedLocalHostName = "<unknown>";

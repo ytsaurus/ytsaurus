@@ -118,8 +118,8 @@ protected:
         bool oneWay,
         int protocolVersion);
 
-    virtual bool IsRequestHeavy() const;
-    virtual bool IsResponseHeavy() const;
+    virtual bool IsRequestHeavy() const override;
+    virtual bool IsResponseHeavy() const override;
 
     virtual TSharedRef SerializeBody() = 0;
 
@@ -205,9 +205,7 @@ private:
 
     virtual TSharedRef SerializeBody() override
     {
-        TSharedRef data;
-        YCHECK(SerializeToProtoWithEnvelope(*this, &data, Codec_));
-        return data;
+        return SerializeToProtoWithEnvelope(*this, Codec_);
     }
 
 };
@@ -339,7 +337,7 @@ private:
 
     virtual void DeserializeBody(const TRef& data) override
     {
-        YCHECK(DeserializeFromProtoWithEnvelope(this, data));
+        DeserializeFromProtoWithEnvelope(this, data);
     }
 };
 

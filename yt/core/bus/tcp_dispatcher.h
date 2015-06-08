@@ -4,6 +4,8 @@
 
 #include <core/misc/shutdownable.h>
 
+#include <core/profiling/profiler.h>
+
 namespace NYT {
 namespace NBus {
 
@@ -31,6 +33,29 @@ TTcpDispatcherStatistics& operator += (
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTcpProfilingData
+{
+    TTcpProfilingData();
+
+    NProfiling::TTagId TagId;
+
+    NProfiling::TAggregateCounter ReceiveTimeCounter;
+    NProfiling::TAggregateCounter ReceiveSizeCounter;
+    NProfiling::TAggregateCounter InHandlerTimeCounter;
+    NProfiling::TSimpleCounter InByteCounter;
+    NProfiling::TSimpleCounter InPacketCounter;
+
+    NProfiling::TAggregateCounter SendTimeCounter;
+    NProfiling::TAggregateCounter SendSizeCounter;
+    NProfiling::TAggregateCounter OutHandlerTimeCounter;
+    NProfiling::TSimpleCounter OutBytesCounter;
+    NProfiling::TSimpleCounter OutPacketCounter;
+    NProfiling::TAggregateCounter PendingOutPacketCounter;
+    NProfiling::TAggregateCounter PendingOutByteCounter;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ETcpInterfaceType,
     (Local)  // UNIX domain sockets
     (Remote) // regular TCP sockets
@@ -49,6 +74,7 @@ public:
     virtual void Shutdown() override;
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
+    TTcpProfilingData* GetProfilingData(ETcpInterfaceType interfaceType);
 
 private:
     TTcpDispatcher();

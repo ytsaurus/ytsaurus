@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "config.h"
 #include "snapshot_builder.h"
 #include "scheduler.h"
 #include "helpers.h"
@@ -69,7 +70,7 @@ TFuture<void> TSnapshotBuilder::Run()
             operation->GetId());
     }
 
-    return TSnapshotBuilderBase::Run().Apply(
+    return Fork().Apply(
         BIND(&TSnapshotBuilder::OnBuilt, MakeStrong(this))
             .AsyncVia(Scheduler->GetSnapshotIOInvoker()));
 }
@@ -118,8 +119,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
 {
     auto operation = job.Operation;
 
-
-    NLogging::TLogger Logger(this->Logger);
+    auto Logger = this->Logger;
     Logger.AddTag("OperationId: %v",
         job.Operation->GetId());
 
@@ -181,7 +181,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
         {
             TFileWriterOptions options;
             options.Config = Config->SnapshotWriter;
-            auto writer = MasterClient->CreateFileWriter(snapshotPath, options);
+            auto writer = transaction->CreateFileWriter(snapshotPath, options);
 
             {
                 auto result = WaitFor(writer->Open());
@@ -189,7 +189,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             }
 
             struct TSnapshotBuilderBufferTag { };
-            auto buffer = TBlob(TSnapshotBuilderBufferTag(), RemoteWriteBufferSize, false);
+            auto buffer = TSharedMutableRef::Allocate<TSnapshotBuilderBufferTag>(RemoteWriteBufferSize, false);
             TFileInput fileInput(job.FileName);
             TBufferedInput bufferedInput(&fileInput, RemoteWriteBufferSize);
 
@@ -200,7 +200,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 }
 
                 {
-                    auto result = WaitFor(writer->Write(TRef(buffer.Begin(), bytesRead)));
+                    auto result = WaitFor(writer->Write(buffer.Slice(0, bytesRead)));
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 }
             }

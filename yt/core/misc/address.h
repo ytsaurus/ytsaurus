@@ -55,7 +55,7 @@ public:
         RegisterParameter("enable_ipv6", EnableIPv6)
             .Default(true);
         RegisterParameter("localhost_fqdn", LocalHostFqdn)
-            .Default(Null);
+            .Default();
     }
 };
 

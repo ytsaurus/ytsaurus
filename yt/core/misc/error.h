@@ -25,6 +25,9 @@ public:
 
     operator int() const;
 
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
+
 private:
     int Value_;
 
@@ -86,13 +89,16 @@ public:
 
     bool IsOK() const;
 
-	void ThrowOnError() const;
+    void ThrowOnError() const;
 
     TNullable<TError> FindMatching(TErrorCode code) const;
 
     template <class... TArgs>
     TError Wrap(TArgs&&... args) const;
     TError Wrap() const;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 
 private:
     TErrorCode Code_;
@@ -109,7 +115,10 @@ Stroka ToString(const TError& error);
 void ToProto(NProto::TError* protoError, const TError& error);
 void FromProto(TError* error, const NProto::TError& protoError);
 
-void Serialize(const TError& error, NYson::IYsonConsumer* consumer);
+void Serialize(
+    const TError& error,
+    NYson::IYsonConsumer* consumer,
+    const std::function<void(NYson::IYsonConsumer*)>* valueProducer = nullptr);
 void Deserialize(TError& error, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,8 +146,8 @@ namespace NYTree {
 
 template <class T>
 TYsonString ConvertToYsonString(const T& value);
-
 TYsonString ConvertToYsonString(const char* value);
+TYsonString ConvertToYsonString(const TStringBuf& value);
 
 } // namespace NYTree
 

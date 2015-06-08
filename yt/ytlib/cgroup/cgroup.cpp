@@ -5,11 +5,12 @@
 #include <core/ytree/fluent.h>
 
 #include <core/misc/fs.h>
-#include <core/misc/process.h>
+#include <core/misc/proc.h>
+
+#include <core/tools/tools.h>
+#include <core/tools/registry.h>
 
 #include <util/string/split.h>
-#include <util/folder/path.h>
-#include <util/system/execpath.h>
 #include <util/system/yield.h>
 
 #ifdef _linux_
@@ -28,6 +29,7 @@ static const Stroka CGroupRootPath("/sys/fs/cgroup");
 static const int ReadByAll = S_IRUSR | S_IRGRP | S_IROTH;
 static const int ReadExecuteByAll = ReadByAll | S_IXUSR | S_IXGRP | S_IXOTH;
 #endif
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -58,7 +60,7 @@ std::vector<Stroka> ReadAllValues(const Stroka& fileName)
     return std::vector<Stroka>(values.begin(), values.end());
 }
 
-TDuration FromJiffies(i64 jiffies)
+TDuration FromJiffies(ui64 jiffies)
 {
     static long ticksPerSecond = sysconf(_SC_CLK_TCK);
     return TDuration::MicroSeconds(1000 * 1000 * jiffies / ticksPerSecond);
@@ -70,16 +72,6 @@ TDuration FromJiffies(i64 jiffies)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<Stroka> GetSupportedCGroups()
-{
-    std::vector<Stroka> result;
-    result.push_back("cpuacct");
-    result.push_back("blkio");
-    result.push_back("memory");
-    return result;
-}
-
-// The caller must be sure that it has root privileges.
 void RunKiller(const Stroka& processGroupPath)
 {
     LOG_INFO("Killing processes in cgroup %v", processGroupPath);
@@ -102,21 +94,18 @@ void RunKiller(const Stroka& processGroupPath)
     if (children.empty() && pids.empty())
         return;
 
-    TProcess process(GetExecPath());
-    process.AddArguments({
-        "--killer",
-        "--process-group-path",
-        processGroupPath
-    });
-
-    // We are forking here in order not to give the root privileges to the parent process ever,
-    // because we cannot know what the other threads are doing.
-    process.Spawn();
-
-    auto error = process.Wait();
-    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    RunTool<TKillProcessGroupTool>(processGroupPath);
 #endif
 }
+
+void TKillProcessGroupTool::operator()(const Stroka& processGroupPath) const
+{
+    SafeSetUid(0);
+    NCGroup::TNonOwningCGroup group(processGroupPath);
+    group.Kill();
+}
+
+REGISTER_TOOL(TKillProcessGroupTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,11 +114,11 @@ TNonOwningCGroup::TNonOwningCGroup(const Stroka& fullPath)
 { }
 
 TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
-    : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(
+    : FullPath_(NFS::CombinePaths({
         CGroupRootPath,
-        type),
-        GetParentFor(type)),
-        name))
+        type,
+        GetParentFor(type),
+        name}))
 { }
 
 TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
@@ -187,9 +176,7 @@ void TNonOwningCGroup::Append(const Stroka& name, const Stroka& value) const
 
 bool TNonOwningCGroup::IsRoot() const
 {
-    TFsPath path(FullPath_);
-    path.Fix();
-    return path.GetPath() == CGroupRootPath;
+    return FullPath_ == CGroupRootPath;
 }
 
 bool TNonOwningCGroup::IsNull() const
@@ -230,15 +217,9 @@ std::vector<TNonOwningCGroup> TNonOwningCGroup::GetChildren() const
         return result;
     }
 
-    TFsPath path(FullPath_);
-    if (path.Exists()) {
-        yvector<TFsPath> children;
-        path.List(children);
-        for (const auto& child : children) {
-            if (child.IsDirectory()) {
-                result.emplace_back(child.GetPath());
-            }
-        }
+    auto directories = NFS::EnumerateDirectories(FullPath_);
+    for (const auto& directory : directories) {
+        result.emplace_back(NFS::CombinePaths(FullPath_, directory));
     }
     return result;
 }
@@ -371,7 +352,9 @@ void TNonOwningCGroup::DoKill() const
 
 void TNonOwningCGroup::DoRemove() const
 {
-    TFsPath(FullPath_).DeleteIfExists();
+    if (NFS::Exists(FullPath_)) {
+        NFS::Remove(FullPath_);
+    }
 }
 
 void TNonOwningCGroup::Traverse(
@@ -440,8 +423,10 @@ bool TCGroup::IsCreated() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const Stroka TCpuAccounting::Name = "cpuacct";
+
 TCpuAccounting::TCpuAccounting(const Stroka& name)
-    : TCGroup("cpuacct", name)
+    : TCGroup(Name, name)
 { }
 
 TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
@@ -454,11 +439,11 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
         YCHECK(values.size() == 4);
 
         Stroka type[2];
-        i64 jiffies[2];
+        ui64 jiffies[2];
 
         for (int i = 0; i < 2; ++i) {
             type[i] = values[2 * i];
-            jiffies[i] = FromString<i64>(values[2 * i + 1]);
+            jiffies[i] = FromString<ui64>(values[2 * i + 1]);
         }
 
         for (int i = 0; i < 2; ++i) {
@@ -482,15 +467,17 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("user").Value(static_cast<i64>(statistics.UserTime.MilliSeconds()))
-            .Item("system").Value(static_cast<i64>(statistics.SystemTime.MilliSeconds()))
+            .Item("user").Value(static_cast<ui64>(statistics.UserTime.MilliSeconds()))
+            .Item("system").Value(static_cast<ui64>(statistics.SystemTime.MilliSeconds()))
         .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const Stroka TBlockIO::Name = "blkio";
+
 TBlockIO::TBlockIO(const Stroka& name)
-    : TCGroup("blkio", name)
+    : TCGroup(Name, name)
 { }
 
 // For more information about format of data
@@ -544,7 +531,7 @@ std::vector<TBlockIO::TStatisticsItem> TBlockIO::GetDetailedStatistics(const cha
             TStatisticsItem item;
             item.DeviceId = values[3 * lineNumber];
             item.Type = values[3 * lineNumber + 1];
-            item.Value = FromString<i64>(values[3 * lineNumber + 2]);
+            item.Value = FromString<ui64>(values[3 * lineNumber + 2]);
 
             YCHECK(item.DeviceId.has_prefix("8:"));
 
@@ -583,8 +570,10 @@ void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* co
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const Stroka TMemory::Name = "memory";
+
 TMemory::TMemory(const Stroka& name)
-    : TCGroup("memory", name)
+    : TCGroup(Name, name)
 { }
 
 TMemory::TStatistics TMemory::GetStatistics() const
@@ -596,12 +585,12 @@ TMemory::TStatistics TMemory::GetStatistics() const
         int lineNumber = 0;
         while (2 * lineNumber + 1 < values.size()) {
             const auto& type = values[2 * lineNumber];
-            const auto value = FromString<i64>(values[2 * lineNumber + 1]);
+            const auto& unparsedValue = values[2 * lineNumber + 1];
             if (type == "rss") {
-                result.Rss = value;
+                result.Rss = FromString<ui64>(unparsedValue);
             }
             if (type == "mapped_file") {
-                result.MappedFile = value;
+                result.MappedFile = FromString<ui64>(unparsedValue);
             }
             ++lineNumber;
         }
@@ -614,6 +603,12 @@ TMemory::TStatistics TMemory::GetStatistics() const
 #endif
     return result;
 }
+
+ui64 TMemory::GetMaxMemoryUsage() const
+{
+    return FromString<ui64>(Get("memory.max_usage_in_bytes"));
+}
+
 
 void TMemory::SetLimitInBytes(i64 bytes) const
 {
@@ -636,8 +631,10 @@ void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* con
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const Stroka TFreezer::Name = "freezer";
+
 TFreezer::TFreezer(const Stroka& name)
-    : TCGroup("freezer", name)
+    : TCGroup(Name, name)
 { }
 
 Stroka TFreezer::GetState() const
@@ -683,6 +680,23 @@ std::map<Stroka, Stroka> ParseProcessCGroups(const Stroka& str)
     }
 
     return result;
+}
+
+bool IsValidCGroupType(const Stroka& type)
+{
+    if (type == TCpuAccounting::Name) {
+        return true;
+    }
+    if (type == TBlockIO::Name) {
+        return true;
+    }
+    if (type == TMemory::Name) {
+        return true;
+    }
+    if (type == TFreezer::Name) {
+        return true;
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

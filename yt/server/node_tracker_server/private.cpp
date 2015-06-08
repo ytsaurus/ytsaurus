@@ -7,7 +7,7 @@ namespace NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger NodeTrackerServerLogger("NodeTracker");
-NProfiling::TProfiler NodeTrackerServerProfiler("/node_tracker");
+const NProfiling::TProfiler NodeTrackerServerProfiler("/node_tracker");
 
 ////////////////////////////////////////////////////////////////////////////////
 

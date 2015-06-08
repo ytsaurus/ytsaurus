@@ -2,6 +2,12 @@
 #include "framework.h"
 #include "versioned_table_client_ut.h"
 
+#ifdef YT_USE_LLVM
+#include "udf/test_udfs.h"
+#include "udf/malloc_udf.h"
+#include "udf/invalid_ir.h"
+#endif
+
 #include <core/concurrency/action_queue.h>
 
 #include <ytlib/object_client/helpers.h>
@@ -16,6 +22,7 @@
 #include <ytlib/query_client/plan_helpers.h>
 #include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/plan_fragment.pb.h>
+#include <ytlib/query_client/user_defined_functions.h>
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
@@ -30,6 +37,7 @@
 
 #define _MIN_ "<\"type\"=\"min\">#"
 #define _MAX_ "<\"type\"=\"max\">#"
+#define _NULL_ "<\"type\"=\"null\">#"
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -62,7 +70,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintTo(const TConstExpressionPtr& expr, ::std::ostream* os)
+void PrintTo(TConstExpressionPtr expr, ::std::ostream* os)
 {
     *os << InferName(expr);
 }
@@ -83,7 +91,7 @@ using namespace NConcurrency;
 using namespace NYPath;
 using namespace NObjectClient;
 using namespace NVersionedTableClient;
-using namespace NNodeTrackerClient;
+using namespace NApi;
 
 using ::testing::_;
 using ::testing::StrictMock;
@@ -303,7 +311,7 @@ protected:
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { PreparePlanFragment(&PrepareMock_, query); },
+            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry().Get()); },
             matcher);
     }
 
@@ -316,7 +324,7 @@ TEST_F(TQueryPrepareTest, Simple)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3");
+    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3", CreateBuiltinFunctionRegistry().Get());
 }
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -393,7 +401,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, query);
+    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry().Get());
 }
 
 TEST_F(TQueryPrepareTest, ResultSchemaCollision)
@@ -435,23 +443,41 @@ protected:
             .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
     }
 
     void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source);
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
 
         TDataSources sources;
         for (const auto& split : dataSplits) {
+            auto range = GetBothBoundsFromDataSplit(split);
+    
+            TRowRange rowRange(
+                planFragment->KeyRangesRowBuffer->Capture(range.first.Get()),
+                planFragment->KeyRangesRowBuffer->Capture(range.second.Get()));
+
             sources.push_back(TDataSource{
                 GetObjectIdFromDataSplit(split),
-                GetBothBoundsFromDataSplit(split)});
+                rowRange});
         }
 
-        auto prunedSplits = GetPrunedSources(planFragment->Query, sources, ColumnEvaluatorCache_, true);
+        auto rowBuffer = New<TRowBuffer>();
+        auto groupedRanges = GetPrunedRanges(
+            planFragment->Query,
+            sources,
+            rowBuffer,
+            ColumnEvaluatorCache_,
+            CreateBuiltinFunctionRegistry(),
+            1000,
+            true);
+        int count = 0;
+        for (const auto& group : groupedRanges) {
+            count += group.size();
+        }
 
-        EXPECT_EQ(prunedSplits.size(), subqueriesCount);
+        EXPECT_EQ(count, subqueriesCount);
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
@@ -590,6 +616,11 @@ static TValue MakeUint64(i64 value)
     return MakeUnversionedUint64Value(value);
 }
 
+static TValue MakeBoolean(bool value)
+{
+    return MakeUnversionedBooleanValue(value);
+}
+
 static TValue MakeString(const TStringBuf& value)
 {
     return MakeUnversionedStringValue(value);
@@ -598,21 +629,25 @@ static TValue MakeString(const TStringBuf& value)
 TKeyRange RefineKeyRange(
     const TKeyColumns& keyColumns,
     const TKeyRange& keyRange,
-    const TConstExpressionPtr& predicate)
+    TConstExpressionPtr predicate)
 {
-    TRowBuffer rowBuffer;
+    auto rowBuffer = New<TRowBuffer>();
 
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         keyColumns,
-        &rowBuffer);
+        rowBuffer,
+        CreateBuiltinFunctionRegistry());
 
-    auto result = GetRangesFromTrieWithinRange(keyRange, keyTrie);
+    auto result = GetRangesFromTrieWithinRange(
+        TRowRange(keyRange.first.Get(), keyRange.second.Get()),
+        keyTrie,
+        rowBuffer);
 
     if (result.empty()) {
         return std::make_pair(EmptyKey(), EmptyKey());
     } else if (result.size() == 1) {
-        return result[0];
+        return TKeyRange(TKey(result[0].first), TKey(result[0].second));
     } else {
         return keyRange;
     }
@@ -1223,13 +1258,24 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
     EXPECT_EQ(BuildKey("50;" _MAX_), result.second);
 }
 
+
+TRowRanges GetRangesFromTrieWithinRange(
+    const TKeyRange& keyRange,
+    TKeyTriePtr trie,
+    TRowBufferPtr rowBuffer)
+{
+    return GetRangesFromTrieWithinRange(TRowRange(keyRange.first.Get(), keyRange.second.Get()), trie, rowBuffer);
+}
+
 TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
 {
-    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+    auto rowBuffer = New<TRowBuffer>();
+    auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey(_MIN_), BuildKey(_MAX_)),
-        TKeyTrieNode::Empty());
+        TKeyTrie::Empty(),
+        rowBuffer);
 
-    EXPECT_EQ(result.size(), 0);
+    EXPECT_EQ(0, result.size());
 }
 
 TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
@@ -1238,20 +1284,22 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
         "k = 50 and m = 50 or k = 75 and m = 50",
         GetSampleTableSchema());
 
-    TRowBuffer rowBuffer;
+    auto rowBuffer = New<TRowBuffer>();
 
     auto keyColumns = GetSampleKeyColumns();
 
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer);
+        rowBuffer,
+        CreateBuiltinFunctionRegistry());
 
-    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+    auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        keyTrie);
+        keyTrie,
+        rowBuffer);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(2, result.size());
 
     EXPECT_EQ(BuildKey("50"), result[0].first);
     EXPECT_EQ(BuildKey("50;" _MAX_), result[0].second);
@@ -1266,20 +1314,22 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
         "(k = 50 and l != 50) and (l > 40 and l < 60)",
         GetSampleTableSchema());
 
-    TRowBuffer rowBuffer;
+    auto rowBuffer = New<TRowBuffer>();
 
     auto keyColumns = GetSampleKeyColumns();
 
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer);
+        rowBuffer,
+        CreateBuiltinFunctionRegistry());
 
-    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+    auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        keyTrie);
+        keyTrie,
+        rowBuffer);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(2, result.size());
 
     EXPECT_EQ(BuildKey("50;40;" _MAX_), result[0].first);
     EXPECT_EQ(BuildKey("50;50"), result[0].second);
@@ -1294,20 +1344,22 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
         "(k = 40 or k = 50 or k = 60) and (l = 40 or l = 50 or l = 60)",
         GetSampleTableSchema());
 
-    TRowBuffer rowBuffer;
+    auto rowBuffer = New<TRowBuffer>();
 
     auto keyColumns = GetSampleKeyColumns();
 
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        &rowBuffer);
+        rowBuffer,
+        CreateBuiltinFunctionRegistry());
 
-    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+    auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        keyTrie);
+        keyTrie,
+        rowBuffer);
 
-    EXPECT_EQ(result.size(), 9);
+    EXPECT_EQ(9, result.size());
 
     EXPECT_EQ(BuildKey("40;40"), result[0].first);
     EXPECT_EQ(BuildKey("40;40;" _MAX_), result[0].second);
@@ -1335,6 +1387,42 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
 
     EXPECT_EQ(BuildKey("60;60"), result[8].first);
     EXPECT_EQ(BuildKey("60;60;" _MAX_), result[8].second);
+}
+
+TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
+{
+    auto expr = PrepareExpression(
+        "(k, m) in ((2, 3), (4, 6)) and l in (2, 3)",
+        GetSampleTableSchema());
+
+    auto rowBuffer = New<TRowBuffer>();
+
+    auto keyColumns = GetSampleKeyColumns();
+
+    auto keyTrie = ExtractMultipleConstraints(
+        expr,
+        keyColumns,
+        rowBuffer,
+        CreateBuiltinFunctionRegistry());
+
+    auto result = GetRangesFromTrieWithinRange(
+        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        keyTrie,
+        rowBuffer);
+
+    EXPECT_EQ(4, result.size());
+
+    EXPECT_EQ(BuildKey("2;2;3"), result[0].first);
+    EXPECT_EQ(BuildKey("2;2;3;" _MAX_), result[0].second);
+
+    EXPECT_EQ(BuildKey("2;3;3"), result[1].first);
+    EXPECT_EQ(BuildKey("2;3;3;" _MAX_), result[1].second);
+
+    EXPECT_EQ(BuildKey("4;2;6"), result[2].first);
+    EXPECT_EQ(BuildKey("4;2;6;" _MAX_), result[2].second);
+
+    EXPECT_EQ(BuildKey("4;3;6"), result[3].first);
+    EXPECT_EQ(BuildKey("4;3;6;" _MAX_), result[3].second);
 }
 
 TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
@@ -1397,16 +1485,41 @@ TEST_F(TRefineKeyRangeTest, RangeToPointCollapsing)
     EXPECT_EQ(BuildKey("1;1;" _MAX_), result.second);
 }
 
+TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
+{
+    auto expr = PrepareExpression(
+        "(k between 21 and 32) OR (k between 43 and 54)",   
+        GetSampleTableSchema());
+
+    auto rowBuffer = New<TRowBuffer>();
+
+    auto keyColumns = GetSampleKeyColumns();
+
+    auto keyTrie = ExtractMultipleConstraints(
+        expr,
+        keyColumns,
+        rowBuffer,
+        CreateBuiltinFunctionRegistry());
+
+    auto result = GetRangesFromTrieWithinRange(
+        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        keyTrie,
+        rowBuffer);
+
+    EXPECT_EQ(2, result.size());
+
+    EXPECT_EQ(BuildKey("21"), result[0].first);
+    EXPECT_EQ(BuildKey("32;" _MAX_), result[0].second);
+
+    EXPECT_EQ(BuildKey("43"), result[1].first);
+    EXPECT_EQ(BuildKey("54;" _MAX_), result[1].second);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPrepareExpressionTest
-    : public ::testing::Test
-    , public ::testing::WithParamInterface<std::tuple<TConstExpressionPtr, const char*>>
+class TCompareExpressionTest
 {
 protected:
-    virtual void SetUp() override
-    { }
-
     bool Equal(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
     {
         if (auto literalLhs = lhs->As<TLiteralExpression>()) {
@@ -1450,11 +1563,11 @@ protected:
         } else if (auto inLhs = lhs->As<TInOpExpression>()) {
             auto inRhs = rhs->As<TInOpExpression>();
             if (inRhs == nullptr
-                || inLhs->Values.size() != inRhs->Values.size()
+                || inLhs->Values.Size() != inRhs->Values.Size()
                 || inLhs->Arguments.size() != inRhs->Arguments.size()) {
                 return false;
             }
-            for (int index = 0; index < inLhs->Values.size(); ++index) {
+            for (int index = 0; index < inLhs->Values.Size(); ++index) {
                 if (inLhs->Values[index] != inRhs->Values[index]) {
                     return false;
                 }
@@ -1470,6 +1583,16 @@ protected:
 
         return true;
     }
+};
+
+class TPrepareExpressionTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<TConstExpressionPtr, const char*>>
+    , public TCompareExpressionTest
+{
+protected:
+    virtual void SetUp() override
+    { }
 };
 
 TEST_F(TPrepareExpressionTest, Basic)
@@ -1528,7 +1651,7 @@ TEST_P(TPrepareExpressionTest, Simple)
 }
 
 INSTANTIATE_TEST_CASE_P(
-    PrepareExpressionTest,
+    TPrepareExpressionTest,
     TPrepareExpressionTest,
     ::testing::Values(
         std::tuple<TConstExpressionPtr, const char*>(
@@ -1565,8 +1688,345 @@ INSTANTIATE_TEST_CASE_P(
                 Make<TUnaryOpExpression>(EUnaryOp::Minus,
                     Make<TReferenceExpression>("a")),
                 Make<TLiteralExpression>(MakeInt64(2))),
-            "-a - 2")
-    ));
+            "-a - 2"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::NotEqual,
+                Make<TReferenceExpression>("a"),
+                Make<TLiteralExpression>(MakeInt64(2))),
+            "not a = 2"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Or,
+                Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
+                    Make<TReferenceExpression>("a"),
+                    Make<TLiteralExpression>(MakeInt64(3))),
+                Make<TBinaryOpExpression>(EBinaryOp::Less,
+                    Make<TReferenceExpression>("a"),
+                    Make<TLiteralExpression>(MakeInt64(2)))),
+            "not ((a < 3) and (a >= 2))")
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TArithmeticTestParam = std::tuple<EValueType, const char*, const char*, const char*, TUnversionedValue>;
+
+class TArithmeticTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<TArithmeticTestParam>
+    , public TCompareExpressionTest
+{
+protected:
+    virtual void SetUp() override
+    { }
+};
+
+TEST_P(TArithmeticTest, ConstantFolding)
+{
+    auto schema = GetSampleTableSchema();
+    auto& param = GetParam();
+    auto& lhs = std::get<1>(param);
+    auto& op = std::get<2>(param);
+    auto& rhs = std::get<3>(param);
+    auto expected = Make<TLiteralExpression>(std::get<4>(param));
+
+    auto got = PrepareExpression(Stroka(lhs) + op + rhs, schema);
+
+    EXPECT_TRUE(Equal(got, expected))
+        << "got: " <<  ::testing::PrintToString(got) << std::endl
+        << "expected: " <<  ::testing::PrintToString(expected) << std::endl;
+}
+
+TEST_F(TArithmeticTest, ConstantDivisorsFolding)
+{
+    auto schema = GetSampleTableSchema();
+    auto expr1 = PrepareExpression("k / 100 / 2", schema);
+    auto expr2 = PrepareExpression("k / 200", schema);
+
+    EXPECT_TRUE(Equal(expr1, expr2))
+        << "expr1: " <<  ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " <<  ::testing::PrintToString(expr2) << std::endl;
+
+    expr1 = PrepareExpression("k / 3102228988 / 4021316745", schema);
+    expr2 = PrepareExpression("k / (3102228988 * 4021316745)", schema);
+
+    EXPECT_FALSE(Equal(expr1, expr2))
+        << "expr1: " <<  ::testing::PrintToString(expr1) << std::endl
+        << "expr2: " <<  ::testing::PrintToString(expr2) << std::endl;
+
+}
+
+#ifdef YT_USE_LLVM
+
+TEST_P(TArithmeticTest, Evaluate)
+{
+    auto& param = GetParam();
+    auto type = std::get<0>(param);
+    auto& lhs = std::get<1>(param);
+    auto& op = std::get<2>(param);
+    auto& rhs = std::get<3>(param);
+    auto& expected = std::get<4>(param);
+
+    TUnversionedValue result;
+    TCGVariables variables;
+    auto keyColumns = GetSampleKeyColumns();
+    auto schema = GetSampleTableSchema();
+    schema.Columns()[0].Type = type;
+    schema.Columns()[1].Type = type;
+
+    auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
+    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
+    auto row = NVersionedTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, keyColumns, schema, true);
+
+    TQueryStatistics statistics;
+    auto permanentBuffer = New<TRowBuffer>();
+    auto outputBuffer = New<TRowBuffer>();
+    auto intermediateBuffer = New<TRowBuffer>();
+
+    TExecutionContext executionContext;
+    executionContext.Schema = &schema;
+    executionContext.LiteralRows = &variables.LiteralRows;
+    executionContext.PermanentBuffer = permanentBuffer;
+    executionContext.OutputBuffer = outputBuffer;
+    executionContext.IntermediateBuffer = intermediateBuffer;
+    executionContext.Statistics = &statistics;
+#ifndef NDEBUG
+    volatile int dummy;
+    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
+#endif
+
+    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
+
+    EXPECT_EQ(expected, result)
+        << "row: " << ::testing::PrintToString(row);
+}
+
+#endif
+
+INSTANTIATE_TEST_CASE_P(
+    TArithmeticTest,
+    TArithmeticTest,
+    ::testing::Values(
+        TArithmeticTestParam(EValueType::Int64, "1", "+", "2", MakeInt64(3)),
+        TArithmeticTestParam(EValueType::Int64, "1", "-", "2", MakeInt64(-1)),
+        TArithmeticTestParam(EValueType::Int64, "3", "*", "2", MakeInt64(6)),
+        TArithmeticTestParam(EValueType::Int64, "6", "/", "2", MakeInt64(3)),
+        TArithmeticTestParam(EValueType::Int64, "6", "%", "4", MakeInt64(2)),
+        TArithmeticTestParam(EValueType::Int64, "6", ">", "4", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Int64, "6", "<", "4", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Int64, "6", ">=", "4", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Int64, "6", "<=", "4", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Int64, "6", ">=", "6", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Int64, "6", "<=", "6", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Uint64, "1u", "+", "2u", MakeUint64(3)),
+        TArithmeticTestParam(EValueType::Uint64, "1u", "-", "2u", MakeUint64(-1)),
+        TArithmeticTestParam(EValueType::Uint64, "3u", "*", "2u", MakeUint64(6)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", "/", "2u", MakeUint64(3)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", "%", "4u", MakeUint64(2)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", ">", "4u", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", "<", "4u", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", ">=", "4u", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", "<=", "4u", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", ">=", "6u", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", "<=", "6u", MakeBoolean(true))
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TCompareWithNullTestParam = std::tuple<const char*, const char*, TUnversionedValue>;
+
+class TCompareWithNullTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<TCompareWithNullTestParam>
+    , public TCompareExpressionTest
+{
+protected:
+    virtual void SetUp() override
+    { }
+};
+
+TEST_P(TCompareWithNullTest, Simple)
+{
+    auto& param = GetParam();
+    auto& rowString = std::get<0>(param);
+    auto& exprString = std::get<1>(param);
+    auto& expected = std::get<2>(param);
+
+    TUnversionedValue result;
+    TCGVariables variables;
+    auto schema = GetSampleTableSchema();
+    auto keyColumns = GetSampleKeyColumns();
+
+    TQueryStatistics statistics;
+    auto permanentBuffer = New<TRowBuffer>();
+    auto outputBuffer = New<TRowBuffer>();
+    auto intermediateBuffer = New<TRowBuffer>();
+
+    TExecutionContext executionContext;
+    executionContext.Schema = &schema;
+    executionContext.PermanentBuffer = permanentBuffer;
+    executionContext.OutputBuffer = outputBuffer;
+    executionContext.IntermediateBuffer = intermediateBuffer;
+    executionContext.Statistics = &statistics;
+#ifndef NDEBUG
+    volatile int dummy;
+    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
+#endif
+
+    auto row = NVersionedTableClient::BuildRow(rowString, keyColumns, schema, true);
+    auto expr = PrepareExpression(exprString, schema);
+    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
+    executionContext.LiteralRows = &variables.LiteralRows;
+    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
+    EXPECT_EQ(expected, result)
+        << "row: " << ::testing::PrintToString(rowString) << std::endl
+        << "expr: " << ::testing::PrintToString(exprString) << std::endl;
+}
+
+INSTANTIATE_TEST_CASE_P(
+    TCompareWithNullTest,
+    TCompareWithNullTest,
+    ::testing::Values(
+        TCompareWithNullTestParam("k=1", "l != k", MakeBoolean(true)),
+        TCompareWithNullTestParam("k=1", "l = k", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "l < k", MakeBoolean(true)),
+        TCompareWithNullTestParam("k=1", "l > k", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "k <= l", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "k >= l", MakeBoolean(true)),
+        TCompareWithNullTestParam("k=1", "l != m", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "l = m", MakeBoolean(true)),
+        TCompareWithNullTestParam("k=1", "l < m", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "l > m", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "m <= l", MakeBoolean(true)),
+        TCompareWithNullTestParam("k=1", "m >= l", MakeBoolean(true))
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRefineLookupPredicateTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*,
+        const char*,
+        const char*,
+        const char*,
+        std::vector<const char*>>>
+    , public TCompareExpressionTest
+{
+protected:
+    virtual void SetUp() override
+    { }
+
+    TConstExpressionPtr Refine(
+        std::vector<TKey>& lookupKeys,
+        TConstExpressionPtr expr,
+        const TKeyColumns& keyColumns)
+    {
+        std::vector<TRow> keys;
+        keys.reserve(lookupKeys.size());
+
+        for (const auto& lookupKey : lookupKeys) {
+            keys.push_back(lookupKey.Get());
+        }
+
+        return RefinePredicate(
+            keys,
+            expr,
+            keyColumns);
+    }
+};
+
+TEST_P(TRefineLookupPredicateTest, Simple)
+{
+    const auto& args = GetParam();
+    const auto& schemaString = std::get<0>(args);
+    const auto& keyString = std::get<1>(args);
+    const auto& predicateString = std::get<2>(args);
+    const auto& refinedString = std::get<3>(args);
+    const auto& keyStrings = std::get<4>(args);
+
+    TTableSchema tableSchema;
+    TKeyColumns keyColumns;
+    Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
+    Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
+
+    std::vector<TKey> keys;
+    Stroka keysString;
+    for (const auto& keyString : keyStrings) {
+        keys.push_back(BuildKey(keyString));
+        keysString += Stroka(keysString.size() > 0 ? ", " : "") + "[" + keyString + "]";
+    }
+
+    auto predicate = PrepareExpression(predicateString, tableSchema);
+    auto expected = PrepareExpression(refinedString, tableSchema);
+    auto refined = Refine(keys, predicate, keyColumns);
+
+    EXPECT_TRUE(Equal(refined, expected))
+        << "schema: " << schemaString << std::endl
+        << "key_columns: " << keyString << std::endl
+        << "keys: " << keysString << std::endl
+        << "predicate: " << predicateString << std::endl
+        << "refined: " << ::testing::PrintToString(refined) << std::endl
+        << "expected: " << ::testing::PrintToString(expected);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    TRefineLookupPredicateTest,
+    TRefineLookupPredicateTest,
+    ::testing::Values(
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ((1,2),(3,4))",
+            "(k,l) in ((1,2),(3,4))",
+            std::vector<const char*>{"1;3"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ((1,2),(3,4))",
+            "true",
+            std::vector<const char*>{"1;2"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ((1,2),(3,4))",
+            "true",
+            std::vector<const char*>{"1;2", "3;4"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(l,k) in ((1,2),(3,4))",
+            "(l,k) in ((1,2),(3,4))",
+            std::vector<const char*>{"3;1"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(l,k) in ((1,2),(3,4))",
+            "true",
+            std::vector<const char*>{"2;1"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(l,k) in ((1,2),(3,4))",
+            "true",
+            std::vector<const char*>{"2;1", "4;3"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((1),(3))",
+            "true",
+            std::vector<const char*>{"1;2", "3;4"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((1),(3))",
+            "true",
+            std::vector<const char*>{"1", "3"}),
+        std::make_tuple(
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((2),(4))",
+            "true",
+            std::vector<const char*>{"1;2", "3;4"})
+));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1591,6 +2051,31 @@ public:
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
 };
 
+class TFunctionRegistryMock
+    : public IFunctionRegistry
+{
+public:
+    MOCK_METHOD1(FindFunction, IFunctionDescriptorPtr(const Stroka&));
+    MOCK_METHOD1(FindAggregateFunction, IAggregateFunctionDescriptorPtr(const Stroka&));
+
+    void WithFunction(IFunctionDescriptorPtr function)
+    {
+        EXPECT_CALL(*this, FindFunction(function->GetName()))
+            .WillRepeatedly(Return(function));
+        EXPECT_CALL(*this, FindAggregateFunction(function->GetName()))
+            .WillRepeatedly(Return(nullptr));
+    }
+
+    void WithFunction(IAggregateFunctionDescriptorPtr function)
+    {
+        EXPECT_CALL(*this, FindFunction(function->GetName()))
+            .WillRepeatedly(Return(nullptr));
+        EXPECT_CALL(*this, FindAggregateFunction(function->GetName()))
+            .WillRepeatedly(Return(function));
+    }
+};
+
+
 TOwningRow BuildRow(
     const Stroka& yson,
     const TDataSplit& dataSplit,
@@ -1606,8 +2091,14 @@ TOwningRow BuildRow(
 struct TQueryExecutor
     : public IExecutor
 {
-    TQueryExecutor(const std::vector<Stroka>& source, IExecutorPtr executeCallback = nullptr)
+    TQueryExecutor(
+        const std::vector<Stroka>& source,
+        IFunctionRegistryPtr functionRegistry,
+        bool shouldFail,
+        IExecutorPtr executeCallback = nullptr)
         : Source(source)
+        , FunctionRegistry(functionRegistry)
+        , ShouldFail_(shouldFail)
         , ExecuteCallback(std::move(executeCallback))
     {
         ReaderMock_ = New<StrictMock<TReaderMock>>();
@@ -1615,11 +2106,13 @@ struct TQueryExecutor
 
     
     std::vector<Stroka> Source;
+    IFunctionRegistryPtr FunctionRegistry;
+    bool ShouldFail_;
     IExecutorPtr ExecuteCallback;
     TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_;
 
     virtual TFuture<TQueryStatistics> Execute(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer)
     {
         std::vector<TOwningRow> owningSource;
@@ -1640,12 +2133,19 @@ struct TQueryExecutor
                 sourceRows.begin(),
                 std::mem_fn(TGetFunction(&TOwningRow::Get)));
 
-            EXPECT_CALL(*ReaderMock_, Read(_))
-                .WillOnce(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
+            ON_CALL(*ReaderMock_, Read(_))
+                .WillByDefault(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
+            if (!ShouldFail_) {
+                EXPECT_CALL(*ReaderMock_, Read(_));
+            }
         };
         
-        EXPECT_CALL(*ReaderMock_, Open(_))
-            .WillOnce(DoAll(Invoke(onOpened), Return(WrapVoidInFuture())));
+        ON_CALL(*ReaderMock_, Open(_))
+            .WillByDefault(DoAll(Invoke(onOpened), Return(WrapVoidInFuture())));
+
+        if (!ShouldFail_) {
+            EXPECT_CALL(*ReaderMock_, Open(_));
+        }
 
         auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
         return MakeFuture(evaluator->RunWithExecutor(
@@ -1655,16 +2155,20 @@ struct TQueryExecutor
             [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
                 auto planFragment = New<TPlanFragment>();
 
-                planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                 planFragment->Timestamp = fragment->Timestamp;
-                planFragment->DataSources.push_back(fragment->ForeignDataSource);
+                planFragment->DataSources.push_back({
+                    fragment->ForeignDataId, {
+                        planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
+                        planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())}
+                    });
                 planFragment->Query = subquery;
                 
                 auto subqueryResult = ExecuteCallback->Execute(planFragment, writer);
 
                 return WaitFor(subqueryResult)
                     .ValueOrThrow();
-            }));
+            },
+            FunctionRegistry));
     }
 };
 
@@ -1677,6 +2181,48 @@ protected:
         WriterMock_ = New<StrictMock<TWriterMock>>();
 
         ActionQueue_ = New<TActionQueue>("Test");
+
+        auto testUdfImplementations = TSharedRef(
+            test_udfs_bc,
+            test_udfs_bc_len,
+            nullptr);
+
+        AbsUdf_ = New<TUserDefinedFunction>(
+            "abs_udf",
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Int64,
+            testUdfImplementations,
+            ECallingConvention::Simple);
+        ExpUdf_ = New<TUserDefinedFunction>(
+            "exp_udf",
+            std::vector<TType>{EValueType::Int64, EValueType::Int64},
+            EValueType::Int64,
+            testUdfImplementations,
+            ECallingConvention::Simple);
+        StrtolUdf_ = New<TUserDefinedFunction>(
+            "strtol_udf",
+            std::vector<TType>{EValueType::String},
+            EValueType::Uint64,
+            testUdfImplementations,
+            ECallingConvention::Simple);
+        TolowerUdf_ = New<TUserDefinedFunction>(
+            "tolower_udf",
+            std::vector<TType>{EValueType::String},
+            EValueType::String,
+            testUdfImplementations,
+            ECallingConvention::Simple);
+        IsNullUdf_ = New<TUserDefinedFunction>(
+            "is_null_udf",
+            std::vector<TType>{EValueType::String},
+            EValueType::Boolean,
+            testUdfImplementations,
+            ECallingConvention::UnversionedValue);
+        SumUdf_ = New<TUserDefinedFunction>(
+            "sum_udf",
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Int64,
+            EValueType::Int64,
+            testUdfImplementations);
     }
 
     virtual void TearDown() override
@@ -1690,13 +2236,14 @@ protected:
         const std::vector<Stroka>& owningSource,
         const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max())
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
     {
         std::vector<std::vector<Stroka>> owningSources(1, owningSource);
         std::map<Stroka, TDataSplit> dataSplits;
         dataSplits["//t"] = dataSplit;
 
-        auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
@@ -1704,9 +2251,11 @@ protected:
                 owningSources,
                 owningResult,
                 inputRowLimit,
-                outputRowLimit)
-            .Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                outputRowLimit,
+                false,
+                functionRegistry)
+            .Get()
+            .ThrowOnError();
     }
 
     void Evaluate(
@@ -1715,19 +2264,49 @@ protected:
         const std::vector<std::vector<Stroka>>& owningSources,
         const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max())
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
     {
-        auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
+        BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
-            query,
-            dataSplits,
-            owningSources,
-            owningResult,
-            inputRowLimit,
-            outputRowLimit)
-            .Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                query,
+                dataSplits,
+                owningSources,
+                owningResult,
+                inputRowLimit,
+                outputRowLimit,
+                false,
+                functionRegistry)
+            .Get()
+            .ThrowOnError();
+    }
+
+    void EvaluateExpectingError(
+        const Stroka& query,
+        const TDataSplit& dataSplit,
+        const std::vector<Stroka>& owningSource,
+        i64 inputRowLimit = std::numeric_limits<i64>::max(),
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
+    {
+        std::vector<std::vector<Stroka>> owningSources(1, owningSource);
+        std::map<Stroka, TDataSplit> dataSplits;
+        dataSplits["//t"] = dataSplit;
+
+        BIND(&TQueryEvaluateTest::DoEvaluate, this)
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run(
+                query,
+                dataSplits,
+                owningSources,
+                std::vector<TOwningRow>(),
+                inputRowLimit,
+                outputRowLimit,
+                true,
+                functionRegistry)
+            .Get()
+            .ThrowOnError();
     }
 
     void DoEvaluate(
@@ -1736,7 +2315,9 @@ protected:
         const std::vector<std::vector<Stroka>>& owningSources,
         const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit,
-        i64 outputRowLimit)
+        i64 outputRowLimit,
+        bool shouldFail,
+        IFunctionRegistryPtr functionRegistry)
     {
         std::vector<std::vector<TRow>> results;
         typedef const TRow(TOwningRow::*TGetFunction)() const;
@@ -1764,15 +2345,22 @@ protected:
         {
             testing::InSequence s;
 
-            EXPECT_CALL(*WriterMock_, Open(_, _))
-                .WillOnce(Return(WrapVoidInFuture()));
+            ON_CALL(*WriterMock_, Open(_, _))
+                .WillByDefault(Return(WrapVoidInFuture()));
+            if (!shouldFail) {
+                EXPECT_CALL(*WriterMock_, Open(_, _));
+            }
+
             for (auto& result : results) {
                 EXPECT_CALL(*WriterMock_, Write(result))
                     .WillOnce(Return(true));
             }
-            
-            EXPECT_CALL(*WriterMock_, Close())
-                .WillOnce(Return(WrapVoidInFuture()));
+
+            ON_CALL(*WriterMock_, Close())
+                .WillByDefault(Return(WrapVoidInFuture()));
+            if (!shouldFail) {
+                EXPECT_CALL(*WriterMock_, Close());
+            }
         }
 
         IExecutorPtr executor;
@@ -1780,17 +2368,29 @@ protected:
         size_t index = owningSources.size();
         while (index > 0) {
             const auto& owningSource = owningSources[--index];
-            auto newExecutor = New<TQueryExecutor>(owningSource, executor);
+            auto newExecutor = New<TQueryExecutor>(owningSource, functionRegistry, shouldFail, executor);
             executor = newExecutor;
         }
 
-        executor->Execute(PreparePlanFragment(&PrepareMock_, query, inputRowLimit, outputRowLimit), WriterMock_);
+        if (shouldFail) {
+            EXPECT_THROW(
+                executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit), WriterMock_),
+                TErrorException);
+        } else {
+            executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit), WriterMock_);
+        }
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
     TActionQueuePtr ActionQueue_;
 
+    IFunctionDescriptorPtr AbsUdf_;
+    IFunctionDescriptorPtr ExpUdf_;
+    IFunctionDescriptorPtr StrtolUdf_;
+    IFunctionDescriptorPtr TolowerUdf_;
+    IFunctionDescriptorPtr IsNullUdf_;
+    IFunctionDescriptorPtr SumUdf_;
 };
 
 std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
@@ -2251,6 +2851,30 @@ TEST_F(TQueryEvaluateTest, IsNull)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, DoubleSum)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Double}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1.",
+        "a=1.",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Double},
+        {"t", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=2.;t=3"
+    }, resultSplit);
+
+    Evaluate("sum(a) as x, sum(1) as t FROM [//t] group by 1", split, source, result);
+}
+
 TEST_F(TQueryEvaluateTest, ComplexStrings)
 {
     auto split = MakeSplit({
@@ -2411,6 +3035,30 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
     }, split);
 
     Evaluate("a, b FROM [//t] where a > 1 and a < 9", split, source, result, std::numeric_limits<i64>::max(), 3);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestOutputRowLimit2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source;
+    for (size_t i = 0; i < 10000; ++i) {
+        source.push_back(Stroka() + "a=" + ToString(i) + ";b=" + ToString(i * 10));
+    }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    std::vector<TOwningRow> result;
+    result.push_back(BuildRow(Stroka() + "x=" + ToString(10000), resultSplit, false));
+
+    Evaluate("sum(1) as x FROM [//t] group by 0 as x", split, source, result, std::numeric_limits<i64>::max(), 100);
 
     SUCCEED();
 }
@@ -2708,6 +3356,431 @@ TEST_F(TQueryEvaluateTest, TestJoin)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestOrderBy)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source;
+    
+    for (int i = 0; i < 10000; ++i) {
+        auto value = std::rand() % 100000 + 10000;
+        source.push_back(Stroka() + "a=" + ToString(value) + ";b=" + ToString(value * 10));
+    }
+
+    for (int i = 0; i < 10000; ++i) {
+        auto value = 10000 - i;
+        source.push_back(Stroka() + "a=" + ToString(value) + ";b=" + ToString(value * 10));
+    }
+
+    std::vector<TOwningRow> result;
+    
+    for (const auto& row : source) {
+        result.push_back(BuildRow(row, split, false));
+    }
+
+    std::sort(result.begin(), result.end());
+
+    result.resize(100);
+
+    Evaluate("* FROM [//t] order by a limit 100", split, source, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=-2;b=20",
+        "a=9;b=90",
+        "a=-10"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+        "x=2",
+        "x=9",
+        "x=10"
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(AbsUdf_);
+
+    Evaluate("abs_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+    };
+
+    auto fileRef = TSharedRef(
+        invalid_ir_bc,
+        invalid_ir_bc_len,
+        nullptr);
+
+    auto invalidUdfDescriptor = New<TUserDefinedFunction>(
+        "invalid_ir",
+        std::vector<TType>{EValueType::Int64},
+        EValueType::Int64,
+        fileRef,
+        ECallingConvention::Simple);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(invalidUdfDescriptor);
+
+    EvaluateExpectingError("invalid_ir(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+    };
+
+    auto fileRef = TSharedRef(
+        test_udfs_bc,
+        test_udfs_bc_len,
+        nullptr);
+
+    auto twoArgumentUdf = New<TUserDefinedFunction>(
+        "abs_udf",
+        std::vector<TType>{EValueType::Int64, EValueType::Int64},
+        EValueType::Int64,
+        fileRef,
+        ECallingConvention::Simple);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(twoArgumentUdf);
+
+    EvaluateExpectingError("abs_udf(a, b) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+    };
+
+    auto fileRef = TSharedRef(
+        test_udfs_bc,
+        test_udfs_bc_len,
+        nullptr);
+
+    auto invalidArgumentUdf = New<TUserDefinedFunction>(
+        "abs_udf",
+        std::vector<TType>{EValueType::Double},
+        EValueType::Int64,
+        fileRef,
+        ECallingConvention::Simple);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(invalidArgumentUdf);
+
+    EvaluateExpectingError("abs_udf(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestUdfNullPropagation)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;",
+        "a=-2;b=-20",
+        "a=9;",
+        "b=-10"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "",
+        "x=20",
+        "",
+        "x=10"
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(AbsUdf_);
+
+    Evaluate("abs_udf(b) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUdfNullPropagation2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;",
+        "a=2;b=10",
+        "b=9",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "",
+        "x=1024",
+        "",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(ExpUdf_);
+
+    Evaluate("exp_udf(a, b) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"123\"",
+        "a=\"50\"",
+        "a=\"\"",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=123u",
+        "x=50u",
+        "x=0u",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(StrtolUdf_);
+
+    Evaluate("strtol_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUdfStringResult)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"HELLO\"",
+        "a=\"HeLlO\"",
+        "a=\"\"",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=\"hello\"",
+        "x=\"hello\"",
+        "x=\"\"",
+        ""
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(TolowerUdf_);
+
+    Evaluate("tolower_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"Hello\"",
+        "a=\"\"",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean}
+    });
+
+    auto result = BuildRows({
+        "x=%false",
+        "x=%false",
+        "x=%true"
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(IsNullUdf_);
+
+    Evaluate("is_null_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestVarargUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1",
+        "a=2"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+        "x=2"
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(SumUdf_);
+
+    Evaluate("a as x FROM [//t] where sum_udf(7, 3, a) in (11, 12)", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3",
+        "a=4"
+    };
+
+    auto mallocUdf = New<TUserDefinedFunction>(
+        "malloc_udf",
+        std::vector<TType>{EValueType::Int64},
+        EValueType::Int64,
+        TSharedRef(
+            malloc_udf_bc,
+            malloc_udf_bc_len,
+            nullptr),
+        ECallingConvention::Simple);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(mallocUdf);
+
+    EvaluateExpectingError("malloc_udf(a) as x FROM [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestSimpleHash)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+        {"c", EValueType::Boolean}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3;b=\"hello\";c=%true",
+        "a=54;c=%false"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=14233899715629335710u",
+        "x=5934953485792485966u"
+    }, resultSplit);
+
+    Evaluate("simple_hash(a, b, c) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestFarmHash)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+        {"c", EValueType::Boolean}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3;b=\"hello\";c=%true",
+        "a=54;c=%false"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64}
+    });
+
+    auto result = BuildRows({
+        "x=13185060272037541714u",
+        "x=1607147011416532415u"
+    }, resultSplit);
+
+    Evaluate("farm_hash(a, b, c) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+
+    SUCCEED();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEvaluateExpressionTest
@@ -2733,22 +3806,22 @@ TEST_P(TEvaluateExpressionTest, Basic)
 
     TCGVariables variables;
 
-    auto callback = Profile(expr, schema, nullptr, &variables, nullptr)();
+    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
 
     auto row = NVersionedTableClient::BuildRow(rowString, keyColumns, schema, true);
     TUnversionedValue result;
 
     TQueryStatistics statistics;
-    TRowBuffer permanentBuffer;
-    TRowBuffer outputBuffer;
-    TRowBuffer intermediateBuffer;
+    auto permanentBuffer = New<TRowBuffer>();
+    auto outputBuffer = New<TRowBuffer>();
+    auto intermediateBuffer = New<TRowBuffer>();
 
     TExecutionContext executionContext;
-    executionContext.Schema = schema;
+    executionContext.Schema = &schema;
     executionContext.LiteralRows = &variables.LiteralRows;
-    executionContext.PermanentBuffer = &permanentBuffer;
-    executionContext.OutputBuffer = &outputBuffer;
-    executionContext.IntermediateBuffer = &intermediateBuffer;
+    executionContext.PermanentBuffer = permanentBuffer;
+    executionContext.OutputBuffer = outputBuffer;
+    executionContext.IntermediateBuffer = intermediateBuffer;
     executionContext.Statistics = &statistics;
 #ifndef NDEBUG
     volatile int dummy;
@@ -2809,16 +3882,20 @@ protected:
             .WillRepeatedly(Invoke(this, &TComputedColumnTest::MakeSimpleSplit));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
     }
 
     std::vector<TKeyRange> Coordinate(const Stroka& source)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source);
-        auto prunedSplits = GetPrunedSources(
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
+        auto rowBuffer = New<TRowBuffer>();
+        auto prunedSplits = GetPrunedRanges(
             planFragment->Query,
             planFragment->DataSources,
+            rowBuffer,
             ColumnEvaluatorCache_,
+            CreateBuiltinFunctionRegistry().Get(),
+            1000,
             true);
 
         return GetRangesFromSources(prunedSplits);
@@ -2826,18 +3903,24 @@ protected:
 
     std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source);
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
 
-        TDataSources foreignSplits{planFragment->ForeignDataSource};
+        TDataSources foreignSplits{{planFragment->ForeignDataId, {
+                planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
+                planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())}
+            }};
 
         const auto& query = planFragment->Query;
-
-        auto prunedSplits = GetPrunedSources(
+        auto rowBuffer = New<TRowBuffer>();
+        auto prunedSplits = GetPrunedRanges(
             query->WhereClause,
             query->JoinClause->ForeignTableSchema,
             query->JoinClause->ForeignKeyColumns,
             foreignSplits,
+            rowBuffer,
             ColumnEvaluatorCache_,
+            CreateBuiltinFunctionRegistry(),
+            1000,
             true);
 
         return GetRangesFromSources(prunedSplits);
@@ -2888,12 +3971,14 @@ private:
         return WrapInFuture(dataSplit);
     }
 
-    std::vector<TKeyRange> GetRangesFromSources(const TDataSources& prunedSplits)
+    std::vector<TKeyRange> GetRangesFromSources(const TGroupedRanges& groupedRanges)
     {
         std::vector<TKeyRange> ranges;
 
-        for (const auto& split : prunedSplits) {
-            ranges.push_back(split.Range);
+        for (const auto& group : groupedRanges) {
+            for (const auto& range : group) {
+                ranges.push_back(TKeyRange(TKey(range.first), TKey(range.second)));
+            }
         }
 
         std::sort(ranges.begin(), ranges.end());
@@ -2913,7 +3998,7 @@ TEST_F(TComputedColumnTest, Simple)
     auto query = Stroka("a from [//t] where l = 10");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey("20;10;"), result[0].first);
     EXPECT_EQ(BuildKey("20;10;" _MAX_), result[0].second);
@@ -2924,7 +4009,7 @@ TEST_F(TComputedColumnTest, Inequality)
     auto query = Stroka("a from [//t] where l < 10");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey(_MIN_), result[0].first);
     EXPECT_EQ(BuildKey(_MAX_), result[0].second);
@@ -2935,7 +4020,7 @@ TEST_F(TComputedColumnTest, Composite)
     auto query = Stroka("a from [//t] where l = 10 and m > 0 and m < 50");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey("20;10;0;" _MAX_), result[0].first);
     EXPECT_EQ(BuildKey("20;10;50;"), result[0].second);
@@ -2946,7 +4031,7 @@ TEST_F(TComputedColumnTest, Vector)
     auto query = Stroka("a from [//t] where l in (1,2,3)");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 3);
+    EXPECT_EQ(3, result.size());
 
     EXPECT_EQ(BuildKey("2;1;"), result[0].first);
     EXPECT_EQ(BuildKey("2;1;" _MAX_), result[0].second);
@@ -2961,12 +4046,10 @@ TEST_F(TComputedColumnTest, ComputedKeyInPredicate)
     auto query = Stroka("a from [//t] where (k,l) >= (10,20) ");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey("10;20;"), result[0].first);
-    EXPECT_EQ(BuildKey("10;" _MAX_ ";" _MAX_), result[0].second);
-    EXPECT_EQ(BuildKey("10;" _MAX_), result[1].first);
-    EXPECT_EQ(BuildKey(_MAX_), result[1].second);
+    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
 }
 
 TEST_F(TComputedColumnTest, ComputedColumnLast)
@@ -2983,7 +4066,7 @@ TEST_F(TComputedColumnTest, ComputedColumnLast)
     auto query = Stroka("a from [//t] where k = 10");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey("10;13;"), result[0].first);
     EXPECT_EQ(BuildKey("10;13;" _MAX_), result[0].second);
@@ -3006,7 +4089,7 @@ TEST_F(TComputedColumnTest, Complex1)
     auto query = Stroka("a from [//t] where k = 10 and n = 20");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey("10;21;"), result[0].first);
     EXPECT_EQ(BuildKey("10;21;" _MAX_), result[0].second);
@@ -3029,7 +4112,7 @@ TEST_F(TComputedColumnTest, Complex2)
     auto query = Stroka("a from [//t] where (k,n) in ((10,20),(50,60))");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(2, result.size());
 
     EXPECT_EQ(BuildKey("10;21;"), result[0].first);
     EXPECT_EQ(BuildKey("10;21;" _MAX_), result[0].second);
@@ -3054,10 +4137,105 @@ TEST_F(TComputedColumnTest, Complex3)
     auto query = Stroka("a from [//t] where k = 10 and n = 20");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey("10;"), result[0].first);
     EXPECT_EQ(BuildKey("10;" _MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Far1)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("m + 1"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where m = 10");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(1, result.size());
+
+    EXPECT_EQ(BuildKey("11;"), result[0].first);
+    EXPECT_EQ(BuildKey("11;" _MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Far2)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("n + 1"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("n", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where n = 10 and l = 20");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(1, result.size());
+
+    EXPECT_EQ(BuildKey("11;20;"), result[0].first);
+    EXPECT_EQ(BuildKey("11;20;" _MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Far3)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("n + 1"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("n", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where (n,l) in ((10,20), (30,40))");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(2, result.size());
+
+    EXPECT_EQ(BuildKey("11;20;"), result[0].first);
+    EXPECT_EQ(BuildKey("11;20;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("31;40;"), result[1].first);
+    EXPECT_EQ(BuildKey("31;40;" _MAX_), result[1].second);
+}
+
+TEST_F(TComputedColumnTest, Far4)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("n + 1"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("n", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where n in (10,30) and l in (20,40)");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(4, result.size());
+
+    EXPECT_EQ(BuildKey("11;20;"), result[0].first);
+    EXPECT_EQ(BuildKey("11;20;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("11;40;"), result[1].first);
+    EXPECT_EQ(BuildKey("11;40;" _MAX_), result[1].second);
+    EXPECT_EQ(BuildKey("31;20;"), result[2].first);
+    EXPECT_EQ(BuildKey("31;20;" _MAX_), result[2].second);
+    EXPECT_EQ(BuildKey("31;40;"), result[3].first);
+    EXPECT_EQ(BuildKey("31;40;" _MAX_), result[3].second);
 }
 
 TEST_F(TComputedColumnTest, NoComputedColumns)
@@ -3074,10 +4252,227 @@ TEST_F(TComputedColumnTest, NoComputedColumns)
     auto query = Stroka("a from [//t] where a = 0");
     auto result = Coordinate(query);
 
-    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(1, result.size());
 
     EXPECT_EQ(BuildKey(_MIN_), result[0].first);
     EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Modulo0)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("l % 2"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where a = 0");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(1, result.size());
+
+    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
+    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Modulo1)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("l % 2"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where l > 0 and l <= 2000");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(4, result.size());
+
+    EXPECT_EQ(BuildKey(_NULL_ ";0;" _MAX_), result[0].first);
+    EXPECT_EQ(BuildKey(_NULL_ ";2000;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("-1;0;" _MAX_), result[1].first);
+    EXPECT_EQ(BuildKey("-1;2000;" _MAX_), result[1].second);
+    EXPECT_EQ(BuildKey("0;0;" _MAX_), result[2].first);
+    EXPECT_EQ(BuildKey("0;2000;" _MAX_), result[2].second);
+    EXPECT_EQ(BuildKey("1;0;" _MAX_), result[3].first);
+    EXPECT_EQ(BuildKey("1;2000;" _MAX_), result[3].second);
+}
+
+TEST_F(TComputedColumnTest, Modulo2)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Uint64, Null, Stroka("n % 1u"));
+    tableSchema.Columns().emplace_back("l", EValueType::Uint64, Null, Stroka("n % 1u"));
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("n", EValueType::Uint64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where m = 1");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(4, result.size());
+
+    EXPECT_EQ(BuildKey(_NULL_ ";" _NULL_ ";1;"), result[0].first);
+    EXPECT_EQ(BuildKey(_NULL_ ";" _NULL_ ";1;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey(_NULL_ ";0u;1;"), result[1].first);
+    EXPECT_EQ(BuildKey(_NULL_ ";0u;1;" _MAX_), result[1].second);
+    EXPECT_EQ(BuildKey("0u;" _NULL_ ";1;"), result[2].first);
+    EXPECT_EQ(BuildKey("0u;" _NULL_ ";1;" _MAX_), result[2].second);
+    EXPECT_EQ(BuildKey("0u;0u;1;"), result[3].first);
+    EXPECT_EQ(BuildKey("0u;0u;1;" _MAX_), result[3].second);
+}
+
+TEST_F(TComputedColumnTest, Modulo3)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Uint64, Null, Stroka("m % 1u"));
+    tableSchema.Columns().emplace_back("l", EValueType::Uint64, Null, Stroka("m % 1u"));
+    tableSchema.Columns().emplace_back("m", EValueType::Uint64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t]");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(1, result.size());
+
+    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
+    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Divide1)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("l / 2"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where l >= 3 and l < 6");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(2, result.size());
+
+    EXPECT_EQ(BuildKey("1;3"), result[0].first);
+    EXPECT_EQ(BuildKey("1;4"), result[0].second);
+    EXPECT_EQ(BuildKey("2;4"), result[1].first);
+    EXPECT_EQ(BuildKey("2;6"), result[1].second);
+}
+
+TEST_F(TComputedColumnTest, Divide2)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("m / 3"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64, Null, Stroka("m / 4"));
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where m > 0 and m <= 6");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(4, result.size());
+
+    EXPECT_EQ(BuildKey("0;0;0;" _MAX_), result[0].first);
+    EXPECT_EQ(BuildKey("0;0;3"), result[0].second);
+    EXPECT_EQ(BuildKey("1;0;3"), result[1].first);
+    EXPECT_EQ(BuildKey("1;0;4"), result[1].second);
+    EXPECT_EQ(BuildKey("1;1;4"), result[2].first);
+    EXPECT_EQ(BuildKey("1;1;6"), result[2].second);
+    EXPECT_EQ(BuildKey("2;1;6"), result[3].first);
+    EXPECT_EQ(BuildKey("2;1;6;" _MAX_), result[3].second);
+}
+
+TEST_F(TComputedColumnTest, Divide3)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Uint64, Null, Stroka("m / 2u"));
+    tableSchema.Columns().emplace_back("l", EValueType::Uint64, Null, Stroka("n % 1u"));
+    tableSchema.Columns().emplace_back("m", EValueType::Uint64);
+    tableSchema.Columns().emplace_back("n", EValueType::Uint64);
+    tableSchema.Columns().emplace_back("a", EValueType::Uint64);
+
+    TKeyColumns keyColumns{"k", "l", "m", "n"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where m >= 0u and m < 3u");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(4, result.size());
+
+    EXPECT_EQ(BuildKey("0u;" _NULL_ ";0u"), result[0].first);
+    EXPECT_EQ(BuildKey("0u;" _NULL_ ";2u"), result[0].second);
+    EXPECT_EQ(BuildKey("0u;0u;0u"), result[1].first);
+    EXPECT_EQ(BuildKey("0u;0u;2u"), result[1].second);
+    EXPECT_EQ(BuildKey("1u;" _NULL_ ";2u"), result[2].first);
+    EXPECT_EQ(BuildKey("1u;" _NULL_ ";3u"), result[2].second);
+    EXPECT_EQ(BuildKey("1u;0u;2u"), result[3].first);
+    EXPECT_EQ(BuildKey("1u;0u;3u"), result[3].second);
+}
+
+TEST_F(TComputedColumnTest, Divide4)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("l / -9223372036854775808"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where l >= -9223372036854775808 and l <= 9223372036854775807");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(2, result.size());
+
+    EXPECT_EQ(BuildKey("0;0;"), result[0].first);
+    EXPECT_EQ(BuildKey("0;9223372036854775807;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("1;-9223372036854775808"), result[1].first);
+    EXPECT_EQ(BuildKey("1;0;"), result[1].second);
+}
+
+TEST_F(TComputedColumnTest, FarDivide1)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("m / 2"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where m >= 3 and m < 5");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(2, result.size());
+
+    EXPECT_EQ(BuildKey("1"), result[0].first);
+    EXPECT_EQ(BuildKey("1;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("2"), result[1].first);
+    EXPECT_EQ(BuildKey("2;" _MAX_), result[1].second);
 }
 
 TEST_P(TComputedColumnTest, Join)
@@ -3104,7 +4499,8 @@ TEST_P(TComputedColumnTest, Join)
     auto query = Stroka("l from [//t] join [//t1] using l where l in (0, 1)");
     auto result = CoordinateForeign(query);
 
-    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(2, result.size());
+
     EXPECT_EQ(BuildKey(args[4]), result[0].first);
     EXPECT_EQ(BuildKey(args[5]), result[0].second);
     EXPECT_EQ(BuildKey(args[6]), result[1].first);
@@ -3169,6 +4565,200 @@ INSTANTIATE_TEST_CASE_P(
             "0;0;" _MAX_,
             "1;1;",
             "1;1;" _MAX_}
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRefinePredicateTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::vector<const char*>>
+    , public TCompareExpressionTest
+{
+protected:
+    virtual void SetUp() override
+    {
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
+            New<TColumnEvaluatorCacheConfig>(),
+            CreateBuiltinFunctionRegistry());
+    }
+
+    TConstExpressionPtr Refine(
+        const TKeyRange& keyRange,
+        TConstExpressionPtr expr,
+        const TTableSchema& tableSchema,
+        const TKeyColumns& keyColumns)
+    {
+        return RefinePredicate(
+            TRowRange(keyRange.first.Get(), keyRange.second.Get()),
+            expr,
+            tableSchema,
+            keyColumns,
+            ColumnEvaluatorCache_->Find(tableSchema, keyColumns.size()));
+    }
+
+private:
+    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+};
+
+TEST_P(TRefinePredicateTest, Simple)
+{
+    const auto& args = GetParam();
+    const auto& schemaString = args[0];
+    const auto& keyString = args[1];
+    const auto& predicateString = args[2];
+    const auto& refinedString = args[3];
+    const auto& lowerString = args[4];
+    const auto& upperString = args[5];
+
+    TTableSchema tableSchema;
+    TKeyColumns keyColumns;
+    Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
+    Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
+
+    auto predicate = PrepareExpression(predicateString, tableSchema);
+    auto expected = PrepareExpression(refinedString, tableSchema);
+    auto range = TKeyRange{BuildKey(lowerString), BuildKey(upperString)};
+    auto refined = Refine(range, predicate, tableSchema, keyColumns);
+
+    EXPECT_TRUE(Equal(refined, expected))
+        << "schema: " << schemaString << std::endl
+        << "key_columns: " << keyString << std::endl
+        << "range: [" << lowerString << ", " << upperString << "]" << std::endl
+        << "predicate: " << predicateString << std::endl
+        << "refined: " << ::testing::PrintToString(refined) << std::endl
+        << "expected: " << ::testing::PrintToString(expected);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    TRefinePredicateTest,
+    TRefinePredicateTest,
+    ::testing::Values(
+        std::vector<const char*>{
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ((1,2),(3,4))",
+            "(k,l) in ((1,2),(3,4))",
+            _MIN_,
+            _MAX_},
+        std::vector<const char*>{
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k,l) in ((1,2),(3,4))",
+            "(k,l) in ((1,2))",
+            "1",
+            "2"},
+        std::vector<const char*>{
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k) in ((2),(4))",
+            "(k) in ((2),(4))",
+            _MIN_,
+            _MAX_},
+        std::vector<const char*>{
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(l) in ((2),(4))",
+            "(l) in ((2),(4))",
+            _MIN_,
+            _MAX_},
+        std::vector<const char*>{
+            "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "(k) in ((2),(4))",
+            "(k) in ((2))",
+            "2;1",
+            "3;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((2),(4))",
+            "l in ((2),(4))",
+            _MIN_,
+            _MAX_},
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((2),(4))",
+            "l in ((4))",
+            "3;3",
+            _MAX_},
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((2),(4))",
+            "l in ((2))",
+            _MIN_,
+            "3;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((0),(2),(4))",
+            "l in ((2))",
+            "1;1",
+            "3;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((0),(2),(4))",
+            "l in ((2))",
+            "1",
+            "3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64;expression=l}; {name=l;type=int64;}; {name=m;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "l in ((0),(2),(4))",
+            "l in ((2))",
+            "2;2;2",
+            "3;3;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4))",
+            "k in ((2))",
+            "2;1",
+            "3;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4))",
+            "k in ((2))",
+            "2;1",
+            "3;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4),(6))",
+            "k in ((2),(4))",
+            "2;1",
+            "4;5"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4),(6))",
+            "k in ((4))",
+            "2;3",
+            "4;5"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4),(6))",
+            "k in ((2))",
+            "2;1",
+            "4;3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4),(6))",
+            "k in ((2))",
+            "2",
+            "3"},
+        std::vector<const char*>{
+            "[{name=k;type=int64}; {name=l;type=int64;expression=k}; {name=m;type=int64}; {name=a;type=int64}]",
+            "[k;l]",
+            "k in ((0),(2),(4))",
+            "k in ((2))",
+            "2;2;2",
+            "3;3;3"}
 ));
 
 #endif

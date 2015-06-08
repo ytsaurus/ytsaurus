@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "store_detail.h"
 #include "tablet.h"
+#include "automaton.h"
 #include "private.h"
 
 #include <core/ytree/fluent.h>
@@ -38,8 +39,9 @@ TStoreBase::TStoreBase(
 
 TStoreBase::~TStoreBase()
 {
-    MemoryUsageUpdated_.Fire(-MemoryUsage_);
+    i64 delta = -MemoryUsage_;
     MemoryUsage_ = 0;
+    MemoryUsageUpdated_.Fire(delta);
 }
 
 TStoreId TStoreBase::GetId() const
@@ -91,19 +93,34 @@ void TStoreBase::UnsubscribeMemoryUsageUpdated(const TCallback<void(i64 delta)>&
 
 void TStoreBase::SetMemoryUsage(i64 value)
 {
-    YASSERT(value >= MemoryUsage_);
-    if (value > MemoryUsage_ + MemoryUsageGranularity) {
+    if (std::abs(value - MemoryUsage_) > MemoryUsageGranularity) {
         i64 delta = value - MemoryUsage_;
         MemoryUsage_ = value;
         MemoryUsageUpdated_.Fire(delta);
     }
 }
 
-void TStoreBase::Save(TSaveContext& /*context*/) const
-{ }
+TOwningKey TStoreBase::RowToKey(TUnversionedRow row)
+{
+    return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
+}
 
-void TStoreBase::Load(TLoadContext& /*context*/)
-{ }
+TOwningKey TStoreBase::RowToKey(TDynamicRow row)
+{
+    return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
+}
+
+void TStoreBase::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, GetPersistentStoreState());
+}
+
+void TStoreBase::Load(TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, StoreState_);
+}
 
 void TStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
 {

@@ -18,11 +18,11 @@ namespace {
 
 TSharedRefArray CreateMessage(int numParts)
 {
-    auto data = TSharedRef::Allocate(numParts);
+    auto data = TSharedMutableRef::Allocate(numParts);
 
     std::vector<TSharedRef> parts;
     for (int i = 0; i < numParts; ++i) {
-        parts.push_back(data.Slice(TRef(data.Begin() + i, 1)));
+        parts.push_back(data.Slice(i, i + 1));
     }
 
     return TSharedRefArray(std::move(parts));

@@ -12,40 +12,52 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class EMemoryConsumer>
+template <class ECategory>
 class TMemoryUsageTracker
 {
 public:
-    explicit TMemoryUsageTracker(
-        i64 totalMemory,
-        const Stroka& profilingPath = "");
+    TMemoryUsageTracker(
+        i64 totalLimit,
+        const std::vector<std::pair<ECategory, i64>>& limits,
+        const NLogging::TLogger& logger = NLogging::TLogger(),
+        const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
 
-    i64 GetFree() const;
-    i64 GetUsed() const;
-    i64 GetUsed(EMemoryConsumer consumer) const;
-    i64 GetTotal() const;
+    i64 GetTotalLimit() const;
+    i64 GetTotalUsed() const;
+    i64 GetTotalFree() const;
+    bool IsTotalExceeded() const;
+
+    i64 GetLimit(ECategory category) const;
+    i64 GetUsed(ECategory category) const;
+    i64 GetFree(ECategory category) const;
+    bool IsExceeded(ECategory category) const;
 
     // Always succeeds, can lead to an overcommit.
-    void Acquire(EMemoryConsumer consumer, i64 size);
-    TError TryAcquire(EMemoryConsumer consumer, i64 size);
-    void Release(EMemoryConsumer consumer, i64 size);
+    void Acquire(ECategory category, i64 size);
+    TError TryAcquire(ECategory category, i64 size);
+    void Release(ECategory category, i64 size);
 
 private:
-    void DoAcquire(EMemoryConsumer consumer, i64 size);
+    TSpinLock SpinLock_;
 
-    TSpinLock SpinLock;
+    const i64 TotalLimit_;
 
-    i64 TotalMemory;
-    i64 FreeMemory;
+    NProfiling::TAggregateCounter TotalUsedCounter_;
+    NProfiling::TAggregateCounter TotalFreeCounter_;
 
-    TEnumIndexedVector<i64, EMemoryConsumer> UsedMemory;
+    struct TCategory
+    {
+        i64 Limit = std::numeric_limits<i64>::max();
+        NProfiling::TAggregateCounter UsedCounter;
+    };
 
-    NProfiling::TProfiler Profiler;
-    NProfiling::TAggregateCounter FreeMemoryCounter;
-
-    TEnumIndexedVector<NProfiling::TAggregateCounter, EMemoryConsumer> ConsumerCounters;
+    TEnumIndexedVector<TCategory, ECategory> Categories_;
 
     NLogging::TLogger Logger;
+    NProfiling::TProfiler Profiler;
+
+
+    void DoAcquire(ECategory category, i64 size);
 
 };
 

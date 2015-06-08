@@ -6,17 +6,13 @@
 #include <core/actions/future.h>
 
 #include <core/misc/ref.h>
-#include <core/misc/async_stream_state.h>
 #include <core/misc/property.h>
 
-#include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/async_semaphore.h>
 
 #include <core/compression/public.h>
 
 #include <core/logging/log.h>
-
-#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -55,7 +51,7 @@ public:
         TSequentialReaderConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
         IChunkReaderPtr chunkReader,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         NCompression::ECodec codecId);
 
     //! Returns |true| if the current block is not the last one.
@@ -96,11 +92,15 @@ private:
         const std::vector<int>& windowIndexes,
         const std::vector<TSharedRef>& compressedBlocks);
 
+    void MarkFailedBlocks(
+        const std::vector<int>& windowIndexes, 
+        const TError& error);
 
-    TSequentialReaderConfigPtr Config_;
-    std::vector<TBlockInfo> BlockInfos_;
-    IChunkReaderPtr ChunkReader_;
-    IBlockCachePtr UncompressedBlockCache_;
+
+    const TSequentialReaderConfigPtr Config_;
+    const std::vector<TBlockInfo> BlockInfos_;
+    const IChunkReaderPtr ChunkReader_;
+    const IBlockCachePtr BlockCache_;
 
     struct TWindowSlot
     {
@@ -112,17 +112,14 @@ private:
 
     NConcurrency::TAsyncSemaphore AsyncSemaphore_;
 
-    volatile int FirstReadyWindowIndex_ = -1;
+    int FirstReadyWindowIndex_ = -1;
     int FirstUnfetchedWindowIndex_ = 0;
  
     TPromise<void> FetchingComplete_ = NewPromise<void>();
 
-    TAsyncStreamState State_;
     NCompression::ICodec* Codec_;
 
     NLogging::TLogger Logger;
-
-    DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 
 };
 

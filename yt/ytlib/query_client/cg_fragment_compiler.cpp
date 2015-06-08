@@ -1,11 +1,6 @@
 #include "stdafx.h"
 #include "cg_fragment_compiler.h"
-#include "function_registry.h"
 #include "private.h"
-#include "helpers.h"
-
-#include "plan_fragment.h"
-#include "plan_helpers.h"
 
 #include "cg_routines.h"
 #include "cg_ir_builder.h"
@@ -30,13 +25,6 @@
 //    It is possible to do better memory management here.
 //  - TBAA is a king
 //  - Capture pointers by value in ViaClosure
-
-// FIXME: try to fix in new visual studio
-#ifdef _win_
-#define MOVE(name) name
-#else
-#define MOVE(name) name = std::move(name)
-#endif
 
 namespace NYT {
 namespace NQueryClient {
@@ -177,116 +165,6 @@ Value* CodegenValuesPtrFromRow(TCGIRBuilder& builder, Value* row)
 ////////////////////////////////////////////////////////////////////////////////
 // Operator helpers
 //
-
-TCodegenAggregate MakeCodegenAggregateFunction(
-    EAggregateFunction aggregateFunction,
-    EValueType type,
-    Twine name)
-{
-    return [
-            aggregateFunction,
-            type,
-            MOVE(name)
-        ] (TCGContext& builder, Value* aggregateRow, Value* newRow, int index) {
-            auto newValue = TCGValue::CreateFromRow(builder, newRow, index, type, name + ".new");
-            ui16 id = index;
-            CodegenIf<TCGContext>(
-                builder,
-                newValue.IsNull(),
-                [&] (TCGContext& builder) { },
-                [&] (TCGContext& builder) {
-                    auto aggregateValue = TCGValue::CreateFromRow(builder, aggregateRow, index, type, name + ".aggregate");
-
-                    CodegenIf<TCGContext, TCGValue>(
-                        builder,
-                        aggregateValue.IsNull(),
-                        [&] (TCGContext& builder) {
-                            return newValue;
-                        },
-                        [&] (TCGContext& builder) {
-                            Value* newData = newValue.GetData();
-                            Value* aggregateData = aggregateValue.GetData();
-                            Value* resultData = nullptr;
-
-                            // TODO(lukyan): support other types
-
-                            switch (aggregateFunction) {
-                                case EAggregateFunction::Sum:
-                                    switch (type) {
-                                        case EValueType::Int64:
-                                        case EValueType::Uint64:
-                                            resultData = builder.CreateAdd(
-                                                aggregateData,
-                                                newData);
-                                            break;
-                                        case EValueType::Double:
-                                            resultData = builder.CreateFAdd(
-                                                aggregateData,
-                                                newData);
-                                            break;
-                                        default:
-                                            YUNIMPLEMENTED();
-                                    }
-                                    break;
-                                case EAggregateFunction::Min:{
-                                    Value* compareResult = nullptr;
-                                    switch (type) {
-                                        case EValueType::Int64:
-                                            compareResult = builder.CreateICmpSLE(aggregateData, newData);
-                                            break;
-                                        case EValueType::Uint64:
-                                            compareResult = builder.CreateICmpULE(aggregateData, newData);
-                                            break;
-                                        case EValueType::Double:
-                                            compareResult = builder.CreateFCmpULE(aggregateData, newData);
-                                            break;
-                                        default:
-                                            YUNIMPLEMENTED();
-                                    }
-
-                                    resultData = builder.CreateSelect(
-                                        compareResult,
-                                        aggregateData,
-                                        newData);
-                                    break;
-                                }
-                                case EAggregateFunction::Max:{
-                                    Value* compareResult = nullptr;
-                                    switch (type) {
-                                        case EValueType::Int64:
-                                            compareResult = builder.CreateICmpSGE(aggregateData, newData);
-                                            break;
-                                        case EValueType::Uint64:
-                                            compareResult = builder.CreateICmpUGE(aggregateData, newData);
-                                            break;
-                                        case EValueType::Double:
-                                            compareResult = builder.CreateFCmpUGE(aggregateData, newData);
-                                            break;
-                                        default:
-                                            YUNIMPLEMENTED();
-                                    }
-
-                                    resultData = builder.CreateSelect(
-                                        compareResult,
-                                        aggregateData,
-                                        newData);
-                                    break;
-                                }
-                                default:
-                                    YUNIMPLEMENTED();
-                            }
-
-                            return TCGValue::CreateFromValue(
-                                builder,
-                                builder.getFalse(),
-                                nullptr,
-                                resultData,
-                                type,
-                                name);
-                        }).StoreToRow(builder, aggregateRow, index, id);
-                });
-        };
-}
 
 void CodegenForEachRow(
     TCGContext& builder,
@@ -530,8 +408,8 @@ Function* CodegenGroupHasherFunction(
     return function;
 }
 
-Function* CodegenRowComparerFunction(
-    const std::vector<EValueType>& types,
+Function* CodegenTupleComparerFunction(
+    const std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>>& codegenArgs,
     const TCGModule& module)
 {
     auto llvmModule = module.GetModule();
@@ -557,18 +435,14 @@ Function* CodegenRowComparerFunction(
         builder.SetInsertPoint(elseBB);
     };
 
-    auto codegenEqualOrLessOp = [&] (size_t index) {
-        auto lhsValue = TCGValue::CreateFromRow(
-            builder,
-            lhsRow,
-            index,
-            types[index]);
+    auto codegenEqualOrLessOp = [&] (int index) {
+        const auto& codegenArg = codegenArgs[index];
+        auto lhsValue = codegenArg(builder, lhsRow);
+        auto rhsValue = codegenArg(builder, rhsRow);
 
-        auto rhsValue = TCGValue::CreateFromRow(
-            builder,
-            rhsRow,
-            index,
-            types[index]);
+        auto type = lhsValue.GetStaticType();
+
+        YCHECK(type == rhsValue.GetStaticType());
 
         CodegenIf<TCGIRBuilder>(
             builder,
@@ -584,7 +458,7 @@ Function* CodegenRowComparerFunction(
                 auto* lhsData = lhsValue.GetData();
                 auto* rhsData = rhsValue.GetData();
 
-                switch (types[index]) {
+                switch (type) {
                     case EValueType::Boolean:
                     case EValueType::Int64:
                         returnIf(
@@ -646,9 +520,9 @@ Function* CodegenRowComparerFunction(
             });
     };
 
-    YCHECK(!types.empty());
+    YCHECK(!codegenArgs.empty());
 
-    for (size_t index = 0; index < types.size(); ++index) {
+    for (int index = 0; index < codegenArgs.size(); ++index) {
         codegenEqualOrLessOp(index);
     }
 
@@ -657,8 +531,26 @@ Function* CodegenRowComparerFunction(
     return function;
 }
 
+Function* CodegenRowComparerFunction(
+    const std::vector<EValueType>& types,
+    const TCGModule& module)
+{
+    std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>> compareArgs;
+    for (int index = 0; index < types.size(); ++index) {
+        compareArgs.push_back([index, type = types[index]] (TCGIRBuilder& builder, Value* row) {
+            return TCGValue::CreateFromRow(
+                builder,
+                row,
+                index,
+                type);
+        });
+    }
+
+    return CodegenTupleComparerFunction(compareArgs, module);
+}
+
 TCodegenExpression MakeCodegenLiteralExpr(
-    size_t index,
+    int index,
     EValueType type)
 {
     return [
@@ -676,21 +568,21 @@ TCodegenExpression MakeCodegenLiteralExpr(
 }
 
 TCodegenExpression MakeCodegenReferenceExpr(
-    size_t index,
+    int index,
     EValueType type,
     Stroka name)
 {
     return [
             index,
             type,
-            name
+            MOVE(name)
         ] (TCGContext& builder, Value* row) {
             return TCGValue::CreateFromRow(
                 builder,
                 row,
                 index,
                 type,
-                "reference." + Twine(name));
+                "reference." + Twine(name.c_str()));
         };
 }
 
@@ -756,7 +648,6 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
         MOVE(type),
         MOVE(name)
     ] (TCGContext& builder, Value* row) {
-
         auto operandValue = codegenOperand(builder, row);
 
         return CodegenIf<TCGContext, TCGValue>(
@@ -787,8 +678,16 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                             default:
                                 YUNREACHABLE();
                         }
-
                         break;
+
+                    case EUnaryOp::Not:
+                        evalData = builder.CreateXor(
+                            builder.CreateZExtOrBitCast(
+                                builder.getTrue(),
+                                TDataTypeBuilder::TBoolean::get(builder.getContext())),
+                            operandData);
+                        break;
+
                     default:
                         YUNREACHABLE();
                 }
@@ -811,203 +710,305 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
     EValueType type,
     Stroka name)
 {
-    return [
-        MOVE(opcode),
-        MOVE(codegenLhs),
-        MOVE(codegenRhs),
-        MOVE(type),
-        MOVE(name)
-    ] (TCGContext& builder, Value* row) {
-        auto nameTwine = Twine(name.c_str());
 
-        auto lhsValue = codegenLhs(builder, row);
+    if (IsBinaryOpCompare(opcode))
+    {
+        return [
+            MOVE(opcode),
+            MOVE(codegenLhs),
+            MOVE(codegenRhs),
+            MOVE(type),
+            MOVE(name)
+        ] (TCGContext& builder, Value* row) {
+            auto nameTwine = Twine(name.c_str());
+            auto lhsValue = codegenLhs(builder, row);
+            auto rhsValue = codegenRhs(builder, row);
 
-        return CodegenIf<TCGContext, TCGValue>(
-            builder,
-            lhsValue.IsNull(),
-            [&] (TCGContext& builder) {
-                return TCGValue::CreateNull(builder, type);
-            },
-            [&] (TCGContext& builder) {
-                auto rhsValue = codegenRhs(builder, row);
+            #define CMP_OP(opcode, optype) \
+                case EBinaryOp::opcode: \
+                    evalData = builder.CreateZExtOrBitCast( \
+                        builder.Create##optype(lhsData, rhsData), \
+                        TDataTypeBuilder::TBoolean::get(builder.getContext())); \
+                    break;
 
-                return CodegenIf<TCGContext, TCGValue>(
+            auto compareNulls = [&] () {
+                Value* lhsData = lhsValue.IsNull();
+                Value* rhsData = rhsValue.IsNull();
+                Value* evalData = nullptr;
+
+                switch (opcode) {
+                    CMP_OP(Equal, ICmpEQ)
+                    CMP_OP(NotEqual, ICmpNE)
+                    CMP_OP(Less, ICmpSLT)
+                    CMP_OP(LessOrEqual, ICmpSLE)
+                    CMP_OP(Greater, ICmpSGT)
+                    CMP_OP(GreaterOrEqual, ICmpSGE)
+                    default:
+                        YUNREACHABLE();
+                }
+
+                return TCGValue::CreateFromValue(
                     builder,
-                    rhsValue.IsNull(),
-                    [&] (TCGContext& builder) {
-                        return TCGValue::CreateNull(builder, type);
-                    },
-                    [&] (TCGContext& builder) {
-                        YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
-                        auto operandType = lhsValue.GetStaticType();
+                    builder.getFalse(),
+                    nullptr,
+                    evalData,
+                    type);
+            };
 
-                        Value* lhsData = lhsValue.GetData();
-                        Value* rhsData = rhsValue.GetData();
-                        Value* evalData = nullptr;
+            return CodegenIf<TCGContext, TCGValue>(
+                builder,
+                lhsValue.IsNull(),
+                [&] (TCGContext& builder) {
 
-                        #define OP(opcode, optype) \
-                            case EBinaryOp::opcode: \
-                                evalData = builder.Create##optype(lhsData, rhsData); \
-                                break;
+                    return compareNulls();
+                },
+                [&] (TCGContext& builder) {
 
-                        #define CMP_OP(opcode, optype) \
-                            case EBinaryOp::opcode: \
-                                evalData = builder.CreateZExtOrBitCast( \
-                                    builder.Create##optype(lhsData, rhsData), \
-                                    TDataTypeBuilder::TBoolean::get(builder.getContext())); \
-                                break;
+                    return CodegenIf<TCGContext, TCGValue>(
+                        builder,
+                        rhsValue.IsNull(),
+                        [&] (TCGContext& builder) {
 
-                        switch (operandType) {
+                            return compareNulls();
+                        },
+                        [&] (TCGContext& builder) {
 
-                            case EValueType::Boolean:
-                            case EValueType::Int64:
-                                switch (opcode) {
-                                    OP(Plus, Add)
-                                    OP(Minus, Sub)
-                                    OP(Multiply, Mul)
-                                    OP(Divide, SDiv)
-                                    OP(Modulo, SRem)
-                                    OP(And, And)
-                                    OP(Or, Or)
-                                    CMP_OP(Equal, ICmpEQ)
-                                    CMP_OP(NotEqual, ICmpNE)
-                                    CMP_OP(Less, ICmpSLT)
-                                    CMP_OP(LessOrEqual, ICmpSLE)
-                                    CMP_OP(Greater, ICmpSGT)
-                                    CMP_OP(GreaterOrEqual, ICmpSGE)
-                                    default:
-                                        YUNREACHABLE();
+                            YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
+                            auto operandType = lhsValue.GetStaticType();
+
+                            Value* lhsData = lhsValue.GetData();
+                            Value* rhsData = rhsValue.GetData();
+                            Value* evalData = nullptr;
+
+                            switch (operandType) {
+
+                                case EValueType::Boolean:
+                                case EValueType::Int64:
+                                    switch (opcode) {
+                                        CMP_OP(Equal, ICmpEQ)
+                                        CMP_OP(NotEqual, ICmpNE)
+                                        CMP_OP(Less, ICmpSLT)
+                                        CMP_OP(LessOrEqual, ICmpSLE)
+                                        CMP_OP(Greater, ICmpSGT)
+                                        CMP_OP(GreaterOrEqual, ICmpSGE)
+                                        default:
+                                            YUNREACHABLE();
+                                    }
+                                    break;
+                                case EValueType::Uint64:
+                                    switch (opcode) {
+                                        CMP_OP(Equal, ICmpEQ)
+                                        CMP_OP(NotEqual, ICmpNE)
+                                        CMP_OP(Less, ICmpULT)
+                                        CMP_OP(LessOrEqual, ICmpULE)
+                                        CMP_OP(Greater, ICmpUGT)
+                                        CMP_OP(GreaterOrEqual, ICmpUGE)
+                                        default:
+                                            YUNREACHABLE();
+                                    }
+                                    break;
+                                case EValueType::Double:
+                                    switch (opcode) {
+                                        CMP_OP(Equal, FCmpUEQ)
+                                        CMP_OP(NotEqual, FCmpUNE)
+                                        CMP_OP(Less, FCmpULT)
+                                        CMP_OP(LessOrEqual, FCmpULE)
+                                        CMP_OP(Greater, FCmpUGT)
+                                        CMP_OP(GreaterOrEqual, FCmpUGE)
+                                        default:
+                                            YUNREACHABLE();
+                                    }
+                                    break;
+                                case EValueType::String: {
+                                    Value* lhsLength = lhsValue.GetLength();
+                                    Value* rhsLength = rhsValue.GetLength();
+
+                                    auto codegenEqual = [&] () {
+                                        return CodegenIf<TCGContext, Value*>(
+                                            builder,
+                                            builder.CreateICmpEQ(lhsLength, rhsLength),
+                                            [&] (TCGContext& builder) {
+                                                Value* minLength = builder.CreateSelect(
+                                                    builder.CreateICmpULT(lhsLength, rhsLength),
+                                                    lhsLength,
+                                                    rhsLength);
+
+                                                Value* cmpResult = builder.CreateCall3(
+                                                    builder.Module->GetRoutine("memcmp"),
+                                                    lhsData,
+                                                    rhsData,
+                                                    builder.CreateZExt(minLength, builder.getSizeType()));
+
+                                                return builder.CreateICmpEQ(cmpResult, builder.getInt32(0));
+                                            },
+                                            [&] (TCGContext& builder) {
+                                                return builder.getFalse();
+                                            });
+                                    };
+
+                                    auto codegenLexicographicalCompare = [&] (Value* lhsData, Value* lhsLength, Value* rhsData, Value* rhsLength) {
+                                        Value* lhsLengthIsLess = builder.CreateICmpULT(lhsLength, rhsLength);
+                                        Value* minLength = builder.CreateSelect(
+                                            lhsLengthIsLess,
+                                            lhsLength,
+                                            rhsLength);
+
+                                        Value* cmpResult = builder.CreateCall3(
+                                            builder.Module->GetRoutine("memcmp"),
+                                            lhsData,
+                                            rhsData,
+                                            builder.CreateZExt(minLength, builder.getSizeType()));
+
+                                        return builder.CreateOr(
+                                            builder.CreateICmpSLT(cmpResult, builder.getInt32(0)),
+                                            builder.CreateAnd(
+                                                builder.CreateICmpEQ(cmpResult, builder.getInt32(0)),
+                                                lhsLengthIsLess));
+                                    };
+
+                                    switch (opcode) {
+                                        case EBinaryOp::Equal:
+                                            evalData = codegenEqual();
+                                            break;
+                                        case EBinaryOp::NotEqual:
+                                            evalData = builder.CreateNot(codegenEqual());
+                                            break;
+                                        case EBinaryOp::Less:
+                                            evalData = codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength);
+                                            break;
+                                        case EBinaryOp::Greater:
+                                            evalData = codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength);
+                                            break;
+                                        case EBinaryOp::LessOrEqual:
+                                            evalData =  builder.CreateNot(
+                                                codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength));
+                                            break;
+                                        case EBinaryOp::GreaterOrEqual:
+                                            evalData = builder.CreateNot(
+                                                codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength));
+                                            break;
+                                        default:
+                                            YUNREACHABLE();
+                                    }
+
+                                    evalData = builder.CreateZExtOrBitCast(
+                                        evalData,
+                                        TDataTypeBuilder::TBoolean::get(builder.getContext()));
+                                    break;
                                 }
-                                break;
-                            case EValueType::Uint64:
-                                switch (opcode) {
-                                    OP(Plus, Add)
-                                    OP(Minus, Sub)
-                                    OP(Multiply, Mul)
-                                    OP(Divide, UDiv)
-                                    OP(Modulo, URem)
-                                    OP(And, And)
-                                    OP(Or, Or)
-                                    CMP_OP(Equal, ICmpEQ)
-                                    CMP_OP(NotEqual, ICmpNE)
-                                    CMP_OP(Less, ICmpULT)
-                                    CMP_OP(LessOrEqual, ICmpULE)
-                                    CMP_OP(Greater, ICmpUGT)
-                                    CMP_OP(GreaterOrEqual, ICmpUGE)
-                                    default:
-                                        YUNREACHABLE();
-                                }
-                                break;
-                            case EValueType::Double:
-                                switch (opcode) {
-                                    OP(Plus, FAdd)
-                                    OP(Minus, FSub)
-                                    OP(Multiply, FMul)
-                                    OP(Divide, FDiv)
-                                    CMP_OP(Equal, FCmpUEQ)
-                                    CMP_OP(NotEqual, FCmpUNE)
-                                    CMP_OP(Less, FCmpULT)
-                                    CMP_OP(LessOrEqual, FCmpULE)
-                                    CMP_OP(Greater, FCmpUGT)
-                                    CMP_OP(GreaterOrEqual, FCmpUGE)
-                                    default:
-                                        YUNREACHABLE();
-                                }
-                                break;
-                            case EValueType::String: {
-                                Value* lhsLength = lhsValue.GetLength();
-                                Value* rhsLength = rhsValue.GetLength();
-
-                                auto codegenEqual = [&] () {
-                                    return CodegenIf<TCGContext, Value*>(
-                                        builder,
-                                        builder.CreateICmpEQ(lhsLength, rhsLength),
-                                        [&] (TCGContext& builder) {
-                                            Value* minLength = builder.CreateSelect(
-                                                builder.CreateICmpULT(lhsLength, rhsLength),
-                                                lhsLength,
-                                                rhsLength);
-
-                                            Value* cmpResult = builder.CreateCall3(
-                                                builder.Module->GetRoutine("memcmp"),
-                                                lhsData,
-                                                rhsData,
-                                                builder.CreateZExt(minLength, builder.getSizeType()));
-
-                                            return builder.CreateICmpEQ(cmpResult, builder.getInt32(0));
-                                        },
-                                        [&] (TCGContext& builder) {
-                                            return builder.getFalse();
-                                        });
-                                };
-
-                                auto codegenLexicographicalCompare = [&] (Value* lhsData, Value* lhsLength, Value* rhsData, Value* rhsLength) {
-                                    Value* lhsLengthIsLess = builder.CreateICmpULT(lhsLength, rhsLength);
-                                    Value* minLength = builder.CreateSelect(
-                                        lhsLengthIsLess,
-                                        lhsLength,
-                                        rhsLength);
-
-                                    Value* cmpResult = builder.CreateCall3(
-                                        builder.Module->GetRoutine("memcmp"),
-                                        lhsData,
-                                        rhsData,
-                                        builder.CreateZExt(minLength, builder.getSizeType()));
-
-                                    return builder.CreateOr(
-                                        builder.CreateICmpSLT(cmpResult, builder.getInt32(0)),
-                                        builder.CreateAnd(
-                                            builder.CreateICmpEQ(cmpResult, builder.getInt32(0)),
-                                            lhsLengthIsLess));
-                                };
-
-                                switch (opcode) {
-                                    case EBinaryOp::Equal:
-                                        evalData = codegenEqual();
-                                        break;
-                                    case EBinaryOp::NotEqual:
-                                        evalData = builder.CreateNot(codegenEqual());
-                                        break;
-                                    case EBinaryOp::Less:
-                                        evalData = codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength);
-                                        break;
-                                    case EBinaryOp::Greater:
-                                        evalData = codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength);
-                                        break;
-                                    case EBinaryOp::LessOrEqual:
-                                        evalData =  builder.CreateNot(
-                                            codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength));
-                                        break;
-                                    case EBinaryOp::GreaterOrEqual:
-                                        evalData = builder.CreateNot(
-                                            codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength));
-                                        break;
-                                    default:
-                                        YUNREACHABLE();
-                                }
-
-                                evalData = builder.CreateZExtOrBitCast(
-                                    evalData,
-                                    TDataTypeBuilder::TBoolean::get(builder.getContext()));
-                                break;
+                                default:
+                                    YUNREACHABLE();
                             }
-                            default:
-                                YUNREACHABLE();
-                        }
 
-                        #undef OP
-                        #undef CMP_OP
+                            return TCGValue::CreateFromValue(
+                                builder,
+                                builder.getFalse(),
+                                nullptr,
+                                evalData,
+                                type);
+                        });
+                },
+                nameTwine);
 
-                        return TCGValue::CreateFromValue(
-                            builder,
-                            builder.getFalse(),
-                            nullptr,
-                            evalData,
-                            type);
-                    });
-           },
-            nameTwine);
-    };
+                #undef CMP_OP
+        };
+
+    } else {
+        return [
+            MOVE(opcode),
+            MOVE(codegenLhs),
+            MOVE(codegenRhs),
+            MOVE(type),
+            MOVE(name)
+        ] (TCGContext& builder, Value* row) {
+            auto nameTwine = Twine(name.c_str());
+
+            auto lhsValue = codegenLhs(builder, row);
+
+            return CodegenIf<TCGContext, TCGValue>(
+                builder,
+                lhsValue.IsNull(),
+                [&] (TCGContext& builder) {
+                    return TCGValue::CreateNull(builder, type);
+                },
+                [&] (TCGContext& builder) {
+                    auto rhsValue = codegenRhs(builder, row);
+
+                    return CodegenIf<TCGContext, TCGValue>(
+                        builder,
+                        rhsValue.IsNull(),
+                        [&] (TCGContext& builder) {
+                            return TCGValue::CreateNull(builder, type);
+                        },
+                        [&] (TCGContext& builder) {
+                            YCHECK(lhsValue.GetStaticType() == rhsValue.GetStaticType());
+                            auto operandType = lhsValue.GetStaticType();
+
+                            Value* lhsData = lhsValue.GetData();
+                            Value* rhsData = rhsValue.GetData();
+                            Value* evalData = nullptr;
+
+                            #define OP(opcode, optype) \
+                                case EBinaryOp::opcode: \
+                                    evalData = builder.Create##optype(lhsData, rhsData); \
+                                    break;
+
+                            switch (operandType) {
+
+                                case EValueType::Boolean:
+                                case EValueType::Int64:
+                                    switch (opcode) {
+                                        OP(Plus, Add)
+                                        OP(Minus, Sub)
+                                        OP(Multiply, Mul)
+                                        OP(Divide, SDiv)
+                                        OP(Modulo, SRem)
+                                        OP(And, And)
+                                        OP(Or, Or)
+                                        default:
+                                            YUNREACHABLE();
+                                    }
+                                    break;
+                                case EValueType::Uint64:
+                                    switch (opcode) {
+                                        OP(Plus, Add)
+                                        OP(Minus, Sub)
+                                        OP(Multiply, Mul)
+                                        OP(Divide, UDiv)
+                                        OP(Modulo, URem)
+                                        OP(And, And)
+                                        OP(Or, Or)
+                                        default:
+                                            YUNREACHABLE();
+                                    }
+                                    break;
+                                case EValueType::Double:
+                                    switch (opcode) {
+                                        OP(Plus, FAdd)
+                                        OP(Minus, FSub)
+                                        OP(Multiply, FMul)
+                                        OP(Divide, FDiv)
+                                        default:
+                                            YUNREACHABLE();
+                                    }
+                                    break;
+                                default:
+                                    YUNREACHABLE();
+                            }
+
+                            #undef OP
+
+                            return TCGValue::CreateFromValue(
+                                builder,
+                                builder.getFalse(),
+                                nullptr,
+                                evalData,
+                                type);
+                        });
+               },
+                nameTwine);
+        };
+    }
 }
 
 TCodegenExpression MakeCodegenInOpExpr(
@@ -1053,16 +1054,6 @@ TCodegenExpression MakeCodegenInOpExpr(
             result,
             EValueType::Boolean);
     };
-}
-
-TCodegenExpression MakeCodegenFunctionExpr(
-    Stroka functionName,
-    std::vector<TCodegenExpression> codegenArgs,
-    EValueType type,
-    Stroka name)
-{
-    auto& function = GetFunctionRegistry()->GetFunction(functionName);
-    return function.MakeCodegenExpr(std::move(codegenArgs), type, name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1199,7 +1190,7 @@ TCodegenSource MakeCodegenJoinOp(
         Function* consumeJoinedRows = Function::Create(
             TypeBuilder<void(void**, void*, char*), false>::get(builder.getContext()),
             Function::ExternalLinkage,
-            "JoinOpInner",
+            "ConsumeJoinedRows",
             module);
 
         auto consumeJoinedRowsArgs = consumeJoinedRows->arg_begin();
@@ -1314,7 +1305,7 @@ TCodegenSource MakeCodegenProjectOp(
 
 TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
-    std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
+    std::vector<std::pair<TCodegenExpression, TCodegenAggregateUpdate>> codegenAggregates,
     TCodegenSource codegenSource)
 {
     return [
@@ -1398,7 +1389,13 @@ TCodegenSource MakeCodegenGroupOp(
                     [&] (TCGContext& builder) {
                         Value* foundRow = builder.CreateLoad(foundRowPtr);
                         for (int index = 0; index < aggregatesCount; ++index) {
-                            codegenAggregates[index].second(builder, foundRow, newRowRef, keySize + index);
+                            auto aggState = builder.CreateConstInBoundsGEP1_32(
+                                CodegenValuesPtrFromRow(builder, foundRow),
+                                keySize + index);
+                            auto newValue = builder.CreateConstInBoundsGEP1_32(
+                                CodegenValuesPtrFromRow(builder, newRowRef),
+                                keySize + index);
+                            codegenAggregates[index].second(builder, aggState, newValue);
                         }
                     },
                     [&] (TCGContext& builder) { });
@@ -1446,6 +1443,104 @@ TCodegenSource MakeCodegenGroupOp(
                 consume,
             });
 
+    };
+}
+
+TCodegenSource MakeCodegenOrderOp(
+    std::vector<Stroka> orderColumns,
+    TTableSchema sourceSchema,
+    TCodegenSource codegenSource)
+{
+    return [
+        MOVE(orderColumns),
+        MOVE(sourceSchema),
+        codegenSource = std::move(codegenSource)
+    ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
+        auto module = builder.Module->GetModule();
+
+        // See OrderOpHelper.
+        Function* collectRows = Function::Create(
+            TypeBuilder<void(void**, void*), false>::get(builder.getContext()),
+            Function::ExternalLinkage,
+            "CollectRows",
+            module);
+
+        auto collectRowsArgs = collectRows->arg_begin();
+        Value* closure = collectRowsArgs; closure->setName("closure");
+        Value* topN = ++collectRowsArgs; topN->setName("topN");
+        YCHECK(++collectRowsArgs == collectRows->arg_end());
+
+        TCGContext collectBuilder(
+            collectRows,
+            &builder,
+            closure);
+
+        codegenSource(
+            collectBuilder,
+            [&] (TCGContext& builder, Value* row) {
+                Value* topNRef = builder.ViaClosure(topN);
+
+                builder.CreateCall2(
+                    builder.Module->GetRoutine("AddRow"),
+                    topNRef,
+                    row);
+            });
+
+        collectBuilder.CreateRetVoid();
+
+        // See OrderOpHelper.
+        Function* consumeOrderedRows = Function::Create(
+            TypeBuilder<void(void**, void*, char*), false>::get(builder.getContext()),
+            Function::ExternalLinkage,
+            "ConsumeOrderedRows",
+            module);
+
+        auto consumeOrderedRowsArgs = consumeOrderedRows->arg_begin();
+        Value* consumeClosure = consumeOrderedRowsArgs; consumeClosure->setName("consumeClosure");
+        Value* orderedRows = ++consumeOrderedRowsArgs; orderedRows->setName("orderedRows");
+        Value* stopFlag = ++consumeOrderedRowsArgs; stopFlag->setName("stopFlag");
+        YCHECK(++consumeOrderedRowsArgs == consumeOrderedRows->arg_end());
+
+        TCGContext consumeBuilder(
+            consumeOrderedRows,
+            &builder,
+            consumeClosure);
+
+        CodegenForEachRow(
+            consumeBuilder,
+            consumeBuilder.CreateCall(builder.Module->GetRoutine("GetRowsData"), orderedRows),
+            consumeBuilder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), orderedRows),
+            stopFlag,
+            codegenConsumer);
+
+        consumeBuilder.CreateRetVoid();
+
+        std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>> compareArgs;
+        for (int index = 0; index < orderColumns.size(); ++index) {
+            auto columnIndex = sourceSchema.GetColumnIndexOrThrow(orderColumns[index]);
+            auto type = sourceSchema.FindColumn(orderColumns[index])->Type;
+
+            compareArgs.push_back([columnIndex, type] (TCGIRBuilder& builder, Value* row) {
+                return TCGValue::CreateFromRow(
+                    builder,
+                    row,
+                    columnIndex,
+                    type);
+            });
+        }
+
+        builder.CreateCallWithArgs(
+            builder.Module->GetRoutine("OrderOpHelper"),
+            {
+                builder.GetExecutionContextPtr(),
+                CodegenTupleComparerFunction(compareArgs, *builder.Module),
+
+                collectBuilder.GetClosure(),
+                collectRows,
+
+                consumeBuilder.GetClosure(),
+                consumeOrderedRows
+            });
     };
 }
 

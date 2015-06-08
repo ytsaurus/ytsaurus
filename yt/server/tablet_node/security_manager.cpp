@@ -126,47 +126,11 @@ private:
                     key,
                     result.Action);
 
-                ResultToError(key, result)
-                    .ThrowOnError();
+                auto error = result.ToError(key.User, key.Permission);
+                if (!error.IsOK()) {
+                    THROW_ERROR error << TErrorAttribute("object", key.TableId);
+                }
             }));
-    }
-
-    static TError ResultToError(const TTablePermissionKey& key, const TCheckPermissionResult& result)
-    {
-        switch (result.Action) {
-            case ESecurityAction::Allow:
-                return TError();
-
-            case ESecurityAction::Deny: {
-                TError error;
-                if (result.ObjectName && result.SubjectName) {
-                    error = TError(
-                        NSecurityClient::EErrorCode::AuthorizationError,
-                        "Access denied: %Qlv permission is denied for %Qv by ACE at %v",
-                        key.Permission,
-                        *result.SubjectName,
-                        *result.ObjectName);
-                } else {
-                    error = TError(
-                        NSecurityClient::EErrorCode::AuthorizationError,
-                        "Access denied: %Qlv permission is not allowed by any matching ACE",
-                        key.Permission);
-                }
-                error.Attributes().Set("permission", key.Permission);
-                error.Attributes().Set("user", key.User);
-                error.Attributes().Set("object", key.TableId);
-                if (result.ObjectId != NullObjectId) {
-                    error.Attributes().Set("denied_by", result.ObjectId);
-                }
-                if (result.SubjectId != NullObjectId) {
-                    error.Attributes().Set("denied_for", result.SubjectId);
-                }
-                return error;
-            }
-
-            default:
-                YUNREACHABLE();
-        }
     }
 };
 

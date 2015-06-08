@@ -22,6 +22,8 @@ TYsonString ConvertToYsonString(const T& value);
 
 TYsonString ConvertToYsonString(const char* value);
 
+TYsonString ConvertToYsonString(const TStringBuf& value);
+
 template <class T>
 TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format);
 

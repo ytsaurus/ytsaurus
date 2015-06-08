@@ -145,6 +145,7 @@ private:
 
             TFuture<void> result = VoidFuture;
             for (const auto& row : rows) {
+                YCHECK(!row.Empty());
                 auto batch = EnsureCurrentBatch();
                 // NB: We can form a handful of batches but since flushes are monotonic,
                 // the last one will do.
@@ -217,7 +218,8 @@ private:
         struct TNode
             : public TRefCounted
         {
-            TNodeDescriptor Descriptor;
+            const TNodeDescriptor Descriptor;
+
             TDataNodeServiceProxy LightProxy;
             TDataNodeServiceProxy HeavyProxy;
             TPeriodicExecutorPtr PingExecutor;
@@ -228,11 +230,18 @@ private:
             std::queue<TBatchPtr> PendingBatches;
             std::vector<TBatchPtr> InFlightBatches;
 
-            explicit TNode(const TNodeDescriptor& descriptor)
+            TNode(
+                const TNodeDescriptor& descriptor,
+                IChannelPtr lightChannel,
+                IChannelPtr heavyChannel,
+                TDuration rpcTimeout)
                 : Descriptor(descriptor)
-                , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress()))
-                , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress()))
-            { }
+                , LightProxy(lightChannel)
+                , HeavyProxy(heavyChannel)
+            {
+                LightProxy.SetDefaultTimeout(rpcTimeout);
+                HeavyProxy.SetDefaultTimeout(rpcTimeout);
+            }
         };
 
         typedef TIntrusivePtr<TNode> TNodePtr;
@@ -363,7 +372,8 @@ private:
 
             {
                 auto req = TJournalYPathProxy::PrepareForUpdate(Path_);
-                req->set_mode(static_cast<int>(EUpdateMode::Append));
+                req->set_update_mode(static_cast<int>(EUpdateMode::Append));
+                req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
                 GenerateMutationId(req);
                 SetTransactionId(req, UploadTransaction_->GetId());
                 batchReq->AddRequest(req, "prepare_for_update");
@@ -458,7 +468,8 @@ private:
                 if (Config_->PreferLocalHost) {
                     req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
                 }
-                req->set_target_count(ReplicationFactor_);
+                req->set_desired_target_count(ReplicationFactor_);
+                req->set_min_target_count(WriteQuorum_);
 
                 auto rspOrError = WaitFor(req->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error allocating write targets");
@@ -476,10 +487,16 @@ private:
             LOG_INFO("Write targets allocated (Targets: [%v])",
                 JoinToString(targets));
 
-            for (int index = 0; index < ReplicationFactor_; ++index) {
-                auto node = New<TNode>(targets[index]);
-                node->LightProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
-                node->HeavyProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
+            const auto& networkName = Client_->GetConnection()->GetConfig()->NetworkName;
+            for (const auto& target : targets) {
+                auto address = target.GetAddressOrThrow(networkName);
+                auto lightChannel = LightNodeChannelFactory->CreateChannel(address);
+                auto heavyChannel = HeavyNodeChannelFactory->CreateChannel(address);
+                auto node = New<TNode>(
+                    target,
+                    lightChannel,
+                    heavyChannel,
+                    Config_->NodeRpcTimeout);
                 CurrentSession_->Nodes.push_back(node);
             }
 
@@ -925,12 +942,13 @@ private:
             node->FirstPendingRowIndex += flushRowCount;
             node->InFlightBatches.clear();
 
+            std::vector<TPromise<void>> fulfilledPromises;
             while (!PendingBatches_.empty()) {
                 auto front = PendingBatches_.front();
                 if (front->FlushedReplicas <  WriteQuorum_)
                     break;
 
-                front->FlushedPromise.Set(TError());
+                fulfilledPromises.push_back(front->FlushedPromise);
                 session->FlushedRowCount += front->Rows.size();
                 session->FlushedDataSize += front->DataSize;
                 PendingBatches_.pop_front();
@@ -941,6 +959,10 @@ private:
             }
 
             MaybeFlushBlocks(node);
+
+            for (auto& promise : fulfilledPromises) {
+                promise.Set();
+            }
         }
 
 

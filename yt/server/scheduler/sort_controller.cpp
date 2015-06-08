@@ -30,12 +30,13 @@ using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
+using namespace NChunkClient;
 
 using NVersionedTableClient::TOwningKey;
 
 ////////////////////////////////////////////////////////////////////
 
-static NProfiling::TProfiler Profiler("/operations/sort");
+static const NProfiling::TProfiler Profiler("/operations/sort");
 
 //! Maximum number of buckets for partition progress aggregation.
 static const int MaxProgressBuckets = 100;
@@ -64,6 +65,7 @@ public:
         , SortDataSizeCounter(0)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
+        , TotalOutputRowCount(0)
         , SimpleSort(false)
     { }
 
@@ -84,6 +86,8 @@ public:
 
         Persist(context, SortStartThresholdReached);
         Persist(context, MergeStartThresholdReached);
+
+        Persist(context, TotalOutputRowCount);
 
         Persist(context, SimpleSort);
         Persist(context, Partitions);
@@ -131,6 +135,7 @@ protected:
     bool SortStartThresholdReached;
     bool MergeStartThresholdReached;
 
+    i64 TotalOutputRowCount;
 
     // Forward declarations.
     class TPartitionTask;
@@ -380,7 +385,6 @@ protected:
 
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
-            RegisterInput(joblet);
             RegisterIntermediate(
                 joblet,
                 stripe,
@@ -783,7 +787,7 @@ protected:
         {
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
-            const auto& address = joblet->Job->GetNode()->GetAddress();
+            const auto& address = joblet->Job->GetNode()->GetDefaultAddress();
             Partition->AddressToLocality[address] += joblet->InputStripeList->TotalDataSize;
 
             // Don't rely on static assignment anymore.
@@ -1194,7 +1198,7 @@ protected:
 
         for (auto partition : partitionsToAssign) {
             auto node = nodeHeap.front();
-            const auto& address = node->Node->GetAddress();
+            const auto& address = node->Node->GetDefaultAddress();
 
             partition->AssignedAddress = address;
             auto task = partition->Maniac
@@ -1216,7 +1220,7 @@ protected:
         for (auto node : nodeHeap) {
             if (node->AssignedDataSize > 0) {
                 LOG_DEBUG("Node used (Address: %v, Weight: %.4lf, AssignedDataSize: %v, AdjustedDataSize: %v)",
-                    node->Node->GetAddress(),
+                    node->Node->GetDefaultAddress(),
                     node->Weight,
                     node->AssignedDataSize,
                     static_cast<i64>(node->AssignedDataSize / node->Weight));
@@ -1258,15 +1262,11 @@ protected:
             for (auto partition : Partitions) {
                 totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
             }
-            i64 totalOutputRowCount = 0;
-            for (const auto& statistics : OutputDataStatistics) {
-                totalOutputRowCount += statistics.row_count();
-            }
-            if (totalInputRowCount != totalOutputRowCount) {
+            if (totalInputRowCount != TotalOutputRowCount) {
                 OnOperationFailed(TError(
                     "Input/output row count mismatch in sort operation: %v != %v",
                     totalInputRowCount,
-                    totalOutputRowCount));
+                    TotalOutputRowCount));
             }
         }
 
@@ -1609,6 +1609,16 @@ protected:
             .EndMap();
     }
 
+    virtual void RegisterOutput(TJobletPtr joblet, int key) override
+    {
+        {
+            auto totalOutput = GetTotalOutputDataStatistics(joblet->Job->Statistics());
+            TotalOutputRowCount += totalOutput.row_count();
+        }
+
+        TOperationControllerBase::RegisterOutput(std::move(joblet), key);
+    }
+
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TPartitionTask);
@@ -1651,7 +1661,7 @@ private:
         TSortControllerBase::DoInitialize();
 
         auto& table = OutputTables[0];
-        table.Clear = true;
+        table.UpdateMode = EUpdateMode::Overwrite;
         table.LockMode = ELockMode::Exclusive;
     }
 
@@ -1750,7 +1760,7 @@ private:
 
         InitJobIOConfigs();
 
-        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->NewTableWriter);
+        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
 
         if (SimpleSort) {
             BuildSinglePartition();
@@ -1886,7 +1896,7 @@ private:
 
         // Final sort: reader like sort and output like merge.
         FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
-        FinalSortJobIOConfig->NewTableWriter = CloneYsonSerializable(Spec->MergeJobIO->NewTableWriter);
+        FinalSortJobIOConfig->TableWriter = CloneYsonSerializable(Spec->MergeJobIO->TableWriter);
         if (!SimpleSort) {
             InitIntermediateInputConfig(FinalSortJobIOConfig);
         }
@@ -1921,7 +1931,6 @@ private:
         }
 
         TJobSpec sortJobSpecTemplate;
-        sortJobSpecTemplate.set_type(static_cast<int>(SimpleSort ? EJobType::SimpleSort : EJobType::PartitionSort));
         {
             auto* schedulerJobSpecExt = sortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -1933,12 +1942,14 @@ private:
 
         {
             IntermediateSortJobSpecTemplate = sortJobSpecTemplate;
+            IntermediateSortJobSpecTemplate.set_type(static_cast<int>(SimpleSort ? EJobType::SimpleSort : EJobType::IntermediateSort));
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
         }
 
         {
             FinalSortJobSpecTemplate = sortJobSpecTemplate;
+            FinalSortJobSpecTemplate.set_type(static_cast<int>(SimpleSort ? EJobType::SimpleSort : EJobType::FinalSort));
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
         }
@@ -1979,14 +1990,14 @@ private:
         auto stat = AggregateStatistics(statistics).front();
 
         i64 outputBufferSize = std::min(
-            PartitionJobIOConfig->NewTableWriter->BlockSize * static_cast<i64>(Partitions.size()),
+            PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
             stat.DataSize);
 
         outputBufferSize += THorizontalSchemalessBlockWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
 
         outputBufferSize = std::min(
             outputBufferSize,
-            PartitionJobIOConfig->NewTableWriter->MaxBufferSize);
+            PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TNodeResources result;
         result.set_user_slots(1);
@@ -2166,19 +2177,19 @@ public:
     {
         TSortControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
-            .DoIf(Spec->Mapper, [&] (TFluentMap fluent) {
+            .DoIf(Spec->Mapper.operator bool(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("mapper").BeginMap()
                       .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
                     .EndMap();
             })
-            .DoIf(Spec->Reducer, [&] (TFluentMap fluent) {
+            .DoIf(Spec->Reducer.operator bool(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("reducer").BeginMap()
                         .Item("command").Value(TrimCommandForBriefSpec(Spec->Reducer->Command))
                     .EndMap();
             })
-            .DoIf(Spec->ReduceCombiner, [&] (TFluentMap fluent) {
+            .DoIf(Spec->ReduceCombiner.operator bool(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("reduce_combiner").BeginMap()
                         .Item("command").Value(TrimCommandForBriefSpec(Spec->ReduceCombiner->Command))
@@ -2210,19 +2221,19 @@ private:
         TSortControllerBase::DoInitialize();
 
         if (Spec->Mapper && Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in maper: maximum allowed %d, actual %" PRISZT,
+            THROW_ERROR_EXCEPTION("Too many user files in maper: maximum allowed %v, actual %v",
                 Config->MaxUserFileCount,
                 Spec->Mapper->FilePaths.size());
         }
 
         if (Spec->Reducer && Spec->Reducer->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in reducer: maximum allowed %d, actual %" PRISZT,
+            THROW_ERROR_EXCEPTION("Too many user files in reducer: maximum allowed %v, actual %v",
                 Config->MaxUserFileCount,
                 Spec->Reducer->FilePaths.size());
         }
 
         if (Spec->ReduceCombiner && Spec->ReduceCombiner->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in reduce combiner: maximum allowed %d, actual %" PRISZT,
+            THROW_ERROR_EXCEPTION("Too many user files in reduce combiner: maximum allowed %v, actual %v",
                 Config->MaxUserFileCount,
                 Spec->ReduceCombiner->FilePaths.size());
         }
@@ -2333,7 +2344,7 @@ private:
 
         InitJobIOConfigs();
 
-        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->NewTableWriter);
+        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
 
         BuildMultiplePartitions(partitionCount);
     }
@@ -2383,7 +2394,7 @@ private:
         {
             // Partition reduce: writer like in merge and reader like in sort.
             FinalSortJobIOConfig = CloneYsonSerializable(Spec->ReduceJobIO);
-            FinalSortJobIOConfig->NewTableReader = CloneYsonSerializable(Spec->SortJobIO->NewTableReader);
+            FinalSortJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
             InitIntermediateInputConfig(FinalSortJobIOConfig);
             InitFinalOutputConfig(FinalSortJobIOConfig);
         }
@@ -2437,7 +2448,7 @@ private:
                     ReduceCombinerFiles,
                     ReduceCombinerTableFiles);
             } else {
-                IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::PartitionSort));
+                IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::IntermediateSort));
                 auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
                 ToProto(sortJobSpecExt->mutable_key_columns(), Spec->SortBy);
             }
@@ -2550,8 +2561,8 @@ private:
 
         i64 reserveSize = THorizontalSchemalessBlockWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
         i64 bufferSize = std::min(
-            reserveSize + PartitionJobIOConfig->NewTableWriter->BlockSize * static_cast<i64>(Partitions.size()),
-            PartitionJobIOConfig->NewTableWriter->MaxBufferSize);
+            reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
+            PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TNodeResources result;
         result.set_user_slots(1);

@@ -11,6 +11,8 @@
 
 #include <ytlib/new_table_client/config.h>
 
+#include <ytlib/node_tracker_client/public.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -27,22 +29,22 @@ TMasterConnectionConfig::TMasterConnectionConfig()
 
 TConnectionConfig::TConnectionConfig()
 {
+    RegisterParameter("network_name", NetworkName)
+        .Default(NNodeTrackerClient::InterconnectNetworkName);
     RegisterParameter("master", Master);
     RegisterParameter("master_cache", MasterCache)
-        .Default(nullptr);
+        .Default();
     RegisterParameter("enable_read_from_followers", EnableReadFromFollowers)
         .Default(false);
     RegisterParameter("timestamp_provider", TimestampProvider)
-        .Default(nullptr);
+        .Default();
     RegisterParameter("cell_directory", CellDirectory)
         .DefaultNew();
     RegisterParameter("scheduler", Scheduler)
         .DefaultNew();
     RegisterParameter("transaction_manager", TransactionManager)
         .DefaultNew();
-    RegisterParameter("compressed_block_cache", CompressedBlockCache)
-        .DefaultNew();
-    RegisterParameter("uncompressed_block_cache", UncompressedBlockCache)
+    RegisterParameter("block_cache", BlockCache)
         .DefaultNew();
     RegisterParameter("table_mount_cache", TableMountCache)
         .DefaultNew();
@@ -83,6 +85,11 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("max_rows_per_read_request", MaxRowsPerReadRequest)
         .GreaterThan(0)
         .Default(1000);
+
+    RegisterParameter("enable_udf", EnableUdf)
+        .Default(false);
+    RegisterParameter("udf_registry_path", UdfRegistryPath)
+        .Default("//tmp/udfs");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

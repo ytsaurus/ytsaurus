@@ -54,7 +54,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TInstant, RegisterTime);
 
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, Alerts);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TError>, Alerts);
 
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
@@ -68,8 +68,10 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned); // kept in sync with |GetConfig()->Decommissioned|.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TFillFactorToNodeIterator>, FillFactorIterator);
 
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, StoredReplicas);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, CachedReplicas);
+    // NB: Randomize replica hashing to avoid collisions during balancing.
+    using TReplicaSet = yhash_set<TChunkPtrWithIndex>;
+    DEFINE_BYREF_RO_PROPERTY(TReplicaSet, StoredReplicas);
+    DEFINE_BYREF_RO_PROPERTY(TReplicaSet, CachedReplicas);
     
     //! Maps replicas to the leader timestamp when this replica was registered by a client.
     typedef yhash_map<TChunkPtrWithIndex, TInstant> TUnapprovedReplicaMap;
@@ -97,19 +99,20 @@ public:
         void Persist(NCellMaster::TPersistenceContext& context);
     };
 
-    typedef SmallVector<TTabletSlot, NTabletClient::TypicalCellSize> TTabletSlotList;
+    using TTabletSlotList = SmallVector<TTabletSlot, NTabletClient::TypicalCellSize>;
     DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
 
 public:
     TNode(
         TNodeId id,
-        const TNodeDescriptor& descriptor,
+        const TAddressMap& addresses,
         TNodeConfigPtr config,
         TInstant registerTime);
     explicit TNode(TNodeId id);
 
-    const TNodeDescriptor& GetDescriptor() const;
-    const Stroka& GetAddress() const;
+    TNodeDescriptor GetDescriptor() const;
+    const TAddressMap& GetAddresses() const;
+    const Stroka& GetDefaultAddress() const;
 
     const TNodeConfigPtr& GetConfig() const;
 
@@ -120,6 +123,7 @@ public:
     bool AddReplica(TChunkPtrWithIndex replica, bool cached);
     void RemoveReplica(TChunkPtrWithIndex replica, bool cached);
     bool HasReplica(TChunkPtrWithIndex, bool cached) const;
+    TChunkPtrWithIndex PickRandomReplica();
 
     void AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp);
     bool HasUnapprovedReplica(TChunkPtrWithIndex replica) const;
@@ -137,7 +141,7 @@ public:
     void RemoveFromChunkSealQueue(TChunk* chunk);
     void ClearChunkSealQueue();
 
-    void ResetHints();
+    void ResetSessionHints();
     
     void AddSessionHint(NChunkClient::EWriteSessionType sessionType);
 
@@ -151,19 +155,32 @@ public:
 
     void DetachTabletCell(const NTabletServer::TTabletCell* cell);
 
+    void ShrinkHashTables();
+
     static ui64 GenerateVisitMark();
 
 private:
-    TNodeDescriptor Descriptor_;
-    TNodeConfigPtr Config_;
+    TAddressMap Addresses_;
+    const TNodeConfigPtr Config_;
+
     int HintedUserSessionCount_;
     int HintedReplicationSessionCount_;
     int HintedRepairSessionCount_;
+
+    TReplicaSet::iterator RandomReplicaIt_;
 
     void Init();
 
     static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndex replica);
     static NChunkClient::TChunkIdWithIndex ToGeneric(const NChunkClient::TChunkIdWithIndex& replica);
+
+    bool DoAddStoredReplica(TChunkPtrWithIndex replica);
+    bool DoRemoveStoredReplica(TChunkPtrWithIndex replica);
+    bool DoContainsStoredReplica(TChunkPtrWithIndex replica) const;
+
+    bool DoAddCachedReplica(TChunkPtrWithIndex replica);
+    bool DoRemoveCachedReplica(TChunkPtrWithIndex replica);
+    bool DoContainsCachedReplica(TChunkPtrWithIndex replica) const;
 
 };
 
@@ -173,7 +190,7 @@ struct TNodePtrAddressFormatter
 {
     Stroka operator () (TNode* node) const
     {
-        return node->GetAddress();
+        return node->GetDefaultAddress();
     }
 };
 

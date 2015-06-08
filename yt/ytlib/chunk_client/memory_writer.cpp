@@ -67,6 +67,11 @@ TChunkReplicaList TMemoryWriter::GetWrittenChunkReplicas() const
     YUNIMPLEMENTED();
 }
 
+TChunkId TMemoryWriter::GetChunkId() const
+{
+    return NullChunkId;
+}
+
 std::vector<TSharedRef>& TMemoryWriter::GetBlocks()
 {
     YCHECK(Open_);

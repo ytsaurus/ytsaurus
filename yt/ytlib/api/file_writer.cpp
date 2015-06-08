@@ -74,11 +74,15 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> Write(const TRef& data) override
+    virtual TFuture<void> Write(const TSharedRef& data) override
     {
-        return BIND(&TFileWriter::DoWrite, MakeStrong(this))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
-            .Run(data);
+        ValidateAborted();
+
+        if (Writer_->Write(data)) {
+            return VoidFuture;
+        }
+
+        return Writer_->GetReadyEvent();
     }
 
     virtual TFuture<void> Close() override
@@ -160,7 +164,8 @@ private:
 
         {
             auto req = TFileYPathProxy::PrepareForUpdate(Path_);
-            req->set_mode(static_cast<int>(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
+            req->set_update_mode(static_cast<int>(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
+            req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
             GenerateMutationId(req);
             SetTransactionId(req, UploadTransaction_);
             batchReq->AddRequest(req, "prepare_for_update");
@@ -201,10 +206,6 @@ private:
             chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
         }
 
-        LOG_INFO("File opened (Account: %v, ChunkListId: %v)",
-            writerOptions->Account,
-            chunkListId);
-
         Writer_ = CreateFileMultiChunkWriter(
             Config_,
             writerOptions,
@@ -214,9 +215,14 @@ private:
 
         WaitFor(Writer_->Open())
             .ThrowOnError();
+
+        LOG_INFO("File opened (Account: %v, ChunkListId: %v)",
+            writerOptions->Account,
+            chunkListId);
+
     }
 
-    void DoWrite(const TRef& data)
+    void DoWrite(const TSharedRef& data)
     {
         ValidateAborted();
 

@@ -60,11 +60,13 @@ message TUserJobSpec
 
     // Deprecated = 13.
 
-    optional bool enable_accounting = 15 [default = false];
+    // Deprecated = 15.
 
     optional bool check_input_fully_consumed = 16 [default = false];
 
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 17;
+
+    required int64 custom_statistics_count_limit = 18 [default = 128];
 }
 
 // User code result.
@@ -291,7 +293,6 @@ message TRemoteCopyJobSpecExt
 
     required string connection_config = 1;
     optional NYT.NNodeTrackerClient.NProto.TNodeDirectory remote_node_directory = 2;
-    required string network_name = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <core/concurrency/throughput_throttler.h>
 
@@ -42,6 +42,16 @@ public:
     int MaxRunningOperations;
     int MaxRunningOperationsPerPool;
 
+    //! If enabled, pools will be able to starve and provoke preemption.
+    bool EnablePoolStarvation;
+
+    //! Default parent pool for operations with unknown pool.
+    Stroka DefaultParentPool;
+
+    // Preemption timeout for operations with small number of jobs will be
+    // discounted proportionaly to this coefficient.
+    double JobCountPreemptionTimeoutCoefficient;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -69,6 +79,16 @@ public:
         RegisterParameter("max_running_operations_per_pool", MaxRunningOperationsPerPool)
             .Default(50)
             .GreaterThan(0);
+
+        RegisterParameter("enable_pool_starvation", EnablePoolStarvation)
+            .Default(true);
+
+        RegisterParameter("default_parent_pool", DefaultParentPool)
+            .Default(RootPoolName);
+
+        RegisterParameter("job_count_preemption_timeout_coefficient", JobCountPreemptionTimeoutCoefficient)
+            .Default(1.0)
+            .GreaterThanOrEqual(1.0);
     }
 };
 
@@ -111,6 +131,8 @@ public:
     TDuration JobProberRpcTimeout;
 
     TDuration ChunkScratchPeriod;
+
+    TNullable<TDuration> OperationTimeLimit;
 
     //! Number of chunks scratched per one LocateChunks.
     int MaxChunksPerScratch;
@@ -185,9 +207,6 @@ public:
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
 
-    //! Whether to enable user job accounting.
-    bool EnableAccounting;
-
     //! Don't check resource demand for sanity if the number of online
     //! nodes is less than this bound.
     int SafeOnlineNodeCount;
@@ -254,6 +273,9 @@ public:
         RegisterParameter("chunk_scratch_period", ChunkScratchPeriod)
             .Default(TDuration::Seconds(10));
 
+        RegisterParameter("operation_time_limit", OperationTimeLimit)
+            .Default();
+
         RegisterParameter("max_chunks_per_scratch", MaxChunksPerScratch)
             .Default(1000)
             .GreaterThan(0)
@@ -285,7 +307,7 @@ public:
         RegisterParameter("max_chunk_count_per_fetch", MaxChunkCountPerFetch)
             .Default(100000)
             .GreaterThan(0);
-        
+
         RegisterParameter("max_chunk_stripes_per_job", MaxChunkStripesPerJob)
             .Default(50000)
             .GreaterThan(0);
@@ -337,9 +359,6 @@ public:
         RegisterParameter("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
             .Default()
             .GreaterThan(0);
-
-        RegisterParameter("enable_accounting", EnableAccounting)
-            .Default(false);
 
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)

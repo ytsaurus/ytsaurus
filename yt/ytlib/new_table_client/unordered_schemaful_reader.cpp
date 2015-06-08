@@ -17,9 +17,8 @@ public:
     explicit TUnorderedSchemafulReader(const std::vector<ISchemafulReaderPtr>& readers)
     {
         for (const auto& reader : readers) {
-            TSession session;
-            session.Reader = reader;
-            Sessions_.push_back(session);
+            Sessions_.emplace_back();
+            Sessions_.back().Reader = reader;
         }
     }
 
@@ -31,8 +30,8 @@ public:
     virtual TFuture<void> Open(const TTableSchema& schema) override
     {
         for (auto& session : Sessions_) {
-            session.ReadyEvent = session.Reader->Open(schema);
-            CancelableContext_->PropagateTo(session.ReadyEvent);
+            session.ReadyEvent = MakeHolder(session.Reader->Open(schema));
+            CancelableContext_->PropagateTo(session.ReadyEvent.Get());
         }
         return VoidFuture;
     }
@@ -47,19 +46,21 @@ public:
                 continue;
             }
 
+            auto ssss = session.ReadyEvent.Get();
+
             if (session.ReadyEvent) {
-                if (!session.ReadyEvent.IsSet()) {
+                if (!session.ReadyEvent->IsSet()) {
                     pending = true;
                     continue;
                 }
 
-                const auto& error = session.ReadyEvent.Get();
+                const auto& error = session.ReadyEvent->Get();
                 if (!error.IsOK()) {
                     ReadyEvent_ = MakePromise(error);
                     return true;
                 }
 
-                session.ReadyEvent.Reset();
+                session.ReadyEvent->Reset();
             }
 
             if (!session.Reader->Read(rows)) {
@@ -73,7 +74,7 @@ public:
 
             YASSERT(!session.ReadyEvent);
             session.ReadyEvent = session.Reader->GetReadyEvent();
-            CancelableContext_->PropagateTo(session.ReadyEvent);
+            CancelableContext_->PropagateTo(*session.ReadyEvent);
             pending = true;
         }
 
@@ -84,7 +85,7 @@ public:
         auto readyEvent = NewPromise<void>();
         for (auto& session : Sessions_) {
             if (session.ReadyEvent) {
-                readyEvent.TrySetFrom(session.ReadyEvent);
+                readyEvent.TrySetFrom(*session.ReadyEvent);
             }
         }
         readyEvent.OnCanceled(BIND(&TUnorderedSchemafulReader::OnCanceled, MakeWeak(this)));
@@ -104,7 +105,7 @@ private:
     struct TSession
     {
         ISchemafulReaderPtr Reader;
-        TFuture<void> ReadyEvent;
+        TFutureHolder<void> ReadyEvent;
         bool Exhausted = false;
     };
 

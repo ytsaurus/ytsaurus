@@ -59,6 +59,8 @@
 
 #include <util/random/random.h>
 
+#include <algorithm>
+
 namespace NYT {
 namespace NTabletServer {
 
@@ -72,6 +74,7 @@ using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NTabletClient;
 using namespace NHydra;
+using namespace NHive;
 using namespace NTransactionServer;
 using namespace NTabletServer::NProto;
 using namespace NNodeTrackerServer;
@@ -191,11 +194,11 @@ public:
             BIND(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
-            ESerializationPriority::Keys,
+            ESyncSerializationPriority::Keys,
             "TabletManager.Keys",
             BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "TabletManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
@@ -209,6 +212,7 @@ public:
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
+        nodeTracker->SubscribePopulateCellDescriptors(BIND(&TImpl::OnPopulateCellDescriptors, MakeWeak(this)));
     }
 
     void Initialize()
@@ -229,16 +233,15 @@ public:
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletCell);
-        auto cell_ = std::make_unique<TTabletCell>(id);
-        auto* cell = cell_.get();
+        auto cellHolder = std::make_unique<TTabletCell>(id);
 
-        cell->SetSize(size);
-        cell->SetOptions(ConvertTo<TTabletCellOptionsPtr>(attributes)); // may throw
-        cell->Peers().resize(size);
+        cellHolder->SetSize(size);
+        cellHolder->SetOptions(ConvertTo<TTabletCellOptionsPtr>(attributes)); // may throw
+        cellHolder->Peers().resize(size);
 
-        ReconfigureCell(cell);
+        ReconfigureCell(cellHolder.get());
 
-        TabletCellMap_.Insert(id, cell_.release());
+        auto* cell = TabletCellMap_.Insert(id, std::move(cellHolder));
 
         // Make the fake reference.
         YCHECK(cell->RefObject() == 1);   
@@ -311,9 +314,10 @@ public:
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Tablet);
-        auto* tablet = new TTablet(id);
-        tablet->SetTable(table);
-        TabletMap_.Insert(id, tablet);
+        auto tabletHolder = std::make_unique<TTablet>(id);
+        tabletHolder->SetTable(table);
+
+        auto* tablet = TabletMap_.Insert(id, std::move(tabletHolder));
         objectManager->RefObject(tablet);
 
         // Once the first table is created, table is no longer sorted.
@@ -688,11 +692,26 @@ public:
             EnumerateChunksInChunkTree(chunkLists[index]->AsChunkList(), &chunks);
         }
 
+        std::sort(
+            chunks.begin(),
+            chunks.end(),
+            [] (TChunk* lhs, TChunk* rhs) {
+                    return lhs->GetId() < rhs->GetId();
+            });
+        chunks.erase(
+            std::unique(
+                chunks.begin(),
+                chunks.end(),
+                [] (TChunk* lhs, TChunk* rhs) {
+                    return lhs->GetId() == rhs->GetId();
+                }),
+            chunks.end());
+
         for (auto* chunk : chunks) {
             auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
             auto minKey = FromProto<TOwningKey>(boundaryKeysExt.min());
-            auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.min());
-            auto range = table->GetIntersectingTablets(minKey, maxKey);
+            auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.max());
+            auto range = GetIntersectingTablets(newTablets, minKey, maxKey);
             for (auto it = range.first; it != range.second; ++it) {
                 auto* tablet = *it;
                 chunkManager->AttachToChunkList(
@@ -757,6 +776,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
         DoClear();
     }
 
@@ -778,6 +799,8 @@ private:
 
     virtual void OnAfterSnapshotLoaded() override
     {
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
         AddressToCell_.clear();
 
         for (const auto& pair : TabletCellMap_) {
@@ -807,6 +830,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TMasterAutomatonPart::Clear();
+
         DoClear();
     }
 
@@ -823,7 +848,7 @@ private:
             auto* cell = slot.Cell;
             if (cell) {
                 LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer offline: node unregistered (Address: %v, CellId: %v, PeerId: %v)",
-                    node->GetAddress(),
+                    node->GetDefaultAddress(),
                     cell->GetId(),
                     slot.PeerId);
                 cell->DetachPeer(node);
@@ -851,7 +876,7 @@ private:
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), cell->GetPrerequisiteTransaction()->GetId());
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PrerequisiteTransactionId: %v)",
-                node->GetAddress(),
+                node->GetDefaultAddress(),
                 cellId,
                 cell->GetPrerequisiteTransaction()->GetId());
         };
@@ -863,15 +888,15 @@ private:
             auto* protoInfo = response->add_tablet_slots_configure();
 
             const auto& cellId = cell->GetId();
-            ToProto(protoInfo->mutable_cell_id(), cell->GetId());
-            protoInfo->set_config_version(cell->GetConfigVersion());
-            protoInfo->set_config(ConvertToYsonString(cell->GetConfig()).Data());
+            auto cellDescriptor = cell->GetDescriptor();
+
+            ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             protoInfo->set_peer_id(cell->GetPeerId(node));
             
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot configuration update requested (Address: %v, CellId: %v, Version: %v)",
-                node->GetAddress(),
+                node->GetDefaultAddress(),
                 cellId,
-                cell->GetConfigVersion());
+                cellDescriptor.ConfigVersion);
         };
 
         auto requestRemoveSlot = [&] (const TTabletCellId& cellId) {
@@ -882,14 +907,14 @@ private:
             ToProto(protoInfo->mutable_cell_id(), cellId);
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot removal requested (Address: %v, CellId: %v)",
-                node->GetAddress(),
+                node->GetDefaultAddress(),
                 cellId);
         };
 
         const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
-        const auto& address = node->GetAddress();
+        const auto& address = node->GetDefaultAddress();
 
         // Our expectations.
         yhash_set<TTabletCell*> expectedCells;
@@ -913,7 +938,8 @@ private:
             if (state == EPeerState::None)
                 continue;
 
-            auto cellId = FromProto<TTabletCellId>(slotInfo.cell_id());
+            auto cellInfo = FromProto<TCellInfo>(slotInfo.cell_info());
+            const auto& cellId = cellInfo.CellId;
             auto* cell = FindTabletCell(cellId);
             if (!IsObjectAlive(cell)) {
                 LOG_INFO_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
@@ -975,10 +1001,10 @@ private:
                 slot.Cell->GetId(),
                 slot.PeerId,
                 slot.PeerState,
-                slotInfo.config_version());
+                cellInfo.ConfigVersion);
 
             // Request slot reconfiguration if states are appropriate and versions differ.
-            if (slotInfo.config_version() != slot.Cell->GetConfigVersion()) {
+            if (cellInfo.ConfigVersion != slot.Cell->GetConfigVersion()) {
                 requestConfigureSlot(slot.Cell);
             }
         }
@@ -1037,15 +1063,22 @@ private:
             if (!response)
                 return;
 
+            LOG_DEBUG("Requesting Hive cell reconfiguration (Address: %v, CellId: %v, ConfigVersion: %v)",
+                node->GetDefaultAddress(),
+                cell->GetId(),
+                cell->GetConfigVersion());
+
             auto* protoInfo = response->add_hive_cells_to_reconfigure();
-            auto config = cell->GetConfig()->ToElection(cell->GetId());
-            protoInfo->set_config_version(cell->GetConfigVersion());
-            protoInfo->set_config(ConvertToYsonString(config).Data());
+            ToProto(protoInfo->mutable_cell_descriptor(), cell->GetDescriptor());
         };
 
         auto requestUnregisterCell = [&] (const TTabletCellId& cellId) {
             if (!response)
                 return;
+
+            LOG_DEBUG("Requesting Hive cell unregistration (Address: %v, CellId: %v)",
+                node->GetDefaultAddress(),
+                cellId);
 
             auto* unregisterInfo = response->add_hive_cells_to_unregister();
             ToProto(unregisterInfo->mutable_cell_id(), cellId);
@@ -1077,6 +1110,14 @@ private:
 
         for (auto* cell : missingCells) {
             requestReconfigureCell(cell);
+        }
+    }
+
+    void OnPopulateCellDescriptors(std::vector<TCellDescriptor>* descriptors)
+    {
+        for (const auto& pair : TabletCellMap_) {
+            const auto* tablet = pair.second;
+            descriptors->push_back(tablet->GetDescriptor());
         }
     }
 
@@ -1287,8 +1328,9 @@ private:
             }
             securityManager->UpdateAccountNodeUsage(table);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated (TabletId: %v, AttachedChunkIds: [%v], DetachedChunkIds: [%v], "
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated (TableId: %v, TabletId: %v, AttachedChunkIds: [%v], DetachedChunkIds: [%v], "
                 "AttachedRowCount: %v, DetachedRowCount: %v)",
+                table->GetId(),
                 tabletId,
                 JoinToString(ToObjectIds(chunksToAttach)),
                 JoinToString(ToObjectIds(chunksToDetach)),
@@ -1311,6 +1353,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TMasterAutomatonPart::OnLeaderActive();
+
         TabletTracker_->Start();
 
         auto cellDirectory = Bootstrap_->GetCellDirectory();
@@ -1331,6 +1375,8 @@ private:
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnStopLeading();
 
         TabletTracker_->Stop();
 
@@ -1366,9 +1412,7 @@ private:
     void UpdateCellDirectory(TTabletCell* cell)
     {
         auto cellDirectory = Bootstrap_->GetCellDirectory();
-        cellDirectory->RegisterCell(
-            cell->GetConfig()->ToElection(cell->GetId()),
-            cell->GetConfigVersion());
+        cellDirectory->ReconfigureCell(cell->GetDescriptor());
     }
 
 
@@ -1702,6 +1746,30 @@ private:
         }
     }
 
+    std::pair<std::vector<TTablet*>::iterator, std::vector<TTablet*>::iterator> GetIntersectingTablets(
+        std::vector<TTablet*>& tablets,
+        const TOwningKey& minKey,
+        const TOwningKey& maxKey)
+    {
+        auto beginIt = std::upper_bound(
+            tablets.begin(),
+            tablets.end(),
+            minKey,
+            [] (const TOwningKey& key, const TTablet* tablet) {
+                return key < tablet->GetPivotKey();
+            });
+
+        if (beginIt != tablets.begin()) {
+            --beginIt;
+        }
+
+        auto endIt = beginIt;
+        while (endIt != tablets.end() && maxKey >= (*endIt)->GetPivotKey()) {
+            ++endIt;
+        }
+
+        return std::make_pair(beginIt, endIt);
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCell, TTabletCell, TTabletCellId, TabletCellMap_)

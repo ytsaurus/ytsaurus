@@ -9,6 +9,7 @@
 #include "tablet_manager.h"
 #include "slot_manager.h"
 #include "store_manager.h"
+#include "in_memory_manager.h"
 
 #include <core/misc/address.h>
 
@@ -40,6 +41,8 @@
 
 #include <ytlib/api/client.h>
 #include <ytlib/api/transaction.h>
+
+#include <server/misc/memory_usage_tracker.h>
 
 #include <server/tablet_server/tablet_manager.pb.h>
 
@@ -88,9 +91,9 @@ public:
         , Semaphore_(Config_->StoreFlusher->MaxConcurrentFlushes)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::BeginSlotScan, MakeStrong(this)));
-        slotManager->SubscribeScanSlot(BIND(&TStoreFlusher::ScanSlot, MakeStrong(this)));
-        slotManager->SubscribeEndSlotScan(BIND(&TStoreFlusher::EndSlotScan, MakeStrong(this)));
+        slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
+        slotManager->SubscribeScanSlot(BIND(&TStoreFlusher::OnScanSlot, MakeStrong(this)));
+        slotManager->SubscribeEndSlotScan(BIND(&TStoreFlusher::OnEndSlotScan, MakeStrong(this)));
     }
 
 private:
@@ -111,14 +114,15 @@ private:
     std::vector<TForcedRotationCandidate> ForcedRotationCandidates_;
 
 
-    void BeginSlotScan()
+    void OnBeginSlotScan()
     {
-        // NB: No locking is needed.
+        // NB: Strictly speaking, this locking is redundant.
+        TGuard<TSpinLock> guard(SpinLock_);
         PassiveMemoryUsage_ = 0;
         ForcedRotationCandidates_.clear();
     }
 
-    void ScanSlot(TTabletSlotPtr slot)
+    void OnScanSlot(TTabletSlotPtr slot)
     {
         if (slot->GetAutomatonState() != EPeerState::Leading)
             return;
@@ -130,37 +134,43 @@ private:
         }
     }
 
-    void EndSlotScan()
+    void OnEndSlotScan()
     {
-        // NB: No locking is needed.
+        std::vector<TForcedRotationCandidate> candidates;
+
+        // NB: Strictly speaking, this locking is redundant.
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            ForcedRotationCandidates_.swap(candidates);
+        }
+
         // Order candidates by increasing memory usage.
         std::sort(
-            ForcedRotationCandidates_. begin(),
-            ForcedRotationCandidates_.end(),
+            candidates. begin(),
+            candidates.end(),
             [] (const TForcedRotationCandidate& lhs, const TForcedRotationCandidate& rhs) {
                 return lhs.MemoryUsage < rhs.MemoryUsage;
             });
         
         // Pick the heaviest candidates until no more rotations are needed.
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        while (slotManager->IsRotationForced(PassiveMemoryUsage_) &&
-               !ForcedRotationCandidates_.empty())
-        {
-            auto candidate = ForcedRotationCandidates_.back();
-            ForcedRotationCandidates_.pop_back();
+        while (slotManager->IsRotationForced(PassiveMemoryUsage_) && !candidates.empty()) {
+            auto candidate = candidates.back();
+            candidates.pop_back();
 
             auto tabletId = candidate.TabletId;
             auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId);
             if (!tabletSnapshot)
                 continue;
 
+            const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
             LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %v, "
                 "TotalMemoryUsage: %v, TabletMemoryUsage: %v, "
                 "MemoryLimit: %v)",
                 candidate.TabletId,
-                Bootstrap_->GetMemoryUsageTracker()->GetUsed(NCellNode::EMemoryConsumer::TabletStatic),
+                tracker->GetUsed(EMemoryCategory::TabletDynamic),
                 candidate.MemoryUsage,
-                Config_->MemoryLimit);
+                tracker->GetLimit(EMemoryCategory::TabletDynamic));
 
             auto slot = tabletSnapshot->Slot;
             auto invoker = slot->GetGuardedAutomatonInvoker();
@@ -212,7 +222,7 @@ private:
                 i64 memoryUsage = store->GetMemoryUsage();
                 if (storeManager->IsRotationScheduled()) {
                     PassiveMemoryUsage_ += memoryUsage;
-                } else {
+                } else if (store->GetUncompressedDataSize() >= Config_->StoreFlusher->MinForcedFlushDataSize) {
                     TForcedRotationCandidate candidate;
                     candidate.TabletId = tablet->GetTabletId();
                     candidate.MemoryUsage = memoryUsage;
@@ -224,41 +234,43 @@ private:
 
     void ScanStore(TTablet* tablet, const IStorePtr& store)
     {
-        if (store->GetStoreState() != EStoreState::PassiveDynamic)
+        if (!TStoreManager::IsStoreFlushable(store))
             return;
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
         if (!guard)
             return;
 
-        store->SetStoreState(EStoreState::Flushing);
+        auto dynamicStore = store->AsDynamicMemory();
+        auto storeManager = tablet->GetStoreManager();
+        storeManager->BeginStoreFlush(dynamicStore);
 
         tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TStoreFlusher::FlushStore,
             MakeStrong(this),
             Passed(std::move(guard)),
             tablet,
-            store));
+            dynamicStore));
     }
 
 
     void FlushStore(
         TAsyncSemaphoreGuard /*guard*/,
         TTablet* tablet,
-        IStorePtr store)
+        TDynamicMemoryStorePtr store)
     {
         // Capture everything needed below.
         // NB: Avoid accessing tablet from pool invoker.
         auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
         auto tabletManager = slot->GetTabletManager();
+        auto storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetTabletId();
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
+        auto tabletConfig = tablet->GetConfig();
         auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
         writerOptions->ChunksEden = true;
-
-        YCHECK(store->GetStoreState() == EStoreState::Flushing);
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v",
@@ -277,7 +289,7 @@ private:
             auto reader = store->CreateReader(
                 MinKey(),
                 MaxKey(),
-                AsyncAllCommittedTimestamp,
+                AllCommittedTimestamp,
                 TColumnFilter());
         
             // NB: Memory store reader is always synchronous.
@@ -314,13 +326,19 @@ private:
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
 
+            auto inMemoryManager = Bootstrap_->GetInMemoryManager();
+            auto blockCache = inMemoryManager->CreateInterceptingBlockCache(tabletConfig->InMemoryMode);
+
             auto writer = CreateVersionedMultiChunkWriter(
                 Config_->ChunkWriter,
                 writerOptions,
                 schema,
                 keyColumns,
                 Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
-                transaction->GetId());
+                transaction->GetId(),
+                NullChunkId,
+                GetUnlimitedThrottler(),
+                blockCache);
 
             {
                 auto result = WaitFor(writer->Open());
@@ -357,6 +375,9 @@ private:
 
             SwitchTo(automatonInvoker);
 
+            storeManager->EndStoreFlush(store);
+            store->SetStoreState(EStoreState::Removing);
+
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit()
                 .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
@@ -374,8 +395,7 @@ private:
         
             SwitchTo(automatonInvoker);
 
-            YCHECK(store->GetStoreState() == EStoreState::Flushing);
-            tabletManager->BackoffStore(store, EStoreState::FlushFailed);
+            storeManager->BackoffStoreFlush(store);
         }
     }
 

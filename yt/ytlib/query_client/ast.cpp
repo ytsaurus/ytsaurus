@@ -42,7 +42,7 @@ Stroka InferName(const TExpression* expr)
         if (!canOmitParenthesis(unaryExpr->Operand.Get())) {
             rhsName = "(" + rhsName + ")";
         }
-        return Stroka() + GetUnaryOpcodeLexeme(unaryExpr->Opcode) + " " + rhsName;
+        return Stroka(GetUnaryOpcodeLexeme(unaryExpr->Opcode)) + " " + rhsName;
     } else if (auto binaryExpr = expr->As<TBinaryOpExpression>()) {
         auto lhsName = InferName(binaryExpr->Lhs.Get());
         if (!canOmitParenthesis(binaryExpr->Lhs.Get())) {
@@ -57,7 +57,7 @@ Stroka InferName(const TExpression* expr)
             " " + GetBinaryOpcodeLexeme(binaryExpr->Opcode) + " " +
             rhsName;
     } else if (auto inExpr = expr->As<TInExpression>()) {
-        Stroka result = InferName(inExpr->Expr.Get());
+        auto result = InferName(inExpr->Expr.Get());
         result += " in (";
         for (int i = 0; i < inExpr->Values.size(); ++i) {
             if (i) {

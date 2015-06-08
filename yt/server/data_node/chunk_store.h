@@ -5,6 +5,7 @@
 #include <core/misc/property.h>
 
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/rw_spinlock.h>
 #include <core/concurrency/action_queue.h>
 
 #include <core/actions/signal.h>
@@ -21,7 +22,7 @@ namespace NDataNode {
 //! Manages stored chunks.
 /*!
  *  \note
- *  Thread affinity: ControlThread
+ *  Thread affinity: ControlThread (unless indicated otherwise)
  */
 class TChunkStore
     : public TRefCounted
@@ -55,10 +56,32 @@ public:
     void UnregisterChunk(IChunkPtr chunk);
 
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     IChunkPtr FindChunk(const TChunkId& chunkId) const;
 
     //! Finds chunk by id. Throws if no chunk exists.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     IChunkPtr GetChunkOrThrow(const TChunkId& chunkId) const;
+
+    //! Returns the list of all registered chunks.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    TChunks GetChunks() const;
+
+    //! Returns the number of registered chunks.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    int GetChunkCount() const;
 
     //! Physically removes the chunk.
     /*!
@@ -68,25 +91,12 @@ public:
 
     //! Finds a suitable storage location for a new chunk.
     /*!
-     *  Among enabled locations that are not full returns a random one with the minimum number
-     *  of active sessions. Throws exception if all locations are full.
+     *  Among enabled locations that are not full and support chunks of a given type,
+     *  returns a random one with the minimum number of active sessions.
+     *
+     *  Throws exception if no suitable location could be found.
      */
-    TLocationPtr GetNewChunkLocation();
-
-    //! Finds a suitable storage location for a chunk (typically a journal) that needs
-    //! to be created during replay.
-    /*!
-     *  Among enabled locations returns the one with the maximum available disk space.
-     *  Note that this location may be full but we still hope for the best.
-     *  Throws exception if all locations are disabled.
-     */
-    TLocationPtr GetReplayedChunkLocation();
-
-    //! Returns the list of all registered chunks.
-    TChunks GetChunks() const;
-
-    //! Returns the number of registered chunks.
-    int GetChunkCount() const;
+    TLocationPtr GetNewChunkLocation(NObjectClient::EObjectType chunkType);
 
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
@@ -107,6 +117,7 @@ private:
         i64 DiskSpace = 0;
     };
 
+    NConcurrency::TReaderWriterSpinLock ChunkMapLock_;
     yhash_map<TChunkId, TChunkEntry> ChunkMap_;
 
 

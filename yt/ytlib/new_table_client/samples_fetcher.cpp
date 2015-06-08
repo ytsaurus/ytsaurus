@@ -28,6 +28,8 @@ using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////
 
 TSamplesFetcher::TSamplesFetcher(
@@ -40,8 +42,6 @@ TSamplesFetcher::TSamplesFetcher(
     : TFetcherBase(config, nodeDirectory, invoker, logger)
     , KeyColumns_(keyColumns)
     , DesiredSampleCount_(desiredSampleCount)
-    , SizeBetweenSamples_(0)
-    , TotalDataSize_(0)
 {
     YCHECK(DesiredSampleCount_ > 0);
 }
@@ -96,7 +96,7 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
     std::vector<int> requestedChunkIndexes;
 
     for (auto index : chunkIndexes) {
-        auto& chunk = Chunks_[index];
+        const auto& chunk = Chunks_[index];
 
         i64 chunkDataSize;
         GetStatistics(*chunk, &chunkDataSize);
@@ -131,8 +131,10 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
     const auto& rsp = rspOrError.Value();
     for (int index = 0; index < requestedChunkIndexes.size(); ++index) {
         const auto& sampleResponse = rsp->sample_responses(index);
+
         if (sampleResponse.has_error()) {
-            OnChunkFailed(nodeId, requestedChunkIndexes[index]);
+            auto error = FromProto<TError>(sampleResponse.error());
+            OnChunkFailed(nodeId, requestedChunkIndexes[index], error);
             continue;
         }
 
@@ -141,7 +143,7 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
             requestedChunkIndexes[index]);
 
         for (const auto& sample : sampleResponse.keys()) {
-            Samples_.push_back(NYT::FromProto<TOwningKey>(sample));
+            Samples_.push_back(FromProto<TOwningKey>(sample));
         }
     }
 }

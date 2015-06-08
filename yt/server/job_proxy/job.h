@@ -7,6 +7,7 @@
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/scheduler/job.pb.h>
+#include <ytlib/scheduler/statistics.h>
 
 #include <ytlib/job_tracker_client/public.h>
 
@@ -33,8 +34,7 @@ struct IJobHost
 
     virtual NRpc::IChannelPtr GetMasterChannel() const = 0;
 
-    virtual NChunkClient::IBlockCachePtr GetCompressedBlockCache() const = 0;
-    virtual NChunkClient::IBlockCachePtr GetUncompressedBlockCache() const = 0;
+    virtual NChunkClient::IBlockCachePtr GetBlockCache() const = 0;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
 
@@ -62,7 +62,7 @@ struct IJob
 
     virtual double GetProgress() const = 0;
 
-    virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const = 0;
+    virtual NScheduler::TStatistics GetStatistics() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
     virtual NYTree::TYsonString Strace() = 0;

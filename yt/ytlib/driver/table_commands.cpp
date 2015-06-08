@@ -47,13 +47,17 @@ void TReadTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
+    auto options = New<TRemoteReaderOptions>();
+    options->NetworkName = Context_->GetConfig()->NetworkName;
+
     auto nameTable = New<TNameTable>();
+
     auto reader = CreateSchemalessTableReader(
         config,
+        options,
         Context_->GetClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
         AttachTransaction(false),
-        Context_->GetClient()->GetConnection()->GetCompressedBlockCache(),
-        Context_->GetClient()->GetConnection()->GetUncompressedBlockCache(),
+        Context_->GetClient()->GetConnection()->GetBlockCache(),
         Request_->Path,
         nameTable);
 
@@ -65,12 +69,22 @@ void TReadTableCommand::DoExecute()
         .Item("approximate_row_count").Value(reader->GetTotalRowCount());
 
     auto output = CreateSyncAdapter(Context_->Request().OutputStream);
-    TBufferedOutput bufferedOutput(output.get());
+    auto bufferedOutput = std::make_unique<TBufferedOutput>(output.get());
     auto format = Context_->GetOutputFormat();
 
-    auto writer = CreateSchemalessWriterForFormat(format, nameTable, &bufferedOutput);
+    auto writer = CreateSchemalessWriterForFormat(
+        format,
+        nameTable,
+        std::move(bufferedOutput),
+        false,
+        false,
+        0);
 
-    PipeReaderToWriter(reader, writer, Context_->GetConfig()->ReadBufferRowCount);
+    PipeReaderToWriter(
+        reader,
+        writer,
+        Request_->ControlAttributes,
+        Context_->GetConfig()->ReadBufferRowCount);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -85,11 +99,16 @@ void TWriteTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
+    auto options = New<TTableWriterOptions>();
+    // NB: Other options are ignored.
+    options->NetworkName = Context_->GetConfig()->NetworkName;
+
     auto keyColumns = Request_->Path.Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
     auto writer = CreateSchemalessTableWriter(
         config,
+        options,
         Request_->Path,
         nameTable,
         keyColumns,
@@ -206,6 +225,7 @@ void TSelectRowsCommand::DoExecute()
     options.Timestamp = Request_->Timestamp;
     options.InputRowLimit = Request_->InputRowLimit;
     options.OutputRowLimit = Request_->OutputRowLimit;
+    options.RangeExpansionLimit = Request_->RangeExpansionLimit;
     options.VerboseLogging = Request_->VerboseLogging;
 
     auto format = Context_->GetOutputFormat();
@@ -333,7 +353,7 @@ void TLookupRowsCommand::DoExecute()
 
     auto asyncRowset = Context_->GetClient()->LookupRows(
         Request_->Path.GetPath(),
-        TNameTable::FromSchema(tableInfo->Schema, true),
+        valueConsumer->GetNameTable(),
         std::move(keys),
         options);
     auto rowset = WaitFor(asyncRowset)
@@ -368,7 +388,6 @@ void TDeleteRowsCommand::DoExecute()
     auto asyncTableInfo = tableMountCache->GetTableInfo(Request_->Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
-    auto nameTable = TNameTable::FromKeyColumns(tableInfo->KeyColumns);
 
     // Parse input data.
     auto valueConsumer = New<TBuildingValueConsumer>(
@@ -383,7 +402,7 @@ void TDeleteRowsCommand::DoExecute()
 
     transaction->DeleteRows(
         Request_->Path.GetPath(),
-        nameTable,
+        valueConsumer->GetNameTable(),
         std::move(keys));
 
     WaitFor(transaction->Commit())

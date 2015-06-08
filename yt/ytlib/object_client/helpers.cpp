@@ -75,6 +75,21 @@ bool IsUserType(EObjectType type)
         type == EObjectType::Document;
 }
 
+bool IsMapLikeType(EObjectType type)
+{
+    return
+        type == EObjectType::MapNode ||
+        type == EObjectType::CellNode ||
+        type == EObjectType::CellNodeMap ||
+        type == EObjectType::TabletCellNode;
+}
+
+bool IsListLikeType(EObjectType type)
+{
+    return
+        type == EObjectType::ListNode;
+}
+
 EObjectType TypeFromId(const TObjectId& id)
 {
     return EObjectType(id.Parts32[1] & 0xffff);

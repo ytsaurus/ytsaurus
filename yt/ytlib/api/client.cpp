@@ -11,6 +11,8 @@
 #include "box.h"
 #include "private.h"
 
+#include <core/profiling/scoped_timer.h>
+
 #include <core/concurrency/scheduler.h>
 
 #include <core/ytree/attribute_helpers.h>
@@ -124,13 +126,60 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError TCheckPermissionResult::ToError(const Stroka& user, NYTree::EPermission permission) const
+{
+    switch (Action) {
+        case NSecurityClient::ESecurityAction::Allow:
+            return TError();
+
+        case NSecurityClient::ESecurityAction::Deny: {
+            TError error;
+            if (ObjectName && SubjectName) {
+                error = TError(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied: %Qlv permission is denied for %Qv by ACE at %v",
+                    permission,
+                    *SubjectName,
+                    *ObjectName);
+            } else {
+                error = TError(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied: %Qlv permission is not allowed by any matching ACE",
+                    permission);
+            }
+            error.Attributes().Set("user", user);
+            error.Attributes().Set("permission", permission);
+            if (ObjectId != NullObjectId) {
+                error.Attributes().Set("denied_by", ObjectId);
+            }
+            if (SubjectId != NullObjectId) {
+                error.Attributes().Set("denied_for", SubjectId);
+            }
+            return error;
+        }
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryResponseReader
     : public ISchemafulReader
 {
 public:
     explicit TQueryResponseReader(TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse)
         : AsyncResponse_(std::move(asyncResponse))
-    { }
+    {
+        QueryResult_.OnCanceled(BIND([this, this_ = MakeStrong(this)] () {
+            AsyncResponse_.Cancel();
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+                QueryResult_.Reset();
+            }
+        }));
+    }
 
     virtual TFuture<void> Open(const TTableSchema& schema) override
     {
@@ -161,6 +210,7 @@ private:
     std::unique_ptr<TWireProtocolReader> ProtocolReader_;
     ISchemafulReaderPtr RowsetReader_;
 
+    TSpinLock SpinLock_;
     TPromise<TQueryStatistics> QueryResult_ = NewPromise<TQueryStatistics>();
 
 
@@ -174,7 +224,10 @@ private:
         }
         const auto& response = responseOrError.Value();
 
-        QueryResult_.Set(FromProto(response->query_statistics()));
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            QueryResult_.Set(FromProto(response->query_statistics()));
+        }
 
         YCHECK(!ProtocolReader_);
         auto data  = NCompression::DecompressWithEnvelope(response->Attachments());
@@ -203,10 +256,12 @@ public:
     TQueryHelper(
         IConnectionPtr connection,
         IChannelPtr masterChannel,
-        IChannelFactoryPtr nodeChannelFactory)
+        IChannelFactoryPtr nodeChannelFactory,
+        IFunctionRegistryPtr functionRegistry)
         : Connection_(std::move(connection))
         , MasterChannel_(std::move(masterChannel))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
+        , FunctionRegistry_(std::move(functionRegistry))
     { }
 
     // IPrepareCallbacks implementation.
@@ -223,22 +278,26 @@ public:
     // IExecutor implementation.
 
     virtual TFuture<TQueryStatistics> Execute(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer) override
     {
-        auto execute = fragment->Ordered
-            ? &TQueryHelper::DoExecuteOrdered
-            : &TQueryHelper::DoExecute;
+        TRACE_CHILD("QueryClient", "Execute") {
 
-        return BIND(execute, MakeStrong(this))
-            .AsyncVia(NDriver::TDispatcher::Get()->GetHeavyInvoker())
-            .Run(fragment, std::move(writer));
+            auto execute = fragment->Ordered
+                ? &TQueryHelper::DoExecuteOrdered
+                : &TQueryHelper::DoExecute;
+
+            return BIND(execute, MakeStrong(this))
+                .AsyncVia(NDriver::TDispatcher::Get()->GetHeavyInvoker())
+                .Run(fragment, std::move(writer));
+        }
     }
 
 private:
     const IConnectionPtr Connection_;
     const IChannelPtr MasterChannel_;
     const IChannelFactoryPtr NodeChannelFactory_;
+    const IFunctionRegistryPtr FunctionRegistry_;
 
 
     TDataSplit DoGetInitialSplit(
@@ -258,69 +317,43 @@ private:
     }
 
 
-    std::vector<std::pair<TDataSource, TChunkReplica>> Split(
-        const TDataSources& sources,
-        TNodeDirectoryPtr nodeDirectory,
+    std::vector<std::pair<TDataSource, Stroka>> Split(
+        TGuid objectId,
+        const std::vector<TRowRange>& ranges,
+        TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
-        std::vector<std::pair<TDataSource, TChunkReplica>> result;
-        for (const auto& source : sources) {
-            auto objectId = source.Id;
-            auto type = TypeFromId(objectId);
+        std::vector<std::pair<TDataSource, Stroka>> result;
 
-            if (type != EObjectType::Table) {
-                continue;
-            }
-
-            auto newSources = SplitFurther(source, nodeDirectory);
-
-            LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v", newSources.size(), objectId);
-
-            result.insert(result.end(), newSources.begin(), newSources.end());
+        if (TypeFromId(objectId) == EObjectType::Table) {
+            result = SplitTableFurther(objectId, ranges, std::move(rowBuffer));
+            LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
+                result.size(),
+                objectId);
         }
 
         return result;
     }
 
-    std::vector<std::pair<TDataSource, TChunkReplica>> SplitFurther(
-        const TDataSource& source,
-        TNodeDirectoryPtr nodeDirectory)
+    std::vector<std::pair<TDataSource, Stroka>> SplitTableFurther(
+        TGuid tableId,
+        const std::vector<TRowRange>& ranges,
+        TRowBufferPtr rowBuffer)
     {
-        auto objectId = source.Id;
-
-        std::vector<std::pair<TDataSource, TChunkReplica>> subsources;
-        switch (TypeFromId(objectId)) {
-            case EObjectType::Table:
-                subsources = SplitTableFurther(source, std::move(nodeDirectory));
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-
-        return subsources;
-    }
-
-    std::vector<std::pair<TDataSource, TChunkReplica>> SplitTableFurther(
-        const TDataSource& source,
-        TNodeDirectoryPtr nodeDirectory)
-    {
-        auto tableId = source.Id;
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
         return tableInfo->Sorted
-            ? SplitSortedTableFurther(source, std::move(nodeDirectory))
-            : SplitUnsortedTableFurther(source, std::move(nodeDirectory), std::move(tableInfo));
+            ? SplitSortedTableFurther(tableId, ranges, std::move(rowBuffer))
+            : SplitUnsortedTableFurther(tableId, ranges, std::move(rowBuffer), std::move(tableInfo));
     }
 
-    std::vector<std::pair<TDataSource, TChunkReplica>> SplitSortedTableFurther(
-        const TDataSource& source,
-        TNodeDirectoryPtr nodeDirectory)
+    std::vector<std::pair<TDataSource, Stroka>> SplitSortedTableFurther(
+        TGuid tableId,
+        const std::vector<TRowRange>& ranges,
+        TRowBufferPtr rowBuffer)
     {
-        auto tableId = source.Id;
-
         // TODO(babenko): refactor and optimize
         TObjectServiceProxy proxy(MasterChannel_);
 
@@ -331,11 +364,14 @@ private:
         auto rsp = WaitFor(proxy.Execute(req))
             .ValueOrThrow();
 
+        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(rsp->node_directory());
 
         auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
 
-        std::vector<std::pair<TDataSource, TChunkReplica>> result;
+        std::vector<std::pair<TDataSource, Stroka>> result;
+
+        const auto& networkName = Connection_->GetConfig()->NetworkName;
 
         for (auto& chunkSpec : chunkSpecs) {
             auto chunkKeyColumns = FindProtoExtension<TKeyColumnsExt>(chunkSpec.chunk_meta().extensions());
@@ -356,217 +392,262 @@ private:
             auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
             if (replicas.empty()) {
                 auto objectId = GetObjectIdFromDataSplit(chunkSpec);
-                THROW_ERROR_EXCEPTION("No alive replicas for source %v",
+                THROW_ERROR_EXCEPTION("No alive replicas for chunk %v",
                     objectId);
             }
             auto replica = replicas[RandomNumber(replicas.size())];
 
-            result.emplace_back(TDataSource{
+            auto keyRange = GetBothBoundsFromDataSplit(chunkSpec);
+
+            auto dataSource = TDataSource{
                 GetObjectIdFromDataSplit(chunkSpec),
-                GetBothBoundsFromDataSplit(chunkSpec)},
-                replica);
+                TRowRange(rowBuffer->Capture(keyRange.first.Get()), rowBuffer->Capture(keyRange.second.Get()))};
+
+            const auto& descriptor = nodeDirectory->GetDescriptor(replica);
+            const auto& address = descriptor.GetAddressOrThrow(networkName);
+            result.emplace_back(dataSource, address);
         }
 
         return result;
     }
 
-    std::vector<std::pair<TDataSource, TChunkReplica>> SplitUnsortedTableFurther(
-        const TDataSource& source,
-        TNodeDirectoryPtr nodeDirectory,
+    std::vector<std::pair<TDataSource, Stroka>> SplitUnsortedTableFurther(
+        TGuid tableId,
+        const std::vector<TRowRange>& ranges,
+        TRowBufferPtr rowBuffer,
         TTableMountInfoPtr tableInfo)
     {
-        auto tableId = source.Id;
-
         if (tableInfo->Tablets.empty()) {
             THROW_ERROR_EXCEPTION("Table %v is neither sorted nor has tablets",
                 tableId);
         }
 
-        auto lowerBound = source.Range.first;
-        auto upperBound = source.Range.second;
+        auto cellDirectory = Connection_->GetCellDirectory();
 
-        // Run binary search to find the relevant tablets.
-        auto startIt = std::upper_bound(
-            tableInfo->Tablets.begin(),
-            tableInfo->Tablets.end(),
-            lowerBound,
-            [] (const TOwningKey& key, const TTabletInfoPtr& tabletInfo) {
-                return key < tabletInfo->PivotKey;
-            }) - 1;
+        std::vector<std::pair<TDataSource, Stroka>> subsources;
+        for (const auto& range : ranges) {
+            auto lowerBound = range.first;
+            auto upperBound = range.second;
 
-        std::vector<std::pair<TDataSource, TChunkReplica>> subsources;
-        for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
-            const auto& tabletInfo = *it;
-            if (upperBound <= tabletInfo->PivotKey)
-                break;
+            // Run binary search to find the relevant tablets.
+            auto startIt = std::upper_bound(
+                tableInfo->Tablets.begin(),
+                tableInfo->Tablets.end(),
+                lowerBound,
+                [] (const TRow& key, const TTabletInfoPtr& tabletInfo) {
+                    return key < tabletInfo->PivotKey.Get();
+                }) - 1;
 
-            if (tabletInfo->State != ETabletState::Mounted) {
-                // TODO(babenko): learn to work with unmounted tablets
-                THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
-                    tabletInfo->TabletId);
+        
+            for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
+                const auto& tabletInfo = *it;
+                if (upperBound <= tabletInfo->PivotKey)
+                    break;
+
+                if (tabletInfo->State != ETabletState::Mounted) {
+                    // TODO(babenko): learn to work with unmounted tablets
+                    THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
+                        tabletInfo->TabletId);
+                }
+
+                TDataSource subsource;
+                subsource.Id = tabletInfo->TabletId;
+
+                auto pivotKey = tabletInfo->PivotKey;
+                auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
+
+                subsource.Range.first = rowBuffer->Capture(std::max(lowerBound, pivotKey.Get()));
+                subsource.Range.second = rowBuffer->Capture(std::min(upperBound, nextPivotKey.Get()));
+
+                auto addresses = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
+                if (addresses.empty()) {
+                    THROW_ERROR_EXCEPTION("No alive replicas for tablet %v",
+                        tabletInfo->TabletId);
+                }
+
+                const auto& address = addresses[RandomNumber(addresses.size())];
+                subsources.emplace_back(std::move(subsource), address);
             }
-
-            TDataSource subsource;
-            subsource.Id = tabletInfo->TabletId;
-
-            auto pivotKey = tabletInfo->PivotKey;
-            auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
-
-            subsource.Range.first = std::max(lowerBound, pivotKey);
-            subsource.Range.second = std::min(upperBound, nextPivotKey);
-
-            const auto& replicas = tabletInfo->Replicas;
-
-            if (replicas.empty()) {
-                auto objectId = tabletInfo->TabletId;
-                THROW_ERROR_EXCEPTION("No alive replicas for source %v",
-                    objectId);
-            }
-
-            auto replica = replicas[RandomNumber(replicas.size())];
-            nodeDirectory->AddDescriptor(replica.Id, replica.Descriptor);
-            TChunkReplica chunkReplica(replica.Id, 0);
-
-            subsources.emplace_back(std::move(subsource), chunkReplica);
         }
+
         return subsources;
     }
 
 
-    TQueryStatistics DoExecute(
-        const TPlanFragmentPtr& fragment,
-        ISchemafulWriterPtr writer)
+    TQueryStatistics DoCoordinateAndExecute(
+        TPlanFragmentPtr fragment,
+        ISchemafulWriterPtr writer,
+        int subrangesCount,
+        bool isOrdered,
+        std::function<std::pair<TDataSources, Stroka>(int)> getSubsources)
     {
-        auto nodeDirectory = fragment->NodeDirectory;
         auto Logger = BuildLogger(fragment->Query);
 
-        auto prunedSources = GetPrunedSources(
-            fragment->Query,
-            fragment->DataSources,
-            Connection_->GetColumnEvaluatorCache(),
-            fragment->VerboseLogging);
-        auto splits = Split(prunedSources, nodeDirectory, Logger, fragment->VerboseLogging);
-
-        LOG_DEBUG("Regrouping %v splits", splits.size());
-
-        std::map<Stroka, TDataSources> groups;
-        for (const auto& split : splits) {
-            auto descriptor = nodeDirectory->GetDescriptor(split.second);
-            groups[descriptor.GetInterconnectAddress()].push_back(split.first);
-        }
-
-        std::vector<std::pair<TDataSources, Stroka>> groupedSplits;
-        std::vector<TKeyRange> ranges;
-        for (const auto& group : groups) {
-            if (group.second.empty()) {
-                continue;
-            }
-
-            groupedSplits.emplace_back(group.second, group.first);
-            ranges.push_back(GetRange(group.second));
-        }
-
-        LOG_DEBUG("Regrouped into %v groups", groups.size());
+        std::vector<TRefiner> refiners(subrangesCount, [] (
+            TConstExpressionPtr expr,
+            const TTableSchema& schema,
+            const TKeyColumns& keyColumns) {
+                return expr;
+            });
 
         return CoordinateAndExecute(
             fragment,
             writer,
-            false,
-            ranges,
-            [&] (const TConstQueryPtr& subquery, int index) {
+            refiners,
+            isOrdered,
+            [&] (TConstQueryPtr subquery, int index) {
                 auto subfragment = New<TPlanFragment>(fragment->Source);
-                subfragment->NodeDirectory = nodeDirectory;
                 subfragment->Timestamp = fragment->Timestamp;
-                subfragment->DataSources = groupedSplits[index].first;
-                subfragment->ForeignDataSource = fragment->ForeignDataSource;
+                subfragment->ForeignDataId = fragment->ForeignDataId;
                 subfragment->Query = subquery;
+                subfragment->RangeExpansionLimit = fragment->RangeExpansionLimit,
                 subfragment->VerboseLogging = fragment->VerboseLogging;
+                subfragment->Ordered = fragment->Ordered;
 
-                const auto& address = groupedSplits[index].second;
-
-                LOG_DEBUG("Delegating subfragment (SubfragmentId: %v, Address: %v)",
+                Stroka address;
+                std::tie(subfragment->DataSources, address) = getSubsources(index);
+                
+                LOG_DEBUG("Delegating subquery (SubqueryId: %v, Address: %v)",
                     subquery->Id,
                     address);
 
                 return Delegate(subfragment, address);
             },
-            [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
+            [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
-                return evaluator->Run(topQuery, std::move(reader), std::move(writer));
-            },
-            false);
-    }
-
-    TQueryStatistics DoExecuteOrdered(
-        const TPlanFragmentPtr& fragment,
-        ISchemafulWriterPtr writer)
-    {
-        auto nodeDirectory = fragment->NodeDirectory;
-        auto Logger = BuildLogger(fragment->Query);
-
-        auto prunedSplits = GetPrunedSources(
-            fragment->Query,
-            fragment->DataSources,
-            Connection_->GetColumnEvaluatorCache(),
-            fragment->VerboseLogging);
-        auto splits = Split(prunedSplits, nodeDirectory, Logger, fragment->VerboseLogging);
-
-        LOG_DEBUG("Sorting %v splits", splits.size());
-
-        std::sort(splits.begin(), splits.end(), [] (const std::pair<TDataSource, TChunkReplica>& lhs, const std::pair<TDataSource, TChunkReplica>& rhs) {
-            return lhs.first.Range.first < rhs.first.Range.first;
-        });
-
-        std::vector<TKeyRange> ranges;
-        for (auto const& split : splits) {
-            ranges.push_back(split.first.Range);
-        }
-
-        return CoordinateAndExecute(
-            fragment,
-            writer,
-            true,
-            ranges,
-            [&] (const TConstQueryPtr& subquery, int index) {
-                auto descriptor = nodeDirectory->GetDescriptor(splits[index].second);
-                const auto& address = descriptor.GetInterconnectAddress();
-
-                LOG_DEBUG("Delegating subquery (SubqueryId: %v) to %v", subquery->Id, address);
-
-                auto subfragment = New<TPlanFragment>(fragment->Source);
-                subfragment->NodeDirectory = nodeDirectory;
-                subfragment->DataSources.push_back(splits[index].first);
-                subfragment->ForeignDataSource = fragment->ForeignDataSource;
-                subfragment->Query = subquery;
-                subfragment->VerboseLogging = fragment->VerboseLogging;
-
-                return Delegate(subfragment, address);
-            },
-            [&] (const TConstQueryPtr& topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
-                LOG_DEBUG("Evaluating topquery (TopqueryId: %v)", topQuery->Id);
-                auto evaluator = Connection_->GetQueryEvaluator();
-                return evaluator->Run(topQuery, std::move(reader), std::move(writer));
+                return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
             });
     }
 
+    TQueryStatistics DoExecute(
+        TPlanFragmentPtr fragment,
+        ISchemafulWriterPtr writer)
+    {
+        auto Logger = BuildLogger(fragment->Query);
+
+        const auto& dataSources = fragment->DataSources;
+
+        auto rowBuffer = New<TRowBuffer>();
+        auto prunedRanges = GetPrunedRanges(
+            fragment->Query,
+            dataSources,
+            rowBuffer,
+            Connection_->GetColumnEvaluatorCache(),
+            FunctionRegistry_,
+            fragment->RangeExpansionLimit,
+            fragment->VerboseLogging);
+
+        LOG_DEBUG("Splitting pruned splits");
+
+        std::vector<std::pair<TDataSource, Stroka>> allSplits;
+        for (int index = 0; index < dataSources.size(); ++index) {
+            auto id = dataSources[index].Id;
+            const auto& ranges = prunedRanges[index];
+            auto splits = Split(id, ranges, rowBuffer, Logger, fragment->VerboseLogging);
+            allSplits.insert(allSplits.begin(), splits.begin(), splits.end());
+        }
+
+        yhash_map<Stroka, TDataSources> groupsByAddress;
+        for (const auto& split : allSplits) {
+            const auto& address = split.second;
+            groupsByAddress[address].push_back(split.first);
+        }
+
+        std::vector<std::pair<TDataSources, Stroka>> groupedSplits;
+        for (const auto& group : groupsByAddress) {
+            if (group.second.empty()) {
+                continue;
+            }
+            groupedSplits.emplace_back(group.second, group.first);
+        }
+
+        LOG_DEBUG("Regrouped %v splits into %v groups",
+            allSplits.size(),
+            groupsByAddress.size());
+
+        return DoCoordinateAndExecute(fragment, writer, groupedSplits.size(), false, [&] (int index) {
+            return groupedSplits[index];
+        });
+    }
+
+    TQueryStatistics DoExecuteOrdered(
+        TPlanFragmentPtr fragment,
+        ISchemafulWriterPtr writer)
+    {
+        auto Logger = BuildLogger(fragment->Query);
+
+        const auto& dataSources = fragment->DataSources;
+
+        auto rowBuffer = New<TRowBuffer>();
+        auto prunedRanges = GetPrunedRanges(
+            fragment->Query,
+            dataSources,
+            rowBuffer,
+            Connection_->GetColumnEvaluatorCache(),
+            FunctionRegistry_,
+            fragment->RangeExpansionLimit,
+            fragment->VerboseLogging);
+
+        LOG_DEBUG("Splitting pruned splits");
+
+        std::vector<std::pair<TDataSource, Stroka>> allSplits;
+
+        for (int index = 0; index < dataSources.size(); ++index) {
+            const auto& id = dataSources[index].Id;
+            const auto& ranges = prunedRanges[index];
+
+            auto splits = Split(id, ranges, rowBuffer, Logger, fragment->VerboseLogging);
+            std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
+        }
+
+        LOG_DEBUG("Sorting %v splits", allSplits.size());
+
+        std::sort(
+            allSplits.begin(),
+            allSplits.end(),
+            [] (const std::pair<TDataSource, Stroka>& lhs, const std::pair<TDataSource, Stroka>& rhs) {
+                return lhs.first.Range.first < rhs.first.Range.first;
+            });
+
+        return DoCoordinateAndExecute(fragment, writer, allSplits.size(), true, [&] (int index) {
+            const auto& split = allSplits[index];
+            const auto& address = split.second;
+            LOG_DEBUG("Delegating to tablet %v at %v",
+                split.first.Id,
+                address);
+            return std::make_pair(TDataSources(1, split.first), address);
+        });
+    }
+
    std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
-        const TPlanFragmentPtr& fragment,
+        TPlanFragmentPtr fragment,
         const Stroka& address)
     {
-        auto channel = NodeChannelFactory_->CreateChannel(address);
-        auto config = Connection_->GetConfig();
+        auto Logger = BuildLogger(fragment->Query);
 
-        TQueryServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(config->QueryTimeout);
+        TRACE_CHILD("QueryClient", "Delegate") {
+            auto channel = NodeChannelFactory_->CreateChannel(address);
+            auto config = Connection_->GetConfig();
 
-        auto req = proxy.Execute();
-        fragment->NodeDirectory->DumpTo(req->mutable_node_directory());
-        ToProto(req->mutable_plan_fragment(), fragment);
-        req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
+            TQueryServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(config->QueryTimeout);
 
-        auto resultReader = New<TQueryResponseReader>(req->Invoke());
-        return std::make_pair(resultReader, resultReader->GetQueryResult());
+            auto req = proxy.Execute();
+
+            TDuration serializationTime;
+            {
+                NProfiling::TAggregatingTimingGuard timingGuard(&serializationTime);
+                ToProto(req->mutable_plan_fragment(), fragment);
+                req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
+            }
+
+            TRACE_ANNOTATION("serialization_time", serializationTime);
+            TRACE_ANNOTATION("request_size", req->ByteSize());
+
+            auto resultReader = New<TQueryResponseReader>(req->Invoke());
+            return std::make_pair(resultReader, resultReader->GetQueryResult());
+        }
     }
 
 };
@@ -585,6 +666,7 @@ public:
         : Connection_(std::move(connection))
         , Options_(options)
         , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
+        , FunctionRegistry_(Connection_->GetFunctionRegistry())
     {
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
             MasterChannels_[kind] = Connection_->GetMasterChannel(kind);
@@ -620,7 +702,8 @@ public:
         QueryHelper_ = New<TQueryHelper>(
             Connection_,
             GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
-            NodeChannelFactory_);
+            NodeChannelFactory_,
+            FunctionRegistry_);
 
         Logger.AddTag("Client: %p", this);
     }
@@ -874,10 +957,10 @@ public:
         const TResumeOperationOptions& options),
         (operationId, options))
 
-    IMPLEMENT_METHOD(void, DumpJobInputContext, (
+    IMPLEMENT_METHOD(void, DumpJobContext, (
         const TJobId& jobId,
         const TYPath& path,
-        const TDumpJobInputContextOptions& options),
+        const TDumpJobContextOptions& options),
         (jobId, path, options))
     IMPLEMENT_METHOD(TYsonString, StraceJob, (
         const TJobId& jobId,
@@ -901,6 +984,8 @@ private:
     const TClientOptions Options_;
 
     const IInvokerPtr Invoker_;
+
+    const IFunctionRegistryPtr FunctionRegistry_;
 
     TEnumIndexedVector<IChannelPtr, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
@@ -943,12 +1028,6 @@ private:
         const auto& tableMountCache = Connection_->GetTableMountCache();
         return WaitFor(tableMountCache->GetTableInfo(path))
             .ValueOrThrow();
-    }
-
-    bool SyncForgetTableInfo(const TYPath& path)
-    {
-        const auto& tableMountCache = Connection_->GetTableMountCache();
-        return tableMountCache->EraseTableInfo(path);
     }
 
     static TTabletInfoPtr SyncGetTabletInfo(
@@ -1195,46 +1274,33 @@ private:
 
         // Server-side is specifically optimized for handling long runs of keys
         // from the same partition. Let's sort the keys to facilitate this.
-        typedef std::pair<int, NVersionedTableClient::TKey> TIndexedKey;
-        std::vector<TIndexedKey> sortedKeys;
+        std::vector<std::pair<NVersionedTableClient::TKey, int>> sortedKeys;
         sortedKeys.reserve(keys.size());
 
-        TRowBuffer buffer;
+        auto rowBuffer = New<TRowBuffer>();
 
         if (tableInfo->NeedKeyEvaluation) {
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
             auto evaluator = evaluatorCache->Find(tableInfo->Schema, keyColumnCount);
 
-            for (int keyIndex = 0; keyIndex < keys.size(); ++keyIndex) {
-                const auto& key = keys[keyIndex];
-                auto tempKey = TUnversionedRow::Allocate(buffer.GetAlignedPool(), keyColumnCount);
-                evaluator->EvaluateKeys(tempKey, buffer, key, idMapping);
-                sortedKeys.push_back(std::make_pair(keyIndex, tempKey));
+            for (int index = 0; index < keys.size(); ++index) {
+                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema);
+                evaluator->EvaluateKeys(keys[index], rowBuffer);
+                sortedKeys.push_back(std::make_pair(keys[index], index));
             }
-
-            auto trivialIdMapping = TNameTableToSchemaIdMapping(keyColumnCount);
-            for (int index = 0; index < keyColumnCount; ++index) {
-                trivialIdMapping[index] = index;
-            }
-            idMapping = std::move(trivialIdMapping);
         } else {
             for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
-                sortedKeys.push_back(std::make_pair(index, keys[index]));
+                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema);
+                sortedKeys.push_back(std::make_pair(keys[index], index));
             }
         }
-        std::sort(
-            sortedKeys.begin(),
-            sortedKeys.end(),
-            [] (const TIndexedKey& lhs, const TIndexedKey& rhs) {
-                return lhs.second < rhs.second;
-            });
+        std::sort(sortedKeys.begin(), sortedKeys.end());
 
         yhash_map<TTabletInfoPtr, TLookupTabletSessionPtr> tabletToSession;
 
         for (const auto& pair : sortedKeys) {
-            int index = pair.first;
-            auto key = pair.second;
-            ValidateClientKey(key, keyColumnCount, tableInfo->Schema);
+            int index = pair.second;
+            auto key = pair.first;
             auto tabletInfo = SyncGetTabletInfo(tableInfo, key);
             auto it = tabletToSession.find(tabletInfo);
             if (it == tabletToSession.end()) {
@@ -1294,9 +1360,11 @@ private:
         auto fragment = PreparePlanFragment(
             QueryHelper_.Get(),
             query,
+            FunctionRegistry_.Get(),
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
+        fragment->RangeExpansionLimit = options.RangeExpansionLimit;
         fragment->VerboseLogging = options.VerboseLogging;
         auto statistics = WaitFor(QueryHelper_->Execute(fragment, writer))
             .ValueOrThrow();
@@ -1332,7 +1400,6 @@ private:
         auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
-        SyncForgetTableInfo(path);
     }
 
     void DoUnmountTable(
@@ -1351,7 +1418,6 @@ private:
         auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
-        SyncForgetTableInfo(path);
     }
 
     void DoRemountTable(
@@ -1369,7 +1435,6 @@ private:
         auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
-        SyncForgetTableInfo(path);
     }
 
     void DoReshardTable(
@@ -1389,7 +1454,6 @@ private:
         auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
-        SyncForgetTableInfo(path);
     }
 
 
@@ -1760,10 +1824,10 @@ private:
     }
 
 
-    void DoDumpJobInputContext(
+    void DoDumpJobContext(
         const TJobId& jobId,
         const TYPath& path,
-        const TDumpJobInputContextOptions& /*options*/)
+        const TDumpJobContextOptions& /*options*/)
     {
         auto req = JobProberProxy_->DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
@@ -2111,37 +2175,29 @@ private:
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             int keyColumnCount = TableInfo_->KeyColumns.size();
 
-            auto writeRequest = [&] (const TUnversionedRow row, const TNameTableToSchemaIdMapping* idMapping) {
+            auto writeRequest = [&] (const TUnversionedRow row) {
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
                 auto* writer = Transaction_->GetTabletWriter(tabletInfo);
                 writer->WriteCommand(command);
                 writer->WriteMessage(req);
-                writer->WriteUnversionedRow(row, idMapping);
+                writer->WriteUnversionedRow(row, &idMapping);
             };
 
             if (TableInfo_->NeedKeyEvaluation) {
-                TRowBuffer buffer;
-                auto trivialIdMapping = TNameTableToSchemaIdMapping(columnCount);
+                auto rowBuffer = New<TRowBuffer>();
                 auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
                 auto evaluator = evaluatorCache->Find(TableInfo_->Schema, keyColumnCount);
 
-                for (int index = 0; index < columnCount; ++index) {
-                    trivialIdMapping[index] = index;
-                }
-
                 for (auto row : rows) {
-                    auto tempRow = TUnversionedRow::Allocate(buffer.GetAlignedPool(), columnCount);
-                    evaluator->EvaluateKeys(tempRow, buffer, row, idMapping);
-
-                    validateRow(tempRow, keyColumnCount, trivialIdMapping, TableInfo_->Schema);
-                    writeRequest(tempRow, nullptr);
-
-                    buffer.Clear();
+                    validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
+                    evaluator->EvaluateKeys(row, rowBuffer);
+                    writeRequest(row);
+                    rowBuffer->Clear();
                 }
             } else {
                 for (auto row : rows) {
                     validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
-                    writeRequest(row, &idMapping);
+                    writeRequest(row);
                 }
             }
         }

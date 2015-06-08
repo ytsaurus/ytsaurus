@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <core/actions/future.h>
 
 #include <server/hydra/public.h>
 
@@ -13,46 +13,49 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Manages cached journals.
+//! Provides access to changelogs corresponding to journals stored at node.
 class TJournalDispatcher
     : public TRefCounted
 {
 public:
-    TJournalDispatcher(
-        NCellNode::TBootstrap* bootstrap,
-        TDataNodeConfigPtr config);
+    explicit TJournalDispatcher(TDataNodeConfigPtr config);
     ~TJournalDispatcher();
-
-    void Initialize();
-
-    //! Returns |true| if new journal chunks are accepted.
-    bool AcceptsChunks() const;
 
     //! Asynchronously opens (or returns a cached) changelog corresponding
     //! to a given journal chunk.
     TFuture<NHydra::IChangelogPtr> OpenChangelog(
         TLocationPtr location,
-        const TChunkId& chunkId,
-        bool enableMultiplexing);
+        const TChunkId& chunkId);
 
     //! Asynchronously creates a new changelog corresponding to a given journal chunk.
     TFuture<NHydra::IChangelogPtr> CreateChangelog(
-        TJournalChunkPtr chunk,
+        TLocationPtr location,
+        const TChunkId& chunkId,
         bool enableMultiplexing);
 
     //! Asynchronously removes files of a given journal chunk.
-    TFuture<void> RemoveChangelog(TJournalChunkPtr chunk);
+    TFuture<void> RemoveChangelog(
+        TJournalChunkPtr chunk,
+        bool enableMultiplexing);
+
+    //! Asynchronously checks if a given journal chunk is sealed.
+    TFuture<bool> IsChangelogSealed(
+        TLocationPtr location,
+        const TChunkId& chunkId);
+
+    //! Asynchronously marks a given journal chunk as sealed.
+    TFuture<void> SealChangelog(TJournalChunkPtr chunk);
 
 private:
+    struct TCachedChangelogKey;
+
     class TCachedChangelog;
-    typedef TIntrusivePtr<TCachedChangelog> TCachedChangelogPtr;
+    using TCachedChangelogPtr = TIntrusivePtr<TCachedChangelog>;
 
     class TImpl;
-    typedef TIntrusivePtr<TImpl> TImplPtr;
+    using TImplPtr = TIntrusivePtr<TImpl>;
 
-    class TMultiplexedReplay;
-
-    const TIntrusivePtr<TImpl> Impl_;
+    const TImplPtr Impl_;
 
 };
 

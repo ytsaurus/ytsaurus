@@ -44,7 +44,6 @@ using NObjectClient::NullTransactionId;
 
 using NNodeTrackerServer::TNode;
 using NNodeTrackerServer::TNodeList;
-using NNodeTrackerServer::TSortedNodeList;
 
 ////////////////////////////////////////////////////////////////////////////////
 

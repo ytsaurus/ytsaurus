@@ -5,6 +5,8 @@
 
 #include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
+#include <ytlib/node_tracker_client/helpers.h>
+
 #include <server/cell_scheduler/bootstrap.h>
 
 namespace NYT {
@@ -42,18 +44,18 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, Heartbeat)
     {
-        auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
+        auto addresses = FromProto<TAddressMap>(request->addresses());
         const auto& resourceLimits = request->resource_limits();
         const auto& resourceUsage = request->resource_usage();
 
-        context->SetRequestInfo("Descriptor: %v, ResourceUsage: {%v}",
-            descriptor,
+        context->SetRequestInfo("Address: %v, ResourceUsage: {%v}",
+            GetDefaultAddress(addresses),
             FormatResourceUsage(resourceUsage, resourceLimits));
 
         // NB: Don't call ValidateConnected.
         // ProcessHeartbeat can be called even in disconnected state to update cell statistics.
         auto scheduler = Bootstrap->GetScheduler();
-        auto node = scheduler->GetOrRegisterNode(descriptor);
+        auto node = scheduler->GetOrRegisterNode(addresses);
         scheduler->ProcessHeartbeat(node, context);
     }
 

@@ -119,10 +119,14 @@ IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
     return CreateRetryingChannel(Config_->NodeChannel, channel);
 }
 
-void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex)
+void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& error)
 {
     const auto& chunk = Chunks_[chunkIndex];
     auto chunkId = NYT::FromProto<TChunkId>(chunk->chunk_id());
+
+    LOG_DEBUG(error, "Error fetching chunk info (ChunkId: %v, Address: %v)",
+        chunkId,
+        NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress());
 
     YCHECK(DeadChunks_.insert(std::make_pair(nodeId, chunkId)).second);
     YCHECK(UnfetchedChunkIndexes_.insert(chunkIndex).second);

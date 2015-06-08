@@ -17,7 +17,10 @@ class TFileReader
 {
 public:
     //! Creates a new reader.
-    explicit TFileReader(const Stroka& fileName);
+    TFileReader(
+        const TChunkId& chunkId,
+        const Stroka& fileName,
+        bool validateBlocksChecksums = true);
 
     //! Opens the files, reads chunk meta. Must be called before reading blocks.
     void Open();
@@ -46,20 +49,21 @@ public:
     virtual TChunkId GetChunkId() const override;
 
 private:
-    Stroka FileName_;
+    const TChunkId ChunkId_;
+    const Stroka FileName_;
+    const bool ValidateBlockChecksums_;
 
-    bool Opened_;
+    bool Opened_ = false;
     std::unique_ptr<TFile> DataFile_;
     
-    i64 MetaSize_;
-    i64 DataSize_;
+    i64 MetaSize_ = -1;
+    i64 DataSize_ = -1;
 
     NChunkClient::NProto::TChunkMeta Meta_;
     NChunkClient::NProto::TBlocksExt BlocksExt_;
     int BlockCount_;
 
-
-    TSharedRef ReadBlock(int blockIndex);
+    virtual std::vector<TSharedRef> DoReadBlocks(int firstBlockIndex, int blockCount);
 
 };
 

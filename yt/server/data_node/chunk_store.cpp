@@ -8,6 +8,7 @@
 #include "master_connector.h"
 #include "session_manager.h"
 #include "session.h"
+#include "journal_manager.h"
 
 #include <core/misc/fs.h>
 
@@ -29,6 +30,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NCellNode;
 using namespace NRpc;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,13 +62,17 @@ void TChunkStore::Initialize()
             BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location)
                 .Via(Bootstrap_->GetControlInvoker()));
             
-        auto descriptors = location->Initialize();
+        auto descriptors = location->Scan();
         for (const auto& descriptor : descriptors) {
             auto chunk = CreateFromDescriptor(location, descriptor);
             RegisterExistingChunk(chunk);
         }
 
         Locations_.push_back(location);
+    }
+
+    for (auto location : Locations_) {
+        location->Start();
     }
 
     LOG_INFO("Chunk store initialized, %v chunks total",
@@ -84,12 +90,16 @@ void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
         return;
 
     auto entry = BuildEntry(chunk);
-    auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), entry));
-    if (!result.second) {
-        auto oldChunk = result.first->second.Chunk;
-        LOG_FATAL("Duplicate chunk: %v vs %v",
-            chunk->GetLocation()->GetChunkPath(chunk->GetId()),
-            oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
+
+    {
+        TWriterGuard guard(ChunkMapLock_);
+        auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), entry));
+        if (!result.second) {
+            auto oldChunk = result.first->second.Chunk;
+            LOG_FATAL("Duplicate chunk: %v vs %v",
+                chunk->GetLocation()->GetChunkPath(chunk->GetId()),
+                oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
+        }
     }
 
     DoRegisterChunk(entry);
@@ -167,7 +177,10 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
 
     if (doRegister) {
         auto entry = BuildEntry(chunk);
-        YCHECK(ChunkMap_.insert(std::make_pair(chunk->GetId(), entry)).second);
+        {
+            TWriterGuard guard(ChunkMapLock_);
+            YCHECK(ChunkMap_.insert(std::make_pair(chunk->GetId(), entry)).second);
+        }
         DoRegisterChunk(entry);
     }
 }
@@ -224,14 +237,16 @@ void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
 
     location->UpdateUsedSpace(+entry.DiskSpace);
 
-    switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
-        case EObjectType::JournalChunk:
+    switch (chunk->GetType()) {
+        case EObjectType::JournalChunk: {
+            auto journalChunk = chunk->AsJournalChunk();
             LOG_DEBUG("Journal chunk updated (ChunkId: %v, Version: %v, Sealed: %v, Active: %v)",
-                chunk->GetId(),
-                chunk->GetVersion(),
-                chunk->GetInfo().sealed(),
-                chunk->IsActive());
+                journalChunk->GetId(),
+                journalChunk->GetVersion(),
+                journalChunk->IsSealed(),
+                journalChunk->IsActive());
             break;
+        }
 
         default:
             YUNREACHABLE();
@@ -258,7 +273,10 @@ void TChunkStore::UnregisterChunk(IChunkPtr chunk)
     location->UpdateChunkCount(-1);
     location->UpdateUsedSpace(-entry.DiskSpace);
 
-    ChunkMap_.erase(it);
+    {
+        TWriterGuard guard(ChunkMapLock_);
+        ChunkMap_.erase(it);
+    }
 
     LOG_DEBUG("Chunk unregistered (ChunkId: %v)",
         chunk->GetId());
@@ -276,14 +294,17 @@ TChunkStore::TChunkEntry TChunkStore::BuildEntry(IChunkPtr chunk)
 
 IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
+    TReaderGuard guard(ChunkMapLock_);
     auto it = ChunkMap_.find(chunkId);
     return it == ChunkMap_.end() ? nullptr : it->second.Chunk;
 }
 
 IChunkPtr TChunkStore::GetChunkOrThrow(const TChunkId& chunkId) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto chunk = FindChunk(chunkId);
     if (!chunk) {
         THROW_ERROR_EXCEPTION(
@@ -291,7 +312,29 @@ IChunkPtr TChunkStore::GetChunkOrThrow(const TChunkId& chunkId) const
             "No such chunk %v",
             chunkId);
     }
+
     return chunk;
+}
+
+TChunkStore::TChunks TChunkStore::GetChunks() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(ChunkMapLock_);
+    TChunks result;
+    result.reserve(ChunkMap_.size());
+    for (const auto& pair : ChunkMap_) {
+        result.push_back(pair.second.Chunk);
+    }
+    return result;
+}
+
+int TChunkStore::GetChunkCount() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(ChunkMapLock_);
+    return static_cast<int>(ChunkMap_.size());
 }
 
 TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
@@ -303,14 +346,14 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
             .Via(Bootstrap_->GetControlInvoker()));
 }
 
-TLocationPtr TChunkStore::GetNewChunkLocation()
+TLocationPtr TChunkStore::GetNewChunkLocation(EObjectType chunkType)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     std::vector<TLocationPtr> candidates;
     int minCount = std::numeric_limits<int>::max();
     for (const auto& location : Locations_) {
-        if (location->IsFull() || !location->IsEnabled()) {
+        if (location->IsFull() || !location->IsEnabled() || !location->IsChunkTypeAccepted(chunkType)) {
             continue;
         }
         int count = location->GetSessionCount();
@@ -330,46 +373,6 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
     }
 
     return candidates[RandomNumber(candidates.size())];
-}
-
-TLocationPtr TChunkStore::GetReplayedChunkLocation()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    TLocationPtr candidate;
-    for (const auto& location : Locations_) {
-        if (!location->IsEnabled()) {
-            continue;
-        }
-        if (!candidate || location->GetAvailableSpace() > candidate->GetAvailableSpace()) {
-            candidate = location;
-        }
-    }
-
-    if (!candidate) {
-        THROW_ERROR_EXCEPTION("All locations are disabled");
-    }
-
-    return candidate;
-}
-
-TChunkStore::TChunks TChunkStore::GetChunks() const
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    TChunks result;
-    result.reserve(ChunkMap_.size());
-    for (const auto& pair : ChunkMap_) {
-        result.push_back(pair.second.Chunk);
-    }
-    return result;
-}
-
-int TChunkStore::GetChunkCount() const
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    return static_cast<int>(ChunkMap_.size());
 }
 
 void TChunkStore::OnLocationDisabled(TLocationPtr location, const TError& reason)
@@ -412,9 +415,9 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location, const TError& reason
     // Register an alert and
     // schedule an out-of-order heartbeat to notify the master about the disaster.
     auto masterConnector = Bootstrap_->GetMasterConnector();
-    masterConnector->RegisterAlert(Format("Chunk store at %v is disabled\n%v",
-        location->GetPath(),
-        reason));
+    masterConnector->RegisterAlert(TError("Chunk store at %v is disabled",
+        location->GetPath())
+        << reason);
     masterConnector->ForceRegister();
 }
 
@@ -426,17 +429,10 @@ IChunkPtr TChunkStore::CreateFromDescriptor(
     switch (chunkType) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            if (location->GetType() == ELocationType::Store) {
-                return New<TStoredBlobChunk>(
-                    Bootstrap_,
-                    location,
-                    descriptor);
-            } else {
-                return New<TCachedBlobChunk>(
-                    Bootstrap_,
-                    location,
-                    descriptor);
-            }
+            return New<TStoredBlobChunk>(
+                Bootstrap_,
+                location,
+                descriptor);
 
         case EObjectType::JournalChunk:
             return New<TJournalChunk>(

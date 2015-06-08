@@ -36,7 +36,7 @@ public:
         auto keyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
 
         std::vector<ISchemalessMultiChunkReaderPtr> readers;
-        auto nameTable = New<TNameTable>();
+        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
         auto options = New<TMultiChunkReaderOptions>();
 
         for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
@@ -44,11 +44,10 @@ public:
             std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
             auto reader = CreateSchemalessSequentialMultiChunkReader(
-                JobIOConfig_->NewTableReader,
+                JobIOConfig_->TableReader,
                 options,
                 Host_->GetMasterChannel(),
-                Host_->GetCompressedBlockCache(),
-                Host_->GetUncompressedBlockCache(),
+                Host_->GetBlockCache(),
                 Host_->GetNodeDirectory(),
                 chunks,
                 nameTable,
@@ -69,7 +68,6 @@ public:
     {
         return CreateTableWriter(options, chunkListId, transactionId, keyColumns);
     }
-
 };
 
 std::unique_ptr<IUserJobIO> CreateSortedReduceJobIO(IJobHost* host)

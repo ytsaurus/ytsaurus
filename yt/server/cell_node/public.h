@@ -1,10 +1,10 @@
 #pragma once
 
-#include "memory_consumer.h"
-
 #include <core/misc/public.h>
 
-#include <server/misc/memory_usage_tracker.h>
+#include <ytlib/node_tracker_client/public.h>
+
+#include <server/misc/public.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -13,10 +13,10 @@ namespace NCellNode {
 
 class TBootstrap;
 
-class TCellNodeConfig;
-typedef TIntrusivePtr<TCellNodeConfig> TCellNodeConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
+DECLARE_REFCOUNTED_CLASS(TCellNodeConfig)
 
-typedef TMemoryUsageTracker<EMemoryConsumer> TNodeMemoryTracker;
+using TNodeMemoryTracker = TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
