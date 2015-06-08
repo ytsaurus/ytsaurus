@@ -379,12 +379,11 @@ public:
         const auto* rootChunkList = table->GetChunkList();
         const auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
         const auto& treeStatistics = tabletChunkList->Statistics();
+        const auto& nodeStatistics = tablet->NodeStatistics();
+
         TTabletStatistics tabletStatistics;
-        if (tablet->GetState() == ETabletState::Mounted) {
-            const auto& nodeStatistics = tablet->NodeStatistics();
-            tabletStatistics.PartitionCount = nodeStatistics.partition_count();
-            tabletStatistics.StoreCount = nodeStatistics.store_count();
-        }
+        tabletStatistics.PartitionCount = nodeStatistics.partition_count();
+        tabletStatistics.StoreCount = nodeStatistics.store_count();
         tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
         tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
         tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;

@@ -32,11 +32,8 @@ struct TTabletStatistics
     i64 MemorySize = 0;
     i64 DiskSpace = 0;
     int ChunkCount = 0;
-
-    // These are null for unmounted tablets.
-    // When computing aggregated statistics, however, nulls coerce to 0.
-    TNullable<int> PartitionCount;
-    TNullable<int> StoreCount = 0;
+    int PartitionCount = 0;
+    int StoreCount = 0;
 
     void Persist(NCellMaster::TPersistenceContext& context);
 };

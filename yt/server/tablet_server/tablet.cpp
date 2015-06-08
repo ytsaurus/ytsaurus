@@ -27,7 +27,6 @@ void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, MemorySize);
     Persist(context, DiskSpace);
     Persist(context, ChunkCount);
-
     Persist(context, PartitionCount);
     Persist(context, StoreCount);
 }
@@ -40,10 +39,8 @@ TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& 
     lhs.MemorySize += rhs.MemorySize;
     lhs.DiskSpace += rhs.DiskSpace;
     lhs.ChunkCount += rhs.ChunkCount;
-
-    lhs.PartitionCount = lhs.PartitionCount.Get(0) + rhs.PartitionCount.Get(0);
-    lhs.StoreCount = lhs.StoreCount.Get(0) + rhs.StoreCount.Get(0);
-
+    lhs.PartitionCount += rhs.PartitionCount;
+    lhs.StoreCount += lhs.PartitionCount;
     return lhs;
 }
 
@@ -62,10 +59,8 @@ TTabletStatistics& operator -=(TTabletStatistics& lhs, const TTabletStatistics& 
     lhs.MemorySize -= rhs.MemorySize;
     lhs.DiskSpace -= rhs.DiskSpace;
     lhs.ChunkCount -= rhs.ChunkCount;
-
-    lhs.PartitionCount = lhs.PartitionCount.Get(0) - rhs.PartitionCount.Get(0);
-    lhs.StoreCount = lhs.StoreCount.Get(0) - rhs.StoreCount.Get(0);
-
+    lhs.PartitionCount -= rhs.PartitionCount;
+    lhs.StoreCount -= lhs.PartitionCount;
     return lhs;
 }
 
@@ -86,12 +81,8 @@ void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consum
             .Item("memory_size").Value(statistics.MemorySize)
             .Item("disk_space").Value(statistics.DiskSpace)
             .Item("chunk_count").Value(statistics.ChunkCount)
-            .DoIf(static_cast<bool>(statistics.PartitionCount), [&] (TFluentMap fluent) {
-                fluent.Item("partition_count").Value(*statistics.PartitionCount);
-            })
-            .DoIf(static_cast<bool>(statistics.StoreCount), [&] (TFluentMap fluent) {
-                fluent.Item("store_count").Value(*statistics.StoreCount);
-            })
+            .Item("partition_count").Value(statistics.ChunkCount)
+            .Item("store_count").Value(statistics.ChunkCount)
         .EndMap();
 }
 
