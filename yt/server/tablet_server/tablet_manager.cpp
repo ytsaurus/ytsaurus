@@ -514,9 +514,7 @@ public:
             tablet->SetState(ETabletState::Mounting);
             tablet->SetInMemoryMode(mountConfig->InMemoryMode);
 
-            cell->TotalStatistics() += GetTabletStatistics(tablet);
-
-            TReqMountTablet req;           
+            TReqMountTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_table_id(), table->GetId());
             ToProto(req.mutable_schema(), schema);
@@ -1281,6 +1279,8 @@ private:
             tablet->GetId(),
             cell->GetId());
 
+        cell->TotalStatistics() += GetTabletStatistics(tablet);
+
         tablet->SetState(ETabletState::Mounted);
     }
 
@@ -1311,10 +1311,15 @@ private:
             tablet->GetId(),
             cell->GetId());
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        cell->TotalStatistics() -= GetTabletStatistics(tablet);
+
+        tablet->NodeStatistics().Clear();
+        tablet->PerformanceCounters() = TTabletPerformanceCounters();
+        tablet->SetInMemoryMode(EInMemoryMode::None);
         tablet->SetState(ETabletState::Unmounted);
         tablet->SetCell(nullptr);
 
+        auto objectManager = Bootstrap_->GetObjectManager();
         YCHECK(cell->Tablets().erase(tablet) == 1);
         objectManager->UnrefObject(cell);
     }
