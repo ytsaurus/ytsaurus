@@ -166,13 +166,13 @@ def _request_api(proxy, version=None, client=None):
     return make_get_request_with_retries("http://{0}/{1}".format(proxy, location))
 
 def get_api_version(client=None):
-    api_version_option = get_option("_version", client)
+    api_version_option = get_option("_api_version", client)
     if api_version_option is not None:
         return api_version_option
 
     api_version_from_config = get_config(client)["api_version"]
     if api_version_from_config is not None:
-        set_option("_version", api_version_from_config, client)
+        set_option("_api_version", api_version_from_config, client)
         return api_version_from_config
 
 
@@ -189,7 +189,7 @@ def get_api_version(client=None):
         api_version = "v2"
     require(api_version in api_versions, YtError("API {0} is not supported".format(api_version)))
 
-    set_option("_version", api_version, client)
+    set_option("_api_version", api_version, client)
 
     return api_version
 

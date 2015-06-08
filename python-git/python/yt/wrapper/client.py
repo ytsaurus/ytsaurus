@@ -39,7 +39,8 @@ class Yt(object):
         self._banned_proxies = {}
         self._driver = None
 
-        self._version = None
+        # Cache for API version (to check it only once)
+        self._api_version = None
         self._commands = None
 
     def get_user_name(self, *args, **kwargs):
