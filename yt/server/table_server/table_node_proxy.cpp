@@ -362,7 +362,7 @@ private:
         DeclareMutating();
 
         int firstTabletIndex = request->first_tablet_index();
-        int lastTabletIndex = request->first_tablet_index();
+        int lastTabletIndex = request->last_tablet_index();
         bool force = request->force();
         context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, Force: %v",
             firstTabletIndex,
