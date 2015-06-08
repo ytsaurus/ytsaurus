@@ -428,6 +428,29 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
         ContainsRegex("Misuse of aggregate function .*"));
 }
 
+TEST_F(TQueryPrepareTest, JoinColumnCollision)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//s", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//s"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "a, b from [//t] join [//s] using b",
+        ContainsRegex("Column \"a\" collision"));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//s", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//s"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "* from [//t] join [//s] using b",
+        ContainsRegex("Column \"k\" collision"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryCoordinateTest
@@ -2078,90 +2101,59 @@ TOwningRow BuildRow(
             yson, keyColumns, tableSchema, treatMissingAsNull);
 }
 
-struct TQueryExecutor
-    : public IExecutor
+TFuture<TQueryStatistics> DoExecuteQuery(
+    const std::vector<Stroka>& source,
+    IFunctionRegistryPtr functionRegistry,
+    bool shouldFail,
+    TPlanFragmentPtr fragment,
+    ISchemafulWriterPtr writer,
+    TExecuteQuery executeCallback = nullptr)
 {
-    TQueryExecutor(
-        const std::vector<Stroka>& source,
-        IFunctionRegistryPtr functionRegistry,
-        bool shouldFail,
-        IExecutorPtr executeCallback = nullptr)
-        : Source(source)
-        , FunctionRegistry(functionRegistry)
-        , ShouldFail_(shouldFail)
-        , ExecuteCallback(std::move(executeCallback))
-    {
-        ReaderMock_ = New<StrictMock<TReaderMock>>();
-    }
+    std::vector<TOwningRow> owningSource;
+    std::vector<TRow> sourceRows;
 
-    
-    std::vector<Stroka> Source;
-    IFunctionRegistryPtr FunctionRegistry;
-    bool ShouldFail_;
-    IExecutorPtr ExecuteCallback;
-    TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_;
+    auto readerMock = New<StrictMock<TReaderMock>>();
 
-    virtual TFuture<TQueryStatistics> Execute(
-        TPlanFragmentPtr fragment,
-        ISchemafulWriterPtr writer)
-    {
-        std::vector<TOwningRow> owningSource;
-        std::vector<TRow> sourceRows;
-
-        auto onOpened = [&] (const TTableSchema& targetSchema) {
-            TKeyColumns emptyKeyColumns;
-            for (const auto& row : Source) {
-                owningSource.push_back(NVersionedTableClient::BuildRow(row, emptyKeyColumns, targetSchema));
-            }
-
-            sourceRows.resize(owningSource.size());
-            typedef const TRow(TOwningRow::*TGetFunction)() const;
-
-            std::transform(
-                owningSource.begin(),
-                owningSource.end(),
-                sourceRows.begin(),
-                std::mem_fn(TGetFunction(&TOwningRow::Get)));
-
-            ON_CALL(*ReaderMock_, Read(_))
-                .WillByDefault(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
-            if (!ShouldFail_) {
-                EXPECT_CALL(*ReaderMock_, Read(_));
-            }
-        };
-        
-        ON_CALL(*ReaderMock_, Open(_))
-            .WillByDefault(DoAll(Invoke(onOpened), Return(WrapVoidInFuture())));
-
-        if (!ShouldFail_) {
-            EXPECT_CALL(*ReaderMock_, Open(_));
+    auto onOpened = [&] (const TTableSchema& targetSchema) {
+        TKeyColumns emptyKeyColumns;
+        for (const auto& row : source) {
+            owningSource.push_back(NVersionedTableClient::BuildRow(row, emptyKeyColumns, targetSchema));
         }
 
-        auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
-        return MakeFuture(evaluator->RunWithExecutor(
-            fragment->Query,
-            ReaderMock_,
-            writer,
-            [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
-                auto planFragment = New<TPlanFragment>();
+        sourceRows.resize(owningSource.size());
+        typedef const TRow(TOwningRow::*TGetFunction)() const;
 
-                planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-                planFragment->Timestamp = fragment->Timestamp;
-                planFragment->DataSources.push_back({
-                    fragment->ForeignDataId, {
-                        planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                        planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())}
-                    });
-                planFragment->Query = subquery;
-                
-                auto subqueryResult = ExecuteCallback->Execute(planFragment, writer);
+        std::transform(
+            owningSource.begin(),
+            owningSource.end(),
+            sourceRows.begin(),
+            std::mem_fn(TGetFunction(&TOwningRow::Get)));
 
-                return WaitFor(subqueryResult)
-                    .ValueOrThrow();
-            },
-            FunctionRegistry));
+        ON_CALL(*readerMock, Read(_))
+            .WillByDefault(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
+        if (!shouldFail) {
+            EXPECT_CALL(*readerMock, Read(_));
+        }
+    };
+
+    ON_CALL(*readerMock, Open(_))
+        .WillByDefault(DoAll(Invoke(onOpened), Return(WrapVoidInFuture())));
+
+    if (!shouldFail) {
+        EXPECT_CALL(*readerMock, Open(_));
     }
-};
+
+    std::vector<TExecuteQuery> executeCallbacks;
+
+    auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
+    return MakeFuture(evaluator->RunWithExecutor(
+        fragment->Query,
+        readerMock,
+        writer,
+        executeCallback,
+        functionRegistry));
+}
+
 
 class TQueryEvaluateTest
     : public ::testing::Test
@@ -2355,21 +2347,51 @@ protected:
             }
         }
 
-        IExecutorPtr executor;
+        auto prepareAndExecute = [&] () {
+            auto primaryFragment = PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit);
 
-        size_t index = owningSources.size();
-        while (index > 0) {
-            const auto& owningSource = owningSources[--index];
-            auto newExecutor = New<TQueryExecutor>(owningSource, functionRegistry, shouldFail, executor);
-            executor = newExecutor;
-        }
+            size_t foreignSplitIndex = 1;
+            auto executeCallback = [&] (
+                const TQueryPtr& subquery,
+                TGuid foreignDataId,
+                ISchemafulWriterPtr writer) mutable -> TQueryStatistics
+            {
+                auto planFragment = New<TPlanFragment>();
+
+                planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+                planFragment->Timestamp = primaryFragment->Timestamp;
+                planFragment->DataSources.push_back({
+                    foreignDataId,
+                    {
+                        planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
+                        planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
+                    }});
+                planFragment->Query = subquery;
+
+                auto subqueryResult = DoExecuteQuery(
+                    owningSources[foreignSplitIndex++],
+                    functionRegistry,
+                    shouldFail,
+                    planFragment,
+                    writer);
+
+                return WaitFor(subqueryResult)
+                    .ValueOrThrow();
+            };
+
+            return DoExecuteQuery(
+                owningSources.front(),
+                functionRegistry,
+                shouldFail,
+                primaryFragment,
+                WriterMock_,
+                executeCallback);
+        };
 
         if (shouldFail) {
-            EXPECT_THROW(
-                executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit), WriterMock_),
-                TErrorException);
+            EXPECT_THROW(prepareAndExecute(), TErrorException);
         } else {
-            executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit), WriterMock_);
+            prepareAndExecute();
         }
     }
 
@@ -3375,6 +3397,67 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestJoinManySimple)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    splits["//a"] = MakeSplit({
+        {"a", EValueType::Int64},
+        {"c", EValueType::String}
+    });
+    sources.push_back({
+        "a=2;c=b",
+        "a=3;c=c",
+        "a=4;c=a"
+    });
+
+    splits["//b"] = MakeSplit({
+        {"b", EValueType::Int64},
+        {"c", EValueType::String},
+        {"d", EValueType::String}
+    });
+    sources.push_back({
+        "b=100;c=a;d=X",
+        "b=200;c=b;d=Y",
+        "b=300;c=c;d=X",
+        "b=400;c=a;d=Y",
+        "b=500;c=b;d=X",
+        "b=600;c=c;d=Y"
+    });
+
+    splits["//c"] = MakeSplit({
+        {"d", EValueType::String},
+        {"e", EValueType::Int64},
+    });
+    sources.push_back({
+        "d=X;e=1234",
+        "d=Y;e=5678"
+    });
+
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"c", EValueType::String},
+        {"b", EValueType::Int64},
+        {"d", EValueType::String},
+        {"e", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+         "a=2;c=b;b=200;d=Y;e=5678",
+         "a=2;c=b;b=500;d=X;e=1234",
+         "a=3;c=c;b=300;d=X;e=1234",
+         "a=3;c=c;b=600;d=Y;e=5678",
+         "a=4;c=a;b=100;d=X;e=1234",
+         "a=4;c=a;b=400;d=Y;e=5678"
+    }, resultSplit);
+
+    Evaluate("a, c, b, d, e from [//a] join [//b] using c join [//c] using d order by a, b limit 100", splits, sources, result);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestJoin)
 {
     std::map<Stroka, TDataSplit> splits;
@@ -3430,6 +3513,78 @@ TEST_F(TQueryEvaluateTest, TestJoin)
 
     SUCCEED();
 }
+
+
+TEST_F(TQueryEvaluateTest, TestJoinMany)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    splits["//primary"] = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+    sources.push_back({
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    });
+
+    splits["//secondary"] = MakeSplit({
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64}
+    });
+    sources.push_back({
+        "c=1;b=10",
+        "c=2;b=20",
+        "c=3;b=30",
+        "c=4;b=40",
+        "c=5;b=50",
+        "c=6;b=60",
+        "c=7;b=70",
+        "c=8;b=80",
+        "c=9;b=90"
+    });
+
+    splits["//tertiary"] = MakeSplit({
+        {"c", EValueType::Int64},
+        {"d", EValueType::Int64}
+    });
+    sources.push_back({
+        "c=1;d=10",
+        "c=2;d=20",
+        "c=3;d=30",
+        "c=4;d=40",
+        "c=5;d=50",
+        "c=6;d=60",
+        "c=7;d=70",
+        "c=8;d=80",
+        "c=9;d=90"
+    });
+
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64},
+        {"z", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=25;y=250;z=1",
+        "x=20;y=200;z=0",
+    }, resultSplit);
+
+    Evaluate("sum(a) as x, sum(d) as y, z FROM [//primary] join [//secondary] using b join [//tertiary] using c group by c % 2 as z", splits, sources, result);
+
+    SUCCEED();
+}
+
 
 TEST_F(TQueryEvaluateTest, TestOrderBy)
 {
@@ -4107,17 +4262,18 @@ protected:
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
 
-        TDataSources foreignSplits{{planFragment->ForeignDataId, {
+        const auto& query = planFragment->Query;
+
+        TDataSources foreignSplits{{query->JoinClauses[0]->ForeignDataId, {
                 planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
                 planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())}
             }};
 
-        const auto& query = planFragment->Query;
         auto rowBuffer = New<TRowBuffer>();
         auto prunedSplits = GetPrunedRanges(
             query->WhereClause,
-            query->JoinClause->ForeignTableSchema,
-            query->JoinClause->ForeignKeyColumns,
+            query->JoinClauses[0]->ForeignTableSchema,
+            query->JoinClauses[0]->ForeignKeyColumns,
             foreignSplits,
             rowBuffer,
             ColumnEvaluatorCache_,

@@ -73,7 +73,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     subqueryPattern->TableSchema = query->TableSchema;
     subqueryPattern->KeyColumns = query->KeyColumns;
-    subqueryPattern->JoinClause = query->JoinClause;
+    subqueryPattern->JoinClauses = query->JoinClauses;
 
     auto topQuery = New<TQuery>(
         query->InputRowLimit,

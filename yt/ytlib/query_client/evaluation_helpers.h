@@ -79,7 +79,8 @@ struct TExecutionContext
     // "char" type is to due LLVM interop.
     char StopFlag = false;
 
-    TJoinEvaluator JoinEvaluator;
+    std::vector<TJoinEvaluator> JoinEvaluators;
+    TExecuteQuery ExecuteCallback;
 };
 
 namespace NDetail {
@@ -189,6 +190,7 @@ struct TCGVariables
 {
     TRowBuilder ConstantsRowBuilder;
     std::vector<TSharedRange<TRow>> LiteralRows;
+    std::vector<TJoinEvaluator> JoinEvaluators;
 };
 
 typedef void (TCGQuerySignature)(TRow, TExecutionContext*);
@@ -203,8 +205,7 @@ bool UpdateAndCheckRowLimit(i64* limit, char* flag);
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,
     TConstExpressionPtr predicate,
-    const TTableSchema& selfTableSchema,
-    TExecuteQuery executeCallback);
+    const TTableSchema& selfTableSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

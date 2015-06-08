@@ -439,6 +439,7 @@ TCodegenSource MakeCodegenFilterOp(
     TCodegenSource codegenSource);
 
 TCodegenSource MakeCodegenJoinOp(
+    int index,
     std::vector<Stroka> joinColumns,
     TTableSchema sourceSchema,
     TCodegenSource codegenSource);

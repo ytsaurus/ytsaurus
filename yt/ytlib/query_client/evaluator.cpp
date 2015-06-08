@@ -62,7 +62,7 @@ public:
         TConstQueryPtr query,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
-        TExecuteQuery executeCallback,
+        const TExecuteQuery& executeCallback,
         const IFunctionRegistryPtr functionRegistry)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
@@ -112,14 +112,12 @@ public:
                 executionContext.JoinRowLimit = query->OutputRowLimit;
                 executionContext.Limit = query->Limit;
 
-                if (query->JoinClause) {
-                    auto joinClause = query->JoinClause.Get();
+                // Used in joins
+                executionContext.JoinEvaluators = fragmentParams.JoinEvaluators;
+                executionContext.ExecuteCallback = executeCallback;
+
+                if (!query->JoinClauses.empty()) {
                     YCHECK(executeCallback);
-                    executionContext.JoinEvaluator = GetJoinEvaluator(
-                        *joinClause,
-                        query->WhereClause,
-                        query->TableSchema,
-                        executeCallback);
                 }
 
                 LOG_DEBUG("Evaluating query");
