@@ -1145,7 +1145,6 @@ private:
         if (!partition)
             return;
 
-
         auto sampleKeys = New<TKeyList>();
         sampleKeys->Keys = FromProto<TOwningKey>(request.sample_keys());
         partition->SetSampleKeys(sampleKeys);
