@@ -21,7 +21,7 @@ def get_user_name(token, proxy=None, client=None):
     if not token.strip():
         return None
 
-    proxy = get_proxy_url(proxy, client)
+    proxy = get_proxy_url(proxy, client=client)
     response = make_request_with_retries(
         "post",
         "http://{0}/auth/login".format(proxy),
