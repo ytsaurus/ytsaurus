@@ -31,14 +31,14 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/savrus/dev/yt/having/yt/ytlib/query_client/parser.hpp
+ ** \file /home/lukyan/yt/src/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::NAst::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_HAVING_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_HAVING_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
 
     #include "ast.h"
@@ -289,8 +289,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // "string literal"
       char dummy3[sizeof(Stroka)];
 
-      // where-clause-impl
-      // having-clause-impl
       // expression
       // or-op-expr
       // and-op-expr
@@ -303,7 +301,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // atomic-expr
       char dummy4[sizeof(TExpressionPtr)];
 
-      // order-by-clause-impl
       // identifier-list
       char dummy5[sizeof(TIdentifierList)];
 
@@ -317,28 +314,23 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // named-expression
       char dummy8[sizeof(TNamedExpression)];
 
-      // group-by-clause-impl
       // named-expression-list
       char dummy9[sizeof(TNamedExpressionList)];
 
       // literal-value
       char dummy10[sizeof(TNullable<TLiteralValue>)];
 
-      // select-clause-impl
-      char dummy11[sizeof(TNullableNamedExpressionList)];
-
       // "identifier"
-      char dummy12[sizeof(TStringBuf)];
+      char dummy11[sizeof(TStringBuf)];
 
       // "double literal"
-      char dummy13[sizeof(double)];
+      char dummy12[sizeof(double)];
 
       // "int64 literal"
-      // limit-clause-impl
-      char dummy14[sizeof(i64)];
+      char dummy13[sizeof(i64)];
 
       // "uint64 literal"
-      char dummy15[sizeof(ui64)];
+      char dummy14[sizeof(ui64)];
 };
 
     /// Symbol semantic values.
@@ -454,8 +446,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   basic_symbol (typename Base::kind_type t, const TNamedExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TNullableNamedExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
 
@@ -883,10 +873,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 130,     ///< Last index in yytable_.
-      yynnts_ = 39,  ///< Number of nonterminal symbols.
+      yylast_ = 129,     ///< Last index in yytable_.
+      yynnts_ = 33,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 37, ///< Termination state number.
+      yyfinal_ = 36, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
       yyntokens_ = 42  ///< Number of tokens.
@@ -905,4 +895,4 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
 
-#endif // !YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_HAVING_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
