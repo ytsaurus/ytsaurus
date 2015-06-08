@@ -210,7 +210,7 @@ public:
 
     void CreateJobNode(TJobPtr job,
         const TChunkId& stderrChunkId,
-        const std::vector<TChunkId>& failContextChunkIds)
+        const TChunkId& failContextChunkId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
@@ -219,13 +219,13 @@ public:
             job->GetOperation()->GetId(),
             job->GetId(),
             stderrChunkId,
-            JoinToString(failContextChunkIds));
+            failContextChunkId);
 
         auto* list = GetUpdateList(job->GetOperation());
         TJobRequest request;
         request.Job = job;
         request.StderrChunkId = stderrChunkId;
-        request.FailContextChunkIds = failContextChunkIds;
+        request.FailContextChunkId = failContextChunkId;
         list->JobRequests.push_back(request);
     }
 
@@ -353,7 +353,7 @@ private:
     {
         TJobPtr Job;
         TChunkId StderrChunkId;
-        std::vector<TChunkId> FailContextChunkIds;
+        TChunkId FailContextChunkId;
     };
 
     struct TLivePreviewRequest
@@ -1399,37 +1399,23 @@ private:
                     batchReq->AddRequest(req, "create_stderr");
                 }
 
-                bool existNotNullFailContext = false;
-                for (const auto& failContextChunkId : request.FailContextChunkIds) {
-                    if (failContextChunkId != NChunkServer::NullChunkId) {
-                        existNotNullFailContext = true;
-                    }
-                }
+                if (request.FailContextChunkId != NullChunkId) {
+                    auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId());
 
-                if (existNotNullFailContext) {
-                    {
-                        auto failContextRootPath = GetFailContextRootPath(operation->GetId(), job->GetId());
-                        auto req = TYPathProxy::Set(failContextRootPath);
-                        req->set_value(BuildYsonStringFluently()
-                            .BeginAttributes()
-                                .Item("account").Value(TmpAccountName)
-                            .EndAttributes()
-                            .BeginMap()
-                            .EndMap()
-                            .Data());
-                        batchReq->AddRequest(req, "update_op_node");
-                    }
+                    auto req = TCypressYPathProxy::Create(failContextPath);
+                    GenerateMutationId(req);
+                    req->set_type(static_cast<int>(EObjectType::File));
 
-                    size_t index = 0;
-                    for (const auto& failContextChunkId : request.FailContextChunkIds) {
-                        if (failContextChunkId != NChunkServer::NullChunkId) {
-                            auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId(), index);
-                            auto req = StartCreateFileRequest(failContextPath, failContextChunkId);
+                    auto attributes = CreateEphemeralAttributes();
+                    attributes->Set("vital", false);
+                    attributes->Set("replication_factor", 1);
+                    attributes->Set("account", TmpAccountName);
+                    ToProto(req->mutable_node_attributes(), *attributes);
 
-                            batchReq->AddRequest(req, "create_fail_context");
-                        }
-                        ++index;
-                    }
+                    auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
+                    ToProto(reqExt->mutable_chunk_id(), request.FailContextChunkId);
+
+                    batchReq->AddRequest(req, "create_fail_context");
                 }
             }
             requests.clear();
@@ -1791,9 +1777,9 @@ TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
 void TMasterConnector::CreateJobNode(
     TJobPtr job,
     const TChunkId& stderrChunkId,
-    const std::vector<TChunkId>& failContextChunkIds)
+    const TChunkId& failContextChunkId)
 {
-    return Impl->CreateJobNode(job, stderrChunkId, failContextChunkIds);
+    return Impl->CreateJobNode(job, stderrChunkId, failContextChunkId);
 }
 
 void TMasterConnector::AttachToLivePreview(

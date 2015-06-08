@@ -1597,27 +1597,35 @@ private:
         auto jobFailed = job->GetState() == EJobState::Failed;
         const auto& schedulerResultExt = job->Result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-        std::vector<TChunkId> failContexts;
-        for (const auto& item : schedulerResultExt.fail_context_chunk_ids()) {
-            failContexts.push_back(FromProto<TGuid>(item));
+        auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id() 
+            ? FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id())
+            : NullChunkId;
+
+        auto failContextChunkId = schedulerResultExt.has_fail_context_chunk_id()
+            ? FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id())
+            : NullChunkId;
+
+        auto operation = job->GetOperation();
+        if (jobFailed) {
+            if (stderrChunkId != NullChunkId) {
+                operation->SetStderrCount(operation->GetStderrCount() + 1);
+            }
+            MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
+            return;
         }
 
-        if (schedulerResultExt.has_stderr_chunk_id()) {
-            auto operation = job->GetOperation();
-            auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
+        YCHECK(failContextChunkId == NullChunkId);
+        if (stderrChunkId == NullChunkId) {
+            // Do not create job node.
+            return;
+        }
 
-            if (jobFailed || operation->GetStderrCount() < operation->GetMaxStderrCount()) {
-                if (jobFailed) {
-                    MasterConnector_->CreateJobNode(job, stderrChunkId, failContexts);
-                } else {
-                    MasterConnector_->CreateJobNode(job, stderrChunkId, std::vector<TChunkId>());
-                }
-                operation->SetStderrCount(operation->GetStderrCount() + 1);
-            } else {
-                ReleaseStderrChunk(job, stderrChunkId);
-            }
-        } else if (jobFailed) {
-            MasterConnector_->CreateJobNode(job, NullChunkId, failContexts);
+        // Job has not failed, but has stderr.
+        if (operation->GetStderrCount() < operation->GetMaxStderrCount()) {
+            MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
+            operation->SetStderrCount(operation->GetStderrCount() + 1);
+        } else {
+            ReleaseStderrChunk(job, stderrChunkId);
         }
     }
 

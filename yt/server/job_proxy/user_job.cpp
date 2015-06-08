@@ -367,8 +367,9 @@ private:
         auto contexts = DoGetInputContexts();
         auto contextChunkIds = DoDumpInputContexts(contexts);
 
-        for (const auto& contextChunkId : contextChunkIds) {
-            ToProto(schedulerResultExt->add_fail_context_chunk_ids(), contextChunkId);
+        YCHECK(contextChunkIds.size() <= 1);
+        if (!contextChunkIds.empty()) {
+            ToProto(schedulerResultExt->mutable_fail_context_chunk_id(), contextChunkIds.front());
         }
     }
 
