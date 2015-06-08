@@ -260,12 +260,14 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_templa
             yt_client.create_table(dst, attributes={"compression_codec": compression_codec})
         yt_client.set(dst + "/@compression_codec", compression_codec)
 
-    temp_yamr_table = "tmp/yt/" + generate_uuid()
-    yamr_client.copy(src, temp_yamr_table)
-    src = temp_yamr_table
+    read_transaction_id = yamr_client.make_read_snapshot()
+    if read_transaction_id is None: # read snapshots are not supported
+        temp_yamr_table = "tmp/yt/" + generate_uuid()
+        yamr_client.copy(src, temp_yamr_table)
+        src = temp_yamr_table
 
     ranges = _split_rows(record_count, 1024 * yt.common.MB, yamr_client.data_size(src))
-    read_commands = yamr_client.create_read_range_commands(ranges, src, fastbone=fastbone)
+    read_commands = yamr_client.create_read_range_commands(ranges, src, fastbone=fastbone, read_transaction_id)
     temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
     yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]))
 
@@ -330,7 +332,8 @@ done"""
             convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=yt_client)
 
     finally:
-        yamr_client.drop(temp_yamr_table)
+        if read_transaction_id is None:
+            yamr_client.drop(temp_yamr_table)
 
 def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, job_count=None, fastbone=True, message_queue=None):
     if job_count is None:

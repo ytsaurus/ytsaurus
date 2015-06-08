@@ -1,6 +1,6 @@
 import yt.logger as logger
 from yt.common import YtError
-from yt.wrapper.common import generate_uuid 
+from yt.wrapper.common import generate_uuid
 
 import os
 import sh
@@ -72,6 +72,9 @@ class Yamr(object):
 
         self.supports_shared_transactions = \
             subprocess.call("{0} --help | grep sharedtransaction >/dev/null".format(self.binary), shell=True) == 0
+
+        self.supports_read_snapshots = \
+            subprocess.call("{0} --help | grep mkreadsnapshot >/dev/null".format(self.binary), shell=True) == 0
 
         logger.info("Yamr options configured (binary: %s, server: %s, http_server: %s, proxies: [%s])",
                     self.binary, self.server, self.http_server, ", ".join(self.proxies))
@@ -164,16 +167,17 @@ class Yamr(object):
             error.inner_errors = [YamrError(stderr, proc.returncode)]
             raise error
 
-    def create_read_range_commands(self, ranges, table, fastbone):
+    def create_read_range_commands(self, ranges, table, fastbone, read_transaction_id=None):
         commands = []
-        transaction_id = generate_uuid()
+        if read_transaction_id is None:
+            read_transaction_id = "yt_" + generate_uuid()
         for i, range in enumerate(ranges):
             start, end = range
             if self.proxies:
                 command = 'curl "http://{0}/table/{1}?subkey=1&lenval=1&startindex={2}&endindex={3}"'\
                         .format(self.proxies[i % len(self.proxies)], quote_plus(table), start, end)
             else:
-                shared_tx_str = ("-sharedtransactionid yt_" + transaction_id) if self.supports_shared_transactions else ""
+                shared_tx_str = ("-sharedtransactionid " + read_transaction_id) if self.supports_shared_transactions else ""
                 command = '{0} MR_USER={1} USER=yt ./{2} -server {3} {4} -read {5}:[{6},{7}] -lenval -subkey {8}\n'\
                         .format(self.opts, self.mr_user, self.binary_name, self.server, self._make_fastbone(fastbone), table, start, end, shared_tx_str)
             commands.append(command)
@@ -189,6 +193,15 @@ class Yamr(object):
         shell_command = "MR_USER={0} {1} -server {2} -map '{3}' -src {4} -dst {5} -maxjobfails {6} {7} {8}"\
             .format(self.mr_user, self.binary, self.server, command, src, dst, self.max_failed_jobs, " ".join("-file " + file for file in files), opts)
         _check_call(shell_command, shell=True)
+
+    def make_read_snapshot(self, table, finish_timeout=300):
+        if not self.supports_read_snapshots:
+            return None
+        transaction_id = "yt_" + generate_uuid()
+        shell_command = "MR_USER={0} {1} -server {2} -mkreadsnapshot {3} -sharedtransactionid {4} -finishtimeout {5}"\
+            .format(self.mr_user, self.binary, self.server, table, transaction_id, finish_timeout)
+        _check_call(shell_command, shell=True)
+        return transaction_id
 
     def remote_copy(self, remote_server, src, dst, fastbone):
         shell_command = "MR_USER={0} {1} -srcserver {2} -server {3} -copy -src {4} -dst {5} {6}"\
