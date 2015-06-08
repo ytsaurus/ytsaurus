@@ -38,6 +38,7 @@
 #include <ytlib/tablet_client/public.h>
 
 #include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
 
 #include <server/data_node/block_store.h>
 #include <server/data_node/chunk.h>
@@ -128,28 +129,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteExecutor
-    : public IExecutor
-{
-public:
-    explicit TRemoteExecutor(TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
-    { }
-
-    virtual TFuture<TQueryStatistics> Execute(
-        TPlanFragmentPtr fragment,
-        ISchemafulWriterPtr writer) override
-    {
-        auto executor = Bootstrap_->GetMasterClient()->GetQueryExecutor();
-        return executor->Execute(fragment, std::move(writer));
-    }
-
-private:
-    TBootstrap* const Bootstrap_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TQueryExecutor
     : public IExecutor
 {
@@ -160,7 +139,6 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Evaluator_(New<TEvaluator>(Config_))
-        , RemoteExecutor_(New<TRemoteExecutor>(bootstrap))
         , FunctionRegistry_(Bootstrap_->GetMasterClient()->GetConnection()->GetFunctionRegistry())
         , ColumnEvaluatorCache_(Bootstrap_->GetMasterClient()->GetConnection()->GetColumnEvaluatorCache())
     { }
@@ -186,7 +164,6 @@ private:
     const TQueryAgentConfigPtr Config_;
     TBootstrap* const Bootstrap_;
     const TEvaluatorPtr Evaluator_;
-    const IExecutorPtr RemoteExecutor_;
     const IFunctionRegistryPtr FunctionRegistry_;
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
@@ -200,6 +177,17 @@ private:
         const std::vector<TSubreaderCreator>& subreaderCreators)
     {
         auto Logger = BuildLogger(fragment->Query);
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto maybeUser = securityManager->GetAuthenticatedUser();
+
+        NApi::TClientOptions clientOptions;
+        if (maybeUser) {
+            clientOptions.User = maybeUser.Get();
+        }
+
+        auto remoteExecutor = Bootstrap_->GetMasterClient()->GetConnection()
+            ->CreateClient(clientOptions)->GetQueryExecutor();
 
         return CoordinateAndExecute(
             fragment,
@@ -231,7 +219,7 @@ private:
                         planFragment->Query = subquery;
                         planFragment->VerboseLogging = fragment->VerboseLogging;
 
-                        auto subqueryResult = RemoteExecutor_->Execute(planFragment, writer);
+                        auto subqueryResult = remoteExecutor->Execute(planFragment, writer);
 
                         return WaitFor(subqueryResult)
                             .ValueOrThrow();
