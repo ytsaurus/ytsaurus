@@ -64,6 +64,54 @@ function(UDF udf output)
   )
 endfunction()
 
+function(UDFSO udf output)
+  get_filename_component( _realpath ${udf} REALPATH )
+  get_filename_component( _filename ${_realpath} NAME_WE )
+  get_filename_component( _extension ${_realpath} EXT )
+
+  set(_so_dirname ${CMAKE_BINARY_DIR}/bin/)
+  set(_so_filename ${_filename}_so.so)
+  set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
+  set(_h_dirname ${CMAKE_BINARY_DIR}/include/udf)
+  set(_h_file ${_h_dirname}/${_filename}_so.h)
+
+  set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
+
+  find_program(CLANG_EXECUTABLE
+    NAMES clang-3.6 clang
+    PATHS $ENV{LLVM_ROOT}/bin
+  )
+
+  set(_compiler ${CLANG_EXECUTABLE})
+  set(_depends ${_include_dir}/yt_udf.h)
+
+  add_custom_command(
+    OUTPUT
+      ${_h_file}
+    COMMAND
+      ${CMAKE_COMMAND} -E make_directory ${_h_dirname}
+    COMMAND
+      ${_compiler} -c
+        -I${_include_dir}
+        -I${CMAKE_SOURCE_DIR}/yt
+        -I${CMAKE_SOURCE_DIR}
+        -I${CMAKE_BINARY_DIR}/include
+        -fPIC
+        -o ${_so_filename}
+        ${_realpath}
+    COMMAND
+      xxd -i ${_so_filename} > ${_h_file}
+    MAIN_DEPENDENCY
+      ${_realpath}
+    DEPENDS
+      ${_depends}
+      ${_include_dir}/yt_udf_types.h
+    WORKING_DIRECTORY
+      ${_so_dirname}
+    COMMENT "Generating shared object for ${_filename}..."
+  )
+endfunction()
+
 function(PROTOC proto output)
   get_filename_component( _proto_realpath ${proto} REALPATH )
   get_filename_component( _proto_dirname  ${_proto_realpath} PATH )

@@ -33,6 +33,10 @@ public:
     template <class TSignature>
     TCGFunction<TSignature> GetCompiledFunction(const Stroka& name);
 
+    void AddObjectFile(
+        std::unique_ptr<llvm::object::ObjectFile> sharedObject,
+        const Stroka& functionName);
+
 private:
     class TImpl;
     std::unique_ptr<TImpl> Impl_;

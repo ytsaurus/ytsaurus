@@ -3,6 +3,7 @@
 #include "versioned_table_client_ut.h"
 
 #include "udf/test_udfs.h"
+#include "udf/test_udfs_so.h"
 #include "udf/malloc_udf.h"
 #include "udf/invalid_ir.h"
 
@@ -3924,6 +3925,50 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
     registry->WithFunction(SumUdf_);
 
     Evaluate("a as x FROM [//t] where sum_udf(7, 3, a) in (11, 12)", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=-2;b=20",
+        "a=9;b=90",
+        "a=-10"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+        "x=2",
+        "x=9",
+        "x=10"
+    }, resultSplit);
+
+    auto testUdfShareObjectImpl = TSharedRef(
+        test_udfs_so_so,
+        test_udfs_so_so_len,
+        nullptr);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    auto absUdf = New<TUserDefinedFunction>(
+            "abs_udf",
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Int64,
+            testUdfShareObjectImpl,
+            ECallingConvention::Simple);
+    registry->WithFunction(absUdf);
+
+    Evaluate("abs_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
