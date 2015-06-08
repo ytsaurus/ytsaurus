@@ -1685,12 +1685,7 @@ private:
                     cell->GetId(),
                     force);
 
-                cell->TotalStatistics() -= GetTabletStatistics(tablet);
-
                 tablet->SetState(ETabletState::Unmounting);
-                tablet->NodeStatistics().Clear();
-                tablet->PerformanceCounters() = TTabletPerformanceCounters();
-                tablet->SetInMemoryMode(EInMemoryMode::None);
             }
 
             if (cell) {
