@@ -286,7 +286,7 @@ public:
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
-    virtual void Destroy(TObjectBase* object) override
+    virtual void Destroy(TObjectBase* object) throw() override
     {
         DoDestroy(static_cast<TCypressNodeBase*>(object));
     }
