@@ -457,11 +457,21 @@ Function* GetSharedObjectFunction(
     TCGContext& builder,
     const Stroka& functionName,
     const Stroka& symbolName,
-    std::unique_ptr<llvm::object::ObjectFile> sharedObject,
+    TSharedRef implementationFile,
     std::vector<Type*> argumentTypes,
     EValueType resultType)
 {
-    builder.Module->AddObjectFile(std::move(sharedObject), functionName);
+
+    auto buffer = llvm::MemoryBufferRef(
+        llvm::StringRef(implementationFile.Begin(), implementationFile.Size()),
+        llvm::StringRef());
+    auto objectFileOrError = llvm::object::ObjectFile::createObjectFile(buffer);
+
+    if (!objectFileOrError) {
+        return nullptr;
+    }
+
+    builder.Module->AddObjectFile(std::move(*objectFileOrError), functionName);
     auto functionType = FunctionType::get(
         TDataTypeBuilder::get(builder.getContext(), resultType),
         ArrayRef<Type*>(argumentTypes),
@@ -492,10 +502,7 @@ Function* GetLlvmBitcodeFunction(
         auto implModule = parseIR(buffer, diag, builder.getContext());
 
         if (!implModule) {
-            THROW_ERROR_EXCEPTION(
-                "Error parsing LLVM bitcode for function %Qv",
-                functionName)
-                << TError(Stroka(diag.getMessage().str()));
+            return nullptr;
         }
 
         // Link two modules together, with the first module modified to be the
@@ -529,34 +536,39 @@ Function* GetLlvmFunction(
     TSharedRef implementationFile,
     ICallingConventionPtr callingConvention)
 {
-    auto buffer = llvm::MemoryBufferRef(
-        llvm::StringRef(implementationFile.Begin(), implementationFile.Size()),
-        llvm::StringRef());
-    auto objectFileError = llvm::object::ObjectFile::createObjectFile(buffer);
+    auto callee = GetLlvmBitcodeFunction(
+        builder,
+        functionName,
+        symbolName,
+        argumentValues,
+        implementationFile,
+        resultType,
+        callingConvention);
 
-    if (!objectFileError) {
-        return GetLlvmBitcodeFunction(
-            builder,
-            functionName,
-            symbolName,
-            argumentValues,
-            implementationFile,
-            resultType,
-            callingConvention);
-    } else {
-        std::vector<Type*> argumentLlvmTypes;
-        for (auto value: argumentValues) {
-            argumentLlvmTypes.push_back(value->getType());
-        }
-
-        return GetSharedObjectFunction(
-            builder,
-            functionName,
-            symbolName,
-            std::move(*objectFileError),
-            argumentLlvmTypes,
-            resultType);
+    if (callee) {
+        return callee;
     }
+
+    std::vector<Type*> argumentLlvmTypes;
+    for (auto value: argumentValues) {
+        argumentLlvmTypes.push_back(value->getType());
+    }
+
+    callee = GetSharedObjectFunction(
+        builder,
+        functionName,
+        symbolName,
+        implementationFile,
+        argumentLlvmTypes,
+        resultType);
+
+    if (callee) {
+        return callee;
+    }
+
+    THROW_ERROR_EXCEPTION(
+        "Error loading implementation file for function %Qv",
+        functionName);
 }
 
 TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
@@ -564,7 +576,6 @@ TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
     EValueType type,
     const Stroka& name) const
 {
-
     auto codegenBody = [
         this_ = MakeStrong(this),
         type
