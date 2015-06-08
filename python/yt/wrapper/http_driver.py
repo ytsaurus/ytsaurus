@@ -31,7 +31,7 @@ def escape_utf8(obj):
     return obj
 
 def get_hosts(client=None):
-    proxy = get_proxy_url(None, client)
+    proxy = get_proxy_url(None, client=client)
     hosts = get_config(client)["proxy"]["proxy_discovery_url"]
     return make_get_request_with_retries("http://{0}/{1}".format(proxy, hosts))
 
@@ -81,7 +81,7 @@ def make_request(command_name, params,
     if use_heavy_proxy:
         proxy = get_heavy_proxy(client)
     else:
-        proxy = get_proxy_url(proxy, client)
+        proxy = get_proxy_url(proxy, client=client)
 
     commands = get_api_commands(client)
     api_path = "api/" + get_api_version(client)
