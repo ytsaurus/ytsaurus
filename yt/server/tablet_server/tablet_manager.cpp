@@ -1535,7 +1535,7 @@ private:
                 case EInMemoryMode::Compressed:
                     return statistics.MemorySize;
                 default:
-                    break;
+                    YUNREACHABLE();
             }
         };
 
@@ -1558,7 +1558,7 @@ private:
                 case EInMemoryMode::Compressed:
                     return std::max(statistics.CompressedDataSize, estimatedCompressedSize / totalTabletCount);
                 default:
-                    break;
+                    YUNREACHABLE();
             }
         };
 
