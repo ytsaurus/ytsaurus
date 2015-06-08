@@ -9,22 +9,20 @@ namespace NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+} // namespace NProto
+
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 using NJobTrackerClient::EJobPhase;
 
-struct IJob;
-typedef TIntrusivePtr<IJob> IJobPtr;
+DECLARE_REFCOUNTED_STRUCT(IJob)
 
-class TJobController;
-typedef TIntrusivePtr<TJobController> TJobTrackerPtr;
-
-class TResourceLimitsConfig;
-typedef TIntrusivePtr<TResourceLimitsConfig> TResourceLimitsConfigPtr;
-
-class TJobControllerConfig;
-typedef TIntrusivePtr<TJobControllerConfig> TJobControllerConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TJobController)
+DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
+DECLARE_REFCOUNTED_CLASS(TJobControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

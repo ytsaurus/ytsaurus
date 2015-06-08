@@ -123,12 +123,11 @@ class TestRacks(YTEnvSetup):
             self._set_rack(node, "r")
         remove_rack("r")
         for node in nodes:
-            assert not self._has_rack(node) 
-
+            assert not self._has_rack(node)
+            
     def test_assign_fail(self):
         n = get_nodes()[0]
         with pytest.raises(YtError): self._set_rack(n, "r")
-
 
     def test_regular_not_enough_racks(self):
         self._init_n_racks(1)
@@ -181,7 +180,6 @@ class TestRacks(YTEnvSetup):
 
         time.sleep(1.0)
         assert not get("#" + chunk_id + "/@unsafely_placed")
-
 
     def test_regular_move_to_safe_place(self):
         create("file", "//tmp/file")
@@ -281,3 +279,15 @@ class TestRacks(YTEnvSetup):
         
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 1
 
+    def test_journals_with_degraded_racks(self):
+        map = {}
+        nodes = get_nodes()
+        for i in xrange(len(nodes)):
+            map[nodes[i]] = "r" + str(i % 2)
+        self._set_rack_map(map)
+
+        create("journal", "//tmp/j")
+        write_journal("//tmp/j", self.JOURNAL_DATA)
+        assert get("//tmp/j/@sealed")
+
+        assert read_journal("//tmp/j") == self.JOURNAL_DATA

@@ -87,9 +87,8 @@ void TReadJournalCommand::DoExecute()
     // TODO(babenko): provide custom allocation tag
     TBlobOutput buffer;
     auto flushBuffer = [&] () {
-        auto result = WaitFor(output->Write(buffer.Begin(), buffer.Size()));
+        auto result = WaitFor(output->Write(buffer.Flush()));
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        buffer.Clear();
     };
 
     auto format = Context_->GetOutputFormat();
@@ -268,12 +267,12 @@ void TWriteJournalCommand::DoExecute()
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);
 
     struct TWriteBufferTag { };
-    auto buffer = TSharedRef::Allocate<TWriteBufferTag>(Context_->GetConfig()->WriteBufferSize);
+    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(Context_->GetConfig()->WriteBufferSize, false);
 
     auto input = Context_->Request().InputStream;
 
     while (true) {
-        auto bytesRead = WaitFor(input->Read(buffer.Begin(), buffer.Size()));
+        auto bytesRead = WaitFor(input->Read(buffer));
         THROW_ERROR_EXCEPTION_IF_FAILED(bytesRead);
 
         if (bytesRead.Value() == 0)

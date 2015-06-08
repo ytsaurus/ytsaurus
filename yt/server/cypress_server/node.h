@@ -68,8 +68,11 @@ public:
     virtual ~TCypressNodeBase();
 
     TCypressNodeBase* GetParent() const;
-    void SetParent(TCypressNodeBase* newParent);
+    void SetParent(TCypressNodeBase* parent);
     void ResetParent();
+
+    TCypressNodeBase* GetOriginator() const;
+    void SetOriginator(TCypressNodeBase* originator);
 
     //! Returns the composite (versioned) id of the node.
     TVersionedNodeId GetVersionedId() const;
@@ -83,7 +86,8 @@ public:
 
 private:
     TCypressNodeBase* Parent_;
-    NTransactionServer::TTransactionId TransactionId;
+    TCypressNodeBase* Originator_;
+    NTransactionServer::TTransactionId TransactionId_;
 
 };
 

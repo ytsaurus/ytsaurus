@@ -5,6 +5,8 @@
 
 #include <core/actions/future.h>
 
+#include <ytlib/tablet_client/public.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -12,6 +14,9 @@ namespace NApi {
 
 struct TBuildSnapshotOptions
 {
+    //! Refers either to masters or to tablet cells.
+    //! If equal to #NullCellId then masters are assumed.
+    NElection::TCellId CellId;
     bool SetReadOnly = false;
 };
 

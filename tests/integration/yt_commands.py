@@ -121,10 +121,10 @@ def execute_command_with_output_format(command_name, kwargs, input_stream=None):
 
 ###########################################################################
 
-def dump_job_input_context(job_id, path, **kwargs):
+def dump_job_context(job_id, path, **kwargs):
     kwargs["job_id"] = job_id
     kwargs["path"] = path
-    return execute_command("dump_job_input_context", kwargs)
+    return execute_command("dump_job_context", kwargs)
 
 def strace_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
@@ -238,10 +238,12 @@ def abort_transaction(tx, **kwargs):
     return execute_command("abort_tx", kwargs)
 
 def mount_table(path, **kwargs):
+    clear_metadata_caches()
     kwargs["path"] = path
     return execute_command("mount_table", kwargs)
 
 def unmount_table(path, **kwargs):
+    clear_metadata_caches()
     kwargs["path"] = path
     return execute_command("unmount_table", kwargs)
 
@@ -250,6 +252,7 @@ def remount_table(path, **kwargs):
     return execute_command("remount_table", kwargs)
 
 def reshard_table(path, pivot_keys, **kwargs):
+    clear_metadata_caches()
     kwargs["path"] = path
     kwargs["pivot_keys"] = pivot_keys
     return execute_command("reshard_table", kwargs)

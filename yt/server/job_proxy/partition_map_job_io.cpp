@@ -47,7 +47,7 @@ public:
 
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
         return CreatePartitionMultiChunkWriter(
-            JobIOConfig_->NewTableWriter,
+            JobIOConfig_->TableWriter,
             options,
             nameTable,
             keyColumns,

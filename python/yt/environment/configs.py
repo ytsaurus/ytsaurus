@@ -89,6 +89,8 @@ def get_master_config():
 
     node_tracker = {
         online_node_timeout = 1000;
+        max_concurrent_node_registrations = 100;
+        max_concurrent_node_unregistrations = 100;
     };
 
     object_manager = {
@@ -190,12 +192,15 @@ def get_node_config():
         };
 
         transaction_manager = {
+            default_transaction_timeout = 1000;
             ping_period = 500;
         };
 
         scheduler = {
             retry_backoff_time = 100;
         };
+
+        enable_udf = true;
     };
 
     data_node = {
@@ -229,8 +234,9 @@ def get_node_config():
             };
         };
 
+        enable_cgroups = false;
+
         slot_manager = {
-            enable_cgroups = false;
             path = "";
         };
 
@@ -328,6 +334,8 @@ def get_driver_config():
             format = text;
         > yson
     };
+
+    enable_udf = true;
 }
 """)
 

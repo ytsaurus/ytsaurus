@@ -142,7 +142,7 @@ private:
 
     NLogging::TLogger Logger;
 
-    TTcpInterfaceStatistics* const InterfaceStatistics_;
+    TTcpProfilingData* const ProfilingData_;
     NProfiling::TProfiler Profiler;
 
     // Only used by client sockets.
@@ -185,6 +185,7 @@ private:
     void SyncResolve();
     void SyncClose(const TError& error);
 
+    void InitBuffers();
     void InitFD();
     void InitSocketWatcher();
 

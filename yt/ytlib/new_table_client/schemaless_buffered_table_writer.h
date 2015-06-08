@@ -15,6 +15,7 @@ namespace NVersionedTableClient {
 
 ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
+    NChunkClient::TRemoteWriterOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::TTransactionManagerPtr transactionManager,
     TNameTablePtr nameTable,

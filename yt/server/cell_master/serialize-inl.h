@@ -48,7 +48,7 @@ struct TNonversionedObjectRefSerializer
                 SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetId(), key.Index);
             }
         } else {
-            typedef typename std::remove_reference<decltype(object->GetId())>::type TId;
+            typedef typename std::decay<decltype(object->GetId())>::type TId;
             auto id = NYT::Load<TId>(context);
             object = (id == TId()) ? nullptr : context.template Get<TObject>(id);
         }

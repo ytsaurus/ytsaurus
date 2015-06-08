@@ -113,7 +113,7 @@ public:
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
     {
         for (auto row : rows) {
-            Rows_.push_back(RowBuffer_.Capture(row));
+            Rows_.push_back(RowBuffer_->Capture(row));
         }
         return true;
     }
@@ -125,8 +125,7 @@ public:
 
 private:
     TPromise<IRowsetPtr> Result_ = NewPromise<IRowsetPtr>();
-
-    TRowBuffer RowBuffer_;
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
 };
 

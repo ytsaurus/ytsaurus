@@ -62,6 +62,12 @@ public:
     //! starting from the eldest ones.
     i64 TrashCleanupWatermark;
 
+    //! Controls if blob chunks are enabled for this location.
+    bool EnableBlobs;
+
+    //! Controls if journal chunks are enabled for this location.
+    bool EnableJournals;
+
     TLocationConfig()
     {
         RegisterParameter("path", Path)
@@ -83,6 +89,10 @@ public:
         RegisterParameter("trash_cleanup_watermark", TrashCleanupWatermark)
             .GreaterThanOrEqual(0)
             .Default((i64) 40 * 1024 * 1024 * 1024); // 40 Gb
+        RegisterParameter("enable_blobs", EnableBlobs)
+            .Default(true);
+        RegisterParameter("enable_journals", EnableJournals)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (HighWatermark > LowWatermark) {
@@ -126,11 +136,9 @@ DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
 
 class TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig
+    , public NHydra::TFileChangelogDispatcherConfig
 {
 public:
-    //! A path where multiplexed changelogs are stored.
-    Stroka Path;
-
     //! Multiplexed changelog record count limit.
     /*!
      *  When this limit is reached, the current multiplexed changelog is rotated.
@@ -143,6 +151,10 @@ public:
      */
     i64 MaxDataSize;
 
+    //! Interval between automatic changelog rotation (to avoid keeping too many non-clean records
+    //! and speed up starup).
+    TDuration AutoRotationPeriod;
+
     //! Maximum bytes of multiplexed changelog to read during
     //! a single iteration of replay.
     i64 ReplayBufferSize;
@@ -152,13 +164,14 @@ public:
 
     TMultiplexedChangelogConfig()
     {
-        RegisterParameter("path", Path);
         RegisterParameter("max_record_count", MaxRecordCount)
             .Default(1000000)
             .GreaterThan(0);
         RegisterParameter("max_data_size", MaxDataSize)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
+        RegisterParameter("auto_rotation_period", AutoRotationPeriod)
+            .Default(TDuration::Minutes(15));
         RegisterParameter("replay_buffer_size", ReplayBufferSize)
             .GreaterThan(0)
             .Default((i64) 256 * 1024 * 1024);
@@ -190,11 +203,8 @@ public:
      */
     TDuration FullHeartbeatTimeout;
 
-    //! Cache for raw (compressed) blocks.
-    TSlruCacheConfigPtr CompressedBlockCache;
-
-    //! Cache for uncompressed blocks.
-    TSlruCacheConfigPtr UncompressedBlockCache;
+    //! Cache for all types of blocks.
+    NChunkClient::TBlockCacheConfigPtr BlockCache;
 
     //! Opened blob chunks cache.
     TSlruCacheConfigPtr BlobReaderCache;
@@ -285,26 +295,27 @@ public:
     //! Maximum number of bytes to fetch via a single range request.
     i64 MaxBytesPerRead;
 
+    //! Enables block checksums validation.
+    bool ValidateBlockChecksums;
+
 
     TDataNodeConfig()
     {
         RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("full_heartbeat_period", FullHeartbeatPeriod)
-            .Default(Null);
+            .Default();
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         
-        RegisterParameter("compressed_block_cache", CompressedBlockCache)
-            .DefaultNew();
-        RegisterParameter("uncompressed_block_cache", UncompressedBlockCache)
+        RegisterParameter("block_cache", BlockCache)
             .DefaultNew();
 
         RegisterParameter("blob_reader_cache", BlobReaderCache)
             .DefaultNew();
 
         RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
-            .Default(nullptr);
+            .DefaultNew();
         RegisterParameter("split_changelog", SplitChangelog)
             .DefaultNew();
         RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
@@ -375,11 +386,12 @@ public:
         RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
             .GreaterThan(0)
             .Default((i64) 64 * 1024 * 1024);
+        RegisterParameter("validate_block_checksums", ValidateBlockChecksums)
+            .Default(true);
 
         RegisterInitializer([&] () {
-            CompressedBlockCache->Capacity = (i64) 1024 * 1024 * 1024;
-
-            UncompressedBlockCache->Capacity = (i64) 1024 * 1024 * 1024;
+            BlockCache->CompressedData->Capacity = (i64) 1024 * 1024 * 1024;
+            BlockCache->UncompressedData->Capacity = (i64) 1024 * 1024 * 1024;
 
             BlobReaderCache->Capacity = 256;
 

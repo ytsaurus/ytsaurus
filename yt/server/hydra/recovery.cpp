@@ -7,7 +7,6 @@
 #include "changelog_download.h"
 
 #include <core/concurrency/scheduler.h>
-#include <core/concurrency/async_stream.h>
 
 #include <core/rpc/response_keeper.h>
 
@@ -23,39 +22,6 @@ using namespace NRpc;
 using namespace NElection;
 using namespace NConcurrency;
 using namespace NHydra::NProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto SnapshotReadBlockSize = 16 * 1024 * 1024;
-static const auto SnapshotPrefetchWindowSize = 64 * 1024 * 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Identical to the one returned by CreateSyncAdapter but uses |Get| rather
-//! than |WaitFor|.
-class TSnapshotInputStream
-    : public TInputStream
-{
-public:
-    explicit TSnapshotInputStream(IAsyncInputStreamPtr underlyingStream)
-        : UnderlyingStream_(underlyingStream)
-    { }
-
-    virtual ~TSnapshotInputStream() throw()
-    { }
-
-private:
-    const IAsyncInputStreamPtr UnderlyingStream_;
-
-
-    virtual size_t DoRead(void* buf, size_t len) override
-    {
-        return UnderlyingStream_->Read(buf, len)
-            .Get()
-            .ValueOrThrow();
-    }
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,11 +86,9 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 
         auto meta = reader->GetParams().Meta;
         auto snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
-        auto zeroCopyReader = CreateZeroCopyAdapter(reader, SnapshotReadBlockSize);
-        auto zeroCopyPrefetchingReader = CreatePrefetchingAdapter(zeroCopyReader, SnapshotPrefetchWindowSize);
-        auto prefetchingReader = CreateCopyingAdapter(zeroCopyPrefetchingReader);
-        TSnapshotInputStream input(prefetchingReader);
-        DecoratedAutomaton_->LoadSnapshot(snapshotVersion, &input);
+
+        DecoratedAutomaton_->LoadSnapshot(snapshotVersion, reader);
+
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.

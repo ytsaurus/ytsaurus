@@ -7,7 +7,7 @@ namespace NTabletServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger TabletServerLogger("TabletServer");
-NProfiling::TProfiler TabletServerProfiler("/tablet_server");
+const NProfiling::TProfiler TabletServerProfiler("/tablet_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 

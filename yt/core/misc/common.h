@@ -78,9 +78,11 @@
 #if defined(__GNUC__) || defined(__clang__)
     #define SILENT_UNUSED __attribute__((unused))
     #define PER_THREAD __thread
+    #define ATTRIBUTE_NO_SANITIZE_ADDRESS __attribute__((no_sanitize_address))
 #elif defined(_MSC_VER)
     #define SILENT_UNUSED
     #define PER_THREAD __declspec(thread)
+    #define ATTRIBUTE_NO_SANITIZE_ADDRESS
     // VS does not support alignof natively yet.
     #define alignof __alignof
 #else
@@ -91,6 +93,7 @@ namespace std {
 
 #ifdef __GNUC__
 
+#if !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 9
 // As of now, GCC does not support make_unique.
 // See https://gcc.gnu.org/ml/libstdc++/2014-06/msg00010.html
 template <typename TResult, typename ...TArgs>
@@ -98,6 +101,7 @@ std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 {
     return std::unique_ptr<TResult>(new TResult(std::forward<TArgs>(args)...));
 }
+#endif
 
 // As of now, GCC does not have std::aligned_union.
 template <typename... _Types>

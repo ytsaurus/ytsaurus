@@ -30,6 +30,8 @@
 #include <ytlib/api/connection.h>
 #include <ytlib/api/client.h>
 
+#include <server/misc/memory_usage_tracker.h>
+
 #include <server/job_agent/job_controller.h>
 
 #include <server/tablet_node/slot_manager.h>
@@ -39,6 +41,7 @@
 #include <server/data_node/journal_dispatcher.h>
 
 #include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
 
 #include <util/random/random.h>
 
@@ -55,8 +58,12 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NTabletNode;
 using namespace NHydra;
+using namespace NHive;
 using namespace NObjectClient;
 using namespace NCellNode;
+
+using NNodeTrackerClient::TAddressMap;
+using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,13 +71,15 @@ static const auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnector::TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootstrap)
+TMasterConnector::TMasterConnector(
+    TDataNodeConfigPtr config,
+    const TAddressMap& localAddresses,
+    TBootstrap* bootstrap)
     : Config_(config)
+    , LocalAddresses_(localAddresses)
     , Bootstrap_(bootstrap)
-    , Started_(false)
     , ControlInvoker_(bootstrap->GetControlInvoker())
-    , State_(EState::Offline)
-    , NodeId_(InvalidNodeId)
+    , LocalDescriptor_(LocalAddresses_)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
     YCHECK(Config_);
@@ -137,12 +146,45 @@ TNodeId TMasterConnector::GetNodeId() const
     return NodeId_;
 }
 
-void TMasterConnector::RegisterAlert(const Stroka& alert)
+void TMasterConnector::RegisterAlert(const TError& alert)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    
-    TGuard<TSpinLock> guard(AlertsSpinLock_);
-    Alerts_.push_back(alert);
+    YCHECK(!alert.IsOK());
+
+    LOG_WARNING(alert, "Static alert registered");
+
+    TGuard<TSpinLock> guard(AlertsLock_);
+    StaticAlerts_.push_back(alert);
+}
+
+std::vector<TError> TMasterConnector::GetAlerts()
+{
+    std::vector<TError> alerts;
+    PopulateAlerts_.Fire(&alerts);
+
+    for (const auto& alert : alerts) {
+        LOG_WARNING(alert, "Dynamic alert registered");
+    }
+
+    TGuard<TSpinLock> guard(AlertsLock_);
+    alerts.insert(alerts.end(), StaticAlerts_.begin(), StaticAlerts_.end());
+
+    return alerts;
+}
+
+const TAddressMap& TMasterConnector::GetLocalAddresses() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return LocalAddresses_;
+}
+
+TNodeDescriptor TMasterConnector::GetLocalDescriptor() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    return LocalDescriptor_;
 }
 
 void TMasterConnector::ScheduleNodeHeartbeat()
@@ -196,7 +238,7 @@ void TMasterConnector::SendRegister()
 
     auto req = proxy.RegisterNode();
     *req->mutable_statistics() = ComputeStatistics();
-    ToProto(req->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
+    ToProto(req->mutable_addresses(), LocalAddresses_);
     req->Invoke().Subscribe(
         BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
@@ -219,6 +261,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     bool full = true;
 
     auto chunkStore = Bootstrap_->GetChunkStore();
+    yhash_set<EObjectType> acceptedChunkTypes;
     for (auto location : chunkStore->Locations()) {
         auto* locationStatistics = result.add_locations();
 
@@ -238,6 +281,16 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
         totalUsedSpace += location->GetUsedSpace();
         totalChunkCount += location->GetChunkCount();
         totalSessionCount += location->GetSessionCount();
+
+        for (auto type : {EObjectType::Chunk, EObjectType::ErasureChunk, EObjectType::JournalChunk}) {
+            if (location->IsChunkTypeAccepted(type)) {
+                acceptedChunkTypes.insert(type);
+            }
+        }
+    }
+
+    for (auto type : acceptedChunkTypes) {
+        result.add_accepted_chunk_types(static_cast<int>(type));
     }
 
     result.set_total_available_space(totalAvailableSpace);
@@ -254,13 +307,20 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     auto slotManager = Bootstrap_->GetTabletSlotManager();
     result.set_available_tablet_slots(slotManager->GetAvailableTabletSlotCount());
     result.set_used_tablet_slots(slotManager->GetUsedTableSlotCount());
-    
-    result.add_accepted_chunk_types(static_cast<int>(EObjectType::Chunk));
-    result.add_accepted_chunk_types(static_cast<int>(EObjectType::ErasureChunk));
-    
-    auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
-    if (journalDispatcher->AcceptsChunks()) {
-        result.add_accepted_chunk_types(static_cast<int>(EObjectType::JournalChunk));
+
+    const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+    auto* protoMemory = result.mutable_memory();
+    protoMemory->set_total_limit(tracker->GetTotalLimit());
+    protoMemory->set_total_used(tracker->GetTotalUsed());
+    for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+        auto* protoCategory = protoMemory->add_categories();
+        protoCategory->set_type(static_cast<int>(category));
+        auto limit = tracker->GetLimit(category);
+        if (limit < std::numeric_limits<i64>::max()) {
+            protoCategory->set_limit(limit);
+        }
+        auto used = tracker->GetUsed(category);
+        protoCategory->set_used(used);
     }
 
     return result;
@@ -316,7 +376,7 @@ void TMasterConnector::SendFullNodeHeartbeat()
         BIND(&TMasterConnector::OnFullNodeHeartbeatResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
 
-    LOG_DEBUG("Full node heartbeat sent to master (%v)",
+    LOG_INFO("Full node heartbeat sent to master (%v)",
         request->statistics());
 }
 
@@ -333,10 +393,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
 
     *request->mutable_statistics() = ComputeStatistics();
 
-    {
-        TGuard<TSpinLock> guard(AlertsSpinLock_);
-        ToProto(request->mutable_alerts(), Alerts_);
-    }
+    ToProto(request->mutable_alerts(), GetAlerts());
 
     ReportedAdded_.clear();
     for (auto chunk : AddedSinceLastSuccess_) {
@@ -354,10 +411,9 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
     for (auto slot : slotManager->Slots()) {
         auto* protoSlotInfo = request->add_tablet_slots();
         if (slot) {
-            ToProto(protoSlotInfo->mutable_cell_id(), slot->GetCellId());
+            ToProto(protoSlotInfo->mutable_cell_info(), slot->GetCellDescriptor().ToInfo());
             protoSlotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
             protoSlotInfo->set_peer_id(slot->GetPeerId());
-            protoSlotInfo->set_config_version(slot->GetCellConfigVersion());
             ToProto(protoSlotInfo->mutable_prerequisite_transaction_id(), slot->GetPrerequisiteTransactionId());
         } else {
             protoSlotInfo->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
@@ -381,23 +437,20 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         protoPerformanceCounters->set_dynamic_memory_row_delete_count(performanceCounters->DynamicMemoryRowDeleteCount);
         protoPerformanceCounters->set_static_chunk_row_read_count(performanceCounters->StaticChunkRowReadCount);
         protoPerformanceCounters->set_static_chunk_row_lookup_count(performanceCounters->StaticChunkRowLookupCount);
+        protoPerformanceCounters->set_static_chunk_row_lookup_true_negative_count(performanceCounters->StaticChunkRowLookupTrueNegativeCount);
+        protoPerformanceCounters->set_static_chunk_row_lookup_false_positive_count(performanceCounters->StaticChunkRowLookupFalsePositiveCount);
         protoPerformanceCounters->set_unmerged_row_read_count(performanceCounters->UnmergedRowReadCount);
         protoPerformanceCounters->set_merged_row_read_count(performanceCounters->MergedRowReadCount);
     }
 
     auto cellDirectory = Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory();
-    auto cellDescriptors = cellDirectory->GetRegisteredCells();
-    for (const auto& descriptor : cellDescriptors) {
-        auto* protoCellInfo = request->add_hive_cells();
-        ToProto(protoCellInfo->mutable_cell_id(), descriptor.Config->CellId);
-        protoCellInfo->set_config_version(descriptor.Version);
-    }
+    ToProto(request->mutable_hive_cells(), cellDirectory->GetRegisteredCells());
 
     request->Invoke().Subscribe(
         BIND(&TMasterConnector::OnIncrementalNodeHeartbeatResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
 
-    LOG_DEBUG("Incremental node heartbeat sent to master (%v, AddedChunks: %v, RemovedChunks: %v)",
+    LOG_INFO("Incremental node heartbeat sent to master (%v, AddedChunks: %v, RemovedChunks: %v)",
         request->statistics(),
         request->added_chunks_size(),
         request->removed_chunks_size());
@@ -435,7 +488,7 @@ void TMasterConnector::OnFullNodeHeartbeatResponse(const TNodeTrackerServiceProx
         return;
     }
 
-    LOG_DEBUG("Successfully reported full node heartbeat to master");
+    LOG_INFO("Successfully reported full node heartbeat to master");
 
     // Schedule another full heartbeat.
     if (Config_->FullHeartbeatPeriod) {
@@ -465,7 +518,17 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
         return;
     }
 
-    LOG_DEBUG("Successfully reported incremental node heartbeat to master");
+    const auto& rsp = rspOrError.Value();
+
+    auto rack = rsp->has_rack() ? MakeNullable(rsp->rack()) : Null;
+
+    LOG_INFO("Successfully reported incremental node heartbeat to master (Rack: %v)",
+        rack);
+
+    {
+        TGuard<TSpinLock> guard(LocalDescriptorLock_);
+        LocalDescriptor_ = TNodeDescriptor(LocalAddresses_, rack);
+    }
 
     {
         auto it = AddedSinceLastSuccess_.begin();
@@ -493,7 +556,6 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
         ReportedRemoved_.clear();
     }
 
-    const auto& rsp = rspOrError.Value();
     auto slotManager = Bootstrap_->GetTabletSlotManager();
     for (const auto& info : rsp->tablet_slots_to_remove()) {
         auto cellId = FromProto<TCellId>(info.cell_id());
@@ -524,12 +586,11 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
     }
 
     for (const auto& info : rsp->tablet_slots_configure()) {
-        auto cellId = FromProto<TCellId>(info.cell_id());
-        YCHECK(cellId != NullCellId);
-        auto slot = slotManager->FindSlot(cellId);
+        auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
+        auto slot = slotManager->FindSlot(descriptor.CellId);
         if (!slot) {
             LOG_WARNING("Requested to configure a non-existing slot %v, ignored",
-                cellId);
+                descriptor.CellId);
             continue;
         }
         slotManager->ConfigureSlot(slot, info);
@@ -547,12 +608,11 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
     }
 
     for (const auto& info : rsp->hive_cells_to_reconfigure()) {
-        auto config = ConvertTo<TCellConfigPtr>(TYsonString(info.config()));
-        int configVersion = info.config_version();
-        if (cellDirectory->RegisterCell(config, configVersion)) {
+        auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
+        if (cellDirectory->ReconfigureCell(descriptor)) {
             LOG_DEBUG("Hive cell reconfigured (CellId: %v, ConfigVersion: %v)",
-                config->CellId,
-                configVersion);
+                descriptor.CellId,
+                descriptor.ConfigVersion);
         }
     }
 
@@ -583,7 +643,7 @@ void TMasterConnector::SendJobHeartbeat()
         BIND(&TMasterConnector::OnJobHeartbeatResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
 
-    LOG_DEBUG("Job heartbeat sent to master (ResourceUsage: {%v})",
+    LOG_INFO("Job heartbeat sent to master (ResourceUsage: {%v})",
         FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 }
 
@@ -601,7 +661,7 @@ void TMasterConnector::OnJobHeartbeatResponse(const TJobTrackerServiceProxy::TEr
         return;
     }
 
-    LOG_DEBUG("Successfully reported job heartbeat to master");
+    LOG_INFO("Successfully reported job heartbeat to master");
 
     const auto& rsp = rspOrError.Value();
     auto jobController = Bootstrap_->GetJobController();

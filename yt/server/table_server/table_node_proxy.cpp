@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "stdafx.h"
 #include "table_node_proxy.h"
 #include "table_node.h"
 #include "private.h"
@@ -95,7 +96,7 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* table = GetThisTypedImpl();
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
 
         const auto* chunkList = table->GetChunkList();
         const auto& statistics = chunkList->Statistics();
@@ -162,26 +163,28 @@ private:
     bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
         if (key == "key_columns") {
+            auto keyColumns = ConvertTo<TKeyColumns>(value);
+
             ValidateNoTransaction();
 
             auto* table = LockThisTypedImpl();
-            if (!table->Tablets().empty()) {
-                THROW_ERROR_EXCEPTION("Table already has some configured tablets");
-            }
-
             auto* chunkList = table->GetChunkList();
-            if (!chunkList->Children().empty()) {
-                THROW_ERROR_EXCEPTION("Table is not empty");
+            if (table->IsDynamic()) {
+                if (table->HasMountedTablets()) {
+                    THROW_ERROR_EXCEPTION("Cannot change key columns of a dynamic table with mounted tablets");
+                }
+            } else {
+                if (!chunkList->Children().empty()) {
+                    THROW_ERROR_EXCEPTION("Cannot change key columns of a non-empty static table");
+                }
             }
 
-            if (!chunkList->Parents().empty()) {
-                THROW_ERROR_EXCEPTION("Table data is shared");
-            }
+            ValidateKeyColumnsUpdate(table->KeyColumns(), keyColumns);
 
-            auto keyColumns = ConvertTo<TKeyColumns>(value);
-            ValidateKeyColumns(keyColumns);
             table->KeyColumns() = keyColumns;
-            table->SetSorted(!table->KeyColumns().empty());
+            if (!table->IsDynamic() && !keyColumns.empty()) {
+                table->SetSorted(true);
+            }
             return true;
         }
 
@@ -250,13 +253,6 @@ private:
         table->SetSorted(false);
     }
 
-    virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override
-    {
-        return updateMode == EUpdateMode::Append
-            ? ELockMode::Shared
-            : ELockMode::Exclusive;
-    }
-
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
@@ -290,20 +286,33 @@ private:
         }
     }
 
+    virtual bool IsSorted() override
+    {
+        const auto* table = GetThisTypedImpl();
+        return table->GetSorted();
+    }
+
+    virtual void ResetSorted() override
+    {
+        auto* table = GetThisTypedImpl();
+        table->KeyColumns().clear();
+        table->SetSorted(false);
+    }
+
     DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, SetSorted)
     {
         DeclareMutating();
 
         auto keyColumns = FromProto<Stroka>(request->key_columns());
         context->SetRequestInfo("KeyColumns: %v",
-            ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
+            ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
 
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
         auto* table = LockThisTypedImpl();
 
-        if (table->GetUpdateMode() != EUpdateMode::Overwrite) {
-            THROW_ERROR_EXCEPTION("Table must be in \"overwrite\" mode");
+        if (table->GetUpdateMode() == EUpdateMode::None) {
+            THROW_ERROR_EXCEPTION("Table must not be in \"none\" mode");
         }
 
         ValidateKeyColumns(keyColumns);
@@ -328,10 +337,11 @@ private:
             cellId);
 
         ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
         auto* impl = LockThisTypedImpl();
 
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->MountTable(
             impl,
             firstTabletIndex,
@@ -354,10 +364,11 @@ private:
             force);
 
         ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
         auto* impl = LockThisTypedImpl();
 
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->UnmountTable(
             impl,
             force,
@@ -378,10 +389,11 @@ private:
             lastTabletIndex);
 
         ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
         auto* impl = LockThisTypedImpl();
 
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->RemountTable(
             impl,
             firstTabletIndex,
@@ -403,10 +415,11 @@ private:
             static_cast<int>(pivotKeys.size()));
 
         ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
         auto* impl = LockThisTypedImpl();
 
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->ReshardTable(
             impl,
             firstTabletIndex,
@@ -430,12 +443,11 @@ private:
         ToProto(response->mutable_key_columns()->mutable_names(), table->KeyColumns());
         response->set_sorted(table->GetSorted());
 
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
         auto schema = tabletManager->GetTableSchema(table);
         ToProto(response->mutable_schema(), schema);
 
-        TNodeDirectoryBuilder builder(response->mutable_node_directory());
-
+        yhash_set<TTabletCell*> cells;
         for (auto* tablet : table->Tablets()) {
             auto* cell = tablet->GetCell();
             auto* protoTablet = response->add_tablets();
@@ -443,20 +455,13 @@ private:
             protoTablet->set_state(static_cast<int>(tablet->GetState()));
             ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
             if (cell) {
-                auto config = cell->GetConfig()->ToElection(cell->GetId());
-                protoTablet->set_cell_config_version(cell->GetConfigVersion());
-                protoTablet->set_cell_config(ConvertToYsonString(config).Data());
-                for (const auto& peer : cell->Peers()) {
-                    auto* node = peer.Node;
-                    if (node) {
-                        const auto* slot = node->GetTabletSlot(cell);
-                        if (slot->PeerState == EPeerState::Leading) {
-                            builder.Add(node);
-                            protoTablet->add_replica_node_ids(node->GetId());
-                        }
-                    }
-                }
+                ToProto(protoTablet->mutable_cell_id(), cell->GetId());
+                cells.insert(cell);
             }
+        }
+
+        for (const auto* cell : cells) {
+            ToProto(response->add_tablet_cells(), cell->GetDescriptor());
         }
 
         context->Reply();

@@ -28,6 +28,7 @@ using NNodeTrackerClient::InvalidNodeId;
 using NNodeTrackerClient::TRackId;
 using NNodeTrackerClient::NullRackId;
 
+using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::TNodeDescriptor;
 
 DECLARE_REFCOUNTED_CLASS(TNodeTracker)
@@ -37,7 +38,6 @@ DECLARE_REFCOUNTED_CLASS(TNodeConfig)
 
 class TNode;
 typedef SmallVector<TNode*, NChunkClient::TypicalReplicaCount> TNodeList;
-typedef TNodeList TSortedNodeList; // to clarify the semantics
 
 class TRack;
 typedef ui64 TRackSet;

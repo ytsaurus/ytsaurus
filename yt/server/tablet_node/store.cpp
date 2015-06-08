@@ -12,14 +12,7 @@ EStoreState IStore::GetPersistentStoreState() const
 {
     auto state = GetStoreState();
     switch (state) {
-        case EStoreState::Flushing:
-        case EStoreState::FlushFailed:
-            return EStoreState::PassiveDynamic;
-
-        case EStoreState::Compacting:
-        case EStoreState::CompactionFailed:
-            return EStoreState::Persistent;
-
+        case EStoreState::Removing:
         case EStoreState::RemoveFailed:
             switch (GetType()) {
                 case EStoreType::DynamicMemory:

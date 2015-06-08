@@ -7,7 +7,6 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/row_buffer.h>
 
-#include <core/misc/array_ref.h>
 #include <core/misc/variant.h>
 
 namespace NYT {
@@ -82,8 +81,8 @@ struct TCommaExpression
 {
     TCommaExpression(
         const TSourceLocation& sourceLocation,
-        const TExpressionPtr& lhs,
-        const TExpressionPtr& rhs)
+        TExpressionPtr lhs,
+        TExpressionPtr rhs)
         : TExpression(sourceLocation)
         , Lhs(lhs)
         , Rhs(rhs)
@@ -99,7 +98,7 @@ struct TFunctionExpression
     TFunctionExpression(
         const TSourceLocation& sourceLocation,
         const TStringBuf& functionName,
-        const TExpressionPtr& arguments)
+        TExpressionPtr arguments)
         : TExpression(sourceLocation)
         , FunctionName(functionName)
         , Arguments(arguments)
@@ -116,7 +115,7 @@ struct TUnaryOpExpression
     TUnaryOpExpression(
         const TSourceLocation& sourceLocation,
         EUnaryOp opcode,
-        const TExpressionPtr& operand)
+        TExpressionPtr operand)
         : TExpression(sourceLocation)
         , Opcode(opcode)
         , Operand(operand)
@@ -133,8 +132,8 @@ struct TBinaryOpExpression
     TBinaryOpExpression(
         const TSourceLocation& sourceLocation,
         EBinaryOp opcode,
-        const TExpressionPtr& lhs,
-        const TExpressionPtr& rhs)
+        TExpressionPtr lhs,
+        TExpressionPtr rhs)
         : TExpression(sourceLocation)
         , Opcode(opcode)
         , Lhs(lhs)
@@ -152,7 +151,7 @@ struct TInExpression
 {
     TInExpression(
         const TSourceLocation& sourceLocation,
-        const TExpressionPtr& expression,
+        TExpressionPtr expression,
         const TValueTupleList& values)
         : TExpression(sourceLocation)
         , Expr(expression)
@@ -160,6 +159,7 @@ struct TInExpression
     { }
 
     TExpressionPtr Expr;
+    // TODO(babenko): TSharedRange here?
     TValueTupleList Values;
 
 };
@@ -170,8 +170,10 @@ Stroka InferName(const TExpression* expr);
 
 typedef std::pair<TExpressionPtr, Stroka> TNamedExpression;
 typedef std::vector<TNamedExpression> TNamedExpressionList;
-typedef TNullable<TNamedExpressionList> TNullableNamedExprs;
+typedef TNullable<TNamedExpressionList> TNullableNamedExpressionList;
+
 typedef std::vector<Stroka> TIdentifierList;
+typedef TNullable<TIdentifierList> TNullableIdentifierList;
 
 struct TSource
     : public TIntrinsicRefCounted
@@ -225,13 +227,14 @@ struct TJoinSource
 struct TQuery
 {
     TSourcePtr Source;
-    TNullableNamedExprs SelectExprs;
+    TNullableNamedExpressionList SelectExprs;
     TExpressionPtr WherePredicate;
-    TNullableNamedExprs GroupExprs;
+    TNullableNamedExpressionList GroupExprs;
+    TNullableIdentifierList OrderFields;
     i64 Limit = 0;
 };
 
-typedef TVariant<TQuery, TNamedExpression> TAstHead;
+typedef TVariant<TQuery, TExpressionPtr> TAstHead;
 
 ////////////////////////////////////////////////////////////////////////////////
 

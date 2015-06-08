@@ -9,26 +9,16 @@ namespace NNodeTrackerClient {
 
 struct TTotalNodeStatistics
 {
-    i64 AvailableSpace;
-    i64 UsedSpace;
-    int ChunkCount;
-    int SessionCount;
-    int OnlineNodeCount;
-
-    TTotalNodeStatistics()
-        : AvailableSpace(0)
-        , UsedSpace(0)
-        , ChunkCount(0)
-        , SessionCount(0)
-        , OnlineNodeCount(0)
-    { }
+    i64 AvailableSpace = 0;
+    i64 UsedSpace = 0;
+    int ChunkCount = 0;
+    int SessionCount = 0;
+    int OnlineNodeCount = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
-
-class TNodeStatistics;
 
 Stroka ToString(const TNodeStatistics& statistics);
 

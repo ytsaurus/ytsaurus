@@ -20,7 +20,8 @@ class TFileWriter
     : public IChunkWriter
 {
 public:
-    explicit TFileWriter(
+    TFileWriter(
+        const TChunkId& chunkId,
         const Stroka& fileName,
         bool syncOnClose = true);
 
@@ -36,6 +37,8 @@ public:
 
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
+
+    virtual TChunkId GetChunkId() const override;
 
     //! Returns the chunk meta.
     /*!
@@ -53,8 +56,9 @@ public:
     i64 GetDataSize() const;
 
 private:
-    Stroka FileName_;
-    bool SyncOnClose_;
+    const TChunkId ChunkId_;
+    const Stroka FileName_;
+    const bool SyncOnClose_;
 
     bool IsOpen_ = false;
     bool IsClosed_ = false;

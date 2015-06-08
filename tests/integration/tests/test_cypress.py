@@ -509,7 +509,7 @@ class TestCypress(YTEnvSetup):
 
     def test_create_ignore_existing_fail(self):
         with pytest.raises(YtError): create("map_node", "//tmp/a/b")
-    
+
     def test_create_ignore_existing_success(self):
         create("map_node", "//tmp/a/b", recursive=True)
         create("map_node", "//tmp/a/b", ignore_existing=True)
@@ -719,3 +719,20 @@ class TestCypress(YTEnvSetup):
         set("//tmp/my_uint", "123456u", is_raw=True)
         assert get("//tmp/my_uint/@type") == "uint64_node"
         assert get("//tmp/my_uint", output_format=yson_format) == 123456
+
+class TestCypressNodeChildrenLimit(YTEnvSetup):
+    NUM_MASTERS = 3
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "max_node_child_count" : 50
+        }
+    }
+
+    def test_map_node_children_limit(self):
+        create("map_node", "//tmp/test_node")
+        for i in xrange(50):
+            create("map_node", "//tmp/test_node/" + str(i))
+
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/test_node/50")

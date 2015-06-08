@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-
+#include "function_registry.h"
 #include "plan_fragment_common.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
@@ -10,6 +10,7 @@
 
 #include <core/misc/property.h>
 #include <core/misc/guid.h>
+#include <core/misc/range.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -149,7 +150,7 @@ struct TUnaryOpExpression
         const TSourceLocation& sourceLocation,
         EValueType type,
         EUnaryOp opcode,
-        const TConstExpressionPtr& operand)
+        TConstExpressionPtr operand)
         : TExpression(sourceLocation, type)
         , Opcode(opcode)
         , Operand(operand)
@@ -173,8 +174,8 @@ struct TBinaryOpExpression
         const TSourceLocation& sourceLocation,
         EValueType type,
         EBinaryOp opcode,
-        const TConstExpressionPtr& lhs,
-        const TConstExpressionPtr& rhs)
+        TConstExpressionPtr lhs,
+        TConstExpressionPtr rhs)
         : TExpression(sourceLocation, type)
         , Opcode(opcode)
         , Lhs(lhs)
@@ -198,15 +199,15 @@ struct TInOpExpression
 
     TInOpExpression(
         const TSourceLocation& sourceLocation,
-        const TArguments& arguments,
-        const std::vector<TOwningRow>& values)
+        TArguments arguments,
+        TSharedRange<TRow> values)
         : TExpression(sourceLocation, EValueType::Boolean)
-        , Arguments(arguments)
-        , Values(values)
+        , Arguments(std::move(arguments))
+        , Values(std::move(values))
     { }
 
     TArguments Arguments;
-    std::vector<TOwningRow> Values;
+    TSharedRange<TRow> Values;
 
 };
 
@@ -223,7 +224,9 @@ struct TNamedItem
     TNamedItem()
     { }
 
-    TNamedItem(const TConstExpressionPtr& expression, Stroka name)
+    TNamedItem(
+        TConstExpressionPtr expression,
+        const Stroka& name)
         : Expression(expression)
         , Name(name)
     { }
@@ -245,12 +248,15 @@ struct TAggregateItem
     TAggregateItem()
     { }
 
-    TAggregateItem(const TConstExpressionPtr& expression, EAggregateFunction aggregateFunction, Stroka name)
+    TAggregateItem(
+        TConstExpressionPtr expression,
+        const Stroka& aggregateFunction,
+        const Stroka& name)
         : TNamedItem(expression, name)
         , AggregateFunction(aggregateFunction)
     { }
 
-    EAggregateFunction AggregateFunction;
+    const Stroka AggregateFunction;
 };
 
 typedef std::vector<TAggregateItem> TAggregateItemList;
@@ -271,7 +277,6 @@ struct TJoinClause
     {
         return JoinedTableSchema;
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoinClause)
@@ -305,6 +310,14 @@ struct TGroupClause
 
 DEFINE_REFCOUNTED_TYPE(TGroupClause)
 
+struct TOrderClause
+    : public TIntrinsicRefCounted
+{
+    std::vector<Stroka> OrderColumns;
+};
+
+DEFINE_REFCOUNTED_TYPE(TOrderClause)
+
 struct TProjectClause
     : public TIntrinsicRefCounted
 {
@@ -319,7 +332,7 @@ struct TProjectClause
         ProjectTableSchema.Columns().emplace_back(namedItem.Name, namedItem.Expression->Type);
     }
 
-    void AddProjection(const TConstExpressionPtr& expression, Stroka name)
+    void AddProjection(TConstExpressionPtr expression, Stroka name)
     {
         AddProjection(TNamedItem(expression, name));
     }
@@ -344,6 +357,20 @@ struct TQuery
         , Id(id)
     { }
 
+    TQuery(const TQuery& other)
+        : InputRowLimit(other.InputRowLimit)
+        , OutputRowLimit(other.OutputRowLimit)
+        , Id(TGuid::Create())
+        , TableSchema(other.TableSchema)
+        , KeyColumns(other.KeyColumns)
+        , JoinClause(other.JoinClause)
+        , WhereClause(other.WhereClause)
+        , GroupClause(other.GroupClause)
+        , ProjectClause(other.ProjectClause)
+        , OrderClause(other.OrderClause)
+        , Limit(other.Limit)
+    { }
+
     i64 InputRowLimit;
     i64 OutputRowLimit;
     TGuid Id;
@@ -356,6 +383,7 @@ struct TQuery
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
     TConstProjectClausePtr ProjectClause;
+    TConstOrderClausePtr OrderClause;
 
     i64 Limit = std::numeric_limits<i64>::max();
 
@@ -375,15 +403,15 @@ struct TQuery
 
         return TableSchema;
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
 
 struct TDataSource
 {
+    //! Either a chunk id, a table id or a tablet id.
     NObjectClient::TObjectId Id;
-    TKeyRange Range;
+    TRowRange Range;
 };
 
 typedef std::vector<TDataSource> TDataSources;
@@ -391,44 +419,46 @@ typedef std::vector<TDataSource> TDataSources;
 struct TPlanFragment
     : public TIntrinsicRefCounted
 {
-    explicit TPlanFragment(const TStringBuf& source = TStringBuf())
+    explicit TPlanFragment(const Stroka& source = Stroka())
         : Source(source)
     { }
 
     Stroka Source;
 
-    TNodeDirectoryPtr NodeDirectory;
-    
     TTimestamp Timestamp;
 
+    const TRowBufferPtr KeyRangesRowBuffer = New<TRowBuffer>();
     TDataSources DataSources;
-    TDataSource ForeignDataSource;
+    TGuid ForeignDataId;
 
     TConstQueryPtr Query;
     bool Ordered = false;
     bool VerboseLogging = false;
-
+    ui64 RangeExpansionLimit = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPlanFragment)
 
-void ToProto(NProto::TPlanFragment* serialized, const TConstPlanFragmentPtr& fragment);
+void ToProto(NProto::TPlanFragment* serialized, TConstPlanFragmentPtr fragment);
 TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized);
 
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
+    IFunctionRegistry* functionRegistry,
     i64 inputRowLimit = std::numeric_limits<i64>::max(),
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
 
-TPlanFragmentPtr PrepareJobPlanFragment(
+TQueryPtr PrepareJobQuery(
     const Stroka& source,
-    const TTableSchema& initialTableSchema);
+    const TTableSchema& initialTableSchema,
+    IFunctionRegistry* functionRegistry);
 
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
-    TTableSchema initialTableSchema);
+    TTableSchema initialTableSchema,
+    IFunctionRegistry* functionRegistry = CreateBuiltinFunctionRegistry().Get());
 
 Stroka InferName(TConstExpressionPtr expr);
 Stroka InferName(TConstQueryPtr query);

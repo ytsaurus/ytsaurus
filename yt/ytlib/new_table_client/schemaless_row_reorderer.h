@@ -26,8 +26,8 @@ public:
     TUnversionedRow ReorderKey(TUnversionedRow row, TChunkedMemoryPool* memoryPool);
 
 private:
-    TKeyColumns KeyColumns_;
-    TNameTablePtr NameTable_;
+    const TKeyColumns KeyColumns_;
+    const TNameTablePtr NameTable_;
 
     std::vector<int> IdMapping_;
     std::vector<TUnversionedValue> EmptyKey_;

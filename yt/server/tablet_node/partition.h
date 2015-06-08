@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "automaton.h"
 
 #include <core/misc/property.h>
 
@@ -30,6 +31,7 @@ struct TPartitionSnapshot
 {
     TPartitionId Id;
     TOwningKey PivotKey;
+    TOwningKey NextPivotKey;
     TKeyListPtr SampleKeys;
     std::vector<IStorePtr> Stores;
 };
@@ -44,12 +46,14 @@ class TPartition
 public:
     static const int EdenIndex = -1;
 
+    DEFINE_BYVAL_RO_PROPERTY(TPartitionSnapshotPtr, Snapshot);
+
     DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet);
     DEFINE_BYVAL_RO_PROPERTY(TPartitionId, Id);
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
 
-    DEFINE_BYVAL_RW_PROPERTY(TOwningKey, PivotKey);
-    DEFINE_BYVAL_RW_PROPERTY(TOwningKey, NextPivotKey);
+    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, PivotKey);
+    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, NextPivotKey);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<IStorePtr>, Stores);
 
@@ -60,16 +64,25 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TKeyListPtr, SampleKeys);
 
 public:
-    TPartition(TTablet* tablet, const TPartitionId& id, int index);
-    ~TPartition();
+    TPartition(
+        TTablet* tablet,
+        const TPartitionId& id,
+        int index,
+        TOwningKey pivotKey = TOwningKey(),
+        TOwningKey nextPivotKey = TOwningKey());
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
+    TCallback<void(TSaveContext&)> AsyncSave();
+    void AsyncLoad(TLoadContext& context);
+
     i64 GetUncompressedDataSize() const;
     i64 GetUnmergedRowCount() const;
 
-    TPartitionSnapshotPtr BuildSnapshot() const;
+    bool IsEden() const;
+
+    TPartitionSnapshotPtr RebuildSnapshot();
 
 };
 

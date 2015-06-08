@@ -8,6 +8,7 @@
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
 #include "chunk_writer.h"
+#include "block_cache.h"
 #include "private.h"
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -42,21 +43,31 @@ typedef TIntrusivePtr<TReplicationWriter> TReplicationWriterPtr;
 struct TNode
     : public TRefCounted
 {
-    int Index;
+    const int Index;
+    const TNodeDescriptor Descriptor;
+    const TChunkReplica ChunkReplica;
+
     TError Error;
-    TChunkReplica ChunkReplica;
-    TNodeDescriptor Descriptor;
     TDataNodeServiceProxy LightProxy;
     TDataNodeServiceProxy HeavyProxy;
     TPeriodicExecutorPtr PingExecutor;
     std::atomic_flag Canceled;
 
-    TNode(int index, const TNodeDescriptor& descriptor)
+    TNode(
+        int index,
+        const TNodeDescriptor& descriptor,
+        TChunkReplica chunkReplica,
+        IChannelPtr lightChannel,
+        IChannelPtr heavyChannel,
+        TDuration rpcTimeout)
         : Index(index)
         , Descriptor(descriptor)
-        , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress()))
-        , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress()))
+        , ChunkReplica(chunkReplica)
+        , LightProxy(lightChannel)
+        , HeavyProxy(heavyChannel)
     {
+        LightProxy.SetDefaultTimeout(rpcTimeout);
+        HeavyProxy.SetDefaultTimeout(rpcTimeout);
         Canceled.clear();
     }
 
@@ -125,12 +136,13 @@ class TReplicationWriter
 public:
     TReplicationWriter(
         TReplicationWriterConfigPtr config,
+        TRemoteWriterOptionsPtr options,
         const TChunkId& chunkId,
         const TChunkReplicaList& initialTargets,
         TNodeDirectoryPtr nodeDirectory,
         IChannelPtr masterChannel,
-        EWriteSessionType sessionType,
-        IThroughputThrottlerPtr throttler);
+        IThroughputThrottlerPtr throttler,
+        IBlockCachePtr blockCache);
 
     ~TReplicationWriter();
 
@@ -145,16 +157,19 @@ public:
     virtual const TChunkInfo& GetChunkInfo() const override;
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
 
+    virtual TChunkId GetChunkId() const override;
+
 private:
     friend class TGroup;
 
     const TReplicationWriterConfigPtr Config_;
+    const TRemoteWriterOptionsPtr Options_;
     const TChunkId ChunkId_;
     const TChunkReplicaList InitialTargets_;
     const IChannelPtr MasterChannel_;
     const TNodeDirectoryPtr NodeDirectory_;
-    const EWriteSessionType SessionType_;
     const IThroughputThrottlerPtr Throttler_;
+    const IBlockCachePtr BlockCache_;
 
     TAsyncStreamState State_;
 
@@ -283,8 +298,8 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     auto req = node->HeavyProxy.PutBlocks();
     ToProto(req->mutable_chunk_id(), writer->ChunkId_);
     req->set_first_block_index(FirstBlockIndex_);
+    req->set_populate_cache(writer->Config_->PopulateCache);
     req->Attachments().insert(req->Attachments().begin(), Blocks_.begin(), Blocks_.end());
-    req->set_enable_caching(writer->Config_->EnableCaching);
 
     LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
         GetStartBlockIndex(),
@@ -335,7 +350,7 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
             ToProto(req->mutable_chunk_id(), writer->ChunkId_);
             req->set_first_block_index(FirstBlockIndex_);
             req->set_block_count(Blocks_.size());
-            ToProto(req->mutable_target(), dstNode->Descriptor);
+            ToProto(req->mutable_target_descriptor(), dstNode->Descriptor);
 
             auto rspOrError = WaitFor(req->Invoke());
 
@@ -425,19 +440,21 @@ void TGroup::Process()
 
 TReplicationWriter::TReplicationWriter(
     TReplicationWriterConfigPtr config,
+    TRemoteWriterOptionsPtr options,
     const TChunkId& chunkId,
     const TChunkReplicaList& initialTargets,
     TNodeDirectoryPtr nodeDirectory,
     IChannelPtr masterChannel,
-    EWriteSessionType sessionType,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
     : Config_(config)
+    , Options_(options)
     , ChunkId_(chunkId)
     , InitialTargets_(initialTargets)
     , MasterChannel_(masterChannel)
     , NodeDirectory_(nodeDirectory)
-    , SessionType_(sessionType)
     , Throttler_(throttler)
+    , BlockCache_(blockCache)
     , WindowSlots_(config->SendWindowSize)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
 {
@@ -469,21 +486,19 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
     }
 
     TChunkServiceProxy proxy(MasterChannel_);
+
     auto req = proxy.AllocateWriteTargets();
-    req->set_target_count(Config_->UploadReplicationFactor - Nodes_.size());
-    
+    req->set_desired_target_count(Config_->UploadReplicationFactor - Nodes_.size());
+    req->set_min_target_count(Config_->UploadReplicationFactor - Nodes_.size());
     if (Config_->PreferLocalHost) {
         req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
     }
-
     for (auto node : Nodes_) {
         req->add_forbidden_addresses(node->Descriptor.GetDefaultAddress());
     }
-    
     ToProto(req->mutable_chunk_id(), ChunkId_);
 
     auto rspOrError = WaitFor(req->Invoke());
-
     THROW_ERROR_EXCEPTION_IF_FAILED(
         rspOrError,
         EErrorCode::MasterCommunicationFailed, 
@@ -517,8 +532,8 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    TNodeDescriptor nodeDescriptor = NodeDirectory_->GetDescriptor(target);
-    auto address = nodeDescriptor.GetDefaultAddress();
+    auto nodeDescriptor = NodeDirectory_->GetDescriptor(target);
+    auto address = nodeDescriptor.GetAddressOrThrow(Options_->NetworkName);
     LOG_DEBUG("Starting write session (Address: %v)", address);
 
     TDataNodeServiceProxy proxy(LightNodeChannelFactory->CreateChannel(nodeDescriptor.GetInterconnectAddress()));
@@ -526,7 +541,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
 
     auto req = proxy.StartChunk();
     ToProto(req->mutable_chunk_id(), ChunkId_);
-    req->set_session_type(static_cast<int>(SessionType_));
+    req->set_session_type(static_cast<int>(Options_->SessionType));
     req->set_sync_on_close(Config_->SyncOnClose);
 
     auto rspOrError = WaitFor(req->Invoke());
@@ -537,10 +552,16 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
 
     LOG_DEBUG("Write session started (Address: %v)", address);
 
-    auto node = New<TNode>(Nodes_.size(), nodeDescriptor);
-    node->ChunkReplica = target;
-    node->LightProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
-    node->HeavyProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
+    auto lightChannel = LightNodeChannelFactory->CreateChannel(address);
+    auto heavyChannel = HeavyNodeChannelFactory->CreateChannel(address);
+    auto node = New<TNode>(
+        Nodes_.size(),
+        nodeDescriptor,
+        target,
+        lightChannel,
+        heavyChannel,
+        Config_->NodeRpcTimeout);
+
     node->PingExecutor = New<TPeriodicExecutor>(
         TDispatcher::Get()->GetWriterInvoker(),
         BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(node)),
@@ -567,10 +588,11 @@ void TReplicationWriter::DoOpen()
             StartSessions(AllocateTargets());
         }
 
-        LOG_INFO("Writer opened (Addresses: [%v], EnableCaching: %v, SessionType: %v)",
+        LOG_INFO("Writer opened (Addresses: [%v], PopulateCache: %v, SessionType: %v, Network: %v)",
             JoinToString(Nodes_),
-            Config_->EnableCaching,
-            SessionType_);
+            Config_->PopulateCache,
+            Options_->SessionType,
+            Options_->NetworkName);
 
         IsOpen_ = true;
     } catch (const std::exception& ex) {
@@ -856,7 +878,7 @@ bool TReplicationWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
         return false;
     }
 
-    WindowSlots_.Acquire(GetTotalSize(blocks));
+    WindowSlots_.Acquire(GetByteSize(blocks));
     TDispatcher::Get()->GetWriterInvoker()->Invoke(
         BIND(&TReplicationWriter::AddBlocks, MakeWeak(this), blocks));
 
@@ -895,12 +917,18 @@ void TReplicationWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
         return;
 
     int firstBlockIndex = BlockCount_;
+    int currentBlockIndex = firstBlockIndex;
 
     for (const auto& block : blocks) {
         EnsureCurrentGroup();
 
+        auto blockId = TBlockId(ChunkId_, currentBlockIndex);
+        BlockCache_->Put(blockId, EBlockType::CompressedData, block, Null);
+
         CurrentGroup_->AddBlock(block);
+
         ++BlockCount_;
+        ++currentBlockIndex;
 
         if (CurrentGroup_->GetSize() >= Config_->GroupSize) {
             FlushCurrentGroup();
@@ -912,7 +940,7 @@ void TReplicationWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
     LOG_DEBUG("Blocks added (Blocks: %v-%v, Size: %v)",
         firstBlockIndex,
         lastBlockIndex,
-        GetTotalSize(blocks));
+        GetByteSize(blocks));
 }
 
 void TReplicationWriter::DoClose()
@@ -978,25 +1006,34 @@ TChunkReplicaList TReplicationWriter::GetWrittenChunkReplicas() const
     return chunkReplicas;
 }
 
+TChunkId TReplicationWriter::GetChunkId() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ChunkId_;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 IChunkWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
+    TRemoteWriterOptionsPtr options,
     const TChunkId& chunkId,
     const TChunkReplicaList& targets,
     TNodeDirectoryPtr nodeDirectory,
     IChannelPtr masterChannel,
-    EWriteSessionType sessionType,
+    IBlockCachePtr blockCache,
     IThroughputThrottlerPtr throttler)
 {
     return New<TReplicationWriter>(
         config,
+        options,
         chunkId,
         targets,
         nodeDirectory,
         masterChannel,
-        sessionType,
-        throttler);
+        throttler,
+        blockCache);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

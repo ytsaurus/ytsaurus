@@ -7,6 +7,7 @@
 #include "transaction.h"
 
 #include <core/misc/property.h>
+#include <core/misc/chunked_vector.h>
 
 #include <core/actions/signal.h>
 
@@ -15,6 +16,7 @@
 #include <ytlib/new_table_client/row_buffer.h>
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <ytlib/new_table_client/versioned_row.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -49,12 +51,19 @@ class TDynamicMemoryStore
     : public TStoreBase
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(EStoreFlushState, FlushState);
+
+public:
     TDynamicMemoryStore(
         TTabletManagerConfigPtr config,
         const TStoreId& id,
         TTablet* tablet);
 
     ~TDynamicMemoryStore();
+
+    //! Returns the cached instance of row key comparer
+    //! (obtained by calling TTablet::GetRowKeyComparer).
+    const TDynamicRowKeyComparer& GetRowKeyComparer() const;
 
     int GetLockCount() const;
     int Lock();
@@ -90,21 +99,20 @@ public:
 
     TDynamicRow MigrateRow(
         TTransaction* transaction,
-        const TDynamicRow row);
+        TDynamicRow row);
 
     void ConfirmRow(TTransaction* transaction, TDynamicRow row);
     void PrepareRow(TTransaction* transaction, TDynamicRow row);
     void CommitRow(TTransaction* transaction, TDynamicRow row);
     void AbortRow(TTransaction* transaction, TDynamicRow row);
 
+    TDynamicRow FindRow(NVersionedTableClient::TUnversionedRow key);
+
     int GetValueCount() const;
     int GetKeyCount() const;
     
-    i64 GetAlignedPoolSize() const;
-    i64 GetAlignedPoolCapacity() const;
-
-    i64 GetUnalignedPoolSize() const;
-    i64 GetUnalignedPoolCapacity() const;
+    i64 GetPoolSize() const;
+    i64 GetPoolCapacity() const;
 
     // IStore implementation.
     virtual EStoreType GetType() const override;
@@ -124,37 +132,47 @@ public:
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
-    virtual NVersionedTableClient::IVersionedLookuperPtr CreateLookuper(
+    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+        const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
     virtual void CheckRowLocks(
-        TKey key,
+        TUnversionedRow row,
         TTransaction* transaction,
         ui32 lockMask) override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
 
+    virtual TCallback<void(TSaveContext&)> AsyncSave() override;
+    virtual void AsyncLoad(TLoadContext& context) override;
+
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
     DEFINE_SIGNAL(void(TDynamicRow row, int lockIndex), RowBlocked)
 
 private:
-    class TFetcherBase;
-    class TReader;
-    class TLookuper;
+    class TReaderBase;
+    class TRangeReader;
+    class TLookupReader;
 
     const TTabletManagerConfigPtr Config_;
 
     int StoreLockCount_ = 0;
     int StoreValueCount_ = 0;
 
-    NVersionedTableClient::TRowBuffer RowBuffer_;
+    TDynamicRowKeyComparer RowKeyComparer_;
+
+    NVersionedTableClient::TRowBufferPtr RowBuffer_;
     std::unique_ptr<TSkipList<TDynamicRow, TDynamicRowKeyComparer>> Rows_;
 
     TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;
     TTimestamp MaxTimestamp_ = NTransactionClient::MinTimestamp;
+
+    static const size_t RevisionsPerChunk = 1ULL << 13;
+    static const size_t MaxRevisionChunks = HardRevisionsPerDynamicMemoryStoreLimit / RevisionsPerChunk + 1;
+    TChunkedVector<TTimestamp, RevisionsPerChunk> RevisionToTimestamp_;
 
 
     TDynamicRow AllocateRow();
@@ -179,20 +197,24 @@ private:
         ui32 lockMask,
         bool deleteFlag);
 
-    TValueList AddUncommittedFixedValue(TDynamicRow row, const TVersionedValue& value);
+    TValueList PrepareFixedValue(TDynamicRow row, int index);
+    void AddRevision(TDynamicRow row, ui32 revision, ERevisionListKind kind);
+    void SetKeys(TDynamicRow dstRow, TUnversionedValue* srcKeys);
+    void SetKeys(TDynamicRow dstRow, TDynamicRow srcRow);
+    void LoadRow(TVersionedRow row, yhash_map<TTimestamp, ui32>* timestampToRevision);
 
-    void AddTimestamp(TDynamicRow row, TTimestamp timestamp, ETimestampListKind kind);
-    void SetKeys(TDynamicRow row, TUnversionedRow key);
-
-    void CaptureValue(TUnversionedValue* dst, const TUnversionedValue& src);
-    void CaptureValue(TVersionedValue* dst, const TVersionedValue& src);
-    void CaptureValueData(TUnversionedValue* dst, const TUnversionedValue& src);
+    void CaptureUncommittedValue(TDynamicValue* dst, const TDynamicValue& src, int index);
+    ui32 CaptureTimestamp(TTimestamp timestamp, yhash_map<TTimestamp, ui32>* timestampToRevision);
+    void CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, yhash_map<TTimestamp, ui32>* timestampToRevision);
+    void CaptureUnversionedValue(TDynamicValue* dst, const TUnversionedValue& src);
     TDynamicValueData CaptureStringValue(TDynamicValueData src);
     TDynamicValueData CaptureStringValue(const TUnversionedValue& src);
 
-    void OnMemoryUsageUpdated();
+    ui32 GetLatestRevision() const;
+    ui32 RegisterRevision(TTimestamp timestamp);
+    TTimestamp TimestampFromRevision(ui32 revision);
 
-    TOwningKey RowToKey(TDynamicRow row);
+    void OnMemoryUsageUpdated();
 
 };
 

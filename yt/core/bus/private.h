@@ -14,9 +14,7 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger BusLogger;
-extern NProfiling::TProfiler BusProfiler;
-
-struct TTcpInterfaceStatistics;
+extern const NProfiling::TProfiler BusProfiler;
 
 using TConnectionId = TGuid;
 using TPacketId = TGuid;

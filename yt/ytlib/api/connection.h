@@ -56,11 +56,11 @@ struct IConnection
     virtual NRpc::IChannelPtr GetMasterChannel(EMasterChannelKind kind) = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
-    virtual NChunkClient::IBlockCachePtr GetCompressedBlockCache() = 0;
-    virtual NChunkClient::IBlockCachePtr GetUncompressedBlockCache() = 0;
+    virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
     virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
     virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
+    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;
     virtual NQueryClient::TEvaluatorPtr GetQueryEvaluator() = 0;
     virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
 

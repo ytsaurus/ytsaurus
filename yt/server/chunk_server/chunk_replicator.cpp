@@ -36,6 +36,8 @@
 #include <server/node_tracker_server/rack.h>
 #include <server/node_tracker_server/node_directory_builder.h>
 
+#include <server/object_server/object.h>
+
 #include <server/cypress_server/node.h>
 
 #include <array>
@@ -52,6 +54,7 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NNodeTrackerServer;
+using namespace NObjectServer;
 using namespace NChunkServer::NProto;
 using namespace NCellMaster;
 
@@ -60,7 +63,7 @@ using NChunkClient::TReadLimit;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ChunkServerLogger;
-static auto& Profiler = ChunkServerProfiler;
+static const auto& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -436,6 +439,11 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
     node->Jobs().clear();
 }
 
+void TChunkReplicator::OnNodeRemoved(TNode* node)
+{
+    YCHECK(node->Jobs().empty());
+}
+
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
     ResetChunkStatus(chunk);
@@ -468,7 +476,7 @@ void TChunkReplicator::ProcessExistingJobs(
     std::vector<TJobPtr>* jobsToAbort,
     std::vector<TJobPtr>* jobsToRemove)
 {
-    const auto& address = node->GetAddress();
+    const auto& address = node->GetDefaultAddress();
 
     auto chunkManager = Bootstrap_->GetChunkManager();
     for (const auto& job : currentJobs) {
@@ -596,11 +604,12 @@ bool TChunkReplicator::CreateReplicationJob(
         replicasNeeded = 1;
     }
 
-    auto targets = ChunkPlacement_->AllocateWriteTargets(
+    auto targetNodes = ChunkPlacement_->AllocateWriteTargets(
         chunk,
         replicasNeeded,
+        1,
         EWriteSessionType::Replication);
-    if (targets.empty()) {
+    if (targetNodes.empty()) {
         return false;
     }
 
@@ -610,16 +619,16 @@ bool TChunkReplicator::CreateReplicationJob(
     *job = TJob::CreateReplicate(
         TChunkIdWithIndex(chunk->GetId(), index),
         sourceNode,
-        targets,
+        targetNodes,
         resourceUsage);
 
     LOG_INFO("Replication job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v])",
         (*job)->GetJobId(),
-        sourceNode->GetAddress(),
+        sourceNode->GetDefaultAddress(),
         chunkWithIndex,
-        JoinToString(targets, TNodePtrAddressFormatter()));
+        JoinToString(targetNodes, TNodePtrAddressFormatter()));
 
-    return targets.size() == replicasNeeded;
+    return targetNodes.size() == replicasNeeded;
 }
 
 bool TChunkReplicator::CreateBalancingJob(
@@ -628,32 +637,31 @@ bool TChunkReplicator::CreateBalancingJob(
     double maxFillFactor,
     TJobPtr* job)
 {
-    TChunkIdWithIndex chunkIdWithIndex(chunkWithIndex.GetPtr()->GetId(), chunkWithIndex.GetIndex());
     auto* chunk = chunkWithIndex.GetPtr();
-
     if (chunk->GetRefreshScheduled()) {
         return true;
     }
 
-    auto* target = ChunkPlacement_->AllocateBalancingTarget(chunkWithIndex, maxFillFactor);
-    if (!target) {
+    auto* targetNode = ChunkPlacement_->AllocateBalancingTarget(chunk, maxFillFactor);
+    if (!targetNode) {
         return false;
     }
 
     TNodeResources resourceUsage;
     resourceUsage.set_replication_slots(1);
 
+    TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), chunkWithIndex.GetIndex());
     *job = TJob::CreateReplicate(
         chunkIdWithIndex,
         sourceNode,
-        TNodeList(1, target),
+        TNodeList(1, targetNode),
         resourceUsage);
 
     LOG_INFO("Balancing job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddress: %v)",
         (*job)->GetJobId(),
-        sourceNode->GetAddress(),
+        sourceNode->GetDefaultAddress(),
         chunkIdWithIndex,
-        target->GetAddress());
+        targetNode->GetDefaultAddress());
 
     return true;
 }
@@ -666,7 +674,7 @@ bool TChunkReplicator::CreateRemovalJob(
     auto chunkManager = Bootstrap_->GetChunkManager();
     auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
     // NB: Allow more than one job for dead chunks.
-    if (chunk) {
+    if (IsObjectAlive(chunk)) {
         if (chunk->GetRefreshScheduled()) {
             return true;
         }
@@ -685,7 +693,7 @@ bool TChunkReplicator::CreateRemovalJob(
 
     LOG_INFO("Removal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
         (*job)->GetJobId(),
-        node->GetAddress(),
+        node->GetDefaultAddress(),
         chunkIdWithIndex);
 
     return true;
@@ -728,11 +736,12 @@ bool TChunkReplicator::CreateRepairJob(
         return true;
     }
 
-    auto targets = ChunkPlacement_->AllocateWriteTargets(
+    auto targetNodes = ChunkPlacement_->AllocateWriteTargets(
         chunk,
         erasedIndexCount,
+        erasedIndexCount,
         EWriteSessionType::Repair);
-    if (targets.empty()) {
+    if (targetNodes.empty()) {
         return false;
     }
 
@@ -743,15 +752,15 @@ bool TChunkReplicator::CreateRepairJob(
     *job = TJob::CreateRepair(
         chunk->GetId(),
         node,
-        targets,
+        targetNodes,
         erasedIndexes,
         resourceUsage);
 
     LOG_INFO("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v], ErasedIndexes: [%v])",
         (*job)->GetJobId(),
-        node->GetAddress(),
+        node->GetDefaultAddress(),
         chunk->GetId(),
-        JoinToString(targets, TNodePtrAddressFormatter()),
+        JoinToString(targetNodes, TNodePtrAddressFormatter()),
         JoinToString(erasedIndexes));
 
     return true;
@@ -785,7 +794,7 @@ bool TChunkReplicator::CreateSealJob(
 
     LOG_INFO("Seal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
         (*job)->GetJobId(),
-        node->GetAddress(),
+        node->GetDefaultAddress(),
         chunk->GetId());
 
     return true;
@@ -1001,9 +1010,9 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             for (int index : statistics.BalancingRemovalIndexes) {
                 TChunkPtrWithIndex chunkWithIndex(chunk, index);
                 TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
-                auto* target = ChunkPlacement_->GetRemovalTarget(chunkWithIndex);
-                if (target) {
-                    target->AddToChunkRemovalQueue(chunkIdWithIndex);
+                auto* targetNode = ChunkPlacement_->GetRemovalTarget(chunkWithIndex);
+                if (targetNode) {
+                    targetNode->AddToChunkRemovalQueue(chunkIdWithIndex);
                 }
             }
         }
@@ -1522,7 +1531,7 @@ void TChunkReplicator::RegisterJob(TJobPtr job)
     LOG_INFO("Job registered (JobId: %v, JobType: %v, Address: %v)",
         job->GetJobId(),
         job->GetType(),
-        job->GetNode()->GetAddress());
+        job->GetNode()->GetDefaultAddress());
 }
 
 void TChunkReplicator::UnregisterJob(TJobPtr job, EJobUnregisterFlags flags)
@@ -1554,7 +1563,7 @@ void TChunkReplicator::UnregisterJob(TJobPtr job, EJobUnregisterFlags flags)
 
     LOG_INFO("Job unregistered (JobId: %v, Address: %v)",
         job->GetJobId(),
-        job->GetNode()->GetAddress());
+        job->GetNode()->GetDefaultAddress());
 }
 
 void TChunkReplicator::AddToChunkRepairQueue(TChunk* chunk)

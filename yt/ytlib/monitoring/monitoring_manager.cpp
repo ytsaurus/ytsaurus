@@ -22,8 +22,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = MonitoringLogger;
-static auto& Profiler = MonitoringProfiler;
+static const auto& Logger = MonitoringLogger;
+static const auto& Profiler = MonitoringProfiler;
 
 static const auto UpdatePeriod = TDuration::Seconds(3);
 static const auto EmptyRoot = GetEphemeralNodeFactory()->CreateMap();

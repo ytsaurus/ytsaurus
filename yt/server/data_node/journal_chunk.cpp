@@ -32,7 +32,6 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
-
 static NProfiling::TSimpleCounter DiskJournalReadByteCounter("/disk_journal_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,11 +45,10 @@ TJournalChunk::TJournalChunk(
         location,
         descriptor.Id)
 {
-    CachedSealed_ = descriptor.Sealed;
     CachedRowCount_ = descriptor.RowCount;
     CachedDataSize_ = descriptor.DiskSpace;
+    Sealed_ = descriptor.Sealed;
 
-    Meta_ = New<TRefCountedChunkMeta>();
     Meta_->set_type(static_cast<int>(EChunkType::Journal));
     Meta_->set_version(0);
 }
@@ -70,14 +68,23 @@ TChunkInfo TJournalChunk::GetInfo() const
     UpdateCachedParams();
 
     TChunkInfo info;
-    info.set_sealed(CachedSealed_);
+    info.set_sealed(Sealed_);
     info.set_disk_space(CachedDataSize_);
     return info;
 }
 
-TFuture<TRefCountedChunkMetaPtr> TJournalChunk::GetMeta(
+TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
     i64 /*priority*/,
     const TNullable<std::vector<int>>& extensionTags)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return BIND(&TJournalChunk::DoReadMeta, MakeStrong(this), extensionTags)
+        .AsyncVia(Bootstrap_->GetControlInvoker())
+        .Run();
+}
+
+TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const TNullable<std::vector<int>>& extensionTags)
 {
     UpdateCachedParams();
 
@@ -85,10 +92,10 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::GetMeta(
     miscExt.set_row_count(CachedRowCount_);
     miscExt.set_uncompressed_data_size(CachedDataSize_);
     miscExt.set_compressed_data_size(CachedDataSize_);
-    miscExt.set_sealed(CachedSealed_);
+    miscExt.set_sealed(Sealed_);
     SetProtoExtension(Meta_->mutable_extensions(), miscExt);
 
-    return MakeFuture(FilterCachedMeta(extensionTags));
+    return FilterMeta(Meta_, extensionTags);
 }
 
 TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
@@ -96,6 +103,7 @@ TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
     int blockCount,
     i64 priority)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(firstBlockIndex >= 0);
     YCHECK(blockCount >= 0);
 
@@ -124,10 +132,10 @@ void TJournalChunk::DoReadBlocks(
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
-        auto changelog = WaitFor(dispatcher->OpenChangelog(Location_, Id_, false))
+        auto changelog = WaitFor(dispatcher->OpenChangelog(Location_, Id_))
             .ValueOrThrow();
 
-        LOG_TRACE("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+        LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
@@ -153,9 +161,9 @@ void TJournalChunk::DoReadBlocks(
         auto readTime = timer.GetElapsed();
         const auto& blocks = blocksOrError.Value();
         int blocksRead = static_cast<int>(blocks.size());
-        i64 bytesRead = GetTotalSize(blocks);
+        i64 bytesRead = GetByteSize(blocks);
 
-        LOG_TRACE("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, BytesReadActually: %v)",
+        LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, BytesReadActually: %v)",
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
@@ -163,7 +171,7 @@ void TJournalChunk::DoReadBlocks(
             blocksRead,
             bytesRead);
 
-        auto& locationProfiler = Location_->Profiler();
+        auto& locationProfiler = Location_->GetProfiler();
         locationProfiler.Enqueue("/journal_read_size", bytesRead);
         locationProfiler.Enqueue("/journal_read_time", readTime.MicroSeconds());
         locationProfiler.Enqueue("/journal_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
@@ -180,7 +188,6 @@ void TJournalChunk::UpdateCachedParams() const
     if (Changelog_) {
         CachedRowCount_ = Changelog_->GetRecordCount();
         CachedDataSize_ = Changelog_->GetDataSize();
-        CachedSealed_ = Changelog_->IsSealed();
     }
 }
 
@@ -209,9 +216,8 @@ void TJournalChunk::SyncRemove(bool force)
 
 TFuture<void> TJournalChunk::AsyncRemove()
 {
-    auto location = Location_;
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    return dispatcher->RemoveChangelog(this);
+    return dispatcher->RemoveChangelog(this, true);
 }
 
 void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
@@ -235,7 +241,7 @@ bool TJournalChunk::HasAttachedChangelog() const
 {
     YCHECK(!Removing_);
 
-    return Changelog_ != nullptr;
+    return Changelog_.operator bool();
 }
 
 IChangelogPtr TJournalChunk::GetAttachedChangelog() const
@@ -259,8 +265,15 @@ i64 TJournalChunk::GetDataSize() const
 
 bool TJournalChunk::IsSealed() const
 {
-    UpdateCachedParams();
-    return CachedSealed_;
+    return Sealed_;
+}
+
+TFuture<void> TJournalChunk::Seal()
+{
+    auto dispatcher = Bootstrap_->GetJournalDispatcher();
+    return dispatcher->SealChangelog(this).Apply(BIND([this, this_ = MakeStrong(this)] () {
+        Sealed_ = true;
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

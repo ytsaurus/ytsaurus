@@ -14,10 +14,10 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnversionedRowMerger
+class TSchemafulRowMerger
 {
 public:
-    TUnversionedRowMerger(
+    TSchemafulRowMerger(
         TChunkedMemoryPool* pool,
         int schemaColumnCount,
         int keyColumnCount,
@@ -28,11 +28,9 @@ public:
     void Reset();
 
 private:
-    TChunkedMemoryPool* Pool_;
-    int SchemaColumnCount_;
-    int KeyColumnCount_;
-
-    NVersionedTableClient::TKeyComparer KeyComparer_;
+    TChunkedMemoryPool* const Pool_;
+    const int SchemaColumnCount_;
+    const int KeyColumnCount_;
 
     NVersionedTableClient::TUnversionedRow MergedRow_;
     SmallVector<NVersionedTableClient::TTimestamp, NVersionedTableClient::TypicalColumnCount> MergedTimestamps_;
@@ -61,18 +59,19 @@ public:
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp);
 
+    TTimestamp GetCurrentTimestamp() const;
+    TTimestamp GetMajorTimestamp() const;
+
     void AddPartialRow(TVersionedRow row);
     TVersionedRow BuildMergedRow();
     void Reset();
 
 private:
-    TChunkedMemoryPool* Pool_;
-    int KeyColumnCount_;
-    TRetentionConfigPtr Config_;
-    TTimestamp CurrentTimestamp_;
-    TTimestamp MajorTimestamp_;
-
-    NVersionedTableClient::TKeyComparer KeyComparer_;
+    TChunkedMemoryPool* const Pool_;
+    const int KeyColumnCount_;
+    const TRetentionConfigPtr Config_;
+    const TTimestamp CurrentTimestamp_;
+    const TTimestamp MajorTimestamp_;
 
     bool Started_;
     SmallVector<TUnversionedValue, NVersionedTableClient::TypicalColumnCount> Keys_;

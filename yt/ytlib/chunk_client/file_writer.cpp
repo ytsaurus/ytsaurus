@@ -14,14 +14,22 @@ using namespace NChunkClient::NProto;
 ///////////////////////////////////////////////////////////////////////////////
 
 static const auto FileMode =
-	CreateAlways | WrOnly | Seq | CloseOnExec |  AR | AWUser | AWGroup;
+    CreateAlways |
+    WrOnly |
+    Seq |
+    CloseOnExec |
+    AR |
+    AWUser |
+    AWGroup;
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TFileWriter::TFileWriter(
+    const TChunkId& chunkId,
     const Stroka& fileName,
     bool syncOnClose)
-    : FileName_(fileName)
+    : ChunkId_(chunkId)
+    , FileName_(fileName)
     , SyncOnClose_(syncOnClose)
 { }
 
@@ -119,8 +127,7 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
     ChunkMeta_.CopyFrom(chunkMeta);
     SetProtoExtension(ChunkMeta_.mutable_extensions(), BlocksExt_);
 
-    TSharedRef metaData;
-    YCHECK(SerializeToProtoWithEnvelope(ChunkMeta_, &metaData));
+    auto metaData = SerializeToProtoWithEnvelope(ChunkMeta_);
 
     TChunkMetaHeader header;
     header.Signature = header.ExpectedSignature;
@@ -188,6 +195,11 @@ const TChunkMeta& TFileWriter::GetChunkMeta() const
 TChunkReplicaList TFileWriter::GetWrittenChunkReplicas() const
 {
     YUNIMPLEMENTED();
+}
+
+TChunkId TFileWriter::GetChunkId() const
+{
+    return ChunkId_;
 }
 
 i64 TFileWriter::GetDataSize() const

@@ -6,9 +6,10 @@
 
 #include <core/misc/proc.h>
 
-#include <ytlib/pipes/io_dispatcher.h>
-#include <ytlib/pipes/async_reader.h>
-#include <ytlib/pipes/async_writer.h>
+#include <core/pipes/io_dispatcher.h>
+#include <core/pipes/pipe.h>
+#include <core/pipes/async_reader.h>
+#include <core/pipes/async_writer.h>
 
 #include <random>
 
@@ -21,20 +22,12 @@ using namespace NConcurrency;
 
 #ifndef _win_
 
-void SafeMakeNonblockingPipes(int fds[2])
-{
-    SafePipe(fds);
-    SafeMakeNonblocking(fds[0]);
-    SafeMakeNonblocking(fds[1]);
-}
-
 TEST(TPipeIOHolder, CanInstantiate)
 {
-    int pipefds[2];
-    SafeMakeNonblockingPipes(pipefds);
+    auto pipe = TPipeFactory().Create();
 
-    auto readerHolder = New<TAsyncReader>(pipefds[0]);
-    auto writerHolder = New<TAsyncWriter>(pipefds[1]);
+    auto readerHolder = pipe.CreateAsyncReader();
+    auto writerHolder = pipe.CreateAsyncWriter();
 
     readerHolder->Abort().Get();
     writerHolder->Abort().Get();
@@ -44,19 +37,19 @@ TEST(TPipeIOHolder, CanInstantiate)
 
 TBlob ReadAll(TAsyncReaderPtr reader, bool useWaitFor)
 {
-    auto buffer = TBlob(TDefaultBlobTag(), 1024 * 1024);
+    auto buffer = TSharedMutableRef::Allocate(1024 * 1024, false);
     auto whole = TBlob(TDefaultBlobTag());
 
     while (true)  {
         TErrorOr<size_t> result;
-        auto future = reader->Read(buffer.Begin(), buffer.Size());
+        auto future = reader->Read(buffer);
         if (useWaitFor) {
             result = WaitFor(future);
         } else {
             result = future.Get();
         }
 
-        if (result.Value() == 0) {
+        if (result.ValueOrThrow() == 0) {
             break;
         }
 
@@ -67,11 +60,10 @@ TBlob ReadAll(TAsyncReaderPtr reader, bool useWaitFor)
 
 TEST(TAsyncWriterTest, AsyncCloseFail)
 {
-    int pipefds[2];
-    SafeMakeNonblockingPipes(pipefds);
+    auto pipe = TPipeFactory().Create();
 
-    auto reader = New<TAsyncReader>(pipefds[0]);
-    auto writer = New<TAsyncWriter>(pipefds[1]);
+    auto reader = pipe.CreateAsyncReader();
+    auto writer = pipe.CreateAsyncWriter();
 
     auto queue = New<NConcurrency::TActionQueue>();
     auto readFromPipe =
@@ -79,14 +71,39 @@ TEST(TAsyncWriterTest, AsyncCloseFail)
             .AsyncVia(queue->GetInvoker())
             .Run();
 
+    int length = 200*1024;
+    auto buffer = TSharedMutableRef::Allocate(length);
+    ::memset(buffer.Begin(), 'a', buffer.Size());
 
-    std::vector<char> buffer(200*1024, 'a');
-    ASSERT_TRUE(writer->Write(&buffer[0], buffer.size()).Get().IsOK());
+    auto writeResult = writer->Write(buffer).Get();
+
+    EXPECT_TRUE(writeResult.IsOK())
+        << ToString(writeResult);
 
     auto error = writer->Close();
-    auto closeStatus = error.Get();
 
-    ASSERT_EQ(-1, close(pipefds[1]));
+    auto readResult = readFromPipe.Get();
+    ASSERT_TRUE(readResult.IsOK())
+        << ToString(readResult);
+
+    auto closeStatus = error.Get();
+}
+
+TEST(TAsyncWriterTest, WriteFailed)
+{
+    auto pipe = TPipeFactory().Create();
+    auto reader = pipe.CreateAsyncReader();
+    auto writer = pipe.CreateAsyncWriter();
+
+    int length = 200*1024;
+    auto buffer = TSharedMutableRef::Allocate(length);
+    ::memset(buffer.Begin(), 'a', buffer.Size());
+
+    auto asyncWriteResult = writer->Write(buffer);
+    reader->Abort();
+
+    EXPECT_FALSE(asyncWriteResult.Get().IsOK())
+        << ToString(asyncWriteResult.Get());
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -97,11 +114,10 @@ class TPipeReadWriteTest
 protected:
     virtual void SetUp() override
     {
-        int pipefds[2];
-        SafeMakeNonblockingPipes(pipefds);
+        auto pipe = TPipeFactory().Create();
 
-        Reader = New<TAsyncReader>(pipefds[0]);
-        Writer = New<TAsyncWriter>(pipefds[1]);
+        Reader = pipe.CreateAsyncReader();
+        Writer = pipe.CreateAsyncWriter();
     }
 
     virtual void TearDown() override
@@ -115,16 +131,17 @@ protected:
 TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
 {
     Stroka message("Hello pipe!\n");
-    Writer->Write(message.c_str(), message.size()).Get();
+    auto buffer = TSharedRef::FromString(std::move(message));
+    Writer->Write(buffer).Get();
     Writer->Close();
 
-    auto data = TBlob(TDefaultBlobTag(), 1);
+    auto data = TSharedMutableRef::Allocate(1);
     auto whole = TBlob(TDefaultBlobTag());
 
     while (true)
     {
-        auto result = Reader->Read(data.Begin(), data.Size()).Get();
-        if (result.Value() == 0) {
+        auto result = Reader->Read(data).Get();
+        if (result.ValueOrThrow() == 0) {
             break;
         }
         whole.Append(data.Begin(), result.Value());
@@ -136,7 +153,8 @@ TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
 TEST_F(TPipeReadWriteTest, ReadSomethingWait)
 {
     Stroka message("Hello pipe!\n");
-    Writer->Write(message.c_str(), message.size()).Get();
+    auto buffer = TSharedRef::FromString(std::move(message));
+    Writer->Write(buffer).Get();
     Writer->Close();
 
     auto whole = ReadAll(Reader, false);
@@ -147,7 +165,8 @@ TEST_F(TPipeReadWriteTest, ReadSomethingWait)
 TEST_F(TPipeReadWriteTest, ReadWrite)
 {
     Stroka text("Hello cruel world!\n");
-    Writer->Write(text.c_str(), text.size()).Get();
+    auto buffer = TSharedRef::FromString(std::move(text));
+    Writer->Write(buffer).Get();
     auto errorsOnClose = Writer->Close();
 
     auto textFromPipe = ReadAll(Reader, false);
@@ -161,7 +180,8 @@ void WriteAll(TAsyncWriterPtr writer, const char* data, size_t size, size_t bloc
 {
     while (size > 0) {
         const size_t currentBlockSize = std::min(blockSize, size);
-        auto error = WaitFor(writer->Write(data, currentBlockSize));
+        auto buffer = TSharedRef(data, currentBlockSize, nullptr);
+        auto error = WaitFor(writer->Write(buffer));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
         size -= currentBlockSize;
         data += currentBlockSize;

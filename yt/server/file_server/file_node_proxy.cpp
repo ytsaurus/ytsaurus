@@ -70,11 +70,6 @@ private:
         TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
     }
 
-    virtual ELockMode GetLockMode(EUpdateMode updateMode) override
-    {
-        return ELockMode::Exclusive;
-    }
-
     virtual void ValidateFetchParameters(
         const TChannel& channel,
         const std::vector<TReadRange>& ranges) override

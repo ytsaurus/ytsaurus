@@ -31,30 +31,30 @@ void TKeyList::Load(TLoadContext& context)
 const int TPartition::EdenIndex;
 #endif
 
-TPartition::TPartition(TTablet* tablet, const TPartitionId& id, int index)
+TPartition::TPartition(
+    TTablet* tablet,
+    const TPartitionId& id,
+    int index,
+    TOwningKey pivotKey,
+    TOwningKey nextPivotKey)
     : Tablet_(tablet)
     , Id_(id)
     , Index_(index)
-    , PivotKey_(MinKey())
-    , NextPivotKey_(MaxKey())
+    , PivotKey_(std::move(pivotKey))
+    , NextPivotKey_(std::move(nextPivotKey))
     , State_(EPartitionState::Normal)
     , SampleKeys_(New<TKeyList>())
-{ }
-
-TPartition::~TPartition()
 { }
 
 void TPartition::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
-    Save(context, PivotKey_);
-    Save(context, NextPivotKey_);
     Save(context, SamplingTime_);
     Save(context, SamplingRequestTime_);
-    Save(context, *SampleKeys_);
 
-    Save(context, Stores_.size());
+    TSizeSerializer::Save(context, Stores_.size());
+    // NB: This is not stable.
     for (auto store : Stores_) {
         Save(context, store->GetId());
     }
@@ -64,18 +64,38 @@ void TPartition::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, PivotKey_);
-    Load(context, NextPivotKey_);
     Load(context, SamplingTime_);
     Load(context, SamplingRequestTime_);
-    Load(context, *SampleKeys_);
 
-    size_t storeCount = Load<size_t>(context);
-    for (size_t index = 0; index < storeCount; ++index) {
-        auto storeId = Load<TStoreId>(context);
-        auto store = Tablet_->GetStore(storeId);
-        YCHECK(Stores_.insert(store).second);
+    int storeCount = TSizeSerializer::LoadSuspended(context);
+    SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
+    SERIALIZATION_DUMP_INDENT(context) {
+        for (int index = 0; index < storeCount; ++index) {
+            auto storeId = Load<TStoreId>(context);
+            auto store = Tablet_->GetStore(storeId);
+            YCHECK(Stores_.insert(store).second);
+        }
     }
+}
+
+TCallback<void(TSaveContext&)> TPartition::AsyncSave()
+{
+    return BIND([snapshot = Snapshot_] (TSaveContext& context) {
+        using NYT::Save;
+
+        Save(context, snapshot->PivotKey);
+        Save(context, snapshot->NextPivotKey);
+        Save(context, *snapshot->SampleKeys);
+    });
+}
+
+void TPartition::AsyncLoad(TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, PivotKey_);
+    Load(context, NextPivotKey_);
+    Load(context, *SampleKeys_);
 }
 
 i64 TPartition::GetUncompressedDataSize() const
@@ -96,14 +116,20 @@ i64 TPartition::GetUnmergedRowCount() const
     return result;
 }
 
-TPartitionSnapshotPtr TPartition::BuildSnapshot() const
+bool TPartition::IsEden() const
 {
-    auto snapshot = New<TPartitionSnapshot>();
-    snapshot->Id = Id_;
-    snapshot->PivotKey = PivotKey_;
-    snapshot->SampleKeys = SampleKeys_;
-    snapshot->Stores.insert(snapshot->Stores.end(), Stores_.begin(), Stores_.end());
-    return snapshot;
+    return Index_ == EdenIndex;
+}
+
+TPartitionSnapshotPtr TPartition::RebuildSnapshot()
+{
+    Snapshot_ = New<TPartitionSnapshot>();
+    Snapshot_->Id = Id_;
+    Snapshot_->PivotKey = PivotKey_;
+    Snapshot_->NextPivotKey = NextPivotKey_;
+    Snapshot_->SampleKeys = SampleKeys_;
+    Snapshot_->Stores.insert(Snapshot_->Stores.end(), Stores_.begin(), Stores_.end());
+    return Snapshot_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -36,7 +36,7 @@ public:
         TChunkReaderConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        NChunkClient::IBlockCachePtr uncompressedBlockCache,
+        NChunkClient::IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         const NChunkClient::NProto::TChunkMeta& masterMeta,
         int partitionTag);
@@ -50,14 +50,14 @@ public:
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
 
 private:
-    TNameTablePtr NameTable_;
-    TKeyColumns KeyColumns_;
+    const TNameTablePtr NameTable_;
+    const TKeyColumns KeyColumns_;
 
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
+
+    const int PartitionTag_;
+
     NProto::TBlockMetaExt BlockMetaExt_;
-
-    int PartitionTag_;
-
     std::vector<int> IdMapping_;
 
     int CurrentBlockIndex_ = 0;
@@ -79,53 +79,6 @@ DEFINE_REFCOUNTED_TYPE(TPartitionChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//ToDo(psushin): move to inl.
-
-template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
-bool TPartitionChunkReader::Read(
-    TValueInsertIterator& valueInserter,
-    TRowDescriptorInsertIterator& rowDescriptorInserter,
-    i64* rowCount)
-{
-    *rowCount = 0;
-
-    if (!ReadyEvent_.IsSet()) {
-        // Waiting for the next block.
-        return true;
-    }
-
-    if (!BlockReader_) {
-        // Nothing to read from chunk.
-        return false;
-    }
-
-    if (BlockEnded_) {
-        BlockReader_ = nullptr;
-        return OnBlockEnded();
-    }
-
-    while (true) {
-        ++RowCount_;
-        ++(*rowCount);
-
-        const auto& key = BlockReader_->GetKey();
-
-        std::copy(key.Begin(), key.End(), valueInserter);
-        rowDescriptorInserter = TRowDescriptor({
-            BlockReader_,
-            static_cast<i32>(BlockReader_->GetRowIndex())});
-
-        if (!BlockReader_->NextRow()) {
-            BlockEnded_ = true;
-            return true;
-        }
-    }
-
-    return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TPartitionMultiChunkReader
     : public NChunkClient::TParallelMultiChunkReaderBase
 {
@@ -134,8 +87,7 @@ public:
         NChunkClient::TMultiChunkReaderConfigPtr config,
         NChunkClient::TMultiChunkReaderOptionsPtr options,
         NRpc::IChannelPtr masterChannel,
-        NChunkClient::IBlockCachePtr compressedBlockCache,
-        NChunkClient::IBlockCachePtr uncompressedBlockCache,
+        NChunkClient::IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
         TNameTablePtr nameTable,
@@ -151,8 +103,6 @@ public:
     TNameTablePtr GetNameTable() const;
 
 private:
-    const NChunkClient::IBlockCachePtr UncompressedBlockCache_;
-
     const TNameTablePtr NameTable_;
     const TKeyColumns KeyColumns_;
 
@@ -171,30 +121,9 @@ DEFINE_REFCOUNTED_TYPE(TPartitionMultiChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
-bool TPartitionMultiChunkReader::Read(
-    TValueInsertIterator& valueInserter,
-    TRowDescriptorInsertIterator& rowDescriptorInserter,
-    i64* rowCount)
-{
-    YCHECK(ReadyEvent_.IsSet());
-    YCHECK(ReadyEvent_.Get().IsOK());
-
-    *rowCount = 0;
-
-    // Nothing to read.
-    if (!CurrentReader_)
-        return false;
-
-    bool readerFinished = !CurrentReader_->Read(valueInserter, rowDescriptorInserter, rowCount);
-    if (*rowCount == 0) {
-        return TParallelMultiChunkReaderBase::OnEmptyRead(readerFinished);
-    } else {
-        return true;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NVersionedTableClient
 } // namespace NYT
+
+#define PARTITION_CHUNK_READER_INL_H_
+#include "partition_chunk_reader-inl.h"
+#undef PARTITION_CHUNK_READER_INL_H_

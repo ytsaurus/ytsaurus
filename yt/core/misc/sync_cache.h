@@ -4,8 +4,9 @@
 
 #include <core/concurrency/rw_spinlock.h>
 
-#include <core/profiling/timing.h>
 #include <core/profiling/profiler.h>
+
+#include <atomic>
 
 namespace NYT {
 
@@ -70,7 +71,6 @@ private:
 
         TValuePtr Value;
         bool Younger;
-        NProfiling::TCpuInstant NextTouchInstant = 0;
     };
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
@@ -81,6 +81,9 @@ private:
     yhash_map<TKey, TItem*, THash> ItemMap_;
     volatile int ItemMapSize_ = 0; // used by GetSize
 
+    std::vector<TItem*> TouchBuffer_;
+    std::atomic<int> TouchBufferPosition_ = {0};
+
     NProfiling::TProfiler Profiler;
     NProfiling::TSimpleCounter HitWeightCounter_;
     NProfiling::TSimpleCounter MissedWeightCounter_;
@@ -88,13 +91,15 @@ private:
     NProfiling::TSimpleCounter OlderWeightCounter_;
 
 
-    static bool CanTouch(TItem* item);
-    void Touch(const TKey& key);
+    bool Touch(TItem* item);
+    void DrainTouchBuffer();
+
+    void Trim(NConcurrency::TWriterGuard& guard);
+
     void PushToYounger(TItem* item);
     void MoveToYounger(TItem* item);
     void MoveToOlder(TItem* item);
     void Pop(TItem* item);
-    void TrimIfNeeded();
 
 };
 

@@ -33,7 +33,7 @@ TSharedRef SerializeToProtoWithHeader(
     size_t messageSize = message.ByteSize();
     size_t totalSize = sizeof(fixedHeader) + messageSize;
     struct TSerializedMessageTag { };
-    auto data = TSharedRef::Allocate<TSerializedMessageTag>(totalSize, false);
+    auto data = TSharedMutableRef::Allocate<TSerializedMessageTag>(totalSize, false);
     ::memcpy(data.Begin(), &fixedHeader, sizeof(fixedHeader));
     YCHECK(message.SerializePartialToArray(data.Begin() + sizeof(fixedHeader), messageSize));
     return data;
@@ -102,8 +102,7 @@ TSharedRefArray CreateResponseMessage(
     const ::google::protobuf::MessageLite& body,
     const std::vector<TSharedRef>& attachments)
 {
-    TSharedRef serializedBody;
-    YCHECK(SerializeToProtoWithEnvelope(body, &serializedBody));
+    auto serializedBody = SerializeToProtoWithEnvelope(body);
 
     return CreateResponseMessage(
         TResponseHeader(),

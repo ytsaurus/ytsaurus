@@ -1,5 +1,4 @@
-#include "common.h"
-#include "gil.h"
+#include "helpers.h"
 #include "serialize.h"
 
 #include <core/ytree/node.h>
@@ -78,7 +77,7 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
     {
         throw Py::RuntimeError(
             "Integer " + std::string(obj.repr()) +
-            " cannot be represented in YSON since it is out of range [-2^63, 2^64 - 1])");
+            " cannot be serialized to YSON since it is out of range [-2^63, 2^64 - 1]");
     }
 
     auto consumeAsLong = [&] {
@@ -124,7 +123,6 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
     consumeAsLong();
 }
 
-
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerAttributes, int depth)
 {
     static Py::Callable YsonEntityClass = GetYsonType("YsonEntity");
@@ -169,8 +167,8 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
         consumer->OnEntity();
     } else {
         throw Py::RuntimeError(
-            "Unsupported python object in tree builder: " +
-            std::string(obj.repr()));
+            "Value " + std::string(obj.repr()) +
+            " cannot be serialized to YSON since it has unsupported type");
     }
 }
 
@@ -493,7 +491,7 @@ public:
     void RefreshBlock()
     {
         YCHECK(BeginPtr_ == EndPtr_);
-        auto blob = TSharedRef::Allocate<TInputStreamBlobTag>(BlockSize_, false);
+        auto blob = TSharedMutableRef::Allocate<TInputStreamBlobTag>(BlockSize_, false);
         auto size = Stream_->Load(blob.Begin(), blob.Size());
         if (size != BlockSize_) {
             Finished_ = true;
@@ -523,12 +521,12 @@ public:
             PrefixStart_ = Blobs_.front().Begin();
         }
 
-        TSharedRef result;
+        TSharedMutableRef result;
 
         if (Blobs_.size() == 1) {
-            result = Blobs_[0].Slice(TRef(PrefixStart_, BeginPtr_));
+            result = Blobs_[0].Slice(PrefixStart_, BeginPtr_);
         } else {
-            result = TSharedRef::Allocate<TInputStreamBlobTag>(ReadByteCount_, false);
+            result = TSharedMutableRef::Allocate<TInputStreamBlobTag>(ReadByteCount_, false);
 
             size_t index = 0;
             auto append = [&] (const char* begin, const char* end) {
@@ -556,7 +554,7 @@ public:
 private:
     TInputStream* Stream_;
 
-    std::deque<TSharedRef> Blobs_;
+    std::deque<TSharedMutableRef> Blobs_;
 
     char* BeginPtr_ = nullptr;
     char* EndPtr_ = nullptr;
@@ -632,7 +630,7 @@ public:
         if (hasRow) {
             auto prefix = Lexer_.ExtractPrefix();
             YCHECK(*(prefix.End() - 1) != NYson::NDetail::ListItemSeparatorSymbol);
-            auto result = TSharedRef::Allocate(prefix.Size() + 1, false);
+            auto result = TSharedMutableRef::Allocate(prefix.Size() + 1, false);
             std::copy(prefix.Begin(), prefix.End(), result.Begin());
             *(result.End() - 1) = ';';
             return result;

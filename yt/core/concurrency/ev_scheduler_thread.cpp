@@ -13,12 +13,7 @@ TEVSchedulerThread::TInvoker::TInvoker(TEVSchedulerThread* owner)
 void TEVSchedulerThread::TInvoker::Invoke(const TClosure& callback)
 {
     YASSERT(callback);
-
-    if (!Owner->IsRunning())
-        return;
-
-    Owner->Queue.Enqueue(callback);
-    Owner->CallbackWatcher.send();
+    Owner->EnqueueCallback(callback);
 }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
@@ -109,6 +104,15 @@ void TEVSchedulerThread::EndExecute()
 void TEVSchedulerThread::OnCallback(ev::async&, int)
 {
     EventLoop.break_loop();
+}
+
+void TEVSchedulerThread::EnqueueCallback(const TClosure& callback)
+{
+    if (!IsRunning())
+        return;
+
+    Queue.Enqueue(callback);
+    CallbackWatcher.send();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

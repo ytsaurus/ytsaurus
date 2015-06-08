@@ -34,7 +34,7 @@ public:
     }
 
 private:
-    ITimestampProviderPtr Provider_;
+    const ITimestampProviderPtr Provider_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, GenerateTimestamps)

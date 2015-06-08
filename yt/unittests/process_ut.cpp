@@ -45,6 +45,18 @@ TEST(TProcessTest, GoodDup)
     ASSERT_TRUE(error.IsOK()) << ToString(error);
 }
 
+TEST(TProcess, GetCommandLine)
+{
+    TProcess p("/bin/sh");
+    p.AddArgument("-c");
+    p.AddArgument("exit 0");
+
+    ASSERT_NO_THROW(p.Spawn());
+    ASSERT_TRUE(p.GetCommandLine() == "/bin/sh -c \"exit 0\"") << p.GetCommandLine();
+
+    ASSERT_NO_THROW(p.Wait());
+}
+
 TEST(TProcess, IgnoreCloseInvalidFD)
 {
     TProcess p("/bin/sh");

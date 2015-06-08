@@ -284,11 +284,11 @@ public:
             BIND(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
-            ESerializationPriority::Keys,
+            ESyncSerializationPriority::Keys,
             "TransactionManager.Keys",
             BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "TransactionManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
     }
@@ -310,8 +310,8 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Transaction);
 
-        auto* transaction = new TTransaction(id);
-        TransactionMap_.Insert(id, transaction);
+        auto transactionHolder = std::make_unique<TTransaction>(id);
+        auto* transaction = TransactionMap_.Insert(id, std::move(transactionHolder));
 
         // Every active transaction has a fake reference to itself.
         objectManager->RefObject(transaction);
@@ -446,21 +446,6 @@ public:
                 id);
         }
         return transaction;
-    }
-
-    TTransactionPath GetTransactionPath(TTransaction* transaction) const
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TTransactionPath result;
-        while (true) {
-            result.push_back(transaction);
-            if (!transaction) {
-                break;
-            }
-            transaction = transaction->GetParent();
-        }
-        return result;
     }
 
     void StageObject(TTransaction* transaction, TObjectBase* object)
@@ -673,6 +658,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
         DoClear();
     }
 
@@ -700,12 +687,16 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TMasterAutomatonPart::Clear();
+
         DoClear();
     }
 
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnLeaderActive();
 
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
@@ -720,6 +711,8 @@ private:
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnStopLeading();
 
         // Reset all transiently prepared transactions back into active state.
         for (const auto& pair : TransactionMap_) {
@@ -832,11 +825,6 @@ void TTransactionManager::PingTransaction(TTransaction* transaction, bool pingAn
 TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& id)
 {
     return Impl_->GetTransactionOrThrow(id);
-}
-
-TTransactionPath TTransactionManager::GetTransactionPath(TTransaction* transaction) const
-{
-    return Impl_->GetTransactionPath(transaction);
 }
 
 void TTransactionManager::StageObject(TTransaction* transaction, TObjectBase* object)

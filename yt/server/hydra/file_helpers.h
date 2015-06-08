@@ -18,6 +18,7 @@ public:
 
     i64 Seek(i64 offset, SeekDir origin);
     void Flush();
+    void FlushData();
     void Write(const void* buffer, size_t length);
     size_t Pread(void* buffer, size_t length, i64 offset);
     size_t Load(void* buffer, size_t length);

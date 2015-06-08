@@ -153,7 +153,7 @@ protected:
     {
         return CreateTableNodeProxy(
             this,
-            Bootstrap,
+            Bootstrap_,
             transaction,
             trunkNode);
     }
@@ -163,7 +163,7 @@ protected:
         TBase::DoDestroy(table);
 
         if (table->IsTrunk()) {
-            auto tabletManager = Bootstrap->GetTabletManager();
+            auto tabletManager = Bootstrap_->GetTabletManager();
             tabletManager->ClearTablets(table);
         }
     }
@@ -182,13 +182,8 @@ protected:
         TTableNode* originatingNode,
         TTableNode* branchedNode) override
     {
-        if (branchedNode->GetUpdateMode() == EUpdateMode::Append) {
-            originatingNode->KeyColumns().clear();
-            originatingNode->SetSorted(false);
-        } else {
-            originatingNode->KeyColumns() = branchedNode->KeyColumns();
-            originatingNode->SetSorted(branchedNode->GetSorted());
-        }
+        originatingNode->KeyColumns() = branchedNode->KeyColumns();
+        originatingNode->SetSorted(branchedNode->GetSorted());
 
         TBase::DoMerge(originatingNode, branchedNode);
     }
@@ -202,13 +197,13 @@ protected:
         switch (mode) {
             case ENodeCloneMode::Copy:
                 if (sourceNode->IsDynamic()) {
-                    THROW_ERROR_EXCEPTION("Dynamic tables cannot be copied");
+                    THROW_ERROR_EXCEPTION("Cannot copy a dynamic table");
                 }
                 break;
 
             case ENodeCloneMode::Move:
                 if (sourceNode->HasMountedTablets()) {
-                    THROW_ERROR_EXCEPTION("Dynamic tables with mounted tablets cannot be moved");
+                    THROW_ERROR_EXCEPTION("Cannot move a dynamic table with mounted tablets");
                 }
                 break;
 
@@ -222,10 +217,11 @@ protected:
         clonedNode->KeyColumns() = sourceNode->KeyColumns();
 
         if (sourceNode->IsDynamic()) {
-            auto objectManager = Bootstrap->GetObjectManager();
+            auto objectManager = Bootstrap_->GetObjectManager();
             for (auto* tablet : sourceNode->Tablets()) {
                 objectManager->RefObject(tablet);
                 clonedNode->Tablets().push_back(tablet);
+                tablet->SetTable(clonedNode);
             }
         }
     }

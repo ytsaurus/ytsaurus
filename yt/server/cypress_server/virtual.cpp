@@ -171,7 +171,7 @@ private:
         auto service = Producer.Run(trunkNode, transaction);
         return New<TVirtualNodeProxy>(
             this,
-            Bootstrap,
+            Bootstrap_,
             transaction,
             trunkNode,
             service,

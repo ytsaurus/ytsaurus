@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "chunk_replica.h"
+#include "client_block_cache.h"
 
 #include <core/misc/nullable.h>
 
@@ -18,14 +19,13 @@ namespace NChunkClient {
 
 IChunkReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
-    IBlockCachePtr compressedBlockCache,
+    TRemoteReaderOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas = TChunkReplicaList(),
-    const Stroka& networkName = NNodeTrackerClient::InterconnectNetworkName,
-    EReadSessionType sessionType = EReadSessionType::User,
+    IBlockCachePtr blockCache = GetNullBlockCache(),
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ///////////////////////////////////////////////////////////////////////////////

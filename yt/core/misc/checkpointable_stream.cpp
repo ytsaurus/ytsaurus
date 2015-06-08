@@ -54,7 +54,7 @@ public:
     { }
 
 private:
-    TInputStream* UnderlyingStream_;
+    TInputStream* const UnderlyingStream_;
 
     size_t BlockLength_;
     size_t BlockOffset_;
@@ -121,17 +121,16 @@ public:
     explicit TEnscapsulatedCheckpointableInputStream(
         TInputStream* underlyingStream)
         : UnderlyingStream_(underlyingStream)
-        , FakeHeaderOffset_(0)
-        , FakeHeader_({TBlockHeader::CheckpointsDisabled})
+        , FakeHeader_{TBlockHeader::CheckpointsDisabled}
     { }
 
     virtual ~TEnscapsulatedCheckpointableInputStream() throw()
     { }
 
 private:
-    TInputStream* UnderlyingStream_;
+    TInputStream* const UnderlyingStream_;
 
-    int FakeHeaderOffset_;
+    int FakeHeaderOffset_ = 0;
     TBlockHeader FakeHeader_;
 
 
@@ -175,7 +174,7 @@ public:
     { }
 
 private:
-    TOutputStream* UnderlyingStream_;
+    TOutputStream* const UnderlyingStream_;
 
 
     virtual void DoWrite(const void* buf, size_t len) override
@@ -232,9 +231,9 @@ public:
     }
 
 private:
-    ICheckpointableOutputStream* UnderlyingStream_;
-    size_t BufferSize_;
-    size_t WriteThroughSize_;
+    ICheckpointableOutputStream* const UnderlyingStream_;
+    const size_t BufferSize_;
+    const size_t WriteThroughSize_;
 
     std::vector<char> Buffer_;
     char* BufferBegin_;

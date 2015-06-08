@@ -54,6 +54,7 @@ class TConnectionConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    Stroka NetworkName;
     TMasterConnectionConfigPtr Master;
     TMasterConnectionConfigPtr MasterCache;
     // TODO(babenko): remove once RFF is stable
@@ -62,8 +63,7 @@ public:
     NHive::TCellDirectoryConfigPtr CellDirectory;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
-    TSlruCacheConfigPtr CompressedBlockCache;
-    TSlruCacheConfigPtr UncompressedBlockCache;
+    NChunkClient::TBlockCacheConfigPtr BlockCache;
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
 
     NQueryClient::TExecutorConfigPtr QueryEvaluator;
@@ -82,6 +82,9 @@ public:
     NCompression::ECodec LookupRequestCodec;
     NCompression::ECodec LookupResponseCodec;
     int MaxRowsPerReadRequest;
+
+    bool EnableUdf;
+    Stroka UdfRegistryPath;
 
     TConnectionConfig();
 
@@ -155,9 +158,9 @@ public:
             .Default(true);
 
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(15));
         RegisterParameter("node_ping_period", NodePingPeriod)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(15));
         RegisterParameter("node_ban_timeout", NodeBanTimeout)
             .Default(TDuration::Seconds(60));
 

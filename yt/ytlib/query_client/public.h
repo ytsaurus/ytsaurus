@@ -38,6 +38,9 @@ typedef TIntrusivePtr<const TJoinClause> TConstJoinClausePtr;
 DECLARE_REFCOUNTED_STRUCT(TGroupClause)
 typedef TIntrusivePtr<const TGroupClause> TConstGroupClausePtr;
 
+DECLARE_REFCOUNTED_STRUCT(TOrderClause)
+typedef TIntrusivePtr<const TOrderClause> TConstOrderClausePtr;
+
 DECLARE_REFCOUNTED_STRUCT(TProjectClause)
 typedef TIntrusivePtr<const TProjectClause> TConstProjectClausePtr;
 
@@ -51,6 +54,12 @@ struct IPrepareCallbacks;
 
 struct TQueryStatistics;
 
+DECLARE_REFCOUNTED_STRUCT(IFunctionDescriptor)
+
+DECLARE_REFCOUNTED_STRUCT(IAggregateFunctionDescriptor)
+
+DECLARE_REFCOUNTED_STRUCT(ICallingConvention)
+
 DECLARE_REFCOUNTED_STRUCT(IExecutor)
 
 DECLARE_REFCOUNTED_CLASS(TEvaluator)
@@ -62,6 +71,10 @@ DECLARE_REFCOUNTED_CLASS(TColumnEvaluator)
 DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCache)
 
 DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
+
+DECLARE_REFCOUNTED_STRUCT(IFunctionRegistry)
+
+DECLARE_REFCOUNTED_CLASS(TFunctionRegistry)
 
 // TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
@@ -80,6 +93,7 @@ using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 
 using NVersionedTableClient::TRowBuffer;
+using NVersionedTableClient::TRowBufferPtr;
 
 using NNodeTrackerClient::TNodeDirectoryPtr;
 
@@ -94,6 +108,8 @@ typedef NVersionedTableClient::TUnversionedOwningRowBuilder TOwningRowBuilder;
 typedef NVersionedTableClient::TOwningKey TKey;
 
 typedef std::pair<TKey, TKey> TKeyRange;
+typedef std::pair<TRow, TRow> TRowRange;
+typedef std::vector<TRowRange> TRowRanges;
 
 const int MaxRowsPerRead = 1024;
 const int MaxRowsPerWrite = 1024;

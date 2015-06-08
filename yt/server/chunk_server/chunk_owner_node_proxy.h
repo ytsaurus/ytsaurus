@@ -41,12 +41,13 @@ protected:
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
-    virtual NCypressClient::ELockMode GetLockMode(NChunkClient::EUpdateMode updateMode) = 0;
-
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     virtual void ValidatePrepareForUpdate();
     virtual void ValidateFetch();
+
+    virtual bool IsSorted();
+    virtual void ResetSorted();
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, PrepareForUpdate);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);

@@ -147,7 +147,7 @@ public:
     virtual const Stroka& GetMethod() const override;
     virtual const TRealmId& GetRealmId() const override;
 
-    virtual bool IsOneWay() const;
+    virtual bool IsOneWay() const override;
 
     virtual bool IsReplied() const override;
     virtual void Reply(const TError& error) override;

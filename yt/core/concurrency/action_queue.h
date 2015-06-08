@@ -117,7 +117,7 @@ IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoke
 IInvokerPtr CreateBoundedConcurrencyInvoker(
     IInvokerPtr underlyingInvoker,
     int maxConcurrentInvocations,
-    const Stroka& invokerName);
+    const Stroka& invokerName = "<BCI>");
 
 ////////////////////////////////////////////////////////////////////////////////
 

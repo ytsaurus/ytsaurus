@@ -21,8 +21,6 @@
 
 #include <cmath>
 
-#include <core/logging/log.h> // FIXME(babenko): remove this
-
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -386,6 +384,8 @@ bool operator > (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     return CompareRowValues(lhs, rhs) > 0;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 int CompareRows(
     const TUnversionedValue* lhsBegin,
     const TUnversionedValue* lhsEnd,
@@ -454,6 +454,72 @@ bool operator > (TUnversionedRow lhs, TUnversionedRow rhs)
     return CompareRows(lhs, rhs) > 0;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator == (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs.Get()) == 0;
+}
+
+bool operator != (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs.Get()) != 0;
+}
+
+bool operator <= (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs.Get()) <= 0;
+}
+
+bool operator < (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs.Get()) < 0;
+}
+
+bool operator >= (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs.Get()) >= 0;
+}
+
+bool operator > (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
+{
+    return CompareRows(lhs, rhs.Get()) > 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator == (const TUnversionedOwningRow& lhs, TUnversionedRow rhs)
+{
+    return CompareRows(lhs.Get(), rhs) == 0;
+}
+
+bool operator != (const TUnversionedOwningRow& lhs, TUnversionedRow rhs)
+{
+    return CompareRows(lhs.Get(), rhs) != 0;
+}
+
+bool operator <= (const TUnversionedOwningRow& lhs, TUnversionedRow rhs)
+{
+    return CompareRows(lhs.Get(), rhs) <= 0;
+}
+
+bool operator < (const TUnversionedOwningRow& lhs, TUnversionedRow rhs)
+{
+    return CompareRows(lhs.Get(), rhs) < 0;
+}
+
+bool operator >= (const TUnversionedOwningRow& lhs, TUnversionedRow rhs)
+{
+    return CompareRows(lhs.Get(), rhs) >= 0;
+}
+
+bool operator > (const TUnversionedOwningRow& lhs, TUnversionedRow rhs)
+{
+    return CompareRows(lhs.Get(), rhs) > 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 int CompareRows(const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs, int prefixLength)
 {
     return CompareRows(lhs.Get(), rhs.Get(), prefixLength);
@@ -496,20 +562,20 @@ void ResetRowValues(TUnversionedRow* row)
     }
 }
 
-size_t GetHash(const TUnversionedValue& value)
+ui64 GetHash(const TUnversionedValue& value)
 {
     // NB: hash function may change in future. Use fingerprints for persistent hashing.
     return GetFarmFingerprint(value);
 }
 
-size_t GetHash(TUnversionedRow row, int keyColumnCount)
+ui64 GetHash(TUnversionedRow row, int keyColumnCount)
 {
     // NB: hash function may change in future. Use fingerprints for persistent hashing.
     return GetFarmFingerprint(row, keyColumnCount);
 }
 
 // Forever-fixed Google FarmHash fingerprint.
-size_t GetFarmFingerprint(const TUnversionedValue& value)
+TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::String:
@@ -534,14 +600,20 @@ size_t GetFarmFingerprint(const TUnversionedValue& value)
 }
 
 // Forever-fixed Google FarmHash fingerprint.
-size_t GetFarmFingerprint(TUnversionedRow row, int keyColumnCount)
+TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
-    size_t result = 0xdeadc0de;
-    int partCount = std::min(row.GetCount(), keyColumnCount);
-    for (int i = 0; i < partCount; ++i) {
-        result = FarmFingerprint(result, GetFarmFingerprint(row[i]));
+    ui64 result = 0xdeadc0de;
+    for (const auto* value = begin; value < end; ++value) {
+        result = FarmFingerprint(result, GetFarmFingerprint(*value));
     }
-    return result ^ partCount;
+    return result ^ (end - begin);
+}
+
+TFingerprint GetFarmFingerprint(TUnversionedRow row, int keyColumnCount)
+{
+    int partCount = std::min(row.GetCount(), keyColumnCount);
+    const auto* begin = row.Begin();
+    return GetFarmFingerprint(begin, begin + partCount);
 }
 
 size_t GetUnversionedRowDataSize(int valueCount)
@@ -562,9 +634,10 @@ i64 GetDataWeight(TUnversionedRow row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* alignedPool, int valueCount)
+TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* pool, int valueCount)
 {
-    auto* header = reinterpret_cast<TUnversionedRowHeader*>(alignedPool->AllocateAligned(GetUnversionedRowDataSize(valueCount)));
+    auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->AllocateAligned(
+        GetUnversionedRowDataSize(valueCount)));
     header->Count = valueCount;
     header->Padding = 0;
     return TUnversionedRow(header);
@@ -574,7 +647,7 @@ TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* alignedPool, int v
 
 namespace {
 
-void ValidateValue(const TUnversionedValue& value)
+void ValidateDynamicValue(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::String:
@@ -587,8 +660,8 @@ void ValidateValue(const TUnversionedValue& value)
             break;
 
         case EValueType::Double:
-            if (!std::isfinite(value.Data.Double)) {
-                THROW_ERROR_EXCEPTION("Value of type \"double\" is not finite");
+            if (std::isnan(value.Data.Double)) {
+                THROW_ERROR_EXCEPTION("Value of type \"double\" is not a number");
             }
             break;
 
@@ -597,18 +670,149 @@ void ValidateValue(const TUnversionedValue& value)
     }
 }
 
+int ApplyIdMapping(
+    const TUnversionedValue& value,
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping* idMappingPtr)
+{
+    auto id = value.Id;
+    int schemaId = id;
+    if (idMappingPtr != nullptr) {
+        const auto& idMapping = *idMappingPtr;
+        if (id >= idMapping.size()) {
+            THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
+                id,
+                idMapping.size() - 1);
+        }
+        schemaId = idMapping[id];
+    }
+    if (schemaId < 0 || schemaId >= schema.Columns().size()) {
+        THROW_ERROR_EXCEPTION("Invalid mapped column id: actual %v, expected in range [0,%v]",
+            schemaId,
+            schema.Columns().size());
+    }
+    return schemaId;
+}
+
+void ValidateKeyPart(
+    TUnversionedRow row,
+    int keyColumnCount,
+    const TTableSchema& schema,
+    bool checkComputedColumns)
+{
+    ValidateKeyColumnCount(keyColumnCount);
+
+    if (row.GetCount() < keyColumnCount) {
+        THROW_ERROR_EXCEPTION("Too few values in row: actual %v, expected >= %v",
+            row.GetCount(),
+            keyColumnCount);
+    }
+
+    for (int index = 0; index < keyColumnCount; ++index) {
+        const auto& value = row[index];
+        ValidateKeyValue(value);
+        int schemaId = ApplyIdMapping(value, schema, nullptr);
+        ValidateValueType(value, schema, schemaId);
+        if (schemaId != index) {
+            THROW_ERROR_EXCEPTION("Invalid column: actual %v, expected %v",
+                schema.Columns()[schemaId].Name,
+                schema.Columns()[index].Name);
+        }
+        if (checkComputedColumns && value.Type != EValueType::Null && schema.Columns()[schemaId].Expression) {
+            THROW_ERROR_EXCEPTION(
+                "Column %Qv is computed automatically and should not be provided by user",
+                schema.Columns()[schemaId].Name);
+        }
+    }
+}
+
+void ValidateDataRow(
+    TUnversionedRow row,
+    int keyColumnCount,
+    const TNameTableToSchemaIdMapping* idMappingPtr,
+    const TTableSchema& schema,
+    bool checkComputedColumns)
+{
+    ValidateRowValueCount(row.GetCount());
+    ValidateKeyPart(row, keyColumnCount, schema, checkComputedColumns);
+
+    for (int index = keyColumnCount; index < row.GetCount(); ++index) {
+        const auto& value = row[index];
+        ValidateDataValue(value);
+        int schemaId = ApplyIdMapping(value, schema, idMappingPtr);
+        ValidateValueType(value, schema, schemaId);
+    }
+}
+
+void ValidateKey(
+    TKey key,
+    int keyColumnCount,
+    const TTableSchema& schema,
+    bool checkComputedColumns)
+{
+    if (!key) {
+        THROW_ERROR_EXCEPTION("Key cannot be null");
+    }
+
+    if (key.GetCount() != keyColumnCount) {
+        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %v, actual %v",
+            keyColumnCount,
+            key.GetCount());
+    }
+
+    ValidateKeyPart(key, keyColumnCount, schema, checkComputedColumns);
+}
+
 } // namespace
+
+void ValidateValueType(
+    const TUnversionedValue& value,
+    const TTableSchema& schema,
+    int schemaId)
+{
+    if (value.Type != EValueType::Null && value.Type != schema.Columns()[schemaId].Type) {
+        THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
+            schema.Columns()[schemaId].Name,
+            schema.Columns()[schemaId].Type,
+            EValueType::Null,
+            value.Type);
+    }
+}
+
+void ValidateStaticValue(const TUnversionedValue& value)
+{
+    ValidateDataValueType(EValueType(value.Type));
+    switch (value.Type) {
+        case EValueType::String:
+        case EValueType::Any:
+            if (value.Length > MaxRowWeightLimit) {
+                THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
+                    value.Length,
+                    MaxRowWeightLimit);
+            }
+            break;
+
+        case EValueType::Double:
+            if (std::isnan(value.Data.Double)) {
+                THROW_ERROR_EXCEPTION("Value of type \"double\" is not a number");
+            }
+            break;
+
+        default:
+            break;
+    }
+}
 
 void ValidateDataValue(const TUnversionedValue& value)
 {
     ValidateDataValueType(EValueType(value.Type));
-    ValidateValue(value);
+    ValidateDynamicValue(value);
 }
 
 void ValidateKeyValue(const TUnversionedValue& value)
 {
     ValidateKeyValueType(EValueType(value.Type));
-    ValidateValue(value);
+    ValidateDynamicValue(value);
 }
 
 void ValidateRowValueCount(int count)
@@ -656,42 +860,7 @@ void ValidateClientDataRow(
     const TNameTableToSchemaIdMapping& idMapping,
     const TTableSchema& schema)
 {
-    ValidateRowValueCount(row.GetCount());
-
-    bool keyColumnFlags[MaxKeyColumnCount] {};
-    int keyColumnSeen = 0;
-    for (const auto* it = row.Begin(); it != row.End(); ++it) {
-        const auto& value = *it;
-        ValidateDataValue(value);
-        int valueId = value.Id;
-        if (valueId >= idMapping.size()) {
-            THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
-                valueId,
-                idMapping.size() - 1);
-        }
-        int schemaId = idMapping[valueId];
-        if (schemaId < keyColumnCount) {
-            if (keyColumnFlags[schemaId]) {
-                THROW_ERROR_EXCEPTION("Duplicate key component with id %v",
-                    schemaId);
-            }
-            keyColumnFlags[schemaId] = true;
-            ++keyColumnSeen;
-        }
-        if (value.Type != EValueType::Null && value.Type != schema.Columns()[schemaId].Type) {
-            THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                schema.Columns()[schemaId].Name,
-                schema.Columns()[schemaId].Type,
-                EValueType::Null,
-                value.Type);
-        }
-    }
-
-    if (keyColumnSeen != keyColumnCount) {
-        THROW_ERROR_EXCEPTION("Some key components are missing: actual %v, expected %v",
-            keyColumnSeen,
-            keyColumnCount);
-    }
+    ValidateDataRow(row, keyColumnCount, &idMapping, schema, true);
 }
 
 void ValidateServerDataRow(
@@ -699,45 +868,7 @@ void ValidateServerDataRow(
     int keyColumnCount,
     const TTableSchema& schema)
 {
-    ValidateRowValueCount(row.GetCount());
-
-    if (row.GetCount() < keyColumnCount) {
-        THROW_ERROR_EXCEPTION("Too few values in row: actual %v, expected >= %v",
-            row.GetCount(),
-            keyColumnCount);
-    }
-    
-    int schemaColumnCount = schema.Columns().size();
-    for (int index = 0; index < row.GetCount(); ++index) {
-        const auto& value = row[index];
-        ValidateDataValue(value);
-        int id = value.Id;
-        if (index < keyColumnCount) {
-            if (id != index) {
-                THROW_ERROR_EXCEPTION("Invalid key component id: actual %v, expected %v",
-                    id,
-                    index);
-            }
-        } else {
-            if (id < keyColumnCount) {
-                THROW_ERROR_EXCEPTION("Misplaced key component: id %v, position %v",
-                    id,
-                    index);
-            }
-            if (id >= schemaColumnCount) {
-                THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
-                    id,
-                    schemaColumnCount - 1);
-            }
-            if (value.Type != EValueType::Null && value.Type != schema.Columns()[id].Type) {
-                THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                    schema.Columns()[id].Name,
-                    schema.Columns()[id].Type,
-                    EValueType::Null,
-                    value.Type);
-            }
-        }
-    }
+    ValidateDataRow(row, keyColumnCount, nullptr, schema, false);
 }
 
 void ValidateClientKey(
@@ -745,39 +876,7 @@ void ValidateClientKey(
     int keyColumnCount,
     const TTableSchema& schema)
 {
-    if (!key) {
-        THROW_ERROR_EXCEPTION("Key cannot be null");
-    }
-
-    if (key.GetCount() != keyColumnCount) {
-        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %v, actual %v",
-            keyColumnCount,
-            key.GetCount());
-    }
-
-    bool keyColumnFlags[MaxKeyColumnCount] {};
-    for (int index = 0; index < keyColumnCount; ++index) {
-        const auto& value = key[index];
-        ValidateKeyValue(value);
-        int id = value.Id;
-        if (id >= keyColumnCount) {
-            THROW_ERROR_EXCEPTION("Invalid value id: actual %v, expected in range [0, %v]",
-                id,
-                keyColumnCount - 1);
-        }
-        if (keyColumnFlags[id]) {
-            THROW_ERROR_EXCEPTION("Duplicate key component with id %v",
-                id);
-        }
-        if (value.Type != EValueType::Null && value.Type != schema.Columns()[id].Type) {
-            THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                schema.Columns()[id].Name,
-                schema.Columns()[id].Type,
-                EValueType::Null,
-                value.Type);
-        }
-        keyColumnFlags[id] = true;
-    }
+    ValidateKey(key, keyColumnCount, schema, true);
 }
 
 void ValidateServerKey(
@@ -785,32 +884,16 @@ void ValidateServerKey(
     int keyColumnCount,
     const TTableSchema& schema)
 {
-    if (!key) {
-        THROW_ERROR_EXCEPTION("Key cannot be null");
-    }
+    ValidateKey(key, keyColumnCount, schema, false);
+}
 
-    if (key.GetCount() != keyColumnCount) {
-        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %v, actual %v",
-                keyColumnCount,
-                key.GetCount());
-    }
-
-    for (int index = 0; index < keyColumnCount; ++index) {
-        const auto& value = key[index];
-        ValidateKeyValue(value);
-        int id = value.Id;
-        if (id != index) {
-            THROW_ERROR_EXCEPTION("Invalid key component id: actual %v, expected %v",
-                id,
-                index);
-        }
-        if (value.Type != EValueType::Null && value.Type != schema.Columns()[id].Type) {
-            THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
-                schema.Columns()[id].Name,
-                schema.Columns()[id].Type,
-                EValueType::Null,
-                value.Type);
-        }
+void ValidateReadTimestamp(TTimestamp timestamp)
+{
+    if (timestamp != SyncLastCommittedTimestamp &&
+        timestamp != AsyncLastCommittedTimestamp &&
+        (timestamp < MinTimestamp || timestamp > MaxTimestamp))
+    {
+        THROW_ERROR_EXCEPTION("Invalid timestamp %v", timestamp);
     }
 }
 
@@ -945,7 +1028,7 @@ TUnversionedOwningRow DeserializeFromString(const Stroka& data)
     current += ReadVarUint32(current, &valueCount);
 
     size_t fixedSize = GetUnversionedRowDataSize(valueCount);
-    auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
+    auto rowData = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, false);
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(rowData.Begin());
 
     header->Count = static_cast<i32>(valueCount);
@@ -969,10 +1052,7 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
     ToProto(protoRow, row.Get());
 }
 
-void ToProto(
-    TProtoStringType* protoRow,
-    const TUnversionedValue* begin,
-    const TUnversionedValue* end)
+void ToProto(TProtoStringType* protoRow, const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     *protoRow = SerializeToString(begin, end);
 }
@@ -980,6 +1060,30 @@ void ToProto(
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
 {
     *row = DeserializeFromString(protoRow);
+}
+
+void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer)
+{
+    if (protoRow == SerializedNullRow) {
+        *row = TUnversionedRow();
+    }
+
+    const char* current = protoRow.data();
+
+    ui32 version;
+    current += ReadVarUint32(current, &version);
+    YCHECK(version == 0);
+
+    ui32 valueCount;
+    current += ReadVarUint32(current, &valueCount);
+
+    *row = TUnversionedRow::Allocate(rowBuffer->GetPool(), valueCount);
+
+    auto* values = row->Begin();
+    for (auto* value = values; value < values + valueCount; ++value) {
+        current += ReadValue(current, value);
+        rowBuffer->Capture(value);
+    }
 }
 
 Stroka ToString(TUnversionedRow row)
@@ -1238,7 +1342,7 @@ TUnversionedValue* TUnversionedOwningRowBuilder::EndValues()
 TUnversionedOwningRow TUnversionedOwningRowBuilder::FinishRow()
 {
     auto row = TUnversionedOwningRow(
-        TSharedRef::FromBlob(std::move(RowData_)),
+        TSharedMutableRef::FromBlob(std::move(RowData_)),
         std::move(StringData_));
     Reset();
     return row;
@@ -1270,7 +1374,7 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
     int count = std::distance(begin, end);
 
     size_t fixedSize = GetUnversionedRowDataSize(count);
-    RowData_ = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
+    RowData_ = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, false);
     auto* header = GetHeader();
 
     header->Count = count;

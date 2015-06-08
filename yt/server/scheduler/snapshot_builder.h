@@ -4,7 +4,7 @@
 
 #include <ytlib/api/public.h>
 
-#include <server/misc/snapshot_builder_detail.h>
+#include <server/misc/fork_snapshot_builder.h>
 
 #include <server/cell_scheduler/public.h>
 
@@ -14,7 +14,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotBuilder
-    : public TSnapshotBuilderBase
+    : public TForkSnapshotBuilderBase
 {
 public:
     TSnapshotBuilder(
@@ -25,9 +25,9 @@ public:
     TFuture<void> Run();
 
 private:
-    TSchedulerConfigPtr Config;
-    TSchedulerPtr Scheduler;
-    NApi::IClientPtr MasterClient;
+    const TSchedulerConfigPtr Config;
+    const TSchedulerPtr Scheduler;
+    const NApi::IClientPtr MasterClient;
 
     struct TJob
     {

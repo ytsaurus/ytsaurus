@@ -30,7 +30,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(int, FirstOutcomingMessageId);
     DEFINE_BYVAL_RW_PROPERTY(int, LastIncomingMessageId);
-    DEFINE_BYVAL_RW_PROPERTY(int, InFlightMessageCount)
+    DEFINE_BYVAL_RW_PROPERTY(bool, PostMessagesInFlight)
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<NProto::TEncapsulatedMessage>, OutcomingMessages);
     

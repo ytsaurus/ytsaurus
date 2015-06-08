@@ -9,9 +9,74 @@
 #include <core/concurrency/fiber.h>
 #include <core/concurrency/action_queue.h>
 
+#include <core/logging/log_manager.h>
+#include <core/logging/config.h>
+
 #include <util/random/random.h>
 
+#include <util/string/vector.h>
+
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ConfigureLogging(
+    const char* logLevelFromEnv,
+    const char* logExcludeCategoriesFromEnv,
+    const char* logIncludeCategoriesFromEnv)
+{
+    if (!logLevelFromEnv && !logExcludeCategoriesFromEnv && !logIncludeCategoriesFromEnv) {
+        return;
+    }
+
+    const char* const stderrWriterName = "stderr";
+
+    auto rule = New<NLogging::TRuleConfig>();
+    rule->Writers.push_back(stderrWriterName);
+
+    if (logLevelFromEnv) {
+        Stroka logLevel = logLevelFromEnv;
+        logLevel.to_upper(0, std::min(logLevel.size(), static_cast<size_t>(1)));
+        rule->MinLevel = TEnumTraits<NLogging::ELogLevel>::FromString(logLevel);
+    } else {
+        rule->MinLevel = NLogging::ELogLevel::Fatal;
+    }
+
+    VectorStrok logExcludeCategories;
+    if (logExcludeCategoriesFromEnv) {
+        SplitStroku(&logExcludeCategories, logExcludeCategoriesFromEnv, ",");
+    }
+
+    for (const auto& excludeCategory : logExcludeCategories) {
+        rule->ExcludeCategories.insert(excludeCategory);
+    }
+
+    VectorStrok logIncludeCategories;
+    if (logIncludeCategoriesFromEnv) {
+        SplitStroku(&logIncludeCategories, logIncludeCategoriesFromEnv, ",");
+    }
+
+    if (!logIncludeCategories.empty()) {
+        rule->IncludeCategories.Assign(yhash_set<Stroka>());
+        for (const auto& includeCategory : logIncludeCategories) {
+            rule->IncludeCategories->insert(includeCategory);
+        }
+    }
+
+    auto config = New<NLogging::TLogConfig>();
+    config->Rules.push_back(std::move(rule));
+
+    config->MinDiskSpace = 0;
+    config->HighBacklogWatermark = 0;
+    config->LowBacklogWatermark = 0;
+
+    auto stderrWriter = New<NLogging::TWriterConfig>();
+    stderrWriter->Type = NLogging::EWriterType::Stderr;
+
+    config->WriterConfigs.insert(std::make_pair(stderrWriterName, std::move(stderrWriter)));
+
+    NLogging::TLogManager::Get()->Configure(std::move(config));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

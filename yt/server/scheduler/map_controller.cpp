@@ -22,7 +22,7 @@ using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NProfiling::TProfiler Profiler("/operations/map");
+static const NProfiling::TProfiler Profiler("/operations/map");
 
 ////////////////////////////////////////////////////////////////////
 
@@ -44,7 +44,7 @@ public:
     {
         TOperationControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
-            .DoIf(Spec->Mapper, [&] (TFluentMap fluent) {
+            .DoIf(Spec->Mapper.operator bool(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("mapper").BeginMap()
                         .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
@@ -194,7 +194,6 @@ private:
         {
             TTask::OnJobCompleted(joblet);
 
-            RegisterInput(joblet);
             RegisterOutput(joblet, joblet->JobIndex);
         }
 
@@ -223,7 +222,7 @@ private:
         TOperationControllerBase::DoInitialize();
 
         if (Spec->Mapper && Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in mapper: maximum allowed %d, actual %" PRISZT,
+            THROW_ERROR_EXCEPTION("Too many user files in mapper: maximum allowed %v, actual %v",
                 Config->MaxUserFileCount,
                 Spec->Mapper->FilePaths.size());
         }

@@ -16,7 +16,7 @@
 #include <ytlib/tablet_client/wire_protocol.h>
 #include <ytlib/tablet_client/wire_protocol.pb.h>
 
-#include <ytlib/new_table_client/versioned_lookuper.h>
+#include <ytlib/new_table_client/versioned_reader.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +68,7 @@ public:
 
         ValidateColumnFilter(ColumnFilter_, SchemaColumnCount_);
 
-        reader->ReadUnversionedRowset(&LookupKeys_);
+        LookupKeys_ = reader->ReadUnversionedRowset();
     }
 
     TFutureHolder<void> Run(
@@ -87,25 +87,63 @@ public:
         }
     }
 
-    const std::vector<TUnversionedRow>& GetLookupKeys() const
+    const TSharedRange<TUnversionedRow>& GetLookupKeys() const
     {
         return LookupKeys_;
     }
 
-
     void Clean()
     {
         MemoryPool_.Clear();
-        LookupKeys_.clear();
-        EdenLookupers_.clear();
-        PartitionLookupers_.clear();
+        LookupKeys_ = TSharedRange<TUnversionedRow>();
+        EdenSessions_.clear();
     }
 
 private:
+    class TReadSession
+    {
+    public:
+        explicit TReadSession(IVersionedReaderPtr reader)
+            : Reader_(std::move(reader))
+        {
+            Rows_.reserve(BufferCapacity);
+        }
+
+        bool NextRow()
+        {
+            ++RowIndex_;
+            return RowIndex_ < Rows_.size();
+        }
+
+        TVersionedRow GetRow() const
+        {
+            return Rows_[RowIndex_];
+        }
+
+        void Refill() 
+        {
+            RowIndex_ = 0;
+            while (true) {
+                YCHECK(Reader_->Read(&Rows_));
+                if (!Rows_.empty()) {
+                    break;
+                }
+
+                WaitFor(Reader_->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+
+    private:
+        static const int BufferCapacity = 1000;
+        IVersionedReaderPtr Reader_;
+        std::vector<TVersionedRow> Rows_;
+        int RowIndex_ = -1;
+    };
+
     TChunkedMemoryPool MemoryPool_;
-    std::vector<TUnversionedRow> LookupKeys_;
-    std::vector<IVersionedLookuperPtr> EdenLookupers_;
-    std::vector<IVersionedLookuperPtr> PartitionLookupers_;
+    TSharedRange<TUnversionedRow> LookupKeys_;
+    std::vector<TReadSession> EdenSessions_;
 
     TTabletSnapshotPtr TabletSnapshot_;
     TTimestamp Timestamp_;
@@ -116,79 +154,96 @@ private:
     TCallback<void(TWireProtocolWriter* writer)> RunCallback_;
 
 
-    void CreateLookupers(
-        std::vector<IVersionedLookuperPtr>* lookupers,
-        const TPartitionSnapshotPtr partitionSnapshot)
+    void CreateReadSessions(
+        std::vector<TReadSession>* sessions,
+        const TPartitionSnapshotPtr partitionSnapshot,
+        const TSharedRange<TKey>& keys)
     {
-        lookupers->clear();
-        if (partitionSnapshot) {
-            for (const auto& store : partitionSnapshot->Stores) {
-                auto lookuper = store->CreateLookuper(Timestamp_, ColumnFilter_);
-                lookupers->push_back(std::move(lookuper));
-            }
+        sessions->clear();
+        if (!partitionSnapshot) {
+            return;
         }
-    }
 
-    void InvokeLookupers(
-        const std::vector<IVersionedLookuperPtr>& lookupers,
-        TUnversionedRowMerger* merger,
-        std::vector<TFutureHolder<TVersionedRow>>* rowHolders,
-        TKey key)
-    {
-        for (const auto& lookuper : lookupers) {
-            auto rowHolder = lookuper->Lookup(key);
-            auto maybeRowOrError = rowHolder.Get().TryGet();
-            if (maybeRowOrError) {
-                merger->AddPartialRow(maybeRowOrError->ValueOrThrow());
+        std::vector<TFuture<void>> asyncFutures;
+        for (const auto& store : partitionSnapshot->Stores) {
+            auto reader = store->CreateReader(keys, Timestamp_, ColumnFilter_);
+            auto future = reader->Open();
+            auto maybeError = future.TryGet();
+            if (maybeError) {
+                maybeError->ThrowOnError();
             } else {
-                rowHolders->push_back(std::move(rowHolder));
+                asyncFutures.emplace_back(std::move(future));
             }
+            sessions->emplace_back(std::move(reader));
+        }
+
+        if (!asyncFutures.empty()) {
+            WaitFor(Combine(asyncFutures)).ThrowOnError();
         }
     }
 
-    void DoRun(TWireProtocolWriter* writer)
+    void LookupInPartition(
+        const TPartitionSnapshotPtr partitionSnapshot,
+        const TSharedRange<TKey>& keys,
+        TWireProtocolWriter* writer)
     {
-        CreateLookupers(&EdenLookupers_, TabletSnapshot_->Eden);
+        if (keys.Empty()) {
+            return;
+        }
 
-        TUnversionedRowMerger merger(
+        TSchemafulRowMerger merger(
             &MemoryPool_,
             SchemaColumnCount_,
             KeyColumnCount_,
             ColumnFilter_);
 
-        // Assuming that lookup keys are sorted, we cache the lookupers for the last
-        // examined partition.
-        TPartitionSnapshotPtr currentPartitionSnapshot;
-
-        for (auto key : LookupKeys_) {
-            ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
-
-            auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
-            if (partitionSnapshot != currentPartitionSnapshot) {
-                currentPartitionSnapshot = std::move(partitionSnapshot);
-                CreateLookupers(&PartitionLookupers_, currentPartitionSnapshot);
-            }
-
-            // Send requests, collect sync responses.
-            std::vector<TFutureHolder<TVersionedRow>> rowHolders;
-            InvokeLookupers(EdenLookupers_, &merger, &rowHolders, key);
-            InvokeLookupers(PartitionLookupers_, &merger, &rowHolders, key);
-
-            // Wait for async responses.
-            if (!rowHolders.empty()) {
-                auto rows = WaitFor(Combine(rowHolders))
-                    .ValueOrThrow();
-                for (auto row : rows) {
-                    merger.AddPartialRow(row);
+        auto processSessions = [&] (std::vector<TReadSession>& sessions) {
+            for (auto& session : sessions) {
+                if (!session.NextRow()) {
+                    session.Refill();
                 }
-            }
 
-            // Merge partial rows.
+                merger.AddPartialRow(session.GetRow());
+            }
+        };
+
+        std::vector<TReadSession> sessions;
+        CreateReadSessions(&sessions, partitionSnapshot, keys);
+
+        for (int index = 0; index < keys.Size(); ++index) {
+            processSessions(sessions);
+            processSessions(EdenSessions_);
+
             auto mergedRow = merger.BuildMergedRow();
             writer->WriteUnversionedRow(mergedRow);
         }
     }
 
+    void DoRun(TWireProtocolWriter* writer)
+    {
+        CreateReadSessions(&EdenSessions_, TabletSnapshot_->Eden, LookupKeys_);
+
+        TPartitionSnapshotPtr currentPartitionSnapshot;
+        int currentPartitionStartOffset = 0;
+        for (int index = 0; index < LookupKeys_.Size(); ++index) {
+            auto key = LookupKeys_[index];
+            ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
+            auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
+            if (partitionSnapshot != currentPartitionSnapshot) {
+                LookupInPartition(
+                    currentPartitionSnapshot,
+                    LookupKeys_.Slice(currentPartitionStartOffset, index),
+                    writer);
+                currentPartitionSnapshot = std::move(partitionSnapshot);
+                currentPartitionStartOffset = index;
+            }
+        }
+
+        LookupInPartition(
+            currentPartitionSnapshot,
+            LookupKeys_.Slice(currentPartitionStartOffset, LookupKeys_.Size()),
+            writer);
+    }
 };
 
 } // namespace NTabletNode
@@ -222,10 +277,10 @@ void LookupRows(
 {
     auto session = ObjectPool<TLookupSession>().Allocate();
     session->Prepare(tabletSnapshot, timestamp, reader);
-    LOG_DEBUG("Looking up %v keys (TabletId: %v, CellId: %v, Session: %v)",
-        session->GetLookupKeys().size(),
+    LOG_DEBUG("Performing tablet lookup (TabletId: %v, CellId: %v, KeyCount: %v, Session: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->Slot ? tabletSnapshot->Slot->GetCellId() : NullCellId,
+        session->GetLookupKeys().Size(),
         session.get());
 
     auto resultHolder = session->Run(std::move(poolInvoker), writer);

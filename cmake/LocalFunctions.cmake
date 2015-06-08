@@ -6,6 +6,46 @@
 #      where names of resulting files will be appended
 ################################################################################
 
+function(UDF udf output)
+  get_filename_component( _realpath ${udf} REALPATH )
+  get_filename_component( _filename ${_realpath} NAME_WE )
+
+  set(_bc_dirname ${CMAKE_BINARY_DIR}/bin/)
+  set(_bc_filename ${_filename}.bc)
+  set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
+  set(_h_dirname ${CMAKE_BINARY_DIR}/include/udf)
+  set(_h_file ${_h_dirname}/${_filename}.h)
+
+  set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
+
+  find_program(CLANG_EXECUTABLE
+    NAMES clang-3.6 clang
+    PATHS $ENV{LLVM_ROOT}/bin
+  )
+
+  add_custom_command(
+    OUTPUT
+      ${_h_file}
+    COMMAND
+      ${CMAKE_COMMAND} -E make_directory ${_h_dirname}
+    COMMAND
+      ${CLANG_EXECUTABLE} -c
+        -I${_include_dir}
+        -emit-llvm
+        -o ${_bc_filename}
+        ${_realpath}
+    COMMAND
+      xxd -i ${_bc_filename} > ${_h_file}
+    MAIN_DEPENDENCY
+      ${_realpath}
+    DEPENDS
+      ${_include_dir}/yt_udf.h
+    WORKING_DIRECTORY
+      ${_bc_dirname}
+    COMMENT "Generating LLVM bitcode for ${_filename}..."
+  )
+endfunction()
+
 function(PROTOC proto output)
   get_filename_component( _proto_realpath ${proto} REALPATH )
   get_filename_component( _proto_dirname  ${_proto_realpath} PATH )

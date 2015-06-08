@@ -23,10 +23,11 @@ public:
     TEncodingChunkWriter(
         TEncodingWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
-        IChunkWriterPtr asyncWriter);
+        IChunkWriterPtr chunkWriter,
+        IBlockCachePtr blockCache);
 
-    void WriteBlock(std::vector<TSharedRef>&& data);
-    void WriteBlock(TSharedRef&& data);
+    void WriteBlock(std::vector<TSharedRef> vectorizedBlock);
+    void WriteBlock(TSharedRef block);
     
     void Close();
 
@@ -38,8 +39,8 @@ public:
     NProto::TDataStatistics GetDataStatistics() const;
 
 private:
-    IChunkWriterPtr ChunkWriter_;
-    TEncodingWriterPtr EncodingWriter_;
+    const IChunkWriterPtr ChunkWriter_;
+    const TEncodingWriterPtr EncodingWriter_;
 
     int CurrentBlockIndex_ = 0;
     i64 LargestBlockSize_ = 0;

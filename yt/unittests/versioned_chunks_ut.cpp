@@ -185,25 +185,30 @@ protected:
             MemoryWriter->GetBlocks());
     }
 
+    TVersionedRow CreateSingleRow(int index)
+    {
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
+        FillKey(row, MakeNullable(A), MakeNullable(index), Null);
+
+        // v1
+        row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
+        row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 3);
+        // v2
+        row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
+
+        row.BeginWriteTimestamps()[2] = 3;
+        row.BeginWriteTimestamps()[1] = 5;
+        row.BeginWriteTimestamps()[0] = 11;
+
+        row.BeginDeleteTimestamps()[0] = 9;
+        return row;
+    }
+
     int CreateManyRows(std::vector<TVersionedRow>* rows, int startIndex)
     {
         const int N = 100000;
         for (int i = 0; i < N; ++i) {
-            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
-            FillKey(row, MakeNullable(A), MakeNullable(startIndex + i), Null);
-
-            // v1
-            row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
-            row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 3);
-            // v2
-            row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
-
-            row.BeginWriteTimestamps()[2] = 3;
-            row.BeginWriteTimestamps()[1] = 5;
-            row.BeginWriteTimestamps()[0] = 11;
-
-            row.BeginDeleteTimestamps()[0] = 9;
-
+            TVersionedRow row = CreateSingleRow(startIndex + i);
             rows->push_back(row);
         }
         return startIndex + N;
@@ -251,7 +256,8 @@ TEST_F(TVersionedChunksTest, ReadEmptyWiderSchema)
         chunkMeta,
         std::move(lowerLimit),
         TReadLimit(),
-        TColumnFilter());
+        TColumnFilter(),
+        New<TChunkReaderPerformanceCounters>());
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
@@ -267,8 +273,9 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 {
     std::vector<TVersionedRow> expected;
     {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 1, 1);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 4, 1, 1, 1);
         FillKey(row, MakeNullable(A), MakeNullable(1), MakeNullable(1.5));
+        row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
 
         // v1
         row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
@@ -277,8 +284,9 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
         expected.push_back(row);
     } {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 2, 1, 0);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 4, 2, 1, 0);
         FillKey(row, MakeNullable(A), MakeNullable(2), Null);
+        row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
 
         // v1
         row.BeginValues()[0] = MakeVersionedInt64Value(2, 1, 3);
@@ -289,8 +297,9 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
         expected.push_back(row);
     } {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 4, 0, 0, 1);
         FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
+        row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
         row.BeginDeleteTimestamps()[0] = 20;
 
         expected.push_back(row);
@@ -298,10 +307,28 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
     WriteThreeRows();
 
+    TTableSchema schema;
+    schema.Columns() = {
+        TColumnSchema("k1", EValueType::String),
+        TColumnSchema("k2", EValueType::Int64),
+        TColumnSchema("k3", EValueType::Double),
+        TColumnSchema("kN", EValueType::String),
+        TColumnSchema("v1", EValueType::Int64),
+        TColumnSchema("v2", EValueType::Int64),
+        TColumnSchema("vN", EValueType::Double)
+    };
+
+    auto keyColumns = KeyColumns;
+    keyColumns.push_back("kN");
+
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
-        Schema,
-        KeyColumns).Get().ValueOrThrow();
+        schema,
+        keyColumns).Get().ValueOrThrow();
+
+    TColumnFilter filter;
+    filter.All = false;
+    filter.Indexes = {1, 2, 3, 4, 5, 6};
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
@@ -310,7 +337,8 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
         chunkMeta,
         TReadLimit(),
         TReadLimit(),
-        TColumnFilter());
+        filter,
+        New<TChunkReaderPerformanceCounters>());
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
@@ -359,6 +387,7 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
         TReadLimit(),
         TReadLimit(),
         TColumnFilter(),
+        New<TChunkReaderPerformanceCounters>(),
         2); // timestamp
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
@@ -422,7 +451,8 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
         chunkMeta,
         std::move(lowerLimit),
         TReadLimit(),
-        TColumnFilter());
+        TColumnFilter(),
+        New<TChunkReaderPerformanceCounters>());
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
@@ -461,7 +491,8 @@ TEST_F(TVersionedChunksTest, ReadEmpty)
         chunkMeta,
         std::move(lowerLimit),
         TReadLimit(),
-        TColumnFilter());
+        TColumnFilter(),
+        New<TChunkReaderPerformanceCounters>());
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
@@ -499,7 +530,8 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
             TReadLimit(),
             TReadLimit(),
             TColumnFilter(),
-            AsyncAllCommittedTimestamp);
+            New<TChunkReaderPerformanceCounters>(),
+            AllCommittedTimestamp);
 
         EXPECT_TRUE(chunkReader->Open().Get().IsOK());
         CheckResult(expected, chunkReader);
@@ -522,15 +554,76 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
             lowerLimit,
             TReadLimit(),
             TColumnFilter(),
-            AsyncAllCommittedTimestamp);
+            New<TChunkReaderPerformanceCounters>(),
+            AllCommittedTimestamp);
 
         EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
         expected.erase(expected.begin(), expected.begin() + firstRow);
         CheckResult(expected, chunkReader);
     }
-}
 
+    {
+        std::vector<TOwningKey> owningKeys;
+        TUnversionedOwningRowBuilder builder;
+        expected.clear();
+
+        // Before the first key.
+        builder.AddValue(MakeUnversionedStringValue(A, 0));
+        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 1));
+        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
+        owningKeys.push_back(builder.FinishRow());
+        expected.push_back(TVersionedRow());
+
+        // The first key.
+        builder.AddValue(MakeUnversionedStringValue(A, 0));
+        builder.AddValue(MakeUnversionedInt64Value(0, 1));
+        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
+        owningKeys.push_back(builder.FinishRow());
+        expected.push_back(CreateSingleRow(0));
+
+        // Somewhere in the middle.
+        builder.AddValue(MakeUnversionedStringValue(A, 0));
+        builder.AddValue(MakeUnversionedInt64Value(150000, 1));
+        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
+        owningKeys.push_back(builder.FinishRow());
+        expected.push_back(CreateSingleRow(150000));
+
+        // After the last key.
+        builder.AddValue(MakeUnversionedStringValue(A, 0));
+        builder.AddValue(MakeUnversionedInt64Value(350000, 1));
+        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
+        owningKeys.push_back(builder.FinishRow());
+        expected.push_back(TVersionedRow());
+
+        // After the previous key, that was after the last.
+        builder.AddValue(MakeUnversionedStringValue(B, 0));
+        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 1));
+        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 2));
+        owningKeys.push_back(builder.FinishRow());
+        expected.push_back(TVersionedRow());
+
+        std::vector<TKey> keys;
+        for (const auto& owningKey : owningKeys) {
+            keys.push_back(owningKey.Get());
+        }
+
+        auto sharedKeys = MakeSharedRange(std::move(keys), std::move(owningKeys));
+
+        auto chunkReader = CreateVersionedChunkReader(
+            New<TChunkReaderConfig>(),
+            MemoryReader,
+            GetNullBlockCache(),
+            chunkMeta,
+            sharedKeys,
+            TColumnFilter(),
+            New<TChunkReaderPerformanceCounters>(),
+            AllCommittedTimestamp);
+
+        EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+        CheckResult(expected, chunkReader);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

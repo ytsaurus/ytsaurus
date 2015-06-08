@@ -15,7 +15,6 @@
 #include "helpers.h"
 
 #include <core/misc/string.h>
-#include <core/misc/collection_helpers.h>
 
 #include <core/compression/codec.h>
 
@@ -175,13 +174,20 @@ protected:
 
     virtual void DoDestroy(TChunk* chunk) override;
 
-    virtual TTransaction* DoGetStagingTransaction(TChunk* chunk)
+    virtual TTransaction* DoGetStagingTransaction(TChunk* chunk) override
     {
         return chunk->GetStagingTransaction();
     }
 
     virtual void DoUnstage(TChunk* chunk, bool recursive) override;
 
+    virtual void DoReset(TChunk* chunk) override
+    {
+        chunk->SetRefreshScheduled(false);
+        chunk->SetPropertiesUpdateScheduled(false);
+        chunk->SetSealScheduled(false);
+        chunk->SetRepairQueueIterator(Null);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -293,13 +299,12 @@ private:
 
     virtual void DoDestroy(TChunkList* chunkList) override;
 
-    virtual TTransaction* DoGetStagingTransaction(TChunkList* chunkList)
+    virtual TTransaction* DoGetStagingTransaction(TChunkList* chunkList) override
     {
         return chunkList->GetStagingTransaction();
     }
 
     virtual void DoUnstage(TChunkList* chunkList, bool recursive) override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -344,11 +349,11 @@ public:
             BIND(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
-            ESerializationPriority::Keys,
+            ESyncSerializationPriority::Keys,
             "ChunkManager.Keys",
             BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "ChunkManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
     }
@@ -390,13 +395,15 @@ public:
 
     TNodeList AllocateWriteTargets(
         TChunk* chunk,
-        int replicaCount,
-        const TSortedNodeList* forbiddenNodes,
+        int desiredCount,
+        int minCount,
+        const TNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName)
     {
         return ChunkPlacement_->AllocateWriteTargets(
             chunk,
-            replicaCount,
+            desiredCount,
+            minCount,
             forbiddenNodes,
             preferredHostName,
             EWriteSessionType::User);
@@ -406,18 +413,16 @@ public:
     {
         Profiler.Increment(AddedChunkCounter_);
         auto id = Bootstrap_->GetObjectManager()->GenerateId(type);
-        auto* chunk = new TChunk(id);
-        ChunkMap_.Insert(id, chunk);
-        return chunk;
+        auto chunkHolder = std::make_unique<TChunk>(id);
+        return ChunkMap_.Insert(id, std::move(chunkHolder));
     }
 
     TChunkList* CreateChunkList()
     {
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::ChunkList);
-        auto* chunkList = new TChunkList(id);
-        ChunkListMap_.Insert(id, chunkList);
-        return chunkList;
+        auto chunkListHolder = std::make_unique<TChunkList>(id);
+        return ChunkListMap_.Insert(id, std::move(chunkListHolder));
     }
 
 
@@ -548,7 +553,7 @@ public:
             if (node->GetState() != ENodeState::Online) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at %v which has invalid state %Qlv",
                     id,
-                    node->GetAddress(),
+                    node->GetDefaultAddress(),
                     node->GetState());
                 continue;
             }
@@ -981,6 +986,14 @@ private:
         for (auto replica : node->CachedReplicas()) {
             RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::NodeRemoved);
         }
+
+        if (ChunkPlacement_) {
+            ChunkPlacement_->OnNodeRemoved(node);
+        }
+
+        if (ChunkReplicator_) {
+            ChunkReplicator_->OnNodeRemoved(node);
+        }
     }
 
     void OnNodeConfigUpdated(TNode* node)
@@ -990,11 +1003,11 @@ private:
             if (config->Decommissioned) {
                 LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (NodeId: %v, Address: %v)",
                     node->GetId(),
-                    node->GetAddress());
+                    node->GetDefaultAddress());
             } else {
                 LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
                     node->GetId(),
-                    node->GetAddress());
+                    node->GetDefaultAddress());
             }
             node->SetDecommissioned(config->Decommissioned);
         }
@@ -1023,16 +1036,7 @@ private:
         const TReqIncrementalHeartbeat& request,
         TRspIncrementalHeartbeat* /*response*/)
     {
-        // Shrink hashtables.
-        ShrinkHashTable(&node->StoredReplicas());
-        ShrinkHashTable(&node->CachedReplicas());
-        ShrinkHashTable(&node->UnapprovedReplicas());
-        ShrinkHashTable(&node->Jobs());
-        for (auto& queue : node->ChunkReplicationQueues()) {
-            ShrinkHashTable(&queue);
-        }
-        ShrinkHashTable(&node->ChunkRemovalQueue());
-        ShrinkHashTable(&node->ChunkSealQueue());
+        node->ShrinkHashTables();
 
         for (const auto& chunkInfo : request.added_chunks()) {
             ProcessAddedChunk(node, chunkInfo, true);
@@ -1131,6 +1135,8 @@ private:
 
     virtual void OnAfterSnapshotLoaded() override
     {
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
         // Compute chunk replica count.
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         TotalReplicaCount_ = 0;
@@ -1144,6 +1150,8 @@ private:
 
     virtual void Clear() override
     {
+        TMasterAutomatonPart::Clear();
+
         ChunkMap_.Clear();
         ChunkListMap_.Clear();
         TotalReplicaCount_ = 0;
@@ -1228,28 +1236,17 @@ private:
 
     virtual void OnRecoveryStarted() override
     {
+        TMasterAutomatonPart::OnRecoveryStarted();
+
         Profiler.SetEnabled(false);
 
         NeedToRecomputeStatistics_ = false;
-
-        // Reset runtime info.
-        for (const auto& pair : ChunkMap_) {
-            auto* chunk = pair.second;
-            chunk->SetRefreshScheduled(false);
-            chunk->SetPropertiesUpdateScheduled(false);
-            chunk->SetSealScheduled(false);
-            chunk->ResetWeakRefCounter();
-            chunk->SetRepairQueueIterator(Null);
-        }
-
-        for (const auto& pair : ChunkListMap_) {
-            auto* chunkList = pair.second;
-            chunkList->ResetWeakRefCounter();
-        }
     }
 
     virtual void OnRecoveryComplete() override
     {
+        TMasterAutomatonPart::OnRecoveryComplete();
+
         Profiler.SetEnabled(true);
 
         if (NeedToRecomputeStatistics_) {
@@ -1260,6 +1257,8 @@ private:
 
     virtual void OnLeaderRecoveryComplete() override
     {
+        TMasterAutomatonPart::OnLeaderRecoveryComplete();
+
         LOG_INFO("Scheduling full chunk refresh");
         PROFILE_TIMING ("/full_chunk_refresh_schedule_time") {
             ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap_);
@@ -1271,6 +1270,8 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        TMasterAutomatonPart::OnLeaderActive();
+
         ChunkPlacement_->Start();
         ChunkReplicator_->Start();
         ChunkSealer_->Start();
@@ -1278,6 +1279,8 @@ private:
 
     virtual void OnStopLeading() override
     {
+        TMasterAutomatonPart::OnStopLeading();
+
         if (ChunkPlacement_) {
             ChunkPlacement_->Stop();
             ChunkPlacement_.Reset();
@@ -1314,7 +1317,7 @@ private:
                 chunkWithIndex,
                 cached,
                 nodeId,
-                node->GetAddress());
+                node->GetDefaultAddress());
         }
 
         if (ChunkReplicator_ && !cached) {
@@ -1342,7 +1345,7 @@ private:
                 cached,
                 reason,
                 nodeId,
-                node->GetAddress());
+                node->GetDefaultAddress());
             return;
         }
 
@@ -1371,7 +1374,7 @@ private:
                 cached,
                 reason,
                 nodeId,
-                node->GetAddress());
+                node->GetDefaultAddress());
         }
 
         if (ChunkReplicator_ && !cached) {
@@ -1420,7 +1423,7 @@ private:
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added, removal scheduled (NodeId: %v, Address: %v, ChunkId: %v, Cached: %v)",
                 nodeId,
-                node->GetAddress(),
+                node->GetDefaultAddress(),
                 chunkIdWithIndex,
                 cached);
 
@@ -1438,7 +1441,7 @@ private:
         if (!cached && node->HasUnapprovedReplica(chunkWithIndex)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
-                node->GetAddress(),
+                node->GetDefaultAddress(),
                 chunkWithIndex);
 
             node->ApproveReplica(chunkWithIndex);
@@ -1464,10 +1467,10 @@ private:
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         // NB: Chunk could already be a zombie but we still need to remove the replica.
         if (!chunk) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, NodeId: %d)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Cached: %v, Address: %v, NodeId: %v)",
                  chunkIdWithIndex,
                  cached,
-                 node->GetAddress(),
+                node->GetDefaultAddress(),
                  nodeId);
             return;
         }
@@ -1655,13 +1658,15 @@ TChunkTree* TChunkManager::GetChunkTreeOrThrow(const TChunkTreeId& id)
 
 TNodeList TChunkManager::AllocateWriteTargets(
     TChunk* chunk,
-    int replicaCount,
-    const TSortedNodeList* forbiddenNodes,
+    int desiredCount,
+    int minCount,
+    const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
 {
     return Impl_->AllocateWriteTargets(
         chunk,
-        replicaCount,
+        desiredCount,
+        minCount,
         forbiddenNodes,
         preferredHostName);
 }

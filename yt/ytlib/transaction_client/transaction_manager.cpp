@@ -208,7 +208,7 @@ public:
 
         auto coordinatorCellId = Type_ == ETransactionType::Master
             ? Owner_->CellId_
-            : *participantGuids.begin();
+            : participantGuids[RandomNumber(participantGuids.size())];
 
         LOG_INFO("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
             Id_,

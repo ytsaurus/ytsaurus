@@ -47,7 +47,7 @@ public:
         IMessageHandlerPtr handler)
         : Config_(std::move(config))
         , Handler_(std::move(handler))
-        , DispatcherThread_(TTcpDispatcher::TImpl::Get()->AllocateThread())
+        , DispatcherThread_(TTcpDispatcher::TImpl::Get()->GetClientThread())
         , Id_(TConnectionId::Create())
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -88,7 +88,7 @@ public:
         DispatcherThread_->AsyncRegister(Connection_);
     }
 
-    virtual TYsonString GetEndpointDescription() const
+    virtual TYsonString GetEndpointDescription() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection_->GetEndpointDescription();

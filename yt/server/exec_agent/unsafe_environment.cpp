@@ -5,11 +5,13 @@
 
 #include <server/exec_agent/slot.h>
 
+#include <server/job_proxy/public.h>
+
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/misc/process.h>
 
-#include <server/job_proxy/public.h>
+#include <core/tools/tools.h>
 
 #include <util/system/execpath.h>
 
@@ -63,15 +65,13 @@ public:
         , Process(proxyPath)
         , EnvironmentBuilder(envBuilder)
         , OnExit(NewPromise<void>())
-        , ControllerThread(ThreadFunc, this)
+        , WaitingThread(ThreadFunc, this)
     {
         Logger.AddTag("JobId: %v", jobId);
     }
 
     virtual TFuture<void> Run() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %v)",
             WorkingDirectory);
 
@@ -95,28 +95,28 @@ public:
 
         LOG_INFO("Spawning a job proxy (Path: %v)", ProxyPath);
 
-        Process.Spawn();
+        try {
+            Process.Spawn();
+        } catch (const std::exception& ex) {
+            return MakeFuture(TError("Failed to spawn job pxoxy") << ex);
+        }
 
         LOG_INFO("Job proxy started (ProcessId: %v)",
             Process.GetProcessId());
 
         // Unref is called in the thread.
         Ref();
-        ControllerThread.Start();
+        WaitingThread.Start();
 
-        ControllerThread.Detach();
+        WaitingThread.Detach();
 
         return OnExit;
     }
 
     // Safe to call multiple times
-    virtual void Kill(const TNonOwningCGroup& group, const TError& error) throw() override
+    virtual void Kill(const TNonOwningCGroup& group) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        LOG_INFO(error, "Killing job in unsafe environment (ProcessGroup: %v)", group.GetFullPath());
-
-        SetError(error);
+        LOG_INFO("Killing job in unsafe environment (ProcessGroup: %v)", group.GetFullPath());
 
         // One certaily can say that Process.Spawn exited
         // before this line due to thread affinity
@@ -141,20 +141,6 @@ public:
     }
 
 private:
-    void SetError(const TError& error)
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (Error.IsOK()) {
-            Error = error;
-        }
-    }
-
-    TError GetError() const
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        return Error;
-    }
-
     static void* ThreadFunc(void* param)
     {
         auto controller = MakeStrong(static_cast<TUnsafeProxyController*>(param));
@@ -171,13 +157,11 @@ private:
         LOG_INFO(error, "Job proxy finished");
 
         if (!error.IsOK()) {
-            auto wrappedError = TError("Job proxy failed") << error;
-            SetError(wrappedError);
+            error = TError("Job proxy failed") << error;
         }
 
-        OnExit.Set(GetError());
+        OnExit.Set(error);
     }
-
 
     const Stroka ProxyPath;
     const Stroka WorkingDirectory;
@@ -194,9 +178,7 @@ private:
 
     TPromise<void> OnExit;
 
-    TThread ControllerThread;
-
-    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+    TThread WaitingThread;
 };
 
 #else
@@ -209,22 +191,22 @@ public:
     explicit TUnsafeProxyController(const TJobId& jobId)
         : Logger(ExecAgentLogger)
         , OnExit(NewPromise<void>())
-        , ControllerThread(ThreadFunc, this)
+        , WaitingThread(ThreadFunc, this)
     {
         Logger.AddTag("JobId: %v", jobId);
     }
 
     TFuture<void> Run()
     {
-        ControllerThread.Start();
-        ControllerThread.Detach();
+        WaitingThread.Start();
+        WaitingThread.Detach();
 
         LOG_INFO("Running dummy job");
 
         return OnExit;
     }
 
-    virtual void Kill(const TNonOwningCGroup& group, const TError& error) throw() override
+    virtual void Kill(const TNonOwningCGroup& group) override
     {
         LOG_INFO("Killing dummy job");
         OnExit.Get();
@@ -250,7 +232,7 @@ private:
 
     NLogging::TLogger Logger;
     TPromise<void> OnExit;
-    TThread ControllerThread;
+    TThread WaitingThread;
 };
 
 #endif

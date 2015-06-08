@@ -25,7 +25,7 @@ public:
         const NChunkClient::TReadLimit& upperLimit,
         NChunkClient::IChunkReaderPtr underlyingReader,
         const NChunkClient::NProto::TMiscExt& misc,
-        NChunkClient::IBlockCachePtr uncompressedBlockCache);
+        NChunkClient::IBlockCachePtr blockCache);
 
     virtual TFuture<void> Open() override;
 
@@ -36,25 +36,38 @@ public:
     virtual TFuture<void> GetFetchingCompletedEvent();
 
 protected:
-    mutable NLogging::TLogger Logger;
+    const TChunkReaderConfigPtr Config_;
+    const NChunkClient::TReadLimit LowerLimit_;
+    const NChunkClient::TReadLimit UpperLimit_;
+    const NChunkClient::IBlockCachePtr BlockCache_;
+    const NChunkClient::IChunkReaderPtr UnderlyingReader_;
 
-    TChunkReaderConfigPtr Config_;
-
-    NChunkClient::TReadLimit LowerLimit_;
-    NChunkClient::TReadLimit UpperLimit_;
-
-    NChunkClient::IBlockCachePtr UncompressedBlockCache_;
-
-    NChunkClient::IChunkReaderPtr UnderlyingReader_;
     NChunkClient::TSequentialReaderPtr SequentialReader_;
 
     NChunkClient::NProto::TMiscExt Misc_;
-    TFuture<void> ReadyEvent_;
+    TFuture<void> ReadyEvent_ = VoidFuture;
 
     bool BlockEnded_ = false;
+    bool InitFirstBlockNeeded_ = false;
+    bool InitNextBlockNeeded_ = false;
+
+    bool CheckRowLimit_ = false;
+    bool CheckKeyLimit_ = false;
 
     TChunkedMemoryPool MemoryPool_;
 
+    NLogging::TLogger Logger;
+
+
+    bool BeginRead();
+    bool OnBlockEnded();
+
+    static int GetBlockIndexByKey(
+        const TKey& key, 
+        const std::vector<TOwningKey>& blockIndexKeys, 
+        int beginBlockIndex = 0);
+
+    void CheckBlockUpperLimits(const NProto::TBlockMeta& blockMeta);
 
     // These methods return min block index, satisfying the lower limit.
     int ApplyLowerRowLimit(const NProto::TBlockMetaExt& blockMeta) const;
@@ -65,12 +78,6 @@ protected:
     int ApplyUpperRowLimit(const NProto::TBlockMetaExt& blockMeta) const;
     int ApplyUpperKeyLimit(const NProto::TBlockMetaExt& blockMeta) const;
     int ApplyUpperKeyLimit(const std::vector<TOwningKey>& blockIndexKeys) const;
-
-    void DoOpen();
-
-    void DoSwitchBlock();
-
-    bool OnBlockEnded();
 
     virtual std::vector<NChunkClient::TSequentialReader::TBlockInfo> GetBlockSequence() = 0;
 

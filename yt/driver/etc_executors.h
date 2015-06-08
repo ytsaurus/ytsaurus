@@ -16,6 +16,7 @@ public:
     TBuildSnapshotExecutor();
 
 private:
+    TCLAP::ValueArg<NElection::TCellId> CellIdArg;
     TCLAP::SwitchArg SetReadOnlyArg;
 
     virtual void DoExecute() override;
@@ -28,9 +29,6 @@ private:
 class TGCCollectExecutor
     : public TExecutor
 {
-public:
-    TGCCollectExecutor();
-
 private:
     virtual void DoExecute() override;
     virtual Stroka GetCommandName() const override;

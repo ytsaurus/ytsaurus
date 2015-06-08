@@ -12,6 +12,8 @@
 #include <server/node_tracker_server/node_tracker.h>
 #include <server/node_tracker_server/node.h>
 
+#include <server/object_server/object.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/master_hydra_service.h>
@@ -22,6 +24,7 @@ namespace NChunkServer {
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NNodeTrackerServer;
+using namespace NObjectServer;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +47,8 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
-        context->SetRequestInfo("ChunkCount: %v", request->chunk_ids_size());
+        context->SetRequestInfo("ChunkCount: %v",
+            request->chunk_ids_size());
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
@@ -54,7 +58,7 @@ private:
             auto chunkIdWithIndex = DecodeChunkId(chunkId);
 
             auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
-            if (!chunk)
+            if (!IsObjectAlive(chunk))
                 continue;
 
             TChunkPtrWithIndex chunkWithIndex(chunk, chunkIdWithIndex.Index);
@@ -77,15 +81,17 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AllocateWriteTargets)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        int targetCount = request->target_count();
+        int desiredTargetCount = request->desired_target_count();
+        int minTargetCount = request->min_target_count();
         auto preferredHostName = request->has_preferred_host_name()
             ? TNullable<Stroka>(request->preferred_host_name())
             : Null;
         const auto& forbiddenAddresses = request->forbidden_addresses();
 
-        context->SetRequestInfo("ChunkId: %v, TargetCount: %v, PeferredHostName: %v, ForbiddenAddresses: [%v]",
+        context->SetRequestInfo("ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, PeferredHostName: %v, ForbiddenAddresses: [%v]",
             chunkId,
-            targetCount,
+            desiredTargetCount,
+            minTargetCount,
             preferredHostName,
             JoinToString(forbiddenAddresses));
         
@@ -94,7 +100,7 @@ private:
         
         auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
 
-        TSortedNodeList forbiddenNodes;
+        TNodeList forbiddenNodes;
         for (const auto& address : forbiddenAddresses) {
             auto* node = nodeTracker->FindNodeByAddress(address);
             if (node) {
@@ -105,7 +111,8 @@ private:
 
         auto targets = chunkManager->AllocateWriteTargets(
             chunk,
-            targetCount,
+            desiredTargetCount,
+            minTargetCount,
             &forbiddenNodes,
             preferredHostName);
 

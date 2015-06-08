@@ -8,6 +8,7 @@
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "session_manager.h"
+#include "master_connector.h"
 #include "session.h"
 #include "private.h"
 
@@ -25,7 +26,7 @@
 #include <ytlib/node_tracker_client/helpers.h>
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/job_tracker_client/statistics.h>
+#include <ytlib/job_tracker_client/job.pb.h>
 
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/block_cache.h>
@@ -64,7 +65,7 @@ using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int FetchPriority = 0;
+static const i64 ReadPriority = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +73,7 @@ class TChunkJobBase
     : public IJob
 {
 public:
-    DEFINE_SIGNAL(void(), ResourcesReleased);
+    DEFINE_SIGNAL(void(const TNodeResources& resourcesDelta), ResourcesUpdated);
 
 public:
     TChunkJobBase(
@@ -109,11 +110,19 @@ public:
 
     virtual void Abort(const TError& error) override
     {
-        if (JobState_ != EJobState::Running)
-            return;
+        switch (JobState_) {
+            case EJobState::Waiting:
+                SetAborted(error);
+                return;
 
-        JobFuture_.Cancel();
-        SetAborted(error);
+            case EJobState::Running:
+                JobFuture_.Cancel();
+                SetAborted(error);
+                return;
+
+            default:
+                return;
+        }
     }
 
     virtual const TJobId& GetId() const override
@@ -166,13 +175,7 @@ public:
         Progress_ = value;
     }
 
-    virtual TJobStatistics GetJobStatistics() const override
-    {
-        // ToDo(psushin)
-        return ZeroJobStatistics();
-    }
-
-    virtual void SetJobStatistics(const TJobStatistics& statistics) override
+    virtual void SetStatistics(const NYTree::TYsonString& /*statistics*/) override
     {
         YUNREACHABLE();
     }
@@ -254,15 +257,16 @@ protected:
 private:
     void DoSetFinished(EJobState finalState, const TError& error)
     {
-        if (JobState_ != EJobState::Running)
+        if (JobState_ != EJobState::Running && JobState_ != EJobState::Waiting)
             return;
 
         JobPhase_ = EJobPhase::Finished;
         JobState_ = finalState;
         ToProto(Result_.mutable_error(), error);
-        ToProto(Result_.mutable_statistics(), GetJobStatistics());
+        auto deltaResources = ZeroNodeResources() - ResourceLimits_;
         ResourceLimits_ = ZeroNodeResources();
         JobFuture_.Reset();
+        ResourcesUpdated_.Fire(deltaResources);
     }
 
 };
@@ -289,7 +293,6 @@ public:
 
 protected:
     IChunkPtr Chunk_;
-    TChunkReadGuard ChunkReadGuard_;
 
 
     virtual void DoPrepare()
@@ -365,77 +368,74 @@ private:
 
     virtual void DoRun() override
     {
-        auto metaOrError = WaitFor(Chunk_->GetMeta(0));
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            metaOrError,
-            "Error getting meta of chunk %v",
-            ChunkId_);
+        auto asyncMeta = Chunk_->ReadMeta(0);
+        auto meta = WaitFor(asyncMeta)
+            .ValueOrThrow();
 
         LOG_INFO("Chunk meta fetched");
-        const auto& meta = metaOrError.Value();
 
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(ReplicateChunkJobSpecExt_.node_directory());
 
         auto targets = FromProto<TChunkReplica, TChunkReplicaList>(ReplicateChunkJobSpecExt_.targets());
 
+        auto options = New<TRemoteWriterOptions>();
+        options->SessionType = EWriteSessionType::Replication;
+
         auto writer = CreateReplicationWriter(
             Config_->ReplicationWriter,
+            options,
             ChunkId_,
             targets,
             nodeDirectory,
             nullptr,
-            EWriteSessionType::Replication,
+            GetNullBlockCache(),
             Bootstrap_->GetReplicationOutThrottler());
 
-        {
-            auto error = WaitFor(writer->Open());
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                error,
-                "Error opening writer for chunk %v during replication",
-                ChunkId_);
-        }
+        WaitFor(writer->Open())
+            .ThrowOnError();
 
-        int blockIndex = 0;
+        int currentBlockIndex = 0;
         int blockCount = GetBlockCount(*meta);
 
         auto blockStore = Bootstrap_->GetBlockStore();
+        auto blockCache = Bootstrap_->GetBlockCache();
 
-        while (blockIndex < blockCount) {
-            auto getResult = WaitFor(
-                blockStore->FindBlocks(
-                    ChunkId_,
-                    blockIndex,
-                    blockCount - blockIndex,
-                    FetchPriority));
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                getResult,
-                "Error reading chunk %v during replication",
-                ChunkId_);
-            const auto& blocks = getResult.Value();
+        while (currentBlockIndex < blockCount) {
+            auto asyncReadBlocks = blockStore->ReadBlocks(
+                ChunkId_,
+                currentBlockIndex,
+                blockCount - currentBlockIndex,
+                ReadPriority,
+                blockCache,
+                false);
+            auto readBlocks = WaitFor(asyncReadBlocks)
+                .ValueOrThrow();
 
-            LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v-%v)",
-                blockIndex,
-                blockIndex + blocks.size() - 1);
-
-            auto writeResult = writer->WriteBlocks(blocks);
-            if (!writeResult) {
-                auto error = WaitFor(writer->GetReadyEvent());
-                THROW_ERROR_EXCEPTION_IF_FAILED(
-                    error,
-                    "Error writing chunk %v during replication",
-                    ChunkId_);
+            std::vector<TSharedRef> writeBlocks;
+            for (const auto& block : readBlocks) {
+                if (!block)
+                    break;
+                writeBlocks.push_back(block);
             }
 
-            blockIndex += blocks.size();
+            LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v-%v)",
+                currentBlockIndex,
+                currentBlockIndex + writeBlocks.size() - 1);
+
+            auto writeResult = writer->WriteBlocks(writeBlocks);
+            if (!writeResult) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
+            }
+
+            currentBlockIndex += writeBlocks.size();
         }
 
         LOG_DEBUG("All blocks are enqueued for replication");
 
-        {
-            auto error = WaitFor(writer->Close(*meta));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing replication writer");
-        }
+        WaitFor(writer->Close(*meta))
+            .ThrowOnError();
     }
 
     int GetBlockCount(const TChunkMeta& meta)
@@ -523,16 +523,17 @@ private:
             YCHECK(!partReplicas.empty());
 
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
+            auto options = New<TRemoteReaderOptions>();
+            options->SessionType = EReadSessionType::Repair;
             auto reader = CreateReplicationReader(
                 Config_->RepairReader,
-                Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
+                options,
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
-                Bootstrap_->GetLocalDescriptor(),
+                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 partId,
                 partReplicas,
-                InterconnectNetworkName,
-                EReadSessionType::Repair,
+                Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetRepairInThrottler());
             readers.push_back(reader);
         }
@@ -541,13 +542,16 @@ private:
         for (int index = 0; index < static_cast<int>(erasedIndexes.size()); ++index) {
             int partIndex = erasedIndexes[index];
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
+            auto options = New<TRemoteWriterOptions>();
+            options->SessionType = EWriteSessionType::Repair;
             auto writer = CreateReplicationWriter(
                 Config_->RepairWriter,
+                options,
                 partId,
                 TChunkReplicaList(1, targets[index]),
                 nodeDirectory,
                 nullptr,
-                EWriteSessionType::Repair,
+                GetNullBlockCache(),
                 Bootstrap_->GetRepairOutThrottler());
             writers.push_back(writer);
         }
@@ -598,7 +602,13 @@ private:
 
     virtual void DoRun() override
     {
-        if (Chunk_->IsActive()) {
+        if (Chunk_->GetType() != EObjectType::JournalChunk) {
+            THROW_ERROR_EXCEPTION("Cannot seal a non-journal chunk %v",
+                ChunkId_);
+        }
+
+        auto journalChunk = Chunk_->AsJournalChunk();
+        if (journalChunk->IsActive()) {
             THROW_ERROR_EXCEPTION("Cannot seal an active journal chunk %v",
                 ChunkId_);
         }
@@ -610,26 +620,22 @@ private:
         }
 
         auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
-        auto location = Chunk_->GetLocation();
-
-        auto asyncChangelog = journalDispatcher->OpenChangelog(location, ChunkId_, false);
-        auto changelog = WaitFor(asyncChangelog)
+        auto location = journalChunk->GetLocation();
+        auto changelog = WaitFor(journalDispatcher->OpenChangelog(location, ChunkId_))
             .ValueOrThrow();
 
-        auto journalChunk = Chunk_->AsJournalChunk();
         if (journalChunk->HasAttachedChangelog()) {
             THROW_ERROR_EXCEPTION("Journal chunk %v is already being written to",
                 ChunkId_);
         }
 
-        TJournalChunkChangelogGuard changelogGuard(journalChunk, changelog);
-
-        if (changelog->IsSealed()) {
+        if (journalChunk->IsSealed()) {
             LOG_INFO("Chunk %v is already sealed",
                 ChunkId_);
             return;
         }
 
+        TJournalChunkChangelogGuard changelogGuard(journalChunk, changelog);
         i64 currentRowCount = changelog->GetRecordCount();
         i64 sealRowCount = SealJobSpecExt_.row_count();
         if (currentRowCount < sealRowCount) {
@@ -642,20 +648,23 @@ private:
 
             auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(SealJobSpecExt_.replicas());
 
+            auto options = New<TRemoteReaderOptions>();
+            options->SessionType = EReadSessionType::Replication;
             auto reader = CreateReplicationReader(
                 Config_->SealReader,
-                Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
+                options,
                 Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
                 nodeDirectory,
                 Null,
                 ChunkId_,
                 replicas,
-                InterconnectNetworkName,
-                EReadSessionType::Replication,
+                Bootstrap_->GetBlockCache(),
                 Bootstrap_->GetReplicationInThrottler());
 
             while (currentRowCount < sealRowCount) {
-                auto asyncBlocks  = reader->ReadBlocks(currentRowCount, sealRowCount - currentRowCount);
+                auto asyncBlocks  = reader->ReadBlocks(
+                    currentRowCount,
+                    sealRowCount - currentRowCount);
                 auto blocks = WaitFor(asyncBlocks)
                     .ValueOrThrow();
 
@@ -667,7 +676,7 @@ private:
                         ChunkId_);
                 }
 
-                LOG_INFO("Journal chunk rows downloaded (Blocks: %v-%v)",
+                LOG_INFO("Journal chunk rows downloaded (Rows: %v-%v)",
                     currentRowCount,
                     currentRowCount + blockCount - 1);
 
@@ -681,10 +690,12 @@ private:
             LOG_INFO("Finished downloading missing journal chunk rows");
         }
 
-        LOG_INFO("Started sealing journal chunk (RowCount: %v)",
-            sealRowCount);
+        LOG_INFO("Started sealing journal chunk");
 
-        WaitFor(changelog->Seal(sealRowCount))
+        WaitFor(changelog->Flush())
+            .ThrowOnError();
+
+        WaitFor(journalChunk->Seal())
             .ThrowOnError();
 
         LOG_INFO("Finished sealing journal chunk");

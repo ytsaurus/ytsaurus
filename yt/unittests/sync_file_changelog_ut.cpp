@@ -207,7 +207,7 @@ TEST_F(TSyncFileChangelogTest, EmptyChangelog)
 
 TSharedRef GenerateBlob(size_t size)
 {
-    auto blob = TSharedRef::Allocate(size);
+    auto blob = TSharedMutableRef::Allocate(size);
     for (int i = 0; i < size; ++i) {
         blob.Begin()[i] = static_cast<char>(i % 256);
     }

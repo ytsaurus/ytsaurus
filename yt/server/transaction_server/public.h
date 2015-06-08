@@ -21,7 +21,6 @@ DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTimestampManagerConfig)
 
 class TTransaction;
-typedef SmallVector<TTransaction*, 4> TTransactionPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 

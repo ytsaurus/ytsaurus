@@ -5,12 +5,15 @@ set( SRCS
   ${BASE}/assert.cpp
   ${BASE}/async_stream_state.cpp
   ${BASE}/backtrace.cpp
+  ${BASE}/bitmap.cpp
   ${BASE}/blob.cpp
   ${BASE}/blob_output.cpp
   ${BASE}/blob_range.cpp
+  ${BASE}/bloom_filter.cpp
   ${BASE}/checkpointable_stream.cpp
   ${BASE}/checksum.cpp
   ${BASE}/chunked_memory_pool.cpp
+  ${BASE}/chunked_memory_allocator.cpp
   ${BASE}/chunked_output_stream.cpp
   ${BASE}/cpuid.cpp
   ${BASE}/crash_handler.cpp
@@ -23,10 +26,10 @@ set( SRCS
   ${BASE}/id_generator.cpp
   ${BASE}/lease_manager.cpp
   ${BASE}/lfalloc_helpers.cpp
+  ${BASE}/lifecycle.cpp
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
   ${BASE}/phoenix.cpp
-  ${BASE}/pipe.cpp
   ${BASE}/proc.cpp
   ${BASE}/process.cpp
   ${BASE}/protobuf_helpers.cpp
@@ -35,46 +38,61 @@ set( SRCS
   ${BASE}/ref_counted.cpp
   ${BASE}/ref_counted_tracker.cpp
   ${BASE}/serialize.cpp
+  ${BASE}/skip_list.cpp
   ${BASE}/small_vector.cpp
   ${BASE}/source_location.cpp
   ${BASE}/stack_trace.cpp
   ${BASE}/string.cpp
+  ${BASE}/subprocess.cpp
   ${BASE}/url.cpp
   ${BASE}/varint.cpp
-  ${BASE}/lifecycle.cpp
 )
 set( HDRS
-  ${BASE}/new.h
   ${BASE}/address.h
+  ${BASE}/align_of.h
+  ${BASE}/any-inl.h
+  ${BASE}/any.h
+  ${BASE}/range.h
   ${BASE}/assert.h
+  ${BASE}/async_cache-inl.h
+  ${BASE}/async_cache.h
   ${BASE}/async_stream_state.h
   ${BASE}/backtrace.h
   ${BASE}/bitmap.h
   ${BASE}/blob.h
   ${BASE}/blob_output.h
   ${BASE}/blob_range.h
-  ${BASE}/async_cache-inl.h
-  ${BASE}/async_cache.h
-  ${BASE}/sync_cache-inl.h
-  ${BASE}/sync_cache.h
+  ${BASE}/bloom_filter.h
   ${BASE}/checkpointable_stream.h
   ${BASE}/checksum.h
   ${BASE}/chunked_memory_pool.h
+  ${BASE}/chunked_memory_pool-inl.h
+  ${BASE}/chunked_memory_allocator.h
+  ${BASE}/chunked_memory_allocator-inl.h
   ${BASE}/chunked_output_stream.h
-  ${BASE}/common.h
-  ${BASE}/config.h
+  ${BASE}/chunked_vector.h
+  ${BASE}/chunked_vector-inl.h
   ${BASE}/collection_helpers.h
   ${BASE}/collection_helpers-inl.h
+  ${BASE}/common.h
+  ${BASE}/config.h
   ${BASE}/cpuid.h
   ${BASE}/crash_handler.h
   ${BASE}/demangle.h
-  ${BASE}/enum.h
   ${BASE}/enum-inl.h
-  ${BASE}/error.h
+  ${BASE}/enum.h
   ${BASE}/error-inl.h
+  ${BASE}/error.h
+  ${BASE}/expiring_cache-inl.h
+  ${BASE}/expiring_cache.h
+  ${BASE}/farm_hash.h
+  ${BASE}/finally.h
+  ${BASE}/format-inl.h
+  ${BASE}/format.h
   ${BASE}/fs.h
-  ${BASE}/guid.h
+  ${BASE}/function_traits.h
   ${BASE}/guid-inl.h
+  ${BASE}/guid.h
   ${BASE}/hash.h
   ${BASE}/heap-inl.h
   ${BASE}/heap.h
@@ -85,14 +103,17 @@ set( HDRS
   ${BASE}/lazy_ptr.h
   ${BASE}/lease_manager.h
   ${BASE}/lfalloc_helpers.h
+  ${BASE}/lifecycle.h
+  ${BASE}/lock_free-inl.h
+  ${BASE}/lock_free.h
   ${BASE}/mpl.h
+  ${BASE}/new.h
   ${BASE}/nullable.h
   ${BASE}/object_pool-inl.h
   ${BASE}/object_pool.h
   ${BASE}/pattern_formatter.h
   ${BASE}/phoenix-inl.h
   ${BASE}/phoenix.h
-  ${BASE}/pipe.h
   ${BASE}/preprocessor.h
   ${BASE}/proc.h
   ${BASE}/process.h
@@ -100,6 +121,8 @@ set( HDRS
   ${BASE}/protobuf_helpers-inl.h
   ${BASE}/protobuf_helpers.h
   ${BASE}/public.h
+  ${BASE}/persistent_queue.h
+  ${BASE}/persistent_queue-inl.h
   ${BASE}/random-inl.h
   ${BASE}/random.h
   ${BASE}/raw_formatter.h
@@ -110,34 +133,25 @@ set( HDRS
   ${BASE}/ring_queue.h
   ${BASE}/serialize.h
   ${BASE}/serialize_dump.h
+  ${BASE}/shutdownable.h
   ${BASE}/singleton.h
+  ${BASE}/skip_list-inl.h
+  ${BASE}/skip_list.h
   ${BASE}/small_set.h
   ${BASE}/small_string.h
   ${BASE}/small_vector.h
   ${BASE}/source_location.h
   ${BASE}/stack_trace.h
   ${BASE}/string.h
-  ${BASE}/sync.h
+  ${BASE}/subprocess.h
+  ${BASE}/sync_cache-inl.h
+  ${BASE}/sync_cache.h
   ${BASE}/url.h
-  ${BASE}/weak_ptr.h
-  ${BASE}/skip_list.h
-  ${BASE}/skip_list-inl.h
-  ${BASE}/varint.h
-  ${BASE}/zigzag.h
-  ${BASE}/collection_helpers.h
-  ${BASE}/collection_helpers-inl.h
-  ${BASE}/lock_free.h
-  ${BASE}/lock_free-inl.h
-  ${BASE}/variant.h
   ${BASE}/variant-inl.h
-  ${BASE}/any.h
-  ${BASE}/any-inl.h
-  ${BASE}/format.h
-  ${BASE}/format-inl.h
-  ${BASE}/lifecycle.h
-  ${BASE}/finally.h
-  ${BASE}/expiring_cache.h
-  ${BASE}/expiring_cache-inl.h
+  ${BASE}/variant.h
+  ${BASE}/varint.h
+  ${BASE}/weak_ptr.h
+  ${BASE}/zigzag.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -148,5 +162,6 @@ list(APPEND YT_SOURCE_FILES
 protoc( ${BASE}/guid.proto YT_SOURCE_FILES )
 protoc( ${BASE}/protobuf_helpers.proto YT_SOURCE_FILES )
 protoc( ${BASE}/error.proto YT_SOURCE_FILES )
+protoc( ${BASE}/bloom_filter.proto YT_SOURCE_FILES )
 
 PUMP( ${BASE}/preprocessor-gen.h.pump YT_SOURCE_FILES )

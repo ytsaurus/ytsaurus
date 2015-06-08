@@ -30,21 +30,14 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EStorePreloadState,
-    (Disabled)
-    (None)
-    (Scheduled)
-    (Running)
-    (Complete)
-    (Failed)
-)
-
 class TChunkStore
     : public TStoreBase
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(EStorePreloadState, PreloadState);
     DEFINE_BYVAL_RW_PROPERTY(TFuture<void>, PreloadFuture);
+
+    DEFINE_BYVAL_RW_PROPERTY(EStoreCompactionState, CompactionState);
 
 public:
     TChunkStore(
@@ -59,9 +52,11 @@ public:
     void SetBackingStore(IStorePtr store);
     bool HasBackingStore() const;
 
+    EInMemoryMode GetInMemoryMode() const;
     void SetInMemoryMode(EInMemoryMode mode);
-    NChunkClient::IBlockCachePtr GetCompressedPreloadedBlockCache();
-    NChunkClient::IBlockCachePtr GetUncompressedPreloadedBlockCache();
+    NChunkClient::IBlockCachePtr GetPreloadedBlockCache();
+    void PreloadFromInterceptedData(TInterceptedChunkDataPtr chunkData);
+
     NChunkClient::IChunkReaderPtr GetChunkReader();
 
     // IStore implementation.
@@ -82,25 +77,27 @@ public:
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
-    virtual NVersionedTableClient::IVersionedLookuperPtr CreateLookuper(
+    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+        const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
     virtual void CheckRowLocks(
-        TKey key,
+        TUnversionedRow row,
         TTransaction* transaction,
         ui32 lockMask) override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
 
+    virtual TCallback<void(TSaveContext&)> AsyncSave() override;
+    virtual void AsyncLoad(TLoadContext& context) override;
+
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 private:
-    class TLocalChunkReader;
-    class TVersionedReaderWrapper;
-    class TVersionedLookuperWrapper;
-    class TBlockCache;
+    class TPreloadedBlockCache;
+    using TPreloadedBlockCachePtr = TIntrusivePtr<TPreloadedBlockCache>;
 
     NCellNode::TBootstrap* const Bootstrap_;
 
@@ -128,25 +125,24 @@ private:
     IStorePtr BackingStore_;
 
     NConcurrency::TReaderWriterSpinLock PreloadedBlockCacheLock_;
-    NChunkClient::IBlockCachePtr CompressedPreloadedBlockCache_;
-    NChunkClient::IBlockCachePtr UncompressedPreloadedBlockCache_;
+    TPreloadedBlockCachePtr PreloadedBlockCache_;
 
-    EInMemoryMode InMemoryMode_ = EInMemoryMode::Disabled;
+    EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
 
 
     NDataNode::IChunkPtr PrepareChunk();
-    NDataNode::IChunkPtr DoFindChunk();
     NChunkClient::IChunkReaderPtr PrepareChunkReader(
         NDataNode::IChunkPtr chunk);
     NVersionedTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
         NChunkClient::IChunkReaderPtr chunkReader);
     IStorePtr GetBackingStore();
-    NChunkClient::IBlockCachePtr GetCompressedBlockCache();
-    NChunkClient::IBlockCachePtr GetUncompressedBlockCache();
+    NChunkClient::IBlockCachePtr GetBlockCache();
 
     void PrecacheProperties();
 
     void OnLocalReaderFailed();
+    void OnChunkExpired();
+    void OnChunkReaderExpired();
 
 };
 

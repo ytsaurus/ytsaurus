@@ -50,23 +50,25 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     IChannelPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
     : Logger(ChunkClientLogger)
+    , Config_(NYTree::CloneYsonSerializable(config))
     , Options_(options)
     , MasterChannel_(masterChannel)
     , TransactionId_(transactionId)
     , ParentChunkListId_(parentChunkListId)
     , Throttler_(throttler)
-    , NodeDirectory_(New<TNodeDirectory>())
-    , ReadyEvent_(VoidFuture)
-    , CompletionError_(NewPromise<void>())
+    , BlockCache_(blockCache)
+    , NodeDirectory_(New<NNodeTrackerClient::TNodeDirectory>())
     , CloseChunksAwaiter_(New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker()))
 {
-    YCHECK(config);
+    YCHECK(Config_);
     YCHECK(MasterChannel_);
 
-    Config_ = CloneYsonSerializable(config);
-    Config_->UploadReplicationFactor = std::min(Options_->ReplicationFactor, Config_->UploadReplicationFactor);
+    Config_->UploadReplicationFactor = std::min(
+        Options_->ReplicationFactor,
+        Config_->UploadReplicationFactor);
 
     Logger.AddTag("TransactionId: %v", TransactionId_);
 }
@@ -160,7 +162,6 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
         GenerateMutationId(req);
 
         // ToDo(psushin): Use CreateChunk here.
-
         auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
         reqExt->set_movable(Config_->ChunksMovable);
         reqExt->set_replication_factor(Options_->ReplicationFactor);
@@ -180,24 +181,30 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
 
         if (Options_->ErasureCodec == ECodec::None) {
             NextSession_.UnderlyingWriter = CreateReplicationWriter(
-                Config_, 
+                Config_,
+                Options_,
                 NextSession_.ChunkId, 
                 TChunkReplicaList(),
                 NodeDirectory_,
                 MasterChannel_,
-                EWriteSessionType::User,
+                BlockCache_,
                 Throttler_);
         } else {
             auto* erasureCodec = GetCodec(Options_->ErasureCodec);
             auto writers = CreateErasurePartWriters(
-                Config_, 
+                Config_,
+                Options_,
                 NextSession_.ChunkId, 
                 erasureCodec, 
                 NodeDirectory_, 
                 MasterChannel_, 
-                EWriteSessionType::User,
-                Throttler_);
-            NextSession_.UnderlyingWriter = CreateErasureWriter(Config_, erasureCodec, writers);
+                Throttler_,
+                BlockCache_);
+            NextSession_.UnderlyingWriter = CreateErasureWriter(
+                Config_,
+                NextSession_.ChunkId,
+                erasureCodec,
+                writers);
         }
 
         WaitFor(NextSession_.UnderlyingWriter->Open())
@@ -329,13 +336,14 @@ void TNontemplateMultiChunkWriterBase::InitCurrentSession()
 bool TNontemplateMultiChunkWriterBase::VerifyActive()
 {
     YCHECK(!Closing_);
-    YCHECK(CurrentSession_.IsActive());
 
     if (CompletionError_.IsSet()) {
         ReadyEvent_ = CompletionError_.ToFuture();
         return false;
     }
 
+    // If #CompletionError is not set, #CurrentSession must be ready.
+    YCHECK(CurrentSession_.IsActive());
     return true;
 }
 

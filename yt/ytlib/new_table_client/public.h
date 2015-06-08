@@ -37,7 +37,7 @@ using NTransactionClient::MinTimestamp;
 using NTransactionClient::MaxTimestamp;
 using NTransactionClient::SyncLastCommittedTimestamp;
 using NTransactionClient::AsyncLastCommittedTimestamp;
-using NTransactionClient::AsyncAllCommittedTimestamp;
+using NTransactionClient::AllCommittedTimestamp;
 using NTransactionClient::NotPreparedTimestamp;
 
 using TKeyColumns = std::vector<Stroka>;
@@ -50,7 +50,7 @@ const int MaxColumnLockCount = 32;
 extern const Stroka PrimaryLockName;
 const int MaxValuesPerRow = 1024;
 const int MaxRowsPerRowset = 1024 * 1024;
-const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1 MB
+const i64 MaxStringValueLength = (i64) 1024 * 1024;
 const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
 
 const int DefaultPartitionTag = -1;
@@ -72,6 +72,9 @@ DEFINE_ENUM(ETableChunkFormat,
 
 DEFINE_ENUM(EControlAttribute,
     (TableIndex)
+    (KeySwitch)
+    (RangeIndex)
+    (RowIndex)
 );
 
 // COMPAT(psushin): Legacy enum for old chunks.
@@ -132,17 +135,17 @@ class TKeyComparer;
 struct TColumnSchema;
 class TTableSchema;
 
-DECLARE_REFCOUNTED_CLASS(TNameTable)
-
-class TRowBuffer;
-
-struct  IBlockWriter;
+struct IBlockWriter;
 
 class TBlockWriter;
 
 class THorizontalSchemalessBlockReader;
 
 struct IPartitioner;
+
+DECLARE_REFCOUNTED_CLASS(TNameTable)
+
+DECLARE_REFCOUNTED_CLASS(TRowBuffer)
 
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
 DECLARE_REFCOUNTED_CLASS(TChunkSplitsFetcher)
@@ -163,7 +166,7 @@ DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkWriter)
 DECLARE_REFCOUNTED_CLASS(TPartitionChunkReader)
 DECLARE_REFCOUNTED_CLASS(TPartitionMultiChunkReader)
 
-DECLARE_REFCOUNTED_STRUCT(ISchemalessTableReader)
+DECLARE_REFCOUNTED_CLASS(TControlAttributesConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
@@ -173,16 +176,13 @@ DECLARE_REFCOUNTED_STRUCT(IVersionedMultiChunkWriter)
 
 DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
 
-DECLARE_REFCOUNTED_STRUCT(IVersionedLookuper)
+DECLARE_REFCOUNTED_STRUCT(TChunkReaderPerformanceCounters)
 
 DECLARE_REFCOUNTED_STRUCT(IValueConsumer)
 DECLARE_REFCOUNTED_CLASS(TBuildingValueConsumer)
 DECLARE_REFCOUNTED_CLASS(TWritingValueConsumer)
 
-DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
-
-typedef TMultiChunkWriterOptions TTableWriterOptions;
-typedef TMultiChunkWriterOptionsPtr TTableWriterOptionsPtr;
+DECLARE_REFCOUNTED_CLASS(TTableWriterOptions)
 
 DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)

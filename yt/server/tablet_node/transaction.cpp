@@ -22,6 +22,22 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTransactionWriteRecord::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, TabletId);
+    Save(context, Data);
+}
+
+void TTransactionWriteRecord::Load(TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, TabletId);
+    Load(context, Data);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTransaction::TTransaction(const TTransactionId& id)
     : Id_(id)
     , RegisterTime_(TInstant::Zero())
@@ -42,48 +58,6 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, StartTimestamp_);
     Save(context, GetPersistentPrepareTimestamp());
     Save(context, CommitTimestamp_);
-
-    Save(context, LockedRows_.size());
-    for (const auto& rowRef : LockedRows_) {
-        auto* store = rowRef.Store;
-        if (store->GetStoreState() == EStoreState::Orphaned) {
-            Save(context, NullTabletId);
-            continue;
-        }
-
-        auto row = rowRef.Row;
-        auto* tablet = store->GetTablet();
-
-        int keyColumnCount = tablet->GetKeyColumnCount();
-        int schemaColumnCount = tablet->GetSchemaColumnCount();
-        int columnLockCount = tablet->GetColumnLockCount();
-        const auto& columnIndexToLockIndex = tablet->ColumnIndexToLockIndex();
-        const auto* locks = row.BeginLocks(keyColumnCount);
-
-        // Tablet
-        Save(context, tablet->GetTabletId());
-
-        // Keys
-        SaveRowKeys(context, tablet->Schema(), tablet->KeyColumns(), row);
-
-        // Fixed values
-        ui32 lockMask = 0;
-        for (int columnIndex = keyColumnCount; columnIndex < schemaColumnCount; ++columnIndex) {
-            int lockIndex = columnIndexToLockIndex[columnIndex];
-            if (locks[lockIndex].Transaction == this) {
-                auto list = rowRef.Row.GetFixedValueList(columnIndex, keyColumnCount, columnLockCount);
-                if (list && list.HasUncommitted()) {
-                    NVersionedTableClient::Save(context, TUnversionedValue(list.GetUncommitted()));
-                    lockMask |= (1 << lockIndex);
-                }
-            }
-        }
-        NVersionedTableClient::Save(context, MakeUnversionedSentinelValue(EValueType::TheBottom));
-
-        // Misc
-        Save(context, lockMask);
-        Save(context, row.GetDeleteLockFlag());
-    }
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -96,57 +70,30 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, StartTimestamp_);
     Load(context, PrepareTimestamp_);
     Load(context, CommitTimestamp_);
+}
 
-    auto tabletManager = context.GetSlot()->GetTabletManager();
+TCallback<void(TSaveContext&)> TTransaction::AsyncSave()
+{
+    auto writeLogSnapshot = WriteLog_.MakeSnapshot();
+    return BIND([writeLogSnapshot = std::move(writeLogSnapshot)] (TSaveContext& context) {
+        using NYT::Save;
 
-    size_t lockedRowCount = Load<size_t>(context);
-    LockedRows_.reserve(lockedRowCount);
-
-    auto* tempPool = context.GetTempPool();
-    auto* rowBuilder = context.GetRowBuilder();
-
-    for (size_t rowIndex = 0; rowIndex < lockedRowCount; ++rowIndex) {
-        // Tablet
-        auto tabletId = Load<TTabletId>(context);
-        if (tabletId == NullTabletId) {
-            continue;
+        TSizeSerializer::Save(context, writeLogSnapshot.Size());
+        for (const auto& record : writeLogSnapshot) {
+            Save(context, record);
         }
+    });
+}
 
-        auto* tablet = tabletManager->GetTablet(tabletId);
-        const auto& store = tablet->GetActiveStore();
-        YCHECK(store);
+void TTransaction::AsyncLoad(TLoadContext& context)
+{
+    using NYT::Load;
 
-        tempPool->Clear();
-        rowBuilder->Reset();
+    YCHECK(WriteLog_.Empty());
 
-        // Keys
-        LoadRowKeys(context, tablet->Schema(), tablet->KeyColumns(), tempPool, rowBuilder);
-
-        // Values
-        while (true) {
-            TUnversionedValue value;
-            Load(context, value, tempPool);
-            if (value.Type == EValueType::TheBottom)
-                break;
-            rowBuilder->AddValue(value);
-        }
-
-        // Misc
-        ui32 lockMask = Load<ui32>(context);
-        bool deleteLockFlag = Load<bool>(context);
-
-        TDynamicRow dynamicRow;
-        auto row = rowBuilder->GetRow();
-        if ((lockMask & TDynamicRow::PrimaryLockMask) && deleteLockFlag) {
-            dynamicRow = store->DeleteRow(this, row, false);
-        } else {
-            dynamicRow = store->WriteRow(this, row, false, lockMask);
-        }
-        YCHECK(dynamicRow);
-
-        if (PrepareTimestamp_ != NullTimestamp) {
-            store->PrepareRow(this, dynamicRow);
-        }
+    int recordCount = TSizeSerializer::Load(context);
+    for (int index = 0; index < recordCount; ++index) {
+        WriteLog_.Enqueue(Load<TTransactionWriteRecord>(context));
     }
 }
 

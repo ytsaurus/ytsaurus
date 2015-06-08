@@ -2,6 +2,8 @@
 #include "tcp_dispatcher.h"
 #include "tcp_dispatcher_impl.h"
 
+#include <core/profiling/profile_manager.h>
+
 namespace NYT {
 namespace NBus {
 
@@ -31,6 +33,24 @@ TTcpDispatcherStatistics& operator += (
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTcpProfilingData::TTcpProfilingData()
+    : TagId(-1)
+    , ReceiveTimeCounter("/receive_time")
+    , ReceiveSizeCounter("/receive_size")
+    , InHandlerTimeCounter("/in_handler_time")
+    , InByteCounter("/in_bytes")
+    , InPacketCounter("/in_packets")
+    , SendTimeCounter("/send_time")
+    , SendSizeCounter("/send_size")
+    , OutHandlerTimeCounter("/out_handler_time")
+    , OutBytesCounter("/out_bytes")
+    , OutPacketCounter("/out_packets")
+    , PendingOutPacketCounter("/pending_out_packets")
+    , PendingOutByteCounter("/pending_out_bytes")
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTcpDispatcher::TTcpDispatcher()
     : Impl_(new TImpl())
 { }
@@ -51,6 +71,11 @@ void TTcpDispatcher::Shutdown()
 TTcpDispatcherStatistics TTcpDispatcher::GetStatistics(ETcpInterfaceType interfaceType)
 {
     return Impl_->GetStatistics(interfaceType);
+}
+
+TTcpProfilingData* TTcpDispatcher::GetProfilingData(ETcpInterfaceType interfaceType)
+{
+    return Impl_->GetProfilingData(interfaceType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

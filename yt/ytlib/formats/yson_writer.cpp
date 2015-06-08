@@ -79,7 +79,8 @@ bool TSchemafulYsonWriter::Write(const std::vector<TUnversionedRow>& rows)
         Writer_.OnEndMap();
     }
 
-    Result_ = Stream_->Write(Buffer_.Begin(), Buffer_.Size());
+    auto buffer = Buffer_.Flush();
+    Result_ = Stream_->Write(buffer);
     return Result_.IsSet() && Result_.Get().IsOK();
 }
 

@@ -46,11 +46,6 @@ private:
         return JournalServerLogger;
     }
 
-    virtual ELockMode GetLockMode(EUpdateMode updateMode) override
-    {
-        return ELockMode::Exclusive;
-    }
-
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back("read_quorum");
@@ -159,7 +154,7 @@ private:
             auto* chunk = chunkList->Children().back()->AsChunk();
             i64 penultimateRowCount = chunkList->RowCountSums().empty() ? 0 : chunkList->RowCountSums().back();
 
-            auto chunkManager = Bootstrap->GetChunkManager();
+            auto chunkManager = Bootstrap_->GetChunkManager();
             return chunkManager
                 ->GetChunkQuorumInfo(chunk)
                 .Apply(BIND([=] (const TMiscExt& miscExt) {
@@ -182,16 +177,14 @@ private:
     {
         DeclareMutating();
 
-        auto mode = EUpdateMode(request->mode());
+        auto mode = EUpdateMode(request->update_mode());
         if (mode != EUpdateMode::Append) {
             THROW_ERROR_EXCEPTION("Journals only support %Qlv update mode",
                 EUpdateMode::Append);
         }
 
         ValidateTransaction();
-        ValidatePermission(
-            NYTree::EPermissionCheckScope::This,
-            NSecurityServer::EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
         auto* node = GetThisTypedImpl();
         if (!node->IsSealed()) {

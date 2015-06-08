@@ -5,13 +5,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDefaultChunkedOutputStreamTag
+{ };
+
 TChunkedOutputStream::TChunkedOutputStream(
     TRefCountedTypeCookie tagCookie,
     size_t initialReserveSize,
     size_t maxReserveSize)
     : MaxReserveSize_(RoundUpToPage(maxReserveSize))
     , CurrentReserveSize_(RoundUpToPage(initialReserveSize))
-    , FinishedSize_(0)
     , CurrentChunk_(tagCookie, 0, true)
 {
     YCHECK(MaxReserveSize_ > 0);
@@ -20,6 +22,10 @@ TChunkedOutputStream::TChunkedOutputStream(
         CurrentReserveSize_ = MaxReserveSize_;
     }
 }
+
+TChunkedOutputStream::TChunkedOutputStream()
+    : TChunkedOutputStream(TDefaultChunkedOutputStreamTag())
+{ }
 
 TChunkedOutputStream::~TChunkedOutputStream() throw()
 { }

@@ -1,6 +1,5 @@
 #include "stream.h"
-
-#include "gil.h"
+#include "helpers.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>

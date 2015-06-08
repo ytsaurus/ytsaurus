@@ -12,7 +12,7 @@ const NLogging::TLogger CompressionLogger("Compression");
 
 TVectorRefsSource::TVectorRefsSource(const std::vector<TSharedRef>& blocks)
     : Blocks_(blocks)
-    , Available_(GetTotalSize(blocks))
+    , Available_(GetByteSize(blocks))
     , Index_(0)
     , Position_(0)
 {

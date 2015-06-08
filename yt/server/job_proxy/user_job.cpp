@@ -4,14 +4,13 @@
 
 #include "config.h"
 #include "job_detail.h"
-#include "helpers.h"
 #include "private.h"
 #include "stderr_output.h"
 #include "table_output.h"
 #include "user_job_io.h"
+#include "stracer.h"
 
 #include <server/exec_agent/public.h>
-#include <server/exec_agent/subprocess.h>
 
 #include <ytlib/chunk_client/public.h>
 
@@ -28,14 +27,17 @@
 
 #include <ytlib/cgroup/cgroup.h>
 
-#include <ytlib/pipes/async_reader.h>
-#include <ytlib/pipes/async_writer.h>
+#include <core/pipes/async_reader.h>
+#include <core/pipes/async_writer.h>
 
 #include <core/misc/fs.h>
 #include <core/misc/proc.h>
 #include <core/misc/process.h>
+#include <core/misc/subprocess.h>
 #include <core/misc/pattern_formatter.h>
 #include <core/misc/finally.h>
+
+#include <core/tools/tools.h>
 
 #include <core/concurrency/action_queue.h>
 
@@ -63,11 +65,6 @@ using namespace NPipes;
 using NJobTrackerClient::NProto::TJobResult;
 using NScheduler::NProto::TUserJobSpec;
 
-using NPipes::TAsyncReader;
-using NPipes::TAsyncReaderPtr;
-using NPipes::TAsyncWriter;
-using NPipes::TAsyncWriterPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
@@ -76,6 +73,8 @@ static const int JobStatisticsFD = 5;
 static const char* CGroupPrefix = "user_jobs/yt-job-";
 
 static const int BufferSize = 1024 * 1024;
+
+static const size_t MaxCustomStatisticNameLength = 512;
 
 static TNullOutput NullOutput;
 
@@ -96,6 +95,7 @@ public:
         , Config_(host->GetConfig())
         , JobErrorPromise_(NewPromise<void>())
         , MemoryUsage_(UserJobSpec_.memory_reserve())
+        , CumulativeMemoryUsageMbSec_(0)
         , PipeIOQueue_(New<TActionQueue>("PipeIO"))
         , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
         , JobProberQueue_(New<TActionQueue>("JobProber"))
@@ -133,18 +133,17 @@ public:
 
         DoJobIO();
 
-        {
-            TGuard<TSpinLock> guard(StatisticsLock_);
-            Statistics_.Add(
-                "/user_job/time",
-                static_cast<i64>(GetElapsedTime().MilliSeconds()));
-        }
-
         WaitFor(BlockIOWatchdogExecutor_->Stop());
         WaitFor(MemoryWatchdogExecutor_->Stop());
 
         if (!JobErrorPromise_.IsSet())  {
             FinalizeJobIO();
+        }
+
+        {
+            // One do not need to get a lock here
+            TGuard<TSpinLock> guard(StatisticsLock_);
+            FillCurrentDataStatistics(Statistics_);
         }
 
         CleanupCGroups();
@@ -205,11 +204,12 @@ private:
 
     TPromise<void> JobErrorPromise_;
 
-    std::atomic<bool> Prepared_ = {false};
+    std::atomic<bool> Prepared_ = { false };
 
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
     i64 MemoryUsage_;
+    i64 CumulativeMemoryUsageMbSec_;
 
     TActionQueuePtr PipeIOQueue_;
 
@@ -226,7 +226,7 @@ private:
     std::vector<TAsyncReaderPtr> TablePipeReaders_;
     std::vector<TAsyncWriterPtr> TablePipeWriters_;
 
-    std::vector<TContextPreservingInputPtr> ContextPreservingInputs_;
+    std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
 
     std::vector<TCallback<void()>> InputActions_;
     std::vector<TCallback<void()>> OutputActions_;
@@ -281,7 +281,7 @@ private:
 
     void CleanupCGroups()
     {
-        if (!UserJobSpec_.enable_accounting() && !Config_->ForceEnableAccounting) {
+        if (!Config_->EnableCGroups) {
             return;
         }
 
@@ -299,23 +299,29 @@ private:
             LOG_FATAL(ex, "Failed to clean up user processes");
         }
 
-        auto cpuAccountingStats = CpuAccounting_.GetStatistics();
-        AddStatistic("/user_job/cpu", cpuAccountingStats);
+        if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
+            auto cpuAccountingStats = CpuAccounting_.GetStatistics();
+            AddStatistic("/user_job/cpu", cpuAccountingStats);
+            CpuAccounting_.Destroy();
+        }
 
-        auto blockIOStats = BlockIO_.GetStatistics();
-        AddStatistic("/user_job/block_io", blockIOStats);
+        if (Config_->IsCGroupSupported(TBlockIO::Name)) {
+            auto blockIOStats = BlockIO_.GetStatistics();
+            AddStatistic("/user_job/block_io", blockIOStats);
+            BlockIO_.Destroy();
+        }
+
+        if (Config_->IsCGroupSupported(TMemory::Name)) {
+            AddStatistic("/user_job/max_memory", Memory_.GetMaxMemoryUsage());
+            Memory_.ForceEmpty();
+            Memory_.Destroy();
+        }
+
+        AddStatistic("/user_job/cumulative_memory_mb_sec", CumulativeMemoryUsageMbSec_);
 
         {
             TGuard<TSpinLock> guard(FreezerLock_);
             Freezer_.Destroy();
-        }
-
-        CpuAccounting_.Destroy();
-        BlockIO_.Destroy();
-
-        if (Config_->EnableCGroupMemoryHierarchy) {
-            Memory_.ForceEmpty();
-            Memory_.Destroy();
         }
     }
 
@@ -414,7 +420,7 @@ private:
     {
         std::vector<TBlob> result;
 
-        for (const auto& input : ContextPreservingInputs_) {
+        for (const auto& input : FormatWriters_) {
             result.push_back(input->GetContext());
         }
 
@@ -442,20 +448,8 @@ private:
             Stracing_.clear();
         });
 
-        TYsonString spec = BuildYsonStringFluently(NYson::EYsonFormat::Text)
-            .BeginMap()
-                .Item("pids").Value(pids)
-            .EndMap();
-
-        auto stracer = NExecAgent::TSubprocess::CreateCurrentProcessSpawner();
-        stracer.AddArguments({
-            "--stracer",
-            "--spec",
-            spec.Data()
-        });
-
         auto asyncTraces = WaitFor(BIND([&] () {
-            return stracer.Execute();
+            return RunTool<TStraceTool>(pids);
         })
             .AsyncVia(JobProberQueue_->GetInvoker())
             .Run());
@@ -465,21 +459,7 @@ private:
                 << asyncTraces;
         }
 
-        const auto& traces = asyncTraces.Value();
-
-        try {
-            if (!traces.Status.IsOK()) {
-                THROW_ERROR traces.Status;
-            }
-
-            LOG_DEBUG("Stracer stderr: %Qv", traces.Error);
-
-            return TYsonString(Stroka(traces.Output.Begin(), traces.Output.End()));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to strace")
-                << ex
-                << TErrorAttribute("error", ToString(traces.Error));
-        }
+        return ConvertToYsonString(asyncTraces.Value());
     }
 
     int GetMaxReservedDescriptor() const
@@ -541,42 +521,66 @@ private:
         }));
     }
 
-    TAsyncReaderPtr PrepareOutputPipe(TPipe pipe, int jobDescriptor, TOutputStream* output)
+    TAsyncReaderPtr PrepareOutputPipe(TPipe&& pipe, int jobDescriptor, TOutputStream* output)
     {
-        Process_.AddDup2FileAction(pipe.WriteFD, jobDescriptor);
+        Process_.AddDup2FileAction(pipe.GetWriteFD(), jobDescriptor);
 
         Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
 
-        SafeMakeNonblocking(pipe.ReadFD);
+        auto asyncInput = pipe.CreateAsyncReader();
 
-        auto asyncInput = New<TAsyncReader>(pipe.ReadFD);
-
-        OutputActions_.push_back(BIND([=] () {
-            SafeClose(pipe.WriteFD);
+        OutputActions_.push_back(BIND([=] (int writeFD) {
+            SafeClose(writeFD, false);
             auto input = CreateSyncAdapter(asyncInput);
             PipeInputToOutput(input.get(), output, BufferSize);
-        }));
+        }, pipe.ReleaseWriteFD()));
 
         return asyncInput;
     }
 
-    void PrepareInputTablePipe(TPipe pipe, int jobDescriptor, TContextPreservingInputPtr input)
+    void PrepareInputTablePipe(
+        TPipe&& pipe,
+        int jobDescriptor,
+        ISchemalessMultiChunkReaderPtr reader,
+        const TFormat& format)
     {
-        Process_.AddDup2FileAction(pipe.ReadFD, jobDescriptor);
+
+        Process_.AddDup2FileAction(pipe.GetReadFD(), jobDescriptor);
 
         Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
 
-        SafeMakeNonblocking(pipe.WriteFD);
-        auto asyncOutput = New<TAsyncWriter>(pipe.WriteFD);
+        auto asyncOutput = pipe.CreateAsyncWriter();
         TablePipeWriters_.push_back(asyncOutput);
+        auto output = CreateSyncAdapter(asyncOutput);
+        auto bufferRowCount = Config_->JobIO->BufferRowCount;
+
+        auto writer = CreateSchemalessWriterForFormat(
+            format,
+            reader->GetNameTable(),
+            std::move(output),
+            true,
+            Config_->JobIO->ControlAttributes->EnableKeySwitch,
+            reader->GetKeyColumns().size());
+
+        FormatWriters_.push_back(writer);
+
+        // NB: we do not bother to close it. Anyway, job proxy process would not live long.
+        auto readFD = pipe.ReleaseReadFD();
 
         InputActions_.push_back(BIND([=] () {
-            auto output = CreateSyncAdapter(asyncOutput);
-            input->PipeReaderToOutput(output.get());
-            auto error = WaitFor(asyncOutput->Close());
-            if (!error.IsOK()) {
+            try {
+                PipeReaderToWriter(
+                    reader,
+                    writer,
+                    Config_->JobIO->ControlAttributes,
+                    bufferRowCount);
+
+                WaitFor(asyncOutput->Close())
+                    .ThrowOnError();
+            } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Table input pipe failed")
-                    << TErrorAttribute("fd", jobDescriptor);
+                        << TErrorAttribute("fd", jobDescriptor)
+                        << ex;
             }
         }));
 
@@ -584,16 +588,16 @@ private:
             return;
         }
 
-        FinalizeActions_.push_back(BIND([=] () {
+        FinalizeActions_.push_back(BIND([=] (int readFD) {
             char buffer;
             // Try to read some data from the pipe.
-            ssize_t res = ::read(pipe.ReadFD, &buffer, 1);
+            ssize_t res = ::read(readFD, &buffer, 1);
             if (res > 0) {
                 THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
                     << TErrorAttribute("fd", jobDescriptor);
             }
-            // close pipe.ReadFD?
-        }));
+            YCHECK(TryClose(readFD, false));
+        }, readFD));
     }
 
     void PrepareInputTablePipes(TPipeFactory* pipeFactory)
@@ -605,13 +609,7 @@ private:
         YCHECK(!UserJobSpec_.use_yamr_descriptors() || readers.size() == 1);
 
         for (int i = 0; i < readers.size(); ++i) {
-            auto input = New<TContextPreservingInput>(
-                readers[i],
-                format,
-                Config_->JobIO->EnableInputTableIndex);
-
-            ContextPreservingInputs_.push_back(input);
-            PrepareInputTablePipe(pipeFactory->Create(), 3 * i, input);
+            PrepareInputTablePipe(pipeFactory->Create(), 3 * i, readers[i], format);
         }
     }
 
@@ -668,7 +666,7 @@ private:
 
     void PrepareCGroups()
     {
-        if (!UserJobSpec_.enable_accounting() && !Config_->ForceEnableAccounting) {
+        if (!Config_->EnableCGroups) {
             return;
         }
 
@@ -679,13 +677,17 @@ private:
                 Process_.AddArguments({ "--cgroup", Freezer_.GetFullPath() });
             }
 
-            CpuAccounting_.Create();
-            Process_.AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
+            if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
+                CpuAccounting_.Create();
+                Process_.AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
+            }
 
-            BlockIO_.Create();
-            Process_.AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
+            if (Config_->IsCGroupSupported(TBlockIO::Name)) {
+                BlockIO_.Create();
+                Process_.AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
+            }
 
-            if (Config_->EnableCGroupMemoryHierarchy) {
+            if (Config_->IsCGroupSupported(TMemory::Name)) {
                 Memory_.Create();
                 Process_.AddArguments({ "--cgroup", Memory_.GetFullPath() });
             }
@@ -698,6 +700,27 @@ private:
     {
         TGuard<TSpinLock> guard(StatisticsLock_);
         Statistics_.Merge(statistics);
+
+        size_t customStatisticsCount = 0;
+        for (const auto& pair : Statistics_) {
+            if (pair.first.has_prefix("/custom")) {
+                if (pair.first.size() > MaxCustomStatisticNameLength)
+                {
+                    THROW_ERROR_EXCEPTION(
+                        "Custom statistics name is too long: %v > %v",
+                        pair.first.size(),
+                        MaxCustomStatisticNameLength);
+                }
+                ++customStatisticsCount;
+            }
+        }
+
+        if (customStatisticsCount > UserJobSpec_.custom_statistics_count_limit()) {
+            THROW_ERROR_EXCEPTION(
+                "Custom statistics count exceeded: %v > %v. Increate custom statistics count limit in the job spec",
+                customStatisticsCount,
+                UserJobSpec_.custom_statistics_count_limit());
+        }
     }
 
     template <class T>
@@ -705,6 +728,19 @@ private:
     {
         TGuard<TSpinLock> guard(StatisticsLock_);
         Statistics_.AddComplex(path, statistic);
+    }
+
+    void FillCurrentDataStatistics(TStatistics& statistics) const
+    {
+        statistics.AddComplex("/data/input", GetDataStatistics(JobIO_->GetReaders()));
+
+        int i = 0;
+        for (const auto& writer : JobIO_->GetWriters()) {
+            statistics.AddComplex(
+                "/data/output/" + NYPath::ToYPathLiteral(i),
+                writer->GetDataStatistics());
+            ++i;
+        }
     }
 
     template <class T>
@@ -718,24 +754,15 @@ private:
         return statistics;
     }
 
-    virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const override
+    virtual TStatistics GetStatistics() const override
     {
-        NJobTrackerClient::NProto::TJobStatistics result;
-        result.set_time(GetElapsedTime().MilliSeconds());
-
-        ToProto(result.mutable_input(), GetDataStatistics(JobIO_->GetReaders()));
-
-        for (const auto& writer : JobIO_->GetWriters()) {
-            auto* output = result.add_output();
-            ToProto(output, writer->GetDataStatistics());
-        }
-
+        TStatistics result;
         {
             TGuard<TSpinLock> guard(StatisticsLock_);
-            ToProto(result.mutable_statistics(), ConvertToYsonString(Statistics_).Data());
+            result = Statistics_;
         }
-
-        return result;
+        FillCurrentDataStatistics(result);
+        return std::move(result);
     }
 
     void DoJobIO()
@@ -861,7 +888,7 @@ private:
 
         if (Memory_.IsCreated()) {
             auto statistics = Memory_.GetStatistics();
-            AddStatistic("/user_job/memory", statistics);
+            AddStatistic("/user_job/current_memory", statistics);
 
             i64 uidRss = rss;
             rss = statistics.Rss + statistics.MappedFile;
@@ -872,6 +899,8 @@ private:
                     uidRss);
             }
         }
+
+        CumulativeMemoryUsageMbSec_ += (rss / (1024 * 1024)) * Config_->MemoryWatchdogPeriod.Seconds();
 
         i64 memoryLimit = UserJobSpec_.memory_limit();
         LOG_DEBUG("Check memory usage (Rss: %v, MemoryLimit: %v)",
@@ -884,9 +913,15 @@ private:
 
         if (rss > memoryLimit) {
             JobErrorPromise_.TrySet(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
-                << TErrorAttribute("time_since_start", GetElapsedTime().MilliSeconds())
                 << TErrorAttribute("rss", rss)
                 << TErrorAttribute("limit", memoryLimit));
+
+            if (!Config_->EnableCGroups) {
+                // TODO(psushin): If someone wanted to use
+                // YT without cgroups in production than one need to
+                // implement kill by uid here
+                return;
+            }
 
             YCHECK(Freezer_.IsCreated());
 
@@ -925,11 +960,11 @@ private:
                     return item.DeviceId == other.DeviceId  && item.Type == other.Type;
                 });
 
-            if (previousItemIt == LastServicedIOs_.end()) {
-                continue;
+            i64 deltaOperations = item.Value;
+            if (previousItemIt != LastServicedIOs_.end()) {
+                deltaOperations -= previousItemIt->Value;
             }
 
-            i64 deltaOperations = item.Value - previousItemIt->Value;
             if (deltaOperations < 0) {
                 LOG_WARNING("%v < 0 operations were serviced for %v device since the last check",
                     deltaOperations,
@@ -944,7 +979,6 @@ private:
 
         LastServicedIOs_ = servicedIOs;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

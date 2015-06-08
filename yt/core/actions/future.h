@@ -134,9 +134,6 @@ public:
     //! Checks if the value is set.
     bool IsSet() const;
 
-    //! Checks if the future is canceled.
-    bool IsCanceled() const;
-
     //! Gets the value.
     /*!
      *  This call will block until the value is set.
@@ -163,6 +160,9 @@ public:
     //! Notifies the producer that the promised value is no longer needed.
     //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
     bool Cancel();
+
+    //! Returns a wrapper that suppresses cancelation attempts.
+    TFuture<T> ToUncancelable();
 
     //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
     //! or to |EErrorCode::Timeout| (in case of timeout).
@@ -317,7 +317,7 @@ public:
     //! Checks if the promise is canceled.
     bool IsCanceled() const;
 
-    //! Attaches a cancellation handler.
+    //! Attaches a cancelation handler.
     /*!
      *  \param handler A callback to call when TFuture<T>::Cancel is triggered
      *  by the client.
@@ -463,9 +463,21 @@ public:
     //! Returns the underlying future.
     TFuture<T>& Get();
 
+    //! Returns the underlying future.
+    const TFuture<T>& operator*() const; // noexcept
+
+    //! Returns the underlying future.
+    TFuture<T>& operator*(); // noexcept
+
+    //! Returns the underlying future.
+    const TFuture<T>* operator->() const; // noexcept
+
+    //! Returns the underlying future.
+    TFuture<T>* operator->(); // noexcept
+
 private:
     TFuture<T> Future_;
-    const bool Blocking_;
+    bool Blocking_;
 
 };
 

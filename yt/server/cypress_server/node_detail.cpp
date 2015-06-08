@@ -41,26 +41,22 @@ namespace NCypressServer {
 
 TNontemplateCypressNodeTypeHandlerBase::TNontemplateCypressNodeTypeHandlerBase(
     NCellMaster::TBootstrap* bootstrap)
-    : Bootstrap(bootstrap)
+    : Bootstrap_(bootstrap)
 { }
 
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
 {
-    return Bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader();
+    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader();
 }
 
 bool TNontemplateCypressNodeTypeHandlerBase::IsRecovery() const
 {
-    return Bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery();
+    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
 {
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto securityManager = Bootstrap->GetSecurityManager();
-
-    // Remove user attributes, if any.
-    objectManager->TryRemoveAttributes(node->GetVersionedId());
+    auto securityManager = Bootstrap_->GetSecurityManager();
 
     // Reset parent links from immediate descendants.
     for (auto* descendant : node->ImmediateDescendants()) {
@@ -82,7 +78,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     TTransaction* transaction,
     ELockMode mode)
 {
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
 
     // Copy basic properties.
     branchedNode->SetParent(originatingNode->GetParent());
@@ -92,24 +88,21 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetLockMode(mode);
     branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
     branchedNode->SetTransaction(transaction);
+    branchedNode->SetOriginator(originatingNode);
 
     // Branch user attributes.
-    objectManager->BranchAttributes(originatingNode->GetVersionedId(), branchedNode->GetVersionedId());
+    objectManager->BranchAttributes(originatingNode, branchedNode);
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     TCypressNodeBase* originatingNode,
     TCypressNodeBase* branchedNode)
 {
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto securityManager = Bootstrap->GetSecurityManager();
-
-    auto originatingId = originatingNode->GetVersionedId();
-    auto branchedId = branchedNode->GetVersionedId();
-    YCHECK(branchedId.IsBranched());
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto securityManager = Bootstrap_->GetSecurityManager();
 
     // Merge user attributes.
-    objectManager->MergeAttributes(originatingId, branchedId);
+    objectManager->MergeAttributes(originatingNode, branchedNode);
 
     // Perform cleanup by resetting the parent link of the branched node.
     branchedNode->SetParent(nullptr);
@@ -128,7 +121,7 @@ TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     ICypressNodeFactoryPtr factory)
 {
     auto type = GetObjectType();
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     auto clonedId = objectManager->GenerateId(type);
     return factory->CreateNode(clonedId);
 }
@@ -139,10 +132,10 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     ICypressNodeFactoryPtr factory)
 {
     // Copy attributes directly to suppress validation.
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto keyToAttribute = GetNodeAttributes(Bootstrap, sourceNode->GetTrunkNode(), factory->GetTransaction());
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto keyToAttribute = GetNodeAttributes(Bootstrap_, sourceNode->GetTrunkNode(), factory->GetTransaction());
     if (!keyToAttribute.empty()) {
-        auto* clonedAttributes = objectManager->CreateAttributes(clonedNode->GetVersionedId());
+        auto* clonedAttributes = clonedNode->GetMutableAttributes();
         for (const auto& pair : keyToAttribute) {
             YCHECK(clonedAttributes->Attributes().insert(pair).second);
         }
@@ -210,7 +203,7 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode* node)
     TBase::DoDestroy(node);
 
     // Drop references to the children.
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     for (const auto& pair : node->KeyToChild()) {
         auto* node = pair.second;
         if (node) {
@@ -232,9 +225,9 @@ void TMapNodeTypeHandler::DoMerge(
 {
     TBase::DoMerge(originatingNode, branchedNode);
 
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto transactionManager = Bootstrap->GetTransactionManager();
-    auto cypressManager = Bootstrap->GetCypressManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto transactionManager = Bootstrap_->GetTransactionManager();
+    auto cypressManager = Bootstrap_->GetCypressManager();
 
     bool isOriginatingNodeBranched = originatingNode->GetTransaction();
 
@@ -293,7 +286,7 @@ ICypressNodeProxyPtr TMapNodeTypeHandler::DoGetProxy(
 {
     return New<TMapNodeProxy>(
         this,
-        Bootstrap,
+        Bootstrap_,
         transaction,
         trunkNode);
 }
@@ -309,7 +302,7 @@ void TMapNodeTypeHandler::DoClone(
     auto* transaction = factory->GetTransaction();
 
     auto keyToChildMap = GetMapNodeChildren(
-        Bootstrap,
+        Bootstrap_,
         sourceNode->GetTrunkNode(),
         transaction);
     
@@ -324,8 +317,8 @@ void TMapNodeTypeHandler::DoClone(
             return lhs.first < rhs.first;
         });
 
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto cypressManager = Bootstrap->GetCypressManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto cypressManager = Bootstrap_->GetCypressManager();
 
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();
 
@@ -341,7 +334,7 @@ void TMapNodeTypeHandler::DoClone(
         YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, clonedTrunkChildNode)).second);
         YCHECK(clonedNode->ChildToKey().insert(std::make_pair(clonedTrunkChildNode, key)).second);
 
-        AttachChild(Bootstrap, clonedTrunkNode, clonedChildNode);
+        AttachChild(Bootstrap_, clonedTrunkNode, clonedChildNode);
 
         ++clonedNode->ChildCountDelta();
     }
@@ -400,7 +393,7 @@ ICypressNodeProxyPtr TListNodeTypeHandler::DoGetProxy(
 {
     return New<TListNodeProxy>(
         this,
-        Bootstrap,
+        Bootstrap_,
         transaction,
         trunkNode);
 }
@@ -410,7 +403,7 @@ void TListNodeTypeHandler::DoDestroy(TListNode* node)
     TBase::DoDestroy(node);
 
     // Drop references to the children.
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     for (auto* child : node->IndexToChild()) {
         objectManager->UnrefObject(child);
     }
@@ -426,7 +419,7 @@ void TListNodeTypeHandler::DoBranch(
     branchedNode->ChildToIndex() = originatingNode->ChildToIndex();
 
     // Reference all children.
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     for (auto* child : originatingNode->IndexToChild()) {
         objectManager->RefObject(child);
     }
@@ -439,7 +432,7 @@ void TListNodeTypeHandler::DoMerge(
     TBase::DoMerge(originatingNode, branchedNode);
 
     // Drop all references held by the originator.
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
     for (auto* child : originatingNode->IndexToChild()) {
         objectManager->UnrefObject(child);
     }
@@ -457,8 +450,8 @@ void TListNodeTypeHandler::DoClone(
 {
     TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto cypressManager = Bootstrap->GetCypressManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto cypressManager = Bootstrap_->GetCypressManager();
 
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();
 
@@ -471,7 +464,7 @@ void TListNodeTypeHandler::DoClone(
         clonedNode->IndexToChild().push_back(clonedChildTrunkNode);
         YCHECK(clonedNode->ChildToIndex().insert(std::make_pair(clonedChildTrunkNode, index)).second);
 
-        AttachChild(Bootstrap, clonedTrunkNode, clonedChildNode);
+        AttachChild(Bootstrap_, clonedTrunkNode, clonedChildNode);
     }
 }
 
@@ -524,7 +517,7 @@ void TLinkNodeTypeHandler::SetDefaultAttributes(
     if (targetPath) {
         attributes->Remove("target_path");
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto* resolver = objectManager->GetObjectResolver();
 
         auto targetProxy = resolver->ResolvePath(*targetPath, transaction);
@@ -538,7 +531,7 @@ ICypressNodeProxyPtr TLinkNodeTypeHandler::DoGetProxy(
 {
     return New<TLinkNodeProxy>(
         this,
-        Bootstrap,
+        Bootstrap_,
         transaction,
         trunkNode);
 }
@@ -619,7 +612,7 @@ ICypressNodeProxyPtr TDocumentNodeTypeHandler::DoGetProxy(
 {
     return New<TDocumentNodeProxy>(
         this,
-        Bootstrap,
+        Bootstrap_,
         transaction,
         trunkNode);
 }

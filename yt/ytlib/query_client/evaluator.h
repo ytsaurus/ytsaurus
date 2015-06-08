@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "callbacks.h"
+#include "function_registry.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -16,15 +17,17 @@ public:
     ~TEvaluator();
 
     TQueryStatistics RunWithExecutor(
-        const TConstQueryPtr& fragment,
+        TConstQueryPtr fragment,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
-        TExecuteQuery executeCallback);
+        TExecuteQuery executeCallback,
+        const IFunctionRegistryPtr functionRegistry);
 
     TQueryStatistics Run(
-        const TConstQueryPtr& fragment,
+        TConstQueryPtr fragment,
         ISchemafulReaderPtr reader,
-        ISchemafulWriterPtr writer);
+        ISchemafulWriterPtr writer,
+        const IFunctionRegistryPtr functionRegistry);
 
 private:
     class TImpl;

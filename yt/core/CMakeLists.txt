@@ -11,6 +11,8 @@ set( DIRS
   yson
   ypath
   profiling
+  pipes
+  tools
   tracing
   codegen
 )
@@ -51,16 +53,17 @@ target_link_libraries ( ytcore
   farmhash
 )
 
+if (NOT APPLE)
+  target_link_libraries ( ytcore
+    -latomic
+  )
+endif()
+
 if (YT_BUILD_ENABLE_LLVM)
-  llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES mcjit ipo x86 mcdisassembler)
+  llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES mcjit ipo x86 mcdisassembler linker asmparser irreader)
   target_link_libraries( ytcore ${REQUIRED_LLVM_LIBRARIES} )
 endif()
 
 include_directories(
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/tclap
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_BINARY_DIR}/include
-  .
+  ${CMAKE_CURRENT_SOURCE_DIR}
 )

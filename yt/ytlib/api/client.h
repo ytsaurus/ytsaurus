@@ -121,6 +121,8 @@ struct TCheckPermissionOptions
 
 struct TCheckPermissionResult
 {
+    TError ToError(const Stroka& user, NYTree::EPermission permission) const;
+
     NSecurityClient::ESecurityAction Action;
     NObjectClient::TObjectId ObjectId;
     TNullable<Stroka> ObjectName;
@@ -170,6 +172,8 @@ struct TSelectRowsOptions
     TNullable<i64> InputRowLimit;
     //! If null then connection defaults are used.
     TNullable<i64> OutputRowLimit;
+    //! Limits range expanding.
+    ui64 RangeExpansionLimit = 1000;
     //! If |true| then incomplete result would lead to a failure.
     bool FailOnIncompleteResult = true;
     //! If |true| then logging is more verbose.
@@ -336,7 +340,7 @@ struct TResumeOperationOptions
     : public TTimeoutOptions
 { };
 
-struct TDumpJobInputContextOptions
+struct TDumpJobContextOptions
     : public TTimeoutOptions
 { };
 
@@ -550,10 +554,10 @@ struct IClient
         const NScheduler::TOperationId& operationId,
         const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
 
-    virtual TFuture<void> DumpJobInputContext(
+    virtual TFuture<void> DumpJobContext(
         const NJobTrackerClient::TJobId& jobId,
         const NYPath::TYPath& path,
-        const TDumpJobInputContextOptions& options = TDumpJobInputContextOptions()) = 0;
+        const TDumpJobContextOptions& options = TDumpJobContextOptions()) = 0;
 
     virtual TFuture<NYTree::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId& jobId,

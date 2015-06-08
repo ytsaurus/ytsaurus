@@ -74,8 +74,14 @@ public:
 
         TKey Key_;
         TIntrusivePtr<TAsyncSlruCacheBase> Cache_;
-        TValueFuture ValuePromise_;
+        TValueFuture ValueFuture_;
         bool Active_;
+
+        TInsertCookie(
+            const TKey& key,
+            TIntrusivePtr<TAsyncSlruCacheBase> cache,
+            TValueFuture valueFuture,
+            bool active);
 
         void Abort();
 
@@ -87,7 +93,7 @@ public:
     TValuePtr Find(const TKey& key);
     TValueFuture Lookup(const TKey& key);
 
-    bool BeginInsert(TInsertCookie* cookie);
+    TInsertCookie BeginInsert(const TKey& key);
     bool TryRemove(const TKey& key);
     bool TryRemove(TValuePtr value);
     void Clear();
@@ -122,7 +128,6 @@ private:
         TValuePromise ValuePromise;
         TValuePtr Value;
         bool Younger;
-        NProfiling::TCpuInstant NextTouchInstant = 0;
     };
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
@@ -135,6 +140,9 @@ private:
     yhash_map<TKey, TItem*, THash> ItemMap_;
     volatile int ItemMapSize_ = 0; // used by GetSize
 
+    std::vector<TItem*> TouchBuffer_;
+    std::atomic<int> TouchBufferPosition_ = {0};
+
     NProfiling::TProfiler Profiler;
     NProfiling::TSimpleCounter HitWeightCounter_;
     NProfiling::TSimpleCounter MissedWeightCounter_;
@@ -142,16 +150,18 @@ private:
     NProfiling::TSimpleCounter OlderWeightCounter_;
 
 
+    bool Touch(TItem* item);
+    void DrainTouchBuffer();
+
+    void Trim(NConcurrency::TWriterGuard& guard);
+
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void CancelInsert(const TKey& key, const TError& error);
-    static bool CanTouch(TItem* item);
-    void Touch(const TKey& key);
     void Unregister(const TKey& key);
     i64 PushToYounger(TItem* item);
     void MoveToYounger(TItem* item);
     void MoveToOlder(TItem* item);
     void Pop(TItem* item);
-    void TrimIfNeeded();
 
 };
 

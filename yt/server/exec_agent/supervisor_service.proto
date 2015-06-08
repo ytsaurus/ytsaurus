@@ -35,7 +35,7 @@ message TReqOnJobProgress
 {
     required NYT.NProto.TGuid job_id = 1;
     required double progress = 2;
-    required NJobTrackerClient.NProto.TJobStatistics job_statistics = 3;
+    required bytes statistics = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

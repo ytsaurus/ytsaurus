@@ -183,14 +183,14 @@ public:
     void Enqueue(
         const NYPath::TYPath& path,
         TValue value,
-        const TTagIdList& tagIds = EmptyTagIds);
+        const TTagIdList& tagIds = EmptyTagIds) const;
 
 
     //! Starts time measurement.
     TTimer TimingStart(
         const NYPath::TYPath& path,
         const TTagIdList& tagIds = EmptyTagIds,
-        ETimerMode mode = ETimerMode::Simple);
+        ETimerMode mode = ETimerMode::Simple) const;
 
 
     //! Marks a checkpoint and enqueues the corresponding sample.
@@ -200,56 +200,56 @@ public:
      *  If #timer is in Simple mode then it is automatically
      *  switched to Sequential mode.
      */
-    TDuration TimingCheckpoint(TTimer& timer, const TStringBuf& key);
+    TDuration TimingCheckpoint(TTimer& timer, const TStringBuf& key) const;
 
     //! Same as above but uses tags instead of keys.
-    TDuration TimingCheckpoint(TTimer& timer, const TTagIdList& checkpointTagIds);
+    TDuration TimingCheckpoint(TTimer& timer, const TTagIdList& checkpointTagIds) const;
 
 
     //! Stops time measurement and enqueues the "total" sample.
     //! Returns the total duration.
-    TDuration TimingStop(TTimer& timer, const TStringBuf& key);
+    TDuration TimingStop(TTimer& timer, const TStringBuf& key) const;
 
     //! Same as above but uses tags instead of keys.
-    TDuration TimingStop(TTimer& timer, const TTagIdList& totalTagIds);
+    TDuration TimingStop(TTimer& timer, const TTagIdList& totalTagIds) const;
 
     //! Same as above but neither tags the point nor changes the path.
-    TDuration TimingStop(TTimer& timer);
+    TDuration TimingStop(TTimer& timer) const;
 
 
     //! Updates the counter value and possibly enqueues samples.
-    void Update(TAggregateCounter& counter, TValue value);
+    void Update(TAggregateCounter& counter, TValue value) const;
 
     //! Increments the counter value and possibly enqueues aggregate samples.
     //! Returns the incremented value.
-    TValue Increment(TAggregateCounter& counter, TValue delta = 1);
+    TValue Increment(TAggregateCounter& counter, TValue delta = 1) const;
 
     //! Updates the counter value and possibly enqueues samples.
-    void Update(TSimpleCounter& counter, TValue value);
+    void Update(TSimpleCounter& counter, TValue value) const;
 
     //! Increments the counter value and possibly enqueues a sample.
     //! Returns the incremented value.
-    TValue Increment(TSimpleCounter& counter, TValue delta = 1);
+    TValue Increment(TSimpleCounter& counter, TValue delta = 1) const;
 
 private:
     bool SelfProfiling_;
 
 
-    bool IsCounterEnabled(const TCounterBase& counter);
+    bool IsCounterEnabled(const TCounterBase& counter) const;
 
-    void DoUpdate(TAggregateCounter& counter, TValue value);
+    void DoUpdate(TAggregateCounter& counter, TValue value) const;
 
-    void OnUpdated(TSimpleCounter& counter);
+    void OnUpdated(TSimpleCounter& counter) const;
 
     TDuration DoTimingCheckpoint(
         TTimer& timer,
         const TNullable<TStringBuf>& key,
-        const TNullable<TTagIdList>& checkpointTagIds);
+        const TNullable<TTagIdList>& checkpointTagIds) const;
 
     TDuration DoTimingStop(
         TTimer& timer,
         const TNullable<TStringBuf>& key,
-        const TNullable<TTagIdList>& totalTagIds);
+        const TNullable<TTagIdList>& totalTagIds) const;
 
 };
 
@@ -265,7 +265,7 @@ class TTimingGuard
 {
 public:
     TTimingGuard(
-        TProfiler* profiler,
+        const TProfiler* profiler,
         const NYPath::TYPath& path,
         const TTagIdList& tagIds = EmptyTagIds)
         : Profiler_(profiler)
@@ -299,7 +299,7 @@ public:
     }
 
 private:
-    TProfiler* Profiler_;
+    const TProfiler* Profiler_;
     TTimer Timer_;
 
 };
@@ -330,7 +330,7 @@ class TAggregatedTimingGuard
     : private TNonCopyable
 {
 public:
-    TAggregatedTimingGuard(TProfiler* profiler, TAggregateCounter* counter)
+    TAggregatedTimingGuard(const TProfiler* profiler, TAggregateCounter* counter)
         : Profiler_(profiler)
         , Counter_(counter)
         , Start_(GetCpuInstant())
@@ -363,7 +363,7 @@ public:
     }
 
 private:
-    TProfiler* Profiler_;
+    const TProfiler* Profiler_;
     TAggregateCounter* Counter_;
     TCpuInstant Start_;
 

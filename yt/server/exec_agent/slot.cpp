@@ -2,7 +2,14 @@
 #include "slot.h"
 #include "private.h"
 #include "config.h"
-#include "subprocess.h"
+
+#include <ytlib/cgroup/cgroup.h>
+
+#include <core/concurrency/action_queue.h>
+
+#include <core/tools/tools.h>
+
+#include <core/misc/proc.h>
 
 #include <core/logging/log_manager.h>
 
@@ -25,6 +32,7 @@ TSlot::TSlot(
     TSlotManagerConfigPtr config,
     const Stroka& path,
     const Stroka& nodeId,
+    IInvokerPtr invoker,
     int slotIndex,
     TNullable<int> userId)
     : IsFree_(true)
@@ -33,7 +41,7 @@ TSlot::TSlot(
     , NodeId_(nodeId)
     , SlotIndex_(slotIndex)
     , UserId_(userId)
-    , SlotThread_(New<TActionQueue>(Format("ExecSlot:%v", slotIndex)))
+    , Invoker_(std::move(invoker))
     , ProcessGroup_("freezer", GetSlotProcessGroup(slotIndex))
     , NullCGroup_()
     , Logger(ExecAgentLogger)
@@ -108,7 +116,7 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
     if (Config_->EnableCGroups) {
         auto subgroupName = GetSlotProcessGroup(SlotIndex_);
 
-        for (const auto& type : NCGroup::GetSupportedCGroups()) {
+        for (const auto& type : Config_->SupportedCGroups) {
             NCGroup::TNonOwningCGroup group(type, subgroupName);
             result.push_back(group.GetFullPath());
         }
@@ -134,20 +142,8 @@ void TSlot::DoCleanSandbox()
     try {
         if (NFS::Exists(SandboxPath_)) {
             if (UserId_) {
-                auto process = TSubprocess::CreateCurrentProcessSpawner();
-                process.AddArguments({
-                    "--cleaner",
-                    "--dir-to-remove",
-                    SandboxPath_
-                });
-
-                auto result = process.Execute();
-                if (!result.Status.IsOK()) {
-                    TError wrappedError("Unable to clean sandbox %v: %Qv", SandboxPath_, result.Error);
-                    wrappedError << result.Status;
-                    LOG_ERROR(wrappedError);
-                    THROW_ERROR wrappedError;
-                }
+                LOG_DEBUG("Clean sandbox %v", SandboxPath_);
+                RunTool<TRemoveDirAsRootTool>(SandboxPath_);
             } else {
                 NFS::RemoveRecursive(SandboxPath_);
             }
@@ -187,6 +183,7 @@ void TSlot::DoResetProcessGroup()
 void TSlot::Clean()
 {
     try {
+        LOG_INFO("Cleaning slot");
         DoCleanProcessGroups();
         DoCleanSandbox();
     } catch (const std::exception& ex) {
@@ -287,7 +284,6 @@ void TSlot::MakeFile(
     } catch (const std::exception& ex) {
         LogErrorAndExit(error << ex);
     }
-
 }
 
 const Stroka& TSlot::GetWorkingDirectory() const
@@ -297,7 +293,7 @@ const Stroka& TSlot::GetWorkingDirectory() const
 
 IInvokerPtr TSlot::GetInvoker()
 {
-    return SlotThread_->GetInvoker();
+    return Invoker_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

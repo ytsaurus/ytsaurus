@@ -20,12 +20,14 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     const TSharedRef& block,
     const TBlockMeta& meta,
     const TTableSchema& chunkSchema,
-    const TKeyColumns& keyColumns,
+    int keyColumnCount,
+    int keyPadding,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
     TTimestamp timestamp)
     : Block_(block)
     , Timestamp_(timestamp)
-    , KeyColumnCount_(keyColumns.size())
+    , KeyColumnCount_(keyColumnCount)
+    , PaddedKeyColumnCount_(keyColumnCount + keyPadding)
     , SchemaIdMapping_(schemaIdMapping)
     , ChunkSchema_(chunkSchema)
     , Meta_(meta)
@@ -33,7 +35,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
 {
     YCHECK(Meta_.row_count() > 0);
 
-    for (int index = 0; index < KeyColumnCount_; ++index) {
+    for (int index = 0; index < PaddedKeyColumnCount_; ++index) {
         KeyBuilder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, index));
     }
     Key_ = KeyBuilder_.GetRow();
@@ -112,16 +114,16 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
         ReadKeyValue(&Key_[id], id);
     }
 
-    TimestampOffset_ = *reinterpret_cast<i64*>(KeyDataPtr_);
+    TimestampOffset_ = *reinterpret_cast<const i64*>(KeyDataPtr_);
     KeyDataPtr_ += sizeof(i64);
 
-    ValueOffset_ = *reinterpret_cast<i64*>(KeyDataPtr_);
+    ValueOffset_ = *reinterpret_cast<const i64*>(KeyDataPtr_);
     KeyDataPtr_ += sizeof(i64);
 
-    WriteTimestampCount_ = *reinterpret_cast<ui16*>(KeyDataPtr_);
+    WriteTimestampCount_ = *reinterpret_cast<const ui16*>(KeyDataPtr_);
     KeyDataPtr_ += sizeof(ui16);
 
-    DeleteTimestampCount_ = *reinterpret_cast<ui16*>(KeyDataPtr_);
+    DeleteTimestampCount_ = *reinterpret_cast<const ui16*>(KeyDataPtr_);
     KeyDataPtr_ += sizeof(ui16);
 
     return true;
@@ -130,7 +132,7 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
 TVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
     YCHECK(!Closed_);
-    if (Timestamp_ == AsyncAllCommittedTimestamp) {
+    if (Timestamp_ == AllCommittedTimestamp) {
         return ReadAllValues(memoryPool);
     } else {
         return ReadValuesByTimestamp(memoryPool);
@@ -140,19 +142,19 @@ TVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool
 ui32 TSimpleVersionedBlockReader::GetColumnValueCount(int schemaColumnId) const
 {
     YASSERT(schemaColumnId >= KeyColumnCount_);
-    return *(reinterpret_cast<ui32*>(KeyDataPtr_) + schemaColumnId - KeyColumnCount_);
+    return *(reinterpret_cast<const ui32*>(KeyDataPtr_) + schemaColumnId - KeyColumnCount_);
 }
 
 TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool* memoryPool)
 {
     auto row = TVersionedRow::Allocate(
         memoryPool,
-        KeyColumnCount_,
+        PaddedKeyColumnCount_,
         GetColumnValueCount(ChunkSchema_.Columns().size() - 1),
         WriteTimestampCount_,
         DeleteTimestampCount_);
 
-    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * PaddedKeyColumnCount_);
 
     auto* beginWriteTimestamps = row.BeginWriteTimestamps();
     for (int i = 0; i < WriteTimestampCount_; ++i) {
@@ -216,11 +218,11 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         // Row has been deleted at given timestamp.
         auto row = TVersionedRow::Allocate(
             memoryPool,
-            KeyColumnCount_,
+            PaddedKeyColumnCount_,
             0, // no values
             0, // no write timestamps
             1);
-        ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+        ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * PaddedKeyColumnCount_);
         row.BeginDeleteTimestamps()[0] = deleteTimestamp;
         return row;
     }
@@ -229,12 +231,12 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
 
     auto row = TVersionedRow::Allocate(
         memoryPool,
-        KeyColumnCount_,
+        PaddedKeyColumnCount_,
         SchemaIdMapping_.size(),
         1,
         hasDeleteTimestamp ? 1 : 0);
 
-    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * PaddedKeyColumnCount_);
     
     row.BeginWriteTimestamps()[0] = writeTimestamp;
     if (hasDeleteTimestamp) {
@@ -274,7 +276,7 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
 {
     value->Id = id;
 
-    char* ptr = KeyDataPtr_;
+    const char* ptr = KeyDataPtr_;
     KeyDataPtr_ += 8;
 
     bool isNull = KeyNullFlags_[RowIndex_ * KeyColumnCount_ + id];
@@ -316,8 +318,8 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
 void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueIndex, int id, int chunkSchemaId)
 {
     YASSERT(id >= KeyColumnCount_);
-    char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
-    auto timestamp = *reinterpret_cast<TTimestamp*>(ptr + 8);
+    const char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
+    auto timestamp = *reinterpret_cast<const TTimestamp*>(ptr + 8);
 
     value->Id = id;
     value->Timestamp = timestamp;
@@ -358,32 +360,32 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
     }
 }
 
-void TSimpleVersionedBlockReader::ReadInt64(TUnversionedValue* value, char* ptr)
+void TSimpleVersionedBlockReader::ReadInt64(TUnversionedValue* value, const char* ptr)
 {
-    value->Data.Int64 = *reinterpret_cast<i64*>(ptr);
+    value->Data.Int64 = *reinterpret_cast<const i64*>(ptr);
 }
 
-void TSimpleVersionedBlockReader::ReadUint64(TUnversionedValue* value, char* ptr)
+void TSimpleVersionedBlockReader::ReadUint64(TUnversionedValue* value, const char* ptr)
 {
-    value->Data.Uint64 = *reinterpret_cast<ui64*>(ptr);
+    value->Data.Uint64 = *reinterpret_cast<const ui64*>(ptr);
 }
 
-void TSimpleVersionedBlockReader::ReadDouble(TUnversionedValue* value, char* ptr)
+void TSimpleVersionedBlockReader::ReadDouble(TUnversionedValue* value, const char* ptr)
 {
-    value->Data.Double = *reinterpret_cast<double*>(ptr);
+    value->Data.Double = *reinterpret_cast<const double*>(ptr);
 }
 
-void TSimpleVersionedBlockReader::ReadBoolean(TUnversionedValue* value, char* ptr)
+void TSimpleVersionedBlockReader::ReadBoolean(TUnversionedValue* value, const char* ptr)
 {
     value->Data.Boolean = (*ptr) == 1;
 }
 
-void TSimpleVersionedBlockReader::ReadStringLike(TUnversionedValue* value, char* ptr)
+void TSimpleVersionedBlockReader::ReadStringLike(TUnversionedValue* value, const char* ptr)
 {
-    ui32 offset = *reinterpret_cast<ui32*>(ptr);
+    ui32 offset = *reinterpret_cast<const ui32*>(ptr);
     ptr += sizeof(ui32);
 
-    ui32 length = *reinterpret_cast<ui32*>(ptr);
+    ui32 length = *reinterpret_cast<const ui32*>(ptr);
 
     value->Data.String = StringData_.Begin() + offset;
     value->Length = length;
@@ -392,8 +394,8 @@ void TSimpleVersionedBlockReader::ReadStringLike(TUnversionedValue* value, char*
 TTimestamp TSimpleVersionedBlockReader::ReadValueTimestamp(int valueIndex, int id)
 {
     YASSERT(id >= KeyColumnCount_);
-    char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
-    return *reinterpret_cast<TTimestamp*>(ptr + 8);
+    const char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
+    return *reinterpret_cast<const TTimestamp*>(ptr + 8);
 }
 
 TKey TSimpleVersionedBlockReader::GetKey() const
@@ -403,7 +405,7 @@ TKey TSimpleVersionedBlockReader::GetKey() const
 
 TTimestamp TSimpleVersionedBlockReader::ReadTimestamp(int timestampIndex)
 {
-    return *reinterpret_cast<TTimestamp*>(
+    return *reinterpret_cast<const TTimestamp*>(
         TimestampsData_.Begin() +
         timestampIndex * TSimpleVersionedBlockWriter::TimestampSize);
 }

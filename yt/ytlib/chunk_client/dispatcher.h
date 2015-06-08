@@ -25,21 +25,9 @@ public:
 
     virtual void Shutdown() override;
 
-    /*!
-     * This invoker is used for background operations in #TRemoteChunkReader
-     * #TSequentialChunkReader, #TTableChunkReader and #TableReader
-     */
     IInvokerPtr GetReaderInvoker();
-
-    /*!
-     * This invoker is used for background operations in
-     * #TRemoteChunkWriter, #NTableClient::TChunkWriter and
-     * #NTableClient::TChunkSetReader
-     */
     IInvokerPtr GetWriterInvoker();
-
     IInvokerPtr GetCompressionPoolInvoker();
-
     IInvokerPtr GetErasurePoolInvoker();
 
 private:

@@ -1,7 +1,9 @@
 package NYT.NNodeTrackerClient.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/core/misc/error.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/hive/cell_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +27,7 @@ message TChunkRemoveInfo
 
 message TReqRegisterNode
 {
-    required TNodeDescriptor node_descriptor = 1;
+    required TAddressMap addresses = 1;
     required TNodeStatistics statistics = 2;
 }
 
@@ -53,16 +55,9 @@ message TRspFullHeartbeat
 message TTabletSlotInfo
 {
     required int32 peer_state = 1;
-    optional NYT.NProto.TGuid cell_id = 2;
-    optional int32 peer_id = 3;
-    optional int32 config_version = 4;
-    optional NYT.NProto.TGuid prerequisite_transaction_id = 5;
-}
-
-message THiveCellInfo
-{
-    required NYT.NProto.TGuid cell_id = 1;
-    required int32 config_version = 2;
+    optional int32 peer_id = 2;
+    optional NYT.NHive.NProto.TCellInfo cell_info = 3;
+    optional NYT.NProto.TGuid prerequisite_transaction_id = 4;
 }
 
 message TTabletStatistics
@@ -79,6 +74,8 @@ message TTabletPerformanceCounters
     required int64 dynamic_memory_row_delete_count = 4;
     required int64 static_chunk_row_read_count = 5;
     required int64 static_chunk_row_lookup_count = 6;
+    required int64 static_chunk_row_lookup_true_negative_count = 9;
+    required int64 static_chunk_row_lookup_false_positive_count = 10;
     required int64 unmerged_row_read_count = 7;
     required int64 merged_row_read_count = 8;
 }
@@ -96,7 +93,7 @@ message TReqIncrementalHeartbeat
 
     // Node Tracker stuff.
     required TNodeStatistics statistics = 2;
-    repeated string alerts = 3;
+    repeated NYT.NProto.TError alerts = 3;
 
     // Chunk Manager stuff.
     repeated TChunkAddInfo added_chunks = 4;
@@ -107,7 +104,7 @@ message TReqIncrementalHeartbeat
     repeated TTabletInfo tablets = 8;
 
     // Hive Manager stuff.
-    repeated THiveCellInfo hive_cells = 7;
+    repeated NHive.NProto.TCellInfo hive_cells = 7;
 }
 
 message TCreateTabletSlotInfo
@@ -119,10 +116,8 @@ message TCreateTabletSlotInfo
 
 message TConfigureTabletSlotInfo
 {
-    required NYT.NProto.TGuid cell_id = 1;
-    required int32 config_version = 2;
-    required bytes config = 3; // NTabletClient::TTabletCellConfig
-    required int32 peer_id = 4;
+    required NYT.NHive.NProto.TCellDescriptor cell_descriptor = 1;
+    required int32 peer_id = 2;
 }
 
 message TRemoveTabletSlotInfo
@@ -137,8 +132,7 @@ message TUnregisterHiveCellInfo
 
 message TReconfigureHiveCellInfo
 {
-    required int32 config_version = 1;
-    required bytes config = 2; // NElection::TCellConfig
+    required NYT.NHive.NProto.TCellDescriptor cell_descriptor = 1;
 }
 
 message TRspIncrementalHeartbeat
@@ -151,6 +145,19 @@ message TRspIncrementalHeartbeat
     // Hive Manager stuff.
     repeated TUnregisterHiveCellInfo hive_cells_to_unregister = 4;
     repeated TReconfigureHiveCellInfo hive_cells_to_reconfigure = 5;
+
+    // General.
+    optional string rack = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetRegisteredCells
+{ }
+
+message TRspGetRegisteredCells
+{
+    repeated NYT.NHive.NProto.TCellDescriptor cell_descriptors = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

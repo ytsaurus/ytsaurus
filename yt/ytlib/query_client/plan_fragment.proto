@@ -18,7 +18,8 @@ message TExpression
 
 message TLiteralExpression
 {
-    extend TExpression {
+    extend TExpression
+    {
         optional TLiteralExpression literal_expression = 103;
     }
 
@@ -31,7 +32,8 @@ message TLiteralExpression
 
 message TReferenceExpression
 {
-    extend TExpression {
+    extend TExpression
+    {
         optional TReferenceExpression reference_expression = 104;
     }
     required string column_name = 1;
@@ -39,7 +41,8 @@ message TReferenceExpression
 
 message TFunctionExpression
 {
-    extend TExpression {
+    extend TExpression
+    {
         optional TFunctionExpression function_expression = 105;
     }
     required string function_name = 1;
@@ -48,7 +51,8 @@ message TFunctionExpression
 
 message TUnaryOpExpression
 {
-    extend TExpression {
+    extend TExpression
+    {
         optional TUnaryOpExpression unary_op_expression = 106;
     }
     required int32 opcode = 1; // EUnaryOp
@@ -57,7 +61,8 @@ message TUnaryOpExpression
 
 message TBinaryOpExpression
 {
-    extend TExpression {
+    extend TExpression
+    {
         optional TBinaryOpExpression binary_op_expression = 107;
     }
     required int32 opcode = 1; // EBinaryOp
@@ -67,11 +72,12 @@ message TBinaryOpExpression
 
 message TInOpExpression
 {
-    extend TExpression {
+    extend TExpression
+    {
         optional TInOpExpression in_op_expression = 108;
     }
     repeated TExpression arguments = 1;
-    repeated bytes values = 2;
+    required bytes values = 2;
 }
 
 message TNamedItem
@@ -83,19 +89,9 @@ message TNamedItem
 message TAggregateItem
 {
     required TExpression expression = 1;
-    required int32 aggregate_function = 2; // EAggregateFunction
+    optional int32 aggregate_function = 2;
     required string name = 3;
-}
-
-message TGroupClause
-{
-    repeated TNamedItem group_items = 1;
-    repeated TAggregateItem aggregate_items = 2;
-}
-
-message TProjectClause
-{
-    repeated TNamedItem projections = 1;
+    optional string aggregate_function_name = 4;
 }
 
 message TJoinClause
@@ -104,6 +100,22 @@ message TJoinClause
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt joined_table_schema = 2;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
+}
+
+message TGroupClause
+{
+    repeated TNamedItem group_items = 1;
+    repeated TAggregateItem aggregate_items = 2;
+}
+
+message TOrderClause
+{
+    repeated string order_columns = 1;
+}
+
+message TProjectClause
+{
+    repeated TNamedItem projections = 1;
 }
 
 message TQuery
@@ -120,22 +132,18 @@ message TQuery
     optional TJoinClause join_clause = 7;
     optional TExpression predicate = 8;
     optional TGroupClause group_clause = 9;
+    optional TOrderClause order_clause = 11;
     optional TProjectClause project_clause = 10;
-}
-
-message TDataSource
-{
-    required NYT.NProto.TGuid id = 1;
-    required bytes lower_bound = 2;
-    required bytes upper_bound = 3; 
 }
 
 message TPlanFragment
 {
     required string source = 1;
     required uint64 timestamp = 2;
-    repeated TDataSource data_sources = 3;
-    required TDataSource foreign_data_source = 4;
+
+    repeated NYT.NProto.TGuid data_id = 3;
+    required bytes data_bounds = 8;
+    required NYT.NProto.TGuid foreign_data_id = 4;
 
     required TQuery query = 5;
     required bool ordered = 6;

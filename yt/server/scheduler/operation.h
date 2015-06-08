@@ -34,7 +34,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(EOperationState, State);
     DEFINE_BYVAL_RW_PROPERTY(bool, Suspended);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Enqueued);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Queued);
 
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionPtr, UserTransaction);
@@ -115,9 +115,9 @@ public:
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
-    void UpdateStatistics(const TStatistics& statistics, EJobFinalState state);
+    void UpdateJobStatistics(const TJobPtr& job);
 
-    void BuildStatistics(NYson::IYsonConsumer* consumer) const;
+    void BuildJobStatistics(NYson::IYsonConsumer* consumer) const;
 
     TOperation(
         const TOperationId& operationId,
@@ -131,7 +131,7 @@ public:
         bool suspended = false);
 
 private:
-    TEnumIndexedVector<TAggregatedStatistics, EJobFinalState> Statistics;
+    TAggregatedStatistics JobStatistics;
     TPromise<void> StartedPromise;
     TPromise<void> FinishedPromise;
 

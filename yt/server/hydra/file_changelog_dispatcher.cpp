@@ -14,6 +14,14 @@
 
 #include <atomic>
 
+#ifdef _linux_
+    #include <unistd.h>
+    // Copied from linux/ioprio.h
+    #define IOPRIO_CLASS_SHIFT              (13)
+    #define IOPRIO_PRIO_VALUE(class, data)  (((class) << IOPRIO_CLASS_SHIFT) | data)
+    #define IOPRIO_WHO_PROCESS (1)
+#endif
+
 namespace NYT {
 namespace NHydra {
 
@@ -22,7 +30,7 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Profiler = HydraProfiler;
+static const auto& Profiler = HydraProfiler;
 static const auto& Logger = HydraLogger;
 
 static const auto FlushThreadQuantum = TDuration::MilliSeconds(10);
@@ -456,8 +464,11 @@ class TFileChangelogDispatcher::TImpl
     : public TRefCounted
 {
 public:
-    explicit TImpl(const Stroka& threadName)
-        : ProcessQueuesCallback_(BIND(&TImpl::ProcessQueues, MakeWeak(this)))
+    TImpl(
+        const TFileChangelogDispatcherConfigPtr config,
+        const Stroka& threadName)
+        : Config_(config)
+        , ProcessQueuesCallback_(BIND(&TImpl::ProcessQueues, MakeWeak(this)))
         , ActionQueue_(New<TActionQueue>(threadName))
         , PeriodicExecutor_(New<TPeriodicExecutor>(
             ActionQueue_->GetInvoker(),
@@ -466,6 +477,18 @@ public:
         , RecordCounter_("/records")
         , ByteCounter_("/bytes")
     {
+#ifdef _linux_
+        GetInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] () {
+            int result = syscall(
+                SYS_ioprio_get,
+                IOPRIO_WHO_PROCESS,
+                0,
+                IOPRIO_PRIO_VALUE(Config_->IOClass,  Config_->IOPriority));
+            if (result == -1) {
+                LOG_ERROR(TError::FromSystem(), "Failed to set IO priority for changelog flush thread");
+             }
+        }));
+#endif
         PeriodicExecutor_->Start();
     }
 
@@ -552,6 +575,7 @@ public:
     }
 
 private:
+    const TFileChangelogDispatcherConfigPtr Config_;
     const TClosure ProcessQueuesCallback_;
     std::atomic<bool> ProcessQueuesCallbackPending_ = {false};
 
@@ -692,7 +716,7 @@ private:
         }
 
         Profiler.Enqueue("/changelog_read_record_count", records.size());
-        Profiler.Enqueue("/changelog_read_size", GetTotalSize(records));
+        Profiler.Enqueue("/changelog_read_size", GetByteSize(records));
 
         return records;
     }
@@ -797,8 +821,10 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileChangelogDispatcher::TFileChangelogDispatcher(const Stroka& threadName)
-    : Impl_(New<TImpl>(threadName))
+TFileChangelogDispatcher::TFileChangelogDispatcher(
+    TFileChangelogDispatcherConfigPtr config,
+    const Stroka& threadName)
+    : Impl_(New<TImpl>(config, threadName))
 { }
 
 TFileChangelogDispatcher::~TFileChangelogDispatcher()

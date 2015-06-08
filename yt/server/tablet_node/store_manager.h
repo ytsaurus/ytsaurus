@@ -78,10 +78,31 @@ public:
     bool IsStoreLocked(TDynamicMemoryStorePtr store) const;
     const yhash_set<TDynamicMemoryStorePtr>& GetLockedStores() const;
 
+    static bool IsStoreFlushable(IStorePtr store);
+    void BeginStoreFlush(TDynamicMemoryStorePtr store);
+    void EndStoreFlush(TDynamicMemoryStorePtr store);
+    void BackoffStoreFlush(TDynamicMemoryStorePtr store);
+
+    static bool IsStoreCompactable(IStorePtr store);
+    void BeginStoreCompaction(TChunkStorePtr store);
+    void EndStoreCompaction(TChunkStorePtr store);
+    void BackoffStoreCompaction(TChunkStorePtr store);
+
+    void ScheduleStorePreload(TChunkStorePtr store);
+    bool TryPreloadStoreFromInterceptedData(TChunkStorePtr store, TInterceptedChunkDataPtr chunkData);
+    TChunkStorePtr PeekStoreForPreload();
+    void BeginStorePreload(TChunkStorePtr store, TFuture<void> future);
+    void EndStorePreload(TChunkStorePtr store);
+    void BackoffStorePreload(TChunkStorePtr store);
+
+    void Remount(
+        TTableMountConfigPtr mountConfig,
+        TTabletWriterOptionsPtr writerOptions);
+
 private:
-    TTabletManagerConfigPtr Config_;
-    TTablet* Tablet_;
-    TCallback<TDynamicMemoryStorePtr()> DynamicMemoryStoreFactory_;
+    const TTabletManagerConfigPtr Config_;
+    TTablet* const Tablet_;
+    const TCallback<TDynamicMemoryStorePtr()> DynamicMemoryStoreFactory_;
 
     int KeyColumnCount_;
 
@@ -98,12 +119,14 @@ private:
 
     void CheckInactiveStoresLocks(
         TTransaction* transaction,
-        TUnversionedRow key,
+        TUnversionedRow row,
         ui32 lockMask);
 
     void CheckForUnlockedStore(TDynamicMemoryStore* store);
 
     bool IsRecovery() const;
+
+    void UpdateInMemoryMode();
 
 };
 

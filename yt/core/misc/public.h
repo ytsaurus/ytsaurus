@@ -10,6 +10,7 @@ namespace NYT {
 namespace NProto {
 
 class TError;
+class TBloomFilter;
 
 }  // namespace NProto
 
@@ -57,7 +58,11 @@ struct ICheckpointableOutputStream;
 DECLARE_REFCOUNTED_CLASS(TSlruCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TExpiringCacheConfig)
 
+class TBloomFilterBuilder;
+class TBloomFilter;
+
 using TChecksum = ui64;
+using TFingerprint = ui64;
 
 template <class T, unsigned size>
 class SmallVector;

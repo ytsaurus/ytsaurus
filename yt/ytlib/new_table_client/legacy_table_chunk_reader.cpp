@@ -106,14 +106,14 @@ public:
         TSequentialReaderConfigPtr config,
         TLegacyTableChunkReader* tableChunkReader,
         IChunkReaderPtr chunkReader,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         TChannel channel,
         const TKeyColumns& keyColumns,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit)
         : SequentialConfig_(std::move(config))
         , UnderlyingReader_(std::move(chunkReader))
-        , UncompressedBlockCache_(std::move(uncompressedBlockCache))
+        , BlockCache_(std::move(blockCache))
         , TableChunkReader_(std::move(tableChunkReader))
         , Channel_(channel)
         , LowerLimit_(lowerLimit)
@@ -201,7 +201,7 @@ public:
                 SequentialConfig_,
                 std::move(blockSequence),
                 UnderlyingReader_,
-                UncompressedBlockCache_,
+                BlockCache_,
                 NCompression::ECodec(miscExt.compression_codec()));
 
             tableChunkReader->ChannelReaders_.reserve(SelectedChannels_.size());
@@ -365,13 +365,14 @@ private:
         ValidateKeyColumns(ReaderKeyColumns_, chunkKeyColumns);
 
         tableChunkReader->EmptyKey_.resize(chunkKeyColumns.size());
+        tableChunkReader->CurrentKey_.resize(chunkKeyColumns.size());
         auto nameTable = tableChunkReader->GetNameTable();
         for (int i = 0; i < chunkKeyColumns.size(); ++i) {
             auto id = nameTable->GetIdOrRegisterName(chunkKeyColumns[i]);
             auto& columnInfo = tableChunkReader->GetColumnInfo(id);
             columnInfo.ChunkKeyIndex = i;
 
-            tableChunkReader->EmptyKey_.push_back(MakeUnversionedSentinelValue(EValueType::Null, id));
+            tableChunkReader->EmptyKey_[i] = MakeUnversionedSentinelValue(EValueType::Null, id);
 
             Channel_.AddColumn(chunkKeyColumns[i]);
         }
@@ -440,12 +441,13 @@ private:
             LOG_DEBUG("Skipped initial rows for channel %v", channelIndex);
         }
 
+        tableChunkReader->ResetCurrentRow();
         tableChunkReader->MakeAndValidateRow();
     }
 
     TSequentialReaderConfigPtr SequentialConfig_;
     IChunkReaderPtr UnderlyingReader_;
-    IBlockCachePtr UncompressedBlockCache_;
+    IBlockCachePtr BlockCache_;
     TWeakPtr<TLegacyTableChunkReader> TableChunkReader_;
 
     TChannel Channel_;
@@ -473,17 +475,19 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     IChunkReaderPtr underlyingReader,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
-    i64 tableRowIndex)
+    i64 tableRowIndex,
+    i32 rangeIndex)
     : SequentialReader_(nullptr)
     , ColumnFilter_(columnFilter)
     , NameTable_(nameTable)
+    , KeyColumns_(keyColumns)
     , UpperLimit_(upperLimit)
     , MemoryPool_(TLegacyTableChunkReaderMemoryPoolTag())
     , TableRowIndex_(tableRowIndex)
-    , KeyColumnCount_(keyColumns.size())
+    , RangeIndex_(rangeIndex)
     , Logger(TableClientLogger)
 {
     YCHECK(config);
@@ -512,7 +516,7 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
         config,
         this,
         underlyingReader,
-        uncompressedBlockCache,
+        blockCache,
         channel,
         keyColumns,
         lowerLimit,
@@ -529,12 +533,15 @@ TFuture<void> TLegacyTableChunkReader::Open()
 
 bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
 {
-    YCHECK(ReadyEvent_.IsSet());
     YCHECK(!Initializer_);
     YCHECK(rows->capacity() > 0);
 
     MemoryPool_.Clear();
     rows->clear();
+
+    if (!ReadyEvent_.IsSet()) {
+        return true;
+    }
 
     if (!ReadyEvent_.Get().IsOK()) {
         return true;
@@ -554,6 +561,7 @@ bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
         auto row = TUnversionedRow::Allocate(&MemoryPool_, CurrentRow_.size());
         std::copy(CurrentRow_.begin(), CurrentRow_.end(), row.Begin());
         rows->push_back(row);
+        ++RowCount_;
 
         if (!FetchNextRow() || CurrentRow_.empty()) {
             return true;
@@ -573,12 +581,17 @@ i64 TLegacyTableChunkReader::GetTableRowIndex() const
     return TableRowIndex_ + CurrentRowIndex_;
 }
 
+i32 TLegacyTableChunkReader::GetRangeIndex() const
+{
+    return RangeIndex_;
+}
+
 void TLegacyTableChunkReader::ResetCurrentRow()
 {
     YASSERT(CurrentKey_.size() == EmptyKey_.size());
-    std::memcpy(CurrentKey_.data(), EmptyKey_.data(), EmptyKey_.size() * sizeof(TUnversionedRow));
-    CurrentRow_.resize(KeyColumnCount_);
-    std::memcpy(CurrentRow_.data(), EmptyKey_.data(), KeyColumnCount_ * sizeof(TUnversionedRow));
+    std::memcpy(CurrentKey_.data(), EmptyKey_.data(), EmptyKey_.size() * sizeof(TUnversionedValue));
+    CurrentRow_.resize(KeyColumns_.size());
+    std::memcpy(CurrentRow_.data(), EmptyKey_.data(), KeyColumns_.size() * sizeof(TUnversionedValue));
 }
 
 void TLegacyTableChunkReader::FinishReader()
@@ -714,7 +727,7 @@ TDataStatistics TLegacyTableChunkReader::GetDataStatistics() const
     result.set_chunk_count(1);
 
     if (SequentialReader_) {
-        result.set_row_count(CurrentRowIndex_ - BeginRowIndex_ + 1);
+        result.set_row_count(RowCount_);
         result.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
         result.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
     }
@@ -735,6 +748,11 @@ TFuture<void> TLegacyTableChunkReader::GetFetchingCompletedEvent()
 TNameTablePtr TLegacyTableChunkReader::GetNameTable() const
 {
     return NameTable_;
+}
+
+TKeyColumns TLegacyTableChunkReader::GetKeyColumns() const
+{
+    return KeyColumns_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

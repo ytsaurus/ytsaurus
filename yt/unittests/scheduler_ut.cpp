@@ -294,7 +294,7 @@ TEST_W(TSchedulerTest, WaitForAsyncVia)
 
 // Various invokers.
 
-TEST_F(TSchedulerTest, WaitForInSerializedInvoker)
+TEST_F(TSchedulerTest, WaitForInSerializedInvoker1)
 {
     auto invoker = CreateSerializedInvoker(Queue1->GetInvoker());
     BIND([&] () {
@@ -305,9 +305,33 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker)
     }).AsyncVia(invoker).Run().Get().ThrowOnError();
 }
 
+TEST_F(TSchedulerTest, WaitForInSerializedInvoker2)
+{
+    // NB! This may be confusing, but serialized invoker is expected to start 
+    // executing next action if current action is blocked on WaitFor.
+
+    auto invoker = CreateSerializedInvoker(Queue1->GetInvoker());
+    std::vector<TFuture<void>> futures;
+
+    bool finishedFirstAction = false;
+    futures.emplace_back(BIND([&] () {
+        WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10)))
+                .ThrowOnError();
+        finishedFirstAction = true;
+    }).AsyncVia(invoker).Run());
+
+    futures.emplace_back(BIND([&] () {
+        if (finishedFirstAction) {
+            THROW_ERROR_EXCEPTION("Serialization error");
+        }
+    }).AsyncVia(invoker).Run());
+
+    Combine(futures).Get().ThrowOnError();
+}
+
 TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
 {
-    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1, "");
+    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1);
     BIND([&] () {
         for (int i = 0; i < 10; ++i) {
             WaitFor(TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(10)))
@@ -318,7 +342,7 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
 
 TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker2)
 {
-    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 2, "");
+    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 2);
 
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
@@ -338,7 +362,7 @@ TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker2)
 
 TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker3)
 {
-    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1, "");
+    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1);
 
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
@@ -390,17 +414,7 @@ TEST_F(TSchedulerTest, PropagateFiberCancelationToFuture)
 
     Sleep(TDuration::MilliSeconds(10));
 
-    EXPECT_TRUE(f1.IsCanceled());
-}
-
-TEST_W(TSchedulerTest, WaitForCanceledFuture)
-{
-    auto promise = NewPromise<void>();
-    auto future = promise.ToFuture();
-    future.Cancel();
-    EXPECT_TRUE(future.IsCanceled());
-    auto error = WaitFor(future);
-    EXPECT_EQ(NYT::EErrorCode::Canceled, error.GetCode());
+    EXPECT_TRUE(p1.IsCanceled());
 }
 
 TEST_F(TSchedulerTest, AsyncViaCanceledBeforeStart)
@@ -491,6 +505,39 @@ TEST_F(TSchedulerTest, CancelInAdjacentThread)
     closure.Reset(); // *evil smile*
     EXPECT_TRUE(asyncResult1.IsOK());
     EXPECT_TRUE(asyncResult2.IsOK());
+}
+
+TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
+{
+    std::atomic<bool> flag(false);
+
+    auto threadPool = New<TThreadPool>(3, "MyPool");
+    auto serializedInvoker = CreateSerializedInvoker(threadPool->GetInvoker());
+
+    auto promise = NewPromise<void>();
+
+    BIND([&] () {
+        WaitFor(VoidFuture);
+        WaitFor(VoidFuture);
+        promise.Set();
+
+        Sleep(TDuration::MilliSeconds(100));
+        flag = true;
+    })
+    .Via(serializedInvoker)
+    .Run();
+
+    promise.ToFuture().Get();
+
+    auto result = BIND([&] () -> bool {
+        return flag;
+    })
+    .AsyncVia(serializedInvoker)
+    .Run()
+    .Get()
+    .ValueOrThrow();
+
+    EXPECT_TRUE(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

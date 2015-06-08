@@ -72,7 +72,7 @@ private:
     virtual TFuture<void> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
-        const NNodeTrackerClient::TNodeDescriptor& target) override;
+        const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
     virtual TFuture<void> DoFlushBlocks(int blockIndex) override;
 
@@ -98,7 +98,7 @@ private:
     IChunkPtr OnWriterClosed(const TError& error);
 
     void DoWriteBlock(const TSharedRef& block, int blockIndex);
-    void OnBlockWritten(int blockIndex, const TError& error);
+    void OnBlockWritten(int blockIndex, i64 blockSize, const TError& error);
 
     void OnBlockFlushed(int blockIndex, const TError& error);
 

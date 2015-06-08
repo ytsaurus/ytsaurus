@@ -23,8 +23,8 @@ TError StatusToError(int status);
 
 void RemoveDirAsRoot(const Stroka& path);
 
-bool TryClose(int fd);
-void SafeClose(int fd);
+bool TryClose(int fd, bool ignoreBadFD = true);
+void SafeClose(int fd, bool ignoreBadFD = true);
 
 bool TryDup2(int oldFD, int newFD);
 void SafeDup2(int oldFD, int newFD);
@@ -33,7 +33,11 @@ bool TryExecve(const char* path, char* const argv[], char* const env[]);
 
 // Returns a pipe with CLOSE_EXEC flag.
 void SafePipe(int fd[2]);
+
+bool TryMakeNonblocking(int fd);
 void SafeMakeNonblocking(int fd);
+
+void SafeSetUid(int uid);
 
 void SetPermissions(int fd, int permissions);
 
@@ -46,6 +50,13 @@ DEFINE_ENUM(EExitStatus,
     ((SigTerm)              (11006))
     ((SigKill)              (11009))
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRemoveDirAsRootTool
+{
+    void operator()(const Stroka& arg) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

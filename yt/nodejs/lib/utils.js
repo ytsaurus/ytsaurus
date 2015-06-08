@@ -11,7 +11,6 @@ var stream = require("stream");
 // Redirects unless original URL is not a directory.
 exports.redirectUnlessDirectory = function(req, rsp)
 {
-    "use strict";
     if (req.url === "/" &&
         req.originalUrl && req.originalUrl.substr(-1) !== "/"
     ) {
@@ -25,7 +24,6 @@ exports.redirectUnlessDirectory = function(req, rsp)
 // Redirects request to a predefined location.
 exports.redirectTo = function(rsp, target, code)
 {
-    "use strict";
     rsp.removeHeader("Vary");
     rsp.removeHeader("Transfer-Encoding");
     rsp.removeHeader("Content-Encoding");
@@ -42,7 +40,6 @@ exports.redirectTo = function(rsp, target, code)
 // Dispatches request with a precomputed result.
 exports.dispatchAs = function(rsp, body, type)
 {
-    "use strict";
     rsp.removeHeader("Vary");
     rsp.removeHeader("Transfer-Encoding");
     rsp.removeHeader("Content-Encoding");
@@ -68,14 +65,12 @@ exports.dispatchAs = function(rsp, body, type)
 
 exports.dispatchJson = function(rsp, object)
 {
-    "use strict";
     exports.dispatchAs(rsp, JSON.stringify(object), "application/json");
 };
 
 // Dispatches a 401.
 exports.dispatchUnauthorized = function(rsp, scope)
 {
-    "use strict";
     rsp.statusCode = 401;
     rsp.setHeader("WWW-Authenticate", scope);
     exports.dispatchAs(rsp);
@@ -84,7 +79,6 @@ exports.dispatchUnauthorized = function(rsp, scope)
 // Dispatches a 503.
 exports.dispatchLater = function(rsp, after)
 {
-    "use strict";
     rsp.statusCode = 503;
     rsp.setHeader("Retry-After", after);
     exports.dispatchAs(rsp);
@@ -93,7 +87,6 @@ exports.dispatchLater = function(rsp, after)
 // Checks whether MIME pattern |mime| matches actual MIME type |actual|.
 exports.matches = function(mime, actual)
 {
-    "use strict";
     if (!actual) {
         return false;
     }
@@ -119,7 +112,6 @@ exports.matches = function(mime, actual)
 // Returns best MIME type in |mimes| which is accepted by Accept header |header|.
 exports.bestAcceptedType = function(mimes, header)
 {
-    "use strict";
     if (!header) {
         return mimes[0];
     }
@@ -145,7 +137,6 @@ exports.bestAcceptedType = function(mimes, header)
 // Returns best encoding in |encodings| which is accepted by Accept-Encoding header |header|.
 exports.bestAcceptedEncoding = function(encodings, header)
 {
-    "use strict";
     if (!header) {
         return encodings[0];
     }
@@ -168,7 +159,6 @@ exports.bestAcceptedEncoding = function(encodings, header)
 // Auxiliary.
 exports.parseAcceptType = function(header)
 {
-    "use strict";
     return header
         .split(/ *, */)
         .map(exports.parseQuality)
@@ -189,7 +179,6 @@ exports.parseAcceptType = function(header)
 // Auxiliary.
 exports.parseAcceptEncoding = function(header)
 {
-    "use strict";
     return header
         .split(/ *, */)
         .map(exports.parseQuality)
@@ -204,7 +193,6 @@ exports.parseAcceptEncoding = function(header)
 // Auxiliary.
 exports.parseQuality = function(header)
 {
-    "use strict";
 
     var parts = header.split(/ *; */);
     var value = parts[0];
@@ -220,14 +208,13 @@ exports.parseQuality = function(header)
  */
 exports.numerify = function(obj)
 {
-    "use strict";
     if (typeof(obj) === "object") {
         for (var key in obj) {
             if (obj.hasOwnProperty(key)) {
                 obj[key] = exports.numerify(obj[key]);
             }
         }
-    } else if (typeof(obj) === "array") {
+    } else if (Array.isArray(obj)) {
         for (var index in obj) {
             obj[index] = exports.numerify(obj[index]);
         }
@@ -246,7 +233,6 @@ exports.numerify = function(obj)
  */
 exports.merge = function (lhs, rhs)
 {
-    "use strict";
     for (var p in rhs) {
         try {
             if (typeof(rhs[p]) !== "undefined") {
@@ -267,7 +253,6 @@ exports.merge = function (lhs, rhs)
 
 exports.NullStream = function()
 {
-    "use strict";
     stream.Stream.call(this);
 
     this.readable = true;
@@ -290,7 +275,6 @@ exports.NullStream.prototype.destroy = function(){};
 
 exports.Pause = function(slave)
 {
-    "use strict";
     var on_data, on_end, events = [];
     var dummy = function() {};
 
@@ -328,8 +312,6 @@ var TAGGED_LOGGER_LEVELS = [ "info", "warn", "debug", "error" ];
 
 exports.TaggedLogger = function(logger, delta)
 {
-    "use strict";
-
     var self = this;
 
     TAGGED_LOGGER_LEVELS.forEach(function(level) {
@@ -356,7 +338,6 @@ exports.TaggedLogger = function(logger, delta)
 
 exports.MemoryInputStream = function(data)
 {
-    "use strict";
     stream.Stream.call(this);
 
     this.paused = false;
@@ -403,20 +384,17 @@ util.inherits(exports.MemoryInputStream, stream.Stream);
 
 exports.MemoryInputStream.prototype.pause = function()
 {
-    "use strict";
     this.paused = true;
 };
 
 exports.MemoryInputStream.prototype.resume = function()
 {
-    "use strict";
     this.paused = false;
     this._flow();
 };
 
 exports.MemoryInputStream.prototype.destroy = function()
 {
-    "use strict";
     this.readable = false;
 };
 
@@ -424,7 +402,6 @@ exports.MemoryInputStream.prototype.destroy = function()
 
 exports.MemoryOutputStream = function()
 {
-    "use strict";
     stream.Stream.call(this);
 
     this.readable = false;
@@ -437,7 +414,6 @@ util.inherits(exports.MemoryOutputStream, stream.Stream);
 
 exports.MemoryOutputStream.prototype.write = function(chunk)
 {
-    "use strict";
     if (chunk) {
         this.chunks.push(chunk);
     }
@@ -446,7 +422,6 @@ exports.MemoryOutputStream.prototype.write = function(chunk)
 
 exports.MemoryOutputStream.prototype.end = function(chunk)
 {
-    "use strict";
     if (chunk) {
         this.chunks.push(chunk);
     }
@@ -459,7 +434,6 @@ exports.MemoryOutputStream.prototype.destroy = function(){};
 
 exports.getYsonValue = function(x)
 {
-    "use strict";
     if (typeof(x) === "object" && typeof(x.$value) !== "undefined") {
         return x.$value;
     } else {
@@ -469,7 +443,6 @@ exports.getYsonValue = function(x)
 
 exports.getYsonAttribute = function(x, attribute)
 {
-    "use strict";
     if (typeof(x) === "object" && typeof(x.$attributes) !== "undefined") {
         return x.$attributes[attribute];
     }
@@ -477,13 +450,11 @@ exports.getYsonAttribute = function(x, attribute)
 
 exports.escapeYPath = function(s)
 {
-    "use strict";
     return s.replace(/([\/@&])/g, '\\$1');
 };
 
 exports.escapeHeader = function(x)
 {
-    "use strict";
     return String(x)
         .replace("\\", "\\\\")
         .replace("\n", "\\n")

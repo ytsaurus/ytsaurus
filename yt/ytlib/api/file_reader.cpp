@@ -71,16 +71,26 @@ public:
 
     virtual TFuture<TSharedRef> Read() override
     {
-        return BIND(&TFileReader::DoRead, MakeStrong(this))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
-            .Run();
+        ValidateAborted();
+
+        TSharedRef block;
+        if (!Reader_->ReadBlock(&block)) {
+            return MakeFuture(TSharedRef());
+        }
+
+        if (block) {
+            return MakeFuture(block);
+        }
+
+        return Reader_->GetReadyEvent().Apply(
+            BIND(&TFileReader::Read, MakeStrong(this)));
     }
 
 private:
-    IClientPtr Client_;
-    TYPath Path_;
-    TFileReaderOptions Options_;
-    TFileReaderConfigPtr Config_;
+    const IClientPtr Client_;
+    const TYPath Path_;
+    const TFileReaderOptions Options_;
+    const TFileReaderConfigPtr Config_;
 
     TTransactionPtr Transaction_;
 
@@ -153,12 +163,13 @@ private:
             nodeDirectory->MergeFrom(rsp->node_directory());
 
             auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
+            auto options = New<TMultiChunkReaderOptions>();
+            options->NetworkName = Client_->GetConnection()->GetConfig()->NetworkName;
             Reader_ = CreateFileMultiChunkReader(
                 Config_,
-                New<TMultiChunkReaderOptions>(),
+                options,
                 masterChannel,
-                Client_->GetConnection()->GetCompressedBlockCache(),
-                Client_->GetConnection()->GetUncompressedBlockCache(),
+                Client_->GetConnection()->GetBlockCache(),
                 nodeDirectory,
                 std::move(chunks));
         }
@@ -173,22 +184,6 @@ private:
         }
 
         LOG_INFO("File reader opened");
-    }
-
-    TSharedRef DoRead()
-    {
-        ValidateAborted();
-
-        TSharedRef block;
-        while (true) {
-            auto endOfData = !Reader_->ReadBlock(&block);
-
-            if (!block.Empty() || endOfData) {
-                return block;
-            }
-            WaitFor(Reader_->GetReadyEvent()).
-                ThrowOnError();
-        }
     }
 
 };

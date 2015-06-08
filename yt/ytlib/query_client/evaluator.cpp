@@ -67,10 +67,11 @@ public:
     { }
 
     TQueryStatistics Run(
-        const TConstQueryPtr& query,
+        TConstQueryPtr query,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
-        TExecuteQuery executeCallback)
+        TExecuteQuery executeCallback,
+        const IFunctionRegistryPtr functionRegistry)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
             TRACE_ANNOTATION("fragment_id", query->Id);
@@ -84,7 +85,7 @@ public:
                 NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
                 TCGVariables fragmentParams;
-                auto cgQuery = Codegen(query, fragmentParams);
+                auto cgQuery = Codegen(query, fragmentParams, functionRegistry);
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -95,23 +96,23 @@ public:
                         .ThrowOnError();
                 }
 
-                TRowBuffer permanentBuffer;
-                TRowBuffer outputBuffer;
-                TRowBuffer intermediateBuffer;
+                auto permanentBuffer = New<TRowBuffer>();
+                auto outputBuffer = New<TRowBuffer>();
+                auto intermediateBuffer = New<TRowBuffer>();
 
-                std::vector<TRow> batch;
-                batch.reserve(MaxRowsPerWrite);
+                std::vector<TRow> outputBatchRows;
+                outputBatchRows.reserve(MaxRowsPerWrite);
 
                 TExecutionContext executionContext;
-                executionContext.Reader = reader.Get();
-                executionContext.Schema = query->TableSchema;
+                executionContext.Reader = reader;
+                executionContext.Schema = &query->TableSchema;
 
                 executionContext.LiteralRows = &fragmentParams.LiteralRows;
-                executionContext.PermanentBuffer = &permanentBuffer;
-                executionContext.OutputBuffer = &outputBuffer;
-                executionContext.IntermediateBuffer = &intermediateBuffer;
-                executionContext.Writer = writer.Get();
-                executionContext.Batch = &batch;
+                executionContext.PermanentBuffer = permanentBuffer;
+                executionContext.OutputBuffer = outputBuffer;
+                executionContext.IntermediateBuffer = intermediateBuffer;
+                executionContext.Writer = writer;
+                executionContext.OutputBatchRows = &outputBatchRows;
                 executionContext.Statistics = &statistics;
                 executionContext.InputRowLimit = query->InputRowLimit;
                 executionContext.OutputRowLimit = query->OutputRowLimit;
@@ -122,7 +123,7 @@ public:
                 if (query->JoinClause) {
                     auto joinClause = query->JoinClause.Get();
                     YCHECK(executeCallback);
-                    executionContext.EvaluateJoin = GetJoinEvaluator(
+                    executionContext.JoinEvaluator = GetJoinEvaluator(
                         *joinClause,
                         query->WhereClause,
                         query->TableSchema,
@@ -133,11 +134,11 @@ public:
                 CallCGQueryPtr(cgQuery, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext);
 
                 LOG_DEBUG("Flushing writer");
-                if (!batch.empty()) {
+                if (!outputBatchRows.empty()) {
                     bool shouldNotWait;
                     {
                         NProfiling::TAggregatingTimingGuard timingGuard(&statistics.WriteTime);
-                        shouldNotWait = writer->Write(batch);
+                        shouldNotWait = writer->Write(outputBatchRows);
                     }
 
                     if (!shouldNotWait) {
@@ -154,11 +155,15 @@ public:
                         .ThrowOnError();
                 }
 
-                LOG_DEBUG("Finished evaluating plan fragment (PermanentBufferCapacity: %v, OutputBufferCapacity: %v, IntermediateBufferCapacity: %v)",
-                    permanentBuffer.GetCapacity(),
-                    outputBuffer.GetCapacity(),
-                    intermediateBuffer.GetCapacity());
+                LOG_DEBUG("Finished evaluating plan fragment ("
+                    "PermanentBufferCapacity: %v, "
+                    "OutputBufferCapacity: %v, "
+                    "IntermediateBufferCapacity: %v)",
+                    permanentBuffer->GetCapacity(),
+                    outputBuffer->GetCapacity(),
+                    intermediateBuffer->GetCapacity());
 
+                LOG_DEBUG("Query statistics (%v)", statistics);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
             }
@@ -181,11 +186,14 @@ public:
     }
 
 private:
-    TCGQueryCallback Codegen(const TConstQueryPtr& query, TCGVariables& variables)
+    TCGQueryCallback Codegen(
+        TConstQueryPtr query,
+        TCGVariables& variables,
+        const IFunctionRegistryPtr functionRegistry)
     {
         llvm::FoldingSetNodeID id;
 
-        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr);
+        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr, functionRegistry);
 
         auto Logger = BuildLogger(query);
 
@@ -243,24 +251,26 @@ TEvaluator::~TEvaluator()
 { }
 
 TQueryStatistics TEvaluator::RunWithExecutor(
-    const TConstQueryPtr& query,
+    TConstQueryPtr query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
-    TExecuteQuery executeCallback)
+    TExecuteQuery executeCallback,
+    const IFunctionRegistryPtr functionRegistry)
 {
 #ifdef YT_USE_LLVM
-    return Impl_->Run(query, std::move(reader), std::move(writer), executeCallback);
+    return Impl_->Run(query, std::move(reader), std::move(writer), executeCallback, functionRegistry);
 #else
     THROW_ERROR_EXCEPTION("Query evaluation is not supported in this build");
 #endif
 }
 
 TQueryStatistics TEvaluator::Run(
-    const TConstQueryPtr& query,
+    TConstQueryPtr query,
     ISchemafulReaderPtr reader,
-    ISchemafulWriterPtr writer)
+    ISchemafulWriterPtr writer,
+    const IFunctionRegistryPtr functionRegistry)
 {
-    return RunWithExecutor(query, std::move(reader), std::move(writer), nullptr);
+    return RunWithExecutor(query, std::move(reader), std::move(writer), nullptr, functionRegistry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

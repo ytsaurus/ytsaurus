@@ -81,7 +81,7 @@ public:
             NYTree::EPermissionSet::Remove |
             NYTree::EPermissionSet::Administer;
     }
-    
+
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
 
@@ -138,10 +138,6 @@ public:
             acd->Clear();
         }
 
-        // Remove user attributes, if any.
-        auto objectManager = this->Bootstrap_->GetObjectManager();
-        objectManager->TryRemoveAttributes(TVersionedObjectId(object->GetId()));
-
         // Run custom destruction logic.
         this->DoDestroy(static_cast<TObject*>(object));
 
@@ -154,11 +150,23 @@ public:
         return Map_->Find(id);
     }
 
+    virtual void ResetAllObjects() override
+    {
+        for (const auto& pair : *Map_) {
+            auto* object = pair.second;
+            object->ResetWeakRefCounter();
+            this->DoReset(object);
+        }
+    }
+
 private:
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* const Map_;
 
     virtual void DoDestroy(TObject* /*object*/)
+    { }
+
+    virtual void DoReset(TObject* /*object*/)
     { }
 
 };

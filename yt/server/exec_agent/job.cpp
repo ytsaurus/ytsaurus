@@ -9,7 +9,7 @@
 
 #include <core/misc/proc.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <core/actions/cancelable_context.h>
 
 #include <core/logging/log_manager.h>
 
@@ -25,11 +25,10 @@
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
+#include <ytlib/new_table_client/schemaless_writer.h>
 #include <ytlib/new_table_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-
-#include <ytlib/job_tracker_client/statistics.h>
 
 #include <ytlib/job_prober_client/job_prober_service_proxy.h>
 
@@ -38,6 +37,7 @@
 #include <server/data_node/chunk.h>
 #include <server/data_node/chunk_cache.h>
 #include <server/data_node/block_store.h>
+#include <server/data_node/master_connector.h>
 
 #include <server/job_agent/job.h>
 
@@ -78,61 +78,69 @@ class TJob
     : public NJobAgent::IJob
 {
 public:
-    DEFINE_SIGNAL(void(), ResourcesReleased);
+    DEFINE_SIGNAL(void(const TNodeResources&), ResourcesUpdated);
 
 public:
     TJob(
         const TJobId& jobId,
-        const TNodeResources& resourceLimits,
+        const TNodeResources& resourceUsage,
         TJobSpec&& jobSpec,
         TBootstrap* bootstrap)
         : JobId(jobId)
-        , ResourceLimits(resourceLimits)
         , Bootstrap(bootstrap)
-        , ResourceUsage(resourceLimits)
+        , ResourceUsage(resourceUsage)
+        , Statistics(SerializedEmptyStatistics)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         JobSpec.Swap(&jobSpec);
 
-        NodeDirectory->AddDescriptor(InvalidNodeId, Bootstrap->GetLocalDescriptor());
+        NodeDirectory->AddDescriptor(
+            InvalidNodeId,
+            Bootstrap->GetMasterConnector()->GetLocalDescriptor());
 
         Logger.AddTag("JobId: %v", jobId);
     }
 
     virtual void Start() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (JobState != EJobState::Waiting)
-            return;
-
-        StartTime = TInstant::Now();
+        // No SpinLock here, because concurrent access is impossible before
+        // calling Start.
+        YCHECK(JobState == EJobState::Waiting);
         JobState = EJobState::Running;
 
-        YCHECK(!Slot);
+        PrepareTime = TInstant::Now();
         auto slotManager = Bootstrap->GetExecSlotManager();
         Slot = slotManager->AcquireSlot();
 
-        auto invoker = Slot->GetInvoker();
-
-        VERIFY_INVOKER_THREAD_AFFINITY(invoker, JobThread);
-
-        RunFuture = BIND(&TJob::DoRun, MakeWeak(this))
-            .AsyncVia(invoker)
+        auto invoker = CancelableContext->CreateInvoker(Slot->GetInvoker());
+        BIND(&TJob::DoRun, MakeWeak(this))
+            .Via(invoker)
             .Run();
     }
 
     virtual void Abort(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (RunFuture) {
-            RunFuture.Cancel();
+        if (GetState() == EJobState::Waiting) {
+            // Abort before the start.
+            YCHECK(!JobResult.HasValue());
+            DoSetResult(error);
+            SetFinalState();
+            return;
         }
 
-        auto invoker = Slot ? Slot->GetInvoker() : GetSyncInvoker();
-        invoker->Invoke(BIND(&TJob::DoAbort, MakeStrong(this), error));
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (JobState != EJobState::Running) {
+                return;
+            }
+            DoSetResult(error);
+            JobState = EJobState::Aborting;
+        }
+
+        CancelableContext->Cancel();
+        YCHECK(Slot);
+        BIND(&TJob::DoAbort, MakeStrong(this))
+            .Via(Slot->GetInvoker())
+            .Run();
     }
 
     virtual const TJobId& GetId() const override
@@ -147,7 +155,7 @@ public:
 
     virtual EJobState GetState() const override
     {
-        TGuard<TSpinLock> guard(ResultLock);
+        TGuard<TSpinLock> guard(SpinLock);
         return JobState;
     }
 
@@ -158,104 +166,50 @@ public:
 
     virtual TNodeResources GetResourceUsage() const override
     {
-        TGuard<TSpinLock> guard(ResourcesLock);
+        TGuard<TSpinLock> guard(SpinLock);
         return ResourceUsage;
     }
 
     virtual void SetResourceUsage(const TNodeResources& newUsage) override
     {
-        TGuard<TSpinLock> guard(ResourcesLock);
-        ResourceUsage = newUsage;
+        TNodeResources delta = newUsage;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (JobState != EJobState::Running) {
+                return;
+            }
+            delta -= ResourceUsage;
+            ResourceUsage = newUsage;
+        }
+        ResourcesUpdated_.Fire(delta);
     }
 
     virtual TJobResult GetResult() const override
     {
-        TGuard<TSpinLock> guard(ResultLock);
+        TGuard<TSpinLock> guard(SpinLock);
         return JobResult.Get();
     }
 
     virtual void SetResult(const TJobResult& jobResult) override
     {
-        TGuard<TSpinLock> guard(ResultLock);
-
-        if (JobState == EJobState::Completed ||
-            JobState == EJobState::Aborted ||
-            JobState == EJobState::Failed)
-        {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (JobState != EJobState::Running) {
             return;
         }
-
-        if (JobResult) {
-            auto error = FromProto<TError>(JobResult->error());
-            if (!error.IsOK()) {
-                return;
-            }
-        }
-
-        JobResult = jobResult;
-        auto error = FromProto<TError>(jobResult.error());
-
-        if (error.IsOK()) {
-            return;
-        }
-
-        if (IsFatalError(error)) {
-            error.Attributes().Set("fatal", IsFatalError(error));
-            ToProto(JobResult->mutable_error(), error);
-            FinalJobState = EJobState::Failed;
-            return;
-        }
-
-        auto abortReason = GetAbortReason(jobResult);
-        if (abortReason) {
-            error.Attributes().Set("abort_reason", abortReason);
-            ToProto(JobResult->mutable_error(), error);
-            FinalJobState = EJobState::Aborted;
-            return;
-        }
-
-        FinalJobState = EJobState::Failed;
+        DoSetResult(jobResult);
     }
 
     virtual double GetProgress() const override
     {
+        TGuard<TSpinLock> guard(SpinLock);
         return Progress_;
     }
 
     virtual void SetProgress(double value) override
     {
-        TGuard<TSpinLock> guard(ResultLock);
+        TGuard<TSpinLock> guard(SpinLock);
         if (JobState == EJobState::Running) {
             Progress_ = value;
-        }
-    }
-
-    virtual TJobStatistics GetJobStatistics() const override
-    {
-        TGuard<TSpinLock> guard(ResultLock);
-        if (JobResult.HasValue()) {
-            return JobResult.Get().statistics();
-        } else {
-            auto result = JobStatistics;
-            result.set_time(GetElapsedTime().MilliSeconds());
-            return result;
-        }
-    }
-
-    virtual void SetJobStatistics(const TJobStatistics& statistics) override
-    {
-        TGuard<TSpinLock> guard(ResultLock);
-        if (JobState == EJobState::Running) {
-            JobStatistics = statistics;
-        }
-    }
-
-    TDuration GetElapsedTime() const
-    {
-        if (StartTime.HasValue()) {
-            return TInstant::Now() - StartTime.Get();
-        } else {
-            return TDuration::Seconds(0);
         }
     }
 
@@ -267,6 +221,14 @@ public:
         NJobProberClient::TJobProberServiceProxy jobProberProxy(jobProberChannel);
         jobProberProxy.SetDefaultTimeout(Bootstrap->GetConfig()->ExecAgent->JobProberRpcTimeout);
         return jobProberProxy;
+    }
+
+    virtual void SetStatistics(const TYsonString& statistics) override
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (JobState == EJobState::Running) {
+            Statistics = statistics;
+        }
     }
 
     std::vector<TChunkId> DumpInputContexts() const override
@@ -294,53 +256,40 @@ public:
     }
 
 private:
-    TJobId JobId;
+    const TJobId JobId;
     TJobSpec JobSpec;
 
-    TNodeResources ResourceLimits;
-    NCellNode::TBootstrap* Bootstrap;
+    const NCellNode::TBootstrap* Bootstrap;
 
-    //! Protects #ResourceUsage.
-    TSpinLock ResourcesLock;
+    TSpinLock SpinLock;
     TNodeResources ResourceUsage;
-
-    NLogging::TLogger Logger = ExecAgentLogger;
-
-    TSlotPtr Slot;
-
-    TFuture<void> RunFuture;
 
     EJobState JobState = EJobState::Waiting;
     EJobPhase JobPhase = EJobPhase::Created;
 
-    EJobState FinalJobState = EJobState::Completed;
+    TCancelableContextPtr CancelableContext = New<TCancelableContext>();
 
     double Progress_ = 0.0;
-    TJobStatistics JobStatistics = ZeroJobStatistics();
+    TYsonString Statistics;
 
-    TNullable<TInstant> StartTime;
+    TNullable<TJobResult> JobResult;
+
+    TNullable<TInstant> PrepareTime;
+    TNullable<TInstant> ExecTime;
+    TSlotPtr Slot;
+
+    IProxyControllerPtr ProxyController;
+
+    EJobState FinalJobState = EJobState::Completed;
 
     std::vector<NDataNode::IChunkPtr> CachedChunks;
 
     TNodeDirectoryPtr NodeDirectory = New<TNodeDirectory>();
 
-    IProxyControllerPtr ProxyController;
-
-    // Protects #JobResult, #JobState, and #JobStatistics.
-    TSpinLock ResultLock;
-    TNullable<TJobResult> JobResult;
-
-    NJobProxy::TJobProxyConfigPtr ProxyConfig;
-
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
-
+    NLogging::TLogger Logger = ExecAgentLogger;
 
     void DoRun()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
         try {
             YCHECK(JobPhase == EJobPhase::Created);
             JobPhase = EJobPhase::PreparingConfig;
@@ -360,10 +309,78 @@ private:
 
             YCHECK(JobPhase == EJobPhase::PreparingFiles);
             JobPhase = EJobPhase::Running;
+
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                ExecTime = TInstant::Now();
+            }
+
             RunJobProxy();
         } catch (const std::exception& ex) {
-            DoAbort(ex);
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                if (JobState != EJobState::Running) {
+                    YCHECK(JobState == EJobState::Aborting);
+                    return;
+                }
+                DoSetResult(ex);
+                JobState = EJobState::Aborting;
+            }
+            BIND(&TJob::DoAbort, MakeStrong(this))
+                .Via(Slot->GetInvoker())
+                .Run();
         }
+    }
+
+    // Must be called with set SpinLock.
+    void DoSetResult(const TError& error)
+    {
+        TJobResult jobResult;
+        ToProto(jobResult.mutable_error(), error);
+        ToProto(jobResult.mutable_statistics(), Statistics.Data());
+        DoSetResult(jobResult);
+    }
+
+    // Must be called with set SpinLock.
+    void DoSetResult(const TJobResult& jobResult)
+    {
+        if (JobResult) {
+            auto error = FromProto<TError>(JobResult->error());
+            if (!error.IsOK()) {
+                return;
+            }
+        }
+
+        JobResult = jobResult;
+        if (ExecTime) {
+            JobResult->set_exec_time((TInstant::Now() - *ExecTime).MilliSeconds());
+            JobResult->set_prepare_time((*ExecTime - *PrepareTime).MilliSeconds());
+        } else if (PrepareTime) {
+            JobResult->set_prepare_time((TInstant::Now() - *PrepareTime).MilliSeconds());
+        }
+
+        auto error = FromProto<TError>(jobResult.error());
+
+        if (error.IsOK()) {
+            return;
+        }
+
+        if (IsFatalError(error)) {
+            error.Attributes().Set("fatal", IsFatalError(error));
+            ToProto(JobResult->mutable_error(), error);
+            FinalJobState = EJobState::Failed;
+            return;
+        }
+
+        auto abortReason = GetAbortReason(jobResult);
+        if (abortReason) {
+            error.Attributes().Set("abort_reason", abortReason);
+            ToProto(JobResult->mutable_error(), error);
+            FinalJobState = EJobState::Aborted;
+            return;
+        }
+
+        FinalJobState = EJobState::Failed;
     }
 
     void PrepareConfig()
@@ -452,87 +469,65 @@ private:
         auto runError = WaitFor(ProxyController->Run());
 
         // NB: We should explicitly call Kill() to clean up possible child processes.
-        ProxyController->Kill(Slot->GetProcessGroup(), TError());
+        ProxyController->Kill(Slot->GetProcessGroup());
 
         runError.ThrowOnError();
 
-        if (!IsResultSet()) {
-            THROW_ERROR_EXCEPTION("Job proxy exited successfully but job result has not been set");
-        }
-
+        YCHECK(JobResult.HasValue());
         YCHECK(JobPhase == EJobPhase::Running);
+
         JobPhase = EJobPhase::Cleanup;
-
         Slot->Clean();
-
         YCHECK(JobPhase == EJobPhase::Cleanup);
-        JobPhase = EJobPhase::Finished;
+
+        LOG_INFO("Job completed");
 
         FinalizeJob();
     }
 
     void FinalizeJob()
     {
-        if (Slot) {
-            Slot->Release();
-        }
-
+        Slot->Release();
+        auto resourceDelta = ZeroNodeResources() - ResourceUsage;
         {
-            TGuard<TSpinLock> guard(ResultLock);
-            JobState = FinalJobState;
+            TGuard<TSpinLock> guard(SpinLock);
+            SetFinalState();
         }
 
-        SetResourceUsage(ZeroNodeResources());
-        ResourcesReleased_.Fire();
+        ResourcesUpdated_.Fire(resourceDelta);
     }
 
-    void DoAbort(const TError& error)
+    // Must be called with set SpinLock.
+    void SetFinalState()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        ResourceUsage = ZeroNodeResources();
 
-        if (JobPhase == EJobPhase::Finished)
+        JobPhase = EJobPhase::Finished;
+        JobState = FinalJobState;
+    }
+
+    void DoAbort()
+    {
+        if (GetState() != EJobState::Aborting) {
             return;
-
-        {
-            TGuard<TSpinLock> guard(ResultLock);
-            JobState = EJobState::Aborting;
         }
+
+        LOG_INFO("Aborting job");
 
         auto prevJobPhase = JobPhase;
         JobPhase = EJobPhase::Cleanup;
 
-        LOG_INFO(error, "Aborting job");
-
         if (prevJobPhase >= EJobPhase::Running) {
-            // NB: Kill() never throws.
-            ProxyController->Kill(Slot->GetProcessGroup(), error);
+            ProxyController->Kill(Slot->GetProcessGroup());
         }
 
         if (prevJobPhase >= EJobPhase::PreparingSandbox) {
-            LOG_INFO("Cleaning slot");
             Slot->Clean();
         }
-
-        JobPhase = EJobPhase::Finished;
-        SetResult(error);
 
         LOG_INFO("Job aborted");
 
         FinalizeJob();
-    }
-
-    void SetResult(const TError& error)
-    {
-        TJobResult jobResult;
-        ToProto(jobResult.mutable_error(), error);
-        ToProto(jobResult.mutable_statistics(), GetJobStatistics());
-        SetResult(jobResult);
-    }
-
-    bool IsResultSet() const
-    {
-        TGuard<TSpinLock> guard(ResultLock);
-        return JobResult.HasValue();
     }
 
     void DownloadChunks(const google::protobuf::RepeatedPtrField<TChunkSpec>& chunks)
@@ -649,9 +644,8 @@ private:
         auto reader = CreateFileMultiChunkReader(
             New<TFileReaderConfig>(),
             New<TMultiChunkReaderOptions>(),
-            Bootstrap->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
-            Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
-            Bootstrap->GetUncompressedBlockCache(),
+            Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
+            Bootstrap->GetBlockCache(),
             NodeDirectory,
             std::move(chunks));
 
@@ -703,9 +697,8 @@ private:
         auto reader = CreateSchemalessSequentialMultiChunkReader(
             config,
             options,
-            Bootstrap->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
-            Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
-            Bootstrap->GetUncompressedBlockCache(),
+            Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
+            Bootstrap->GetBlockCache(),
             NodeDirectory,
             chunks,
             nameTable);
@@ -716,9 +709,16 @@ private:
             WaitFor(reader->Open()).ThrowOnError();
 
             auto producer = [&] (TOutputStream* output) {
-                TBufferedOutput bufferedOutput(output);
-                auto writer = CreateSchemalessWriterForFormat(format, nameTable, &bufferedOutput);
-                PipeReaderToWriter(reader, writer, 10000);
+                auto bufferedOutput = std::make_unique<TBufferedOutput>(output);
+                auto controlAttributesConfig = New<TControlAttributesConfig>();
+                auto writer = CreateSchemalessWriterForFormat(
+                    format,
+                    nameTable,
+                    std::move(bufferedOutput),
+                    false,
+                    false,
+                    0);
+                PipeReaderToWriter(reader, writer, controlAttributesConfig, 10000);
             };
 
             Slot->MakeFile(fileName, producer);
@@ -774,13 +774,13 @@ private:
 
 NJobAgent::IJobPtr CreateUserJob(
     const TJobId& jobId,
-    const TNodeResources& resourceLimits,
+    const TNodeResources& resourceUsage,
     TJobSpec&& jobSpec,
     TBootstrap* bootstrap)
 {
     return New<TJob>(
         jobId,
-        resourceLimits,
+        resourceUsage,
         std::move(jobSpec),
         bootstrap);
 }
@@ -789,4 +789,5 @@ NJobAgent::IJobPtr CreateUserJob(
 
 } // namespace NExecAgent
 } // namespace NYT
+
 

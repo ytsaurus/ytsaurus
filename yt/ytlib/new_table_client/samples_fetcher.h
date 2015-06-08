@@ -35,11 +35,11 @@ public:
     const std::vector<TOwningKey>& GetSamples() const;
 
 private:
-    TKeyColumns KeyColumns_;
-    i64 DesiredSampleCount_;
+    const TKeyColumns KeyColumns_;
+    const i64 DesiredSampleCount_;
 
-    i64 SizeBetweenSamples_;
-    i64 TotalDataSize_;
+    i64 SizeBetweenSamples_ = 0;
+    i64 TotalDataSize_ = 0;
 
     //! All samples fetched so far.
     std::vector<TOwningKey> Samples_;

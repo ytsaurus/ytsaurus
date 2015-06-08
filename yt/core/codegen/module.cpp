@@ -52,11 +52,17 @@ public:
 
     virtual uint64_t getSymbolAddress(const std::string& name) override
     {
-        uint64_t address = 0;
+        auto isWhitelisted = Whitelist_.find(name) != Whitelist_.end();
 
-        address = llvm::SectionMemoryManager::getSymbolAddress(name);
+        auto address = llvm::SectionMemoryManager::getSymbolAddress(name);
         if (address) {
-            return address;
+            if (isWhitelisted) {
+                return address;
+            } else {
+                THROW_ERROR_EXCEPTION(
+                    "External call to function %Qv is not allowed",
+                    name);
+            }
         }
 
         return RoutineRegistry->GetAddress(name.c_str());
@@ -64,6 +70,19 @@ public:
 
     // RoutineRegistry is supposed to be a static object.
     TRoutineRegistry* RoutineRegistry;
+
+private:
+    // XXX(lukyan): Visual C++: error C2797:
+    // list initialization inside member initializer list or
+    // non-static data member initializer is not implemented
+    const std::unordered_set<std::string> Whitelist_ = std::unordered_set<std::string>{
+        MangleSymbol("__chkstk"),
+        MangleSymbol("memcmp"),
+        MangleSymbol("memcpy"),
+        MangleSymbol("nanosleep"),
+        MangleSymbol("tolower"),
+        MangleSymbol("toupper")
+    };
 };
 
 class TCGModule::TImpl
@@ -118,24 +137,12 @@ public:
         return Module_;
     }
 
-    llvm::Function* GetRoutine(const Stroka& symbol) const
+    llvm::Constant* GetRoutine(const Stroka& symbol) const
     {
         auto type = RoutineRegistry_->GetTypeBuilder(symbol)(
             const_cast<llvm::LLVMContext&>(Context_));
 
-        auto it = CachedRoutines_.find(symbol);
-        if (it == CachedRoutines_.end()) {
-            auto routine = llvm::Function::Create(
-                type,
-                llvm::Function::ExternalLinkage,
-                symbol.c_str(),
-                Module_);
-
-            it = CachedRoutines_.insert(std::make_pair(symbol, routine)).first;
-        }
-
-        YCHECK(it->second->getFunctionType() == type);
-        return it->second;
+        return Module_->getOrInsertFunction(symbol.c_str(), type);
     }
 
     uint64_t GetFunctionAddress(const Stroka& name)
@@ -265,8 +272,6 @@ private:
 
     std::unique_ptr<llvm::ExecutionEngine> Engine_;
 
-    mutable yhash_map<Stroka, llvm::Function*> CachedRoutines_;
-
     bool Compiled_ = false;
 
     // RoutineRegistry is supposed to be a static object.
@@ -292,7 +297,7 @@ llvm::Module* TCGModule::GetModule() const
     return Impl_->GetModule();
 }
 
-llvm::Function* TCGModule::GetRoutine(const Stroka& symbol) const
+llvm::Constant* TCGModule::GetRoutine(const Stroka& symbol) const
 {
     return Impl_->GetRoutine(symbol);
 }

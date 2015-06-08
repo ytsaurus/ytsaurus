@@ -4,6 +4,8 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <ytlib/cgroup/config.h>
+
 #include <server/job_agent/config.h>
 
 #include <server/job_proxy/config.h>
@@ -76,6 +78,11 @@ public:
     //! to create freezer subcgroups
     bool EnableCGroups;
 
+    std::vector<Stroka> SupportedCGroups;
+
+    //! Thread pool for job startup initialization.
+    int PoolSize;
+
     TSlotManagerConfig()
     {
         RegisterParameter("path", Path)
@@ -86,6 +93,11 @@ public:
             .Default(10000);
         RegisterParameter("enable_cgroups", EnableCGroups)
             .Default(true);
+        RegisterParameter("supported_cgroups", SupportedCGroups)
+            .Default();
+        RegisterParameter("pool_size", PoolSize)
+            .GreaterThanOrEqual(1)
+            .Default(3);
     }
 };
 
@@ -109,7 +121,7 @@ public:
 };
 
 class TExecAgentConfig
-    : public NYTree::TYsonSerializable
+    : public NCGroup::TCGroupConfig
 {
 public:
     TSlotManagerConfigPtr SlotManager;
@@ -128,8 +140,6 @@ public:
     TNullable<int> IopsThreshold;
 
     double MemoryLimitMultiplier;
-    bool ForceEnableAccounting;
-    bool EnableCGroupMemoryHierarchy;
 
     TExecAgentConfig()
     {
@@ -158,10 +168,6 @@ public:
 
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
-        RegisterParameter("force_enable_accounting", ForceEnableAccounting)
-            .Default(false);
-        RegisterParameter("enable_cgroup_memory_hierarchy", EnableCGroupMemoryHierarchy)
-            .Default(false);
 
         RegisterParameter("iops_threshold", IopsThreshold)
             .Default();

@@ -30,8 +30,8 @@ using NNodeTrackerClient::TNodeDirectoryPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = TableClientLogger;
-static auto& Profiler = TableReaderProfiler;
+static const auto& Logger = TableClientLogger;
+static const auto& Profiler = TableReaderProfiler;
 
 static const int SortBucketSize = 10000;
 static const int SpinsBetweenYield = 1000;
@@ -48,8 +48,7 @@ public:
     TSchemalessPartitionSortReader(
         TMultiChunkReaderConfigPtr config,
         IChannelPtr masterChannel,
-        IBlockCachePtr compressedBlockCache,
-        IBlockCachePtr uncompressedBlockCache,
+        IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
         const TKeyColumns& keyColumns,
         TNameTablePtr nameTable,
@@ -83,8 +82,7 @@ public:
             config,
             options,
             masterChannel,
-            compressedBlockCache,
-            uncompressedBlockCache,
+            blockCache,
             nodeDirectory,
             std::move(chunks),
             nameTable,
@@ -170,6 +168,11 @@ public:
         return UnderlyingReader_->GetNameTable();
     }
 
+    virtual TKeyColumns GetKeyColumns() const override
+    {
+        return KeyColumns_;
+    }
+
     virtual bool IsFetchingCompleted() const override
     {
         YCHECK(UnderlyingReader_);
@@ -188,6 +191,16 @@ public:
     {
         YCHECK(UnderlyingReader_);
         return UnderlyingReader_->GetFailedChunkIds();
+    }
+
+    virtual i64 GetTableRowIndex() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual i32 GetRangeIndex() const override
+    {
+        YUNREACHABLE();
     }
 
 private:
@@ -334,7 +347,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to open partition reader");
 
             EstimatedBucketCount_ = (EstimatedRowCount_ + SortBucketSize - 1) / SortBucketSize;
-            LOG_INFO("Input size estimated (RowCount: %d, BucketCount: %d)",
+            LOG_INFO("Input size estimated (RowCount: %v, BucketCount: %v)",
                 EstimatedRowCount_,
                 EstimatedBucketCount_);
 
@@ -414,7 +427,7 @@ private:
                 YCHECK(bucketCount <= EstimatedBucketCount_);
             }
 
-            LOG_INFO("Finished reading input (RowCount: %d, BucketCount: %d)",
+            LOG_INFO("Finished reading input (RowCount: %v, BucketCount: %v)",
                 TotalRowCount_,
                 bucketCount);
         }
@@ -422,13 +435,13 @@ private:
 
     void DoSortBucket(int bucketId)
     {
-        LOG_DEBUG("Started sorting bucket %d", bucketId);
+        LOG_DEBUG("Started sorting bucket %v", bucketId);
 
         int startIndex = BucketStart_[bucketId];
         int endIndex = BucketStart_[bucketId + 1] - 1;
         std::sort(Buckets_.begin() + startIndex, Buckets_.begin() + endIndex, SortComparer_);
 
-        LOG_DEBUG("Finished sorting bucket %d", bucketId);
+        LOG_DEBUG("Finished sorting bucket %v", bucketId);
     }
 
     void StartMerge()
@@ -512,8 +525,7 @@ private:
 ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     TMultiChunkReaderConfigPtr config,
     IChannelPtr masterChannel,
-    IBlockCachePtr compressedBlockCache,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,
     TNameTablePtr nameTable,
@@ -525,8 +537,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     return New<TSchemalessPartitionSortReader>(
         config,
         masterChannel,
-        compressedBlockCache,
-        uncompressedBlockCache,
+        blockCache,
         nodeDirectory,
         keyColumns,
         nameTable,

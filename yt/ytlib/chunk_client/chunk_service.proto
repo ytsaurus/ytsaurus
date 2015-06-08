@@ -37,8 +37,11 @@ message TReqAllocateWriteTargets
     // facilitate local uploads.
     optional string preferred_host_name = 3;
 
-    // Requested number of nodes to write.
-    optional int32 target_count = 4 [default = 1];
+    // Desired number of nodes to allocate.
+    required int32 desired_target_count = 4;
+
+    // Minimum acceptable number of nodes to allocate.
+    required int32 min_target_count = 5;
 }
 
 message TRspAllocateWriteTargets

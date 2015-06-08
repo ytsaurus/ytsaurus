@@ -3,12 +3,13 @@
 #include "chunk_list.h"
 #include "chunk.h"
 #include "chunk_manager.h"
+#include "helpers.h"
 
 #include <core/misc/singleton.h>
 
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
@@ -20,101 +21,10 @@ using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const int MaxChunksPerStep = 1000;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOwningKey GetMaxKey(const TChunk* chunk);
-TOwningKey GetMaxKey(const TChunkList* chunkList);
-TOwningKey GetMaxKey(const TChunkTree* chunkTree);
-
-TOwningKey GetMinKey(const TChunk* chunk);
-TOwningKey GetMinKey(const TChunkList* chunkList);
-TOwningKey GetMinKey(const TChunkTree* chunkTree);
-
-TOwningKey GetMaxKey(const TChunk* chunk)
-{
-    TOwningKey key;
-    auto chunkFormat = ETableChunkFormat(chunk->ChunkMeta().version());
-    if (chunkFormat == ETableChunkFormat::Old) {
-        // Deprecated chunks.
-        auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
-            chunk->ChunkMeta().extensions());
-        FromProto(&key, boundaryKeysExt.end());
-    } else {
-        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
-            chunk->ChunkMeta().extensions());
-        FromProto(&key, boundaryKeysExt.max());
-    }
-
-    return GetKeySuccessor(key.Get());
-}
-
-TOwningKey GetMaxKey(const TChunkList* chunkList)
-{
-    const auto& children = chunkList->Children();
-    YASSERT(!children.empty());
-    return GetMaxKey(children.back());
-}
-
-TOwningKey GetMaxKey(const TChunkTree* chunkTree)
-{
-    switch (chunkTree->GetType()) {
-        case EObjectType::Chunk:
-        case EObjectType::ErasureChunk:
-            return GetMaxKey(chunkTree->AsChunk());
-
-        case EObjectType::ChunkList:
-            return GetMaxKey(chunkTree->AsChunkList());
-
-        default:
-            YUNREACHABLE();
-    }
-}
-
-TOwningKey GetMinKey(const TChunk* chunk)
-{
-    TOwningKey key;
-    auto chunkFormat = ETableChunkFormat(chunk->ChunkMeta().version());
-    if (chunkFormat == ETableChunkFormat::Old) {
-        // Deprecated chunks.
-        auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
-            chunk->ChunkMeta().extensions());
-        FromProto(&key, boundaryKeysExt.start());
-    } else {
-        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
-            chunk->ChunkMeta().extensions());
-        FromProto(&key, boundaryKeysExt.min());
-    }
-
-    return key;
-}
-
-TOwningKey GetMinKey(const TChunkList* chunkList)
-{
-    const auto& children = chunkList->Children();
-    YASSERT(!children.empty());
-    return GetMinKey(children.front());
-}
-
-TOwningKey GetMinKey(const TChunkTree* chunkTree)
-{
-    switch (chunkTree->GetType()) {
-        case EObjectType::Chunk:
-        case EObjectType::ErasureChunk:
-            return GetMinKey(chunkTree->AsChunk());
-
-        case EObjectType::ChunkList:
-            return GetMinKey(chunkTree->AsChunkList());
-
-        default:
-            YUNREACHABLE();
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

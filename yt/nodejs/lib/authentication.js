@@ -1,4 +1,4 @@
-var cookies = require("cookies")
+var cookies = require("cookies");
 var Q = require("bluebird");
 
 var YtError = require("./error").that;
@@ -76,7 +76,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next)
     }
 
     if (!result) {
-        logger.debug("Client is missing credentials")
+        logger.debug("Client is missing credentials");
         // Fallback to guest credentials.
         return void epilogue(config.guest_login, config.guest_realm);
     }

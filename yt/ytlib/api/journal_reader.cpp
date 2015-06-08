@@ -192,14 +192,17 @@ private:
 
                 auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
                 auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+                auto options = New<TRemoteReaderOptions>();
+                options->NetworkName = Client_->GetConnection()->GetConfig()->NetworkName;
                 CurrentChunkReader_ = CreateReplicationReader(
                     Config_,
-                    Client_->GetConnection()->GetCompressedBlockCache(),
+                    options,
                     Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
                     NodeDirectory_,
                     Null,
                     chunkId,
-                    replicas);
+                    replicas,
+                    Client_->GetConnection()->GetBlockCache());
 
                 // NB: Lower/upper limits are mandatory for journal chunks.
                 auto lowerLimit = FromProto<TReadLimit>(chunkSpec.lower_limit());

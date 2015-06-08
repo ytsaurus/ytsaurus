@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/public.h>
+
 #include <core/yson/public.h>
 
 #include <core/rpc/public.h>
@@ -16,9 +18,10 @@
 
 #include <server/hydra/public.h>
 
-#include <server/hive/public.h>
+#include <ytlib/hive/public.h>
 
 #include <server/cell_node/public.h>
+#include <ytlib/hive/cell_directory.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -42,8 +45,7 @@ public:
     NHydra::EPeerState GetControlState() const;
     NHydra::EPeerState GetAutomatonState() const;
     NHydra::TPeerId GetPeerId() const;
-    int GetCellConfigVersion() const;
-    TTabletCellConfigPtr GetCellConfig() const;
+    const NHive::TCellDescriptor& GetCellDescriptor() const;
     const NTransactionClient::TTransactionId& GetPrerequisiteTransactionId() const;
     
     NHydra::IHydraManagerPtr GetHydraManager() const;
@@ -55,6 +57,7 @@ public:
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
+    IInvokerPtr GetSnapshotInvoker() const;
 
     NHive::THiveManagerPtr GetHiveManager() const;
     NHive::TMailbox* GetMasterMailbox();
@@ -74,7 +77,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

@@ -50,7 +50,7 @@ public:
 
     TExecNodePtr FindNode(const Stroka& address);
     TExecNodePtr GetNode(const Stroka& address);
-    TExecNodePtr GetOrRegisterNode(const NNodeTrackerClient::TNodeDescriptor& descriptor);
+    TExecNodePtr GetOrRegisterNode(const NNodeTrackerClient::TAddressMap& descriptor);
 
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
@@ -77,7 +77,7 @@ public:
     typedef TIntrusivePtr<TCtxHeartbeat> TCtxHeartbeatPtr;
     void ProcessHeartbeat(
         TExecNodePtr node,
-        TCtxHeartbeatPtr context);
+        TCtxHeartbeatPtr context) noexcept;
 
 private:
     class TImpl;
