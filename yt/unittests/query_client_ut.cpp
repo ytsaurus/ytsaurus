@@ -3938,8 +3938,8 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
 
     std::vector<Stroka> source = {
         "a=1;b=10",
-        "a=-2;b=20",
-        "a=9;b=90",
+        "a=-2;b=2",
+        "a=3;b=3",
         "a=-10"
     };
 
@@ -3948,10 +3948,10 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
     });
 
     auto result = BuildRows({
-        "x=1",
-        "x=2",
-        "x=9",
-        "x=10"
+        "x=10",
+        "x=4",
+        "x=27",
+        ""
     }, resultSplit);
 
     auto testUdfShareObjectImpl = TSharedRef(
@@ -3961,14 +3961,23 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     auto absUdf = New<TUserDefinedFunction>(
-            "abs_udf",
+            "abs_udf_so",
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
             testUdfShareObjectImpl,
             ECallingConvention::Simple);
+    auto expUdf = New<TUserDefinedFunction>(
+            "exp_udf_so",
+            std::vector<TType>{
+                EValueType::Int64,
+                EValueType::Int64},
+            EValueType::Int64,
+            testUdfShareObjectImpl,
+            ECallingConvention::Simple);
     registry->WithFunction(absUdf);
+    registry->WithFunction(expUdf);
 
-    Evaluate("abs_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("exp_udf_so(b, abs_udf_so(a)) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }

@@ -70,10 +70,10 @@ function(UDFSO udf output)
   get_filename_component( _extension ${_realpath} EXT )
 
   set(_so_dirname ${CMAKE_BINARY_DIR}/bin/)
-  set(_so_filename ${_filename}_so.so)
+  set(_so_filename ${_filename}.so)
   set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
   set(_h_dirname ${CMAKE_BINARY_DIR}/include/udf)
-  set(_h_file ${_h_dirname}/${_filename}_so.h)
+  set(_h_file ${_h_dirname}/${_filename}.h)
 
   set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
 
