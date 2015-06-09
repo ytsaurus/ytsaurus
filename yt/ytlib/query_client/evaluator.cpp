@@ -153,13 +153,14 @@ public:
                     outputBuffer->GetCapacity(),
                     intermediateBuffer->GetCapacity());
 
-                LOG_DEBUG("Query statistics (%v)", statistics);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
             }
 
             statistics.SyncTime = wallTime - statistics.AsyncTime;
             statistics.ExecuteTime = statistics.SyncTime - statistics.ReadTime - statistics.WriteTime;
+
+            LOG_DEBUG("Query statistics (%v)", statistics);
 
             TRACE_ANNOTATION("rows_read", statistics.RowsRead);
             TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
