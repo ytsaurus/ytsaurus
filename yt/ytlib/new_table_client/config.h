@@ -179,5 +179,33 @@ DEFINE_REFCOUNTED_TYPE(TControlAttributesConfig);
 
 //////////////////////////////////////////////////////////////////////////////////
 
+class TRetentionConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int MinDataVersions;
+    int MaxDataVersions;
+    TDuration MinDataTtl;
+    TDuration MaxDataTtl;
+
+    TRetentionConfig()
+    {
+        RegisterParameter("min_data_versions", MinDataVersions)
+            .GreaterThanOrEqual(0)
+            .Default(1);
+        RegisterParameter("max_data_versions", MaxDataVersions)
+            .GreaterThanOrEqual(0)
+            .Default(1);
+        RegisterParameter("min_data_ttl", MinDataTtl)
+            .Default(TDuration::Minutes(5));
+        RegisterParameter("max_data_ttl", MaxDataTtl)
+            .Default(TDuration::Minutes(5));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRetentionConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NVersionedTableClient
 } // namespace NYT
