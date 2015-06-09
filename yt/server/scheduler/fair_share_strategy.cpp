@@ -817,9 +817,15 @@ private:
 
     TNodeResources ComputeResourceLimits() const
     {
-        auto combinedLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config_->MaxShareRatio;
-        auto perTypeLimits = Config_->ResourceLimits->ToNodeResources();
-        return Min(combinedLimits, perTypeLimits);
+        auto poolLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config_->MaxShareRatio;
+        poolLimits = Min(poolLimits, Config_->ResourceLimits->ToNodeResources());
+
+        auto totalChildrenLimits = ZeroNodeResources();
+        for (const auto& child : Children) {
+            totalChildrenLimits += child->ResourceLimits();
+        }
+
+        return Min(poolLimits, totalChildrenLimits);
     }
 
 };
