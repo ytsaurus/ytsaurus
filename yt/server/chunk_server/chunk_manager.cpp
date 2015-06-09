@@ -397,6 +397,7 @@ public:
         TChunk* chunk,
         int desiredCount,
         int minCount,
+        TNullable<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName)
     {
@@ -404,6 +405,7 @@ public:
             chunk,
             desiredCount,
             minCount,
+            replicationFactorOverride,
             forbiddenNodes,
             preferredHostName,
             EWriteSessionType::User);
@@ -1660,6 +1662,7 @@ TNodeList TChunkManager::AllocateWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
+    TNullable<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
 {
@@ -1667,6 +1670,7 @@ TNodeList TChunkManager::AllocateWriteTargets(
         chunk,
         desiredCount,
         minCount,
+        replicationFactorOverride,
         forbiddenNodes,
         preferredHostName);
 }

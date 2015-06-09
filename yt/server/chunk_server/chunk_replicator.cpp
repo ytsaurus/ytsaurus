@@ -608,6 +608,7 @@ bool TChunkReplicator::CreateReplicationJob(
         chunk,
         replicasNeeded,
         1,
+        Null,
         EWriteSessionType::Replication);
     if (targetNodes.empty()) {
         return false;
@@ -740,6 +741,7 @@ bool TChunkReplicator::CreateRepairJob(
         chunk,
         erasedIndexCount,
         erasedIndexCount,
+        Null,
         EWriteSessionType::Repair);
     if (targetNodes.empty()) {
         return false;

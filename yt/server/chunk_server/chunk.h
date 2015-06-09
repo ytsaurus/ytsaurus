@@ -155,7 +155,11 @@ public:
 
     //! Returns the maximum number of replicas that can be stored in the same
     //! rack without violating the availability guarantees.
-    int GetMaxReplicasPerRack() const;
+    /*!
+     *  \param replicationFactorOverride An override for replication factor;
+     *  used when one wants to upload fewer replicas but still guarantee placement safety.
+     */
+    int GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride = Null) const;
 
 private:
     struct {

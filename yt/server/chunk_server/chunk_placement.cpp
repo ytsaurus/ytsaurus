@@ -36,8 +36,9 @@ class TChunkPlacement::TTargetCollector
 public:
     TTargetCollector(
         const TChunk* chunk,
+        TNullable<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes)
-        : MaxReplicasPerRack_(chunk->GetMaxReplicasPerRack())
+        : MaxReplicasPerRack_(chunk->GetMaxReplicasPerRack(replicationFactorOverride))
     {
         if (forbiddenNodes) {
             ForbiddenNodes_ = *forbiddenNodes;
@@ -178,6 +179,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
+    TNullable<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName,
     EWriteSessionType sessionType)
@@ -186,6 +188,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         chunk,
         desiredCount,
         minCount,
+        replicationFactorOverride,
         forbiddenNodes,
         preferredHostName);
 
@@ -269,10 +272,11 @@ TNodeList TChunkPlacement::GetWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
+    TNullable<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
 {
-    TTargetCollector collector(chunk, forbiddenNodes);
+    TTargetCollector collector(chunk, replicationFactorOverride, forbiddenNodes);
 
     auto tryAdd = [&] (TNode* node, bool enableRackAwareness) {
         if (IsValidWriteTarget(node, chunk->GetType(), &collector, enableRackAwareness)) {
@@ -307,12 +311,14 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
+    TNullable<int> replicationFactorOverride,
     EWriteSessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
         chunk,
         desiredCount,
-        minCount);
+        minCount,
+        replicationFactorOverride);
 
     for (auto* target : targetNodes) {
         AddSessionHint(target, sessionType);
@@ -324,7 +330,8 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
 TNodeList TChunkPlacement::GetWriteTargets(
     TChunk* chunk,
     int desiredCount,
-    int minCount)
+    int minCount,
+    TNullable<int> replicationFactorOverride)
 {
     auto nodeTracker = Bootstrap_->GetNodeTracker();
     auto chunkManager = Bootstrap_->GetChunkManager();
@@ -349,6 +356,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
         chunk,
         desiredCount,
         minCount,
+        replicationFactorOverride,
         &forbiddenNodes,
         Null);
 }
@@ -425,7 +433,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
     TChunk* chunk,
     double maxFillFactor)
 {
-    TTargetCollector collector(chunk, nullptr);
+    TTargetCollector collector(chunk, Null, nullptr);
 
     for (const auto& pair : FillFactorToNode_) {
         auto* node = pair.second;
