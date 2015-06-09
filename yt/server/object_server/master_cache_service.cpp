@@ -275,6 +275,7 @@ private:
             , Proxy_(std::move(channel))
         {
             Request_ = Proxy_.Execute();
+            Request_->SetUser(Context_->GetUser());
             MergeRequestHeaderExtensions(&Request_->Header(), Context_->RequestHeader());
         }
 
@@ -348,7 +349,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
     context->SetRequestInfo("RequestCount: %v",
         request->part_counts_size());
 
-    auto user = FindAuthenticatedUser(context).Get(RootUserName);
+    const auto& user = context->GetUser();
 
     int attachmentIndex = 0;
     const auto& attachments = request->Attachments();

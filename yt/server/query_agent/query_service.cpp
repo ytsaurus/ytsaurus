@@ -72,7 +72,7 @@ private:
 
         context->SetRequestInfo("FragmentId: %v", planFragment->Query->Id);
 
-        auto user = GetAuthenticatedUserOrThrow(context);
+        const auto& user = context->GetUser();
         auto securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 

@@ -207,7 +207,6 @@ void MergeRequestHeaderExtensions(
         to->MutableExtension(name)->CopyFrom(from.GetExtension(name)); \
     }
 
-    X(TAuthenticatedExt::authenticated_ext)
     X(TTracingExt::tracing_ext)
 
 #undef X

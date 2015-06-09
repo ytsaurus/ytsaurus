@@ -43,6 +43,9 @@ struct IClientRequest
     virtual TInstant GetStartTime() const = 0;
     virtual void SetStartTime(TInstant value) = 0;
 
+    virtual const Stroka& GetUser() const = 0;
+    virtual void SetUser(const Stroka& user) = 0;
+
     virtual bool GetRetry() const = 0;
     virtual void SetRetry(bool value) = 0;
 };
@@ -100,6 +103,9 @@ public:
 
     virtual TInstant GetStartTime() const override;
     virtual void SetStartTime(TInstant value) override;
+
+    virtual const Stroka& GetUser() const override;
+    virtual void SetUser(const Stroka& user) override;
 
     virtual bool GetRetry() const override;
     virtual void SetRetry(bool value) override;

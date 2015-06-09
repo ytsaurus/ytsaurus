@@ -33,6 +33,7 @@ public:
     virtual const Stroka& GetService() const override;
     virtual const Stroka& GetMethod() const override;
     virtual const TRealmId& GetRealmId() const override;
+    virtual const Stroka& GetUser() const override;
 
     virtual bool IsReplied() const override;
     virtual bool IsOneWay() const override;
@@ -76,6 +77,7 @@ protected:
 
     TRequestId RequestId_;
     TRealmId RealmId_;
+    Stroka User_;
 
     TSharedRef RequestBody_;
     std::vector<TSharedRef> RequestAttachments_;
@@ -144,6 +146,7 @@ public:
     virtual const Stroka& GetService() const override;
     virtual const Stroka& GetMethod() const override;
     virtual const TRealmId& GetRealmId() const override;
+    virtual const Stroka& GetUser() const override;
 
     virtual bool IsOneWay() const override;
 

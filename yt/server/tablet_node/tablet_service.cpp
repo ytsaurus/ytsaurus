@@ -106,7 +106,7 @@ private:
             tabletId,
             timestamp);
 
-        auto user = GetAuthenticatedUserOrThrow(context);
+        const auto& user = context->GetUser();
         auto securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
@@ -149,7 +149,7 @@ private:
             tabletId,
             transactionId);
 
-        auto user = GetAuthenticatedUserOrThrow(context);
+        const auto& user = context->GetUser();
         auto securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
