@@ -128,20 +128,14 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/table")
 
         # we can write only list fragments
-        with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("string"))
-        with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("100"))
-        with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("3.14"))
-
-        # we can write sorted data only to empty table
-        write_table("<append=true>//tmp/table", {"foo": "bar"}, sorted_by="foo")
-        with pytest.raises(YtError):
-            write_table("<append=true>" + "//tmp/table", {"foo": "zzz_bar"}, sorted_by="foo")
-
+        with pytest.raises(YtError): write("<append=true>//tmp/table", yson.loads("string"))
+        with pytest.raises(YtError): write("<append=true>//tmp/table", yson.loads("100"))
+        with pytest.raises(YtError): write("<append=true>//tmp/table", yson.loads("3.14"))
 
         content = "some_data"
         create("file", "//tmp/file")
-        write_file("//tmp/file", content)
-        with pytest.raises(YtError): read_table("//tmp/file")
+        upload("//tmp/file", content)
+        with pytest.raises(YtError): read("//tmp/file")
 
     def test_row_index_selector(self):
         create("table", "//tmp/table")
