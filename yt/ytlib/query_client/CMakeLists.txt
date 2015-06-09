@@ -79,7 +79,7 @@ protoc( ${BASE}/query_service.proto YT_SOURCE_FILES )
 
 udf_bc( ${BASE}/udf/hyperloglog.cpp YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/double.c YT_SOURCE_FILES )
-udf_bc( ${BASE}/udf/farm_hash.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/farm_hash.cpp YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/int64.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/is_null.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/is_substr.c YT_SOURCE_FILES )
