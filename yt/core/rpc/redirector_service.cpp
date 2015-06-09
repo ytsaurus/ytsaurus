@@ -93,6 +93,16 @@ public:
         YUNREACHABLE();
     }
 
+    virtual const Stroka& GetUser() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void SetUser(const Stroka& /*user*/) override
+    {
+        YUNREACHABLE();
+    }
+
     virtual bool GetRetry() const override
     {
         YUNREACHABLE();

@@ -44,16 +44,20 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
     , HeavyHandler(std::move(heavyHandler))
 { }
 
-TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
-    const TMethodDescriptor& descriptor,
-    const NProfiling::TTagIdList& tagIds)
-    : Descriptor(descriptor)
-    , RequestCounter("/request_count", tagIds)
-    , QueueSizeCounter("/request_queue_size", tagIds)
+TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TTagIdList& tagIds)
+    : RequestCounter("/request_count", tagIds)
     , ExecutionTimeCounter("/request_time/execution", tagIds)
     , RemoteWaitTimeCounter("/request_time/remote_wait", tagIds)
     , LocalWaitTimeCounter("/request_time/local_wait", tagIds)
     , TotalTimeCounter("/request_time/total", tagIds)
+{ }
+
+TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
+    const TMethodDescriptor& descriptor,
+    const NProfiling::TTagIdList& tagIds)
+    : Descriptor(descriptor)
+    , TagIds(tagIds)
+    , QueueSizeCounter("/request_queue_size", tagIds)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,12 +85,14 @@ public:
         , RequestId_(requestId)
         , ReplyBus_(std::move(replyBus))
         , RuntimeInfo_(std::move(runtimeInfo))
+        , PerformanceCounters_(Service_->LookupMethodPerformanceCounters(RuntimeInfo_, User_))
         , TraceContext_(traceContext)
         , ArrivalTime_(GetCpuInstant())
     {
         YASSERT(RequestMessage_);
         YASSERT(ReplyBus_);
         YASSERT(Service_);
+        YASSERT(RuntimeInfo_);
 
         Initialize();
     }
@@ -157,6 +163,7 @@ private:
     const TMutationId MutationId_;
     const IBusPtr ReplyBus_;
     const TRuntimeMethodInfoPtr RuntimeInfo_;
+    TMethodPerformanceCounters* const PerformanceCounters_;
     const NTracing::TTraceContext TraceContext_;
 
     TDelayedExecutorCookie TimeoutCookie_;
@@ -174,14 +181,28 @@ private:
 
     void Initialize()
     {
-        if (RuntimeInfo_->Descriptor.OneWay)
-            return;
+        Profiler.Increment(PerformanceCounters_->RequestCounter, +1);
 
-        if (RuntimeInfo_->Descriptor.Cancelable) {
-            Service_->RegisterCancelableRequest(this);
+        if (RequestHeader_->has_request_start_time() && RequestHeader_->has_retry_start_time()) {
+            // Decode timing information.
+            auto requestStart = TInstant(RequestHeader_->request_start_time());
+            auto retryStart = TInstant(RequestHeader_->retry_start_time());
+            auto now = CpuInstantToInstant(GetCpuInstant());
+
+            // Make sanity adjustments to account for possible clock skew.
+            retryStart = std::min(retryStart, now);
+            requestStart = std::min(requestStart, retryStart);
+
+            Profiler.Update(PerformanceCounters_->RemoteWaitTimeCounter, (now - requestStart).MicroSeconds());
         }
 
-        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, +1);
+        if (!RuntimeInfo_->Descriptor.OneWay) {
+            if (RuntimeInfo_->Descriptor.Cancelable) {
+                Service_->RegisterCancelableRequest(this);
+            }
+
+            Profiler.Increment(RuntimeInfo_->QueueSizeCounter, +1);
+        }
     }
 
     void Finalize()
@@ -233,7 +254,7 @@ private:
 
         if (Profiler.GetEnabled()) {
             auto value = CpuDurationToValue(StartTime_ - ArrivalTime_);
-            Profiler.Update(RuntimeInfo_->LocalWaitTimeCounter, value);
+            Profiler.Update(PerformanceCounters_->LocalWaitTimeCounter, value);
         }
     }
 
@@ -287,7 +308,7 @@ private:
 
         if (Profiler.GetEnabled() && RuntimeInfo_->Descriptor.OneWay) {
             auto value = CpuDurationToValue(GetCpuInstant() - ArrivalTime_);
-            Profiler.Update(RuntimeInfo_->TotalTimeCounter, value);
+            Profiler.Update(PerformanceCounters_->TotalTimeCounter, value);
         }
     }
 
@@ -333,12 +354,12 @@ private:
 
                 {
                     auto value = CpuDurationToValue(now - StartTime_);
-                    Profiler.Update(RuntimeInfo_->ExecutionTimeCounter, value);
+                    Profiler.Update(PerformanceCounters_->ExecutionTimeCounter, value);
                 }
 
                 {
                     auto value = CpuDurationToValue(now - ArrivalTime_);
-                    Profiler.Update(RuntimeInfo_->TotalTimeCounter, value);
+                    Profiler.Update(PerformanceCounters_->TotalTimeCounter, value);
                 }
             }
         }
@@ -359,9 +380,8 @@ private:
             AppendInfo(&builder, "RealmId: %v", GetRealmId());
         }
 
-        auto user = FindAuthenticatedUser(*RequestHeader_);
-        if (user) {
-            AppendInfo(&builder, "User: %v", *user);
+        if (User_ != RootUserName) {
+            AppendInfo(&builder, "User: %v", User_);
         }
 
         auto mutationId = GetMutationId(*RequestHeader_);
@@ -400,8 +420,8 @@ private:
 
         if (Profiler.GetEnabled()) {
             AppendInfo(&builder, "ExecutionTime: %v, TotalTime: %v",
-                ValueToDuration(RuntimeInfo_->ExecutionTimeCounter.Current),
-                ValueToDuration(RuntimeInfo_->TotalTimeCounter.Current));
+                ValueToDuration(PerformanceCounters_->ExecutionTimeCounter.Current),
+                ValueToDuration(PerformanceCounters_->TotalTimeCounter.Current));
         }
 
         LOG_EVENT(Logger, LogLevel_, "%v -> %v",
@@ -419,7 +439,7 @@ TServiceBase::TServiceBase(
     const NLogging::TLogger& logger,
     int protocolVersion)
 {
-    Init(
+    Initialize(
         defaultInvoker,
         serviceId,
         logger,
@@ -432,14 +452,14 @@ TServiceBase::TServiceBase(
     const NLogging::TLogger& logger,
     int protocolVersion)
 {
-    Init(
+    Initialize(
         CreateFakePrioritizedInvoker(defaultInvoker),
         serviceId,
         logger,
         protocolVersion);
 }
 
-void TServiceBase::Init(
+void TServiceBase::Initialize(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
     const NLogging::TLogger& logger,
@@ -453,12 +473,6 @@ void TServiceBase::Init(
     ProtocolVersion_ = protocolVersion;
 
     ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
-
-    {
-        NProfiling::TTagIdList tagIds;
-        tagIds.push_back(ServiceTagId_);
-        RequestCounter_ = TSimpleCounter("/requests", tagIds);
-    }
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
         .SetInvoker(TDispatcher::Get()->GetInvoker())
@@ -530,35 +544,8 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    Profiler.Increment(RequestCounter_);
-    Profiler.Increment(runtimeInfo->RequestCounter, +1);
-
-    if (header->has_request_start_time() && header->has_retry_start_time()) {
-        // Decode timing information.
-        auto requestStart = TInstant(header->request_start_time());
-        auto retryStart = TInstant(header->retry_start_time());
-        auto now = CpuInstantToInstant(GetCpuInstant());
-
-        // Make sanity adjustments to account for possible clock skew.
-        retryStart = std::min(retryStart, now);
-        requestStart = std::min(requestStart, retryStart);
-
-        Profiler.Update(runtimeInfo->RemoteWaitTimeCounter, (now - requestStart).MicroSeconds());
-    }
-
     auto traceContext = GetTraceContext(*header);
     NTracing::TTraceContextGuard traceContextGuard(traceContext);
-
-    TRACE_ANNOTATION(
-        traceContext,
-        "server_host",
-        TAddressResolver::Get()->GetLocalHostName());
-
-    TRACE_ANNOTATION(
-        traceContext,
-        ServiceId_.ServiceName,
-        method,
-        NTracing::ServerReceiveAnnotation);
 
     auto context = New<TServiceContext>(
         this,
@@ -570,6 +557,17 @@ void TServiceBase::HandleRequest(
         std::move(message),
         Logger,
         runtimeInfo->Descriptor.LogLevel);
+
+    TRACE_ANNOTATION(
+        traceContext,
+        "server_host",
+        TAddressResolver::Get()->GetLocalHostName());
+
+    TRACE_ANNOTATION(
+        traceContext,
+        ServiceId_.ServiceName,
+        method,
+        NTracing::ServerReceiveAnnotation);
 
     if (oneWay) {
         RunRequest(std::move(context));
@@ -759,18 +757,59 @@ TServiceBase::TServiceContextPtr TServiceBase::FindCancelableRequest(const TRequ
     return it == IdToContext_.end()  ? nullptr : TServiceContext::DangerousGetPtr(it->second);
 }
 
+TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanceCounters(
+    const TRuntimeMethodInfoPtr& runtimeInfo,
+    const Stroka& userName)
+{
+    auto tagIds = runtimeInfo->TagIds;
+    tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("user", userName));
+    return New<TMethodPerformanceCounters>(tagIds);
+}
+
+TServiceBase::TMethodPerformanceCounters* TServiceBase::LookupMethodPerformanceCounters(
+    const TRuntimeMethodInfoPtr& runtimeInfo,
+    const Stroka& user)
+{
+    // Fast path.
+    if (user == RootUserName) {
+        return runtimeInfo->RootPerformanceCounters.Get();
+    }
+
+    // Slow path.
+    {
+        TReaderGuard guard(runtimeInfo->PerformanceCountersLock);
+        auto it = runtimeInfo->UserToPerformanceCounters.find(user);
+        if (it != runtimeInfo->UserToPerformanceCounters.end()) {
+            return it->second.Get();
+        }
+    }
+
+    auto counters = CreateMethodPerformanceCounters(runtimeInfo, user);
+    {
+        TWriterGuard guard(runtimeInfo->PerformanceCountersLock);
+        auto it = runtimeInfo->UserToPerformanceCounters.find(user);
+        if (it == runtimeInfo->UserToPerformanceCounters.end()) {
+            it = runtimeInfo->UserToPerformanceCounters.insert(std::make_pair(user, counters)).first;
+        }
+        return it->second.Get();
+    }
+}
+
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
     NProfiling::TTagIdList tagIds;
     tagIds.push_back(ServiceTagId_);
     tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("method", descriptor.Method));
+
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
+    runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo, "root");
 
-    TWriterGuard guard(MethodMapLock_);
-    // Failure here means that such method is already registered.
-    YCHECK(MethodMap_.insert(std::make_pair(descriptor.Method, runtimeInfo)).second);
-
-    return runtimeInfo;
+    {
+        TWriterGuard guard(MethodMapLock_);
+        // Failure here means that such method is already registered.
+        YCHECK(MethodMap_.insert(std::make_pair(descriptor.Method, runtimeInfo)).second);
+        return runtimeInfo;
+    }
 }
 
 void TServiceBase::Configure(INodePtr configNode)

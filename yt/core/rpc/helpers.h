@@ -14,21 +14,6 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Sets "authenticated_user" in header.
-void SetAuthenticatedUser(NProto::TRequestHeader* header, const Stroka& user);
-
-//! Sets "authenticated_user" in header.
-void SetAuthenticatedUser(IClientRequestPtr request, const Stroka& user);
-
-//! Returns the value of "authenticated_user" from header or |Null| if missing.
-TNullable<Stroka> FindAuthenticatedUser(const NProto::TRequestHeader& header);
-
-//! Returns the value of "authenticated_user" from header or |Null| if missing.
-TNullable<Stroka> FindAuthenticatedUser(IServiceContextPtr context);
-
-//! Returns the value of "authenticated_user" from header. Throws if missing.
-Stroka GetAuthenticatedUserOrThrow(IServiceContextPtr context);
-
 //! Returns a wrapper that sets "authenticated_user" attribute in every request.
 IChannelPtr CreateAuthenticatedChannel(
     IChannelPtr underlyingChannel,
@@ -59,10 +44,13 @@ void SetTraceContext(
     NProto::TRequestHeader* header,
     const NTracing::TTraceContext& context);
 
-// TODO(babenko): write doc
+//! Generates a random mutation id.
 TMutationId GenerateMutationId();
 
+//! Returns the mutation id associated with the context.
 TMutationId GetMutationId(IServiceContextPtr context);
+
+//! Returns the mutation id associated with the request.
 TMutationId GetMutationId(const NProto::TRequestHeader& header);
 
 void GenerateMutationId(IClientRequestPtr request);

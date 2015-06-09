@@ -37,6 +37,9 @@ public:
     virtual TInstant GetStartTime() const override;
     virtual void SetStartTime(TInstant value) override;
 
+    virtual const Stroka& GetUser() const;
+    virtual void SetUser(const Stroka& /*user*/);
+
     virtual bool GetRetry() const override;
     virtual void SetRetry(bool value) override;
 

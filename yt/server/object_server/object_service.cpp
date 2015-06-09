@@ -99,7 +99,7 @@ public:
     void Run()
     {
         int requestCount = Context->Request().part_counts_size();
-        UserName = FindAuthenticatedUser(Context);
+        UserName = Context->GetUser();
 
         Context->SetRequestInfo("RequestCount: %v", requestCount);
 
@@ -131,7 +131,7 @@ private:
     std::vector<TRequestHeader> RequestHeaders;
     int CurrentRequestIndex;
     int CurrentRequestPartIndex;
-    TNullable<Stroka> UserName;
+    Stroka UserName;
 
     const NLogging::TLogger& Logger;
 
@@ -338,9 +338,7 @@ private:
     TUser* GetAuthenticatedUser()
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        return UserName
-            ? securityManager->GetUserByNameOrThrow(*UserName)
-            : securityManager->GetRootUser();
+        return securityManager->GetUserByNameOrThrow(UserName);
     }
 
 };
