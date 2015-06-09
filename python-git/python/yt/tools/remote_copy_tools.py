@@ -55,9 +55,16 @@ def _which(file):
 
 def _pack_module(module_name, output_dir):
     module = __import__(module_name)
-    module_path = module.__file__.strip("__init__.py").strip("__init__.pyc")
-    if module_path.endswith(".egg"):
-        return module_path
+    module_path = module.__file__
+    for suffix in ["__init__.py", "__init__.pyc"]:
+        if module_path.endswith(suffix):
+            module_path = module_path[:-len(suffix)]
+    if module_path.endswith(".egg") or module_path.endswith(".py") or module_path.endswith(".pyc") or module_path.endswith(".so"):
+        archive_filename = os.path.join(output_dir, module_name + ".tar")
+        tar = tarfile.open(archive_filename, "w")
+        tar.add(module_path, os.path.basename(module_path))
+        tar.close()
+        return archive_filename
     else:
         archive_filename = os.path.join(output_dir, module_name + ".tar")
         tar = tarfile.open(archive_filename, "w")
@@ -126,12 +133,13 @@ def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pac
     if hasattr(yt_client, "token"):
         files.append(_pack_string("yt_token", yt_client.token, tmp_dir))
     if pack:
-        files += [_pack_module("simplejson", tmp_dir), _pack_module("dateutil", tmp_dir), _pack_module("yt", tmp_dir), _which("yt2")]
+        files += [_pack_module("simplejson", tmp_dir), _pack_module("dateutil", tmp_dir), _pack_module("decorator", tmp_dir), _pack_module("yt", tmp_dir), _which("yt2")]
         prepare_command += """
 set -e
 tar xvf yt.tar >/dev/null
 tar xvf simplejson.tar >/dev/null
 tar xvf dateutil.tar >/dev/null
+tar xvf decorator.tar >/dev/null
 set +e"""
 
     read_command = _get_read_from_yt_command(yt_client, src, format, fastbone)
