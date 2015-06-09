@@ -95,12 +95,18 @@ public:
 
     virtual const Stroka& GetUser() const override
     {
-        YUNREACHABLE();
+        return Header_->has_user()
+            ? Header_->user()
+            : RootUserName;
     }
 
-    virtual void SetUser(const Stroka& /*user*/) override
+    virtual void SetUser(const Stroka& user) override
     {
-        YUNREACHABLE();
+        if (user == RootUserName) {
+            Header_->clear_user();
+        } else {
+            Header_->set_user(user);
+        }
     }
 
     virtual bool GetRetry() const override
