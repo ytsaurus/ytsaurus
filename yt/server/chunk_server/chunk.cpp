@@ -418,11 +418,12 @@ TChunkProperties TChunk::GetChunkProperties() const
     return result;
 }
 
-int TChunk::GetMaxReplicasPerRack() const
+int TChunk::GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride) const
 {
+    int replicationFactor = replicationFactorOverride.Get(GetReplicationFactor());
     switch (GetType()) {
         case EObjectType::Chunk:
-            return std::max(GetReplicationFactor() - 1, 1);
+            return std::max(replicationFactor - 1, 1);
 
         case EObjectType::ErasureChunk:
             return NErasure::GetCodec(GetErasureCodec())->GetGuaranteedRepairablePartCount();

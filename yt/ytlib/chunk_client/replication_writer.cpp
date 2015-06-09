@@ -488,8 +488,10 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
     TChunkServiceProxy proxy(MasterChannel_);
 
     auto req = proxy.AllocateWriteTargets();
-    req->set_desired_target_count(Config_->UploadReplicationFactor - Nodes_.size());
-    req->set_min_target_count(Config_->UploadReplicationFactor - Nodes_.size());
+    int activeTargets = Nodes_.size();
+    req->set_desired_target_count(Config_->UploadReplicationFactor - activeTargets);
+    req->set_min_target_count(std::max(Config_->MinUploadReplicationFactor - activeTargets, 1));
+    req->set_replication_factor_override(Config_->UploadReplicationFactor);
     if (Config_->PreferLocalHost) {
         req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
     }
