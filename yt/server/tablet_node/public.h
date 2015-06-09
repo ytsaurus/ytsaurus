@@ -145,7 +145,6 @@ DEFINE_ENUM(EInMemoryMode,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManageConfig)
-DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
 DECLARE_REFCOUNTED_CLASS(TTableMountConfig)
 DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
@@ -196,9 +195,6 @@ template <class T>
 class TEditList;
 typedef TEditList<NVersionedTableClient::TVersionedValue> TValueList;
 typedef TEditList<NVersionedTableClient::TTimestamp> TTimestampList;
-
-class TSchemafulRowMerger;
-class TVersionedRowMerger;
 
 typedef NVersionedTableClient::TTableWriterOptions TTabletWriterOptions;
 typedef NVersionedTableClient::TTableWriterOptionsPtr TTabletWriterOptionsPtr;

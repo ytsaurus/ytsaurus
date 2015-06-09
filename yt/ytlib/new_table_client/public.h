@@ -141,6 +141,9 @@ class THorizontalSchemalessBlockReader;
 
 struct IPartitioner;
 
+class TSchemafulRowMerger;
+class TVersionedRowMerger;
+
 DECLARE_REFCOUNTED_CLASS(TNameTable)
 
 DECLARE_REFCOUNTED_CLASS(TRowBuffer)
@@ -192,6 +195,8 @@ DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)
 
 DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
+
+DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
 
 DECLARE_REFCOUNTED_CLASS(TLegacyChannelReader)
 DECLARE_REFCOUNTED_CLASS(TLegacyTableChunkReader)
