@@ -1674,33 +1674,33 @@ private:
     {
         switch (type) {
             case EOperationType::Map:
-                return Config_->MapOperationSpec;
+                return Config_->MapOperationOptions->SpecTemplate;
             case EOperationType::Merge: {
                 auto mergeSpec = ParseOperationSpec<TMergeOperationSpec>(spec);
                 switch (mergeSpec->Mode) {
                     case EMergeMode::Unordered: {
-                        return Config_->UnorderedMergeOperationSpec;
+                        return Config_->UnorderedMergeOperationOptions->SpecTemplate;
                     }
                     case EMergeMode::Ordered: {
-                        return Config_->OrderedMergeOperationSpec;
+                        return Config_->OrderedMergeOperationOptions->SpecTemplate;
                     }
                     case EMergeMode::Sorted: {
-                        return Config_->SortedMergeOperationSpec;
+                        return Config_->SortedMergeOperationOptions->SpecTemplate;
                     }
                     default:
                         YUNREACHABLE();
                 }
             }
             case EOperationType::Erase:
-                return Config_->EraseOperationSpec;
+                return Config_->EraseOperationOptions->SpecTemplate;
             case EOperationType::Sort:
-                return Config_->SortOperationSpec;
+                return Config_->SortOperationOptions->SpecTemplate;
             case EOperationType::Reduce:
-                return Config_->ReduceOperationSpec;
+                return Config_->ReduceOperationOptions->SpecTemplate;
             case EOperationType::MapReduce:
-                return Config_->MapReduceOperationSpec;
+                return Config_->MapReduceOperationOptions->SpecTemplate;
             case EOperationType::RemoteCopy:
-                return Config_->RemoteCopyOperationSpec;
+                return Config_->RemoteCopyOperationOptions->SpecTemplate;
             default:
                 YUNREACHABLE();
         }

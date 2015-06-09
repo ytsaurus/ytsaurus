@@ -53,6 +53,7 @@ public:
         TOperation* operation)
         : TOperationControllerBase(config, spec, host, operation)
         , Spec_(spec)
+        , Options_(config->RemoteCopyOperationOptions)
     { }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
@@ -79,6 +80,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController, 0xbac5ad82);
 
     TRemoteCopyOperationSpecPtr Spec_;
+    TRemoteCopyOperationOptionsPtr Options_;
 
     class TRemoteCopyTask
         : public TTask
@@ -317,7 +319,8 @@ private:
         auto jobCount = SuggestJobCount(
             TotalInputDataSize,
             Spec_->DataSizePerJob,
-            Spec_->JobCount);
+            Spec_->JobCount,
+            Options_->MaxJobCount);
         jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
 
         if (stripes.size() > Spec_->MaxChunkCountPerJob * jobCount) {

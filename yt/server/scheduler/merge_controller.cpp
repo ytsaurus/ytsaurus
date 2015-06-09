@@ -57,10 +57,12 @@ public:
     TMergeControllerBase(
         TSchedulerConfigPtr config,
         TMergeOperationSpecBasePtr spec,
+        TMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, spec, host, operation)
         , Spec(spec)
+        , Options(options)
         , TotalChunkCount(0)
         , TotalDataSize(0)
         , CurrentTaskDataSize(0)
@@ -87,6 +89,7 @@ public:
 
 protected:
     TMergeOperationSpecBasePtr Spec;
+    TMergeOperationOptionsPtr Options;
 
     //! The total number of chunks for processing.
     int TotalChunkCount;
@@ -418,10 +421,11 @@ protected:
         auto jobCount = SuggestJobCount(
             TotalInputDataSize,
             Spec->DataSizePerJob,
-            Spec->JobCount);
+            Spec->JobCount,
+            Options->MaxJobCount);
 
         MaxDataSizePerJob = 1 + TotalInputDataSize / jobCount;
-        ChunkSliceSize = std::min(Config->MergeJobMaxSliceDataSize, MaxDataSizePerJob);
+        ChunkSliceSize = std::min(Options->JobMaxSliceDataSize, MaxDataSizePerJob);
     }
 
     void ProcessInputs()
@@ -572,9 +576,10 @@ public:
     TUnorderedMergeController(
         TSchedulerConfigPtr config,
         TUnorderedMergeOperationSpecPtr spec,
+        TUnorderedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TMergeControllerBase(config, spec, host, operation)
+        : TMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
     { }
 
@@ -642,9 +647,10 @@ public:
     TOrderedMergeControllerBase(
         TSchedulerConfigPtr config,
         TMergeOperationSpecBasePtr spec,
+        TOrderedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TMergeControllerBase(config, spec, host, operation)
+        : TMergeControllerBase(config, spec, options, host, operation)
     { }
 
 private:
@@ -677,9 +683,10 @@ public:
     TOrderedMergeController(
         TSchedulerConfigPtr config,
         TOrderedMergeOperationSpecPtr spec,
+        TOrderedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TOrderedMergeControllerBase(config, spec, host, operation)
+        : TOrderedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
     { }
 
@@ -733,7 +740,7 @@ public:
         TEraseOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOrderedMergeControllerBase(config, spec, host, operation)
+        : TOrderedMergeControllerBase(config, spec, config->EraseOperationOptions, host, operation)
         , Spec(spec)
     { }
 
@@ -850,9 +857,10 @@ public:
     TSortedMergeControllerBase(
         TSchedulerConfigPtr config,
         TMergeOperationSpecBasePtr spec,
+        TSortedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TMergeControllerBase(config, spec, host, operation)
+        : TMergeControllerBase(config, spec, options, host, operation)
         , PartitionTag(0)
     { }
 
@@ -1060,9 +1068,10 @@ public:
     TSortedMergeController(
         TSchedulerConfigPtr config,
         TSortedMergeOperationSpecPtr spec,
+        TSortedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedMergeControllerBase(config, spec, host, operation)
+        : TSortedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
     { }
 
@@ -1070,6 +1079,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController, 0xbc6daa18);
 
     TSortedMergeOperationSpecPtr Spec;
+    TSortedMergeOperationOptionsPtr Options;
 
     bool IsLargeEnoughToTeleport(const TChunkSpec& chunkSpec)
     {
@@ -1374,6 +1384,7 @@ IOperationControllerPtr CreateMergeController(
             return New<TUnorderedMergeController>(
                 config,
                 ParseOperationSpec<TUnorderedMergeOperationSpec>(spec),
+                config->UnorderedMergeOperationOptions,
                 host,
                 operation);
         }
@@ -1381,6 +1392,7 @@ IOperationControllerPtr CreateMergeController(
             return New<TOrderedMergeController>(
                 config,
                 ParseOperationSpec<TOrderedMergeOperationSpec>(spec),
+                config->OrderedMergeOperationOptions,
                 host,
                 operation);
         }
@@ -1388,6 +1400,7 @@ IOperationControllerPtr CreateMergeController(
             return New<TSortedMergeController>(
                 config,
                 ParseOperationSpec<TSortedMergeOperationSpec>(spec),
+                config->SortedMergeOperationOptions,
                 host,
                 operation);
         }
@@ -1407,7 +1420,7 @@ public:
         TReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedMergeControllerBase(config, spec, host, operation)
+        : TSortedMergeControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
         , Spec(spec)
         , StartRowIndex(0)
         , TeleportOutputTable(Null)

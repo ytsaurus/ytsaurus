@@ -794,7 +794,8 @@ protected:
     int SuggestJobCount(
         i64 totalDataSize,
         i64 dataSizePerJob,
-        TNullable<int> configJobCount) const;
+        TNullable<int> configJobCount,
+        int maxJobCount) const;
 
     void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,

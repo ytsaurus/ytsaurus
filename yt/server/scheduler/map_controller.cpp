@@ -55,6 +55,7 @@ public:
         TOperation* operation)
         : TOperationControllerBase(config, spec, host, operation)
         , Spec(spec)
+        , Options(config->MapOperationOptions)
         , StartRowIndex(0)
     { }
 
@@ -88,6 +89,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapController, 0xbac5fd82);
 
     TMapOperationSpecPtr Spec;
+    TMapOperationOptionsPtr Options;
 
     i64 StartRowIndex;
 
@@ -276,9 +278,10 @@ private:
             auto jobCount = SuggestJobCount(
                 TotalInputDataSize,
                 Spec->DataSizePerJob,
-                Spec->JobCount);
+                Spec->JobCount,
+                Options->MaxJobCount);
 
-            auto stripes = SliceInputChunks(Config->MapJobMaxSliceDataSize, jobCount);
+            auto stripes = SliceInputChunks(Options->JobMaxSliceDataSize, jobCount);
             jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
 
             MapTask = New<TMapTask>(this, jobCount);

@@ -3468,11 +3468,12 @@ bool TOperationControllerBase::IsRowCountPreserved() const
 int TOperationControllerBase::SuggestJobCount(
     i64 totalDataSize,
     i64 dataSizePerJob,
-    TNullable<int> configJobCount) const
+    TNullable<int> configJobCount,
+    int maxJobCount) const
 {
     i64 suggestionBySize = 1 + totalDataSize / dataSizePerJob;
     i64 jobCount = configJobCount.Get(suggestionBySize);
-    return static_cast<int>(Clamp(jobCount, 1, Config->MaxJobCount));
+    return static_cast<int>(Clamp(jobCount, 1, maxJobCount));
 }
 
 void TOperationControllerBase::InitUserJobSpecTemplate(

@@ -71,10 +71,12 @@ public:
     TSortControllerBase(
         TSchedulerConfigPtr config,
         TSortOperationSpecBasePtr spec,
+        TSortOperationOptionsBasePtr options,
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, spec, host, operation)
         , Spec(spec)
+        , Options(options)
         , Config(config)
         , CompletedPartitionCount(0)
         , SortedMergeJobCounter(0)
@@ -133,6 +135,8 @@ private:
     TSortOperationSpecBasePtr Spec;
 
 protected:
+    TSortOperationOptionsBasePtr Options;
+
     TSchedulerConfigPtr Config;
 
     // Counters.
@@ -1466,7 +1470,7 @@ protected:
         } else {
             result = GetEmpiricalParitionCount(dataSizeAfterPartition);
         }
-        return static_cast<int>(Clamp(result, 1, Config->MaxPartitionCount));
+        return static_cast<int>(Clamp(result, 1, Options->MaxPartitionCount));
     }
 
     int SuggestPartitionJobCount() const
@@ -1475,7 +1479,8 @@ protected:
             return SuggestJobCount(
                 TotalInputDataSize,
                 Spec->DataSizePerPartitionJob.Get(TotalInputDataSize),
-                Spec->PartitionJobCount);
+                Spec->PartitionJobCount,
+                Options->MaxPartitionJobCount);
         } else {
             // Experiments show that this number is suitable as default
             // both for partition count and for partition job count.
@@ -1483,7 +1488,7 @@ protected:
             return static_cast<int>(Clamp(
                 partitionCount,
                 1,
-                std::min(Config->MaxJobCount, Config->MaxPartitionJobCount)));
+                Options->MaxPartitionJobCount));
         }
     }
 
@@ -1642,6 +1647,7 @@ public:
         : TSortControllerBase(
             config,
             spec,
+            config->SortOperationOptions,
             host,
             operation)
         , Spec(spec)
@@ -1775,8 +1781,8 @@ private:
             Clamp(
                 1 + TotalInputDataSize / Spec->DataSizePerSortJob,
                 1,
-                Config->MaxJobCount));
-        auto stripes = SliceInputChunks(Config->SortJobMaxSliceDataSize, sortJobCount);
+                Options->MaxPartitionJobCount));
+        auto stripes = SliceInputChunks(Options->SortJobMaxSliceDataSize, sortJobCount);
         sortJobCount = std::min(sortJobCount, static_cast<int>(stripes.size()));
 
         // Create the fake partition.
@@ -1866,7 +1872,7 @@ private:
         InitShufflePool();
 
         int partitionJobCount = SuggestPartitionJobCount();
-        auto stripes = SliceInputChunks(Config->PartitionJobMaxSliceDataSize, partitionJobCount);
+        auto stripes = SliceInputChunks(Options->PartitionJobMaxSliceDataSize, partitionJobCount);
         partitionJobCount = std::min(static_cast<int>(stripes.size()), partitionJobCount);
 
         PartitionJobCounter.Set(partitionJobCount);
@@ -2162,6 +2168,7 @@ public:
         : TSortControllerBase(
             config,
             spec,
+            config->MapReduceOperationOptions,
             host,
             operation)
         , Spec(spec)
@@ -2332,7 +2339,7 @@ private:
         int partitionCount = SuggestPartitionCount();
 
         // Don't create more partitions than allowed by the global config.
-        partitionCount = std::min(partitionCount, Config->MaxPartitionCount);
+        partitionCount = std::min(partitionCount, Options->MaxPartitionCount);
 
         InitJobIOConfigs();
 
@@ -2352,7 +2359,7 @@ private:
         int partitionJobCount = SuggestPartitionJobCount();
 
         auto stripes = SliceInputChunks(
-            Config->PartitionJobMaxSliceDataSize,
+            Options->PartitionJobMaxSliceDataSize,
             partitionJobCount);
         partitionJobCount = std::min(static_cast<int>(stripes.size()), partitionJobCount);
 
