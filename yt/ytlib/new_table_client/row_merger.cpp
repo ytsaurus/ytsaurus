@@ -5,9 +5,8 @@
 #include <ytlib/transaction_client/helpers.h>
 
 namespace NYT {
-namespace NTabletNode {
+namespace NVersionedTableClient {
 
-using namespace NVersionedTableClient;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,6 +149,154 @@ void TSchemafulRowMerger::Cleanup()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUnversionedRowMerger::TUnversionedRowMerger(
+    TChunkedMemoryPool* pool,
+    int schemaColumnCount,
+    int keyColumnCount,
+    const TColumnFilter& columnFilter)
+    : Pool_(pool)
+    , SchemaColumnCount_(schemaColumnCount)
+    , KeyColumnCount_(keyColumnCount)
+{
+    if (columnFilter.All) {
+        for (int id = 0; id < SchemaColumnCount_; ++id) {
+            ColumnIds_.push_back(id);
+        }
+    } else {
+        for (int id : columnFilter.Indexes) {
+            ColumnIds_.push_back(id);
+        }
+    }
+
+    ColumnIdToIndex_.resize(SchemaColumnCount_);
+    for (int id = 0; id < SchemaColumnCount_; ++id) {
+        ColumnIdToIndex_[id] = -1;
+    }
+    for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
+        int id = ColumnIds_[index];
+        if (id >= KeyColumnCount_) {
+            ColumnIdToIndex_[id] = index;
+        }
+    }
+
+    ValidValues_.resize(ColumnIds_.size());
+
+    Cleanup();
+}
+
+void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
+{
+    if (!Started_) {
+        MergedRow_ = TUnversionedRow::Allocate(Pool_, ColumnIds_.size());
+
+        for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
+            int id = ColumnIds_[index];
+            if (id < KeyColumnCount_) {
+                MergedRow_[index] = row[id];
+                ValidValues_[index] = true;
+            } else {
+                MergedRow_[index].Id = id;
+                MergedRow_[index].Type = EValueType::Null;
+                ValidValues_[index] = false;
+            }
+        }
+    }
+
+    Started_ = true;
+}
+
+void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
+{
+    if (!row) {
+        return;
+    }
+
+    InitPartialRow(row);
+
+    auto* mergedValuesBegin = MergedRow_.Begin();
+    for (int partialIndex = KeyColumnCount_; partialIndex < row.GetCount(); ++partialIndex) {
+        const auto& partialValue = row[partialIndex];
+        int id = partialValue.Id;
+        int mergedIndex = ColumnIdToIndex_[id];
+        if (mergedIndex >= 0) {
+            mergedValuesBegin[mergedIndex] = partialValue;
+            ValidValues_[mergedIndex] = true;
+        }
+    }
+
+    Deleted_ = false;
+}
+
+void TUnversionedRowMerger::DeletePartialRow(TUnversionedRow row)
+{
+    InitPartialRow(row);
+
+    for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
+        int id = ColumnIds_[index];
+        if (id >= KeyColumnCount_) {
+            MergedRow_[index].Type = EValueType::Null;
+            ValidValues_[index] = true;
+        }
+    }
+
+    Deleted_ = true;
+}
+
+TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
+{
+    if (!Started_) {
+        return TUnversionedRow();
+    }
+
+    if (Deleted_) {
+        auto mergedRow = MergedRow_;
+        mergedRow.SetCount(KeyColumnCount_);
+        Cleanup();
+        return mergedRow;
+    }
+
+    bool fullRow = true;
+    for (bool validValue : ValidValues_) {
+        if (!validValue) {
+            fullRow = false;
+            break;
+        }
+    }
+
+    TUnversionedRow mergedRow;
+
+    if (fullRow) {
+        mergedRow = MergedRow_;
+    } else {
+        mergedRow = TUnversionedRow::Allocate(Pool_, ColumnIds_.size());
+        int currentIndex = 0;
+        for (int index = 0; index < MergedRow_.GetCount(); ++index) {
+            if (ValidValues_[index]) {
+                mergedRow[currentIndex] = MergedRow_[index];
+                ++currentIndex;
+            }
+        }
+        mergedRow.SetCount(currentIndex);
+    }
+
+    Cleanup();
+    return mergedRow;
+}
+
+void TUnversionedRowMerger::Reset()
+{
+    YCHECK(!Started_);
+    Pool_->Clear();
+    MergedRow_ = TUnversionedRow();
+}
+
+void TUnversionedRowMerger::Cleanup()
+{
+    Started_ = false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TVersionedRowMerger::TVersionedRowMerger(
     TChunkedMemoryPool* pool,
     int keyColumnCount,
@@ -178,8 +325,9 @@ TTimestamp TVersionedRowMerger::GetMajorTimestamp() const
 
 void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
 {
-    if (!row)
+    if (!row) {
         return;
+    }
 
     if (!Started_) {
         Started_ = true;
@@ -379,6 +527,6 @@ void TVersionedRowMerger::Cleanup()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
+} // namespace NVersionedTableClient
 } // namespace NYT
 
