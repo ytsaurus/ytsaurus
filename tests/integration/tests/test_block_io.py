@@ -64,7 +64,7 @@ echo $CONTENT | grep ' 5' 1>/dev/null
     def _get_stderr(self, op_id):
         jobs_path = "//sys/operations/" + op_id + "/jobs"
         for job_id in ls(jobs_path):
-            return download(jobs_path + "/" + job_id + "/stderr")
+            return read_file(jobs_path + "/" + job_id + "/stderr")
 
     @block_io_mark
     def test_hitlimit(self):
