@@ -1,15 +1,26 @@
 #include <core/misc/hyperloglog.h>
 #include <yt_udf_cpp.h>
 
+extern "C" uint64_t FarmHash(
+    const TUnversionedValue* begin,
+    const TUnversionedValue* end);
+
+static uint64_t Hash(TUnversionedValue* v)
+{
+    return FarmHash(v, v + 1);
+}
+
+typedef NYT::THyperLogLog<TUnversionedValue*, Hash, 14> THLL;
+
 extern "C" void cardinality_init(
     TExecutionContext* context,
     TUnversionedValue* result)
 {
-    auto hll = AllocatePermanentBytes(context, sizeof(NYT::THyperLogLog<14>));
-    new (hll) NYT::THyperLogLog<14>();
+    auto hll = AllocatePermanentBytes(context, sizeof(THLL));
+    new (hll) THLL();
 
     result->Type = EValueType::String;
-    result->Length = sizeof(NYT::THyperLogLog<14>);
+    result->Length = sizeof(THLL);
     result->Data.String = hll;
 }
 
@@ -20,27 +31,11 @@ extern "C" void cardinality_update(
     TUnversionedValue* newValue)
 {
     result->Type = EValueType::String;
-    result->Length = sizeof(NYT::THyperLogLog<14>);
+    result->Length = sizeof(THLL);
     result->Data.String = state->Data.String;
 
-    auto hll = reinterpret_cast<NYT::THyperLogLog<14>*>(state->Data.String);
-
-    switch (newValue->Type) {
-        case String:
-            hll->Add(newValue->Data.String, newValue->Length);
-            break;
-        case Uint64:
-            hll->Add(newValue->Data.Uint64);
-            break;
-        case Int64:
-            hll->Add(newValue->Data.Int64);
-            break;
-        case Double:
-            hll->Add(newValue->Data.Double);
-            break;
-        default: /* Boolean */
-            hll->Add(newValue->Data.Boolean);
-    }
+    auto hll = reinterpret_cast<THLL*>(state->Data.String);
+    hll->Add(newValue);
 }
 
 extern "C" void cardinality_merge(
@@ -50,11 +45,11 @@ extern "C" void cardinality_merge(
     TUnversionedValue* state2)
 {
     result->Type = EValueType::String;
-    result->Length = sizeof(NYT::THyperLogLog<14>);
+    result->Length = sizeof(THLL);
     result->Data.String = state1->Data.String;
 
-    auto hll1 = reinterpret_cast<NYT::THyperLogLog<14>*>(state1->Data.String);
-    auto hll2 = reinterpret_cast<NYT::THyperLogLog<14>*>(state2->Data.String);
+    auto hll1 = reinterpret_cast<THLL*>(state1->Data.String);
+    auto hll2 = reinterpret_cast<THLL*>(state2->Data.String);
     hll1->Merge(*hll2);
 }
 
@@ -63,7 +58,7 @@ extern "C" void cardinality_finalize(
     TUnversionedValue* result,
     TUnversionedValue* state)
 {
-    auto hll = reinterpret_cast<NYT::THyperLogLog<14>*>(state->Data.String);
+    auto hll = reinterpret_cast<THLL*>(state->Data.String);
     result->Type = EValueType::Uint64;
     auto card = hll->EstimateCardinality();
     result->Data.Uint64 = card;
