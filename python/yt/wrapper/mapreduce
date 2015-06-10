@@ -54,7 +54,7 @@ def calculate_if_function(obj):
         return obj
 
 def remove_prefix(table):
-    if "PREFIX" in config.__dict__ and table.startswith(config.PREFIX):
+    if table.startswith(config.PREFIX):
         return table[len(config.PREFIX):]
     return table
 
