@@ -668,8 +668,6 @@ class SchemafulDsvFormat(Format):
                    "table_index_column": table_index_column}
         attributes = get_value(attributes, {})
         all_attributes = Format._make_attributes(attributes, defaults, options)
-        require(all_attributes.has_key("columns"),
-                YtFormatError("SchemafulDsvFormat require 'columns' attribute"))
         super(SchemafulDsvFormat, self).__init__("schemaful_dsv", all_attributes, raw)
         if self.enable_table_index:
             self._columns = [table_index_column] + self.columns
