@@ -100,7 +100,10 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
                 user=user))
     response.wait()
     if not response.is_ok():
-        raise YtError(response.error())
+        error = YtError(response.error())
+        print >>sys.stderr, str(error)
+        print >>sys.stderr
+        raise error
     if isinstance(output_stream, cStringIO.OutputType):
         result = output_stream.getvalue()
         if verbose:
