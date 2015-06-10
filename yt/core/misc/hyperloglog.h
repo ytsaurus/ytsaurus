@@ -1,21 +1,18 @@
 #pragma once
 
 #include "public.h"
-#include <core/misc/farm_hash.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <int Precision>
+template <typename T, ui64 (*Hash)(T), int Precision>
 class THyperLogLog
 {
 public:
     THyperLogLog();
 
-    void Add(ui64 value);
-
-    void Add(const char* data, size_t length);
+    void Add(T value);
 
     void Merge(const THyperLogLog& that);
 
@@ -29,26 +26,27 @@ private:
     void AddHash(ui64 hash);
 };
 
-template <int Precision>
+template <typename T, ui64 (*Hash)(T), int Precision>
 ui64 EstimateCardinality(
     const std::vector<ui64>& values)
 {
-    auto state = THyperLogLog<Precision>();
+    auto state = THyperLogLog<T, Hash, Precision>();
     for (auto v : values) {
         state.Add(v);
     }
     return state.EstimateCardinality();
 }
 
-template <int Precision>
-THyperLogLog<Precision>::THyperLogLog()
+template <typename T, ui64 (*Hash)(T), int Precision>
+THyperLogLog<T, Hash, Precision>::THyperLogLog()
 {
     std::fill(ZeroCounts_.begin(), ZeroCounts_.end(), 0);
 }
 
-template <int Precision>
-void THyperLogLog<Precision>::AddHash(ui64 hash)
+template <typename T, ui64 (*Hash)(T), int Precision>
+void THyperLogLog<T, Hash, Precision>::Add(T value)
 {
+    auto hash = Hash(value);
     auto zeroes = 1;
     hash |= ((ui64)1 << 63);
     auto bit = RegisterCount;
@@ -64,20 +62,8 @@ void THyperLogLog<Precision>::AddHash(ui64 hash)
     }
 }
 
-template <int Precision>
-void THyperLogLog<Precision>::Add(ui64 value)
-{
-    AddHash(FarmHash(value));
-}
-
-template <int Precision>
-void THyperLogLog<Precision>::Add(const char* data, size_t length)
-{
-    AddHash(FarmHash(data, length));
-}
-
-template <int Precision>
-void THyperLogLog<Precision>::Merge(const THyperLogLog<Precision>& that)
+template <typename T, ui64 (*Hash)(T), int Precision>
+void THyperLogLog<T, Hash, Precision>::Merge(const THyperLogLog<T, Hash, Precision>& that)
 {
     for (int i = 0; i < RegisterCount; i++) {
         auto thatCount = that.ZeroCounts_[i];
@@ -87,8 +73,8 @@ void THyperLogLog<Precision>::Merge(const THyperLogLog<Precision>& that)
     }
 }
 
-template <int Precision>
-ui64 THyperLogLog<Precision>::EstimateCardinality()
+template <typename T, ui64 (*Hash)(T), int Precision>
+ui64 THyperLogLog<T, Hash, Precision>::EstimateCardinality()
 {
     auto zeroRegisters = 0;
     double sum = 0;

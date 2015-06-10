@@ -3,18 +3,19 @@
 
 #include <core/misc/hyperloglog.h>
 #include <core/misc/random.h>
+#include <core/misc/farm_hash.h>
 
 namespace NYT {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<THyperLogLog<8>, int> GenerateHyperLogLog(
+std::pair<THyperLogLog<ui64, FarmHash, 8>, int> GenerateHyperLogLog(
     TRandomGenerator& rng,
     int size,
     int targetCardinality)
 {
-    auto hll = THyperLogLog<8>();
+    auto hll = THyperLogLog<ui64, FarmHash, 8>();
 
     int cardinality = 1;
     ui64 n = 0;

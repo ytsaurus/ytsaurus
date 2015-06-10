@@ -83,7 +83,6 @@ private:
         MangleSymbol("tolower"),
         MangleSymbol("toupper"),
         MangleSymbol("log"),
-        MangleSymbol("_ZN16NFarmHashPrivate6Hash64EPKcm"),
         MangleSymbol("memset"),
     };
 };
