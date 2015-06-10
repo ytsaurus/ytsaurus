@@ -24,10 +24,6 @@ struct IChangelog
     //! Returns an approximate byte size in a changelog.
     virtual i64 GetDataSize() const = 0;
 
-    //! Returns |true| if the changelog is sealed, i.e.
-    //! no further appends are possible.
-    virtual bool IsSealed() const = 0;
-
     //! Asynchronously appends a record to the changelog.
     /*!
      *  \param recordId Record ids must be contiguous.

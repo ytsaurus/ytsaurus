@@ -91,17 +91,6 @@ protected:
         return changelog;
     }
 
-    void Finalize(TSyncFileChangelogPtr changelog)
-    {
-        changelog->Seal(changelog->GetRecordCount());
-    }
-
-    bool IsFinalized(TSyncFileChangelogPtr changelog)
-    {
-        return changelog->IsSealed();
-    }
-
-
     template <class T>
     static void CheckRecord(const T& data, const TRef& record)
     {
@@ -234,22 +223,6 @@ TEST_F(TSyncFileChangelogTest, Meta)
         EXPECT_TRUE(TRef::AreBitwiseEqual(record, changelog->Read(0, 1, std::numeric_limits<i64>::max())[0]));
     }
 }
-
-TEST_F(TSyncFileChangelogTest, Finalized)
-{
-    const int logRecordCount = 256;
-    {
-        auto changelog = CreateChangelog<ui32>(logRecordCount);
-        EXPECT_FALSE(IsFinalized(changelog));
-        Finalize(changelog);
-        EXPECT_TRUE(IsFinalized(changelog));
-    }
-    {
-        auto changelog = OpenChangelog();
-        EXPECT_TRUE(IsFinalized(changelog));
-    }
-}
-
 
 TEST_F(TSyncFileChangelogTest, ReadWrite)
 {

@@ -760,11 +760,6 @@ public:
         return SyncChangelog_->GetMeta();
     }
 
-    virtual bool IsSealed() const override
-    {
-        return SyncChangelog_->IsSealed();
-    }
-
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
         RecordCount_ += 1;

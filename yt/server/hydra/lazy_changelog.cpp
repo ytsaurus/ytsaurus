@@ -45,14 +45,6 @@ public:
             : BacklogDataSize_;
     }
 
-    virtual bool IsSealed() const override
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        return UnderlyingChangelog_
-            ? UnderlyingChangelog_->IsSealed()
-            : false;
-    }
-
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
         TGuard<TSpinLock> guard(SpinLock_);
