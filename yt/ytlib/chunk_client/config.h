@@ -189,7 +189,7 @@ public:
             .Default(2);
         RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
             .Default(2)
-            .GreaterThan(0);
+            .GreaterThanOrEqual(1);
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
         RegisterParameter("node_ping_interval", NodePingPeriod)
