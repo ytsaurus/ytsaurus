@@ -869,19 +869,10 @@ void TDecoratedAutomaton::DoRotateChangelog()
     WaitFor(Changelog_->Flush())
         .ThrowOnError();
 
-    auto loggedVersion = GetLoggedVersion();
-
-    if (Changelog_->IsSealed()) {
-        LOG_WARNING("Changelog %v is already sealed",
-            loggedVersion.SegmentId);
-    } else {
-        WaitFor(Changelog_->Seal(Changelog_->GetRecordCount()))
-            .ThrowOnError();
-    }
-
     TChangelogMeta meta;
     meta.set_prev_record_count(Changelog_->GetRecordCount());
 
+    auto loggedVersion = GetLoggedVersion();
     auto newChangelogOrError = WaitFor(ChangelogStore_->CreateChangelog(
         loggedVersion.SegmentId + 1,
         meta));

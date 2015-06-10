@@ -121,6 +121,7 @@ struct IMultiplexedReplayerCallbacks
     virtual IChangelogPtr OpenSplitChangelog(const TChunkId& chunkId) = 0;
     virtual void FlushSplitChangelog(const TChunkId& chunkId) = 0;
     virtual bool RemoveSplitChangelog(const TChunkId& chunkId) = 0;
+    virtual bool IsSplitChangelogSealed(const TChunkId& chunkId) = 0;
 };
 
 class TMultiplexedReplayer
@@ -203,6 +204,7 @@ private:
 
         int RecordsAdded = 0;
 
+        bool SealedChecked = false;
         bool AppendSealedLogged = false;
         bool AppendSkipLogged = false;
         bool AppendLogged = false;
@@ -368,22 +370,24 @@ private:
 
         auto& splitEntry = it->second;
 
-        if (splitEntry.Changelog->IsSealed()) {
-            LOG_INFO_UNLESS(
-                splitEntry.AppendSealedLogged,
-                "Replay ignores sealed journal chunk; further similar messages suppressed "
-                "(ChunkId: %v)",
-                chunkId);
-            splitEntry.AppendSealedLogged = true;
+        if (splitEntry.AppendSealedLogged || splitEntry.AppendSkipLogged)
             return;
+
+        if (!splitEntry.SealedChecked) {
+            splitEntry.SealedChecked = true;
+            if (Callbacks_->IsSplitChangelogSealed(chunkId)) {
+                LOG_INFO("Replay ignores sealed journal chunk; "
+                    "further similar messages suppressed (ChunkId: %v)",
+                    chunkId);
+                splitEntry.AppendSealedLogged = true;
+                return;
+            }
         }
 
         int recordCount = splitEntry.Changelog->GetRecordCount();
         if (recordCount > record.Header.RecordId) {
-            LOG_INFO_UNLESS(
-                splitEntry.AppendSkipLogged,
-                "Replay skips multiplexed records that are present in journal chunk; further similar messages suppressed "
-                "(ChunkId: %v, RecordId: %v, RecordCount: %v)",
+            LOG_INFO("Replay skips multiplexed records that are present in journal chunk; "
+                "further similar messages suppressed (ChunkId: %v, RecordId: %v, RecordCount: %v)",
                 chunkId,
                 record.Header.RecordId,
                 recordCount);
@@ -1090,6 +1094,13 @@ private:
                 .ThrowOnError();
 
             return true;
+        }
+
+        virtual bool IsSplitChangelogSealed(const TChunkId& chunkId) override
+        {
+             return Impl_->IsChangelogSealed(chunkId)
+                 .Get()
+                 .ValueOrThrow();
         }
 
     private:

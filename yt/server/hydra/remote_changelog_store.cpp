@@ -306,12 +306,6 @@ private:
             return DataSize_;
         }
 
-        virtual bool IsSealed() const override
-        {
-            // TODO(babenko): implement
-            return false;
-        }
-
         virtual TFuture<void> Append(const TSharedRef& data) override
         {
             YCHECK(Writer_);

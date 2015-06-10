@@ -47,11 +47,6 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    virtual bool IsSealed() const override
-    {
-        return UnderlyingChangelog_->IsSealed();
-    }
-
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
         return UnderlyingChangelog_->Append(data);

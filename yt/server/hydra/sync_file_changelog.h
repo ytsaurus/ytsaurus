@@ -54,10 +54,6 @@ public:
     //! Returns the meta blob.
     const NProto::TChangelogMeta& GetMeta() const;
 
-    //! Returns |true| if the changelog is sealed, i.e.
-    //! no further appends are possible.
-    bool IsSealed() const;
-
     //! Synchronously appends records to the changelog.
     void Append(
         int firstRecordId,

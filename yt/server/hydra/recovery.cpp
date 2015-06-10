@@ -130,15 +130,8 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             SyncChangelog(changelog, changelogId);
         }
 
-        if (!isLastChangelog && !changelog->IsSealed()) {
-            WaitFor(changelog->Flush());
-            if (changelog->IsSealed()) {
-                LOG_WARNING("Changelog %v is already sealed",
-                    changelogId);
-            } else {
-                WaitFor(changelog->Seal(changelog->GetRecordCount()));
-            }
-        }
+        WaitFor(changelog->Flush())
+            .ThrowOnError();
 
         int targetRecordId = isLastChangelog ? targetVersion.RecordId : changelog->GetRecordCount();
         ReplayChangelog(changelog, changelogId, targetRecordId);
@@ -175,16 +168,12 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
 
     if (localRecordCount > remoteRecordCount) {
         YCHECK(syncRecordCount == remoteRecordCount);
-        if (changelog->IsSealed()) {
-            LOG_FATAL("Cannot truncate a sealed changelog %v",
-                changelogId);
-        } else {
-            WaitFor(changelog->Seal(remoteRecordCount));
+        WaitFor(changelog->Seal(remoteRecordCount))
+            .ThrowOnError();
 
-            TVersion sealedVersion(changelogId, remoteRecordCount);
-            if (DecoratedAutomaton_->GetLoggedVersion().SegmentId == sealedVersion.SegmentId) {
-                DecoratedAutomaton_->SetLoggedVersion(sealedVersion);
-            }
+        TVersion sealedVersion(changelogId, remoteRecordCount);
+        if (DecoratedAutomaton_->GetLoggedVersion().SegmentId == sealedVersion.SegmentId) {
+            DecoratedAutomaton_->SetLoggedVersion(sealedVersion);
         }
     } else if (localRecordCount < syncRecordCount) {
         auto asyncResult = DownloadChangelog(

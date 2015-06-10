@@ -366,14 +366,6 @@ public:
         return CurrentFilePosition_;
     }
 
-    bool IsSealed() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        std::lock_guard<std::mutex> guard(Mutex_);
-        return Sealed_;
-    }
-
     TInstant GetLastFlushed()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -906,11 +898,6 @@ i64 TSyncFileChangelog::GetDataSize() const
 const TChangelogMeta& TSyncFileChangelog::GetMeta() const
 {
     return Impl_->GetMeta();
-}
-
-bool TSyncFileChangelog::IsSealed() const
-{
-    return Impl_->IsSealed();
 }
 
 void TSyncFileChangelog::Append(
