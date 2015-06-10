@@ -180,7 +180,11 @@ public:
             Host->GetExecNodeCount());
         auto limits = Min(totalLimits, ResourceLimits());
 
-        Attributes_.DominantResource = GetDominantResource(usage, totalLimits);
+        if (usage == ZeroNodeResources()) {
+            Attributes_.DominantResource = GetDominantResource(demand, totalLimits);
+        } else {
+            Attributes_.DominantResource = GetDominantResource(usage, totalLimits);
+        }
 
         i64 dominantDemand = GetResource(demand, Attributes_.DominantResource);
         i64 dominantUsage = GetResource(usage, Attributes_.DominantResource);
