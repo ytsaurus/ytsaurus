@@ -100,7 +100,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
                 user=user))
     response.wait()
     if not response.is_ok():
-        error = YtError(response.error())
+        error = YtError(**response.error())
         print >>sys.stderr, str(error)
         print >>sys.stderr
         raise error
