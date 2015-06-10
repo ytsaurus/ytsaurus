@@ -189,6 +189,7 @@ private:
     //! Number of nodes that are still alive.
     int AliveNodeCount_ = 0;
 
+    const int UploadReplicationFactor_;
     const int MinUploadReplicationFactor_;
 
     //! A new group of blocks that is currently being filled in by the client.
@@ -456,6 +457,7 @@ TReplicationWriter::TReplicationWriter(
     , Throttler_(throttler)
     , BlockCache_(blockCache)
     , WindowSlots_(config->SendWindowSize)
+    , UploadReplicationFactor_(Config_->UploadReplicationFactor)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
 {
     Logger.AddTag("ChunkId: %v, ChunkWriter: %v", ChunkId_, this);
@@ -489,9 +491,9 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
 
     auto req = proxy.AllocateWriteTargets();
     int activeTargets = Nodes_.size();
-    req->set_desired_target_count(Config_->UploadReplicationFactor - activeTargets);
-    req->set_min_target_count(std::max(Config_->MinUploadReplicationFactor - activeTargets, 1));
-    req->set_replication_factor_override(Config_->UploadReplicationFactor);
+    req->set_desired_target_count(UploadReplicationFactor_ - activeTargets);
+    req->set_min_target_count(std::max(MinUploadReplicationFactor_ - activeTargets, 1));
+    req->set_replication_factor_override(UploadReplicationFactor_);
     if (Config_->PreferLocalHost) {
         req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
     }
@@ -586,7 +588,7 @@ void TReplicationWriter::DoOpen()
     try {
         StartSessions(InitialTargets_);
 
-        while (Nodes_.size() < Config_->UploadReplicationFactor) {
+        while (Nodes_.size() < UploadReplicationFactor_) {
             StartSessions(AllocateTargets());
         }
 
