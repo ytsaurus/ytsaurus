@@ -13,16 +13,16 @@ using namespace NYson;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-const int TChannelWriter::MaxUpperReserveLimit = 256 * 1024;
+const i64 TChannelWriter::MaxUpperReserveLimit = 256 * 1024;
 // More than lf_alloc small block size.
-const int TChannelWriter::MinUpperReserveLimit = 64 * 1024 + 1;
+const i64 TChannelWriter::MinUpperReserveLimit = 64 * 1024 + 1;
 static const int RangeSizesChunk = 1024;
 
 TChannelWriter::TChannelWriter(
     int bufferIndex,
     int fixedColumnCount,
     bool writeRangeSizes,
-    int upperReserveLimit)
+    i64 upperReserveLimit)
     : BufferIndex_(bufferIndex)
     , HeapIndex_(bufferIndex)
     , FixedColumns(fixedColumnCount, TChunkedOutputStream(upperReserveLimit, upperReserveLimit))

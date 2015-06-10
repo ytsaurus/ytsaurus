@@ -17,8 +17,8 @@ class TChannelWriter
     DEFINE_BYVAL_RW_PROPERTY(int, HeapIndex);
 
 public:
-    static const int MaxUpperReserveLimit;
-    static const int MinUpperReserveLimit;
+    static const i64 MaxUpperReserveLimit;
+    static const i64 MinUpperReserveLimit;
 
     typedef TIntrusivePtr<TChannelWriter> TPtr;
 
@@ -26,7 +26,7 @@ public:
         int bufferIndex,
         int fixedColumnCount,
         bool writeRangeSizes = false,
-        int upperReserveLimit = MaxUpperReserveLimit);
+        i64 upperReserveLimit = MaxUpperReserveLimit);
 
     void WriteFixed(int fixedIndex, const TStringBuf& value);
     void WriteRange(const TStringBuf& name, const TStringBuf& value);

@@ -69,9 +69,9 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     }
     *ChannelsExt.add_items()->mutable_channel() = TChannel::Universal().ToProto();
 
-    int upperReserveLimit = TChannelWriter::MaxUpperReserveLimit;
+    i64 upperReserveLimit = TChannelWriter::MaxUpperReserveLimit;
     {
-        int averageBufferSize = config->MaxBufferSize / Partitioner->GetPartitionCount() / 2;
+        i64 averageBufferSize = config->MaxBufferSize / Partitioner->GetPartitionCount() / 2;
         while (upperReserveLimit > averageBufferSize) {
             upperReserveLimit = std::max(upperReserveLimit >> 1, averageBufferSize);
         }
