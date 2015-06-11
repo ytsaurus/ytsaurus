@@ -115,6 +115,9 @@ bool TLocation::IsChunkTypeAccepted(EObjectType chunkType)
         case EObjectType::JournalChunk:
             return Config_->EnableJournals;
 
+        case EObjectType::Artifact:
+            return Config_->EnableArtifacts;
+
         default:
             YUNREACHABLE();
     }
@@ -228,6 +231,12 @@ std::vector<Stroka> TLocation::GetChunkPartNames(const TChunkId& chunkId) const
                 primaryName,
                 primaryName + "." + ChangelogIndexExtension,
                 primaryName + "." + SealedFlagExtension
+            };
+
+        case EObjectType::Artifact:
+            return {
+                primaryName,
+                primaryName + ArtifactMetaSuffix
             };
 
         default:
@@ -423,6 +432,10 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
                 maybeDescriptor = RepairJournalChunk(chunkId);
                 break;
 
+            case EObjectType::Artifact:
+                maybeDescriptor = RepairArtifact(chunkId);
+                break;
+
             default:
                 LOG_WARNING("Invalid type %Qlv of chunk %v, skipped",
                     chunkType,
@@ -546,6 +559,42 @@ TNullable<TChunkDescriptor> TLocation::RepairJournalChunk(const TChunkId& chunkI
         NFS::Replace(indexFileName, trashIndexFileName);
     }
 
+    return Null;
+}
+
+TNullable<TChunkDescriptor> TLocation::RepairArtifact(const TChunkId& chunkId)
+{
+    auto fileName = GetChunkPath(chunkId);
+
+    auto dataFileName = fileName;
+    auto metaFileName = fileName + ArtifactMetaSuffix;
+
+    bool hasData = NFS::Exists(dataFileName);
+    bool hasMeta = NFS::Exists(metaFileName);
+
+    if (hasMeta && hasData) {
+        i64 dataSize = NFS::GetFileStatistics(dataFileName).Size;
+        i64 metaSize = NFS::GetFileStatistics(metaFileName).Size;
+        if (metaSize > 0) {
+            TChunkDescriptor descriptor;
+            descriptor.Id = chunkId;
+            descriptor.DiskSpace = dataSize + metaSize;
+            return descriptor;
+        }
+        LOG_WARNING("Artifact meta file %v is empty, removing artifact files",
+            metaFileName);
+    } else if (hasData && !hasMeta) {
+        LOG_WARNING("Artifact meta file %v is missing, removing data file %v",
+            metaFileName,
+            dataFileName);
+    } else if (!hasData && hasMeta) {
+        LOG_WARNING("Artifact data file %v is missing, removing meta file %v",
+            dataFileName,
+            metaFileName);
+    }
+
+    NFS::Remove(dataFileName);
+    NFS::Remove(metaFileName);
     return Null;
 }
 

@@ -8,6 +8,7 @@
 #include "chunk_store.h"
 #include "chunk_cache.h"
 #include "session_manager.h"
+#include "artifact.h"
 
 #include <core/rpc/client.h>
 
@@ -60,6 +61,7 @@ using namespace NTabletNode;
 using namespace NHydra;
 using namespace NHive;
 using namespace NObjectClient;
+using namespace NChunkClient;
 using namespace NCellNode;
 
 using NNodeTrackerClient::TAddressMap;
@@ -366,7 +368,9 @@ void TMasterConnector::SendFullNodeHeartbeat()
     }
 
     for (const auto& chunk : Bootstrap_->GetChunkCache()->GetChunks()) {
-        *request->add_chunks() = BuildAddChunkInfo(chunk);
+        if (!IsArtifactChunkId(chunk->GetId())) {
+            *request->add_chunks() = BuildAddChunkInfo(chunk);
+        }
     }
 
     AddedSinceLastSuccess_.clear();
@@ -695,6 +699,9 @@ void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
     if (State_ == EState::Offline)
         return;
 
+    if (IsArtifactChunkId(chunk->GetId()))
+        return;
+
     RemovedSinceLastSuccess_.erase(chunk);
     AddedSinceLastSuccess_.insert(chunk);
 
@@ -707,6 +714,9 @@ void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (State_ == EState::Offline)
+        return;
+
+    if (IsArtifactChunkId(chunk->GetId()))
         return;
 
     AddedSinceLastSuccess_.erase(chunk);
