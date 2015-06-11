@@ -376,7 +376,7 @@ private:
     virtual std::vector<TChunkId> DumpInputContext() override
     {
         if (!Prepared_) {
-            THROW_ERROR_EXCEPTION("Cannot dump input context: job pipes are not prepared yet");
+            THROW_ERROR_EXCEPTION("Cannot dump job context: job pipes haven't been prepared yet");
         }
 
         auto asyncContexts = BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))
@@ -430,6 +430,10 @@ private:
 
     virtual TYsonString Strace() override
     {
+        if (!Prepared_) {
+            THROW_ERROR_EXCEPTION("Job has not started yet");
+        }
+
         std::vector<int> pids;
 
         {

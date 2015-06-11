@@ -101,7 +101,7 @@ void TJobProxy::ValidateJobId(const TJobId& jobId)
     }
 
     if (!Job_) {
-        THROW_ERROR_EXCEPTION("Job is not started yet");
+        THROW_ERROR_EXCEPTION("Job has not started yet");
     }
 }
 
