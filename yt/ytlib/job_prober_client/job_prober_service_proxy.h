@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include <ytlib/job_prober_client/job_prober_service.pb.h>
 
 #include <core/rpc/client.h>
