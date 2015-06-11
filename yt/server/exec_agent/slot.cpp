@@ -250,42 +250,6 @@ void TSlot::LogErrorAndExit(const TError& error)
     _exit(1);
 }
 
-void TSlot::MakeFile(
-    const Stroka& fileName,
-    std::function<void (TOutputStream*)> dataProducer,
-    bool isExecutable)
-{
-    auto path = NFS::CombinePaths(SandboxPath_, fileName);
-
-    auto error = TError("Failed to create a file in the slot %Qv (FileName: %Qv, IsExecutable: %lv)",
-        path,
-        fileName,
-        isExecutable);
-
-    try {
-        // NB! Races are possible between file creation and call to flock.
-        // Unfortunately in Linux we cannot make it atomically.
-        TFile file(path, CreateAlways | CloseOnExec);
-        file.Flock(LOCK_EX | LOCK_NB);
-        TFileOutput fileOutput(file);
-
-        // Producer may throw non IO-related exceptions, that we do not handle.
-        dataProducer(&fileOutput);
-        NFS::SetExecutableMode(path, isExecutable);
-    } catch (const TFileError& ex) {
-        LogErrorAndExit(error << TError(ex.what()));
-    }
-
-    try {
-        // Take exclusive lock in blocking fashion to ensure that no
-        // forked process is holding an open descriptor.
-        TFile file(path, RdOnly | CloseOnExec);
-        file.Flock(LOCK_EX);
-    } catch (const std::exception& ex) {
-        LogErrorAndExit(error << ex);
-    }
-}
-
 const Stroka& TSlot::GetWorkingDirectory() const
 {
     return Path_;

@@ -202,6 +202,7 @@ private:
     std::vector<TChunkDescriptor> DoScan();
     TNullable<TChunkDescriptor> RepairBlobChunk(const TChunkId& chunkId);
     TNullable<TChunkDescriptor> RepairJournalChunk(const TChunkId& chunkId);
+    TNullable<TChunkDescriptor> RepairArtifact(const TChunkId& chunkId);
 
     void DoStart();
 
