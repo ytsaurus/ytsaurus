@@ -127,33 +127,15 @@ void TOperationControllerBase::TIntermediateTable::Persist(TPersistenceContext& 
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TUserFileBase::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Path);
     Persist(context, Stage);
     Persist(context, FileName);
-}
-
-////////////////////////////////////////////////////////////////////
-
-void TOperationControllerBase::TRegularUserFile::Persist(TPersistenceContext& context)
-{
-    TUserFileBase::Persist(context);
-
-    using NYT::Persist;
     Persist(context, FetchResponse);
+    Persist(context, Type);
     Persist(context, Executable);
-}
-
-////////////////////////////////////////////////////////////////////
-
-void TOperationControllerBase::TUserTableFile::Persist(TPersistenceContext& context)
-{
-    TUserFileBase::Persist(context);
-
-    using NYT::Persist;
-    Persist(context, FetchResponse);
     Persist(context, Format);
 }
 
@@ -2567,15 +2549,12 @@ void TOperationControllerBase::ValidateFileTypes()
 
         const auto& rsp = rspOrError.Value();
         auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
-        TUserFileBase* file;
+        TUserFile* file;
         switch (type) {
             case EObjectType::File:
-                RegularFiles.push_back(TRegularUserFile());
-                file = &RegularFiles.back();
-                break;
             case EObjectType::Table:
-                TableFiles.push_back(TUserTableFile());
-                file = &TableFiles.back();
+                Files.push_back(TUserFile());
+                file = &Files.back();
                 break;
             default:
                 THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
@@ -2584,6 +2563,7 @@ void TOperationControllerBase::ValidateFileTypes()
                     EObjectType::Table,
                     type);
         }
+        file->Type = type;
         file->Stage = stage;
         file->Path = richPath;
     }
@@ -2847,52 +2827,43 @@ void TOperationControllerBase::FetchFileObjects()
 
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& file : RegularFiles) {
+    for (const auto& file : Files) {
         auto path = file.Path.GetPath();
         auto req = TFileYPathProxy::Fetch(path);
         ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
+        switch (file.Type) {
+            case EObjectType::Table:
+                req->set_fetch_all_meta_extensions(true);
+                InitializeFetchRequest(req.Get(), file.Path);
+                break;
+            case EObjectType::File:
+                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                break;
+            default:
+                YUNREACHABLE();
+        }
         SetTransactionId(req, Operation->GetInputTransaction());
-        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-        batchReq->AddRequest(req, "fetch_regular_files");
-    }
-
-    for (const auto& file : TableFiles) {
-        auto path = file.Path.GetPath();
-        auto req = TTableYPathProxy::Fetch(path);
-        ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
-        req->set_fetch_all_meta_extensions(true);
-        InitializeFetchRequest(req.Get(), file.Path);
-        SetTransactionId(req, Operation->GetInputTransaction());
-        batchReq->AddRequest(req, "fetch_table_files");
+        batchReq->AddRequest(req, "fetch_files");
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error requesting file objects");
     const auto& batchRsp = batchRspOrError.Value();
 
-    auto fetchRegularFileRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_regular_files");
-    for (int index = 0; index < static_cast<int>(RegularFiles.size()); ++index) {
-        auto& file = RegularFiles[index];
-        const auto& rspOrError = fetchRegularFileRsps[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching regular file %v", file.Path.GetPath());
+    auto fetchFileRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_files");
+    for (int index = 0; index < static_cast<int>(Files.size()); ++index) {
+        auto& file = Files[index];
+        const auto& rspOrError = fetchFileRsps[index];
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching user file %v", file.Path.GetPath());
 
         const auto& rsp = rspOrError.Value();
         file.FetchResponse.Swap(rsp.Get());
 
-        LOG_INFO("Regular file fetched (Path: %v)", file.Path.GetPath());
-    }
+        if (file.Type == EObjectType::Table) {
+            NodeDirectory->MergeFrom(rsp->node_directory());
+        }
 
-    auto fetchTableFileRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_table_files");
-    for (int index = 0; index < static_cast<int>(TableFiles.size()); ++index) {
-        auto& file = TableFiles[index];
-        const auto& rspOrError = fetchTableFileRsps[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching table file chunks");
-
-        const auto& rsp = rspOrError.Value();
-        NodeDirectory->MergeFrom(rsp->node_directory());
-
-        file.FetchResponse.Swap(rsp.Get());
-        LOG_INFO("Table file fetched (Path: %v)", file.Path.GetPath());
+        LOG_INFO("User file fetched (Path: %v)", file.Path.GetPath());
     }
 }
 
@@ -2905,55 +2876,32 @@ void TOperationControllerBase::RequestFileObjects()
 
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& file : RegularFiles) {
+    for (const auto& file : Files) {
         auto path = file.Path.GetPath();
         {
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(static_cast<int>(ELockMode::Snapshot));
             GenerateMutationId(req);
             SetTransactionId(req, Operation->GetInputTransaction());
-            batchReq->AddRequest(req, "lock_regular_file");
+            batchReq->AddRequest(req, "lock_file");
         }
         {
             auto req = TYPathProxy::GetKey(path);
             SetTransactionId(req, Operation->GetInputTransaction());
-            batchReq->AddRequest(req, "get_regular_file_name");
+            batchReq->AddRequest(req, "get_file_name");
         }
         {
             auto req = TYPathProxy::Get(path);
             SetTransactionId(req, Operation->GetOutputTransaction());
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
-            attributeFilter.Keys.push_back("executable");
-            attributeFilter.Keys.push_back("file_name");
+            if (file.Type == EObjectType::File) {
+                attributeFilter.Keys.push_back("executable");
+                attributeFilter.Keys.push_back("file_name");
+            }
             attributeFilter.Keys.push_back("chunk_count");
             attributeFilter.Keys.push_back("uncompressed_data_size");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
-            batchReq->AddRequest(req, "get_regular_file_attributes");
-        }
-    }
-
-    for (const auto& file : TableFiles) {
-        auto path = file.Path.GetPath();
-        {
-            auto req = TCypressYPathProxy::Lock(path);
-            req->set_mode(static_cast<int>(ELockMode::Snapshot));
-            GenerateMutationId(req);
-            SetTransactionId(req, Operation->GetInputTransaction());
-            batchReq->AddRequest(req, "lock_table_file");
-        }
-        {
-            auto req = TYPathProxy::GetKey(path);
-            SetTransactionId(req, Operation->GetInputTransaction());
-            batchReq->AddRequest(req, "get_table_file_name");
-        }
-        {
-            auto req = TYPathProxy::Get(path);
-            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
-            attributeFilter.Keys.push_back("chunk_count");
-            attributeFilter.Keys.push_back("uncompressed_data_size");
-            ToProto(req->mutable_attribute_filter(), attributeFilter);
-            SetTransactionId(req, Operation->GetInputTransaction());
-            batchReq->AddRequest(req, "get_table_file_attributes");
+            batchReq->AddRequest(req, "get_file_attributes");
         }
     }
 
@@ -2962,7 +2910,7 @@ void TOperationControllerBase::RequestFileObjects()
     const auto& batchRsp = batchRspOrError.Value();
 
     TEnumIndexedVector<yhash_set<Stroka>, EOperationStage> userFileNames;
-    auto validateUserFileName = [&] (const TUserFileBase& userFile) {
+    auto validateUserFileName = [&] (const TUserFile& userFile) {
         // TODO(babenko): more sanity checks?
         auto path = userFile.Path.GetPath();
         const auto& fileName = userFile.FileName;
@@ -2978,46 +2926,53 @@ void TOperationControllerBase::RequestFileObjects()
     };
 
     {
-        auto lockRegularFileRspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_regular_file");
-        auto getRegularFileNameRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_regular_file_name");
-        auto getRegularFileAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_regular_file_attributes");
-        for (int index = 0; index < static_cast<int>(RegularFiles.size()); ++index) {
-            auto& file = RegularFiles[index];
+        auto lockFileRspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_file");
+        auto getFileNameRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_file_name");
+        auto getFileAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_file_attributes");
+        for (int index = 0; index < static_cast<int>(Files.size()); ++index) {
+            auto& file = Files[index];
             auto path = file.Path.GetPath();
             {
-                const auto& rspOrError = lockRegularFileRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locking regular file %v",
+                const auto& rspOrError = lockFileRspsOrError[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locking user file %v",
                     path);
 
-                LOG_INFO("Regular file locked (Path: %v)",
+                LOG_INFO("User file locked (Path: %v)",
                     path);
             }
             {
-                const auto& rspOrError = getRegularFileNameRspsOrError[index];
+                const auto& rspOrError = getFileNameRspsOrError[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     rspOrError,
-                    "Error getting file name for regular file %v",
+                    "Error getting file name for user file %v",
                     path);
-
                 const auto& rsp = rspOrError.Value();
-                file.FileName = rsp->value();
+                if (file.Type == EObjectType::File) {
+                    file.FileName = rsp->value();
+                } else {
+                    auto key = ConvertTo<Stroka>(TYsonString(rsp->value()));
+                    file.FileName = file.Path.Attributes().Get<Stroka>("file_name", key);
+                    file.Format = file.Path.Attributes().GetYson("format");
+                }
             }
             {
-                const auto& rspOrError = getRegularFileAttributesRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes for regular file %v",
+                const auto& rspOrError = getFileAttributesRspsOrError[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes for user file %v",
                     path);
 
                 const auto& rsp = rspOrError.Value();
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
 
-                file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
-                file.Executable = attributes.Get<bool>("executable", false);
+                if (file.Type == EObjectType::File) {
+                    file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
+                    file.Executable = attributes.Get<bool>("executable", false);
+                }
 
                 i64 fileSize = attributes.Get<i64>("uncompressed_data_size");
                 if (fileSize > Config->MaxFileSize) {
                     THROW_ERROR_EXCEPTION(
-                        "Regular file %v exceeds size limit: %v > %v",
+                        "User file %v exceeds size limit: %v > %v",
                         path,
                         fileSize,
                         Config->MaxFileSize);
@@ -3026,79 +2981,19 @@ void TOperationControllerBase::RequestFileObjects()
                 i64 chunkCount = attributes.Get<i64>("chunk_count");
                 if (chunkCount > Config->MaxChunkCountPerFetch) {
                     THROW_ERROR_EXCEPTION(
-                        "Regular file %v exceeds chunk count limit: %v > %v",
+                        "User file %v exceeds chunk count limit: %v > %v",
                         path,
                         chunkCount,
                         Config->MaxChunkCountPerFetch);
                 }
 
-                LOG_INFO("Regular file attributes received (Path: %v)", path);
+                LOG_INFO("User file attributes received (Path: %v)", path);
             }
 
-            file.FileName = file.Path.Attributes().Get<Stroka>("file_name", file.FileName);
-            file.Executable = file.Path.Attributes().Get<bool>("executable", file.Executable);
-
-            validateUserFileName(file);
-        }
-    }
-
-    {
-        auto lockTableFileRspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_table_file");
-        auto getTableFileNameRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_table_file_name");
-        auto getTableFileAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_table_file_attributes");
-        for (int index = 0; index < static_cast<int>(TableFiles.size()); ++index) {
-            auto& file = TableFiles[index];
-            auto path = file.Path.GetPath();
-            {
-                const auto& rspOrError = lockTableFileRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locking table file %v",
-                    path);
-
-                LOG_INFO("Table file locked (Path: %v)",
-                    path);
+            if (file.Type == EObjectType::File) {
+                file.FileName = file.Path.Attributes().Get<Stroka>("file_name", file.FileName);
+                file.Executable = file.Path.Attributes().Get<bool>("executable", file.Executable);
             }
-            {
-                const auto& rspOrError = getTableFileNameRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting table file name");
-                const auto& rsp = rspOrError.Value();
-
-                auto key = ConvertTo<Stroka>(TYsonString(rsp->value()));
-                file.FileName = file.Path.Attributes().Get<Stroka>("file_name", key);
-                file.Format = file.Path.Attributes().GetYson("format");
-            }
-            {
-                const auto& rspOrError = getTableFileAttributesRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting table file attributes");
-                const auto& rsp = rspOrError.Value();
-
-                auto node = ConvertToNode(TYsonString(rsp->value()));
-                const auto& attributes = node->Attributes();
-
-                i64 tableFileSize = attributes.Get<i64>("uncompressed_data_size");
-                if (tableFileSize > Config->MaxFileSize) {
-                    THROW_ERROR_EXCEPTION(
-                        "Table file %v exceeds size limit: %v > %v",
-                        path,
-                        tableFileSize,
-                        Config->MaxFileSize);
-                }
-
-                i64 chunkCount = attributes.Get<i64>("chunk_count");
-                if (chunkCount > Config->MaxChunkCountPerFetch) {
-                    THROW_ERROR_EXCEPTION(
-                        "Table file %v exceeds chunk count limit: %v > %v",
-                        path,
-                        chunkCount,
-                        Config->MaxChunkCountPerFetch);
-                }
-
-                LOG_INFO("Table file attributes received (Path: %v, FileName: %v, Format: %v, Size: %v)",
-                    path,
-                    file.FileName,
-                    file.Format.Data(),
-                    tableFileSize);
-            }
-
             validateUserFileName(file);
         }
     }
@@ -3542,8 +3437,7 @@ int TOperationControllerBase::SuggestJobCount(
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TUserJobSpecPtr config,
-    const std::vector<TRegularUserFile>& regularFiles,
-    const std::vector<TUserTableFile>& tableFiles)
+    const std::vector<TUserFile>& files)
 {
     jobSpec->set_shell_command(config->Command);
     jobSpec->set_memory_limit(config->MemoryLimit);
@@ -3597,18 +3491,21 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         chunkSpecs->MergeFrom(response.chunks());
     };
 
-    for (const auto& file : regularFiles) {
-        auto *descriptor = jobSpec->add_regular_files();
-        descriptor->set_executable(file.Executable);
+    for (const auto& file : files) {
+        auto *descriptor = jobSpec->add_files();
+        descriptor->set_type(static_cast<int>(file.Type));
         descriptor->set_file_name(file.FileName);
         registerChunks(file.FetchResponse, descriptor->mutable_chunks());
-    }
-
-    for (const auto& file : tableFiles) {
-        auto* descriptor = jobSpec->add_table_files();
-        descriptor->set_file_name(file.FileName);
-        descriptor->set_format(file.Format.Data());
-        registerChunks(file.FetchResponse, descriptor->mutable_chunks());
+        switch (file.Type) {
+            case EObjectType::File:
+                descriptor->set_executable(file.Executable);
+                break;
+            case EObjectType::Table:
+                descriptor->set_format(file.Format.Data());
+                break;
+            default:
+                YUNREACHABLE();
+        }
     }
 
     nodeDirectory->DumpTo(jobSpec->mutable_node_directory());
@@ -3763,9 +3660,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, IntermediateTable);
 
-    Persist(context, RegularFiles);
-
-    Persist(context, TableFiles);
+    Persist(context, Files);
 
     Persist(context, Tasks);
 

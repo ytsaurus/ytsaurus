@@ -3,6 +3,7 @@
 #include "public.h"
 #include "chunk_detail.h"
 #include "block_store.h"
+#include "artifact.h"
 
 #include <core/misc/async_cache.h>
 
@@ -112,7 +113,7 @@ DEFINE_REFCOUNTED_TYPE(TStoredBlobChunk)
 //! A blob chunk owned by TChunkCache.
 class TCachedBlobChunk
     : public TBlobChunkBase
-    , public TAsyncCacheValueBase<TChunkId, TCachedBlobChunk>
+    , public TAsyncCacheValueBase<TArtifactKey, TCachedBlobChunk>
 {
 public:
     TCachedBlobChunk(
@@ -120,6 +121,7 @@ public:
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         const NChunkClient::NProto::TChunkMeta* meta,
+        const TArtifactKey& key,
         TClosure destroyed);
 
     ~TCachedBlobChunk();

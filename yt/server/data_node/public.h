@@ -26,6 +26,8 @@ struct TSessionOptions;
 class TPendingReadSizeGuard;
 class TChunkReadGuard;
 
+class TArtifactKey;
+
 DECLARE_REFCOUNTED_CLASS(TMasterConnector)
 
 DECLARE_REFCOUNTED_CLASS(TChunkStore)

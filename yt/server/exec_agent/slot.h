@@ -56,12 +56,6 @@ public:
         const Stroka& linkName,
         bool isExecutable) noexcept;
 
-    //! Writes to a file #fileName in the sandbox; #dataProducer provides the data.
-    void MakeFile(
-        const Stroka& fileName,
-        std::function<void (TOutputStream*)> dataProducer,
-        bool isExecutable = false);
-
     const Stroka& GetWorkingDirectory() const;
 
 private:

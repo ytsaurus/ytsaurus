@@ -38,6 +38,7 @@
 #include <server/data_node/chunk_cache.h>
 #include <server/data_node/block_store.h>
 #include <server/data_node/master_connector.h>
+#include <server/data_node/artifact.h>
 
 #include <server/job_agent/job.h>
 
@@ -91,10 +92,6 @@ public:
         , ResourceUsage(resourceUsage)
     {
         JobSpec.Swap(&jobSpec);
-
-        NodeDirectory->AddDescriptor(
-            InvalidNodeId,
-            Bootstrap->GetMasterConnector()->GetLocalDescriptor());
 
         Logger.AddTag("JobId: %v, JobType: %v",
             GetId(),
@@ -461,12 +458,8 @@ private:
 
         NodeDirectory->MergeFrom(userJobSpec.node_directory());
 
-        for (const auto& descriptor : userJobSpec.regular_files()) {
-            PrepareRegularFile(descriptor);
-        }
-
-        for (const auto& descriptor : userJobSpec.table_files()) {
-            PrepareTableFile(descriptor);
+        for (const auto& descriptor : userJobSpec.files()) {
+            PrepareFile(descriptor);
         }
     }
 
@@ -536,83 +529,21 @@ private:
         FinalizeJob();
     }
 
-    void DownloadChunks(const google::protobuf::RepeatedPtrField<TChunkSpec>& chunks)
+    void PrepareFile(const TFileDescriptor& descriptor)
     {
-        auto chunkCache = Bootstrap->GetChunkCache();
-
-        std::vector<TFuture<IChunkPtr>> asyncResults;
-        for (const auto chunk : chunks) {
-            auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
-            auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunk.replicas());
-
-            if (IsErasureChunkId(chunkId)) {
-                THROW_ERROR_EXCEPTION("Some files and/or tables required by job contain erasure chunks");
-            }
-
-            asyncResults.push_back(chunkCache->DownloadChunk(
-                chunkId,
-                NodeDirectory,
-                seedReplicas));
-        }
-
-        auto resultsOrError = WaitFor(Combine(asyncResults));
-        THROW_ERROR_EXCEPTION_IF_FAILED(resultsOrError, "Error downloading chunks required by job");
-
-        const auto& results = resultsOrError.Value();
-        CachedChunks.insert(CachedChunks.end(), results.begin(), results.end());
-    }
-
-    std::vector<TChunkSpec> PatchCachedChunkReplicas(const google::protobuf::RepeatedPtrField<TChunkSpec>& chunks)
-    {
-        std::vector<TChunkSpec> result;
-        result.insert(result.end(), chunks.begin(), chunks.end());
-        for (auto& chunk : result) {
-            chunk.clear_replicas();
-            chunk.add_replicas(ToProto<ui32>(TChunkReplica(InvalidNodeId, 0)));
-        }
-        return result;
-    }
-
-    void PrepareRegularFile(const TRegularFileDescriptor& descriptor)
-    {
-        if (CanPrepareRegularFileViaSymlink(descriptor)) {
-            PrepareRegularFileViaSymlink(descriptor);
-        } else {
-            PrepareRegularFileViaDownload(descriptor);
-        }
-    }
-
-    bool CanPrepareRegularFileViaSymlink(const TRegularFileDescriptor& descriptor)
-    {
-        if (descriptor.chunks_size() != 1) {
-            return false;
-        }
-
-        const auto& chunk = descriptor.chunks(0);
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk.chunk_meta().extensions());
-        auto compressionCodecId = NCompression::ECodec(miscExt.compression_codec());
-        auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
-        return !IsErasureChunkId(chunkId) && (compressionCodecId == NCompression::ECodec::None);
-    }
-
-    void PrepareRegularFileViaSymlink(const TRegularFileDescriptor& descriptor)
-    {
-        const auto& chunkSpec = descriptor.chunks(0);
-        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-        auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
         const auto& fileName = descriptor.file_name();
+        LOG_INFO("Preparing user file (FileName: %v)",
+            fileName);
 
-        LOG_INFO("Preparing regular user file via symlink (FileName: %v, ChunkId: %v)",
-            fileName,
-            chunkId);
+        TArtifactKey key(descriptor);
+        auto chunkOrError = WaitFor(
+            Bootstrap->GetChunkCache()->PrepareArtifact(
+                key,
+                NodeDirectory));
 
-        auto chunkCache = Bootstrap->GetChunkCache();
-        auto chunkOrError = WaitFor(chunkCache->DownloadChunk(
-            chunkId,
-            NodeDirectory,
-            seedReplicas));
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
-        THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Failed to download user file %Qv",
+        THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
+            "Failed to prepare user file %Qv",
             fileName);
 
         const auto& chunk = chunkOrError.Value();
@@ -625,117 +556,12 @@ private:
                 descriptor.executable());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
-                "Failed to create a symlink for %Qv",
+                "Failed to create a symlink for user file %Qv",
                 fileName)
                 << ex;
         }
 
-        LOG_INFO("Regular user file prepared successfully (FileName: %v)",
-            fileName);
-    }
-
-    void PrepareRegularFileViaDownload(const TRegularFileDescriptor& descriptor)
-    {
-        const auto& fileName = descriptor.file_name();
-
-        LOG_INFO("Preparing regular user file via download (FileName: %v, ChunkCount: %v)",
-            fileName,
-            descriptor.chunks_size());
-
-        DownloadChunks(descriptor.chunks());
-        YCHECK(JobPhase == EJobPhase::PreparingFiles);
-
-        auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
-
-        auto reader = CreateFileMultiChunkReader(
-            New<TFileReaderConfig>(),
-            New<TMultiChunkReaderOptions>(),
-            Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
-            Bootstrap->GetBlockCache(),
-            NodeDirectory,
-            std::move(chunks));
-
-        try {
-            WaitFor(reader->Open())
-                .ThrowOnError();
-
-            auto producer = [&] (TOutputStream* output) {
-                TSharedRef block;
-                while (reader->ReadBlock(&block)) {
-                    if (block.Empty()) {
-                        WaitFor(reader->GetReadyEvent())
-                            .ThrowOnError();
-                    } else {
-                        output->Write(block.Begin(), block.Size());
-                    }
-                }
-            };
-
-            Slot->MakeFile(fileName, producer, descriptor.executable());
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to write regular user file %Qv",
-                fileName)
-                << ex;
-        }
-
-        LOG_INFO("Regular user file prepared successfully (FileName: %v)",
-            fileName);
-    }
-
-
-    void PrepareTableFile(const TTableFileDescriptor& descriptor)
-    {
-        const auto& fileName = descriptor.file_name();
-
-        LOG_INFO("Preparing user table file (FileName: %v, ChunkCount: %v)",
-            descriptor.file_name(),
-            descriptor.chunks_size());
-
-        DownloadChunks(descriptor.chunks());
-        YCHECK(JobPhase == EJobPhase::PreparingFiles);
-
-        auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
-
-        auto config = New<TTableReaderConfig>();
-        auto options = New<TMultiChunkReaderOptions>();
-        auto nameTable = New<TNameTable>();
-        auto reader = CreateSchemalessSequentialMultiChunkReader(
-            config,
-            options,
-            Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
-            Bootstrap->GetBlockCache(),
-            NodeDirectory,
-            chunks,
-            nameTable);
-
-        auto format = ConvertTo<NFormats::TFormat>(TYsonString(descriptor.format()));
-
-        try {
-            WaitFor(reader->Open()).ThrowOnError();
-
-            auto producer = [&] (TOutputStream* output) {
-                auto bufferedOutput = std::make_unique<TBufferedOutput>(output);
-                auto controlAttributesConfig = New<TControlAttributesConfig>();
-                auto writer = CreateSchemalessWriterForFormat(
-                    format,
-                    nameTable,
-                    std::move(bufferedOutput),
-                    false,
-                    false,
-                    0);
-                PipeReaderToWriter(reader, writer, controlAttributesConfig, 10000);
-            };
-
-            Slot->MakeFile(fileName, producer);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to write user table file %Qv",
-                fileName)
-                << ex;
-        }
-
-        LOG_INFO("User table file prepared successfully (FileName: %v)",
+        LOG_INFO("User file prepared successfully (FileName: %v)",
             fileName);
     }
 
