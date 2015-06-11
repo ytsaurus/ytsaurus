@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "hyperloglog_bias.h"
 
 namespace NYT {
 
@@ -73,6 +74,36 @@ void THyperLogLog<T, Hash, Precision>::Merge(const THyperLogLog<T, Hash, Precisi
     }
 }
 
+template <int Precision>
+static double EstimateBias(double cardinality)
+{
+    auto rawEstimates = RawEstimates[Precision - 4];
+    auto biasData = BiasData[Precision - 4];
+    auto size = Sizes[Precision - 4];
+
+    auto upperEstimate = std::lower_bound(rawEstimates, rawEstimates + size, cardinality);
+    int index = upperEstimate - rawEstimates;
+    if (*upperEstimate == cardinality) {
+        return biasData[index];
+    }
+
+    if (index == 0) {
+        return biasData[0];
+    } else if (index >= size) {
+        return biasData[size];
+    } else {
+        double w1 = cardinality - rawEstimates[index - 1];
+        double w2 = rawEstimates[index] - cardinality;
+        return (biasData[index - 1] * w1 + biasData[index] * w2) / (w1 + w2);
+    }
+}
+
+template <int Precision>
+static double Threshold()
+{
+    return Thresholds[Precision - 4];
+}
+
 template <typename T, ui64 (*Hash)(T), int Precision>
 ui64 THyperLogLog<T, Hash, Precision>::EstimateCardinality()
 {
@@ -91,8 +122,17 @@ ui64 THyperLogLog<T, Hash, Precision>::EstimateCardinality()
     double m = RegisterCount;
     double raw = (1.0 / sum) * m * m * alpha;
 
-    if (raw < 2.5 * m && zeroRegisters != 0) {
-        return m * log(m / zeroRegisters);
+    if (raw < 5 * m) {
+        raw -= EstimateBias<Precision>(raw);
+    }
+
+    double smallCardinality = raw;
+    if (zeroRegisters != 0) {
+        smallCardinality = m * log(m / zeroRegisters);
+    }
+
+    if (smallCardinality <= Threshold<Precision>()) {
+        return smallCardinality;
     } else {
         return raw;
     }
