@@ -42,50 +42,15 @@ class TTcpClientBusProxy
     : public IBus
 {
 public:
-    TTcpClientBusProxy(
-        TTcpBusClientConfigPtr config,
-        IMessageHandlerPtr handler)
-        : Config_(std::move(config))
-        , Handler_(std::move(handler))
-        , DispatcherThread_(TTcpDispatcher::TImpl::Get()->GetClientThread())
-        , Id_(TConnectionId::Create())
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(Config_);
-        YCHECK(Handler_);
-    }
+    explicit TTcpClientBusProxy(
+        TTcpConnectionPtr connection)
+        : Connection_(std::move(connection))
+    { }
 
     ~TTcpClientBusProxy()
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        if (Connection_) {
-            Connection_->Terminate(TError(NRpc::EErrorCode::TransportError, "Bus terminated"));
-        }
-    }
-
-    void Open()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto interfaceType = Config_->UnixDomainName ? ETcpInterfaceType::Remote : GetInterfaceType(Config_->Address.Get());
-
-        LOG_DEBUG("Connecting to %v (ConnectionId: %v, InterfaceType: %v)",
-            Config_->Address,
-            Id_,
-            interfaceType);
-
-        Connection_ = New<TTcpConnection>(
-            Config_,
-            DispatcherThread_,
-            EConnectionType::Client,
-            interfaceType,
-            Id_,
-            INVALID_SOCKET,
-            Config_->UnixDomainName.HasValue() ? Config_->UnixDomainName.Get() : Config_->Address.Get(),
-            Config_->UnixDomainName.HasValue(),
-            Config_->Priority,
-            Handler_);
-        DispatcherThread_->AsyncRegister(Connection_);
+        Connection_->Terminate(TError(NRpc::EErrorCode::TransportError, "Bus terminated"));
     }
 
     virtual TYsonString GetEndpointDescription() const override
@@ -119,22 +84,17 @@ public:
     }
 
 private:
-    TTcpBusClientConfigPtr Config_;
-    IMessageHandlerPtr Handler_;
-    TTcpDispatcherThreadPtr DispatcherThread_;
-    TConnectionId Id_;
-
     TTcpConnectionPtr Connection_;
 
-    static ETcpInterfaceType GetInterfaceType(const Stroka& address)
-    {
-        return
-            IsLocalServiceAddress(address)
-            ? ETcpInterfaceType::Local
-            : ETcpInterfaceType::Remote;
-    }
-
 };
+
+static ETcpInterfaceType GetInterfaceType(const Stroka& address)
+{
+    return
+        IsLocalServiceAddress(address)
+        ? ETcpInterfaceType::Local
+        : ETcpInterfaceType::Remote;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,11 +115,33 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto proxy = New<TTcpClientBusProxy>(
+        auto id = TConnectionId::Create();
+        auto dispatcherThread = TTcpDispatcher::TImpl::Get()->GetClientThread();
+
+        auto interfaceType = Config_->UnixDomainName
+             ? ETcpInterfaceType::Remote
+             : GetInterfaceType(Config_->Address.Get());
+
+        LOG_DEBUG("Connecting to %v (ConnectionId: %v, InterfaceType: %v)",
+            Config_->Address,
+            id,
+            interfaceType);
+
+        auto connection = New<TTcpConnection>(
             Config_,
-            std::move(handler));
-        proxy->Open();
-        return proxy;
+            dispatcherThread,
+            EConnectionType::Client,
+            interfaceType,
+            id,
+            INVALID_SOCKET,
+            Config_->UnixDomainName.HasValue() ? Config_->UnixDomainName.Get() : Config_->Address.Get(),
+            Config_->UnixDomainName.HasValue(),
+            Config_->Priority,
+            handler);
+
+        dispatcherThread->AsyncRegister(connection);
+
+        return New<TTcpClientBusProxy>(connection);
     }
 
 private:
