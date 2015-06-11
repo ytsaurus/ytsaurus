@@ -13,6 +13,12 @@
 #include <ytlib/api/connection.h>
 #include <ytlib/api/config.h>
 
+#include <ytlib/cypress_client/rpc_helpers.h>
+
+#include <ytlib/object_client/object_service_proxy.h>
+
+#include <ytlib/transaction_client/helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -22,10 +28,14 @@ using namespace NYPath;
 using namespace NChunkServer;
 using namespace NJobProxy;
 using namespace NChunkClient;
+using namespace NObjectClient;
+using namespace NCypressClient;
+using namespace NTransactionClient;
 using namespace NScheduler::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NApi;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -287,6 +297,62 @@ private:
         return std::vector<TPathWithStage>();
     }
 
+    void CopyAttributes()
+    {
+        if (InputTables.size() > 1) {
+            OnOperationFailed(TError("Attributes can be copied only in case of one input table"));
+            return;
+        }
+
+        IMapNodePtr attributes;
+        {
+            auto path = GetInputTablePaths()[0].GetPath();
+            auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+            TObjectServiceProxy proxy(channel);
+
+            auto req = TObjectYPathProxy::Get(path + "/@");
+            SetTransactionId(req, Operation->GetInputTransaction());
+
+            auto rsp = WaitFor(proxy.Execute(req));
+            if (!rsp.IsOK()) {
+                OnOperationFailed(TError("Error getting attributes of input table %v", path) << rsp);
+                return;
+            }
+            attributes = ConvertToNode(TYsonString(rsp.Value()->value()))->AsMap();
+        }
+
+        {
+            auto path = GetOutputTablePaths()[0].GetPath();
+            auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+            TObjectServiceProxy proxy(channel);
+            std::vector<Stroka> attributeKeys;
+            if (Spec_->AttributeKeys) {
+                attributeKeys = *Spec_->AttributeKeys;
+            } else {
+                attributeKeys = ConvertTo<std::vector<Stroka>>(attributes->GetChild("user_attribute_keys"));
+            }
+            auto batchReq = proxy.ExecuteBatch();
+            for (auto key : attributeKeys) {
+                auto req = TYPathProxy::Set(path + "/@" + key);
+                req->set_value(ConvertToYsonString(attributes->GetChild(key)).Data());
+                SetTransactionId(req, Operation->GetOutputTransaction());
+                batchReq->AddRequest(req);
+            }
+
+            auto error = TError("Error setting attributes for output table %v", path);
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            if (!batchRspOrError.IsOK()) {
+                OnOperationFailed(error << batchRspOrError);
+                return;
+            }
+            auto cumulativeError = GetCumulativeError(batchRspOrError);
+            if (!cumulativeError.IsOK()) {
+                OnOperationFailed(error << cumulativeError);
+                return;
+            }
+        }
+    }
+
     virtual void CustomPrepare() override
     {
         TOperationControllerBase::CustomPrepare();
@@ -322,6 +388,10 @@ private:
             return;
         }
 
+        if (Spec_->CopyAttributes) {
+            CopyAttributes();
+        }
+
         BuildTasks(stripes);
 
         LOG_INFO("Inputs processed");
@@ -329,7 +399,7 @@ private:
         InitJobIOConfig();
         InitJobSpecTemplate();
     }
-    
+
     void BuildTasks(const std::vector<TChunkStripePtr>& stripes)
     {
         auto addTask = [this] (const std::vector<TChunkStripePtr>& stripes, int index) {
