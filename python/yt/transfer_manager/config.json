@@ -1,5 +1,13 @@
 {
     "clusters": {
+        "quine": {
+            "type": "yt",
+            "options": {
+                "proxy": "quine.yt.yandex.net"
+            },
+            "version": 2,
+            "table_url_pattern": "http://yt.yandex.net/smith/#page=navigation&path=%table%"
+        }
         "smith": {
             "type": "yt",
             "options": {
@@ -180,8 +188,9 @@
     },
     "kiwi_transmitter": "flux",
     "availability_graph": {
+        "quine": ["cedar", "redwood", "plato", "smith"],
         "smith": ["cedar", "betula", "plato"],
-        "plato": ["cedar", "betula", "smith", "kiwi_apteryx", "kiwi_main"],
+        "plato": ["cedar", "betula", "smith", "kiwi_apteryx", "kiwi_main", "quine"],
         "marx": ["plato"],
         "cedar": ["smith", "plato", "redwood", "betula"],
         "betula": ["smith", "plato", "cedar", "redwood"],

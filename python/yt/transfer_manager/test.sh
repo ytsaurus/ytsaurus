@@ -73,7 +73,7 @@ wait_task() {
 }
 
 # Different transfers
-echo -e "a\tb" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
+echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
 
 echo "Importing from Smith to Cedar"
 id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test_table", "destination_cluster": "cedar"}')
@@ -102,6 +102,15 @@ wait_task $id
 check \
     "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)" \
     "$(yt2 read //tmp/test_table_from_plato --proxy smith.yt.yandex.net --format yamr)"
+
+echo "Importing from Cedar to Plato"
+# mr_user: asaitgalin because this user has zero quota
+id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table_from_cedar", "destination_cluster": "plato", "mr_user": "asaitgalin"}')
+wait_task $id
+
+check \
+    "$(yt2 read //tmp/test_table_from_cedar --proxy plato.yt.yandex.net --format yamr)" \
+    "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)"
 
 # Abort, restart
 yt2 remove //tmp/test_table_from_plato --proxy smith.yt.yandex.net --force
