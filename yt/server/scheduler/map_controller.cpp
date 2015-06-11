@@ -340,8 +340,7 @@ private:
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Mapper,
-            RegularFiles,
-            TableFiles);
+            Files);
 
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
 

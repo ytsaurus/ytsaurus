@@ -413,13 +413,14 @@ TCachedBlobChunk::TCachedBlobChunk(
     TLocationPtr location,
     const TChunkDescriptor& descriptor,
     const TChunkMeta* meta,
+    const TArtifactKey& key,
     TClosure destroyed)
     : TBlobChunkBase(
         bootstrap,
         location,
         descriptor,
         meta)
-    , TAsyncCacheValueBase<TChunkId, TCachedBlobChunk>(GetId())
+    , TAsyncCacheValueBase<TArtifactKey, TCachedBlobChunk>(key)
     , Destroyed_(destroyed)
 { }
 

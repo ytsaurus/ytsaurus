@@ -7,14 +7,15 @@
 #include "block_store.h"
 #include "config.h"
 #include "master_connector.h"
+#include "artifact.h"
 
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/misc/serialize.h>
 #include <core/misc/string.h>
 #include <core/misc/fs.h>
-
-#include <core/concurrency/thread_affinity.h>
+#include <core/misc/random.h>
 
 #include <core/logging/log.h>
 
@@ -27,21 +28,35 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 
+#include <ytlib/file_client/file_chunk_reader.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/schemaless_chunk_reader.h>
+#include <ytlib/new_table_client/helpers.h>
+
+#include <ytlib/formats/format.h>
+
 #include <ytlib/api/client.h>
+#include <ytlib/api/config.h>
 
 #include <server/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NDataNode {
 
+using namespace NYTree;
 using namespace NChunkClient;
+using namespace NObjectClient;
+using namespace NFileClient;
 using namespace NNodeTrackerClient;
+using namespace NVersionedTableClient;
 using namespace NCellNode;
 using namespace NRpc;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +65,7 @@ static const auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkCache::TImpl
-    : public TAsyncSlruCacheBase<TChunkId, TCachedBlobChunk>
+    : public TAsyncSlruCacheBase<TArtifactKey, TCachedBlobChunk>
 {
 public:
     TImpl(TDataNodeConfigPtr config, TBootstrap* bootstrap)
@@ -59,6 +74,7 @@ public:
             NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/chunk_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
+        , RandomGenerator_(TInstant::Now().MicroSeconds())
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
     }
@@ -79,10 +95,24 @@ public:
 
         auto descriptors = Location_->Scan();
         for (const auto& descriptor : descriptors) {
-            auto cookie = BeginInsert(descriptor.Id);
-            YCHECK(cookie.IsActive());
+            TArtifactKey key;
+            if (IsArtifactChunkId(descriptor.Id)) {
+                try {
+                    LoadArtifactMeta(descriptor.Id, &key);
+                } catch (const std::exception& ex) {
+                    auto error = TError("Error loading artifact meta %v",
+                        descriptor.Id)
+                        << ex;
+                    LOG_WARNING(error);
+                    continue;
+                }
+            } else {
+                key = TArtifactKey(descriptor.Id);
+            }
 
-            auto chunk = CreateChunk(Location_, descriptor);
+            auto cookie = BeginInsert(key);
+            YCHECK(cookie.IsActive());
+            auto chunk = CreateChunk(Location_, key, descriptor);
             cookie.EndInsert(chunk);
         }
 
@@ -99,35 +129,11 @@ public:
         return Location_->IsEnabled();
     }
 
-    TFuture<IChunkPtr> DownloadChunk(
-        const TChunkId& chunkId,
-        TNodeDirectoryPtr nodeDirectory,
-        const TChunkReplicaList& seedReplicas)
+    IChunkPtr FindChunk(const TChunkId& chunkId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_INFO("Getting chunk from cache (ChunkId: %v)",
-            chunkId);
-
-        auto cookie = BeginInsert(chunkId);
-        auto cookieValue = cookie.GetValue();
-        if (cookie.IsActive()) {
-            LOG_INFO("Loading chunk into cache (ChunkId: %v)",
-                chunkId);
-
-            auto invoker = CreateSerializedInvoker(Location_->GetWritePoolInvoker());
-            invoker->Invoke(BIND(
-                &TImpl::DoDownloadChunk,
-                MakeStrong(this),
-                chunkId,
-                nodeDirectory ? std::move(nodeDirectory) : New<TNodeDirectory>(),
-                seedReplicas,
-                Passed(std::move(cookie))));
-        } else {
-            LOG_INFO("Chunk is already cached (ChunkId: %v)",
-                chunkId);
-        }
-        return cookieValue.As<IChunkPtr>();
+        return Find(TArtifactKey(chunkId));
     }
 
     std::vector<IChunkPtr> GetChunks()
@@ -138,11 +144,40 @@ public:
         return std::vector<IChunkPtr>(chunks.begin(), chunks.end());
     }
 
+    TFuture<IChunkPtr> PrepareArtifact(
+        const TArtifactKey& key,
+        TNodeDirectoryPtr nodeDirectory)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        LOG_INFO("Getting artifact from cache: %v",
+            key.DebugString());
+
+        auto cookie = BeginInsert(key);
+        auto cookieValue = cookie.GetValue();
+        if (cookie.IsActive()) {
+            LOG_INFO("Loading artifact into cache");
+            auto invoker = CreateSerializedInvoker(Location_->GetWritePoolInvoker());
+            invoker->Invoke(BIND(
+                &TImpl::DoPrepareArtifact,
+                MakeStrong(this),
+                key,
+                nodeDirectory ? std::move(nodeDirectory) : New<TNodeDirectory>(),
+                Passed(std::move(cookie))));
+        } else {
+            LOG_INFO("Artifact is already cached");
+        }
+        return cookieValue.As<IChunkPtr>();
+    }
+
 private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
     TLocationPtr Location_;
+
+    TSpinLock RandomSpinLock_;
+    TRandomGenerator RandomGenerator_;
 
     DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
     DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
@@ -177,6 +212,7 @@ private:
 
     TCachedBlobChunkPtr CreateChunk(
         TLocationPtr location,
+        const TArtifactKey& key,
         const TChunkDescriptor& descriptor,
         const NChunkClient::NProto::TChunkMeta* meta = nullptr)
     {
@@ -185,7 +221,9 @@ private:
             Location_,
             descriptor,
             meta,
+            key,
             BIND(&TImpl::OnChunkDestroyed, MakeStrong(this), Location_, descriptor));
+
         OnChunkCreated(location, descriptor);
         return chunk;
     }
@@ -230,13 +268,79 @@ private:
         masterConnector->ForceRegister();
     }
 
+    TChunkId GenerateArtifactId()
+    {
+        TGuard<TSpinLock> guard(RandomSpinLock_);
 
-    void DoDownloadChunk(
-        const TChunkId& chunkId,
+        auto random = RandomGenerator_.Generate<i64>();
+        return TChunkId(
+            static_cast<int>(TInstant::Now().MicroSeconds()),
+            static_cast<int>(EObjectType::Artifact),
+            static_cast<int>(random >> 32),
+            static_cast<int>(random & 0xffffffffll));
+    }
+
+    bool CanPrepareSingleChunk(const TArtifactKey& key)
+    {
+        if (EObjectType(key.type()) != EObjectType::File) {
+            return false;
+        }
+        if (key.chunks_size() != 1) {
+            return false;
+        }
+
+        const auto& chunk = key.chunks(0);
+        if (chunk.has_lower_limit() && !IsTrivial(chunk.lower_limit())) {
+            return false;
+        }
+        if (chunk.has_upper_limit() && !IsTrivial(chunk.upper_limit())) {
+            return false;
+        }
+
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk.chunk_meta().extensions());
+        auto compressionCodecId = NCompression::ECodec(miscExt.compression_codec());
+        if (compressionCodecId != NCompression::ECodec::None) {
+            return false;
+        }
+
+        auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
+        if (IsErasureChunkId(chunkId)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    void DoPrepareArtifact(
+        const TArtifactKey& key,
         TNodeDirectoryPtr nodeDirectory,
-        const TChunkReplicaList& seedReplicas,
         TInsertCookie cookie)
     {
+        if (CanPrepareSingleChunk(key)) {
+            DownloadChunk(key, nodeDirectory, std::move(cookie));
+        } else {
+            switch (EObjectType(key.type())) {
+                case EObjectType::File:
+                    DownloadFile(key, nodeDirectory, std::move(cookie));
+                    break;
+                case EObjectType::Table:
+                    DownloadTable(key, nodeDirectory, std::move(cookie));
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
+        }
+    }
+
+    void DownloadChunk(
+        const TArtifactKey& key,
+        TNodeDirectoryPtr nodeDirectory,
+        TInsertCookie cookie)
+    {
+        const auto& chunkSpec = key.chunks(0);
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+
         auto Logger = DataNodeLogger;
         Logger.AddTag("ChunkId: %v", chunkId);
 
@@ -312,12 +416,11 @@ private:
 
             LOG_INFO("Chunk is downloaded into cache");
 
-            TChunkDescriptor descriptor;
-            descriptor.Id = chunkId;
+            TChunkDescriptor descriptor(chunkId);
             descriptor.DiskSpace = chunkWriter->GetChunkInfo().disk_space();
-
-            auto chunk = CreateChunk(Location_, descriptor, &chunkMeta);
+            auto chunk = CreateChunk(Location_, key, descriptor, &chunkMeta);
             cookie.EndInsert(chunk);
+
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading chunk %v into cache",
                 chunkId)
@@ -325,6 +428,160 @@ private:
             cookie.Cancel(error);
             LOG_WARNING(error);
         }
+    }
+
+    void DownloadFile(
+        const TArtifactKey& key,
+        TNodeDirectoryPtr nodeDirectory,
+        TInsertCookie cookie)
+    {
+        std::vector<TChunkSpec> chunkSpecs;
+        chunkSpecs.insert(chunkSpecs.end(), key.chunks().begin(), key.chunks().end());
+
+        auto reader = CreateFileMultiChunkReader(
+            New<TFileReaderConfig>(),
+            New<TMultiChunkReaderOptions>(),
+            Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
+            Bootstrap_->GetBlockCache(),
+            nodeDirectory,
+            chunkSpecs);
+
+        try {
+            WaitFor(reader->Open()).ThrowOnError();
+
+            auto producer = [&] (TOutputStream* output) {
+                TSharedRef block;
+                while (reader->ReadBlock(&block)) {
+                    if (block.Empty()) {
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
+                    } else {
+                        output->Write(block.Begin(), block.Size());
+                    }
+                }
+            };
+
+            auto chunk = ProduceArtifactFile(key, producer);
+            cookie.EndInsert(chunk);
+
+        } catch (const std::exception& ex) {
+            auto error = TError("Error downloading file artifact into cache: %v",
+                key.DebugString())
+                << ex;
+            cookie.Cancel(error);
+            LOG_WARNING(error);
+        }
+    }
+
+    void DownloadTable(
+        const TArtifactKey& key,
+        TNodeDirectoryPtr nodeDirectory,
+        TInsertCookie cookie)
+    {
+        auto nameTable = New<TNameTable>();
+
+        std::vector<TChunkSpec> chunkSpecs;
+        chunkSpecs.insert(chunkSpecs.end(), key.chunks().begin(), key.chunks().end());
+
+        auto reader = CreateSchemalessSequentialMultiChunkReader(
+            New<TTableReaderConfig>(),
+            New<TMultiChunkReaderOptions>(),
+            Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
+            Bootstrap_->GetBlockCache(),
+            nodeDirectory,
+            chunkSpecs,
+            nameTable);
+
+        auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
+
+        try {
+            WaitFor(reader->Open()).ThrowOnError();
+
+            auto producer = [&] (TOutputStream* output) {
+                auto bufferedOutput = std::make_unique<TBufferedOutput>(output);
+                auto controlAttributesConfig = New<TControlAttributesConfig>();
+                auto writer = CreateSchemalessWriterForFormat(
+                    format,
+                    nameTable,
+                    std::move(bufferedOutput),
+                    false,
+                    false,
+                    0);
+                PipeReaderToWriter(reader, writer, controlAttributesConfig, 10000);
+            };
+
+            auto chunk = ProduceArtifactFile(key, producer);
+            cookie.EndInsert(chunk);
+
+        } catch (const std::exception& ex) {
+            auto error = TError("Error downloading table artifact into cache: %v",
+                key.DebugString())
+                << ex;
+            cookie.Cancel(error);
+            LOG_WARNING(error);
+        }
+    }
+
+    TCachedBlobChunkPtr ProduceArtifactFile(
+        const TArtifactKey& key,
+        std::function<void(TOutputStream*)> producer)
+    {
+        auto chunkId = GenerateArtifactId();
+
+        LOG_INFO("Producing artifact file (ChunkId: %v)",
+            chunkId);
+
+        auto fileName = Location_->GetChunkPath(chunkId);
+        auto metaFileName = fileName + ArtifactMetaSuffix;
+        auto tempFileName = fileName + NFS::TempFileSuffix;
+        auto tempMetaFileName = metaFileName + NFS::TempFileSuffix;
+
+        TFile file(
+            tempFileName,
+            CreateAlways | WrOnly | Seq | CloseOnExec);
+        file.Flock(LOCK_EX);
+        TFileOutput fileOutput(file);
+        producer(&fileOutput);
+        file.Close();
+
+        auto chunkSize = NFS::GetFileStatistics(tempFileName).Size;
+
+        TFile metaFile(
+            tempMetaFileName,
+            CreateAlways | WrOnly | Seq | CloseOnExec);
+        metaFile.Flock(LOCK_EX);
+        auto metaData = SerializeToProto(key);
+        metaFile.Write(metaData.Begin(), metaData.Size());
+        metaFile.Close();
+
+        NFS::Rename(tempMetaFileName, metaFileName);
+        NFS::Rename(tempFileName, fileName);
+
+        TChunkDescriptor descriptor(chunkId);
+        descriptor.DiskSpace = chunkSize + metaData.Size();
+        return CreateChunk(Location_, key, descriptor);
+    }
+
+    void LoadArtifactMeta(const TChunkId& chunkId, TArtifactKey* key)
+    {
+        auto fileName = Location_->GetChunkPath(chunkId);
+        auto metaFileName = fileName + ArtifactMetaSuffix;
+
+        TFile metaFile(
+            metaFileName,
+            OpenExisting | RdOnly | Seq | CloseOnExec);
+        TBufferedFileInput metaInput(metaFile);
+
+        auto metaBlob = metaInput.ReadAll();
+        auto metaBlobRef = TRef::FromString(metaBlob);
+
+        if (!TryDeserializeFromProto(key, metaBlobRef)) {
+            THROW_ERROR_EXCEPTION("Failed to parse artifact meta file %v",
+                metaFileName);
+        }
+
+        LOG_INFO("Artifact meta file %v loaded",
+            metaFileName);
     }
 
 };
@@ -354,7 +611,7 @@ IChunkPtr TChunkCache::FindChunk(const TChunkId& chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl_->Find(chunkId);
+    return Impl_->FindChunk(chunkId);
 }
 
 std::vector<IChunkPtr> TChunkCache::GetChunks()
@@ -371,14 +628,13 @@ int TChunkCache::GetChunkCount()
     return Impl_->GetSize();
 }
 
-TFuture<IChunkPtr> TChunkCache::DownloadChunk(
-    const TChunkId& chunkId,
-    TNodeDirectoryPtr nodeDirectory,
-    const TChunkReplicaList& seedReplicas)
+TFuture<IChunkPtr> TChunkCache::PrepareArtifact(
+    const TArtifactKey& key,
+    TNodeDirectoryPtr nodeDirectory)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl_->DownloadChunk(chunkId, nodeDirectory, seedReplicas);
+    return Impl_->PrepareArtifact(key, nodeDirectory);
 }
 
 DELEGATE_SIGNAL(TChunkCache, void(IChunkPtr), ChunkAdded, *Impl_);

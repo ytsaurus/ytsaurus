@@ -253,41 +253,21 @@ protected:
     TIntermediateTable IntermediateTable;
 
 
-    struct TUserFileBase
+    struct TUserFile
     {
         NYPath::TRichYPath Path;
         EOperationStage Stage;
         Stroka FileName;
-
-        void Persist(TPersistenceContext& context);
-
-    };
-
-    struct TRegularUserFile
-        : public TUserFileBase
-    {
         NChunkClient::NProto::TRspFetch FetchResponse;
+        NObjectClient::EObjectType Type;
         bool Executable;
-
-        void Persist(TPersistenceContext& context);
-
-    };
-
-    std::vector<TRegularUserFile> RegularFiles;
-
-
-    struct TUserTableFile
-        : public TUserFileBase
-    {
-        NChunkClient::NProto::TRspFetch FetchResponse;
         NYTree::TYsonString Format;
 
         void Persist(TPersistenceContext& context);
 
     };
 
-    std::vector<TUserTableFile> TableFiles;
-
+    std::vector<TUserFile> Files;
 
     struct TJoblet
         : public TIntrinsicRefCounted
@@ -780,8 +760,7 @@ protected:
     void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
-        const std::vector<TRegularUserFile>& regularFiles,
-        const std::vector<TUserTableFile>& tableFiles);
+        const std::vector<TUserFile>& files);
 
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
