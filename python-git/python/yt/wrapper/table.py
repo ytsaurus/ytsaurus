@@ -86,10 +86,11 @@ class TablePath(object):
         if columns is not None:
             attributes["channel"] = columns
 
-        has_index = start_index is not None or end_index is not None
-        has_key = lower_key is not None or upper_key is not None
-        require(not (has_index and has_key),
-                YtError("You could not specify key bound and index bound simultaneously"))
+        if start_index is not None and lower_key is not None:
+            raise YtError("You could not specify lower key bound and start index simultaneously")
+        if end_index is not None and upper_key is not None:
+            raise YtError("You could not specify upper key bound and end index simultaneously")
+
         if lower_key is not None:
             attributes["lower_limit"] = {"key": flatten(lower_key)}
         if upper_key is not None:
