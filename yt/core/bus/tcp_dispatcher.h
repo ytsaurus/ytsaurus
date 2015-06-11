@@ -81,7 +81,7 @@ private:
 
     DECLARE_SINGLETON_FRIEND(TTcpDispatcher);
     friend class TTcpConnection;
-    friend class TTcpClientBusProxy;
+    friend class TTcpBusClient;
     friend class TTcpBusServerBase;
     template <class TServer>
     friend class TTcpBusServerProxy;
