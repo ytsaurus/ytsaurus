@@ -16,6 +16,7 @@ def main():
     parser.add_argument('path')
     parser.add_argument('command')
     parser.add_argument('--step', type=float, default=1.0)
+    parser.add_argument('--conflict-exit-code', type=int, default=1)
     args = parser.parse_args()
 
     with yt.PingableTransaction() as tx:
@@ -24,7 +25,7 @@ def main():
         except yt.YtResponseError as error:
             if error.is_concurrent_transaction_lock_conflict():
                 logger.info("Lock conflict (path %s)", args.path)
-                sys.exit(1)
+                sys.exit(args.conflict_exit_code)
             raise
 
         def handler():
