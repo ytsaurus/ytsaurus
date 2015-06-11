@@ -108,8 +108,19 @@ std::vector<Stroka> GetProcessCommandLine(int pid)
 #ifdef _linux_
     Stroka path = Format("/proc/%v/cmdline", pid);
     auto raw = TFileInput(path).ReadAll();
-    VectorStrok result;
-    SplitStroku(&result, raw, "\0");
+    std::vector<Stroka> result;
+    auto begin = 0;
+    while (begin < raw.length()) {
+        auto end = raw.find('\0', begin);
+        if (end == Stroka::npos) {
+            result.push_back(raw.substr(begin));
+            begin = raw.length();
+        } else {
+            result.push_back(raw.substr(begin, end - begin));
+            begin = end + 1;
+        }
+    }
+
     return result;
 #else
     return std::vector<Stroka>();
