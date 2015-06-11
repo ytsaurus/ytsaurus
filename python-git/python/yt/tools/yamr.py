@@ -195,8 +195,6 @@ class Yamr(object):
         _check_call(shell_command, shell=True)
 
     def make_read_snapshot(self, table, finish_timeout=300):
-        if not self.supports_read_snapshots:
-            return None
         transaction_id = "yt_" + generate_uuid()
         shell_command = "MR_USER={0} {1} -server {2} -mkreadsnapshot {3} -sharedtransactionid {4} -finishtimeout {5}"\
             .format(self.mr_user, self.binary, self.server, table, transaction_id, finish_timeout)
