@@ -359,6 +359,19 @@ TEST_F(TYPathTest, ParseRichYPath6)
                 "]}"))));
 }
 
+TEST_F(TYPathTest, ParseRichYPath7)
+{
+    auto path = NYPath::TRichYPath::Parse("//home[x:#1000]");
+    EXPECT_EQ(path.GetPath(), "//home");
+    EXPECT_TRUE(
+        AreNodesEqual(
+            ConvertToNode(path.Attributes()),
+            ConvertToNode(TYsonString(
+                "{ranges=["
+                    "{lower_limit={key=[x]};upper_limit={row_index=1000}};"
+                "]}"))));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
