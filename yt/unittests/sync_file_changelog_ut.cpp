@@ -154,32 +154,6 @@ protected:
         EXPECT_EQ(changelog->GetRecordCount(), initialRecordCount);
         CheckRead<ui32>(changelog, 0, initialRecordCount, initialRecordCount);
     }
-
-    void TestSealedTrimmed(i64 sealedRecordCount)
-    {
-        {
-            TChangelogHeader header;
-            TFile file(TemporaryFile->Name(), RdWr);
-            TFileInput input(file);
-            TFileOutput output(file);
-            ReadPod(input, header);
-            header.SealedRecordCount = sealedRecordCount;
-            file.Seek(0, sSet);
-            WritePod(output, header);
-        }
-
-        auto changelog = OpenChangelog();
-
-        EXPECT_EQ(changelog->GetRecordCount(), sealedRecordCount);
-        CheckRead<ui32>(changelog, 0, sealedRecordCount, sealedRecordCount);
-
-        changelog->Unseal();
-        changelog->Append(sealedRecordCount, MakeRecords<ui32>(changelog->GetRecordCount(), changelog->GetRecordCount() + 1));
-        changelog->Flush();
-
-        EXPECT_EQ(sealedRecordCount + 1, changelog->GetRecordCount());
-        CheckRead<ui32>(changelog, 0, changelog->GetRecordCount(), changelog->GetRecordCount());
-    }
 };
 
 TEST_F(TSyncFileChangelogTest, EmptyChangelog)
@@ -254,19 +228,6 @@ TEST_F(TSyncFileChangelogTest, TestCorrupted)
     TestCorrupted(fileSize + 50000, logRecordCount, logRecordCount);
 }
 
-TEST_F(TSyncFileChangelogTest, TestSealedCorrupted)
-{
-    const int logRecordCount = 1024;
-    {
-        auto changelog = CreateChangelog<ui32>(logRecordCount);
-    }
-
-    TestSealedTrimmed(512);
-    ASSERT_THROW(TestSealedTrimmed(1024), std::exception);
-    TestSealedTrimmed(3);
-    TestSealedTrimmed(0);
-}
-
 TEST_F(TSyncFileChangelogTest, Truncate)
 {
     const int logRecordCount = 16;
@@ -286,38 +247,7 @@ TEST_F(TSyncFileChangelogTest, Truncate)
             auto changelog = OpenChangelog();
             EXPECT_EQ(recordId, changelog->GetRecordCount());
             CheckRead<ui32>(changelog, 0, recordId, recordId);
-            changelog->Unseal();
         }
-    }
-}
-
-TEST_F(TSyncFileChangelogTest, TruncateAppend)
-{
-    const int logRecordCount = 256;
-
-    {
-        auto changelog = CreateChangelog<ui32>(logRecordCount);
-        EXPECT_EQ(logRecordCount, changelog->GetRecordCount());
-        CheckRead<ui32>(changelog, 0, logRecordCount, logRecordCount);
-    }
-
-    int truncatedRecordId = logRecordCount / 2;
-    {
-        // Truncate
-        auto changelog = OpenChangelog();
-        changelog->Seal(truncatedRecordId);
-        CheckRead<ui32>(changelog, 0, truncatedRecordId, truncatedRecordId);
-    }
-    {
-        // Append
-        auto changelog = OpenChangelog();
-        changelog->Unseal();
-        changelog->Append(truncatedRecordId, MakeRecords<ui32>(truncatedRecordId, logRecordCount));
-    }
-    {
-        // Check
-        auto changelog = OpenChangelog();
-        CheckRead<ui32>(changelog, 0, logRecordCount, logRecordCount);
     }
 }
 

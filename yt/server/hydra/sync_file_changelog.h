@@ -75,9 +75,6 @@ public:
     //! Synchronously seals the changelog truncating it if necessary.
     void Seal(int recordCount);
 
-    //! Resets seal flag. Mostly useful for administrative tools.
-    void Unseal();
-
 private:
     class TImpl;
     std::unique_ptr<TImpl> Impl_;

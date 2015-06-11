@@ -552,25 +552,6 @@ public:
         LOG_DEBUG("Changelog sealed");
     }
 
-    void Unseal()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        std::lock_guard<std::mutex> guard(Mutex_);
-
-        YCHECK(Open_);
-        YCHECK(Sealed_);
-
-        LOG_DEBUG("Unsealing changelog");
-
-        SealedRecordCount_ = TChangelogHeader::UnsealedRecordCount;
-        Sealed_ = false;
-
-        UpdateLogHeader();
-
-        LOG_DEBUG("Changelog unsealed");
-    }
-
 private:
     struct TEnvelopeData
     {
@@ -928,11 +909,6 @@ std::vector<TSharedRef> TSyncFileChangelog::Read(
 void TSyncFileChangelog::Seal(int recordCount)
 {
     Impl_->Seal(recordCount);
-}
-
-void TSyncFileChangelog::Unseal()
-{
-    Impl_->Unseal();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
