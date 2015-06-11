@@ -59,12 +59,6 @@ struct IChangelog
      */
     virtual TFuture<void> Seal(int recordCount) = 0;
 
-    //! Asynchronously resets seal flag.
-    /*!
-     *  Mostly useful for administrative tools.
-     */
-    virtual TFuture<void> Unseal() = 0;
-
     //! Asynchronously flushes and closes the changelog, releasing all underlying resources.
     /*
      *  Examining the result is useful when a certain underlying implementation is expected.

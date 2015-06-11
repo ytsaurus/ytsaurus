@@ -70,11 +70,6 @@ public:
         return UnderlyingChangelog_->Seal(recordCount);
     }
 
-    virtual TFuture<void> Unseal() override
-    {
-        return UnderlyingChangelog_->Unseal();
-    }
-
     virtual TFuture<void> Close() override
     {
         return UnderlyingChangelog_->Close();

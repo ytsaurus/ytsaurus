@@ -106,13 +106,6 @@ public:
         }));
     }
 
-    virtual TFuture<void> Unseal() override
-    {
-        return FutureChangelog_.Apply(BIND([=] (IChangelogPtr changelog) -> TFuture<void> {
-            return changelog->Unseal();
-        }));
-    }
-
     virtual TFuture<void> Close() override
     {
         return FutureChangelog_.Apply(BIND([=] (IChangelogPtr changelog) -> TFuture<void> {

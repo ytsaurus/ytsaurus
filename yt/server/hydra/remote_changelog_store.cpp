@@ -337,11 +337,6 @@ private:
             return VoidFuture;
         }
 
-        virtual TFuture<void> Unseal() override
-        {
-            YUNREACHABLE();
-        }
-
         virtual TFuture<void> Close() override
         {
             YCHECK(Writer_);
