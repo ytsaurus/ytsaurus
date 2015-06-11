@@ -7,7 +7,7 @@
             },
             "version": 2,
             "table_url_pattern": "http://yt.yandex.net/smith/#page=navigation&path=%table%"
-        }
+        },
         "smith": {
             "type": "yt",
             "options": {
