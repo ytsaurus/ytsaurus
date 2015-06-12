@@ -368,7 +368,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    ValidatePeer(EPeerKind::Leader);
+    ValidatePeer(EPeerKind::LeaderOrFollower);
 
     auto session = New<TExecuteSession>(
         Bootstrap_,
