@@ -5,25 +5,12 @@ from yt_commands import *
 
 from time import sleep
 
-
 ##################################################################
 
 class TestTablets(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
-
-    def _wait(self, predicate):
-        while not predicate():
-            sleep(1)
-
-    def _sync_create_cells(self, size, count):
-        ids = []
-        for _ in xrange(count):
-            ids.append(create_tablet_cell(size))
-
-        print "Waiting for tablet cells to become healthy..."
-        self._wait(lambda: all(get("//sys/tablet_cells/" + id + "/@health") == "good" for id in ids))
 
     def _create_table(self, path):
         create("table", path,
@@ -66,18 +53,6 @@ class TestTablets(YTEnvSetup):
                 if tablet_id in tablets:
                     return tablets[tablet_id]
         return None
-
-    def _sync_mount_table(self, path):
-        mount_table(path)
-
-        print "Waiting for tablets to become mounted..."
-        self._wait(lambda: all(x["state"] == "mounted" for x in get(path + "/@tablets")))
-                
-    def _sync_unmount_table(self, path):
-        unmount_table(path)
-
-        print "Waiting for tablets to become unmounted..."
-        self._wait(lambda: all(x["state"] == "unmounted" for x in get(path + "/@tablets")))
  
     def _get_pivot_keys(self, path):
         tablets = get(path + "/@tablets")

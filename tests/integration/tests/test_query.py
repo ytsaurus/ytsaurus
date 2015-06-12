@@ -5,7 +5,6 @@ import os
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-from time import sleep
 from random import randint
 from random import shuffle
 from distutils.spawn import find_executable
@@ -17,22 +16,6 @@ class TestQuery(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
-
-    def _wait(self, predicate):
-        while not predicate():
-            sleep(1)
-
-    def _sync_create_cells(self, size, count):
-        ids = []
-        for _ in xrange(count):
-            ids.append(create_tablet_cell(size))
-
-        print "Waiting for tablet cells to become healthy..."
-        self._wait(lambda: all(get("//sys/tablet_cells/" + id + "/@health") == "good" for id in ids))
-
-    def _wait_for_tablet_state(self, path, states):
-        print "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
-        self._wait(lambda: all(any(x["state"] == state for state in states) for x in get(path + "/@tablets")))
 
     def _sample_data(self, path="//tmp/t", chunks=3, stripe=3):
         create("table", path,
@@ -86,27 +69,27 @@ class TestQuery(YTEnvSetup):
             print result
 
     def test_project1(self):
-        self._sample_data(path="//tmp/p1")
+        self._sample_data(path="//tmp/t")
         expected = [{"s": 2 * i + 10 * i - 1} for i in xrange(1, 10)]
-        actual = select_rows("2 * a + b - 1 as s from [//tmp/p1]")
+        actual = select_rows("2 * a + b - 1 as s from [//tmp/t]")
         assert expected == actual
 
     def test_group_by1(self):
-        self._sample_data(path="//tmp/g1")
+        self._sample_data(path="//tmp/t")
         expected = [{"s": 450}]
-        actual = select_rows("sum(b) as s from [//tmp/g1] group by 1 as k")
+        actual = select_rows("sum(b) as s from [//tmp/t] group by 1 as k")
         self.assertItemsEqual(actual, expected)
 
     def test_group_by2(self):
-        self._sample_data(path="//tmp/g2")
+        self._sample_data(path="//tmp/t")
         expected = [{"k": 0, "s": 200}, {"k": 1, "s": 250}]
-        actual = select_rows("k, sum(b) as s from [//tmp/g2] group by a % 2 as k")
+        actual = select_rows("k, sum(b) as s from [//tmp/t] group by a % 2 as k")
         self.assertItemsEqual(actual, expected)
 
     def test_merging_group_by(self):
         self._sync_create_cells(3, 3)
 
-        create("table", "//tmp/mg",
+        create("table", "//tmp/t",
             attributes = {
                 "schema": [
                     {"name": "a", "type": "int64"},
@@ -116,25 +99,25 @@ class TestQuery(YTEnvSetup):
 
         pivots = [[i*5] for i in xrange(0,20)]
         pivots.insert(0, [])
-        reshard_table("//tmp/mg", pivots)
+        reshard_table("//tmp/t", pivots)
 
-        mount_table("//tmp/mg")
+        mount_table("//tmp/t")
 
-        self._wait_for_tablet_state("//tmp/mg", ["mounted"])
+        self._wait_for_tablet_state("//tmp/t", ["mounted"])
 
         data = [{"a" : i, "b" : i * 10} for i in xrange(0,100)]
-        insert_rows("//tmp/mg", data)
+        insert_rows("//tmp/t", data)
 
         expected = [
             {"k": 0, "aa": 49.0, "mb": 0, "ab": 490.0},
             {"k": 1, "aa": 50.0, "mb": 10, "ab": 500.0}]
-        actual = select_rows("k, avg(a) as aa, min(b) as mb, avg(b) as ab from [//tmp/mg] group by a % 2 as k order by k limit 2")
+        actual = select_rows("k, avg(a) as aa, min(b) as mb, avg(b) as ab from [//tmp/t] group by a % 2 as k order by k limit 2")
         assert expected == actual
 
     def test_merging_group_by2(self):
         self._sync_create_cells(3, 3)
 
-        create("table", "//tmp/ms",
+        create("table", "//tmp/t",
             attributes = {
                 "schema": [
                     {"name": "a", "type": "int64"},
@@ -144,31 +127,31 @@ class TestQuery(YTEnvSetup):
 
         pivots = [[i*5] for i in xrange(0,20)]
         pivots.insert(0, [])
-        reshard_table("//tmp/ms", pivots)
+        reshard_table("//tmp/t", pivots)
 
-        mount_table("//tmp/ms")
+        mount_table("//tmp/t")
 
-        self._wait_for_tablet_state("//tmp/ms", ["mounted"])
+        self._wait_for_tablet_state("//tmp/t", ["mounted"])
 
         data = [{"a" : i, "b" : str(i)} for i in xrange(0,100)]
-        insert_rows("//tmp/ms", data)
+        insert_rows("//tmp/t", data)
 
         expected = [
             {"k": 0, "m": "98"},
             {"k": 1, "m": "99"}]
-        actual = select_rows("k, max(b) as m from [//tmp/ms] group by a % 2 as k order by k limit 2")
+        actual = select_rows("k, max(b) as m from [//tmp/t] group by a % 2 as k order by k limit 2")
         assert expected == actual
 
     def test_limit(self):
-        self._sample_data(path="//tmp/l1")
+        self._sample_data(path="//tmp/t")
         expected = [{"a": 1, "b": 10}]
-        actual = select_rows("* from [//tmp/l1] limit 1")
+        actual = select_rows("* from [//tmp/t] limit 1")
         assert expected == actual
 
     def test_order_by(self):
         self._sync_create_cells(3, 1)
 
-        create("table", "//tmp/o1",
+        create("table", "//tmp/t",
             attributes = {
                 "schema": [
                     {"name": "k", "type": "int64"},
@@ -177,8 +160,8 @@ class TestQuery(YTEnvSetup):
                 "key_columns": ["k"]
             })
 
-        mount_table("//tmp/o1")
-        self._wait_for_tablet_state("//tmp/o1", ["mounted"])
+        mount_table("//tmp/t")
+        self._wait_for_tablet_state("//tmp/t", ["mounted"])
 
         values = [i for i in xrange(0, 300)]
         shuffle(values)
@@ -186,12 +169,12 @@ class TestQuery(YTEnvSetup):
         data = [
             {"k": i, "v": values[i], "u": randint(0, 1000)}
             for i in xrange(0, 100)]
-        insert_rows("//tmp/o1", data)
+        insert_rows("//tmp/t", data)
 
         expected = [{col: v for col, v in row.iteritems() if col in ['k', 'v']} for row in data if row['u'] > 500]
         expected = sorted(expected, cmp=lambda x, y: x['v'] - y['v'])[0:10]
 
-        actual = select_rows("k, v from [//tmp/o1] where u > 500 order by v limit 10")
+        actual = select_rows("k, v from [//tmp/t] where u > 500 order by v limit 10")
         assert expected == actual
 
     def test_join(self):
@@ -335,14 +318,14 @@ class TestQuery(YTEnvSetup):
     def test_tablets(self):
         self._sync_create_cells(3, 1)
 
-        create("table", "//tmp/tt",
+        create("table", "//tmp/t",
             attributes = {
                 "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "int64"}],
                 "key_columns": ["key"]
             })
 
-        mount_table("//tmp/tt")
-        self._wait_for_tablet_state("//tmp/tt", ["mounted"])
+        mount_table("//tmp/t")
+        self._wait_for_tablet_state("//tmp/t", ["mounted"])
 
         stripe = 10
 
@@ -350,22 +333,22 @@ class TestQuery(YTEnvSetup):
             data = [
                 {"key": (i * stripe + j), "value": (i * stripe + j) * 10}
                 for j in xrange(1, 1 + stripe)]
-            insert_rows("//tmp/tt", data)
+            insert_rows("//tmp/t", data)
 
-        unmount_table("//tmp/tt")
-        self._wait_for_tablet_state("//tmp/tt", ["unmounted"])
-        reshard_table("//tmp/tt", [[], [10], [30], [50], [70], [90]])
-        mount_table("//tmp/tt", first_tablet_index=0, last_tablet_index=2)
-        self._wait_for_tablet_state("//tmp/tt", ["unmounted", "mounted"])
+        unmount_table("//tmp/t")
+        self._wait_for_tablet_state("//tmp/t", ["unmounted"])
+        reshard_table("//tmp/t", [[], [10], [30], [50], [70], [90]])
+        mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=2)
+        self._wait_for_tablet_state("//tmp/t", ["unmounted", "mounted"])
 
-        select_rows("* from [//tmp/tt] where key < 50")
+        select_rows("* from [//tmp/t] where key < 50")
 
-        with pytest.raises(YtError): select_rows("* from [//tmp/tt] where key < 51")
+        with pytest.raises(YtError): select_rows("* from [//tmp/t] where key < 51")
 
     def test_computed_column_simple(self):
         self._sync_create_cells(3, 1)
 
-        create("table", "//tmp/tc",
+        create("table", "//tmp/t",
             attributes = {
                 "schema": [
                     {"name": "hash", "type": "int64", "expression": "key * 33"},
@@ -373,28 +356,28 @@ class TestQuery(YTEnvSetup):
                     {"name": "value", "type": "int64"}],
                 "key_columns": ["hash", "key"]
             })
-        reshard_table("//tmp/tc", [[]] + [[i] for i in xrange(1, 100 * 33, 1000)])
-        mount_table("//tmp/tc")
-        self._wait_for_tablet_state("//tmp/tc", ["mounted"])
+        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 100 * 33, 1000)])
+        mount_table("//tmp/t")
+        self._wait_for_tablet_state("//tmp/t", ["mounted"])
 
-        insert_rows("//tmp/tc", [{"key": i, "value": i * 2} for i in xrange(0,100)])
+        insert_rows("//tmp/t", [{"key": i, "value": i * 2} for i in xrange(0,100)])
 
         expected = [{"hash": 42 * 33, "key": 42, "value": 42 * 2}]
-        actual = select_rows("* from [//tmp/tc] where key = 42")
+        actual = select_rows("* from [//tmp/t] where key = 42")
         self.assertItemsEqual(actual, expected)
 
         expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in xrange(10,80)]
-        actual = sorted(select_rows("* from [//tmp/tc] where key >= 10 and key < 80"))
+        actual = sorted(select_rows("* from [//tmp/t] where key >= 10 and key < 80"))
         self.assertItemsEqual(actual, expected)
 
         expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in [10, 20, 30]]
-        actual = sorted(select_rows("* from [//tmp/tc] where key in (10, 20, 30)"))
+        actual = sorted(select_rows("* from [//tmp/t] where key in (10, 20, 30)"))
         self.assertItemsEqual(actual, expected)
 
     def test_computed_column_far_divide(self):
         self._sync_create_cells(3, 1)
 
-        create("table", "//tmp/tc",
+        create("table", "//tmp/t",
             attributes = {
                 "schema": [
                     {"name": "hash", "type": "int64", "expression": "key2 / 2"},
@@ -403,31 +386,31 @@ class TestQuery(YTEnvSetup):
                     {"name": "value", "type": "int64"}],
                 "key_columns": ["hash", "key1", "key2"]
             })
-        reshard_table("//tmp/tc", [[]] + [[i] for i in xrange(1, 500, 10)])
-        mount_table("//tmp/tc")
-        self._wait_for_tablet_state("//tmp/tc", ["mounted"])
+        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
+        mount_table("//tmp/t")
+        self._wait_for_tablet_state("//tmp/t", ["mounted"])
 
         def expected(key_range):
             return [{"hash": i / 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
 
-        insert_rows("//tmp/tc", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0,1000)])
+        insert_rows("//tmp/t", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0,1000)])
 
-        actual = select_rows("* from [//tmp/tc] where key2 = 42")
+        actual = select_rows("* from [//tmp/t] where key2 = 42")
         self.assertItemsEqual(actual, expected([42]))
 
-        actual = sorted(select_rows("* from [//tmp/tc] where key2 >= 10 and key2 < 80"))
+        actual = sorted(select_rows("* from [//tmp/t] where key2 >= 10 and key2 < 80"))
         self.assertItemsEqual(actual, expected(xrange(10,80)))
 
-        actual = sorted(select_rows("* from [//tmp/tc] where key2 in (10, 20, 30)"))
+        actual = sorted(select_rows("* from [//tmp/t] where key2 in (10, 20, 30)"))
         self.assertItemsEqual(actual, expected([10, 20, 30]))
 
-        actual = sorted(select_rows("* from [//tmp/tc] where key2 in (10, 20, 30) and key1 in (30, 40)"))
+        actual = sorted(select_rows("* from [//tmp/t] where key2 in (10, 20, 30) and key1 in (30, 40)"))
         self.assertItemsEqual(actual, expected([30]))
 
     def test_computed_column_modulo(self):
         self._sync_create_cells(3, 1)
 
-        create("table", "//tmp/tc",
+        create("table", "//tmp/t",
             attributes = {
                 "schema": [
                     {"name": "hash", "type": "int64", "expression": "key2 % 2"},
@@ -436,25 +419,25 @@ class TestQuery(YTEnvSetup):
                     {"name": "value", "type": "int64"}],
                 "key_columns": ["hash", "key1", "key2"]
             })
-        reshard_table("//tmp/tc", [[]] + [[i] for i in xrange(1, 500, 10)])
-        mount_table("//tmp/tc")
-        self._wait_for_tablet_state("//tmp/tc", ["mounted"])
+        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
+        mount_table("//tmp/t")
+        self._wait_for_tablet_state("//tmp/t", ["mounted"])
 
         def expected(key_range):
             return [{"hash": i % 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
 
-        insert_rows("//tmp/tc", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0,1000)])
+        insert_rows("//tmp/t", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0,1000)])
 
-        actual = select_rows("* from [//tmp/tc] where key2 = 42")
+        actual = select_rows("* from [//tmp/t] where key2 = 42")
         self.assertItemsEqual(actual, expected([42]))
 
-        actual = sorted(select_rows("* from [//tmp/tc] where key1 >= 10 and key1 < 80"))
+        actual = sorted(select_rows("* from [//tmp/t] where key1 >= 10 and key1 < 80"))
         self.assertItemsEqual(actual, expected(xrange(10,80)))
 
-        actual = sorted(select_rows("* from [//tmp/tc] where key1 in (10, 20, 30)"))
+        actual = sorted(select_rows("* from [//tmp/t] where key1 in (10, 20, 30)"))
         self.assertItemsEqual(actual, expected([10, 20, 30]))
 
-        actual = sorted(select_rows("* from [//tmp/tc] where key1 in (10, 20, 30) and key2 in (30, 40)"))
+        actual = sorted(select_rows("* from [//tmp/t] where key1 in (10, 20, 30) and key2 in (30, 40)"))
         self.assertItemsEqual(actual, expected([30]))
 
     def test_udf(self):
@@ -492,9 +475,9 @@ class TestQuery(YTEnvSetup):
         upload_file(abs_path, local_implementation_path)
         upload_file(sum_path, local_implementation_path)
 
-        self._sample_data(path="//tmp/u")
+        self._sample_data(path="//tmp/t")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
-        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u] where sum_udf(b, 1, 2) = sum_udf(3, b)")
+        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/t] where sum_udf(b, 1, 2) = sum_udf(3, b)")
         self.assertItemsEqual(actual, expected)
 
     def test_udaf(self):
@@ -519,13 +502,13 @@ class TestQuery(YTEnvSetup):
         local_implementation_path = find_executable("test_udfs.bc")
         upload_file(avg_path, local_implementation_path)
 
-        self._sample_data(path="//tmp/ua")
+        self._sample_data(path="//tmp/t")
         expected = [{"x": 5.0}]
-        actual = select_rows("avg_udaf(a) as x from [//tmp/ua] group by 1")
+        actual = select_rows("avg_udaf(a) as x from [//tmp/t] group by 1")
         self.assertItemsEqual(actual, expected)
 
     def test_aggregate_string_capture(self):
-        create("table", "//tmp/ca",
+        create("table", "//tmp/t",
             attributes = {
                 "schema": [{"name": "a", "type": "string"}]
             })
@@ -534,9 +517,9 @@ class TestQuery(YTEnvSetup):
         data = [
             {"a": "A" + str(j) + "BCD"}
             for j in xrange(1, 2048)]
-        write("//tmp/ca", data)
-        sort(in_="//tmp/ca", out="//tmp/ca", sort_by=["a"])
+        write("//tmp/t", data)
+        sort(in_="//tmp/t", out="//tmp/t", sort_by=["a"])
 
         expected = [{"m": "a1000bcd"}]
-        actual = select_rows("min(lower(a)) as m from [//tmp/ca] group by 1")
+        actual = select_rows("min(lower(a)) as m from [//tmp/t] group by 1")
         self.assertItemsEqual(actual, expected)
