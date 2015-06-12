@@ -4,6 +4,8 @@
 
 #include <core/misc/farm_hash.h>
 
+#include <random>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -11,7 +13,6 @@ namespace NVersionedTableClient {
 
 struct IRowSampler
 {
-public:
     virtual ~IRowSampler()
     { }
 
@@ -77,5 +78,5 @@ std::unique_ptr<IRowSampler> CreateChunkRowSampler(
 
 //////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
 } // namespace NVersionedTableClient
+} // namespace NYT
