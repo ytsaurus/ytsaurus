@@ -356,7 +356,7 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
         protoError->clear_message();
     }
 
-    if (!error.Attributes_->List().empty()) {
+    if (error.Attributes_) {
         ToProto(protoError->mutable_attributes(), *error.Attributes_);
     } else {
         protoError->clear_attributes();
