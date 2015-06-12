@@ -8,7 +8,6 @@ set( SRCS
   ${BASE}/bitmap.cpp
   ${BASE}/blob.cpp
   ${BASE}/blob_output.cpp
-  ${BASE}/blob_range.cpp
   ${BASE}/bloom_filter.cpp
   ${BASE}/checkpointable_stream.cpp
   ${BASE}/checksum.cpp
@@ -60,7 +59,6 @@ set( HDRS
   ${BASE}/bitmap.h
   ${BASE}/blob.h
   ${BASE}/blob_output.h
-  ${BASE}/blob_range.h
   ${BASE}/bloom_filter.h
   ${BASE}/checkpointable_stream.h
   ${BASE}/checksum.h
