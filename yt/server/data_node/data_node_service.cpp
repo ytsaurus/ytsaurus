@@ -181,7 +181,7 @@ private:
 
         context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
             chunkId,
-            blockCount ? ToString(*blockCount) : "<null>");
+            blockCount);
 
         ValidateConnected();
 
