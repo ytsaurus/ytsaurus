@@ -10,34 +10,42 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<THyperLogLog<ui64, FarmHash, 8>, int> GenerateHyperLogLog(
+class THyperLogLogTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<int, int, int, int>>
+{ };
+
+std::pair<THyperLogLog<8>, int> GenerateHyperLogLog(
     TRandomGenerator& rng,
     int size,
     int targetCardinality)
 {
-    auto hll = THyperLogLog<ui64, FarmHash, 8>();
+    auto hll = THyperLogLog<8>();
 
     int cardinality = 1;
     ui64 n = 0;
-    hll.Add(n);
+    hll.Add(FarmHash(n));
     for (int i = 0; i < size; i++) {
         if ((rng.Generate<ui64>() % size) < targetCardinality) {
             cardinality++;
             n += 1 + (rng.Generate<ui32>() % 100);
         }
 
-        hll.Add(n);
+        hll.Add(FarmHash(n));
     }
 
     return std::make_pair(hll, cardinality);
 }
 
-void TestCardinality(
-    TRandomGenerator& rng,
-    int size,
-    int targetCardinality,
-    int iterations)
+TEST_P(THyperLogLogTest, Random)
 {
+    auto param = GetParam();
+    auto seed = std::get<0>(param);
+    auto size = std::get<1>(param);
+    auto targetCardinality = std::get<2>(param);
+    auto iterations = std::get<3>(param);
+    auto rng = TRandomGenerator(seed);
+
     auto error = 0.0;
 
     for (int i = 0; i < iterations; i++) {
@@ -49,20 +57,20 @@ void TestCardinality(
         error += err;
     }
 
-    auto meanError = error/iterations;
+    auto meanError = error / iterations;
 
     EXPECT_NEAR(meanError, 0, 0.05);
 }
 
-TEST(HyperLogLogTest, Random)
-{
-    auto rng = TRandomGenerator(123);
-    TestCardinality(rng, 100000, 200, 10);
-    TestCardinality(rng, 100000, 1000, 10);
-    TestCardinality(rng, 100000, 5000, 10);
-    TestCardinality(rng, 100000, 10000, 10);
-    TestCardinality(rng, 100000, 50000, 10);
-}
+INSTANTIATE_TEST_CASE_P(
+    HyperLogLogTest,
+    THyperLogLogTest,
+    ::testing::Values(
+        std::tuple<int, int, int, int>(123, 100000, 200, 10),
+        std::tuple<int, int, int, int>(324, 100000, 1000, 10),
+        std::tuple<int, int, int, int>(653, 100000, 5000, 10),
+        std::tuple<int, int, int, int>(890, 100000, 10000, 10),
+        std::tuple<int, int, int, int>(278, 100000, 50000, 10)));
 
 ////////////////////////////////////////////////////////////////////////////////
 
