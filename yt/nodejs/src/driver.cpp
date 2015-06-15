@@ -232,7 +232,7 @@ private:
                 builder->EndTree()));
         }
 
-        Flush();
+        WaitFor(Flush());
     }
 
 };
