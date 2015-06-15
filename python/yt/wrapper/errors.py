@@ -1,9 +1,9 @@
 """YT usage errors"""
 
 from yt.common import YtError
+import yt.packages.simplejson as json
 
 from copy import deepcopy
-import simplejson as json
 
 def hide_token(headers):
     if "Authorization" in headers:
