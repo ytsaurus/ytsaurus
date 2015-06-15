@@ -6,13 +6,13 @@ from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectRespons
 from command import parse_commands
 
 import yt.yson as yson
+import yt.packages.simplejson as json
 
 import os
 import string
 import time
 import types
 import yt.packages.requests
-import simplejson as json
 from datetime import datetime
 from socket import error as SocketError
 

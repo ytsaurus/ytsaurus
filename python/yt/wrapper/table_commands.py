@@ -69,6 +69,7 @@ from heavy_commands import make_heavy_request
 from http import RETRIABLE_ERRORS, get_api_version
 from response_stream import ResponseStream, EmptyResponseStream
 import yt.logger as logger
+import yt.packages.simplejson as json
 
 import os
 import sys
@@ -77,7 +78,6 @@ import exceptions
 import tempfile
 import socket
 import getpass
-import simplejson as json
 from cStringIO import StringIO
 from copy import deepcopy
 

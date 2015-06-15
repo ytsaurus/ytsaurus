@@ -133,13 +133,10 @@ def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pac
     if hasattr(yt_client, "token"):
         files.append(_pack_string("yt_token", yt_client.token, tmp_dir))
     if pack:
-        files += [_pack_module("simplejson", tmp_dir), _pack_module("dateutil", tmp_dir), _pack_module("decorator", tmp_dir), _pack_module("yt", tmp_dir), _which("yt2")]
+        files += [_pack_module("yt", tmp_dir), _which("yt2")]
         prepare_command += """
 set -e
 tar xvf yt.tar >/dev/null
-tar xvf simplejson.tar >/dev/null
-tar xvf dateutil.tar >/dev/null
-tar xvf decorator.tar >/dev/null
 set +e"""
 
     read_command = _get_read_from_yt_command(yt_client, src, format, fastbone)

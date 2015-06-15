@@ -29,12 +29,12 @@ from yt.wrapper.table import check_prefix
 from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, chunk_iter_stream
 import yt.wrapper.config as config
 import yt.yson as yson
+import yt.packages.simplejson as json
 import yt.wrapper as yt
 
 import os
 import sys
 import types
-import simplejson as json
 from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
 from operator import attrgetter
 from itertools import imap, groupby

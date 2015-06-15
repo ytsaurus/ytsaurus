@@ -4,9 +4,9 @@ from cypress_commands import get
 from transaction_commands import _make_transactional_request
 
 from yt.yson.convert import json_to_yson
+import yt.packages.simplejson as json
 
 import time
-import simplejson as json
 from datetime import timedelta, datetime
 
 def lock(path, mode=None, waitable=False, wait_for=None, client=None):
