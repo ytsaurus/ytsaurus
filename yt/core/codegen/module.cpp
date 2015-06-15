@@ -159,8 +159,7 @@ public:
     }
 
     void AddObjectFile(
-        std::unique_ptr<llvm::object::ObjectFile> sharedObject,
-        const Stroka& functionName)
+        std::unique_ptr<llvm::object::ObjectFile> sharedObject)
     {
         Engine_->addObjectFile(std::move(sharedObject));
     }
@@ -325,10 +324,9 @@ uint64_t TCGModule::GetFunctionAddress(const Stroka& name)
 }
 
 void TCGModule::AddObjectFile(
-    std::unique_ptr<llvm::object::ObjectFile> sharedObject,
-    const Stroka& functionName)
+    std::unique_ptr<llvm::object::ObjectFile> sharedObject)
 {
-    Impl_->AddObjectFile(std::move(sharedObject), functionName);
+    Impl_->AddObjectFile(std::move(sharedObject));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

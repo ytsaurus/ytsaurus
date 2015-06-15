@@ -69,6 +69,14 @@ function(UDF udf output type)
   )
 endfunction()
 
+macro(UDF_BC udf_impl output)
+    udf(${udf_impl} ${output} bc)
+endmacro()
+
+macro(UDF_SO udf_impl output)
+    udf(${udf_impl} ${output} so)
+endmacro()
+
 function(PROTOC proto output)
   get_filename_component( _proto_realpath ${proto} REALPATH )
   get_filename_component( _proto_dirname  ${_proto_realpath} PATH )
