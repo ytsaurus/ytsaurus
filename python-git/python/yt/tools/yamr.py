@@ -1,13 +1,13 @@
 import yt.logger as logger
 from yt.common import YtError
 from yt.wrapper.common import generate_uuid
+import yt.packages.simplejson as json
 
 import os
 import sh
 import ctypes
 import signal
 import subprocess32 as subprocess
-import simplejson as json
 from urllib import quote_plus
 
 

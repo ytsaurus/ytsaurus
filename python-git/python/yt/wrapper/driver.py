@@ -5,8 +5,7 @@ from common import bool_to_string, YtError
 from config import get_option, get_backend_type
 
 from yt.yson.convert import json_to_yson
-
-import simplejson as json
+import yt.packages.simplejson as json
 
 def make_request(command_name, params,
                  data=None, proxy=None,

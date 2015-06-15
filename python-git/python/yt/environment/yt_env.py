@@ -16,7 +16,7 @@ import shutil
 import subprocess
 import sys
 import getpass
-import simplejson as json
+import yt.packages.simplejson as json
 from collections import defaultdict
 from datetime import datetime, timedelta
 

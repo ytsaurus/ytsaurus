@@ -8,11 +8,11 @@ from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from cypress_commands import get_attribute, exists, search, get
 from file_commands import download_file
 import yt.logger as logger
+import yt.packages.dateutil.parser as dateutil_parser
+from yt.packages.decorator import decorator
 
 import os
-import dateutil.parser
 import logging
-from decorator import decorator
 from datetime import datetime
 from time import sleep, time
 from cStringIO import StringIO
@@ -155,7 +155,7 @@ class PrintOperationInfo(object):
         self.progress = None
 
         creation_time_str = get_attribute(os.path.join(OPERATIONS_PATH, self.operation), "creation_time", client=client)
-        creation_time = dateutil.parser.parse(creation_time_str).replace(tzinfo=None)
+        creation_time = dateutil_parser.parse(creation_time_str).replace(tzinfo=None)
         local_creation_time = creation_time + (datetime.now() - datetime.utcnow())
 
         self.formatter = OperationProgressFormatter(start_time=local_creation_time)
