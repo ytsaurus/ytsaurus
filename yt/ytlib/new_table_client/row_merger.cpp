@@ -135,7 +135,7 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
 
 void TSchemafulRowMerger::Reset()
 {
-    YCHECK(!Started_);
+    YASSERT(!Started_);
     Pool_->Clear();
     MergedRow_ = TUnversionedRow();
 }
@@ -285,7 +285,7 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
 
 void TUnversionedRowMerger::Reset()
 {
-    YCHECK(!Started_);
+    YASSERT(!Started_);
     Pool_->Clear();
     MergedRow_ = TUnversionedRow();
 }
@@ -509,7 +509,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
 void TVersionedRowMerger::Reset()
 {
-    YCHECK(!Started_);
+    YASSERT(!Started_);
     Pool_->Clear();
 }
 
