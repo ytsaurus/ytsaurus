@@ -692,7 +692,7 @@ private:
 
         LOG_INFO("Started sealing journal chunk");
 
-        WaitFor(changelog->Flush())
+        WaitFor(changelog->Truncate(sealRowCount))
             .ThrowOnError();
 
         WaitFor(journalChunk->Seal())

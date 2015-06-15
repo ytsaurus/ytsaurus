@@ -241,7 +241,7 @@ TEST_F(TSyncFileChangelogTest, Truncate)
     for (int recordId = logRecordCount; recordId >= 0; --recordId) {
         {
             auto changelog = OpenChangelog();
-            changelog->Seal(recordId);
+            changelog->Truncate(recordId);
         }
         {
             auto changelog = OpenChangelog();
@@ -326,7 +326,7 @@ TEST_F(TSyncFileChangelogTest, DISABLED_Profiling)
                 ", time " << ToString(timer.GetElapsed()) << std::endl;
 
             timer.Restart();
-            changelog->Seal(recordsCount / 2);
+            changelog->Truncate(recordsCount / 2);
             std::cerr << "Sealing changelog of size " << recordsCount <<
                 ", time " << ToString(timer.GetElapsed()) << std::endl;
         }
@@ -337,7 +337,7 @@ TEST_F(TSyncFileChangelogTest, DISABLED_Profiling)
 TEST_F(TSyncFileChangelogTest, SealEmptyChangelog)
 {
     auto changelog = CreateChangelog<int>(0);
-    changelog->Seal(0);
+    changelog->Truncate(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -364,9 +364,9 @@ private:
         SyncFlushAll();
 
         TError error;
-        PROFILE_TIMING("/changelog_seal_io_time") {
+        PROFILE_TIMING("/changelog_truncate_io_time") {
             try {
-                Changelog_->Seal(SealRecordCount_);
+                Changelog_->Truncate(SealRecordCount_);
             } catch (const std::exception& ex) {
                 error = ex;
             }
@@ -722,7 +722,7 @@ public:
             maxBytes);
     }
 
-    virtual TFuture<void> Seal(int recordCount) override
+    virtual TFuture<void> Truncate(int recordCount) override
     {
         YCHECK(recordCount <= RecordCount_);
         RecordCount_.store(recordCount);

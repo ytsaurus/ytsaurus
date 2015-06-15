@@ -195,10 +195,10 @@ void TJournalChunk::SyncRemove(bool force)
 {
     if (Changelog_) {
         try {
-            LOG_DEBUG("Started closing journal chunk files (ChunkId: %v)", Id_);
+            LOG_DEBUG("Started closing journal chunk (ChunkId: %v)", Id_);
             WaitFor(Changelog_->Close())
                 .ThrowOnError();
-            LOG_DEBUG("Finished closing journal chunk files (ChunkId: %v)", Id_);
+            LOG_DEBUG("Finished closing journal chunk (ChunkId: %v)", Id_);
             Changelog_.Reset();
         } catch (const std::exception& ex) {
             auto error = TError(ex);

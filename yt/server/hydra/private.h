@@ -28,7 +28,7 @@ DECLARE_REFCOUNTED_CLASS(TCheckpointer)
 
 extern const Stroka SnapshotExtension;
 extern const Stroka ChangelogExtension;
-extern const Stroka ChangelogIndexSuffix;
+extern const Stroka ChangelogIndexExtension;
 
 IInvokerPtr GetHydraIOInvoker();
 

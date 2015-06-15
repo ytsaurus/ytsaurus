@@ -172,9 +172,9 @@ public:
         return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
     }
 
-    virtual TFuture<void> Seal(int recordCount) override
+    virtual TFuture<void> Truncate(int recordCount) override
     {
-        return UnderlyingChangelog_->Seal(recordCount);
+        return UnderlyingChangelog_->Truncate(recordCount);
     }
 
     virtual TFuture<void> Close() override

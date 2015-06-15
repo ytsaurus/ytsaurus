@@ -330,7 +330,7 @@ private:
                 .Run(firstRecordId, maxRecords);
         }
 
-        virtual TFuture<void> Seal(int recordCount) override
+        virtual TFuture<void> Truncate(int recordCount) override
         {
             // TODO(babenko): implement
             YCHECK(recordCount == RecordCount_);
