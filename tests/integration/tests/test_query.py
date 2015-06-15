@@ -510,7 +510,7 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/card", data)
         insert_rows("//tmp/card", data)
 
-        actual = select_rows("cardinality(a) as b from [//tmp/card] group by a % 2 as k order by k limit 2")
+        actual = select_rows("cardinality(a) as b from [//tmp/card] group by a % 2 as k")
         assert actual[0]["b"] > .95 * 10000
         assert actual[0]["b"] < 1.05 * 10000
         assert actual[1]["b"] > .95 * 10000
