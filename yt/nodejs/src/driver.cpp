@@ -10,6 +10,7 @@
 #include <core/misc/error.h>
 
 #include <core/concurrency/async_stream.h>
+#include <core/concurrency/fiber.h>
 
 #include <core/misc/lazy_ptr.h>
 #include <core/ytree/node.h>
