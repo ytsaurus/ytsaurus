@@ -84,6 +84,7 @@ public:
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAcknowledgeMessages, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPostMessages, Unretained(this), nullptr));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraUnregisterMailbox, Unretained(this)));
 
         RegisterLoader(
             "HiveManager.Keys",
@@ -354,6 +355,20 @@ private:
         }
     }
 
+    void HydraUnregisterMailbox(const TReqUnregisterMailbox& request)
+    {
+        auto cellId = FromProto<TCellId>(request.cell_id());
+        auto* mailbox = FindMailbox(cellId);
+        if (!mailbox)
+            return;
+
+        MailboxMap_.Remove(cellId);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Mailbox unregistered (SrcCellId: %v, DstCellId: %v)",
+            SelfCellId_,
+            cellId);
+    }
+
 
     IChannelPtr FindMailboxChannel(TMailbox* mailbox)
     {
@@ -407,6 +422,23 @@ private:
 
     void SendPing(TMailbox* mailbox)
     {
+        const auto& cellId = mailbox->GetCellId();
+
+        if (CellDirectory_->IsCellUnregistered(cellId)) {
+            TReqUnregisterMailbox req;
+            ToProto(req.mutable_cell_id(), cellId);
+
+            CreateUnregisterMailboxMutation(req)
+                ->Commit()
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+                    if (!error.IsOK()) {
+                        LOG_ERROR(error, "Error committing mailbox unregistration mutation");
+                    }
+                }));
+
+            return;
+        }
+
         if (mailbox->GetConnected()) {
             SchedulePing(mailbox);
             return;
@@ -414,7 +446,13 @@ private:
 
         auto channel = FindMailboxChannel(mailbox);
         if (!channel) {
+            // Let's register a dummy descriptor so as to make a master request at the next heartbeat.
+            NHive::TCellDescriptor descriptor;
+            descriptor.CellId = cellId;
+            CellDirectory_->ReconfigureCell(descriptor);
+
             SchedulePing(mailbox);
+
             return;
         }
 
@@ -438,11 +476,12 @@ private:
         if (!mailbox)
             return;
 
+        SchedulePing(mailbox);
+
         if (!rspOrError.IsOK()) {
             LOG_DEBUG(rspOrError, "Ping failed (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId());
-            SchedulePing(mailbox);
             return;
         }
 
@@ -456,7 +495,6 @@ private:
         SetMailboxConnected(mailbox);
         HandleAcknowledgedMessages(mailbox, lastIncomingMessageId);
         MaybePostOutcomingMessages(mailbox);
-        SchedulePing(mailbox);
     }
 
 
@@ -543,6 +581,15 @@ private:
         return CreateMutation(HydraManager_)
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(&TImpl::HydraPostMessages, MakeStrong(this), context, ConstRef(context->Request())));
+    }
+
+    TMutationPtr CreateUnregisterMailboxMutation(const TReqUnregisterMailbox& req)
+    {
+        return CreateMutation(
+            HydraManager_,
+            req,
+            this,
+            &TImpl::HydraUnregisterMailbox);
     }
 
 

@@ -84,6 +84,9 @@ public:
     //! Returns the list of all registered cells, their versions, and configurations.
     std::vector<TCellInfo> GetRegisteredCells();
 
+    //! Returns |true| if the cell was unregistered by calling #UnregisterCell.
+    bool IsCellUnregistered(const TCellId& cellId);
+
 
     //! Registers a new cell or updates the configuration of an existing cell
     //! (if new configuration has a higher version).
@@ -97,6 +100,10 @@ public:
     bool ReconfigureCell(const TCellDescriptor& descriptor);
 
     //! Unregisters the cell. Returns |true| if the cell was found.
+    /*!
+     *  The ids of all unregistered cells are kept forever.
+     *  Once the cell is unregistered, no further reconfigurations are possible.
+     */
     bool UnregisterCell(const TCellId& cellId);
 
     //! Drops all known cells.
