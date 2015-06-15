@@ -453,6 +453,21 @@ TUserDefinedFunction::TUserDefinedFunction(
         GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType))
 { }
 
+bool ObjectContainsFunction(
+    const std::unique_ptr<llvm::object::ObjectFile>& objectFile,
+    const Stroka& functionName)
+{
+    auto symbols = objectFile->symbols();
+    for (const auto symbol : symbols) {
+        auto name = llvm::StringRef();
+        auto nameError = symbol.getName(name);
+        if (!nameError && name.equals(StringRef(functionName))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 Function* GetSharedObjectFunction(
     TCGContext& builder,
     const Stroka& functionName,
@@ -461,7 +476,6 @@ Function* GetSharedObjectFunction(
     std::vector<Type*> argumentTypes,
     EValueType resultType)
 {
-
     auto buffer = llvm::MemoryBufferRef(
         llvm::StringRef(implementationFile.Begin(), implementationFile.Size()),
         llvm::StringRef());
@@ -471,7 +485,13 @@ Function* GetSharedObjectFunction(
         return nullptr;
     }
 
-    builder.Module->AddObjectFile(std::move(*objectFileOrError), functionName);
+    if (!ObjectContainsFunction(*objectFileOrError, functionName)) {
+        THROW_ERROR_EXCEPTION(
+            "Could not find function implementation for %Qv",
+            functionName);
+    }
+
+    builder.Module->AddObjectFile(std::move(*objectFileOrError));
     auto functionType = FunctionType::get(
         TDataTypeBuilder::get(builder.getContext(), resultType),
         ArrayRef<Type*>(argumentTypes),
@@ -516,14 +536,14 @@ Function* GetLlvmBitcodeFunction(
         }
 
         callee = module->getFunction(StringRef(symbolName));
-        callingConvention->CheckCallee(
-            functionName,
-            callee,
-            builder,
-            argumentValues,
-            resultType);
     }
     callee->addFnAttr(Attribute::AttrKind::AlwaysInline);
+    callingConvention->CheckCallee(
+        functionName,
+        callee,
+        builder,
+        argumentValues,
+        resultType);
     return callee;
 }
 
