@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
 from yt.wrapper.cli_helpers import die
+import yt.packages.simplejson as json
 import yt.wrapper as yt
 
 import os
 import sys
 import hashlib
 import itertools
-import simplejson as json
 from argparse import ArgumentParser
 
 def md5(obj):

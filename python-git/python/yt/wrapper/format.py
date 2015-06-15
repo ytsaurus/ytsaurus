@@ -9,12 +9,12 @@ from common import get_value, require, filter_dict, merge_dicts, YtError
 from yamr_record import Record, SimpleRecord, SubkeyedRecord
 import yt.yson as yson
 import yt.logger as logger
+import yt.packages.simplejson as json
 
 from abc import ABCMeta, abstractmethod
 import copy
 import struct
 import itertools
-import simplejson as json
 from cStringIO import StringIO
 
 try:

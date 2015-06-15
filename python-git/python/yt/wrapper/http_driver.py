@@ -1,6 +1,7 @@
 from config import get_config, get_option
 import yt.logger as logger
 import yt.yson as yson
+import yt.packages.simplejson as json
 from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid, bool_to_string, get_value, get_version
 from errors import YtError, YtHttpResponseError, YtProxyUnavailable
@@ -8,7 +9,6 @@ from http import make_get_request_with_retries, make_request_with_retries, get_t
 from response_stream import ResponseStream
 
 import sys
-import simplejson as json
 from datetime import datetime
 
 def escape_utf8(obj):

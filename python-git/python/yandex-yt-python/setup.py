@@ -32,7 +32,7 @@ def build_documentation_files(source, target):
     return result
 
 def main():
-    requires =["simplejson", "python-dateutil", "decorator"]
+    requires = []
     if sys.version_info[:2] <= (2, 6):
         requires.append("argparse")
 
@@ -49,7 +49,7 @@ def main():
     version = get_version()
     with open("yt/wrapper/version.py", "w") as version_output:
         version_output.write("VERSION='{0}'".format(version))
-    
+
     find_packages("yt/packages")
     setup(
         name = "yandex-yt",
@@ -76,6 +76,6 @@ def main():
 
         data_files = data_files
     )
-    
+
 if __name__ == "__main__":
     main()
