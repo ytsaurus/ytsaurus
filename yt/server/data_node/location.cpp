@@ -645,8 +645,10 @@ void TLocation::MoveChunkFilesToTrash(const TChunkId& chunkId)
         for (const auto& name : partNames) {
             auto srcFileName = NFS::CombinePaths(directory, name);
             auto dstFileName = NFS::CombinePaths(trashDirectory, name);
-            NFS::Replace(srcFileName, dstFileName);
-            NFS::Touch(dstFileName);
+            if (NFS::Exists(srcFileName)) {
+                NFS::Replace(srcFileName, dstFileName);
+                NFS::Touch(dstFileName);
+            }
         }
 
         LOG_DEBUG("Finished moving chunk files to trash (ChunkId: %v)", chunkId);
