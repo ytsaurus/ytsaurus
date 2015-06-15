@@ -53,11 +53,11 @@ struct IChangelog
         int maxRecords,
         i64 maxBytes) const = 0;
 
-    //! Asynchronously seals the changelog flushing and truncating it if necessary.
+    //! Asynchronously flushes and truncates the changelog.
     /*!
-     *  \returns an asynchronous flag either indicating an error or a success.
+     *  Most implementations will not allow appending more records to a truncated changelog.
      */
-    virtual TFuture<void> Seal(int recordCount) = 0;
+    virtual TFuture<void> Truncate(int recordCount) = 0;
 
     //! Asynchronously flushes and closes the changelog, releasing all underlying resources.
     /*

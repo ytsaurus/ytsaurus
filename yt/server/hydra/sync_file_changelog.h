@@ -73,7 +73,7 @@ public:
         i64 maxBytes);
 
     //! Synchronously seals the changelog truncating it if necessary.
-    void Seal(int recordCount);
+    void Truncate(int recordCount);
 
 private:
     class TImpl;

@@ -168,7 +168,7 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
 
     if (localRecordCount > remoteRecordCount) {
         YCHECK(syncRecordCount == remoteRecordCount);
-        WaitFor(changelog->Seal(remoteRecordCount))
+        WaitFor(changelog->Truncate(remoteRecordCount))
             .ThrowOnError();
 
         TVersion sealedVersion(changelogId, remoteRecordCount);

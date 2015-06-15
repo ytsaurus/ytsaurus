@@ -218,12 +218,17 @@ std::vector<Stroka> TLocation::GetChunkPartNames(const TChunkId& chunkId) const
     switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            return {primaryName, primaryName + ChunkMetaSuffix};
-            break;
+            return {
+                primaryName,
+                primaryName + ChunkMetaSuffix
+            };
 
         case EObjectType::JournalChunk:
-            return {primaryName, primaryName + ChangelogIndexSuffix};
-            break;
+            return {
+                primaryName,
+                primaryName + "." + ChangelogIndexExtension,
+                primaryName + "." + SealedFlagExtension
+            };
 
         default:
             YUNREACHABLE();
@@ -513,9 +518,9 @@ TNullable<TChunkDescriptor> TLocation::RepairJournalChunk(const TChunkId& chunkI
     auto trashFileName = GetTrashChunkPath(chunkId);
 
     auto dataFileName = fileName;
-    auto indexFileName = fileName + ChangelogIndexSuffix;
+    auto indexFileName = fileName + "." + ChangelogIndexExtension;
 
-    auto trashIndexFileName = trashFileName + ChangelogIndexSuffix;
+    auto trashIndexFileName = trashFileName + "." + ChangelogIndexExtension;
 
     bool hasData = NFS::Exists(dataFileName);
     bool hasIndex = NFS::Exists(indexFileName);

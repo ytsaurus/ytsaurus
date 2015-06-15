@@ -553,7 +553,7 @@ public:
         auto dataFileName = GetMultiplexedChangelogPath(changelogId);
         auto cleanDataFileName = dataFileName + "." + CleanExtension;
         NFS::Rename(dataFileName, cleanDataFileName);
-        NFS::Rename(dataFileName + ChangelogIndexSuffix, cleanDataFileName + ChangelogIndexSuffix);
+        NFS::Rename(dataFileName + "." + ChangelogIndexExtension, cleanDataFileName + "." + ChangelogIndexExtension);
         LOG_INFO("Multiplexed changelog is clean (ChangelogId: %v)", changelogId);
     }
 

@@ -96,13 +96,13 @@ public:
         }
     }
 
-    virtual TFuture<void> Seal(int recordCount) override
+    virtual TFuture<void> Truncate(int recordCount) override
     {
         return FutureChangelog_.Apply(BIND([=] (const TErrorOr<IChangelogPtr>& changelogOrError) -> TFuture<void> {
             if (!changelogOrError.IsOK()) {
                 return MakeFuture<void>(TError(changelogOrError));
             }
-            return changelogOrError.Value()->Seal(recordCount);
+            return changelogOrError.Value()->Truncate(recordCount);
         }));
     }
 

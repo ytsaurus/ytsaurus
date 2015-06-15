@@ -109,7 +109,7 @@ void RemoveChangelogFiles(const Stroka& path)
     auto dataFileName = path;
     NFS::Remove(dataFileName);
 
-    auto indexFileName = path + ChangelogIndexSuffix;
+    auto indexFileName = path + "." + ChangelogIndexExtension;
     if (NFS::Exists(indexFileName)) {
         NFS::Remove(indexFileName);
     }
