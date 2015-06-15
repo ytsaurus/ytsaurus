@@ -7,64 +7,57 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T, ui64 (*Hash)(T), int Precision>
+template <int Precision>
 class THyperLogLog
 {
+    static_assert(
+        Precision >= 4 && Precision <= 18,
+        "Precision is out of range (expected to be within 4..18)");
+
 public:
     THyperLogLog();
 
-    void Add(T value);
+    void Add(TFingerprint fingerprint);
 
     void Merge(const THyperLogLog& that);
 
-    ui64 EstimateCardinality();
+    ui64 EstimateCardinality() const;
+
+    static ui64 EstimateCardinality(const std::vector<ui64>& values);
 
 private:
     static constexpr ui64 RegisterCount = (ui64)1 << Precision;
     static constexpr ui64 PrecisionMask = RegisterCount - 1;
-    std::array<ui64, RegisterCount> ZeroCounts_;
+    static constexpr double Threshold = NDetail::Thresholds[Precision - 4];
+    static constexpr int Size = NDetail::Sizes[Precision - 4];
+    static constexpr auto RawEstimates = NDetail::RawEstimates[Precision - 4];
+    static constexpr auto BiasData = NDetail::BiasData[Precision - 4];
+    std::array<ui8, RegisterCount> ZeroCounts_;
 
     void AddHash(ui64 hash);
+    double EstimateBias(double cardinality) const;
 };
 
-template <typename T, ui64 (*Hash)(T), int Precision>
-ui64 EstimateCardinality(
-    const std::vector<ui64>& values)
-{
-    auto state = THyperLogLog<T, Hash, Precision>();
-    for (auto v : values) {
-        state.Add(v);
-    }
-    return state.EstimateCardinality();
-}
-
-template <typename T, ui64 (*Hash)(T), int Precision>
-THyperLogLog<T, Hash, Precision>::THyperLogLog()
+template <int Precision>
+THyperLogLog<Precision>::THyperLogLog()
 {
     std::fill(ZeroCounts_.begin(), ZeroCounts_.end(), 0);
 }
 
-template <typename T, ui64 (*Hash)(T), int Precision>
-void THyperLogLog<T, Hash, Precision>::Add(T value)
+template <int Precision>
+void THyperLogLog<Precision>::Add(TFingerprint fingerprint)
 {
-    auto hash = Hash(value);
-    auto zeroes = 1;
-    hash |= ((ui64)1 << 63);
-    auto bit = RegisterCount;
+    fingerprint |= ((ui64)1 << 63);
+    auto zeroesPlusOne = __builtin_ctzl(fingerprint >> Precision) + 1;
 
-    while ((bit & hash) == 0) {
-        zeroes++;
-        bit <<= 1;
-    }
-
-    auto index = hash & PrecisionMask;
-    if (ZeroCounts_[index] < zeroes) {
-        ZeroCounts_[index] = zeroes;
+    auto index = fingerprint & PrecisionMask;
+    if (ZeroCounts_[index] < zeroesPlusOne) {
+        ZeroCounts_[index] = zeroesPlusOne;
     }
 }
 
-template <typename T, ui64 (*Hash)(T), int Precision>
-void THyperLogLog<T, Hash, Precision>::Merge(const THyperLogLog<T, Hash, Precision>& that)
+template <int Precision>
+void THyperLogLog<Precision>::Merge(const THyperLogLog<Precision>& that)
 {
     for (int i = 0; i < RegisterCount; i++) {
         auto thatCount = that.ZeroCounts_[i];
@@ -75,37 +68,27 @@ void THyperLogLog<T, Hash, Precision>::Merge(const THyperLogLog<T, Hash, Precisi
 }
 
 template <int Precision>
-static double EstimateBias(double cardinality)
+double THyperLogLog<Precision>::EstimateBias(double cardinality) const
 {
-    auto rawEstimates = RawEstimates[Precision - 4];
-    auto biasData = BiasData[Precision - 4];
-    auto size = Sizes[Precision - 4];
-
-    auto upperEstimate = std::lower_bound(rawEstimates, rawEstimates + size, cardinality);
-    int index = upperEstimate - rawEstimates;
+    auto upperEstimate = std::lower_bound(RawEstimates, RawEstimates + Size, cardinality);
+    int index = upperEstimate - RawEstimates;
     if (*upperEstimate == cardinality) {
-        return biasData[index];
+        return BiasData[index];
     }
 
     if (index == 0) {
-        return biasData[0];
-    } else if (index >= size) {
-        return biasData[size];
+        return BiasData[0];
+    } else if (index >= Size) {
+        return BiasData[Size];
     } else {
-        double w1 = cardinality - rawEstimates[index - 1];
-        double w2 = rawEstimates[index] - cardinality;
-        return (biasData[index - 1] * w1 + biasData[index] * w2) / (w1 + w2);
+        double w1 = cardinality - RawEstimates[index - 1];
+        double w2 = RawEstimates[index] - cardinality;
+        return (BiasData[index - 1] * w1 + BiasData[index] * w2) / (w1 + w2);
     }
 }
 
 template <int Precision>
-static double Threshold()
-{
-    return Thresholds[Precision - 4];
-}
-
-template <typename T, ui64 (*Hash)(T), int Precision>
-ui64 THyperLogLog<T, Hash, Precision>::EstimateCardinality()
+ui64 THyperLogLog<Precision>::EstimateCardinality() const
 {
     auto zeroRegisters = 0;
     double sum = 0;
@@ -118,12 +101,12 @@ ui64 THyperLogLog<T, Hash, Precision>::EstimateCardinality()
     }
     sum += zeroRegisters;
 
-    double alpha = 0.7213 / (1 + 1.079 / RegisterCount);
+    double alpha = 0.7213 / (1.0 + 1.079 / RegisterCount);
     double m = RegisterCount;
     double raw = (1.0 / sum) * m * m * alpha;
 
     if (raw < 5 * m) {
-        raw -= EstimateBias<Precision>(raw);
+        raw -= EstimateBias(raw);
     }
 
     double smallCardinality = raw;
@@ -131,11 +114,21 @@ ui64 THyperLogLog<T, Hash, Precision>::EstimateCardinality()
         smallCardinality = m * log(m / zeroRegisters);
     }
 
-    if (smallCardinality <= Threshold<Precision>()) {
+    if (smallCardinality <= Threshold) {
         return smallCardinality;
     } else {
         return raw;
     }
+}
+
+template <int Precision>
+ui64 THyperLogLog<Precision>::EstimateCardinality(const std::vector<ui64>& values)
+{
+    auto state = THyperLogLog<Precision>();
+    for (auto v : values) {
+        state.Add(v);
+    }
+    return state.EstimateCardinality();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

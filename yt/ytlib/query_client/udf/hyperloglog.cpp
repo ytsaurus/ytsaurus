@@ -10,7 +10,7 @@ static uint64_t Hash(TUnversionedValue* v)
     return FarmHash(v, v + 1);
 }
 
-typedef NYT::THyperLogLog<TUnversionedValue*, Hash, 14> THLL;
+typedef NYT::THyperLogLog<14> THLL;
 
 extern "C" void cardinality_init(
     TExecutionContext* context,
@@ -35,7 +35,7 @@ extern "C" void cardinality_update(
     result->Data.String = state->Data.String;
 
     auto hll = reinterpret_cast<THLL*>(state->Data.String);
-    hll->Add(newValue);
+    hll->Add(Hash(newValue));
 }
 
 extern "C" void cardinality_merge(
@@ -60,6 +60,5 @@ extern "C" void cardinality_finalize(
 {
     auto hll = reinterpret_cast<THLL*>(state->Data.String);
     result->Type = EValueType::Uint64;
-    auto card = hll->EstimateCardinality();
-    result->Data.Uint64 = card;
+    result->Data.Uint64 = hll->EstimateCardinality();
 }
