@@ -391,15 +391,15 @@ private:
                 .ThrowOnError();
         }
 
+        WaitFor(SnapshotWriter_->Close())
+            .ThrowOnError();
+
         LOG_INFO("Snapshot transfer loop completed (Size: %v)",
             size);
     }
 
     void OnFinished()
     {
-        WaitFor(SnapshotWriter_->Close())
-            .ThrowOnError();
-
         WaitFor(AsyncTransferResult_)
             .ThrowOnError();
     }
