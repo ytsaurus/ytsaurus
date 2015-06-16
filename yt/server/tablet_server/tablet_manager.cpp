@@ -137,8 +137,8 @@ private:
     {
         return CreateTabletCellProxy(Bootstrap_, cell);
     }
-    
-    virtual void DoDestroyObject(TTabletCell* cell) override;
+
+    virtual void DoZombifyObject(TTabletCell* cell) override;
 
 };
 
@@ -353,9 +353,6 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         YCHECK(!tablet->GetCell());
-
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet destroyed (TabletId: %v)",
-            tablet->GetId());
     }
 
 
@@ -1917,8 +1914,10 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
     return cell;
 }
 
-void TTabletManager::TTabletCellTypeHandler::DoDestroyObject(TTabletCell* cell)
+void TTabletManager::TTabletCellTypeHandler::DoZombifyObject(TTabletCell* cell)
 {
+    // NB: Destroy the cell right away and do not wait for GC to prevent
+    // dangling links from occuring in //sys/tablet_cells.
     Owner_->DestroyCell(cell);
 }
 
