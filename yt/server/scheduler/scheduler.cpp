@@ -167,6 +167,12 @@ public:
 
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
+
+        LoggingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::OnLogging, MakeWeak(this)),
+            Config_->ClusterInfoLoggingPeriod);
+        LoggingExecutor_->Start();
     }
 
     ISchedulerStrategy* GetStrategy()
@@ -750,6 +756,8 @@ private:
     TNodeResources TotalResourceLimits_;
     TNodeResources TotalResourceUsage_;
 
+    TPeriodicExecutorPtr LoggingExecutor_;
+
     Stroka ServiceAddress_;
 
     ISchemalessWriterPtr EventLogWriter_;
@@ -778,6 +786,19 @@ private:
 
         ProfileResources(TotalResourceLimitsProfiler_, TotalResourceLimits_);
         ProfileResources(TotalResourceUsageProfiler_, TotalResourceUsage_);
+    }
+
+
+    void OnLogging()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (IsConnected()) {
+            LogEventFluently(ELogEventType::ClusterInfo)
+                .Item("node_count").Value(GetExecNodeCount())
+                .Item("resource_limits").Value(TotalResourceLimits_)
+                .Item("resource_usage").Value(TotalResourceUsage_);
+        }
     }
 
 
@@ -1686,33 +1707,33 @@ private:
     {
         switch (type) {
             case EOperationType::Map:
-                return Config_->MapOperationSpec;
+                return Config_->MapOperationOptions->SpecTemplate;
             case EOperationType::Merge: {
                 auto mergeSpec = ParseOperationSpec<TMergeOperationSpec>(spec);
                 switch (mergeSpec->Mode) {
                     case EMergeMode::Unordered: {
-                        return Config_->UnorderedMergeOperationSpec;
+                        return Config_->UnorderedMergeOperationOptions->SpecTemplate;
                     }
                     case EMergeMode::Ordered: {
-                        return Config_->OrderedMergeOperationSpec;
+                        return Config_->OrderedMergeOperationOptions->SpecTemplate;
                     }
                     case EMergeMode::Sorted: {
-                        return Config_->SortedMergeOperationSpec;
+                        return Config_->SortedMergeOperationOptions->SpecTemplate;
                     }
                     default:
                         YUNREACHABLE();
                 }
             }
             case EOperationType::Erase:
-                return Config_->EraseOperationSpec;
+                return Config_->EraseOperationOptions->SpecTemplate;
             case EOperationType::Sort:
-                return Config_->SortOperationSpec;
+                return Config_->SortOperationOptions->SpecTemplate;
             case EOperationType::Reduce:
-                return Config_->ReduceOperationSpec;
+                return Config_->ReduceOperationOptions->SpecTemplate;
             case EOperationType::MapReduce:
-                return Config_->MapReduceOperationSpec;
+                return Config_->MapReduceOperationOptions->SpecTemplate;
             case EOperationType::RemoteCopy:
-                return Config_->RemoteCopyOperationSpec;
+                return Config_->RemoteCopyOperationOptions->SpecTemplate;
             default:
                 YUNREACHABLE();
         }

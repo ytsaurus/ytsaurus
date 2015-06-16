@@ -6,6 +6,7 @@
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
 #include <server/data_node/chunk_cache.h>
+#include <server/data_node/master_connector.h>
 
 #include <core/concurrency/action_queue.h>
 
@@ -81,7 +82,9 @@ void TSlotManager::Initialize(int slotCount)
             Slots.push_back(slot);
         }
     } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Failed to initialize slots");
+        auto error = TError("Failed to initialize slots") << ex;
+        LOG_WARNING(error);
+        Bootstrap->GetMasterConnector()->RegisterAlert(error);
         IsEnabled = false;
     }
 
