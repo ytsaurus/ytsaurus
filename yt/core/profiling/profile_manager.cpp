@@ -40,7 +40,8 @@ class TProfileManager::TImpl
 {
 public:
     TImpl()
-        : WasShutdown(false)
+        : WasStarted(true)
+        , WasShutdown(false)
         , Queue(New<TInvokerQueue>(
             &EventCount,
             EmptyTagIds,
@@ -58,6 +59,9 @@ public:
 
     void Start()
     {
+        YCHECK(!WasStarted);
+        YCHECK(!WasShutdown);
+        WasStarted = true;
         Thread->Start();
         Queue->SetThreadId(Thread->GetId());
 #ifdef _linux_
@@ -67,6 +71,8 @@ public:
 
     void Shutdown()
     {
+        YCHECK(!WasStarted);
+        YCHECK(!WasShutdown);
         WasShutdown = true;
         Queue->Shutdown();
         Thread->Shutdown();
@@ -75,8 +81,9 @@ public:
 
     void Enqueue(const TQueuedSample& sample, bool selfProfiling)
     {
-        if (WasShutdown)
+        if (!WasStarted || WasShutdown) {
             return;
+        }
 
         if (!selfProfiling) {
             ProfilingProfiler.Increment(EnqueuedCounter);
@@ -288,6 +295,7 @@ private:
 
 
     TEventCount EventCount;
+    volatile bool WasStarted;
     volatile bool WasShutdown;
     TInvokerQueuePtr Queue;
     TIntrusivePtr<TThread> Thread;
