@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "chunk.h"
 #include "chunk_replica.h"
 
@@ -25,14 +25,6 @@ namespace NYT {
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_BIT_ENUM(EJobUnregisterFlags,
-    ((None)                  (0x0000))
-    ((UnregisterFromChunk)   (0x0001))
-    ((UnregisterFromNode)    (0x0002))
-    ((ScheduleChunkRefresh)  (0x0004))
-    ((All)                   (0xffff))
-);
 
 class TChunkReplicator
     : public TRefCounted
@@ -60,13 +52,14 @@ public:
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnsafelyPlacedChunks);
 
     void OnChunkDestroyed(TChunk* chunk);
+    void OnReplicaRemoved(TNode* node, TChunkPtrWithIndex chunkWithIndex, ERemoveReplicaReason reason);
 
     void ScheduleChunkRefresh(const TChunkId& chunkId);
     void ScheduleChunkRefresh(TChunk* chunk);
     void ScheduleNodeRefresh(TNode* node);
 
-    void ScheduleUnknownChunkRemoval(TNode* node, const NChunkClient::TChunkIdWithIndex& chunkdIdWithIndex);
-    void ScheduleChunkRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex);
+    void ScheduleUnknownReplicaRemoval(TNode* node, const NChunkClient::TChunkIdWithIndex& chunkdIdWithIndex);
+    void ScheduleReplicaRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex);
 
     void SchedulePropertiesUpdate(TChunkTree* chunkTree);
     void SchedulePropertiesUpdate(TChunk* chunk);
@@ -175,7 +168,8 @@ private:
     void RefreshChunk(TChunk* chunk);
 
     void ResetChunkStatus(TChunk* chunk);
-    void RemoveChunkFromQueues(TChunk* chunk, bool includingRemovals);
+    void RemoveChunkFromQueues(TChunk* chunk, bool dropRemovals);
+    void RemoveReplicaFromQueues(TChunk* chunk, TNodePtrWithIndex nodeWithIndex, bool dropRemovals);
     void CancelChunkJobs(TChunk* chunk);
 
     TChunkStatistics ComputeChunkStatistics(TChunk* chunk);

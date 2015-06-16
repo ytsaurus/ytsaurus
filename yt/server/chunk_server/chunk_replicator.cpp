@@ -457,12 +457,27 @@ void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
     CancelChunkJobs(chunk);
 }
 
-void TChunkReplicator::ScheduleUnknownChunkRemoval(TNode* node, const TChunkIdWithIndex& chunkIdWithIndex)
+void TChunkReplicator::OnReplicaRemoved(
+    TNode* node,
+    TChunkPtrWithIndex chunkWithIndex,
+    ERemoveReplicaReason reason)
+{
+    RemoveReplicaFromQueues(
+        chunkWithIndex.GetPtr(),
+        TNodePtrWithIndex(node, chunkWithIndex.GetIndex()),
+        reason != ERemoveReplicaReason::ChunkIsDead);
+}
+
+void TChunkReplicator::ScheduleUnknownReplicaRemoval(
+    TNode* node,
+    const TChunkIdWithIndex& chunkIdWithIndex)
 {
     node->AddToChunkRemovalQueue(chunkIdWithIndex);
 }
 
-void TChunkReplicator::ScheduleChunkRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex)
+void TChunkReplicator::ScheduleReplicaRemoval(
+    TNode* node,
+    TChunkPtrWithIndex chunkWithIndex)
 {
     TChunkIdWithIndex chunkIdWithIndex(chunkWithIndex.GetPtr()->GetId(), chunkWithIndex.GetIndex());
     node->AddToChunkRemovalQueue(chunkIdWithIndex);
@@ -1076,22 +1091,27 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
     }
 }
 
-void TChunkReplicator::RemoveChunkFromQueues(TChunk* chunk, bool includingRemovals)
+void TChunkReplicator::RemoveChunkFromQueues(TChunk* chunk, bool dropRemovals)
 {
     for (auto nodeWithIndex : chunk->StoredReplicas()) {
-        auto* node = nodeWithIndex.GetPtr();
-        TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
-        TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), nodeWithIndex.GetIndex());
-        if (includingRemovals) {
-            node->RemoveFromChunkRemovalQueue(chunkIdWithIndex);
-        }
-        node->RemoveFromChunkReplicationQueues(chunkWithIndex);
-        node->RemoveFromChunkSealQueue(chunk);
+        RemoveReplicaFromQueues(chunk, nodeWithIndex, dropRemovals);
     }
 
     if (chunk->IsErasure()) {
         RemoveFromChunkRepairQueue(chunk);
     }
+}
+
+void TChunkReplicator::RemoveReplicaFromQueues(TChunk* chunk, TNodePtrWithIndex nodeWithIndex, bool dropRemovals)
+{
+    auto* node = nodeWithIndex.GetPtr();
+    TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
+    TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), nodeWithIndex.GetIndex());
+    if (dropRemovals) {
+        node->RemoveFromChunkRemovalQueue(chunkIdWithIndex);
+    }
+    node->RemoveFromChunkReplicationQueues(chunkWithIndex);
+    node->RemoveFromChunkSealQueue(chunk);
 }
 
 void TChunkReplicator::CancelChunkJobs(TChunk* chunk)

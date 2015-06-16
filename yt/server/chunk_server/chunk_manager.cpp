@@ -309,20 +309,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EAddReplicaReason,
-    (IncrementalHeartbeat)
-    (FullHeartbeat)
-    (Confirmation)
-);
-
-DEFINE_ENUM(ERemoveReplicaReason,
-    (None)
-    (IncrementalHeartbeat)
-    (FailedToApprove)
-    (ChunkIsDead)
-    (NodeRemoved)
-);
-
 class TChunkManager::TImpl
     : public TMasterAutomatonPart
 {
@@ -923,7 +909,7 @@ private:
             TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
             node->RemoveReplica(chunkWithIndex, cached);
             if (ChunkReplicator_ && !cached) {
-                ChunkReplicator_->ScheduleChunkRemoval(node, chunkWithIndex);
+                ChunkReplicator_->ScheduleReplicaRemoval(node, chunkWithIndex);
             }
         };
 
@@ -1340,6 +1326,7 @@ private:
         auto* chunk = chunkWithIndex.GetPtr();
         auto nodeId = node->GetId();
         TNodePtrWithIndex nodeWithIndex(node, chunkWithIndex.GetIndex());
+        TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), nodeWithIndex.GetIndex());
 
         if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !node->HasReplica(chunkWithIndex, cached)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",
@@ -1351,11 +1338,16 @@ private:
             return;
         }
 
+        chunk->RemoveReplica(nodeWithIndex, cached);
+
         switch (reason) {
             case ERemoveReplicaReason::IncrementalHeartbeat:
             case ERemoveReplicaReason::FailedToApprove:
             case ERemoveReplicaReason::ChunkIsDead:
                 node->RemoveReplica(chunkWithIndex, cached);
+                if (ChunkReplicator_ && !cached) {
+                    ChunkReplicator_->OnReplicaRemoved(node, chunkWithIndex, reason);
+                }
                 break;
             case ERemoveReplicaReason::NodeRemoved:
                 // Do nothing.
@@ -1363,7 +1355,6 @@ private:
             default:
                 YUNREACHABLE();
         }
-        chunk->RemoveReplica(nodeWithIndex, cached);
 
         if (!IsRecovery()) {
             LOG_EVENT(
@@ -1430,7 +1421,7 @@ private:
                 cached);
 
             if (ChunkReplicator_) {
-                ChunkReplicator_->ScheduleUnknownChunkRemoval(node, chunkIdWithIndex);
+                ChunkReplicator_->ScheduleUnknownReplicaRemoval(node, chunkIdWithIndex);
             }
 
             return;
