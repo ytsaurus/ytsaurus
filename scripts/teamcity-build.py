@@ -71,6 +71,7 @@ def prepare(options):
     if codename not in ["lucid", "precise", "trusty"]:
         raise RuntimeError("Unknown LSB distribution code name: {0}".format(codename))
 
+    options.codename = codename
     options.repositories = ["yt-" + codename]
 
     # Now determine the compiler.
@@ -345,7 +346,8 @@ def build_python_packages(options):
         else:
             return "0"
 
-    if not options.package:
+    # trusty build broken python packages, temporaly turn it off :(
+    if not options.package or options.codename == "trusty":
         return
 
     run(["sudo", "apt-get", "update"])
