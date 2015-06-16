@@ -38,7 +38,6 @@
 #include <core/logging/log_manager.h>
 
 #include <util/system/sigset.h>
-#include <util/system/execpath.h>
 #include <util/folder/dirut.h>
 
 #include <contrib/tclap/tclap/CmdLine.h>
@@ -435,9 +434,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
 EExitCode Main(int argc, const char* argv[])
 {
     InstallCrashSignalHandler();
-
-    // If you ever try to remove this I will kill you. I promise. /@babenko
-    GetExecPath();
 
 #ifdef _unix_
     sigset_t sigset;
