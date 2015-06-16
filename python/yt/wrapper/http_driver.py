@@ -92,13 +92,13 @@ def make_request(command_name, params,
     command = commands[command_name]
 
     # Determine make retries or not and set mutation if needed
-    allow_retries = not command.is_volatile or not command.is_heavy
+    allow_retries = not command.is_heavy
 
-    if "retry" not in params:
-        params["retry"] = bool_to_string(False)
-
-    if command.is_volatile and allow_retries and "mutation_id" not in params:
-        params["mutation_id"] = generate_uuid()
+    if command.is_volatile and allow_retries:
+        if "mutation_id" not in params:
+            params["mutation_id"] = generate_uuid()
+        if "retry" not in params:
+            params["retry"] = bool_to_string(False)
 
     # prepare url
     url = "http://{0}/{1}/{2}".format(proxy, api_path, command_name)
@@ -137,8 +137,9 @@ def make_request(command_name, params,
 
     if allow_retries:
         def set_retry():
-            params["retry"] = bool_to_string(True)
-            headers.update({"X-YT-Parameters": json.dumps(escape_utf8(params))})
+            if command.is_volatile:
+                params["retry"] = bool_to_string(True)
+                headers.update({"X-YT-Parameters": json.dumps(escape_utf8(params))})
         retry_action = set_retry
     else:
         retry_action = None
