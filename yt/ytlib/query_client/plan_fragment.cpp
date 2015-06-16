@@ -1823,6 +1823,7 @@ void ToProto(NProto::TPlanFragment* proto, TConstPlanFragmentPtr fragment)
 
     proto->set_ordered(fragment->Ordered);
     proto->set_verbose_logging(fragment->VerboseLogging);
+    proto->set_max_subqueries(fragment->MaxSubqueries);
     
     proto->set_source(fragment->Source);
     proto->set_timestamp(fragment->Timestamp);
@@ -1836,6 +1837,7 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
     result->Query = FromProto(serialized.query());
     result->Ordered = serialized.ordered();
     result->VerboseLogging = serialized.verbose_logging();
+    result->MaxSubqueries = serialized.max_subqueries();
     result->Timestamp = serialized.timestamp();
 
     NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.data_bounds()));

@@ -188,6 +188,7 @@ struct TSelectRowsRequest
     TNullable<i64> OutputRowLimit;
     ui64 RangeExpansionLimit;
     bool VerboseLogging;
+    ui64 MaxSubqueries;
 
     TSelectRowsRequest()
     {
@@ -202,6 +203,8 @@ struct TSelectRowsRequest
             .Default(1000);
         RegisterParameter("verbose_logging", VerboseLogging)
             .Default(false);
+        RegisterParameter("max_subqueries", MaxSubqueries)
+            .Default(0);
     }
 };
 

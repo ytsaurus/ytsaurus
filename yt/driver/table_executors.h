@@ -152,6 +152,7 @@ private:
     TCLAP::ValueArg<int> OutputRowLimitArg;
     TCLAP::ValueArg<int> RangeExpansionLimitArg;
     TCLAP::SwitchArg VerboseLoggingArg;
+    TCLAP::ValueArg<int> MaxSubqueriesArg;
 
     virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

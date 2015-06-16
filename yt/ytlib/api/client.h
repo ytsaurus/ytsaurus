@@ -178,6 +178,8 @@ struct TSelectRowsOptions
     bool FailOnIncompleteResult = true;
     //! If |true| then logging is more verbose.
     bool VerboseLogging = false;
+    //! Limits maximum parallel subqueries.
+    ui64 MaxSubqueries = 0;
 };
 
 struct TGetNodeOptions
