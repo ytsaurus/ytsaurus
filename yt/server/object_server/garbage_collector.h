@@ -52,8 +52,8 @@ public:
     int GetLockedGCQueueSize() const;
 
 private:
-    TObjectManagerConfigPtr Config_;
-    NCellMaster::TBootstrap* Bootstrap_;
+    const TObjectManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* const Bootstrap_;
 
     NConcurrency::TPeriodicExecutorPtr SweepExecutor_;
 
