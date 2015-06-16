@@ -67,8 +67,12 @@ public:
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
             TRACE_ANNOTATION("fragment_id", query->Id);
+            auto queryFingerprint = InferName(query, true);
+            TRACE_ANNOTATION("query_fingerprint", queryFingerprint);
 
             auto Logger = BuildLogger(query);
+
+            LOG_DEBUG("Executing query (%v)", queryFingerprint);
 
             TQueryStatistics statistics;
             TDuration wallTime;
