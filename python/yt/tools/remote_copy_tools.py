@@ -109,9 +109,7 @@ while true; do
 done;""".format(prepare_command, read_command)
 
 def _get_read_from_yt_command(yt_client, src, format, fastbone):
-    token = yt_client.token
-    if token is None:
-        token = ""
+    token = yt_client.config.get("token", "")
 
     hosts = "hosts"
     if fastbone:
@@ -130,8 +128,8 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
 def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False):
     files = []
     prepare_command = "export YT_TOKEN=$(cat yt_token)\n"
-    if hasattr(yt_client, "token"):
-        files.append(_pack_string("yt_token", yt_client.token, tmp_dir))
+    if "token" in yt_client.config:
+        files.append(_pack_string("yt_token", yt_client.config["token"], tmp_dir))
     if pack:
         files += [_pack_module("yt", tmp_dir), _which("yt2")]
         prepare_command += """
@@ -145,7 +143,7 @@ set +e"""
     return files
 
 def check_permission(client, permission, path):
-     user_name = client.get_user_name(client.token)
+     user_name = client.get_user_name(client.config["token"])
      permission = client.check_permission(user_name, permission, path)
      return permission["action"] == "allow"
 
@@ -184,7 +182,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spe
         cluster_name=source_client._name,
         network_name=network_name,
         spec=spec_template,
-        remote_cluster_token=source_client.token)
+        remote_cluster_token=source_client.config["token"])
 
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, spec_template=None, message_queue=None):
     if spec_template is None:
