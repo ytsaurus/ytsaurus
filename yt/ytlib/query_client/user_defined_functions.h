@@ -32,8 +32,7 @@ struct ICallingConvention
         const Stroka& functionName,
         llvm::Function* callee,
         TCGContext& builder,
-        std::vector<Value*> argumentValues,
-        TType resultType) const;
+        llvm::FunctionType* functionType) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICallingConvention);

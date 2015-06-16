@@ -3,9 +3,20 @@
 #include "builtin_functions.h"
 #include "user_defined_functions.h"
 
-#include "udf/builtin_functions.h"
-#include "udf/builtin_aggregates.h"
 #include "udf/hyperloglog.h"
+#include "udf/double.h"
+#include "udf/farm_hash.h"
+#include "udf/int64.h"
+#include "udf/is_null.h"
+#include "udf/is_substr.h"
+#include "udf/lower.h"
+#include "udf/simple_hash.h"
+#include "udf/sleep.h"
+#include "udf/uint64.h"
+#include "udf/min.h"
+#include "udf/max.h"
+#include "udf/sum.h"
+#include "udf/avg.h"
 
 #include <ytlib/api/public.h>
 #include <ytlib/api/client.h>
@@ -93,40 +104,34 @@ IAggregateFunctionDescriptorPtr TFunctionRegistry::FindAggregateFunction(const S
 
 void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 {
-    auto builtinImplementations = TSharedRef(
-        builtin_functions_bc,
-        builtin_functions_bc_len,
-        nullptr);
-
-    auto aggregatesImplementation = TSharedRef(
-        builtin_aggregates_bc,
-        builtin_aggregates_bc_len,
-        nullptr);
-
-    auto hyperloglogImplementation = TSharedRef(
-        hyperloglog_bc,
-        hyperloglog_bc_len,
-        nullptr);
-
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "is_substr",
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Boolean,
-        builtinImplementations,
+        TSharedRef(
+            is_substr_bc,
+            is_substr_bc_len,
+            nullptr),
         ECallingConvention::Simple));
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "lower",
         std::vector<TType>{EValueType::String},
         EValueType::String,
-        builtinImplementations,
+        TSharedRef(
+            lower_bc,
+            lower_bc_len,
+            nullptr),
         ECallingConvention::Simple));
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "sleep",
         std::vector<TType>{EValueType::Int64},
         EValueType::Int64,
-        builtinImplementations,
+        TSharedRef(
+            sleep_bc,
+            sleep_bc_len,
+            nullptr),
         ECallingConvention::Simple));
 
     TUnionType hashTypes = TUnionType{
@@ -141,7 +146,10 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         std::vector<TType>{},
         hashTypes,
         EValueType::Uint64,
-        builtinImplementations));
+        TSharedRef(
+            simple_hash_bc,
+            simple_hash_bc_len,
+            nullptr)));
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "farm_hash",
@@ -149,13 +157,19 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         std::vector<TType>{},
         hashTypes,
         EValueType::Uint64,
-        builtinImplementations));
+        TSharedRef(
+            farm_hash_bc,
+            farm_hash_bc_len,
+            nullptr)));
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "is_null",
         std::vector<TType>{0},
         EValueType::Boolean,
-        builtinImplementations,
+        TSharedRef(
+            is_null_bc,
+            is_null_bc_len,
+            nullptr),
         ECallingConvention::UnversionedValue));
 
     auto typeArg = 0;
@@ -171,7 +185,10 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         std::vector<TType>{typeArg},
         EValueType::Null,
         EValueType::Int64,
-        builtinImplementations));
+        TSharedRef(
+            int64_bc,
+            int64_bc_len,
+            nullptr)));
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "uint64",
@@ -179,7 +196,10 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         std::vector<TType>{typeArg},
         EValueType::Null,
         EValueType::Uint64,
-        builtinImplementations));
+        TSharedRef(
+            uint64_bc,
+            uint64_bc_len,
+            nullptr)));
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "double",
@@ -188,7 +208,10 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         std::vector<TType>{typeArg},
         EValueType::Null,
         EValueType::Double,
-        builtinImplementations));
+        TSharedRef(
+            double_bc,
+            double_bc_len,
+            nullptr)));
 
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
@@ -211,7 +234,10 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         typeArg,
         typeArg,
         typeArg,
-        aggregatesImplementation,
+        TSharedRef(
+            sum_bc,
+            sum_bc_len,
+            nullptr),
         ECallingConvention::UnversionedValue));
     registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
         "min",
@@ -219,7 +245,10 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         typeArg,
         typeArg,
         typeArg,
-        aggregatesImplementation,
+        TSharedRef(
+            min_bc,
+            min_bc_len,
+            nullptr),
         ECallingConvention::UnversionedValue));
     registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
         "max",
@@ -227,7 +256,10 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         typeArg,
         typeArg,
         typeArg,
-        aggregatesImplementation,
+        TSharedRef(
+            max_bc,
+            max_bc_len,
+            nullptr),
         ECallingConvention::UnversionedValue));
     registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
         "avg",
@@ -235,7 +267,10 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         EValueType::Int64,
         EValueType::Double,
         EValueType::String,
-        aggregatesImplementation,
+        TSharedRef(
+            avg_bc,
+            avg_bc_len,
+            nullptr),
         ECallingConvention::UnversionedValue));
     registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
         "cardinality",
@@ -248,7 +283,10 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
             EValueType::Boolean},
         EValueType::Uint64,
         EValueType::String,
-        hyperloglogImplementation,
+        TSharedRef(
+            hyperloglog_bc,
+            hyperloglog_bc_len,
+            nullptr),
         ECallingConvention::UnversionedValue));
 }
 
