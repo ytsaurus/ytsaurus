@@ -43,7 +43,7 @@ public:
         return Null;
     }
 
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         NTransactionServer::TTransaction* /*transaction*/,
         NSecurityServer::TAccount* /*account*/,
         NYTree::IAttributeDictionary* /*attributes*/,
@@ -53,15 +53,20 @@ public:
         YUNREACHABLE();
     }
 
+    virtual void ZombifyObject(TObjectBase* object) throw() override
+    {
+        DoZombifyObject(static_cast<TObject*>(object));
+    }
+
     virtual NTransactionServer::TTransaction* GetStagingTransaction(
         TObjectBase* object) override
     {
         return DoGetStagingTransaction(static_cast<TObject*>(object));
     }
 
-    virtual void Unstage(TObjectBase* object, bool recursive) override
+    virtual void UnstageObject(TObjectBase* object, bool recursive) override
     {
-        DoUnstage(static_cast<TObject*>(object), recursive);
+        DoUnstageObject(static_cast<TObject*>(object), recursive);
     }
 
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) override
@@ -95,13 +100,16 @@ protected:
         return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap_, object);
     }
 
+    virtual void DoZombifyObject(TObject* /*object*/)
+    { }
+
     virtual NTransactionServer::TTransaction* DoGetStagingTransaction(
         TObject* /*object*/)
     {
         return nullptr;
     }
 
-    virtual void DoUnstage(TObject* /*object*/, bool /*recursive*/)
+    virtual void DoUnstageObject(TObject* /*object*/, bool /*recursive*/)
     {
         YUNREACHABLE();
     }
@@ -132,7 +140,7 @@ public:
         , Map_(map)
     { }
 
-    virtual void Destroy(TObjectBase* object) throw() override
+    virtual void DestroyObject(TObjectBase* object) throw() override
     {
         // Clear ACD, if any.
         auto* acd = this->FindAcd(object);
@@ -141,7 +149,7 @@ public:
         }
 
         // Run custom destruction logic.
-        this->DoDestroy(static_cast<TObject*>(object));
+        this->DoDestroyObject(static_cast<TObject*>(object));
 
         // Remove the object from the map.
         Map_->Remove(object->GetId());
@@ -157,7 +165,7 @@ public:
         for (const auto& pair : *Map_) {
             auto* object = pair.second;
             object->ResetWeakRefCounter();
-            this->DoReset(object);
+            this->DoResetObject(object);
         }
     }
 
@@ -166,10 +174,10 @@ private:
     TMap* const Map_;
 
 
-    virtual void DoDestroy(TObject* /*object*/)
+    virtual void DoDestroyObject(TObject* /*object*/)
     { }
 
-    virtual void DoReset(TObject* /*object*/)
+    virtual void DoResetObject(TObject* /*object*/)
     { }
 
 };

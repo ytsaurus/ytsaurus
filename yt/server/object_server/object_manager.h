@@ -73,13 +73,13 @@ public:
     void RegisterHandler(IObjectTypeHandlerPtr handler);
 
     //! Returns the handler for a given type or |nullptr| if the type is unknown.
-    IObjectTypeHandlerPtr FindHandler(EObjectType type) const;
+    const IObjectTypeHandlerPtr& FindHandler(EObjectType type) const;
 
     //! Returns the handler for a given type.
-    IObjectTypeHandlerPtr GetHandler(EObjectType type) const;
+    const IObjectTypeHandlerPtr& GetHandler(EObjectType type) const;
 
     //! Returns the handler for a given object.
-    IObjectTypeHandlerPtr GetHandler(TObjectBase* object) const;
+    const IObjectTypeHandlerPtr& GetHandler(TObjectBase* object) const;
 
     //! Returns the set of registered object types, excluding schemas.
     const std::set<EObjectType>& GetRegisteredTypes() const;

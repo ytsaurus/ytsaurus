@@ -118,7 +118,7 @@ public:
             EObjectAccountMode::Forbidden);
     }
 
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -138,7 +138,7 @@ private:
         return CreateTabletCellProxy(Bootstrap_, cell);
     }
     
-    virtual void DoDestroy(TTabletCell* cell) override;
+    virtual void DoDestroyObject(TTabletCell* cell) override;
 
 };
 
@@ -168,7 +168,7 @@ private:
         return CreateTabletProxy(Bootstrap_, tablet);
     }
 
-    virtual void DoDestroy(TTablet* tablet) override;
+    virtual void DoDestroyObject(TTablet* tablet) override;
 
 };
 
@@ -1905,7 +1905,7 @@ TTabletManager::TTabletCellTypeHandler::TTabletCellTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TTabletManager::TTabletCellTypeHandler::Create(
+TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
@@ -1917,7 +1917,7 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::Create(
     return cell;
 }
 
-void TTabletManager::TTabletCellTypeHandler::DoDestroy(TTabletCell* cell)
+void TTabletManager::TTabletCellTypeHandler::DoDestroyObject(TTabletCell* cell)
 {
     Owner_->DestroyCell(cell);
 }
@@ -1929,7 +1929,7 @@ TTabletManager::TTabletTypeHandler::TTabletTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-void TTabletManager::TTabletTypeHandler::DoDestroy(TTablet* tablet)
+void TTabletManager::TTabletTypeHandler::DoDestroyObject(TTablet* tablet)
 {
     Owner_->DestroyTablet(tablet);
 }
