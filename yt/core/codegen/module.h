@@ -35,6 +35,9 @@ public:
 
     void AddObjectFile(std::unique_ptr<llvm::object::ObjectFile> sharedObject);
 
+    //TODO: make this private with getters and setters
+    std::set<Stroka> LoadedFunctions;
+
 private:
     class TImpl;
     std::unique_ptr<TImpl> Impl_;

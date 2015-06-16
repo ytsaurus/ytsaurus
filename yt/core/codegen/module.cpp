@@ -283,6 +283,8 @@ private:
 
     std::unique_ptr<llvm::ExecutionEngine> Engine_;
 
+    std::set<Stroka> LoadedUdfs_;
+
     bool Compiled_ = false;
 
     // RoutineRegistry is supposed to be a static object.
