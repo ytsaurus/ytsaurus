@@ -303,8 +303,12 @@ private:
 
         LOG_DEBUG("Grouping %v splits", splits.size());
 
-        for (int queryIndex = 1; queryIndex <= Config_->MaxSubqueries; ++queryIndex) {
-            int nextSplitOffset = queryIndex * splitCount / Config_->MaxSubqueries;
+        auto maxSubqueries = fragment->MaxSubqueries > 0
+            ? fragment->MaxSubqueries
+            : Config_->MaxSubqueries;
+
+        for (int queryIndex = 1; queryIndex <= maxSubqueries; ++queryIndex) {
+            int nextSplitOffset = queryIndex * splitCount / maxSubqueries;
             if (splitOffset != nextSplitOffset) {
                 groupedSplits.emplace_back(splits.begin() + splitOffset, splits.begin() + nextSplitOffset);
                 splitOffset = nextSplitOffset;

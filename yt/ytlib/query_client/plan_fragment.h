@@ -392,6 +392,7 @@ struct TPlanFragment
     TConstQueryPtr Query;
     bool Ordered = false;
     bool VerboseLogging = false;
+    ui64 MaxSubqueries = 0;
     ui64 RangeExpansionLimit = 0;
 };
 
