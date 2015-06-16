@@ -82,7 +82,7 @@ public:
             EObjectAccountMode::Forbidden);
     }
 
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -99,7 +99,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TRack* rack, TTransaction* transaction) override;
 
-    virtual void DoDestroy(TRack* rack) override;
+    virtual void DoDestroyObject(TRack* rack) override;
 
 };
 
@@ -1305,7 +1305,7 @@ TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TNodeTracker::TRackTypeHandler::Create(
+TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
@@ -1325,7 +1325,7 @@ IObjectProxyPtr TNodeTracker::TRackTypeHandler::DoGetProxy(
     return CreateRackProxy(Owner_->Bootstrap_, rack);
 }
 
-void TNodeTracker::TRackTypeHandler::DoDestroy(TRack* rack)
+void TNodeTracker::TRackTypeHandler::DoDestroyObject(TRack* rack)
 {
     Owner_->DestroyRack(rack);
 }

@@ -159,7 +159,7 @@ public:
             EObjectAccountMode::Required);
     }
 
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -172,16 +172,16 @@ protected:
 
     virtual IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
 
-    virtual void DoDestroy(TChunk* chunk) override;
+    virtual void DoDestroyObject(TChunk* chunk) override;
 
     virtual TTransaction* DoGetStagingTransaction(TChunk* chunk) override
     {
         return chunk->GetStagingTransaction();
     }
 
-    virtual void DoUnstage(TChunk* chunk, bool recursive) override;
+    virtual void DoUnstageObject(TChunk* chunk, bool recursive) override;
 
-    virtual void DoReset(TChunk* chunk) override
+    virtual void DoResetObject(TChunk* chunk) override
     {
         chunk->SetRefreshScheduled(false);
         chunk->SetPropertiesUpdateScheduled(false);
@@ -279,7 +279,7 @@ public:
             EObjectAccountMode::Forbidden);
     }
 
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -297,14 +297,14 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TChunkList* chunkList, TTransaction* transaction) override;
 
-    virtual void DoDestroy(TChunkList* chunkList) override;
+    virtual void DoDestroyObject(TChunkList* chunkList) override;
 
     virtual TTransaction* DoGetStagingTransaction(TChunkList* chunkList) override
     {
         return chunkList->GetStagingTransaction();
     }
 
-    virtual void DoUnstage(TChunkList* chunkList, bool recursive) override;
+    virtual void DoUnstageObject(TChunkList* chunkList, bool recursive) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1522,7 +1522,7 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
     return CreateChunkProxy(Bootstrap_, chunk);
 }
 
-TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
+TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
@@ -1571,12 +1571,12 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     return chunk;
 }
 
-void TChunkManager::TChunkTypeHandlerBase::DoDestroy(TChunk* chunk)
+void TChunkManager::TChunkTypeHandlerBase::DoDestroyObject(TChunk* chunk)
 {
     Owner_->DestroyChunk(chunk);
 }
 
-void TChunkManager::TChunkTypeHandlerBase::DoUnstage(
+void TChunkManager::TChunkTypeHandlerBase::DoUnstageObject(
     TChunk* chunk,
     bool /*recursive*/)
 {
@@ -1597,7 +1597,7 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
     return CreateChunkListProxy(Bootstrap_, chunkList);
 }
 
-TObjectBase* TChunkManager::TChunkListTypeHandler::Create(
+TObjectBase* TChunkManager::TChunkListTypeHandler::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
@@ -1610,12 +1610,12 @@ TObjectBase* TChunkManager::TChunkListTypeHandler::Create(
     return chunkList;
 }
 
-void TChunkManager::TChunkListTypeHandler::DoDestroy(TChunkList* chunkList)
+void TChunkManager::TChunkListTypeHandler::DoDestroyObject(TChunkList* chunkList)
 {
     Owner_->DestroyChunkList(chunkList);
 }
 
-void TChunkManager::TChunkListTypeHandler::DoUnstage(
+void TChunkManager::TChunkListTypeHandler::DoUnstageObject(
     TChunkList* chunkList,
     bool recursive)
 {

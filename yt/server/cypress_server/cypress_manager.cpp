@@ -286,7 +286,7 @@ public:
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
-    virtual void Destroy(TObjectBase* object) throw() override
+    virtual void DestroyObject(TObjectBase* object) throw() override
     {
         DoDestroy(static_cast<TCypressNodeBase*>(object));
     }
@@ -310,7 +310,7 @@ public:
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         for (const auto& pair : cypressManager->Nodes()) {
-            DoReset(pair.second);
+            DoResetObject(pair.second);
         }
     }
 
@@ -348,7 +348,7 @@ private:
         return node->GetParent();
     }
 
-    void DoReset(TCypressNodeBase* node)
+    void DoResetObject(TCypressNodeBase* node)
     {
         node->ResetWeakRefCounter();
     }

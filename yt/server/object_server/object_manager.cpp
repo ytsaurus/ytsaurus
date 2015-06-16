@@ -419,31 +419,37 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     }
 }
 
-IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
+static const IObjectTypeHandlerPtr NullTypeHandler;
+
+const IObjectTypeHandlerPtr& TObjectManager::FindHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return type >= MinObjectType && type <= MaxObjectType
         ? TypeToEntry_[type].Handler
-        : nullptr;
+        : NullTypeHandler;
 }
 
-IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
+const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto handler = FindHandler(type);
+    const auto& handler = FindHandler(type);
     YASSERT(handler);
     return handler;
 }
 
-IObjectTypeHandlerPtr TObjectManager::GetHandler(TObjectBase* object) const
+const IObjectTypeHandlerPtr& TObjectManager::GetHandler(TObjectBase* object) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return GetHandler(object->GetType());
 }
 
 const std::set<EObjectType>& TObjectManager::GetRegisteredTypes() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return RegisteredTypes_;
 }
 
@@ -494,6 +500,8 @@ void TObjectManager::UnrefObject(TObjectBase* object)
         object->GetObjectWeakRefCounter());
 
     if (refCounter == 0) {
+        const auto& handler = GetHandler(object);
+        handler->ZombifyObject(object);
         GarbageCollector_->Enqueue(object);
     }
 }
@@ -651,7 +659,7 @@ void TObjectManager::OnRecoveryStarted()
     LockedObjectCount_ = 0;
 
     for (auto type : RegisteredTypes_) {
-        auto handler = GetHandler(type);
+        const auto& handler = GetHandler(type);
         LOG_INFO("Started resetting objects (Type: %v)", type);
         handler->ResetAllObjects();
         LOG_INFO("Finished resetting objects (Type: %v)", type);
@@ -879,7 +887,7 @@ TObjectBase* TObjectManager::CreateObject(
         securityManager->ValidatePermission(schema, user, EPermission::Create);
     }
 
-    auto* object = handler->Create(
+    auto* object = handler->CreateObject(
         transaction,
         account,
         attributes,
@@ -1027,7 +1035,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
     for (const auto& protoId : request.object_ids()) {
         auto id = FromProto<TObjectId>(protoId);
         auto type = TypeFromId(id);
-        auto handler = GetHandler(type);
+        const auto& handler = GetHandler(type);
         auto* object = handler->GetObject(id);
 
         // NB: The order of Dequeue/Destroy/CheckEmpty calls matters.
@@ -1035,7 +1043,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         // To enable cascaded GC sweep we don't want this to happen
         // if some ids are added during DestroyObject.
         GarbageCollector_->Dequeue(object);
-        handler->Destroy(object);
+        handler->DestroyObject(object);
         ++DestroyedObjectCount_;
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %v, Id: %v)",
