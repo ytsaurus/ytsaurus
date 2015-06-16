@@ -40,7 +40,7 @@ class TProfileManager::TImpl
 {
 public:
     TImpl()
-        : WasStarted(true)
+        : WasStarted(false)
         , WasShutdown(false)
         , Queue(New<TInvokerQueue>(
             &EventCount,
