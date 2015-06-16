@@ -413,12 +413,10 @@ void TChunkReplicator::ScheduleJobs(
         jobsToAbort,
         jobsToRemove);
 
-    if (IsEnabled()) {
-        ScheduleNewJobs(
-            node,
-            jobsToStart,
-            jobsToAbort);
-    }
+    ScheduleNewJobs(
+        node,
+        jobsToStart,
+        jobsToAbort);
 }
 
 void TChunkReplicator::OnNodeRegistered(TNode* node)
@@ -858,67 +856,91 @@ void TChunkReplicator::ScheduleNewJobs(
         }
     };
 
-    // Schedule replication jobs.
-    for (auto& queue : node->ChunkReplicationQueues()) {
-        auto it = queue.begin();
-        while (it != queue.end()) {
-            if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
-                break;
-            if (runningReplicationSize > Config_->MaxReplicationJobsSize)
-                break;
+    if (IsEnabled()) {
+        // Schedule replication jobs.
+        for (auto& queue : node->ChunkReplicationQueues()) {
+            auto it = queue.begin();
+            while (it != queue.end()) {
+                if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
+                    break;
+                if (runningReplicationSize > Config_->MaxReplicationJobsSize)
+                    break;
 
-            auto jt = it++;
-            auto chunkWithIndex = *jt;
+                auto jt = it++;
+                auto chunkWithIndex = *jt;
 
-            TJobPtr job;
-            if (CreateReplicationJob(node, chunkWithIndex, &job)) {
-                queue.erase(jt);
+                TJobPtr job;
+                if (CreateReplicationJob(node, chunkWithIndex, &job)) {
+                    queue.erase(jt);
+                }
+                registerJob(job);
             }
-            registerJob(job);
         }
-    }
 
-    // Schedule repair jobs.
-    {
-        auto it = ChunkRepairQueue_.begin();
-        while (it != ChunkRepairQueue_.end()) {
-            if (resourceUsage.repair_slots() >= resourceLimits.repair_slots())
-                break;
-            if (runningRepairSize > Config_->MaxRepairJobsSize)
-                break;
+        // Schedule repair jobs.
+        {
+            auto it = ChunkRepairQueue_.begin();
+            while (it != ChunkRepairQueue_.end()) {
+                if (resourceUsage.repair_slots() >= resourceLimits.repair_slots())
+                    break;
+                if (runningRepairSize > Config_->MaxRepairJobsSize)
+                    break;
 
-            auto jt = it++;
-            auto* chunk = *jt;
+                auto jt = it++;
+                auto* chunk = *jt;
 
-            TJobPtr job;
-            if (CreateRepairJob(node, chunk, &job)) {
-                chunk->SetRepairQueueIterator(Null);
-                ChunkRepairQueue_.erase(jt);
+                TJobPtr job;
+                if (CreateRepairJob(node, chunk, &job)) {
+                    chunk->SetRepairQueueIterator(Null);
+                    ChunkRepairQueue_.erase(jt);
+                }
+                registerJob(job);
             }
-            registerJob(job);
         }
-    }
 
-    // Schedule removal jobs.
-    {
-        auto& queue = node->ChunkRemovalQueue();
-        auto it = queue.begin();
-        while (it != queue.end()) {
-            if (resourceUsage.removal_slots() >= resourceLimits.removal_slots())
-                break;
+        // Schedule removal jobs.
+        {
+            auto& queue = node->ChunkRemovalQueue();
+            auto it = queue.begin();
+            while (it != queue.end()) {
+                if (resourceUsage.removal_slots() >= resourceLimits.removal_slots())
+                    break;
 
-            auto jt = it++;
-            const auto& chunkId = *jt;
+                auto jt = it++;
+                const auto& chunkId = *jt;
 
-            TJobPtr job;
-            if (CreateRemovalJob(node, chunkId, &job)) {
-                queue.erase(jt);
+                TJobPtr job;
+                if (CreateRemovalJob(node, chunkId, &job)) {
+                    queue.erase(jt);
+                }
+                registerJob(job);
             }
-            registerJob(job);
+        }
+
+        // Schedule balancing jobs.
+        double sourceFillFactor = ChunkPlacement_->GetFillFactor(node);
+        double targetFillFactor = sourceFillFactor - Config_->MinBalancingFillFactorDiff;
+        if (resourceUsage.replication_slots() < resourceLimits.replication_slots() &&
+            sourceFillFactor > Config_->MinBalancingFillFactor &&
+            ChunkPlacement_->HasBalancingTargets(targetFillFactor))
+        {
+            int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
+            auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(node, maxJobs);
+            for (auto chunkWithIndex : chunksToBalance) {
+                if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
+                    break;
+                if (runningReplicationSize > Config_->MaxReplicationJobsSize)
+                    break;
+
+                TJobPtr job;
+                CreateBalancingJob(node, chunkWithIndex, targetFillFactor, &job);
+                registerJob(job);
+            }
         }
     }
 
     // Schedule seal jobs.
+    // NB: This feature is active regardless of replicator state.
     {
         auto& queue = node->ChunkSealQueue();
         auto it = queue.begin();
@@ -937,26 +959,6 @@ void TChunkReplicator::ScheduleNewJobs(
         }
     }
 
-    // Schedule balancing jobs.
-    double sourceFillFactor = ChunkPlacement_->GetFillFactor(node);
-    double targetFillFactor = sourceFillFactor - Config_->MinBalancingFillFactorDiff;
-    if (resourceUsage.replication_slots() < resourceLimits.replication_slots() &&
-        sourceFillFactor > Config_->MinBalancingFillFactor &&
-        ChunkPlacement_->HasBalancingTargets(targetFillFactor))
-    {
-        int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
-        auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(node, maxJobs);
-        for (auto chunkWithIndex : chunksToBalance) {
-            if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
-                break;
-            if (runningReplicationSize > Config_->MaxReplicationJobsSize)
-                break;
-
-            TJobPtr job;
-            CreateBalancingJob(node, chunkWithIndex, targetFillFactor, &job);
-            registerJob(job);
-        }
-    }
 }
 
 void TChunkReplicator::RefreshChunk(TChunk* chunk)
