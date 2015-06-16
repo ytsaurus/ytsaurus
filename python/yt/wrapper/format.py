@@ -423,18 +423,27 @@ class YamrFormat(Format):
         unparsed = self._is_raw(raw)
         # NB: separate processing of unparsed mode for optimization
         if unparsed and not self.lenval:
-            prefix = ""
+            prefix = []
             while True:
                 chunk = stream.read(1024 * 1024)
                 if not chunk:
-                    if prefix:
-                        yield prefix + "\n"
                     break
                 lines = chunk.split("\n")
-                yield prefix + lines[0] + "\n"
-                for line in lines[1:-1]:
-                    yield line + "\n"
-                prefix = lines[-1]
+                if len(lines) == 1:
+                    prefix.append(lines[0])
+                else:
+                    yield "".join(prefix + [lines[0]]) + "\n"
+                    for line in lines[1:-1]:
+                        yield line + "\n"
+                    if lines[-1]:
+                        prefix = [lines[-1]]
+                    else:
+                        prefix = []
+            if prefix:
+                if len(prefix) > 1:
+                    yield "".join(prefix) + "\n"
+                else:
+                    yield prefix[0] + "\n"
             return
 
         table_index = 0
