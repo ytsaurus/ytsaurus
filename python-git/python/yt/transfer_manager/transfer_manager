@@ -171,7 +171,7 @@ class Task(object):
             raise yt.YtError("Unknown cluster " + self.source_cluster)
         client = deepcopy(clusters[self.source_cluster])
         if client._type == "yt":
-            client.token = self.source_cluster_token
+            client.config["token"] = self.source_cluster_token
         if client._type == "yamr" and self.mr_user is not None:
             client.mr_user = self.mr_user
         return client
@@ -181,7 +181,7 @@ class Task(object):
             raise yt.YtError("Unknown cluster " + self.destination_cluster)
         client = deepcopy(clusters[self.destination_cluster])
         if client._type == "yt":
-            client.token = self.destination_cluster_token
+            client.config["token"] = self.destination_cluster_token
         if client._type == "yamr" and self.mr_user is not None:
             client.mr_user = self.mr_user
         return client
@@ -207,8 +207,7 @@ class Application(object):
 
         self._config = config
         self._mutex = RLock()
-        self._yt = Yt(config["proxy"])
-        self._yt.token = config["token"]
+        self._yt = Yt(config["proxy"], config["token"])
 
         self._load_config(config)
         self._path = config["path"]
@@ -483,13 +482,16 @@ class Application(object):
         pool_name = "transfer_" + destination_cluster_name
         pool_path = "//sys/pools/transfer_manager/" + pool_name
         yt_client = deepcopy(yt_client)
-        yt_client.token = self._yt.token
-        if not yt_client.exists(pool_path):
-            yt_client.create("map_node", pool_path, recursive=True, ignore_existing=True)
-            yt_client.set(pool_path + "/@resource_limits", {"user_slots": 200})
-            yt_client.set(pool_path + "/@mode", "fifo")
-        while not yt_client.exists("//sys/scheduler/orchid/scheduler/pools/" + pool_name):
-            time.sleep(0.5)
+        yt_client.config["token"] = self._yt.config["token"]
+        try:
+            if not yt_client.exists(pool_path):
+                yt_client.create("map_node", pool_path, recursive=True, ignore_existing=True)
+                yt_client.set(pool_path + "/@resource_limits", {"user_slots": 200})
+                yt_client.set(pool_path + "/@mode", "fifo")
+            while not yt_client.exists("//sys/scheduler/orchid/scheduler/pools/" + pool_name):
+                time.sleep(0.5)
+        except yt.YtError as err:
+            raise yt.YtError("Transfer manager failed to create pool path: %s" % pool_path, inner_errors=[err])
         return pool_name
 
     # Return pair: active client, that run copy operation and passive client.
