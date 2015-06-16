@@ -418,8 +418,8 @@ TConstExpressionPtr PrepareExpression(
     TTableSchema initialTableSchema,
     IFunctionRegistry* functionRegistry = CreateBuiltinFunctionRegistry().Get());
 
-Stroka InferName(TConstExpressionPtr expr);
-Stroka InferName(TConstQueryPtr query);
+Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
+Stroka InferName(TConstQueryPtr query, bool omitValues = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

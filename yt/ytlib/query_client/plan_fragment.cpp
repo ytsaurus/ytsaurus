@@ -41,7 +41,7 @@ static const int PlanFragmentDepthLimit = 50;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka InferName(TConstExpressionPtr expr)
+Stroka InferName(TConstExpressionPtr expr, bool omitValues)
 {
     bool newTuple = true;
     auto comma = [&] {
@@ -59,27 +59,29 @@ Stroka InferName(TConstExpressionPtr expr)
     if (!expr) {
         return Stroka();
     } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        return ToString(static_cast<TUnversionedValue>(literalExpr->Value));
+        return omitValues
+            ? ToString("?")
+            : ToString(static_cast<TUnversionedValue>(literalExpr->Value));
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         return referenceExpr->ColumnName;
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         auto str = functionExpr->FunctionName + "(";
         for (const auto& argument : functionExpr->Arguments) {
-            str += comma() + InferName(argument);
+            str += comma() + InferName(argument, omitValues);
         }
         return str + ")";
     } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-        auto rhsName = InferName(unaryOp->Operand);
+        auto rhsName = InferName(unaryOp->Operand, omitValues);
         if (!canOmitParenthesis(unaryOp->Operand)) {
             rhsName = "(" + rhsName + ")";
         }
         return Stroka() + GetUnaryOpcodeLexeme(unaryOp->Opcode) + " " + rhsName;
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        auto lhsName = InferName(binaryOp->Lhs);
+        auto lhsName = InferName(binaryOp->Lhs, omitValues);
         if (!canOmitParenthesis(binaryOp->Lhs)) {
             lhsName = "(" + lhsName + ")";
         }
-        auto rhsName = InferName(binaryOp->Rhs);
+        auto rhsName = InferName(binaryOp->Rhs, omitValues);
         if (!canOmitParenthesis(binaryOp->Rhs)) {
             rhsName = "(" + rhsName + ")";
         }
@@ -90,15 +92,19 @@ Stroka InferName(TConstExpressionPtr expr)
     } else if (auto inOp = expr->As<TInOpExpression>()) {
         Stroka str;
         for (const auto& argument : inOp->Arguments) {
-            str += comma() + InferName(argument);
+            str += comma() + InferName(argument, omitValues);
         }
         if (inOp->Arguments.size() > 1) {
             str = "(" + str + ")";
         }
         str += " IN (";
-        newTuple = true;
-        for (const auto& row : inOp->Values) {
-            str += comma() + ToString(row);
+        if (omitValues) {
+            str += "??";
+        } else {
+            newTuple = true;
+            for (const auto& row : inOp->Values) {
+                str += comma() + ToString(row);
+            }
         }
         return str + ")";
     } else {
@@ -106,10 +112,10 @@ Stroka InferName(TConstExpressionPtr expr)
     }
 }
 
-Stroka InferName(TConstQueryPtr query)
+Stroka InferName(TConstQueryPtr query, bool omitValues)
 {
-    auto namedItemFormatter = [] (const TNamedItem& item) {
-        return InferName(item.Expression) + " AS " + item.Name;
+    auto namedItemFormatter = [=] (const TNamedItem& item) {
+        return InferName(item.Expression, omitValues) + " AS " + item.Name;
     };
 
     std::vector<Stroka> clauses;
@@ -123,7 +129,7 @@ Stroka InferName(TConstQueryPtr query)
     clauses.emplace_back("SELECT " + str);
 
     if (query->WhereClause) {
-        str = InferName(query->WhereClause);
+        str = InferName(query->WhereClause, omitValues);
         clauses.push_back(Stroka("WHERE ") + str);
     }
     if (query->GroupClause) {
@@ -131,7 +137,7 @@ Stroka InferName(TConstQueryPtr query)
         clauses.push_back(Stroka("GROUP BY ") + str);
     }
     if (query->HavingClause) {
-        str = InferName(query->HavingClause);
+        str = InferName(query->HavingClause, omitValues);
         clauses.push_back(Stroka("HAVING ") + str);
     }
     if (query->OrderClause) {
