@@ -71,8 +71,6 @@ public:
 
     void Shutdown()
     {
-        YCHECK(!WasStarted);
-        YCHECK(!WasShutdown);
         WasShutdown = true;
         Queue->Shutdown();
         Thread->Shutdown();
