@@ -30,21 +30,20 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto AutoCheckpointCheckPeriod = TDuration::Seconds(15);
+static const auto& Profiler = HydraProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCommitterBase::TCommitterBase(
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
-    TEpochContext* epochContext,
-    const NProfiling::TProfiler& profiler)
+    TEpochContext* epochContext)
     : CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
     , EpochContext_(epochContext)
     , CommitCounter_("/commits")
     , FlushCounter_("/flushes")
     , Logger(HydraLogger)
-    , Profiler(profiler)
 {
     YCHECK(DecoratedAutomaton_);
     YCHECK(EpochContext_);
@@ -97,11 +96,11 @@ public:
             StartVersion_,
             mutationCount);
 
-        Owner_->Profiler.Enqueue("/commit_batch_size", mutationCount);
+        Profiler.Enqueue("/commit_batch_size", mutationCount);
 
         Awaiter_ = New<TParallelAwaiter>(Owner_->EpochContext_->EpochControlInvoker);
 
-        Timer_ = Owner_->Profiler.TimingStart(
+        Timer_ = Profiler.TimingStart(
             "/changelog_flush_time",
             NProfiling::EmptyTagIds,
             NProfiling::ETimerMode::Parallel);
@@ -162,7 +161,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        Owner_->Profiler.TimingCheckpoint(
+        Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerTags(followerId));
 
@@ -195,7 +194,7 @@ private:
 
         LOG_DEBUG("Mutations are flushed locally");
 
-        Owner_->Profiler.TimingCheckpoint(
+        Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerTags(Owner_->CellManager_->GetSelfPeerId()));
 
@@ -228,7 +227,7 @@ private:
     {
         LOG_DEBUG("Mutations are flushed by quorum");
 
-        Owner_->Profiler.TimingCheckpoint(
+        Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerQuorumTags());
 
@@ -240,7 +239,7 @@ private:
 
     void SetFailed(const TError& error)
     {
-        Owner_->Profiler.TimingCheckpoint(
+        Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerQuorumTags());
 
@@ -282,13 +281,11 @@ TLeaderCommitter::TLeaderCommitter(
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
-    TEpochContext* epochContext,
-    const NProfiling::TProfiler& profiler)
+    TEpochContext* epochContext)
     : TCommitterBase(
         cellManager,
         decoratedAutomaton,
-        epochContext,
-        profiler)
+        epochContext)
     , Config_(config)
     , ChangelogStore_(changelogStore)
 {
@@ -494,13 +491,11 @@ void TLeaderCommitter::FireCommitFailed(const TError& error)
 TFollowerCommitter::TFollowerCommitter(
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
-    TEpochContext* epochContext,
-    const NProfiling::TProfiler& profiler)
+    TEpochContext* epochContext)
     : TCommitterBase(
         cellManager,
         decoratedAutomaton,
-        epochContext,
-        profiler)
+        epochContext)
 { }
 
 TFollowerCommitter::~TFollowerCommitter()

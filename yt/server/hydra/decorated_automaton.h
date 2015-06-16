@@ -15,8 +15,6 @@
 
 #include <core/logging/log.h>
 
-#include <core/profiling/profiler.h>
-
 #include <ytlib/hydra/version.h>
 #include <ytlib/hydra/hydra_manager.pb.h>
 
@@ -118,8 +116,7 @@ public:
         IInvokerPtr controlInvoker,
         ISnapshotStorePtr snapshotStore,
         IChangelogStorePtr changelogStore,
-        const TDistributedHydraManagerOptions& options,
-        const NProfiling::TProfiler& profiler);
+        const TDistributedHydraManagerOptions& options);
 
     void OnStartLeading();
     void OnLeaderRecoveryComplete();
@@ -219,7 +216,6 @@ private:
     NProfiling::TAggregateCounter BatchCommitTimeCounter_;
 
     NLogging::TLogger Logger;
-    NProfiling::TProfiler Profiler;
 
 
     void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);

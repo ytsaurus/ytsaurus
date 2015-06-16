@@ -41,6 +41,7 @@ using namespace NPipes;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const i64 SnapshotTransferBlockSize = (i64) 1024 * 1024;
+static const auto& Profiler = HydraProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -597,8 +598,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     IInvokerPtr controlInvoker,
     ISnapshotStorePtr snapshotStore,
     IChangelogStorePtr changelogStore,
-    const TDistributedHydraManagerOptions& options,
-    const NProfiling::TProfiler& profiler)
+    const TDistributedHydraManagerOptions& options)
     : State_(EPeerState::Stopped)
     , Config_(config)
     , CellManager_(cellManager)
@@ -611,7 +611,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , Options_(options)
     , BatchCommitTimeCounter_("/batch_commit_time")
     , Logger(HydraLogger)
-    , Profiler(profiler)
 {
     YCHECK(Config_);
     YCHECK(CellManager_);
