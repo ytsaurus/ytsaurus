@@ -65,6 +65,7 @@ class TCodegenFunction
 
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
+        std::vector<EValueType> argumentTypes,
         EValueType type,
         const Stroka& name) const override;
 };

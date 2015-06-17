@@ -209,6 +209,7 @@ TKeyTriePtr TUniversalRangeFunction::ExtractKeyRange(
 
 TCodegenExpression TCodegenFunction::MakeCodegenExpr(
     std::vector<TCodegenExpression> codegenArgs,
+    std::vector<EValueType> argumentTypes,
     EValueType type,
     const Stroka& name) const
 {
