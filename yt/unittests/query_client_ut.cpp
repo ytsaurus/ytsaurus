@@ -3977,8 +3977,7 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
     registry->WithFunction(absUdf);
     registry->WithFunction(expUdf);
 
-    //TODO
-    //Evaluate("exp_udf_so(b, abs_udf_so(a)) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("exp_udf_so(b, abs_udf_so(a)) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
