@@ -123,7 +123,6 @@ void TClientRequest::SetStartTime(TInstant value)
     Header_.set_request_start_time(value.MicroSeconds());
 }
 
-
 const Stroka& TClientRequest::GetUser() const
 {
     return Header_.has_user()
