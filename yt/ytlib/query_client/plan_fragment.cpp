@@ -1070,8 +1070,11 @@ public:
                     aggregateFunction);
             }
 
-            auto resultType = functionRegistry
-                ->GetAggregateFunction(aggregateFunction)
+            auto descriptor = functionRegistry
+                ->GetAggregateFunction(aggregateFunction);
+            auto stateType = descriptor
+                ->GetStateType(typedOperands.front()->Type);
+            auto resultType = descriptor
                 ->InferResultType(typedOperands.front()->Type, source);
 
             CheckExpressionDepth(typedOperands.front());
@@ -1079,7 +1082,9 @@ public:
             AggregateItems_->emplace_back(
                 typedOperands.front(),
                 aggregateFunction,
-                subexprName);
+                subexprName,
+                stateType,
+                resultType);
 
             aggregateColumn = AddColumn(GetTableSchema(), TColumnSchema(subexprName, resultType));
         }
@@ -1608,6 +1613,8 @@ void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
 {
     ToProto(serialized->mutable_expression(), original.Expression);
     serialized->set_aggregate_function_name(original.AggregateFunction);
+    serialized->set_state_type(static_cast<int>(original.StateType));
+    serialized->set_result_type(static_cast<int>(original.ResultType));
     ToProto(serialized->mutable_name(), original.Name);
 }
 
@@ -1683,8 +1690,12 @@ TNamedItem FromProto(const NProto::TNamedItem& serialized)
 TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
 {
     Stroka aggregateFunction;
+    EValueType stateType;
+    EValueType resultType;
     if (serialized.has_aggregate_function_name()) {
         aggregateFunction = serialized.aggregate_function_name();
+        stateType = EValueType(serialized.state_type());
+        resultType = EValueType(serialized.result_type());
     } else {
         switch (EAggregateFunction(serialized.aggregate_function())) {
             case EAggregateFunction::Min:
@@ -1697,12 +1708,16 @@ TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
                 aggregateFunction = "sum";
                 break;
         }
+        stateType = EValueType(serialized.expression().type());
+        resultType = EValueType(serialized.expression().type());
     }
 
     return TAggregateItem(
         FromProto(serialized.expression()),
         aggregateFunction,
-        serialized.name());
+        serialized.name(),
+        stateType,
+        resultType);
 }
 
 TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
