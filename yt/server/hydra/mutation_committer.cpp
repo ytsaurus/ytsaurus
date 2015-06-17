@@ -70,7 +70,10 @@ public:
         , Logger(Owner_->Logger)
     { }
 
-    void AddMutation(const TSharedRef& recordData, TFuture<void> localFlushResult)
+    void AddMutation(
+        const TMutationRequest& request,
+        const TSharedRef& recordData,
+        TFuture<void> localFlushResult)
     {
         TVersion currentVersion(
             StartVersion_.SegmentId,
@@ -79,7 +82,9 @@ public:
         BatchedRecordsData_.push_back(recordData);
         LocalFlushResult_ = std::move(localFlushResult);
 
-        LOG_DEBUG("Mutation is batched at version %v", currentVersion);
+        LOG_DEBUG("Mutation batched (Version: %v, Type: %v)",
+            currentVersion,
+            request.Type);
     }
 
     TFuture<void> GetQuorumFlushResult()
@@ -330,6 +335,7 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(const TMutationRequest& requ
 
     AddToBatch(
         version,
+        request,
         std::move(recordData),
         std::move(localFlushResult));
 
@@ -392,7 +398,12 @@ void TLeaderCommitter::ResumeLogging()
             &localFlushResult,
             &commitResult);
 
-        AddToBatch(version, recordData, std::move(localFlushResult));
+        AddToBatch(
+            version,
+            pendingMutation.Request,
+            recordData,
+            std::move(localFlushResult));
+
         pendingMutation.Promise.SetFrom(std::move(commitResult));
     }
 
@@ -402,12 +413,16 @@ void TLeaderCommitter::ResumeLogging()
 
 void TLeaderCommitter::AddToBatch(
     TVersion version,
+    const TMutationRequest& request,
     const TSharedRef& recordData,
     TFuture<void> localFlushResult)
 {
     TGuard<TSpinLock> guard(BatchSpinLock_);
     auto batch = GetOrCreateBatch(version);
-    batch->AddMutation(recordData, std::move(localFlushResult));
+    batch->AddMutation(
+        request,
+        recordData,
+        std::move(localFlushResult));
     if (batch->GetMutationCount() >= Config_->MaxCommitBatchRecordCount) {
         FlushCurrentBatch();
     }

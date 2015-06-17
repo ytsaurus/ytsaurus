@@ -778,11 +778,6 @@ void TDecoratedAutomaton::LogLeaderMutation(
     MutationHeader_.set_record_id(pendingMutation.Version.RecordId);
 
     *recordData = SerializeMutationRecord(MutationHeader_, request.Data);
-
-    LOG_DEBUG("Logging mutation (Version: %v, MutationType: %v)",
-        pendingMutation.Version,
-        request.Type);
-
     *localFlushResult = Changelog_->Append(*recordData);
     *commitResult = pendingMutation.CommitPromise;
 

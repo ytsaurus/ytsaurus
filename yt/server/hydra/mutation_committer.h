@@ -104,6 +104,7 @@ private:
     TIntrusivePtr<TBatch> GetOrCreateBatch(TVersion version);
     void AddToBatch(
         TVersion version,
+        const TMutationRequest& request,
         const TSharedRef& recordData,
         TFuture<void> localFlushResult);
     void FlushCurrentBatch();
