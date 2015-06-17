@@ -115,7 +115,7 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
     if fastbone:
         hosts = "hosts/fb"
 
-    command = """PATH=".:$PATH" PYTHONPATH=. YT_RETRY_READ=1 YT_TOKEN={0} YT_HOSTS="{1}" """\
+    command = """PATH=".:$PATH" PYTHONPATH=. YT_RETRY_READ=1 YT_HOSTS="{1}" """\
               """yt2 read "{2}"'[#'"${{start}}"':#'"${{end}}"']' --format '{3}' --proxy {4}"""\
               .format(token, hosts, src, format, yt_client.config["proxy"]["url"])
 
@@ -127,7 +127,10 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
 
 def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False):
     files = []
-    prepare_command = "export YT_TOKEN=$(cat yt_token)\n"
+    prepare_command = \
+        "set +x\n"\
+        "export YT_TOKEN=$(cat yt_token)\n"\
+        "set -x\n"
     if "token" in yt_client.config:
         files.append(_pack_string("yt_token", yt_client.config["token"], tmp_dir))
     if pack:
