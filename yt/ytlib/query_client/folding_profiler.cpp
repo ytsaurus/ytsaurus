@@ -321,6 +321,8 @@ std::pair<TCodegenExpression, TCodegenAggregate> TFoldingProfiler::Profile(
         Profile(aggregateItem.Expression, schema),
         aggregateFunction->MakeCodegenAggregate(
             aggregateItem.Expression->Type,
+            aggregateItem.StateType,
+            aggregateItem.ResultType,
             aggregateItem.Name));
 }
 

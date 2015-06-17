@@ -701,7 +701,9 @@ Stroka TUserDefinedAggregateFunction::GetName() const
 }
 
 const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
-    EValueType type,
+    EValueType argumentType,
+    EValueType stateType,
+    EValueType resultType,
     const Stroka& name) const
 {
     auto initName = AggregateName_ + "_init";
@@ -709,11 +711,9 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
     auto mergeName = AggregateName_ + "_merge";
     auto finalizeName = AggregateName_ + "_finalize";
 
-    auto resultType = InferResultType(type, "");
-    auto stateType = GetStateType(type);
     auto makeCodegenBody = [
         this_ = MakeStrong(this),
-        type,
+        argumentType,
         stateType,
         resultType,
         initName,
@@ -723,7 +723,7 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
     ] (const Stroka& functionName) {
         return [
             this_,
-            type,
+            argumentType,
             stateType,
             resultType,
             functionName,
@@ -744,7 +744,7 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
                 builder,
                 std::vector<EValueType>{
                     stateType,
-                    type},
+                    argumentType},
                 stateType);
             auto update = std::make_pair(updateName, updateType);
 
@@ -786,12 +786,11 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
     codegenAggregate.Initialize = [
         this_ = MakeStrong(this),
         initName,
-        type,
+        argumentType,
+        stateType,
         name,
         makeCodegenBody
     ] (TCGContext& builder, Value* row) {
-        auto stateType = this_->GetStateType(type);
-
         return this_->CallingConvention_->MakeCodegenFunctionCall(
             std::vector<TCodegenExpression>(),
             makeCodegenBody(initName),
@@ -802,11 +801,11 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
     codegenAggregate.Update = [
         this_ = MakeStrong(this),
         updateName,
-        type,
+        argumentType,
+        stateType,
         name,
         makeCodegenBody
     ] (TCGContext& builder, Value* aggState, Value* newValue) {
-        auto stateType = this_->GetStateType(type);
         auto codegenArgs = std::vector<TCodegenExpression>();
         codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
             return TCGValue::CreateFromLlvmValue(
@@ -818,7 +817,7 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
             return TCGValue::CreateFromLlvmValue(
                 builder,
                 newValue,
-                type);
+                argumentType);
         });
 
         return this_->CallingConvention_->MakeCodegenFunctionCall(
@@ -831,11 +830,11 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
     codegenAggregate.Merge = [
         this_ = MakeStrong(this),
         mergeName,
-        type,
+        argumentType,
+        stateType,
         name,
         makeCodegenBody
     ] (TCGContext& builder, Value* dstAggState, Value* aggState) {
-        auto stateType = this_->GetStateType(type);
         auto codegenArgs = std::vector<TCodegenExpression>();
         codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
             return TCGValue::CreateFromLlvmValue(
@@ -860,11 +859,11 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
     codegenAggregate.Finalize = [
         this_ = MakeStrong(this),
         finalizeName,
-        type,
+        argumentType,
+        stateType,
         name,
         makeCodegenBody
     ] (TCGContext& builder, Value* aggState) {
-        auto stateType = this_->GetStateType(type);
         auto codegenArgs = std::vector<TCodegenExpression>();
         codegenArgs.push_back([=] (TCGContext& builder, Value* row) {
             return TCGValue::CreateFromLlvmValue(
@@ -876,7 +875,7 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
         return this_->CallingConvention_->MakeCodegenFunctionCall(
             codegenArgs,
             makeCodegenBody(finalizeName),
-            type,
+            argumentType,
             name + "_finalize")(builder, aggState);
     };
 

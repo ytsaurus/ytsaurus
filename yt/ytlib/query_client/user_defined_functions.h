@@ -147,7 +147,9 @@ public:
     virtual Stroka GetName() const override;
 
     virtual const TCodegenAggregate MakeCodegenAggregate(
-        EValueType type,
+        EValueType argumentType,
+        EValueType stateType,
+        EValueType resultType,
         const Stroka& name) const override;
 
     virtual EValueType GetStateType(
