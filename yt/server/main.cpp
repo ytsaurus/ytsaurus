@@ -222,7 +222,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         Cout << result.Data();
         // NB: no shutdown, some initialization may still be in progress.
         Cout.Flush();
-        _exit(EExitCode::OK);
+        _exit(static_cast<int>(EExitCode::OK));
     }
 #endif
 
