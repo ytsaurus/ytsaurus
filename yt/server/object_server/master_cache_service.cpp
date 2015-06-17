@@ -296,7 +296,7 @@ private:
         {
             LOG_DEBUG("Running cache bypass request (RequestId: %v, SubrequestCount: %v)",
                 Context_->GetRequestId(),
-                static_cast<int>(Promises_.size()));
+                Promises_.size());
             Request_->Invoke().Subscribe(BIND(&TMasterRequest::OnResponse, MakeStrong(this)));
         }
 
