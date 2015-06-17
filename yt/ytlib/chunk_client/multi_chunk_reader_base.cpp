@@ -507,7 +507,7 @@ void TParallelMultiChunkReaderBase::WaitForReader(TSession session)
     }
 
     CompletionError_.TrySet(error);
-    RegisterFailedChunk(CurrentSession_.ChunkIndex);
+    RegisterFailedChunk(session.ChunkIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
