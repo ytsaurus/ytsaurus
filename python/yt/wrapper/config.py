@@ -55,7 +55,6 @@ class Config(types.ModuleType):
             "KEYBOARD_ABORT": "operation_tracker/abort_on_sigint",
 
             "READ_BUFFER_SIZE": "read_buffer_size",
-            "MEMORY_LIMIT": "spec_defaults/memory_limit",
 
             "FILE_STORAGE": "remote_temp_files_directory",
             "TEMP_TABLES_STORAGE": "remote_temp_tables_directory",
@@ -70,7 +69,7 @@ class Config(types.ModuleType):
             "PREFIX": "prefix",
 
             "POOL": "spec_defaults/pool",
-            "MEMORY_LIMIT": "spec_defaults/memory_limit",
+            "MEMORY_LIMIT": "memory_limit",
             "INTERMEDIATE_DATA_ACCOUNT": "spec_defaults/intermediate_data_account",
 
             "TRANSACTION_TIMEOUT": "transaction_timeout",
