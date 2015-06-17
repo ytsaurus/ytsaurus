@@ -30,10 +30,8 @@ class YtTestBase(object):
         cls.env.START_PROXY = True
 
         cls.env.DELTA_NODE_CONFIG = {
-            "exec_agent": {
-                "slot_manager": {
-                    "enable_cgroups": "false"
-                }
+            "exec_agent" : {
+                "enable_cgroups" : "false"
             },
             "data_node": {
                 "store_locations": [
