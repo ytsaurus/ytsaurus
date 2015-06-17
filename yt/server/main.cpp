@@ -221,6 +221,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         auto result = ExecuteTool(toolName, spec);
         Cout << result.Data();
         // NB: no shutdown, some initialization may still be in progress.
+        Cout.Flush();
         _exit(EExitCode::OK);
     }
 #endif
