@@ -19,8 +19,6 @@ DECLARE_REFCOUNTED_STRUCT(IJob)
 
 DECLARE_REFCOUNTED_STRUCT(IJobHost)
 
-DECLARE_REFCOUNTED_CLASS(TContextPreservingInput);
-
 DEFINE_ENUM(EJobProxyExitCode,
     ((HeartbeatFailed)        (20))
     ((ResultReportFailed)     (21))

@@ -6,6 +6,8 @@
 
 #include <core/rpc/config.h>
 
+#include <core/compression/public.h>
+
 #include <ytlib/chunk_client/public.h>
 
 namespace NYT {
@@ -39,6 +41,7 @@ class TRemoteSnapshotStoreOptions
 {
 public:
     int SnapshotReplicationFactor;
+    NCompression::ECodec SnapshotCompressionCodec;
 
     TRemoteSnapshotStoreOptions()
     {
@@ -46,6 +49,8 @@ public:
             .GreaterThan(0)
             .InRange(1, NChunkClient::MaxReplicationFactor)
             .Default(3);
+        RegisterParameter("snapshot_compression_codec", SnapshotCompressionCodec)
+            .Default(NCompression::ECodec::Lz4);
     }
 };
 

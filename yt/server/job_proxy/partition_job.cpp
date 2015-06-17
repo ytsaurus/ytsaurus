@@ -45,12 +45,13 @@ public:
         auto keyColumns = FromProto<TKeyColumns>(PartitionJobSpecExt_.sort_key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-        Reader_ = CreateSchemalessParallelMultiChunkReader(
-            config->JobIO->NewTableReader,
+        // NB: don't create parallel reader to eliminate non-deterministic behavior,
+        // which is a nightmare for restarted (lost) jobs.
+        Reader_ = CreateSchemalessSequentialMultiChunkReader(
+            config->JobIO->TableReader,
             New<TMultiChunkReaderOptions>(),
             host->GetMasterChannel(),
-            host->GetCompressedBlockCache(),
-            host->GetUncompressedBlockCache(),
+            host->GetBlockCache(),
             host->GetNodeDirectory(),
             std::move(chunkSpecs),
             nameTable,
@@ -80,7 +81,7 @@ public:
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
 
         Writer_ = CreatePartitionMultiChunkWriter(
-            config->JobIO->NewTableWriter,
+            config->JobIO->TableWriter,
             options,
             nameTable,
             keyColumns,

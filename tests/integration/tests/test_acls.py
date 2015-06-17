@@ -176,6 +176,13 @@ class TestAcls(YTEnvSetup):
         set("//sys/accounts/a/@resource_limits/disk_space", 0)
         with pytest.raises(YtError): map(in_="//tmp/t1", out="//tmp/t2", command="cat", user="u")
 
+    def test_scheduler_operation_abort_acl(self):
+        self._prepare_scheduler_test()
+        create_user("u1")
+        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command="cat; sleep 1", user="u")
+        with pytest.raises(YtError): abort_op(op_id, user="u1")
+        abort_op(op_id, user="u")
+
     def test_inherit1(self):
         set("//tmp/p", {})
         set("//tmp/p/@inherit_acl", False)
@@ -231,6 +238,28 @@ class TestAcls(YTEnvSetup):
         create("table", "//tmp/t")
         set("//tmp/@acl/end", self._make_ace("allow", "u", "administer"))
         set("//tmp/t/@acl", [], user="u")
+
+    def test_administer_permission3(self):
+        create("table", "//tmp/t")
+        create_user("u")
+
+        acl = [self._make_ace("allow", "u", "administer"), self._make_ace("deny", "u", "write")]
+        set("//tmp/t/@acl", acl)
+
+        set("//tmp/t/@account", "tmp", user="u")
+        set("//tmp/t/@inherit_acl", False, user="u")
+        set("//tmp/t/@acl", acl, user="u")
+        remove("//tmp/t/@acl/1", user="u")
+
+    def test_administer_permission4(self):
+        create("table", "//tmp/t")
+        create_user("u")
+
+        acl = [self._make_ace("deny", "u", "administer")]
+        set("//tmp/t/@acl", acl)
+
+        with pytest.raises(YtError):
+            set("//tmp/t/@account", "tmp", user="u")
 
     def test_user_rename_success(self):
         create_user("u1")

@@ -32,7 +32,6 @@ TJournalSession::TJournalSession(
         options,
         location,
         lease)
-    , LastAppendResult_(VoidFuture)
 { }
 
 TChunkInfo TJournalSession::GetChunkInfo() const
@@ -51,7 +50,7 @@ TFuture<void> TJournalSession::DoStart()
         TChunkDescriptor(ChunkId_));
 
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    auto asyncChangelog = dispatcher->CreateChangelog(Chunk_, Options_.OptimizeForLatency);
+    auto asyncChangelog = dispatcher->CreateChangelog(Location_, ChunkId_, Options_.OptimizeForLatency);
 
     auto chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(Chunk_);
@@ -120,11 +119,16 @@ TFuture<void> TJournalSession::DoPutBlocks(
             recordCount - 1);
     }
 
+    TFuture<void> lastAppendResult;
     for (int index = recordCount - startBlockIndex;
          index < static_cast<int>(blocks.size());
          ++index)
     {
-        LastAppendResult_ = changelog->Append(blocks[index]);
+        lastAppendResult = changelog->Append(blocks[index]);
+    }
+
+    if (lastAppendResult) {
+        LastAppendResult_ = lastAppendResult.ToUncancelable();
     }
 
     return VoidFuture;

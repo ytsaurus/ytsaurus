@@ -1,75 +1,25 @@
 var events = require("events");
 var util = require("util");
 
+var YtReservoir = require("./reservoir").that;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 var getHrtime = function()
 {
-    "use strict";
     var now = process.hrtime();
     return Math.floor((now[0] * 1000) + (now[1] / 1000000));
 };
 
 var getLog10 = function(x)
 {
-    "use strict";
     return x === 0.0 ? -1000 : Math.log(x) / Math.LN10;
 };
 
 var getNormalCdf = function(x, mean, stddev)
 {
-    "use strict";
     var z = (x - mean) / stddev;
     return 1.0 / (1.0 + Math.exp(-z * (1.5976 + 0.070566 * z * z)));
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-function YtACFSample(window_size)
-{
-    "use strict";
-
-    this._window_size = window_size;
-    this._window = [];
-
-    this._sum = 0.0;
-    this._sum_sq = 0.0;
-
-    var self = this;
-    Object.defineProperty(this, "length", {
-        get: function() {
-            return self._window.length;
-        }
-    });
-    Object.defineProperty(this, "mean", {
-        get: function() {
-            return self._sum / self.length;
-        }
-    });
-    Object.defineProperty(this, "variance", {
-        get: function() {
-            return self._sum_sq / self.length - self.mean * self.mean;
-        }
-    });
-    Object.defineProperty(this, "stddev", {
-        get: function() {
-            return Math.sqrt(self.variance);
-        }
-    });
-}
-
-YtACFSample.prototype.push = function(value)
-{
-    "use strict";
-
-    if (this._window.length >= this._window_size) {
-        var dropped = this._window.shift();
-        this._sum -= dropped;
-        this._sum_sq -= dropped * dropped;
-    }
-    this._window.push(value);
-    this._sum += value;
-    this._sum_sq += value * value;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,7 +30,7 @@ function YtAccrualFailureDetector(
 {
     "use strict";
 
-    this.sample = new YtACFSample(window_size);
+    this.sample = new YtReservoir(window_size);
     this.last_at = null;
 
     this.phi_threshold = phi_threshold;

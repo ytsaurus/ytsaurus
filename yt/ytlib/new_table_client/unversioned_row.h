@@ -55,20 +55,6 @@ struct TUnversionedValue
 
 class TUnversionedOwningValue
 {
-private:
-    TUnversionedValue Value_;
-
-    void assign(const TUnversionedValue& other)
-    {
-        
-        Value_ = other;
-        if (Value_.Type == EValueType::Any || Value_.Type == EValueType::String) {
-            auto newString = new char[Value_.Length];
-            ::memcpy(newString, Value_.Data.String, Value_.Length);
-            Value_.Data.String = newString;                
-        }
-    }
-
 public:
     TUnversionedOwningValue()
     {
@@ -78,12 +64,12 @@ public:
 
     TUnversionedOwningValue(const TUnversionedOwningValue& other)
     {
-        assign(other);
+        Assign(other);
     }
 
     TUnversionedOwningValue(const TUnversionedValue& other)
     {
-        assign(other);
+        Assign(other);
     }
 
     operator TUnversionedValue() const
@@ -93,29 +79,45 @@ public:
 
     TUnversionedOwningValue& operator = (const TUnversionedValue& other)
     {
-        clear();
-        assign(other);
+        Clear();
+        Assign(other);
         return *this;
     }
 
     TUnversionedOwningValue& operator = (const TUnversionedOwningValue& other)
     {
-        clear();
-        assign(other);
+        Clear();
+        Assign(other);
         return *this;
     }
 
-    void clear()
+    void Clear()
     {
         if (Value_.Type == EValueType::Any || Value_.Type == EValueType::String) {
             delete [] Value_.Data.String;
         }
+        Value_.Type = EValueType::TheBottom;
+        Value_.Length = 0;
     }
 
     ~TUnversionedOwningValue()
     {
-        clear();
+        Clear();
     }
+
+private:
+    TUnversionedValue Value_;
+
+    void Assign(const TUnversionedValue& other)
+    {
+        Value_ = other;
+        if (Value_.Type == EValueType::Any || Value_.Type == EValueType::String) {
+            auto newString = new char[Value_.Length];
+            ::memcpy(newString, Value_.Data.String, Value_.Length);
+            Value_.Data.String = newString;                
+        }
+    }
+    
 };
 
 static_assert(
@@ -253,6 +255,20 @@ bool operator <  (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >= (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >  (TUnversionedRow lhs, TUnversionedRow rhs);
 
+bool operator == (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
+bool operator != (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
+bool operator <= (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
+bool operator <  (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
+bool operator >= (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
+bool operator >  (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
+
+bool operator == (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
+bool operator != (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
+bool operator <= (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
+bool operator <  (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
+bool operator >= (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
+bool operator >  (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
+
 //! Ternary comparison predicate for TUnversionedOwningRow-s stripped to a given number of
 //! (leading) values.
 int CompareRows(
@@ -271,16 +287,19 @@ bool operator >  (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow&
 void ResetRowValues(TUnversionedRow* row);
 
 //! Computes hash for a given TUnversionedValue.
-size_t GetHash(const TUnversionedValue& value);
+ui64 GetHash(const TUnversionedValue& value);
 
 //! Computes hash for a given TUnversionedRow.
-size_t GetHash(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
+ui64 GetHash(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
 
 //! Computes FarmHash forever-fixed fingerprint for a given TUnversionedValue.
-size_t GetFarmFingerprint(const TUnversionedValue& value);
+TFingerprint GetFarmFingerprint(const TUnversionedValue& value);
+
+//! Computes FarmHash forever-fixed fingerprint for a given set of values.
+TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end);
 
 //! Computes FarmHash forever-fixed fingerprint for a given TUnversionedRow.
-size_t GetFarmFingerprint(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
+TFingerprint GetFarmFingerprint(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
 
 //! Returns the number of bytes needed to store the fixed part of the row (header + values).
 size_t GetUnversionedRowDataSize(int valueCount);
@@ -313,7 +332,7 @@ public:
     { }
 
     static TUnversionedRow Allocate(
-        TChunkedMemoryPool* alignedPool, 
+        TChunkedMemoryPool* pool,
         int valueCount);
     
 
@@ -394,10 +413,19 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Checks that #value is allowed to appear in data. Throws on failure.
+//! Checks that #value type is compatible with the schema column type.
+void ValidateValueType(
+    const TUnversionedValue& value,
+    const TTableSchema& schema,
+    int schemaId);
+
+//! Checks that #value is allowed to appear in static tables' data. Throws on failure.
+void ValidateStaticValue(const TUnversionedValue& value);
+
+//! Checks that #value is allowed to appear in dynamic tables' data. Throws on failure.
 void ValidateDataValue(const TUnversionedValue& value);
 
-//! Checks that #value is allowed to appear in keys. Throws on failure.
+//! Checks that #value is allowed to appear in dynamic tables' keys. Throws on failure.
 void ValidateKeyValue(const TUnversionedValue& value);
 
 //! Checks that #count represents an allowed number of values in a row. Throws on failure.
@@ -456,10 +484,11 @@ void ValidateServerKey(
     int keyColumnCount,
     const TTableSchema& schema);
 
+//! Checks if #timestamp is sane and can be used for reading data.
+void ValidateReadTimestamp(TTimestamp timestamp);
+
 //! Returns the successor of |key|, i.e. the key obtained from |key|
-// by appending a |EValueType::Min| sentinel.
-//
-// TODO(sandello): Alter this function to use AdvanceToValueSuccessor().
+//! by appending a |EValueType::Min| sentinel.
 TOwningKey GetKeySuccessor(TKey key);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
@@ -490,13 +519,11 @@ Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue
 
 void ToProto(TProtoStringType* protoRow, TUnversionedRow row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
-void ToProto(
-    TProtoStringType* protoRow,
-    const TUnversionedValue* begin,
-    const TUnversionedValue* end);
+void ToProto(TProtoStringType* protoRow, const TUnversionedValue* begin, const TUnversionedValue* end);
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
+void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer);
 
 void Serialize(const TKey& key, NYson::IYsonConsumer* consumer);
 void Serialize(const TOwningKey& key, NYson::IYsonConsumer* consumer);
@@ -572,7 +599,7 @@ public:
     int GetCount() const
     {
         const auto* header = GetHeader();
-        return static_cast<int>(header->Count);
+        return header ? static_cast<int>(header->Count) : 0;
     }
 
     const TUnversionedValue& operator[] (int index) const
@@ -618,10 +645,10 @@ private:
 
     friend class TUnversionedOwningRowBuilder;
 
-    TSharedRef RowData_; // TRowHeader plus TValue-s
-    Stroka StringData_;  // Holds string data
+    TSharedMutableRef RowData_; // TRowHeader plus TValue-s
+    Stroka StringData_;         // Holds string data
 
-    TUnversionedOwningRow(TSharedRef rowData, Stroka stringData)
+    TUnversionedOwningRow(TSharedMutableRef rowData, Stroka stringData)
         : RowData_(std::move(rowData))
         , StringData_(std::move(stringData))
     { }

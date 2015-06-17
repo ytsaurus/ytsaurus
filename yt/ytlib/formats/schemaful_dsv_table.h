@@ -19,8 +19,6 @@ struct TSchemafulDsvTable
         stopSymbols.push_back(config->RecordSeparator);
         stopSymbols.push_back(config->FieldSeparator);
         stopSymbols.push_back(config->EscapingSymbol);
-        stopSymbols.push_back('\0');
-        stopSymbols.push_back('\r');
 
         Stops.Fill(
             stopSymbols.data(),

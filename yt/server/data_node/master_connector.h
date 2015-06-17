@@ -11,6 +11,7 @@
 #include <core/actions/cancelable_context.h>
 
 #include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
@@ -42,9 +43,15 @@ class TMasterConnector
     : public TRefCounted
 {
 public:
+    //! Raised with each heartbeat.
+    //! Subscribers may provide additional dynamic alerts to be reported to master.
+    DEFINE_SIGNAL(void(std::vector<TError>* alerts), PopulateAlerts);
+
+public:
     //! Creates an instance.
     TMasterConnector(
         TDataNodeConfigPtr config,
+        const NNodeTrackerClient::TAddressMap& localAddresses,
         NCellNode::TBootstrap* bootstrap);
 
     //! Starts interaction with master.
@@ -66,16 +73,34 @@ public:
     TNodeId GetNodeId() const;
 
     //! Adds a given message to the list of alerts sent to master with each heartbeat.
-    void RegisterAlert(const Stroka& alert);
+    /*!
+     *  Thread affinity: any
+     */
+    void RegisterAlert(const TError& alert);
+
+    //! Returns a statically known map for the local addresses.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    const NNodeTrackerClient::TAddressMap& GetLocalAddresses() const;
+
+    //! Returns a dynamically updated node descriptor.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const;
 
 private:
     using EState = EMasterConnectorState;
 
     const TDataNodeConfigPtr Config_;
+    const NNodeTrackerClient::TAddressMap LocalAddresses_;
     const NCellNode::TBootstrap* Bootstrap_;
+    const IInvokerPtr ControlInvoker_;
 
-    bool Started_;
-    IInvokerPtr ControlInvoker_;
+    bool Started_ = false;
 
     //! Guards the current heartbeat session.
     TCancelableContextPtr HeartbeatContext_;
@@ -84,10 +109,10 @@ private:
     IInvokerPtr HeartbeatInvoker_;
 
     //! The current connection state.
-    EState State_;
+    EState State_ = EState::Offline;
 
     //! Node id assigned by master or |InvalidNodeId| is not registered.
-    TNodeId NodeId_;
+    TNodeId NodeId_ = NNodeTrackerClient::InvalidNodeId;
 
     //! Chunks that were added since the last successful heartbeat.
     yhash_set<IChunkPtr> AddedSinceLastSuccess_;
@@ -102,11 +127,21 @@ private:
     yhash_set<IChunkPtr> ReportedRemoved_;
 
     //! Protects #Alerts.
-    TSpinLock AlertsSpinLock_;
-    //! A list of registered alerts.
-    std::vector<Stroka> Alerts_;
+    TSpinLock AlertsLock_;
+    //! A list of statically registered alerts.
+    std::vector<TError> StaticAlerts_;
 
-    
+    TSpinLock LocalDescriptorLock_;
+    NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
+
+
+    //! Returns the list of all active alerts, including those induced
+    //! by |PopulateAlerts| subscribers.
+    /*!
+     *  Thread affinity: any
+     */
+    std::vector<TError> GetAlerts();
+
     //! Schedules a new node heartbeat via TDelayedExecutor.
     void ScheduleNodeHeartbeat();
 

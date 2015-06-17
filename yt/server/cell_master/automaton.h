@@ -74,7 +74,7 @@ protected:
     virtual int GetCurrentSnapshotVersion() override;
 
     void RegisterSaver(
-        NHydra::ESerializationPriority priority,
+        NHydra::ESyncSerializationPriority priority,
         const Stroka& name,
         TCallback<void(TSaveContext&)> saver);
 

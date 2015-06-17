@@ -20,7 +20,11 @@ public:
 
     i64 MaxRowWeight;
 
+    i64 MaxKeyFilterSize;
+
     double SampleRate;
+
+    double KeyFilterFalsePositiveRate;
 
     TChunkWriterConfig()
     {
@@ -38,10 +42,20 @@ public:
             .LessThanOrEqual((i64) 128 * 1024 * 1024)
             .Default((i64) 16 * 1024 * 1024);
 
+        RegisterParameter("max_key_filter_size", MaxKeyFilterSize)
+            .GreaterThan((i64) 0)
+            .LessThanOrEqual((i64) 1024 * 1024)
+            .Default((i64) 64 * 1024);
+
         RegisterParameter("sample_rate", SampleRate)
             .GreaterThan(0)
             .LessThanOrEqual(0.001)
             .Default(0.0001);
+
+        RegisterParameter("key_filter_false_positive_rate", KeyFilterFalsePositiveRate)
+            .GreaterThan(0)
+            .LessThanOrEqual(1.0)
+            .Default(0.03);
     }
 };
 
@@ -71,12 +85,12 @@ DEFINE_REFCOUNTED_TYPE(TChunkWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMultiChunkWriterOptions
+class TTableWriterOptions
     : public TChunkWriterOptions
     , public NChunkClient::TMultiChunkWriterOptions
 { };
 
-DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterOptions)
+DEFINE_REFCOUNTED_TYPE(TTableWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,6 +143,41 @@ public:
 DEFINE_REFCOUNTED_TYPE(TTableReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TControlAttributesConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableTableIndex;
+    bool EnableKeySwitch;
+    bool EnableRangeIndex;
+    bool EnableRowIndex;
+
+    TControlAttributesConfig()
+    {
+        RegisterParameter("enable_table_index", EnableTableIndex)
+            .Default(false);
+
+        RegisterParameter("enable_key_switch", EnableKeySwitch)
+            .Default(false);
+
+        RegisterParameter("enable_range_index", EnableRangeIndex)
+            .Default(false);
+
+        RegisterParameter("enable_row_index", EnableRowIndex)
+            .Default(false);
+
+        RegisterValidator([&] () {
+            if (EnableRangeIndex != EnableRowIndex) {
+                THROW_ERROR_EXCEPTION("\"enable_range_index\" must be in sync with \"enable_row_index\"");
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TControlAttributesConfig);
+
+//////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient
 } // namespace NYT

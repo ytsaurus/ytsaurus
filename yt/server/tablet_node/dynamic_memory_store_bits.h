@@ -40,6 +40,18 @@ static_assert(
     sizeof(TDynamicValueData) == sizeof(NVersionedTableClient::TUnversionedValueData),
     "TDynamicValueData and TUnversionedValueData must be of the same size.");
 
+struct TDynamicValue
+{
+    TDynamicValueData Data;
+    ui32 Revision;
+    bool Null;
+    char Padding[3];
+};
+
+static_assert(
+    sizeof(TDynamicValue) == 16,
+    "Wrong TDynamicValue size.");
+
 struct TLockDescriptor
 {
     TTransaction* Transaction;
@@ -217,12 +229,11 @@ public:
         ++Header_->Size;
     }
 
-    T* Prepare()
+    void Prepare()
     {
         YASSERT(Header_->UncommittedSize == 0);
         YASSERT(Header_->Size < Header_->Capacity);
         ++Header_->UncommittedSize;
-        return End();
     }
 
     bool HasUncommitted() const
@@ -254,12 +265,12 @@ static_assert(
     sizeof(TValueList) == sizeof(intptr_t),
     "TValueList size must match that of a pointer.");
 static_assert(
-    sizeof(TTimestampList) == sizeof(intptr_t),
-    "TTimestampList size must match that of a pointer.");
+    sizeof(TRevisionList) == sizeof(intptr_t),
+    "TRevisionList size must match that of a pointer.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ETimestampListKind,
+DEFINE_ENUM(ERevisionListKind,
     (Write)
     (Delete)
 );
@@ -304,7 +315,7 @@ public:
         // plus delete timestamp.
         int listCount =
             (schemaColumnCount - keyColumnCount) +
-            TEnumTraits<ETimestampListKind>::GetDomainSize();
+            TEnumTraits<ERevisionListKind>::GetDomainSize();
         size_t size =
             sizeof(TDynamicRowHeader) +
             keyColumnCount * sizeof(TDynamicValueData) +
@@ -390,7 +401,7 @@ public:
         return TValueList(GetLists(keyColumnCount, columnLockCount)[
             columnIndex -
             keyColumnCount +
-            TEnumTraits<ETimestampListKind>::GetDomainSize()]);
+            TEnumTraits<ERevisionListKind>::GetDomainSize()]);
     }
 
     void SetFixedValueList(int columnIndex, TValueList list, int keyColumnCount, int columnLockCount)
@@ -399,16 +410,16 @@ public:
         GetLists(keyColumnCount, columnLockCount)[
             columnIndex -
             keyColumnCount +
-            TEnumTraits<ETimestampListKind>::GetDomainSize()] = list.Header_;
+            TEnumTraits<ERevisionListKind>::GetDomainSize()] = list.Header_;
     }
 
 
-    TTimestampList GetTimestampList(ETimestampListKind kind, int keyColumnCount, int columnLockCount) const
+    TRevisionList GetRevisionList(ERevisionListKind kind, int keyColumnCount, int columnLockCount) const
     {
-        return TTimestampList(GetLists(keyColumnCount, columnLockCount)[static_cast<int>(kind)]);
+        return TRevisionList(GetLists(keyColumnCount, columnLockCount)[static_cast<int>(kind)]);
     }
 
-    void SetTimestampList(TTimestampList list, ETimestampListKind kind, int keyColumnCount, int columnLockCount)
+    void SetRevisionList(TRevisionList list, ERevisionListKind kind, int keyColumnCount, int columnLockCount)
     {
         GetLists(keyColumnCount, columnLockCount)[static_cast<int>(kind)] = list.Header_;
     }
@@ -485,25 +496,10 @@ TOwningKey RowToKey(
     const NVersionedTableClient::TKeyColumns& keyColumns,
     TDynamicRow row);
 
-void SaveRowKeys(
-    TSaveContext& context,
+TOwningKey RowToKey(
     const NVersionedTableClient::TTableSchema& schema,
     const NVersionedTableClient::TKeyColumns& keyColumns,
-    TDynamicRow row);
-
-void LoadRowKeys(
-    TLoadContext& context,
-    const NVersionedTableClient::TTableSchema& schema,
-    const NVersionedTableClient::TKeyColumns& keyColumns,
-    TChunkedMemoryPool* alignedPool,
-    TDynamicRow row);
-
-void LoadRowKeys(
-    TLoadContext& context,
-    const NVersionedTableClient::TTableSchema& schema,
-    const NVersionedTableClient::TKeyColumns& keyColumns,
-    TChunkedMemoryPool* unalignedPool,
-    NVersionedTableClient::TUnversionedRowBuilder* builder);
+    TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 

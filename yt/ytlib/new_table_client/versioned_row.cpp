@@ -6,8 +6,6 @@
 
 #include <numeric>
 
-#include <core/logging/log.h> // FIXME(babenko): remove this
-
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -220,8 +218,8 @@ Stroka ToString(const TVersionedOwningRow& row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersionedRowBuilder::TVersionedRowBuilder(TRowBuffer* buffer)
-    : Buffer_(buffer)
+TVersionedRowBuilder::TVersionedRowBuilder(TRowBufferPtr buffer)
+    : Buffer_(std::move(buffer))
 { }
 
 void TVersionedRowBuilder::AddKey(const TUnversionedValue& value)
@@ -272,7 +270,8 @@ TVersionedRow TVersionedRowBuilder::FinishRow()
         DeleteTimestamps_.end());
 
     auto row = TVersionedRow::Allocate(
-        Buffer_->GetAlignedPool(), Keys_.size(), 
+        Buffer_->GetPool(),
+        Keys_.size(),
         Values_.size(), 
         WriteTimestamps_.size(), 
         DeleteTimestamps_.size());
@@ -317,7 +316,7 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
         adjustVariableSize(other.BeginValues()[index]);
     }
 
-    Data_ = TSharedRef::Allocate(fixedSize + variableSize, false);
+    Data_ = TSharedMutableRef::Allocate(fixedSize + variableSize, false);
 
     *GetHeader() = *other.GetHeader();
 

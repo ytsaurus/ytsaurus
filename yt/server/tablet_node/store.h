@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/range.h>
+
 #include <core/actions/signal.h>
 
 #include <core/yson/public.h>
@@ -65,11 +67,19 @@ struct IStore
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) = 0;
 
-    //! Creates a lookuper instance.
+    //! Creates a reader for the set of |keys|.
     /*!
-     *  This call is typically synchronous and fast but may occasionally yield.
-     */
-    virtual NVersionedTableClient::IVersionedLookuperPtr CreateLookuper(
+    *  If no matching row is found then |nullptr| might be returned.
+    *
+    *  The reader will be providing values filtered by |timestamp| and columns
+    *  filtered by |columnFilter|.
+    *
+    *  This call is typically synchronous and fast but may occasionally yield.
+    *
+    *  Thread affinity: any
+    */
+    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+        const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) = 0;
 
@@ -79,7 +89,7 @@ struct IStore
      *  Thread affinity: any
      */
     virtual void CheckRowLocks(
-        TKey key,
+        TUnversionedRow row,
         TTransaction* transaction,
         ui32 lockMask) = 0;
 
@@ -90,8 +100,15 @@ struct IStore
     DECLARE_INTERFACE_SIGNAL(void(i64 delta), MemoryUsageUpdated);
 
 
+    //! Serializes the synchronous part of the state.
     virtual void Save(TSaveContext& context) const = 0;
+    //! Deserializes the synchronous part of the state.
     virtual void Load(TLoadContext& context) = 0;
+
+    //! Serializes the asynchronous part of the state.
+    virtual TCallback<void(TSaveContext&)> AsyncSave() = 0;
+    //! Deserializes the asynchronous part of the state.
+    virtual void AsyncLoad(TLoadContext& context) = 0;
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) = 0;
 

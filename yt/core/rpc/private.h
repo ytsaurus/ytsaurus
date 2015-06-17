@@ -14,8 +14,8 @@ namespace NRpc {
 extern const NLogging::TLogger RpcServerLogger;
 extern const NLogging::TLogger RpcClientLogger;
 
-extern NProfiling::TProfiler RpcServerProfiler;
-extern NProfiling::TProfiler RpcClientProfiler;
+extern const NProfiling::TProfiler RpcServerProfiler;
+extern const NProfiling::TProfiler RpcClientProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

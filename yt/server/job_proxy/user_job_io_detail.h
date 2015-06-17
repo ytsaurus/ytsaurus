@@ -6,8 +6,6 @@
 
 #include <ytlib/new_table_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
-
 #include <core/logging/log.h>
 
 namespace NYT {

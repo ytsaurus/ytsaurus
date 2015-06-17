@@ -99,9 +99,7 @@ TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody()
         }
     }
 
-    TSharedRef data;
-    YCHECK(SerializeToProtoWithEnvelope(req, &data));
-    return data;
+    return SerializeToProtoWithEnvelope(req);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +130,7 @@ void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
 
 void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
 {
-    YCHECK(DeserializeFromProtoWithEnvelope(&Body, data));
+    DeserializeFromProtoWithEnvelope(&Body, data);
 
     int currentIndex = 0;
     BeginPartIndexes.clear();
@@ -193,7 +191,7 @@ Stroka TObjectServiceProxy::GetServiceName()
 
 int TObjectServiceProxy::GetProtocolVersion()
 {
-    return 3;
+    return 6;
 }
 
 TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel)

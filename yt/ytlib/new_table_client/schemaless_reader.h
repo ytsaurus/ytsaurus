@@ -19,6 +19,7 @@ struct ISchemalessReader
 
     virtual TNameTablePtr GetNameTable() const = 0;
 
+    virtual TKeyColumns GetKeyColumns() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessReader)

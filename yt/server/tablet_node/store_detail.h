@@ -2,10 +2,13 @@
 
 #include "public.h"
 #include "store.h"
+#include "dynamic_memory_store_bits.h"
 
 #include <core/actions/signal.h>
 
 #include <core/logging/log.h>
+
+#include <ytlib/new_table_client/schema.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -59,6 +62,9 @@ protected:
 
 
     void SetMemoryUsage(i64 value);
+
+    TOwningKey RowToKey(TUnversionedRow row);
+    TOwningKey RowToKey(TDynamicRow row);
 
 private:
     i64 MemoryUsage_ = 0;

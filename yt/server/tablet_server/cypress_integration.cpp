@@ -76,10 +76,10 @@ private:
         auto key = GetParent()->AsMap()->GetChildKey(this);
         auto id = TTabletCellId::FromString(key);
      
-        auto tabletManager = Bootstrap->GetTabletManager();
+        auto tabletManager = Bootstrap_->GetTabletManager();
         auto* cell = tabletManager->GetTabletCellOrThrow(id);
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(cell, nullptr);
     }
 
@@ -91,8 +91,8 @@ class TTabletCellNodeTypeHandler
     : public TMapNodeTypeHandler
 {
 public:
-    explicit TTabletCellNodeTypeHandler(TBootstrap* bootstrap)
-        : TMapNodeTypeHandler(bootstrap)
+    explicit TTabletCellNodeTypeHandler(TBootstrap* Bootstrap_)
+        : TMapNodeTypeHandler(Bootstrap_)
     { }
 
     virtual EObjectType GetObjectType() override
@@ -107,29 +107,29 @@ private:
     {
         return New<TTabletCellNodeProxy>(
             this,
-            Bootstrap,
+            Bootstrap_,
             transaction,
             trunkNode);
     }
 
 };
 
-INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(TBootstrap* Bootstrap_)
 {
-    return New<TTabletCellNodeTypeHandler>(bootstrap);
+    return New<TTabletCellNodeTypeHandler>(Bootstrap_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* Bootstrap_)
 {
-    YCHECK(bootstrap);
+    YCHECK(Bootstrap_);
 
     auto service = CreateVirtualObjectMap(
-        bootstrap,
-        bootstrap->GetTabletManager()->Tablets());
+        Bootstrap_,
+        Bootstrap_->GetTabletManager()->Tablets());
     return CreateVirtualTypeHandler(
-        bootstrap,
+        Bootstrap_,
         EObjectType::TabletMap,
         service,
         EVirtualNodeOptions::RedirectSelf);

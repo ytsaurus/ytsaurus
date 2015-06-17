@@ -26,6 +26,11 @@ DECLARE_REFCOUNTED_STRUCT(IAsyncOutputStream)
 DECLARE_REFCOUNTED_STRUCT(IAsyncZeroCopyInputStream)
 DECLARE_REFCOUNTED_STRUCT(IAsyncZeroCopyOutputStream)
 
+DEFINE_ENUM(ESyncStreamAdapterStrategy,
+    (WaitFor)
+    (Get)
+);
+
 class TAsyncSemaphore;
 
 class TFiber;

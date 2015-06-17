@@ -9,12 +9,35 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+template <class T>
+TErrorOr<T> WaitForWithStrategy(TFuture<T> future, ESyncStreamAdapterStrategy strategy)
+{
+    switch (strategy) {
+
+        case ESyncStreamAdapterStrategy::WaitFor:
+            return WaitFor(future);
+        case ESyncStreamAdapterStrategy::Get:
+            return future.Get();
+        default:
+            YUNREACHABLE();
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSyncInputStreamAdapter
     : public TInputStream
 {
 public:
-    explicit TSyncInputStreamAdapter(IAsyncInputStreamPtr underlyingStream)
+    TSyncInputStreamAdapter(
+        IAsyncInputStreamPtr underlyingStream,
+        ESyncStreamAdapterStrategy strategy)
         : UnderlyingStream_(underlyingStream)
+        , Strategy_(strategy)
     {
         YCHECK(UnderlyingStream_);
     }
@@ -23,20 +46,26 @@ public:
     { }
 
 private:
-    IAsyncInputStreamPtr UnderlyingStream_;
+    const IAsyncInputStreamPtr UnderlyingStream_;
+    const ESyncStreamAdapterStrategy Strategy_;
 
 
     virtual size_t DoRead(void* buf, size_t len) override
     {
-        return WaitFor(UnderlyingStream_->Read(buf, len))
+        auto buffer = TSharedMutableRef(buf, len, nullptr);
+        return WaitForWithStrategy(UnderlyingStream_->Read(buffer), Strategy_)
             .ValueOrThrow();
     }
 
 };
 
-std::unique_ptr<TInputStream> CreateSyncAdapter(IAsyncInputStreamPtr underlyingStream)
+std::unique_ptr<TInputStream> CreateSyncAdapter(
+    IAsyncInputStreamPtr underlyingStream,
+    ESyncStreamAdapterStrategy strategy)
 {
-    return std::unique_ptr<TInputStream>(new TSyncInputStreamAdapter(underlyingStream));
+    return std::unique_ptr<TInputStream>(new TSyncInputStreamAdapter(
+        underlyingStream,
+        strategy));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,14 +80,14 @@ public:
         YCHECK(UnderlyingStream_);
     }
     
-    virtual TFuture<size_t> Read(void* buf, size_t len) override
+    virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         if (Failed_) {
             return Result_;
         }
 
         try {
-            return MakeFuture<size_t>(UnderlyingStream_->Read(buf, len));
+            return MakeFuture<size_t>(UnderlyingStream_->Read(buffer.Begin(), buffer.Size()));
         } catch (const std::exception& ex) {
             Result_ = MakeFuture<size_t>(TError(ex));
             Failed_ = true;
@@ -67,7 +96,7 @@ public:
     }
     
 private:
-    TInputStream* UnderlyingStream_;
+    TInputStream* const UnderlyingStream_;
 
     TFuture<size_t> Result_;
     bool Failed_ = false;
@@ -85,8 +114,11 @@ class TSyncOutputStreamAdapter
     : public TOutputStream
 {
 public:
-    explicit TSyncOutputStreamAdapter(IAsyncOutputStreamPtr underlyingStream)
+    TSyncOutputStreamAdapter(
+        IAsyncOutputStreamPtr underlyingStream,
+        ESyncStreamAdapterStrategy strategy)
         : UnderlyingStream_(underlyingStream)
+        , Strategy_(strategy)
     {
         YCHECK(UnderlyingStream_);
     }
@@ -95,20 +127,24 @@ public:
     { }
 
 private:
-    IAsyncOutputStreamPtr UnderlyingStream_;
-
+    const IAsyncOutputStreamPtr UnderlyingStream_;
+    const ESyncStreamAdapterStrategy Strategy_;
 
     virtual void DoWrite(const void* buf, size_t len) override
     {
-        WaitFor(UnderlyingStream_->Write(buf, len))
+        auto buffer = TSharedRef(buf, len, nullptr);
+        WaitForWithStrategy(UnderlyingStream_->Write(buffer), Strategy_)
             .ThrowOnError();
     }
-
 };
 
-std::unique_ptr<TOutputStream> CreateSyncAdapter(IAsyncOutputStreamPtr underlyingStream)
+std::unique_ptr<TOutputStream> CreateSyncAdapter(
+    IAsyncOutputStreamPtr underlyingStream,
+    ESyncStreamAdapterStrategy strategy)
 {
-    return std::unique_ptr<TOutputStream>(new TSyncOutputStreamAdapter(underlyingStream));
+    return std::unique_ptr<TOutputStream>(new TSyncOutputStreamAdapter(
+        underlyingStream,
+        strategy));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,14 +159,14 @@ public:
         YCHECK(UnderlyingStream_);
     }
     
-    virtual TFuture<void> Write(const void* buf, size_t len) override
+    virtual TFuture<void> Write(const TSharedRef& buffer) override
     {
         if (Failed_) {
             return Result_;
         }
 
         try {
-            UnderlyingStream_->Write(buf, len);
+            UnderlyingStream_->Write(buffer.Begin(), buffer.Size());
         } catch (const std::exception& ex) {
             Result_ = MakeFuture<void>(TError(ex));
             Failed_ = true;
@@ -140,7 +176,7 @@ public:
     }
 
 private:
-    TOutputStream* UnderlyingStream_;
+    TOutputStream* const UnderlyingStream_;
 
     TFuture<void> Result_;
     bool Failed_ = false;
@@ -171,20 +207,20 @@ public:
     virtual TFuture<TSharedRef> Read() override
     {
         struct TZeroCopyInputStreamAdapterBlockTag { };
-        auto block = TSharedRef::Allocate<TZeroCopyInputStreamAdapterBlockTag>(BlockSize_, false);
+        auto block = TSharedMutableRef::Allocate<TZeroCopyInputStreamAdapterBlockTag>(BlockSize_, false);
         auto promise = NewPromise<TSharedRef>();
         DoRead(promise, block, 0);
         return promise;
     }
 
 private:
-    IAsyncInputStreamPtr UnderlyingStream_;
-    size_t BlockSize_;
+    const IAsyncInputStreamPtr UnderlyingStream_;
+    const size_t BlockSize_;
 
 
     void DoRead(
         TPromise<TSharedRef> promise,
-        TSharedRef block,
+        const TSharedMutableRef& block,
         size_t offset)
     {
         if (block.Size() == offset) {
@@ -192,13 +228,14 @@ private:
             return;
         }
 
-        UnderlyingStream_->Read(block.Begin() + offset, block.Size() - offset).Subscribe(
+        auto slice = block.Slice(offset, block.Size());
+        UnderlyingStream_->Read(slice).Subscribe(
             BIND(&TZeroCopyInputStreamAdapter::OnRead, MakeStrong(this), promise, block, offset));
     }
 
     void OnRead(
         TPromise<TSharedRef> promise,
-        TSharedRef block,
+        const TSharedMutableRef& block,
         size_t offset,
         const TErrorOr<size_t>& result)
     {
@@ -209,7 +246,7 @@ private:
 
         auto bytes = result.Value();
         if (bytes == 0) {
-            promise.Set(offset == 0 ? TSharedRef() : block.Slice(TRef(block.Begin(), offset)));
+            promise.Set(offset == 0 ? TSharedRef() : block.Slice(0, offset));
             return;
         }
 
@@ -237,28 +274,30 @@ public:
         YCHECK(UnderlyingStream_);
     }
 
-    virtual TFuture<size_t> Read(void* buf, size_t len) override
+    virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         if (CurrentBlock_) {
-            return MakeFuture<size_t>(DoCopy(buf, len));
+            // NB(psushin): no swapping here, it's a _copying_ adapter!
+            // Also, #buffer may be constructed via FromNonOwningRef.
+            return MakeFuture<size_t>(DoCopy(buffer));
         } else {
             return UnderlyingStream_->Read().Apply(
-                BIND(&TCopyingInputStreamAdapter::OnRead, MakeStrong(this), buf, len));
+                BIND(&TCopyingInputStreamAdapter::OnRead, MakeStrong(this), buffer));
         }
     }
 
 private:
-    IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
+    const IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
 
     TSharedRef CurrentBlock_;
     i64 CurrentOffset_ = 0;
 
 
-    size_t DoCopy(void* buf, size_t len)
+    size_t DoCopy(const TMutableRef& buffer)
     {
         size_t remaining = CurrentBlock_.Size() - CurrentOffset_;
-        size_t bytes = std::min(len, remaining);
-        ::memcpy(buf, CurrentBlock_.Begin() + CurrentOffset_, bytes);
+        size_t bytes = std::min(buffer.Size(), remaining);
+        ::memcpy(buffer.Begin(), CurrentBlock_.Begin() + CurrentOffset_, bytes);
         CurrentOffset_ += bytes;
         if (CurrentOffset_ == CurrentBlock_.Size()) {
             CurrentBlock_.Reset();
@@ -267,10 +306,10 @@ private:
         return bytes;
     }
 
-    size_t OnRead(void* buf, size_t len, TSharedRef block)
+    size_t OnRead(const TSharedMutableRef& buffer, const TSharedRef& block)
     {
         CurrentBlock_ = block;
-        return DoCopy(buf, len);
+        return DoCopy(buffer);
     }
 
 };
@@ -307,13 +346,14 @@ public:
             invokeWrite = (Queue_.size() == 1);
         }
         if (invokeWrite) {
-            WriteMore(data);
+            UnderlyingStream_->Write(data).Subscribe(
+                BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
         }
         return promise;
     }
 
 private:
-    IAsyncOutputStreamPtr UnderlyingStream_;
+    const IAsyncOutputStreamPtr UnderlyingStream_;
 
     struct TEntry
     {
@@ -326,16 +366,26 @@ private:
     TError Error_;
 
 
-    void WriteMore(const TSharedRef& data)
-    {
-        UnderlyingStream_->Write(data.Begin(), data.Size()).Subscribe(
-            BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
-    }
-
     void OnWritten(const TError& error)
     {
+        auto pendingBlock = NotifyAndFetchNext(error);
+        while (pendingBlock) {
+            auto asyncWriteResult = UnderlyingStream_->Write(pendingBlock);
+            auto mayWriteResult = asyncWriteResult.TryGet();
+            if (!mayWriteResult || !mayWriteResult->IsOK()) {
+                asyncWriteResult.Subscribe(
+                    BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
+                break;
+            }
+
+            pendingBlock = NotifyAndFetchNext(TError());
+        }
+    }
+
+    TSharedRef NotifyAndFetchNext(const TError& error)
+    {
         TPromise<void> promise;
-        TSharedRef pendingData;
+        TSharedRef pendingBlock;
         {
             TGuard<TSpinLock> guard(SpinLock_);
             auto& entry = Queue_.front();
@@ -345,13 +395,11 @@ private:
             }
             Queue_.pop();
             if (!Queue_.empty()) {
-                pendingData = Queue_.front().Block;
+                pendingBlock = Queue_.front().Block;
             }
         }
         promise.Set(error);
-        if (pendingData) {
-            WriteMore(pendingData);
-        }
+        return pendingBlock;
     }
 
 };
@@ -373,16 +421,16 @@ public:
         YCHECK(UnderlyingStream_);
     }
 
-    virtual TFuture<void> Write(const void* buf, size_t len) override
+    virtual TFuture<void> Write(const TSharedRef& buffer) override
     {
         struct TCopyingOutputStreamAdapterBlockTag { };
-        auto block = TSharedRef::Allocate<TCopyingOutputStreamAdapterBlockTag>(len, false);
-        ::memcpy(block.Begin(), buf, len);
+        auto block = TSharedMutableRef::Allocate<TCopyingOutputStreamAdapterBlockTag>(buffer.Size(), false);
+        ::memcpy(block.Begin(), buffer.Begin(), buffer.Size());
         return UnderlyingStream_->Write(block);
     }
 
 private:
-    IAsyncZeroCopyOutputStreamPtr UnderlyingStream_;
+    const IAsyncZeroCopyOutputStreamPtr UnderlyingStream_;
 
 };
 
@@ -421,8 +469,8 @@ public:
     }
 
 private:
-    IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
-    size_t WindowSize_;
+    const IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
+    const size_t WindowSize_;
 
     TSpinLock SpinLock_;
     TError Error_;

@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "mutation_context.h"
+#include "distributed_hydra_manager.h"
 
 #include <core/misc/ref.h>
 #include <core/misc/ring_queue.h>
@@ -10,6 +11,7 @@
 #include <core/concurrency/delayed_executor.h>
 
 #include <core/actions/future.h>
+#include <core/actions/cancelable_context.h>
 
 #include <core/rpc/public.h>
 
@@ -20,7 +22,7 @@
 #include <ytlib/hydra/version.h>
 #include <ytlib/hydra/hydra_manager.pb.h>
 
-#include <server/election/election_manager.h>
+#include <server/election/public.h>
 
 #include <atomic>
 
@@ -30,7 +32,7 @@ namespace NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TEpochContext
-    : public NElection::TEpochContext
+    : public TRefCounted
 {
     IInvokerPtr EpochSystemAutomatonInvoker;
     IInvokerPtr EpochUserAutomatonInvoker;
@@ -48,6 +50,10 @@ struct TEpochContext
     TPromise<void> ActiveLeaderSyncPromise;
     TPromise<void> PendingLeaderSyncPromise;
     bool LeaderSyncDeadlineReached = false;
+    
+    TPeerId LeaderId = InvalidPeerId;
+    TEpochId EpochId;
+    TCancelableContextPtr CancelableContext = New<TCancelableContext>();
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochContext)
@@ -116,6 +122,7 @@ public:
         IInvokerPtr controlInvoker,
         ISnapshotStorePtr snapshotStore,
         IChangelogStorePtr changelogStore,
+        const TDistributedHydraManagerOptions& options,
         const NProfiling::TProfiler& profiler);
 
     void OnStartLeading();
@@ -143,7 +150,7 @@ public:
     void RotateAutomatonVersion(int segmentId);
 
     void Clear();
-    void LoadSnapshot(TVersion version, TInputStream* input);
+    void LoadSnapshot(TVersion version, NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
 
     void ApplyMutationDuringRecovery(const TSharedRef& recordData);
 
@@ -168,9 +175,13 @@ public:
 private:
     friend class TUserLockGuard;
     friend class TSystemLockGuard;
+
     class TGuardedUserInvoker;
     class TSystemInvoker;
-    class TSnapshotBuilder;
+    class TSnapshotBuilderBase;
+    class TForkSnapshotBuilder;
+    class TSwitchableSnapshotWriter;
+    class TNoForkSnapshotBuilder;
 
     const TDistributedHydraManagerConfigPtr Config_;
     const NElection::TCellManagerPtr CellManager_;
@@ -184,6 +195,8 @@ private:
 
     std::atomic<int> UserLock_ = {0};
     std::atomic<int> SystemLock_ = {0};
+
+    const TDistributedHydraManagerOptions Options_;
 
     TEpochId Epoch_;
     IChangelogPtr Changelog_;
@@ -226,9 +239,8 @@ private:
 
     void DoRotateChangelog();
 
-    void SaveSnapshot(TOutputStream* output);
+    TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer);
     void MaybeStartSnapshotBuilder();
-
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

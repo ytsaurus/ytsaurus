@@ -19,6 +19,11 @@ namespace NYT {
 static const char GenericSpecSymbol = 'v';
 static const char Int2Hex[] = "0123456789abcdef";
 
+inline bool IsQuotationSpecSymbol(char symbol)
+{
+    return symbol == 'Q' || symbol == 'q';
+}
+
 template <class TValue>
 void FormatValue(TStringBuilder* builder, const TValue& value, const TStringBuf& format);
 
@@ -128,7 +133,7 @@ inline void FormatValue(TStringBuilder* builder, bool value, const TStringBuf& f
         if (*current == 'l') {
             ++current;
             lowercase = true;
-        } else if (*current == 'q' || *current == 'Q') {
+        } else if (IsQuotationSpecSymbol(*current)) {
             ++current;
         } else
             break;
@@ -174,7 +179,7 @@ struct TValueFormatter<TEnum, typename std::enable_if<TEnumTraits<TEnum>::IsEnum
             if (*current == 'l') {
                 ++current;
                 lowercase = true;
-            } else if (*current == 'q' || *current == 'Q') {
+            } else if (IsQuotationSpecSymbol(*current)) {
                 ++current;
             } else
                 break;
@@ -238,16 +243,28 @@ void FormatValueStd(TStringBuilder* builder, TValue value, const TStringBuf& for
     const int MaxFormatSize = 64;
     const int MaxResultSize = 64;
 
+    auto copyFormat = [] (char* destination, const char* source, int lenght) {
+        int position = 0;
+        for (int index = 0; index < lenght; ++index) {
+            if (IsQuotationSpecSymbol(source[index])) {
+                continue;
+            }
+            destination[position] = source[index];
+            ++position;
+        }
+        return destination + position;
+    };
+
     char formatBuf[MaxFormatSize];
     YCHECK(format.length() >= 1 && format.length() <= MaxFormatSize - 2); // one for %, one for \0
     formatBuf[0] = '%';
     if (format[format.length() - 1] == GenericSpecSymbol) {
-        memcpy(formatBuf + 1, format.begin(), format.length() - 1);
-        memcpy(formatBuf + format.length(), genericSpec.begin(), genericSpec.length());
-        formatBuf[format.length() + genericSpec.length()] = '\0';
+        char* formatEnd = copyFormat(formatBuf + 1, format.begin(), format.length() - 1);
+        memcpy(formatEnd, genericSpec.begin(), genericSpec.length());
+        formatEnd[genericSpec.length()] = '\0';
     } else {
-        memcpy(formatBuf + 1, format.begin(), format.length());
-        formatBuf[format.length() + 1] = '\0';
+        char* formatEnd = copyFormat(formatBuf + 1, format.begin(), format.length());
+        *formatEnd = '\0';
     }
 
     char* result = builder->Preallocate(MaxResultSize);
@@ -277,6 +294,12 @@ IMPLEMENT_FORMAT_VALUE_STD(double,          double,             STRINGBUF("lf"))
 IMPLEMENT_FORMAT_VALUE_STD(float,           float,              STRINGBUF("f"))
 
 #undef IMPLEMENT_STD_FORMAT_VALUE
+
+// TDuration (specialize for performance reasons)
+inline void FormatValue(TStringBuilder* builder, const TDuration& value, const TStringBuf& format)
+{
+    FormatValue(builder, value.MilliSeconds(), format);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

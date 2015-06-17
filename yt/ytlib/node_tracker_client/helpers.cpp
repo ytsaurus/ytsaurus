@@ -368,6 +368,20 @@ bool operator != (const TNodeResources& lhs, const TNodeResources& rhs)
     return !(lhs == rhs);
 }
 
+TNodeResources MakeNonnegative(const TNodeResources& resources)
+{
+    TNodeResources result;
+    result.set_user_slots(std::max(i32(0), resources.user_slots()));
+    result.set_cpu(std::max(i32(0), resources.cpu()));
+    result.set_memory(std::max(i64(0), resources.memory()));
+    result.set_network(std::max(i32(0), resources.network()));
+    result.set_replication_slots(std::max(i32(0), resources.replication_slots()));
+    result.set_removal_slots(std::max(i32(0), resources.removal_slots()));
+    result.set_repair_slots(std::max(i32(0), resources.repair_slots()));
+    result.set_seal_slots(std::max(i32(0), resources.seal_slots()));
+    return result;
+}
+
 bool Dominates(const TNodeResources& lhs, const TNodeResources& rhs)
 {
     return lhs.user_slots() >= rhs.user_slots() &&
@@ -378,6 +392,13 @@ bool Dominates(const TNodeResources& lhs, const TNodeResources& rhs)
            lhs.removal_slots() >= rhs.removal_slots() &&
            lhs.repair_slots() >= rhs.repair_slots() &&
            lhs.seal_slots() >= rhs.seal_slots();
+}
+
+bool DominatesNonnegative(const TNodeResources& lhs, const TNodeResources& rhs)
+{
+    auto nonnegLhs = MakeNonnegative(lhs);
+    auto nonnegRhs = MakeNonnegative(rhs);
+    return Dominates(nonnegLhs, nonnegRhs);
 }
 
 TNodeResources Max(const TNodeResources& a, const TNodeResources& b)

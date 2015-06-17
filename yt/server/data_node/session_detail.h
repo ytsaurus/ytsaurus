@@ -52,7 +52,7 @@ public:
     virtual TFuture<void> SendBlocks(
         int startBlockIndex,
         int blockCount,
-        const NNodeTrackerClient::TNodeDescriptor& target) override;
+        const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
     virtual TFuture<void> FlushBlocks(int blockIndex) override;
 

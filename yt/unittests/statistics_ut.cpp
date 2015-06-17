@@ -64,6 +64,31 @@ TEST(TStatistics, AddComplex)
     EXPECT_EQ(7, statistics.Get("/key/subkey/y"));
 }
 
+TEST(TStatistics, GetComplex)
+{
+    yhash_map<Stroka, int> raw;
+    raw["x"] = 5;
+    raw["y"] = 7;
+
+    TStatistics statistics;
+    statistics.AddComplex(
+        "/key/subkey",
+        raw);
+
+    auto complexStatistics = statistics.GetComplex<yhash_map<Stroka, int>>("/key/subkey");
+    EXPECT_EQ(5, complexStatistics["x"]);
+    EXPECT_EQ(7, complexStatistics["y"]);
+}
+
+TEST(TStatistics, AddSuffixToNames)
+{
+    auto statistics = CreateStatistics({{"/key", 10}});
+
+    statistics.AddSuffixToNames("/$/completed/map");
+
+    EXPECT_EQ(10, statistics.Get("/key/$/completed/map"));
+}
+
 TEST(TStatistics, MergeDifferent)
 {
     auto statistics = CreateStatistics({{"key", 10}});

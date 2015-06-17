@@ -28,7 +28,7 @@ public:
 
 private:
     TJournalChunkPtr Chunk_;
-    TFuture<void> LastAppendResult_;
+    TFuture<void> LastAppendResult_ = VoidFuture;
 
 
     virtual TFuture<void> DoStart() override;

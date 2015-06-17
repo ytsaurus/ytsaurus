@@ -420,12 +420,12 @@ void FlushDirectory(const Stroka& path)
 
     int result = ::fsync(fd);
     if (result < 0) {
-        SafeClose(fd);
+        SafeClose(fd, false);
         THROW_ERROR_EXCEPTION("Failed to flush directory %v", path)
             << TError::FromSystem();
     }
 
-    SafeClose(fd);
+    SafeClose(fd, false);
 #else
     // No-op.
 #endif

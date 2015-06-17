@@ -144,8 +144,8 @@ public:
         REGISTER(TWriteJournalCommand,         "write_journal",           Tabular,    Null,       true,  true );
         REGISTER(TReadJournalCommand,          "read_journal",            Null,       Tabular,    false, true );
 
-        REGISTER(TDumpJobInputContextCommand,  "dump_job_input_context",  Null,       Null,       true,  false);
-        REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, true,  false);
+        REGISTER(TDumpJobContextCommand,       "dump_job_context",        Null,       Null,       true,  false);
+        REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, false, false);
 
 #undef REGISTER
     }

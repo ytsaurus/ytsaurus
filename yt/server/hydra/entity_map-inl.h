@@ -180,13 +180,17 @@ TEntityMap<TKey, TValue, TTraits, THash>::~TEntityMap()
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-void TEntityMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue* value)
+TValue* TEntityMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, std::unique_ptr<TValue> valueHolder)
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
+    auto* value = valueHolder.release();
     YASSERT(value);
+
     YCHECK(this->Map_.insert(std::make_pair(key, value)).second);
     value->SetDynamicData(AllocateDynamicData());
+
+    return value;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -239,8 +243,6 @@ void TEntityMap<TKey, TValue, TTraits, THash>::Clear()
 template <class TKey, class TValue, class TTraits, class THash>
 void TEntityMap<TKey, TValue, TTraits, THash>::DoClear()
 {
-    VERIFY_THREAD_AFFINITY(this->UserThread);
-
     for (const auto& pair : this->Map_) {
         auto* entity = pair.second;
         FreeDynamicData(entity->GetDynamicData());
@@ -313,9 +315,6 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadKeys(TContext& context)
 
             auto serializationKey = context.RegisterEntity(value.get());
 
-            // Silent warning when serialization dump is off.
-            UNUSED(serializationKey);
-
             value->SetDynamicData(AllocateDynamicData());
 
             YCHECK(this->Map_.insert(std::make_pair(key, value.release())).second);
@@ -336,7 +335,7 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadValues(TContext& context)
     SERIALIZATION_DUMP_WRITE(context, "values[%v]", LoadKeys_.size());
 
     SERIALIZATION_DUMP_INDENT(context) {
-        for (size_t index = 0; index < LoadKeys_.size(); ++index) {
+        for (size_t index = 0; index != LoadKeys_.size(); ++index) {
             SERIALIZATION_DUMP_WRITE(context, "%v =>", LoadKeys_[index]);
             SERIALIZATION_DUMP_INDENT(context) {
                 Load(context, *LoadValues_[index]);

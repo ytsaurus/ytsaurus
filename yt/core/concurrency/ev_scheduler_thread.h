@@ -53,6 +53,9 @@ protected:
 
     EBeginExecuteResult BeginExecuteCallbacks();
     void OnCallback(ev::async&, int);
+
+    void EnqueueCallback(const TClosure& callback);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

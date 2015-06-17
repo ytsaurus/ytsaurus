@@ -20,7 +20,7 @@ struct TSchemafulPipe::TData
 
     TTableSchema Schema;
 
-    TRowBuffer RowBuffer;
+    const TRowBufferPtr RowBuffer = New<TRowBuffer>();
     TRingQueue<TUnversionedRow> RowQueue;
 
     TPromise<void> ReaderReadyEvent = NewPromise<void>();
@@ -161,7 +161,7 @@ public:
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
     {
         // Copy data (no lock).
-        auto capturedRows = Data_->RowBuffer.Capture(rows);
+        auto capturedRows = Data_->RowBuffer->Capture(rows);
 
         // Enqueue rows (with lock).
         TPromise<void> readerReadyEvent;

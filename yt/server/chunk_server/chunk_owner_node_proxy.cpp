@@ -6,6 +6,7 @@
 #include "chunk_manager.h"
 #include "chunk_tree_traversing.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <core/concurrency/scheduler.h>
 
@@ -23,6 +24,8 @@
 
 #include <server/node_tracker_server/node_directory_builder.h>
 
+#include <server/object_server/object.h>
+
 #include <server/cell_master/config.h>
 
 namespace NYT {
@@ -33,11 +36,11 @@ using namespace NChunkClient;
 using namespace NCypressServer;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
 using namespace NVersionedTableClient;
-
 
 using NChunkClient::NProto::TReqFetch;
 using NChunkClient::NProto::TRspFetch;
@@ -123,7 +126,7 @@ private:
                 auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
                 if (TypeFromId(chunkId) == EObjectType::JournalChunk) {
                     auto* chunk = chunkManager->FindChunk(chunkId);
-                    if (!chunk) {
+                    if (!IsObjectAlive(chunk)) {
                         THROW_ERROR_EXCEPTION(
                             NRpc::EErrorCode::Unavailable,
                             "Optimistic locking failed for chunk %v",
@@ -254,6 +257,8 @@ private:
         if (!IsTrivial(upperLimit)) {
             ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
         }
+
+        chunkSpec->set_range_index(CurrentRangeIndex_);
 
         return true;
     }
@@ -574,7 +579,7 @@ TFuture<void> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
 
     if (key == "chunk_ids") {
         return GetChunkIdsAttribute(
-            Bootstrap,
+            Bootstrap_,
             const_cast<TChunkList*>(chunkList),
             consumer);
     }
@@ -591,7 +596,7 @@ TFuture<void> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
         typedef TCodecStatisticsVisitor<TExtractCompressionCodec> TCompressionStatisticsVisitor;
 
         return ComputeCodecStatistics<TCompressionStatisticsVisitor>(
-            Bootstrap,
+            Bootstrap_,
             const_cast<TChunkList*>(chunkList),
             consumer);
     }
@@ -608,7 +613,7 @@ TFuture<void> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
         typedef TCodecStatisticsVisitor<TExtractErasureCodec> TErasureStatisticsVisitor;
 
         return ComputeCodecStatistics<TErasureStatisticsVisitor>(
-            Bootstrap,
+            Bootstrap_,
             const_cast<TChunkList*>(chunkList),
             consumer);
     }
@@ -642,7 +647,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     const Stroka& key,
     const TYsonString& value)
 {
-    auto chunkManager = Bootstrap->GetChunkManager();
+    auto chunkManager = Bootstrap_->GetChunkManager();
 
     if (key == "replication_factor") {
         ValidateNoTransaction();
@@ -661,7 +666,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         if (node->GetReplicationFactor() != replicationFactor) {
             node->SetReplicationFactor(replicationFactor);
 
-            auto securityManager = Bootstrap->GetSecurityManager();
+            auto securityManager = Bootstrap_->GetSecurityManager();
             securityManager->UpdateAccountNodeUsage(node);
 
             if (IsLeader()) {
@@ -712,28 +717,47 @@ void TChunkOwnerNodeProxy::ValidatePrepareForUpdate()
 void TChunkOwnerNodeProxy::ValidateFetch()
 { }
 
+bool TChunkOwnerNodeProxy::IsSorted()
+{
+    return false;
+}
+
+void TChunkOwnerNodeProxy::ResetSorted()
+{ }
+
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 {
     DeclareMutating();
 
-    auto mode = EUpdateMode(request->mode());
-    YCHECK(mode == EUpdateMode::Append || mode == EUpdateMode::Overwrite);
+    auto updateMode = EUpdateMode(request->update_mode());
+    YCHECK(updateMode == EUpdateMode::Append ||
+           updateMode == EUpdateMode::Overwrite);
 
-    context->SetRequestInfo("Mode: %v", mode);
+    auto lockMode = ELockMode(request->lock_mode());
+    // COMPAT(sandello): When scheduler is lagging behind the master it may send an empty lock mode.
+    if (lockMode == ELockMode::None) {
+        lockMode = ELockMode::Exclusive;
+    }
+    YCHECK(lockMode == ELockMode::Shared ||
+           lockMode == ELockMode::Exclusive);
+
+    context->SetRequestInfo("UpdateMode: %v, LockMode: %v",
+        updateMode,
+        lockMode);
 
     ValidateTransaction();
     ValidatePermission(
         EPermissionCheckScope::This,
         NSecurityServer::EPermission::Write);
 
-    auto* node = LockThisTypedImpl<TChunkOwnerBase>(GetLockMode(mode));
+    auto* node = LockThisTypedImpl<TChunkOwnerBase>(lockMode);
     ValidatePrepareForUpdate();
 
-    auto chunkManager = Bootstrap->GetChunkManager();
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto chunkManager = Bootstrap_->GetChunkManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
 
     TChunkList* resultChunkList;
-    switch (mode) {
+    switch (updateMode) {
         case EUpdateMode::Append: {
             auto* snapshotChunkList = node->GetChunkList();
 
@@ -752,6 +776,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
             objectManager->UnrefObject(snapshotChunkList);
 
             resultChunkList = deltaChunkList;
+
+            if (request->fetch_last_key()) {
+                TOwningKey lastKey;
+                if (IsSorted() && !snapshotChunkList->Children().empty()) {
+                    lastKey = GetMaxKey(snapshotChunkList);
+                }
+                ToProto(response->mutable_last_key(), lastKey);
+            }
 
             LOG_DEBUG_UNLESS(
                 IsRecovery(),
@@ -790,7 +822,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
             YUNREACHABLE();
     }
 
-    node->SetUpdateMode(mode);
+    node->SetUpdateMode(updateMode);
+
+    ResetSorted();
 
     SetModified();
 
@@ -824,8 +858,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     auto* chunkList = node->GetChunkList();
 
     auto visitor = New<TFetchChunkVisitor>(
-        Bootstrap,
-        Bootstrap->GetConfig()->ChunkManager,
+        Bootstrap_,
+        Bootstrap_->GetConfig()->ChunkManager,
         chunkList,
         context,
         channel,

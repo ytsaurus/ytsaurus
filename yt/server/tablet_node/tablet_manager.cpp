@@ -15,6 +15,7 @@
 #include "lookup.h"
 #include "private.h"
 #include "security_manager.h"
+#include "in_memory_manager.h"
 
 #include <core/misc/ring_queue.h>
 #include <core/misc/string.h>
@@ -36,10 +37,13 @@
 
 #include <ytlib/object_client/helpers.h>
 
+#include <server/misc/memory_usage_tracker.h>
+
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
 #include <server/hydra/mutation_context.h>
 
+#include <server/tablet_node/transaction_manager.h>
 #include <server/tablet_node/tablet_manager.pb.h>
 
 #include <server/tablet_server/tablet_manager.pb.h>
@@ -69,12 +73,12 @@ using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectClient;
+using namespace NNodeTrackerClient;
 using namespace NHive;
 using namespace NHive::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
 static const auto BlockedRowWaitQuantum = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,6 +96,7 @@ public:
             bootstrap)
         , Config_(config)
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
+        , TabletMap_(TTabletMapTraits(this))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -101,15 +106,22 @@ public:
         RegisterLoader(
             "TabletManager.Values",
             BIND(&TImpl::LoadValues, Unretained(this)));
+        RegisterLoader(
+            "TabletManager.Async",
+            BIND(&TImpl::LoadAsync, Unretained(this)));
 
         RegisterSaver(
-            ESerializationPriority::Keys,
+            ESyncSerializationPriority::Keys,
             "TabletManager.Keys",
             BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "TabletManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
+        RegisterSaver(
+            EAsyncSerializationPriority::Default,
+            "TabletManager.Async",
+            BIND(&TImpl::SaveAsync, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraMountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
@@ -146,25 +158,6 @@ public:
     }
 
 
-    void BackoffStore(IStorePtr store, EStoreState state)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        store->SetStoreState(state);
-
-        auto callback = BIND([=, this_ = MakeStrong(this)] () {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-            store->SetStoreState(store->GetPersistentStoreState());
-        });
-
-        if (IsLeader()) {
-            TDelayedExecutor::Submit(callback.Via(Slot_->GetEpochAutomatonInvoker()), Config_->ErrorBackoffTime);
-        } else {
-            callback.Run();
-        }
-    }
-
-
     void Read(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
@@ -188,23 +181,31 @@ public:
     }
 
     void Write(
-        TTablet* tablet,
-        TTransaction* transaction,
+        TTabletSnapshotPtr tabletSnapshot,
+        const TTransactionId& transactionId,
         TWireProtocolReader* reader)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(tablet->GetSnapshot(), EPermission::Write);
+        securityManager->ValidatePermission(tabletSnapshot, EPermission::Write);
+
+        // NB: No yielding beyond this point.
+        // May access tablet and transaction.
+
+        const auto& tabletId = tabletSnapshot->TabletId;
+        auto* tablet = GetTabletOrThrow(tabletId);
+
+        auto transactionManager = Slot_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
         ValidateTabletMounted(tablet);
+        ValidateStoreLimit(tablet);
         ValidateTransactionActive(transaction);
         ValidateMemoryLimit();
 
-        // Protect from tablet disposal.
-        TCurrentInvokerGuard guard(tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
-
-        int prelockedCountBefore = PrelockedTransactions_.size();
+        int prelockedCountBefore = transaction->PrelockedRows().size();
+        auto readerBegin = reader->GetCurrent();
 
         TError error;
         TNullable<TRowBlockedException> rowBlockedEx;
@@ -227,26 +228,36 @@ public:
             }
         }
 
-        int prelockedCountAfter = PrelockedTransactions_.size();
+        int prelockedCountAfter = transaction->PrelockedRows().size();
         int prelockedCountDelta = prelockedCountAfter - prelockedCountBefore;
         if (prelockedCountDelta > 0) {
             LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v)",
-                transaction->GetId(),
-                tablet->GetTabletId(),
+                transactionId,
+                tabletId,
                 prelockedCountDelta);
 
-            auto requestData = reader->GetConsumedPart();
-            auto compressedRequestData = ChangelogCodec_->Compress(requestData);
+            auto readerEnd = reader->GetCurrent();
+            auto recordData = reader->Slice(readerBegin, readerEnd);
+            auto compressedRecordData = ChangelogCodec_->Compress(recordData);
+            auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
 
             TReqExecuteWrite hydraRequest;
-            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
-            ToProto(hydraRequest.mutable_tablet_id(), tablet->GetTabletId());
+            ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
             hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
-            hydraRequest.set_compressed_data(ToString(compressedRequestData));
+            hydraRequest.set_compressed_data(ToString(compressedRecordData));
             CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-                ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), prelockedCountDelta))
+                ->SetAction(BIND(
+                    &TImpl::HydraLeaderExecuteWrite,
+                    MakeStrong(this),
+                    transactionId,
+                    prelockedCountDelta,
+                    writeRecord))
                 ->Commit();
         }
+
+        // NB: Yielding is now possible.
+        // Cannot neither access tablet, nor transaction.
 
         if (rowBlockedEx) {
             rowBlockedEx->GetStore()->WaitOnBlockedRow(
@@ -255,9 +266,7 @@ public:
                 rowBlockedEx->GetTimestamp());
         }
 
-        if (!error.IsOK()) {
-            THROW_ERROR error;
-        }
+        error.ThrowOnError();
     }
 
 
@@ -399,27 +408,31 @@ private:
 
     ICodec* const ChangelogCodec_;
 
-    TEntityMap<TTabletId, TTablet> TabletMap_;
-    yhash_set<TTablet*> UnmountingTablets_;
+    class TTabletMapTraits
+    {
+    public:
+        explicit TTabletMapTraits(TImpl* owner)
+            : Owner_(owner)
+        { }
 
-    TRingQueue<TTransaction*> PrelockedTransactions_;
+        std::unique_ptr<TTablet> Create(const TTabletId& id) const
+        {
+            return std::make_unique<TTablet>(id, Owner_->Slot_);
+        }
+
+    private:
+        TImpl* const Owner_;
+
+    };
+
+    TEntityMap<TTabletId, TTablet, TTabletMapTraits> TabletMap_;
+    yhash_set<TTablet*> UnmountingTablets_;
 
     yhash_set<TDynamicMemoryStorePtr> OrphanedStores_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
-    void ValidateReadTimestamp(TTimestamp timestamp)
-    {
-        if (timestamp != SyncLastCommittedTimestamp &&
-            timestamp != AsyncLastCommittedTimestamp &&
-            (timestamp < MinTimestamp || timestamp > MaxTimestamp))
-        {
-            THROW_ERROR_EXCEPTION("Invalid timestamp %v", timestamp);
-        }
-    }
-
-    
     void SaveKeys(TSaveContext& context) const
     {
         TabletMap_.SaveKeys(context);
@@ -428,6 +441,27 @@ private:
     void SaveValues(TSaveContext& context) const
     {
         TabletMap_.SaveValues(context);
+    }
+
+    TCallback<void(TSaveContext&)> SaveAsync()
+    {
+        std::vector<std::pair<TTabletId, TCallback<void(TSaveContext&)>>> capturedTablets;
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
+            capturedTablets.push_back(std::make_pair(tablet->GetTabletId(), tablet->AsyncSave()));
+        }
+
+        return BIND(
+            [
+                =,
+                capturedTablets = std::move(capturedTablets)
+            ] (TSaveContext& context) {
+                using NYT::Save;
+                for (const auto& pair : capturedTablets) {
+                    Save(context, pair.first);
+                    pair.second.Run(context);
+                }
+            });
     }
 
     void LoadKeys(TLoadContext& context)
@@ -444,10 +478,29 @@ private:
         TabletMap_.LoadValues(context);
     }
 
+    void LoadAsync(TLoadContext& context)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        SERIALIZATION_DUMP_WRITE(context, "tablets[%v]", TabletMap_.size());
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (size_t index = 0; index != TabletMap_.size(); ++index) {
+                auto tabletId = LoadSuspended<TTabletId>(context);
+                auto* tablet = GetTablet(tabletId);
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", tabletId);
+                SERIALIZATION_DUMP_INDENT(context) {
+                    tablet->AsyncLoad(context);
+                }
+            }
+        }
+    }
+
 
     virtual void OnBeforeSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnBeforeSnapshotLoaded();
 
         DoClear();
     }
@@ -456,6 +509,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TTabletAutomatonPart::OnAfterSnapshotLoaded();
+
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
             CreateStoreManager(tablet);
@@ -463,12 +518,31 @@ private:
                 YCHECK(UnmountingTablets_.insert(tablet).second);
             }
         }
+
+        auto transactionManager = Slot_->GetTransactionManager();
+        for (const auto& pair : transactionManager->Transactions()) {
+            auto* transaction = pair.second;
+            int rowCount = 0;
+            for (const auto& record : transaction->WriteLog()) {
+                auto* tablet = GetTablet(record.TabletId);
+                TWireProtocolReader reader(record.Data);
+                while (!reader.IsFinished()) {
+                    ExecuteSingleWrite(tablet, transaction, &reader, false);
+                    ++rowCount;
+                }
+            }
+            LOG_DEBUG_IF(rowCount > 0, "Transaction write log applied (TransactionId: %v, RowCount: %v)",
+                transaction->GetId(),
+                rowCount);
+        }
     }
 
 
     virtual void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::Clear();
 
         DoClear();
     }
@@ -483,7 +557,9 @@ private:
 
     virtual void OnLeaderRecoveryComplete() override
     {
-        YCHECK(PrelockedTransactions_.empty());
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnLeaderRecoveryComplete();
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
@@ -493,6 +569,10 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnLeaderActive();
+
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
             CheckIfFullyUnlocked(tablet);
@@ -502,23 +582,20 @@ private:
 
     virtual void OnStopLeading() override
     {
-        while (!PrelockedTransactions_.empty()) {
-            auto* transaction = PrelockedTransactions_.front();
-            PrelockedTransactions_.pop();
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            auto rowRef = transaction->PrelockedRows().front();
-            transaction->PrelockedRows().pop();
+        TTabletAutomatonPart::OnStopLeading();
 
-            if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(transaction, rowRef);
-            }
-        }
-
-        // Actually redundant: all prelocked rows were popped above.
         auto transactionManager = Slot_->GetTransactionManager();
         for (const auto& pair : transactionManager->Transactions()) {
             auto* transaction = pair.second;
-            transaction->PrelockedRows().clear();
+            while (!transaction->PrelockedRows().empty()) {
+                auto rowRef = transaction->PrelockedRows().front();
+                transaction->PrelockedRows().pop();
+                if (ValidateAndDiscardRowRef(rowRef)) {
+                    rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(transaction, rowRef);
+                }
+            }
         }
 
         for (const auto& pair : TabletMap_) {
@@ -532,11 +609,19 @@ private:
 
     virtual void OnStartFollowing() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnStartFollowing();
+
         YUNREACHABLE();
     }
 
     virtual void OnStopFollowing() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnStopFollowing();
+
         YUNREACHABLE();
     }
 
@@ -549,10 +634,10 @@ private:
         auto keyColumns = FromProto<TKeyColumns>(request.key_columns());
         auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
         auto nextPivotKey = FromProto<TOwningKey>(request.next_pivot_key());
-        auto mountConfig = ConvertTo<TTableMountConfigPtr>(TYsonString(request.mount_config()));
-        auto writerOptions = ConvertTo<TTabletWriterOptionsPtr>(TYsonString(request.writer_options()));
+        auto mountConfig = DeserializeTableMountConfig((TYsonString(request.mount_config())), tabletId);
+        auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request.writer_options()), tabletId);
 
-        auto* tablet = new TTablet(
+        auto tabletHolder = std::make_unique<TTablet>(
             mountConfig,
             writerOptions,
             tabletId,
@@ -562,13 +647,14 @@ private:
             keyColumns,
             pivotKey,
             nextPivotKey);
-        tablet->CreateInitialPartition();
-        tablet->SetState(ETabletState::Mounted);
 
-        auto storeManager = CreateStoreManager(tablet);
+        tabletHolder->CreateInitialPartition();
+        tabletHolder->SetState(ETabletState::Mounted);
+
+        auto storeManager = CreateStoreManager(tabletHolder.get());
         storeManager->CreateActiveStore();
 
-        TabletMap_.Insert(tabletId, tablet);
+        auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
         std::vector<std::pair<TOwningKey, int>> chunkBoundaries;
 
@@ -604,6 +690,9 @@ private:
                 tablet,
                 &descriptor.chunk_meta());
             storeManager->AddStore(store);
+            if (mountConfig->InMemoryMode != EInMemoryMode::None) {
+                storeManager->ScheduleStorePreload(store);
+            }
         }
 
         SchedulePartitionsSampling(tablet);
@@ -690,18 +779,20 @@ private:
         if (!tablet)
             return;
 
-        auto mountConfig = ConvertTo<TTableMountConfigPtr>(TYsonString(request.mount_config()));
-        auto writerOptions = ConvertTo<TTabletWriterOptionsPtr>(TYsonString(request.writer_options()));
+        auto mountConfig = DeserializeTableMountConfig((TYsonString(request.mount_config())), tabletId);
+        auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request.writer_options()), tabletId);
 
         int oldSamplesPerPartition = tablet->GetConfig()->SamplesPerPartition;
         int newSamplesPerPartition = mountConfig->SamplesPerPartition;
 
-        tablet->SetConfig(mountConfig);
-        tablet->SetWriterOptions(writerOptions);
+        auto storeManager = tablet->GetStoreManager();
+        storeManager->Remount(mountConfig, writerOptions);
 
         if (oldSamplesPerPartition != newSamplesPerPartition) {
             SchedulePartitionsSampling(tablet);
         }
+
+        UpdateTabletSnapshot(tablet);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
             tabletId);
@@ -758,13 +849,16 @@ private:
         }
     }
 
-    void HydraLeaderExecuteWrite(int rowCount)
+    void HydraLeaderExecuteWrite(
+        const TTransactionId& transactionId,
+        int rowCount,
+        const TTransactionWriteRecord& writeRecord)
     {
-        for (int index = 0; index < rowCount; ++index) {
-            YASSERT(!PrelockedTransactions_.empty());
-            auto* transaction = PrelockedTransactions_.front();
-            PrelockedTransactions_.pop();
+        auto transactionManager = Slot_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransaction(transactionId);
 
+        for (int index = 0; index < rowCount; ++index) {
+            YASSERT(!transaction->PrelockedRows().empty());
             auto rowRef = transaction->PrelockedRows().front();
             transaction->PrelockedRows().pop();
 
@@ -773,42 +867,43 @@ private:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (RowCount: %v)",
-            rowCount);
+        transaction->WriteLog().Enqueue(writeRecord);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, RowCount: %v, WriteRecordSize: %v)",
+            writeRecord.TabletId,
+            rowCount,
+            writeRecord.Data.Size());
     }
 
-    void HydraFollowerExecuteWrite(const TReqExecuteWrite& request)
+    void HydraFollowerExecuteWrite(const TReqExecuteWrite& request) noexcept
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto transactionManager = Slot_->GetTransactionManager();
-        // COMPAT(babenko)
-        auto* transaction = transactionManager->FindTransaction(transactionId);
-        if (!transaction)
-            return;
+        auto* transaction = transactionManager->GetTransaction(transactionId);
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
-        // COMPAT(babenko)
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet)
-            return;
+        auto* tablet = GetTablet(tabletId);
 
         auto codecId = ECodec(request.codec());
         auto* codec = GetCodec(codecId);
-        auto compressedRequestData = TSharedRef::FromString(request.compressed_data());
-        auto requestData = codec->Decompress(compressedRequestData);
+        auto compressedRecordData = TSharedRef::FromString(request.compressed_data());
+        auto recordData = codec->Decompress(compressedRecordData);
+        auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
 
-        try {
-            TWireProtocolReader reader(requestData);
-            while (!reader.IsFinished()) {
-                ExecuteSingleWrite(tablet, transaction, &reader, false);
-            }
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error executing writes");
+        TWireProtocolReader reader(recordData);
+        int rowCount = 0;
+        while (!reader.IsFinished()) {
+            ExecuteSingleWrite(tablet, transaction, &reader, false);
+            ++rowCount;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v)",
-            transaction->GetId(),
-            tablet->GetTabletId());
+        transaction->WriteLog().Enqueue(writeRecord);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v, RowCount: %v, WriteRecordSize: %v)",
+            transactionId,
+            tabletId,
+            rowCount,
+            recordData.Size());
     }
 
     void HydraRotateStore(const TReqRotateStore& request)
@@ -890,52 +985,66 @@ private:
                 YCHECK(store->GetStoreState() == EStoreState::RemoveCommitting);
                 BackoffStore(store, EStoreState::RemoveFailed);
             }
-        } else {
-            const auto& storeManager = tablet->GetStoreManager();
-            std::vector<TStoreId> addedStoreIds;
-            for (const auto& descriptor : response.stores_to_add()) {
-                auto storeId = FromProto<TChunkId>(descriptor.store_id());
-                addedStoreIds.push_back(storeId);
-                YCHECK(descriptor.has_chunk_meta());
-                auto store = CreateChunkStore(
-                    storeId,
-                    tablet,
-                    &descriptor.chunk_meta());
-                storeManager->AddStore(store);
-                SchedulePartitionSampling(store->GetPartition());
-                TStoreId backingStoreId;
-                if (!IsRecovery() && descriptor.has_backing_store_id()) {
-                    backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
-                    auto backingStore = tablet->GetStore(backingStoreId);
-                    SetBackingStore(tablet, store, backingStore);
+            return;
+        }
+
+        auto mountConfig = tablet->GetConfig();
+        auto inMemoryManager = Bootstrap_->GetInMemoryManager();
+        const auto& storeManager = tablet->GetStoreManager();
+        std::vector<TStoreId> addedStoreIds;
+        for (const auto& descriptor : response.stores_to_add()) {
+            auto storeId = FromProto<TChunkId>(descriptor.store_id());
+            addedStoreIds.push_back(storeId);
+            YCHECK(descriptor.has_chunk_meta());
+
+            auto store = CreateChunkStore(
+                storeId,
+                tablet,
+                &descriptor.chunk_meta());
+            storeManager->AddStore(store);
+
+            auto chunkData = inMemoryManager->EvictInterceptedChunkData(storeId);
+            if (mountConfig->InMemoryMode != EInMemoryMode::None) {
+                if (!storeManager->TryPreloadStoreFromInterceptedData(store, chunkData)) {
+                    storeManager->ScheduleStorePreload(store);
                 }
-                LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, BackingStoreId: %v)",
-                    tabletId,
-                    storeId,
-                    backingStoreId);
             }
 
-            std::vector<TStoreId> removedStoreIds;
-            for (const auto& descriptor : response.stores_to_remove()) {
-                auto storeId = FromProto<TStoreId>(descriptor.store_id());
-                removedStoreIds.push_back(storeId);
-                auto store = tablet->GetStore(storeId);
-                storeManager->RemoveStore(store);
-                SchedulePartitionSampling(store->GetPartition());
-                LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v)",
-                    tabletId,
-                    storeId);
+            SchedulePartitionSampling(store->GetPartition());
+
+            TStoreId backingStoreId;
+            if (!IsRecovery() && descriptor.has_backing_store_id()) {
+                backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
+                auto backingStore = tablet->GetStore(backingStoreId);
+                SetBackingStore(tablet, store, backingStore);
             }
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully (TabletId: %v, AddedStoreIds: [%v], RemovedStoreIds: [%v])",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, BackingStoreId: %v)",
                 tabletId,
-                JoinToString(addedStoreIds),
-                JoinToString(removedStoreIds));
+                storeId,
+                backingStoreId);
+        }
 
-            UpdateTabletSnapshot(tablet);
-            if (IsLeader()) {
-                CheckIfFullyFlushed(tablet);
-            }
+        std::vector<TStoreId> removedStoreIds;
+        for (const auto& descriptor : response.stores_to_remove()) {
+            auto storeId = FromProto<TStoreId>(descriptor.store_id());
+            removedStoreIds.push_back(storeId);
+            auto store = tablet->GetStore(storeId);
+            storeManager->RemoveStore(store);
+            SchedulePartitionSampling(store->GetPartition());
+            LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v)",
+                tabletId,
+                storeId);
+        }
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully (TabletId: %v, AddedStoreIds: [%v], RemovedStoreIds: [%v])",
+            tabletId,
+            JoinToString(addedStoreIds),
+            JoinToString(removedStoreIds));
+
+        UpdateTabletSnapshot(tablet);
+        if (IsLeader()) {
+            CheckIfFullyFlushed(tablet);
         }
     }
 
@@ -958,14 +1067,24 @@ private:
             return;
 
         int partitionIndex = partition->GetIndex();
-
-        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, PartitionId: %v, DataSize: %v, Keys: %v)",
-            tablet->GetTabletId(),
-            partitionId,
-            partition->GetUncompressedDataSize(),
-            JoinToString(pivotKeys, Stroka(" .. ")));
+        i64 partitionDataSize = partition->GetUncompressedDataSize();
 
         tablet->SplitPartition(partitionIndex, pivotKeys);
+
+        auto resultingPartitionIds = JoinToString(ConvertToStrings(
+            tablet->Partitions().begin() + partitionIndex,
+            tablet->Partitions().begin() + partitionIndex + pivotKeys.size(),
+            [] (const std::unique_ptr<TPartition>& partition) {
+                return ToString(partition->GetId());
+            }));
+
+        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, OriginalPartitionId: %v, ResultingPartitionIds: [%v], DataSize: %v, Keys: %v)",
+            tablet->GetTabletId(),
+            partitionId,
+            resultingPartitionIds,
+            partitionDataSize,
+            JoinToString(pivotKeys, Stroka(" .. ")));
+
         // NB: Initial partition is split into new ones with indexes |[partitionIndex, partitionIndex + pivotKeys.size())|.
         SchedulePartitionsSampling(tablet, partitionIndex, partitionIndex + pivotKeys.size());
         UpdateTabletSnapshot(tablet);
@@ -984,23 +1103,31 @@ private:
         int firstPartitionIndex = firstPartition->GetIndex();
         int lastPartitionIndex = firstPartitionIndex + request.partition_count() - 1;
 
-        // See HydraSplitPartition.
-        // Currently this code is redundant since there's no escape path below,
-        // but we prefer to keep it to make things look symmetric.
+        i64 partitionsDataSize = 0;
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-            tablet->Partitions()[index]->SetState(EPartitionState::Normal);
+            const auto& partition = tablet->Partitions()[index];
+            partitionsDataSize += partition->GetUncompressedDataSize();
+            // See HydraSplitPartition.
+            // Currently this code is redundant since there's no escape path below,
+            // but we prefer to keep it to make things look symmetric.
+            partition->SetState(EPartitionState::Normal);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, PartitionIds: [%v])",
-            tablet->GetTabletId(),
-            JoinToString(ConvertToStrings(
-                tablet->Partitions().begin() + firstPartitionIndex,
-                tablet->Partitions().begin() + lastPartitionIndex + 1,
-                [] (const std::unique_ptr<TPartition>& partition) {
-                     return ToString(partition->GetId());
-                })));
+        auto originalPartitionIds = JoinToString(ConvertToStrings(
+            tablet->Partitions().begin() + firstPartitionIndex,
+            tablet->Partitions().begin() + lastPartitionIndex + 1,
+            [] (const std::unique_ptr<TPartition>& partition) {
+                return ToString(partition->GetId());
+            }));
 
         tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, OriginalPartitionIds: [%v], ResultingPartitionId: %v, DataSize: %v)",
+            tablet->GetTabletId(),
+            originalPartitionIds,
+            tablet->Partitions()[firstPartitionIndex]->GetId(),
+            partitionsDataSize);
+
         // NB: Initial partitions are merged into a single one with index |firstPartitionIndex|.
         SchedulePartitionsSampling(tablet, firstPartitionIndex, firstPartitionIndex + 1);
         UpdateTabletSnapshot(tablet);
@@ -1225,7 +1352,6 @@ private:
         if (prelock) {
             ValidateTabletMounted(tablet);
             ValidateTransactionActive(transaction);
-            PrelockedTransactions_.push(transaction);
             transaction->PrelockedRows().push(rowRef);
         }
     }
@@ -1330,16 +1456,10 @@ private:
 
     void StopTabletEpoch(TTablet* tablet)
     {
-        tablet->SetState(tablet->GetPersistentState());
-
+        // TODO(babenko): consider moving
         tablet->GetEden()->SetState(EPartitionState::Normal);
         for (const auto& partition : tablet->Partitions()) {
             partition->SetState(EPartitionState::Normal);
-        }
-
-        for (const auto& pair : tablet->Stores()) {
-            const auto& store = pair.second;
-            store->SetStoreState(store->GetPersistentStoreState());
         }
 
         const auto& storeManager = tablet->GetStoreManager();
@@ -1347,6 +1467,25 @@ private:
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshot(tablet);
+    }
+
+
+    void BackoffStore(IStorePtr store, EStoreState state)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        store->SetStoreState(state);
+
+        auto callback = BIND([=, this_ = MakeStrong(this)] () {
+            VERIFY_THREAD_AFFINITY(AutomatonThread);
+            store->SetStoreState(store->GetPersistentStoreState());
+        });
+
+        if (IsLeader()) {
+            TDelayedExecutor::Submit(callback.Via(Slot_->GetEpochAutomatonInvoker()), Config_->ErrorBackoffTime);
+        } else {
+            callback.Run();
+        }
     }
 
 
@@ -1423,25 +1562,25 @@ private:
     }
 
 
-    static EMemoryConsumer GetMemoryConsumerFromStore(IStorePtr store)
+    static EMemoryCategory GetMemoryCategoryFromStore(IStorePtr store)
     {
         switch (store->GetType()) {
             case EStoreType::DynamicMemory:
-                return EMemoryConsumer::TabletDynamic;
+                return EMemoryCategory::TabletDynamic;
             case EStoreType::Chunk:
-                return EMemoryConsumer::TabletStatic;
+                return EMemoryCategory::TabletStatic;
             default:
                 YUNREACHABLE();
         }
     }
 
-    static void OnStoreMemoryUsageUpdated(NCellNode::TBootstrap* bootstrap, EMemoryConsumer consumer, i64 delta)
+    static void OnStoreMemoryUsageUpdated(NCellNode::TBootstrap* bootstrap, EMemoryCategory category, i64 delta)
     {
         auto* tracker = bootstrap->GetMemoryUsageTracker();
         if (delta >= 0) {
-            tracker->Acquire(consumer, delta);
+            tracker->Acquire(category, delta);
         } else {
-            tracker->Release(consumer, -delta);
+            tracker->Release(category, -delta);
         }
     }
 
@@ -1450,13 +1589,22 @@ private:
         store->SubscribeMemoryUsageUpdated(BIND(
             &TImpl::OnStoreMemoryUsageUpdated,
             Bootstrap_,
-            GetMemoryConsumerFromStore(store)));
+            GetMemoryCategoryFromStore(store)));
     }
 
     void ValidateMemoryLimit()
     {
         if (Bootstrap_->GetTabletSlotManager()->IsOutOfMemory()) {
-            THROW_ERROR_EXCEPTION("Out of tablet memory, all writes disabled");
+            THROW_ERROR_EXCEPTION("Node is out of tablet memory, all writes disabled");
+        }
+    }
+
+    void ValidateStoreLimit(TTablet* tablet)
+    {
+        if (tablet->Stores().size() >= tablet->GetConfig()->MaxStoresPerTablet) {
+            THROW_ERROR_EXCEPTION("Too many stores in tablet, all writes disabled")
+                << TErrorAttribute("tablet_id", tablet->GetTableId())
+                << TErrorAttribute("store_limit", tablet->GetConfig()->MaxStoresPerTablet);
         }
     }
 
@@ -1472,7 +1620,7 @@ private:
 
     void SchedulePartitionSampling(TPartition* partition)
     {
-        if (partition->GetIndex() != TPartition::EdenIndex) {
+        if (!partition->IsEden()) {
             const auto* mutationContext = GetCurrentMutationContext();
             partition->SetSamplingRequestTime(mutationContext->GetTimestamp());
         }
@@ -1509,6 +1657,28 @@ private:
         }
     }
 
+
+    TTableMountConfigPtr DeserializeTableMountConfig(const TYsonString& str, const TTabletId& tabletId)
+    {
+        try {
+            return ConvertTo<TTableMountConfigPtr>(str);
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error deserializing tablet mount config (TabletId: %v)",
+                 tabletId);
+            return New<TTableMountConfig>();
+        }
+    }
+
+    TTabletWriterOptionsPtr DeserializeTabletWriterOptions(const TYsonString& str, const TTabletId& tabletId)
+    {
+        try {
+            return ConvertTo<TTabletWriterOptionsPtr>(str);
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error deserializing writer options (TabletId: %v)",
+                 tabletId);
+            return New<TTabletWriterOptions>();
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, TabletMap_)
@@ -1538,11 +1708,6 @@ TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
     return Impl_->GetTabletOrThrow(id);
 }
 
-void TTabletManager::BackoffStore(IStorePtr store, EStoreState state)
-{
-    Impl_->BackoffStore(store, state);
-}
-
 void TTabletManager::Read(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
@@ -1557,13 +1722,13 @@ void TTabletManager::Read(
 }
 
 void TTabletManager::Write(
-    TTablet* tablet,
-    TTransaction* transaction,
+    TTabletSnapshotPtr tabletSnapshot,
+    const TTransactionId& transactionId,
     TWireProtocolReader* reader)
 {
     Impl_->Write(
-        tablet,
-        transaction,
+        std::move(tabletSnapshot),
+        transactionId,
         reader);
 }
 

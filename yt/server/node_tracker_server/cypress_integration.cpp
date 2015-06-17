@@ -35,6 +35,7 @@ using namespace NCypressClient;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectServer;
 
@@ -81,7 +82,7 @@ private:
             return nullptr;
         }
         auto address = parent->AsMap()->GetChildKey(this);
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         return nodeTracker->FindNodeByAddress(address);
     }
 
@@ -145,6 +146,21 @@ private:
                                     .Item("enabled").Value(locationStatistics.enabled())
                                 .EndMap();
                         })
+                        .Item("memory").BeginMap()
+                            .Item("total").BeginMap()
+                                .Item("used").Value(statistics.memory().total_used())
+                                .Item("limit").Value(statistics.memory().total_limit())
+                            .EndMap()
+                            .DoFor(statistics.memory().categories(), [] (TFluentMap fluent, const TMemoryStatistics::TCategory& category) {
+                                fluent.Item(FormatEnum(EMemoryCategory(category.type())))
+                                    .BeginMap()
+                                        .DoIf(category.has_limit(), [&] (TFluentMap fluent) {
+                                            fluent.Item("limit").Value(category.limit());
+                                        })
+                                        .Item("used").Value(category.used())
+                                    .EndMap();
+                            })
+                        .EndMap()
                     .EndMap();
                 return true;
             }
@@ -202,7 +218,7 @@ private:
             // Validate rack name.
             if (newValue) {
                 auto name = ConvertTo<Stroka>(*newValue);
-                auto nodeTracker = Bootstrap->GetNodeTracker();
+                auto nodeTracker = Bootstrap_->GetNodeTracker();
                 nodeTracker->GetRackByNameOrThrow(name);
             }
         } else {
@@ -231,7 +247,7 @@ private:
         if (!node)
             return;
 
-        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->RefreshNodeConfig(node);
     }
 };
@@ -256,7 +272,7 @@ private:
     {
         return New<TCellNodeProxy>(
             this,
-            Bootstrap,
+            Bootstrap_,
             transaction,
             trunkNode);
     }
@@ -309,8 +325,8 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        auto nodeTracker = Bootstrap->GetNodeTracker();
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        auto chunkManager = Bootstrap_->GetChunkManager();
 
         if (key == "offline") {
             BuildYsonFluently(consumer)
@@ -328,7 +344,7 @@ private:
                 .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<TNodeId, TNode*>& pair) {
                     auto* node = pair.second;
                     if (node->GetState() == expectedState) {
-                        fluent.Item().Value(node->GetAddress());
+                        fluent.Item().Value(node->GetDefaultAddress());
                     }
                 });
             return true;
@@ -389,7 +405,7 @@ private:
     {
         return New<TCellNodeMapProxy>(
             this,
-            Bootstrap,
+            Bootstrap_,
             transaction,
             trunkNode);
     }

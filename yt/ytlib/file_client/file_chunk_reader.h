@@ -42,9 +42,10 @@ DEFINE_REFCOUNTED_TYPE(IFileChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 IFileChunkReaderPtr CreateFileChunkReader(
-    NChunkClient::TSequentialReaderConfigPtr sequentialConfig,
+    NChunkClient::TSequentialReaderConfigPtr config,
+    NChunkClient::TMultiChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr chunkReader,
-    NChunkClient::IBlockCachePtr uncompressedBlockCache,
+    NChunkClient::IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
     i64 startOffset,
     i64 endOffset);
@@ -64,8 +65,7 @@ IFileMultiChunkReaderPtr CreateFileMultiChunkReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
-    NChunkClient::IBlockCachePtr compressedBlockCache,
-    NChunkClient::IBlockCachePtr uncompressedBlockCache,
+    NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());

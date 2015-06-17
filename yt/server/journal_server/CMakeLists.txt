@@ -3,8 +3,8 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/journal_server )
 set( SRCS
   ${BASE}/journal_node.cpp
   ${BASE}/journal_node_proxy.cpp
-  ${BASE}/public.cpp
   ${BASE}/private.cpp
+  ${BASE}/public.cpp
 )
 set( HDRS
   ${BASE}/journal_node.h

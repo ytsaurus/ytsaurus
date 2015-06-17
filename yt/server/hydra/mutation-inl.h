@@ -23,7 +23,7 @@ struct TMutationActionTraits
         TMutationContext* context)
     {
         TRequest request;
-        YCHECK(DeserializeFromProtoWithEnvelope(&request, context->Request().Data));
+        DeserializeFromProtoWithEnvelope(&request, context->Request().Data);
 
         TSharedRefArray responseMessage;
         try {
@@ -45,7 +45,7 @@ struct TMutationActionTraits<TRequest, void>
         TMutationContext* context)
     {
         TRequest request;
-        YCHECK(DeserializeFromProtoWithEnvelope(&request, context->Request().Data));
+        DeserializeFromProtoWithEnvelope(&request, context->Request().Data);
 
         TSharedRefArray responseMessage;
         try {
@@ -106,8 +106,7 @@ TMutationPtr TMutation::SetAction(TCallback<TResponse()> action)
 template <class TRequest>
 TMutationPtr TMutation::SetRequestData(const TRequest& request)
 {
-    TSharedRef requestData;
-    YCHECK(SerializeToProtoWithEnvelope(request, &requestData));
+    auto requestData = SerializeToProtoWithEnvelope(request);
     Request_.Data = std::move(requestData);
     Request_.Type = request.GetTypeName();
     return this;

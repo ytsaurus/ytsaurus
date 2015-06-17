@@ -220,6 +220,8 @@ TEST_F(TSchemalessChunksTest, ReadSortedRange)
 
     TReadLimit lowerLimit;
     lowerLimit.SetKey(lowerBuilder.FinishRow());
+    // Test initialization, when key limit is upper than row limit.
+    lowerLimit.SetRowIndex(10);
 
     TUnversionedOwningRowBuilder upperBuilder;
     upperBuilder.AddValue(MakeUnversionedStringValue(A, 0));

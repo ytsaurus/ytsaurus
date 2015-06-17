@@ -5,7 +5,6 @@
 
 #include <core/misc/error.h>
 #include <core/misc/address.h>
-#include <core/misc/random.h>
 
 #include <core/concurrency/ev_scheduler_thread.h>
 #include <core/concurrency/event_count.h>
@@ -76,18 +75,22 @@ public:
     void Shutdown();
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType) const;
+    TTcpProfilingData* GetProfilingData(ETcpInterfaceType interfaceType);
 
-    TTcpDispatcherThreadPtr AllocateThread();
+    TTcpDispatcherThreadPtr GetServerThread();
+    TTcpDispatcherThreadPtr GetClientThread();
 
 private:
     friend TTcpDispatcher;
 
     TImpl();
 
-    std::vector<TTcpDispatcherThreadPtr> Threads_;
+    TTcpDispatcherThreadPtr ServerThread_;
 
-    TSpinLock SpinLock_;
-    TRandomGenerator ThreadIdGenerator_;
+    std::vector<TTcpDispatcherThreadPtr> ClientThreads_;
+    std::atomic<size_t> CurrentClientThreadIndex_ = {0};
+
+    TEnumIndexedVector<TTcpProfilingData, ETcpInterfaceType> ProfilingData_;
 
 };
 

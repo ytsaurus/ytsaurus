@@ -3,29 +3,11 @@ import time
 import __builtin__
 import os
 import tempfile
-import subprocess
 
 from yt.wrapper import format
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
-
-
-##################################################################
-
-def can_perform_block_io_tests():
-    try:
-        subprocess.check_call(["ls", "-l", "/dev/sda"])
-        return subprocess.check_output(["sudo", "-n", "-l", "dd"]).strip() == "/bin/dd"
-    except AttributeError:
-        # python 2.6 subprocess module does not have check_output function
-        return False
-    except subprocess.CalledProcessError:
-        return False
-
-
-block_io_mark = pytest.mark.skipif("not can_perform_block_io_tests()")
-
 
 def get_statistics(statistics, complex_key):
     result = statistics
@@ -34,81 +16,6 @@ def get_statistics(statistics, complex_key):
             result = result[part]
     return result
 
-
-class TestWoodpecker(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 5
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler" : {
-            "event_log" : {
-                "flush_period" : 5000
-            }
-        }
-    }
-
-    DELTA_NODE_CONFIG = {
-        "exec_agent" : {
-            "force_enable_accounting" : True,
-            "iops_threshold" : 5,
-            "block_io_watchdog_period" : 8000
-        }
-    }
-
-    FAIL_IF_HIT_LIMIT="""
-sleep 10
-
-CURRENT_BLKIO_CGROUP=/sys/fs/cgroup/blkio`grep blkio /proc/self/cgroup | cut -d: -f 3`
-echo Current blkio cgroup: $CURRENT_BLKIO_CGROUP >&2
-
-echo "blkio.io_serviced content:" >&2
-cat $CURRENT_BLKIO_CGROUP/blkio.io_serviced >&2
-echo '===' >&2
-
-echo "blkio.throttle.read_iops_device content:" >&2
-CONTENT=`cat $CURRENT_BLKIO_CGROUP/blkio.throttle.read_iops_device`
-echo $CONTENT >&2
-echo $CONTENT | grep ' 5' 1>/dev/null
-"""
-    def _get_stderr(self, op_id):
-        jobs_path = "//sys/operations/" + op_id + "/jobs"
-        for job_id in ls(jobs_path):
-            return read_file(jobs_path + "/" + job_id + "/stderr")
-
-    @block_io_mark
-    def test_hitlimit(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": "b"}])
-        command="""cat
-sudo -n dd if=/dev/sda of=/dev/null bs=16K count=100 iflag=direct 1>/dev/null
-"""
-        command += self.FAIL_IF_HIT_LIMIT
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command, spec={"max_failed_job_count": 1})
-
-        track_op(op_id)
-        print self._get_stderr(op_id)
-
-    @block_io_mark
-    def test_do_not_hitlimit(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": "b"}])
-        command="""
-cat
-sudo -n dd if=/dev/sda of=/dev/null bs=1600K count=1 iflag=direct 1>/dev/null
-"""
-        command += self.FAIL_IF_HIT_LIMIT
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command, spec={"max_failed_job_count": 1})
-
-        with pytest.raises(YtError):
-            try:
-                track_op(op_id)
-            finally:
-                print self._get_stderr(op_id)
-
-
 class TestCGroups(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -116,11 +23,10 @@ class TestCGroups(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
-            "force_enable_accounting" : True,
-            "enable_cgroup_memory_hierarchy" : True,
+            "enable_cgroups" : True,
+            "supported_cgroups" : [ "cpuacct", "blkio", "memory"],
             "slot_manager" : {
                 "enforce_job_control" : True,
-                "enable_cgroups" : True
             }
         }
     }
@@ -129,8 +35,13 @@ class TestCGroups(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"} for i in xrange(200)])
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command='trap "" HUP; bash -c "sleep 60" &; sleep $[( $RANDOM % 5 )]s; exit 42;',
-                    spec={"max_failed_job_count": 1, "job_count": 200})
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command='trap "" HUP; bash -c "sleep 60" &; sleep $[( $RANDOM % 5 )]s; exit 42;',
+            spec={"max_failed_job_count": 1, "job_count": 200})
+
         with pytest.raises(YtError):
             track_op(op_id)
 
@@ -155,10 +66,9 @@ class TestEventLog(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
-            "force_enable_accounting" : True,
-            "enable_cgroup_memory_hierarchy" : True,
+            "enable_cgroups" : True,
+            "supported_cgroups" : [ "cpuacct", "blkio", "memory"],
             "slot_manager" : {
-                'enable_cgroups' : True,
                 "enforce_job_control" : True
             }
         }
@@ -170,14 +80,14 @@ class TestEventLog(YTEnvSetup):
         write_table("//tmp/t1", [{"a": "b"}])
         op_id = map(in_="//tmp/t1", out="//tmp/t2", command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null')
 
-        statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert get_statistics(statistics, "completed_jobs.user_job.cpu.user.sum") > 0
-        assert get_statistics(statistics, "completed_jobs.user_job.block_io.bytes_read.sum") is not None
-        assert get_statistics(statistics, "completed_jobs.user_job.memory.rss.count") > 0
-        assert get_statistics(statistics, "completed_jobs.job_proxy.cpu.user.count") == 1
-        assert get_statistics(statistics, "completed_jobs.job_proxy.cpu.user.count") == 1
-        assert "failed_jobs" in statistics
-        assert "aborted_jobs" in statistics
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op_id))
+        assert get_statistics(statistics, "user_job.cpu.user.$.completed.map.sum") > 0
+        assert get_statistics(statistics, "user_job.block_io.bytes_read.$.completed.map.sum") is not None
+        assert get_statistics(statistics, "user_job.current_memory.rss.$.completed.map.count") > 0
+        assert get_statistics(statistics, "user_job.max_memory.$.completed.map.count") > 0
+        assert get_statistics(statistics, "user_job.cumulative_memory_mb_sec.$.completed.map.count") > 0
+        assert get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1
+        assert get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1
 
         # wait for scheduler to dump the event log
         time.sleep(6)
@@ -201,10 +111,8 @@ class TestJobProber(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
-            "force_enable_accounting" : True,
-            "slot_manager" : {
-                'enable_cgroups' : 'true',
-            }
+            'enable_cgroups' : True,
+            "supported_cgroups" : [ "cpuacct", "blkio", "memory"]
         }
     }
 
@@ -250,147 +158,8 @@ class TestJobProber(YTEnvSetup):
 
         for pid, trace in result['traces'].iteritems():
             if trace['trace'] != "attach: ptrace(PTRACE_ATTACH, ...): No such process\n":
-                assert trace['trace'].startswith("Process {0} attached - interrupt to quit".format(pid))
+                assert trace['trace'].startswith("Process {0} attached".format(pid))
         track_op(op_id)
-
-
-class TestBlockIO(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 5
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        'scheduler' : {
-            'event_log' : {
-                'flush_period' : 5000
-            }
-        }
-    }
-
-    DELTA_NODE_CONFIG = {
-        'exec_agent' : {
-            'force_enable_accounting' : 'true',
-            'enable_cgroup_memory_hierarchy' : 'true',
-            'slot_manager' : {
-                'enable_cgroups' : 'true'
-            }
-        }
-    }
-    @block_io_mark
-    def test_block_io_accounting(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": "b"}])
-        op_id = map(in_="//tmp/t1", out="//tmp/t2", command="cat; sudo -n dd if=/dev/sda of=/dev/null bs=160K count=50 iflag=direct 1>/dev/null;")
-
-        # wait for scheduler to dump the event log
-        time.sleep(6)
-        res = read_table("//sys/scheduler/event_log")
-        job_completed_line_exist = False
-        for item in res:
-            if item["event_type"] == "job_completed" and item["operation_id"] == op_id:
-                job_completed_line_exist = True
-                stats = item["statistics"]
-                bytes_read = get_statistics(stats, "user_job.block_io.bytes_read")
-                io_read = get_statistics(stats, "user_job.block_io.io_read")
-        assert job_completed_line_exist
-        assert bytes_read == 160*1024*50
-        assert io_read == 50
-
-
-class TestUserStatistics(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 5
-    NUM_SCHEDULERS = 1
-
-    DELTA_NODE_CONFIG = {
-        "exec_agent" : {
-            "force_enable_accounting" : True
-        }
-    }
-
-    def test_job_statistics(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", {"a": "b"})
-        op_id = map(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command=(
-                r'cat; python -c "'
-                r'import os; '
-                r'os.write(5, \"{ cpu={ k1=4; k3=7 }}; {k2=-7};{k2=1};\"); '
-                r'os.close(5);"'))
-
-        statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert get_statistics(statistics, "completed_jobs.custom.cpu.k1.max") == 4
-        assert get_statistics(statistics, "completed_jobs.custom.k2.count") == 1
-
-    def test_multiple_job_statistics(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": "b"} for i in range(2)])
-
-        op_id = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"job_count": 2})
-        statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-        assert get_statistics(statistics, "completed_jobs.user_job.cpu.user.count") == 2
-
-    def test_job_statistics_progress(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": "b"} for i in xrange(2)])
-
-        to_delete = []
-        tmpdir = tempfile.mkdtemp(prefix="job_statistics_progress")
-        to_delete.append(tmpdir)
-
-        for i in range(2):
-            path = os.path.join(tmpdir, str(i))
-            os.mkdir(path)
-            to_delete.append(path)
-            if i == 0:
-                keeper_filename = os.path.join(path, "keep")
-                with open(keeper_filename, "w") as f:
-                    f.close()
-                to_delete.append(keeper_filename)
-
-        command = '''cat > /dev/null;
-            DIR={0}
-            if [ "$YT_START_ROW_INDEX" = "0" ]; then
-              cat $DIR/$YT_START_ROW_INDEX/keep 1>&2
-              until rmdir $DIR/$YT_START_ROW_INDEX 2>/dev/null; do sleep 1; done;
-            fi
-            exit 0;
-            '''.format(tmpdir)
-
-        try:
-            op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command,
-                        spec={"max_failed_job_count": 1, "job_count": 2})
-
-            tries = 0
-            statistics = {}
-
-            while not statistics.get("completed_jobs", {}):
-                time.sleep(1)
-                tries += 1
-                statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-                if tries > 10:
-                    break
-
-            assert get_statistics(statistics, "completed_jobs.user_job.cpu.user.count") == 1
-
-            os.unlink(keeper_filename)
-            track_op(op_id)
-
-            statistics = get("//sys/operations/{0}/@progress/statistics".format(op_id))
-            assert get_statistics(statistics, "completed_jobs.user_job.cpu.user.count") == 2
-        finally:
-            to_delete.reverse()
-            for filename in to_delete:
-                try:
-                    os.unlink(filename)
-                except:
-                    pass
 
 
 class TestSchedulerMapCommands(YTEnvSetup):
@@ -629,6 +398,19 @@ class TestSchedulerMapCommands(YTEnvSetup):
             except OSError:
                 pass
 
+    def test_estimated_statistics(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"key" : i} for i in xrange(5)])
+
+        sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
+        op_id = map(command="cat", in_="//tmp/t1[:1]", out="//tmp/t2")
+
+        statistics = get("//sys/operations/{0}/@progress/estimated_input_statistics".format(op_id))
+        for key in ["chunk_count", "uncompressed_data_size", "compressed_data_size", "row_count", "unavailable_chunk_count"]:
+            assert key in statistics
+        assert statistics["chunk_count"] == 1
+
     def test_input_row_count(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -639,8 +421,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert get("//tmp/t2/@row_count") == 1
 
-        progress = get("//sys/operations/{0}/@progress".format(op_id))
-        assert progress["exact_input_statistics"]["row_count"] == 1
+        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/map/sum".format(op_id))
+        assert row_count == 1
 
     def test_multiple_output_row_count(self):
         create("table", "//tmp/t1")
@@ -649,9 +431,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
         write_table("//tmp/t1", [{"key" : i} for i in xrange(5)])
 
         op_id = map(command="cat; echo {hello=world} >&4", in_="//tmp/t1", out=["//tmp/t2", "//tmp/t3"])
-        progress = get("//sys/operations/{0}/@progress".format(op_id))
-        assert progress["detailed_output_statistics"][0]["row_count"] == 5
-        assert progress["detailed_output_statistics"][1]["row_count"] == 1
+        assert get("//tmp/t2/@row_count") == 5
+        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/0/row_count/$/completed/map/sum".format(op_id))
+        assert row_count == 5
+        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum".format(op_id))
+        assert row_count == 1
 
 
     def test_invalid_output_record(self):
@@ -684,14 +468,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for job_id in ls(jobs_path):
             assert len(read_file(jobs_path + "/" + job_id + "/fail_contexts/0")) > 0
 
-    def test_dump_job_input_context(self):
+    def test_dump_job_context(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
         set("//tmp/input_contexts", {})
 
-        tmpdir = tempfile.mkdtemp(prefix="dump_job_input_context_semaphore")
+        tmpdir = tempfile.mkdtemp(prefix="dump_job_context_semaphore")
 
         command="touch {0}/started; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
 
@@ -716,7 +500,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             jobs = ls(jobs_path)
             assert jobs
             for job_id in jobs:
-                dump_job_input_context(job_id, "//tmp/input_contexts")
+                dump_job_context(job_id, "//tmp/input_contexts")
 
         finally:
             os.unlink(pin_filename)
@@ -1161,9 +945,19 @@ print row + table_index
         # if all jobs failed then operation is also failed
         with pytest.raises(YtError): track_op(op_id)
 
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command,
-                spec={ "mapper": { "input_format" : "dsv", "check_input_fully_consumed": True}})
-        self.assertEqual([], read_table("//tmp/t2"))
+        assert read_table("//tmp/t2") == []
+
+    def test_check_input_not_fully_consumed(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+
+        data = [{"foo": "bar"} for i in xrange(10000)]
+        write_table("//tmp/t1", data)
+
+        map(in_="//tmp/t1", out="//tmp/t2", command="head -1",
+            spec={"mapper": {"input_format" : "dsv", "output_format" : "dsv"}})
+
+        assert read_table("//tmp/t2") == [{"foo": "bar"}] 
 
     def test_live_preview(self):
         create_user("u")

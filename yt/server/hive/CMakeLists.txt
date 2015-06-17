@@ -1,23 +1,23 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/hive )
 set( SRCS
-  ${BASE}/private.cpp
-  ${BASE}/public.cpp
+  ${BASE}/commit.cpp
   ${BASE}/hive_manager.cpp
   ${BASE}/mailbox.cpp
+  ${BASE}/private.cpp
+  ${BASE}/public.cpp
   ${BASE}/transaction_supervisor.cpp
-  ${BASE}/commit.cpp
 )
 set( HDRS
+  ${BASE}/commit.h
+  ${BASE}/config.h
+  ${BASE}/hive_manager.h
+  ${BASE}/hive_service_proxy.h
+  ${BASE}/mailbox.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/hive_manager.h
-  ${BASE}/mailbox.h
-  ${BASE}/hive_service_proxy.h
-  ${BASE}/config.h
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_supervisor.h
-  ${BASE}/commit.h
 )
 
 list(APPEND YT_SOURCE_FILES

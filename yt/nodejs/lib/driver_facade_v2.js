@@ -18,7 +18,7 @@ var TRUE_NODE = binding.CreateV8Node(true);
 var FALSE_NODE = binding.CreateV8Node(false);
 
 function clone(object) {
-    if (object == null || typeof(object) !== "object") {
+    if (object === null || typeof(object) !== "object") {
        return object;
     }
     var result = object.constructor();
@@ -32,8 +32,6 @@ function clone(object) {
 
 function YtDriverFacadeV2(driver)
 {
-    "use strict";
-
     if (!(this instanceof YtDriverFacadeV2)) {
         return new YtDriverFacadeV2(driver);
     }
@@ -54,16 +52,18 @@ function YtDriverFacadeV2(driver)
     // Make aliases for old commands.
 
     for (var p in mapping) {
-        descriptors[p] = clone(descriptors[mapping[p]]);
-        descriptors[p].name = p;
-        Object.defineProperty(
-            descriptors[p],
-            "input_type_as_integer",
-            { enumerable: false, value: descriptors[mapping[p]].input_type_as_integer });
-        Object.defineProperty(
-            descriptors[p],
-            "output_type_as_integer",
-            { enumerable: false, value: descriptors[mapping[p]].output_type_as_integer });
+        if (mapping.hasOwnProperty(p)) {
+            descriptors[p] = clone(descriptors[mapping[p]]);
+            descriptors[p].name = p;
+            Object.defineProperty(
+                descriptors[p],
+                "input_type_as_integer",
+                { enumerable: false, value: descriptors[mapping[p]].input_type_as_integer });
+            Object.defineProperty(
+                descriptors[p],
+                "output_type_as_integer",
+                { enumerable: false, value: descriptors[mapping[p]].output_type_as_integer });
+        }
     }
 
     // Remove new commands that are not part of V2.
@@ -87,7 +87,7 @@ function YtDriverFacadeV2(driver)
     delete descriptors.select_rows;
     delete descriptors.select;
 
-    delete descriptors.dump_job_input_context;
+    delete descriptors.dump_job_context;
     delete descriptors.strace_job;
 
     this.driver = driver;
@@ -100,8 +100,6 @@ YtDriverFacadeV2.prototype.execute = function(name, user,
     output_stream, output_compression,
     parameters, request_id, pause, response_parameters_consumer)
 {
-    "use strict";
-
     if (typeof(this.mapping[name]) !== "undefined") {
         name = this.mapping[name];
     }
@@ -114,19 +112,15 @@ YtDriverFacadeV2.prototype.execute = function(name, user,
         input_stream, input_compression,
         output_stream, output_compression,
         parameters, request_id, pause, response_parameters_consumer);
-}
+};
 
 YtDriverFacadeV2.prototype.find_command_descriptor = function(name)
 {
-    "use strict";
-
     return this.descriptors[name] || null;
 };
 
 YtDriverFacadeV2.prototype.get_command_descriptors = function()
 {
-    "use strict";
-
     return Object.values(this.descriptors);
 };
 

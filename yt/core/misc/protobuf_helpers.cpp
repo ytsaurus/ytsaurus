@@ -15,17 +15,42 @@ using namespace google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SerializeToProto(const google::protobuf::MessageLite& message, TSharedRef* data)
+bool TrySerializeToProto(const google::protobuf::MessageLite& message, TSharedRef* data)
 {
     size_t size = message.ByteSize();
     struct TSerializedMessageTag { };
-    *data = TSharedRef::Allocate<TSerializedMessageTag>(size, false);
-    return message.SerializePartialToArray(data->Begin(), size);
+    auto mutableData = TSharedMutableRef::Allocate<TSerializedMessageTag>(size, false);
+    if (!message.SerializePartialToArray(mutableData.Begin(), size)) {
+        return false;
+    }
+    *data = mutableData;
+    return true;
 }
 
-bool DeserializeFromProto(google::protobuf::MessageLite* message, const TRef& data)
+TSharedRef SerializeToProto(const google::protobuf::MessageLite& message)
 {
-    return message->ParsePartialFromArray(data.Begin(), data.Size());
+    TSharedRef data;
+    YCHECK(TrySerializeToProto(message, &data));
+    return data;
+}
+
+bool TryDeserializeFromProto(google::protobuf::MessageLite* message, const TRef& data)
+{
+    // See comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
+    // to find out more about protobuf message size limits.
+    CodedInputStream codedInputStream(
+        reinterpret_cast<const ui8*>(data.Begin()),
+        static_cast<int>(data.Size()));
+    codedInputStream.SetTotalBytesLimit(
+        data.Size() + 1,
+        data.Size() + 1);
+
+    return message->ParsePartialFromCodedStream(&codedInputStream);
+}
+
+void DeserializeFromProto(google::protobuf::MessageLite* message, const TRef& data)
+{
+    YCHECK(TryDeserializeFromProto(message, data));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +65,7 @@ struct TSerializedMessageFixedHeader
 
 #pragma pack(pop)
 
-bool SerializeToProtoWithEnvelope(
+bool TrySerializeToProtoWithEnvelope(
     const google::protobuf::MessageLite& message,
     TSharedRef* data,
     NCompression::ECodec codecId)
@@ -52,7 +77,7 @@ bool SerializeToProtoWithEnvelope(
 
     size_t messageSize = message.ByteSize();
     struct TSerializedMessageTag { };
-    auto serializedMessage = TSharedRef::Allocate<TSerializedMessageTag>(messageSize, false);
+    auto serializedMessage = TSharedMutableRef::Allocate<TSerializedMessageTag>(messageSize, false);
     if (!message.SerializePartialToArray(serializedMessage.Begin(), messageSize)) {
         return false;
     }
@@ -69,9 +94,9 @@ bool SerializeToProtoWithEnvelope(
         fixedHeader.HeaderSize +
         fixedHeader.MessageSize;
 
-    *data = TSharedRef::Allocate<TSerializedMessageTag>(totalSize, false);
+    auto mutableData = TSharedMutableRef::Allocate<TSerializedMessageTag>(totalSize, false);
 
-    char* targetFixedHeader = data->Begin();
+    char* targetFixedHeader = mutableData.Begin();
     char* targetHeader = targetFixedHeader + sizeof (TSerializedMessageFixedHeader);
     char* targetMessage = targetHeader + fixedHeader.HeaderSize;
 
@@ -79,10 +104,20 @@ bool SerializeToProtoWithEnvelope(
     YCHECK(envelope.SerializeToArray(targetHeader, fixedHeader.HeaderSize));
     memcpy(targetMessage, compressedMessage.Begin(), fixedHeader.MessageSize);
 
+    *data = mutableData;
     return true;
 }
 
-bool DeserializeFromProtoWithEnvelope(
+TSharedRef SerializeToProtoWithEnvelope(
+    const google::protobuf::MessageLite& message,
+    NCompression::ECodec codecId)
+{
+    TSharedRef data;
+    YCHECK(TrySerializeToProtoWithEnvelope(message, &data, codecId));
+    return data;
+}
+
+bool TryDeserializeFromProtoWithEnvelope(
     google::protobuf::MessageLite* message,
     const TRef& data)
 {
@@ -103,47 +138,32 @@ bool DeserializeFromProtoWithEnvelope(
         return false;
     }
 
-    // TODO(babenko): get rid of const_cast here
-    auto compressedMessage = TSharedRef::FromRefNonOwning(TRef(
-        const_cast<char*>(sourceMessage),
-        fixedHeader->MessageSize));
+    auto compressedMessage = TSharedRef(sourceMessage, fixedHeader->MessageSize, nullptr);
 
     auto codecId = NCompression::ECodec(envelope.codec());
     auto codec = NCompression::GetCodec(codecId);
     auto serializedMessage = codec->Decompress(compressedMessage);
 
-    // See comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
-    // to find out more about protobuf message size limits.
-    CodedInputStream codedInputStream(
-        reinterpret_cast<const ui8*>(serializedMessage.Begin()),
-        static_cast<int>(serializedMessage.Size()));
-    codedInputStream.SetTotalBytesLimit(
-        serializedMessage.Size() + 1,
-        serializedMessage.Size() + 1);
+    return TryDeserializeFromProto(message, serializedMessage);
+}
 
-    // Raise recursion limit.
-    codedInputStream.SetRecursionLimit(1024);
-
-    if (!message->ParsePartialFromCodedStream(&codedInputStream)) {
-        return false;
-    }
-
-    return true;
+void DeserializeFromProtoWithEnvelope(
+    google::protobuf::MessageLite* message,
+    const TRef& data)
+{
+    YCHECK(TryDeserializeFromProtoWithEnvelope(message, data));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::protobuf::Message& message)
 {
-    TSharedRef data;
-    YCHECK(SerializeToProtoWithEnvelope(message, &data));
+    auto data = SerializeToProtoWithEnvelope(message);
     TSizeSerializer::Save(context, data.Size());
     TRangeSerializer::Save(context, data);
 }
 
 namespace {
-
-#ifdef YT_ENABLE_SERIALIZATION_DUMP
 
 Stroka DumpProto(::google::protobuf::Message& message)
 {
@@ -154,20 +174,18 @@ Stroka DumpProto(::google::protobuf::Message& message)
     return result;
 }
 
-#endif
-
 } // namespace
 
 void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobuf::Message& message)
 {
     size_t size = TSizeSerializer::LoadSuspended(context);
-    auto data = TSharedRef::Allocate(size, false);
+    auto data = TSharedMutableRef::Allocate(size, false);
 
     SERIALIZATION_DUMP_SUSPEND(context) {
         TRangeSerializer::Load(context, data);
     }
 
-    YCHECK(DeserializeFromProtoWithEnvelope(&message, data));
+    DeserializeFromProtoWithEnvelope(&message, data);
 
     SERIALIZATION_DUMP_WRITE(context, "proto[%v] %v", size, DumpProto(message));
 }

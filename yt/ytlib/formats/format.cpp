@@ -257,21 +257,21 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessWriterPtr CreateSchemalessWriterAdapter(
-    std::unique_ptr<IYsonConsumer> consumer,
-    TNameTablePtr nameTable)
-{
-    return New<TSchemalessWriterAdapter>(std::move(consumer), nameTable);
-}
-
-ISchemalessWriterPtr CreateSchemalessWriterForFormat(
+ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     TNameTablePtr nameTable,
-    TOutputStream* output)
+    std::unique_ptr<TOutputStream> outputStream,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int keyColumnCount)
 {
-    return CreateSchemalessWriterAdapter(
-        CreateConsumerForFormat(format, EDataType::Tabular, output),
-        nameTable);
+    return New<TSchemalessWriterAdapter>(
+        format,
+        nameTable,
+        std::move(outputStream),
+        enableContextSaving,
+        enableKeySwitch,
+        keyColumnCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

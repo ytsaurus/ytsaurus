@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "config.h"
 #include "operation_controller.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
@@ -35,8 +36,6 @@
 
 #include <ytlib/node_tracker_client/public.h>
 #include <ytlib/node_tracker_client/helpers.h>
-
-#include <ytlib/job_tracker_client/statistics.h>
 
 #include <ytlib/scheduler/statistics.h>
 
@@ -90,6 +89,8 @@ public:
     virtual void OnJobAborted(TJobPtr job) override;
 
     virtual void Abort() override;
+
+    virtual void CheckTimeLimit() override;
 
     virtual TJobPtr ScheduleJob(
         ISchedulingContext* context,
@@ -159,25 +160,12 @@ protected:
     i64 TotalEstimatedInputDataSize;
     i64 TotalEstimatedInputRowCount;
     i64 TotalEstimatedInputValueCount;
-
-    // These totals are exact.
-    NChunkClient::NProto::TDataStatistics TotalExactInputDataStatistics;
-
-    // These totals are exact.
-    NChunkClient::NProto::TDataStatistics TotalIntermediateDataStatistics;
-
-    // These totals are exact.
-    std::vector<NChunkClient::NProto::TDataStatistics> OutputDataStatistics;
+    i64 TotalEstimatedCompressedDataSize;
 
     int UnavailableInputChunkCount;
 
     // Job counters.
     TProgressCounter JobCounter;
-
-    // Job statistics.
-    NJobTrackerClient::NProto::TJobStatistics CompletedJobStatistics;
-    NJobTrackerClient::NProto::TJobStatistics FailedJobStatistics;
-    NJobTrackerClient::NProto::TJobStatistics AbortedJobStatistics;
 
     // Maps node ids seen in fetch responses to node descriptors.
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
@@ -231,17 +219,11 @@ protected:
         : public TUserTableBase
         , public TLivePreviewTableBase
     {
-        TOutputTable()
-            : Clear(false)
-            , Overwrite(false)
-            , LockMode(NCypressClient::ELockMode::Shared)
-            , Options(New<NVersionedTableClient::TTableWriterOptions>())
-        { }
-
-        bool Clear;
-        bool Overwrite;
-        NCypressClient::ELockMode LockMode;
-        NVersionedTableClient::TTableWriterOptionsPtr Options;
+        bool AppendRequested = false;
+        NChunkClient::EUpdateMode UpdateMode = NChunkClient::EUpdateMode::Overwrite;
+        NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
+        NVersionedTableClient::TTableWriterOptionsPtr Options =
+            New<NVersionedTableClient::TTableWriterOptions>();
         TNullable<NVersionedTableClient::TKeyColumns> KeyColumns;
 
         // Chunk list for appending the output.
@@ -523,7 +505,6 @@ protected:
         static TChunkStripePtr BuildIntermediateChunkStripe(
             google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
-        void RegisterInput(TJobletPtr joblet);
         void RegisterOutput(TJobletPtr joblet, int key);
 
     };
@@ -755,16 +736,14 @@ protected:
         int key,
         TOutputTable* outputTable);
 
-    void RegisterInput(TJobletPtr joblet);
+    virtual void RegisterOutput(
+        TJobletPtr joblet,
+        int key);
 
     void RegisterOutput(
         NChunkClient::TRefCountedChunkSpecPtr chunkSpec,
         int key,
         int tableIndex);
-
-    void RegisterOutput(
-        TJobletPtr joblet,
-        int key);
 
     void RegisterOutput(
         const NChunkClient::TChunkTreeId& chunkTreeId,

@@ -321,7 +321,7 @@ Stroka ToString(const TVersionedOwningRow& row);
 class TVersionedRowBuilder
 {
 public:
-    explicit TVersionedRowBuilder(TRowBuffer* buffer);
+    explicit TVersionedRowBuilder(TRowBufferPtr buffer);
 
     void AddKey(const TUnversionedValue& value);
     void AddValue(const TVersionedValue& value);
@@ -330,7 +330,7 @@ public:
     TVersionedRow FinishRow();
 
 private:
-    TRowBuffer* Buffer_;
+    const TRowBufferPtr Buffer_;
 
     std::vector<TUnversionedValue> Keys_;
     std::vector<TVersionedValue> Values_;
@@ -497,7 +497,7 @@ public:
     }
 
 private:
-    TSharedRef Data_;
+    TSharedMutableRef Data_;
 
     TVersionedRowHeader* GetHeader()
     {

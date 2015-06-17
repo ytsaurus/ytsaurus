@@ -41,8 +41,6 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
-#include <ytlib/job_tracker_client/statistics.h>
-
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/scheduler/statistics.h>
@@ -112,7 +110,7 @@ void TJobProxy::SendHeartbeat()
     auto req = SupervisorProxy_->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId_);
     req->set_progress(Job_->GetProgress());
-    ToProto(req->mutable_job_statistics(), Job_->GetStatistics());
+    ToProto(req->mutable_statistics(), NYTree::ConvertToYsonString(Job_->GetStatistics()).Data());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
@@ -187,29 +185,23 @@ void TJobProxy::Run()
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
 
-        auto jobStatistics = Job_->GetStatistics();
-        TStatistics customStatistics;
-        if (jobStatistics.has_statistics()) {
-            customStatistics = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(jobStatistics.statistics()));
-        }
+        TStatistics jobStatistics = Job_->GetStatistics();
 
-        if (Config_->ForceEnableAccounting) {
-            TCpuAccounting cpuAccounting("");
+        if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
+            auto cpuAccounting = GetCurrentCGroup<TCpuAccounting>();
             auto cpuStatistics = cpuAccounting.GetStatistics();
-            customStatistics.AddComplex("/job_proxy/cpu", cpuStatistics);
-
-            TBlockIO blockIO("");
-            auto blockIOStatistics = blockIO.GetStatistics();
-            customStatistics.AddComplex("/job_proxy/block_io", blockIOStatistics);
+            jobStatistics.AddComplex("/job_proxy/cpu", cpuStatistics);
         }
 
-        customStatistics.AddComplex("/job_proxy/input", jobStatistics.input());
-        customStatistics.AddComplex("/job_proxy/output", GetTotalOutputDataStatistics(jobStatistics));
+        if (Config_->IsCGroupSupported(TBlockIO::Name)) {
+            auto blockIO = GetCurrentCGroup<TBlockIO>();
+            auto blockIOStatistics = blockIO.GetStatistics();
+            jobStatistics.AddComplex("/job_proxy/block_io", blockIOStatistics);
+        }
 
-        ToProto(jobStatistics.mutable_statistics(), NYTree::ConvertToYsonString(customStatistics).Data());
-        ToProto(result.mutable_statistics(), jobStatistics);
+        ToProto(result.mutable_statistics(), NYTree::ConvertToYsonString(jobStatistics).Data());
     } else {
-        ToProto(result.mutable_statistics(), ZeroJobStatistics());
+        ToProto(result.mutable_statistics(), SerializedEmptyStatistics.Data());
     }
 
     ReportResult(result);
@@ -252,7 +244,8 @@ IJobPtr TJobProxy::CreateBuiltinJob()
         case NScheduler::EJobType::SortedMerge:
             return CreateSortedMergeJob(this);
 
-        case NScheduler::EJobType::PartitionSort:
+        case NScheduler::EJobType::FinalSort:
+        case NScheduler::EJobType::IntermediateSort:
             return CreatePartitionSortJob(this);
 
         case NScheduler::EJobType::SimpleSort:
@@ -393,12 +386,7 @@ IChannelPtr TJobProxy::GetMasterChannel() const
     return MasterChannel_;
 }
 
-IBlockCachePtr TJobProxy::GetCompressedBlockCache() const
-{
-    return GetNullBlockCache();
-}
-
-IBlockCachePtr TJobProxy::GetUncompressedBlockCache() const
+IBlockCachePtr TJobProxy::GetBlockCache() const
 {
     return GetNullBlockCache();
 }

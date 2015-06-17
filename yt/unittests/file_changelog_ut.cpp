@@ -73,7 +73,7 @@ void ReadRecord(IChangelog* asyncChangeLog, i32 recordIndex)
 
 TSharedRef MakeData(i32 data)
 {
-    auto result = TSharedRef::Allocate(sizeof(i32));
+    auto result = TSharedMutableRef::Allocate(sizeof(i32));
     *reinterpret_cast<i32*>(&*result.Begin()) = static_cast<i32>(data);
     return result;
 }

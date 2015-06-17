@@ -13,20 +13,21 @@ typedef TGuid TJobId;
 
 DEFINE_ENUM(EJobType,
     // Scheduler jobs
-    ((SchedulerFirst)   (  0)) // sentinel
-    ((Map)              (  1))
-    ((PartitionMap)     (  2))
-    ((SortedMerge)      (  3))
-    ((OrderedMerge)     (  4))
-    ((UnorderedMerge)   (  5))
-    ((Partition)        (  6))
-    ((SimpleSort)       (  7))
-    ((PartitionSort)    (  8))
-    ((SortedReduce)     (  9))
-    ((PartitionReduce)  ( 10))
-    ((ReduceCombiner)   ( 11))
-    ((RemoteCopy)       ( 12))
-    ((SchedulerLast)    ( 99)) // sentinel
+    ((SchedulerFirst)    (  0)) // sentinel
+    ((Map)               (  1))
+    ((PartitionMap)      (  2))
+    ((SortedMerge)       (  3))
+    ((OrderedMerge)      (  4))
+    ((UnorderedMerge)    (  5))
+    ((Partition)         (  6))
+    ((SimpleSort)        (  7))
+    ((FinalSort)         (  8))
+    ((SortedReduce)      (  9))
+    ((PartitionReduce)   ( 10))
+    ((ReduceCombiner)    ( 11))
+    ((RemoteCopy)        ( 12))
+    ((IntermediateSort)  ( 13))
+    ((SchedulerLast)     ( 99)) // sentinel
 
     // Master jobs
     ((MasterFirst)      (100)) // sentinel

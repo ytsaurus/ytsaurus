@@ -56,32 +56,6 @@ IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const Stroka& clusterName
     return connection;
 }
 
-TNullable<Stroka> TClusterDirectory::GetDefaultNetwork(const Stroka& clusterName) const
-{
-    TGuard<TSpinLock> guard(Lock_);
-    auto it = NameToCluster_.find(clusterName);
-    if (it == NameToCluster_.end()) {
-        THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
-    }
-    return it == NameToCluster_.end() ? Null : it->second.DefaultNetwork;
-}
-
-TConnectionConfigPtr TClusterDirectory::GetConnectionConfig(const Stroka& clusterName) const
-{
-    TGuard<TSpinLock> guard(Lock_);
-    auto it = NameToCluster_.find(clusterName);
-    return it == NameToCluster_.end() ? nullptr : it->second.ConnectionConfig;
-}
-
-TConnectionConfigPtr TClusterDirectory::GetConnectionConfigOrThrow(const Stroka& clusterName) const
-{
-    auto connectionConfig = GetConnectionConfig(clusterName);
-    if (!connectionConfig) {
-        THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
-    }
-    return connectionConfig;
-}
-
 std::vector<Stroka> TClusterDirectory::GetClusterNames() const
 {
     TGuard<TSpinLock> guard(Lock_);
@@ -101,13 +75,11 @@ void TClusterDirectory::RemoveCluster(const Stroka& clusterName)
 
 void TClusterDirectory::UpdateCluster(
     const Stroka& clusterName,
-    TConnectionConfigPtr config,
-    TCellTag cellTag,
-    const TNullable<Stroka>& defaultNetwork)
+    TConnectionConfigPtr config)
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
         if (CellTagToCluster_.find(cluster.CellTag) != CellTagToCluster_.end()) {
-            THROW_ERROR_EXCEPTION("Duplicate cell id %v", cluster.CellTag);
+            THROW_ERROR_EXCEPTION("Duplicate cell tag %v", cluster.CellTag);
         }
         CellTagToCluster_[cluster.CellTag] = cluster;
         NameToCluster_[cluster.Name] = cluster;
@@ -115,25 +87,11 @@ void TClusterDirectory::UpdateCluster(
 
     auto it = NameToCluster_.find(clusterName);
     if (it == NameToCluster_.end()) {
-        auto cluster = CreateCluster(
-            clusterName,
-            config,
-            cellTag,
-            defaultNetwork);
-
+        auto cluster = CreateCluster(clusterName, config);
         TGuard<TSpinLock> guard(Lock_);
         addNewCluster(cluster);
-    } else if (!AreNodesEqual(
-            ConvertToNode(*(it->second.ConnectionConfig)),
-            ConvertToNode(*config)) ||
-            !(defaultNetwork == it->second.DefaultNetwork))
-    {
-        auto cluster = CreateCluster(
-            clusterName,
-            config,
-            cellTag,
-            defaultNetwork);
-
+    } else if (!AreNodesEqual(ConvertToNode(*(it->second.Config)), ConvertToNode(*config))) {
+        auto cluster = CreateCluster(clusterName, config);
         TGuard<TSpinLock> guard(Lock_);
         CellTagToCluster_.erase(it->second.CellTag);
         NameToCluster_.erase(it);
@@ -150,32 +108,23 @@ void TClusterDirectory::UpdateSelf()
 
 TClusterDirectory::TCluster TClusterDirectory::CreateCluster(
     const Stroka& name,
-    TConnectionConfigPtr config,
-    TCellTag cellTag,
-    TNullable<Stroka> defaultNetwork) const
+    TConnectionConfigPtr config) const
 {
     TCluster cluster;
     cluster.Name = name;
+    cluster.CellTag = config->Master->CellTag;
+    cluster.Config = config;
     cluster.Connection = CreateConnection(config);
-    cluster.ConnectionConfig = config;
-    cluster.CellTag = cellTag;
-    cluster.DefaultNetwork = defaultNetwork;
-
     return cluster;
 }
 
 TClusterDirectory::TCluster TClusterDirectory::CreateSelfCluster() const
 {
-    auto resultOrError = WaitFor(SelfClient_->GetNode("//sys/@cell_tag"));
-    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Error getting cluster cell tag");
-    auto cellTag = ConvertTo<TCellTag>(resultOrError.Value());
-
     TCluster cluster;
     cluster.Name = "";
+    cluster.CellTag = SelfConnection_->GetConfig()->Master->CellTag;
+    cluster.Config = SelfConnection_->GetConfig();
     cluster.Connection = SelfConnection_;
-    cluster.CellTag = cellTag;
-    cluster.DefaultNetwork = Null;
-
     return cluster;
 }
 

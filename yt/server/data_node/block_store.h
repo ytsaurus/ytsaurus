@@ -37,7 +37,11 @@ DEFINE_REFCOUNTED_TYPE(TCachedBlock)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Manages cached blocks.
+//! Manages chunk blocks stored at Data Node.
+/*!
+ *  \note
+ *  Thread affinity: any
+ */
 class TBlockStore
     : public TRefCounted
 {
@@ -46,46 +50,50 @@ public:
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
-    void Initialize();
-
     ~TBlockStore();
 
-    //! Asynchronously retrieves a single block from the store.
-    /*!
-     *  Fetching an already-cached block is cheap (i.e. requires no context switch).
-     *  Fetching an uncached block enqueues a disk-read action to the appropriate IO queue.
-     *
-     *  If some unrecoverable IO error happens during retrieval then the latter error is returned.
-     *  If the whole chunk or its particular block does not exist then null TSharedRef is returned.
-     */
-    TFuture<TSharedRef> FindBlock(
-        const TChunkId& chunkId,
-        int blockIndex,
-        i64 priority,
-        bool enableCaching);
+    //! Synchronously looks up a compressed block in the store's cache.
+    TCachedBlockPtr FindCachedBlock(const TBlockId& blockId);
 
-    //! Asynchronously retrieves a range of blocks from the store.
-    /*!
-     *  If some unrecoverable IO error happens during retrieval then the latter error is returned.
-     *
-     *  The resulting list may contain less blocks than requested.
-     *  An empty list indicates that the requested blocks are all out of range.
-     */
-    TFuture<std::vector<TSharedRef>> FindBlocks(
-        const TChunkId& chunkId,
-        int firstBlockIndex,
-        int blockCount,
-        i64 priority);
-
-    //! Puts a block into the store.
+    //! Puts a compressed block into the store's cache.
     /*!
      *  The store may already have another copy of the same block.
      *  In this case the block content is checked for identity.
      */
-    void PutBlock(
+    void PutCachedBlock(
         const TBlockId& blockId,
         const TSharedRef& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
+
+    //! Asynchronously reads a range of blocks from the store.
+    /*!
+     *  If some unrecoverable IO error happens during retrieval then the latter error is returned.
+     *
+     *  The resulting list may contain less blocks than requested.
+     *  If the whole chunk or some of its blocks does not exist then null TSharedRef element may be returned.
+     *  An empty list indicates that the requested blocks are all out of range.
+     *
+     *  Note that blob chunks will indicate an error if an attempt is made to read a non-existing block.
+     *  Journal chunks, however, will silently ignore it.
+     */
+    TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TChunkId& chunkId,
+        int firstBlockIndex,
+        int blockCount,
+        i64 priority,
+        NChunkClient::IBlockCachePtr blockCache,
+        bool populateCache);
+
+    //! Asynchronously reads a set of blocks from the store.
+    /*!
+     *  Tries to group block reads into contiguous ranges.
+     */
+    TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TChunkId& chunkId,
+        const std::vector<int>& blockIndexes,
+        i64 priority,
+        NChunkClient::IBlockCachePtr blockCache,
+        bool populateCache);
 
     //! Gets a vector of all blocks stored in the cache. Thread-safe.
     std::vector<TCachedBlockPtr> GetAllBlocks() const;
@@ -96,18 +104,12 @@ public:
     //! Acquires a lock for the given number of bytes to be read.
     TPendingReadSizeGuard IncreasePendingReadSize(i64 delta);
 
-    //! Returns a caching adapter.
-    NChunkClient::IBlockCachePtr GetCompressedBlockCache();
-
 private:
-    class TStoreImpl;
-    class TCacheImpl;
-    class TGetBlocksSession;
+    class TImpl;
 
     friend class TPendingReadSizeGuard;
 
-    const TIntrusivePtr<TStoreImpl> StoreImpl_;
-    const TIntrusivePtr<TCacheImpl> CacheImpl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

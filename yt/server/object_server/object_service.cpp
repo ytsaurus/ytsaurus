@@ -14,6 +14,8 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <ytlib/cypress_client/rpc_helpers.h>
+
 #include <server/transaction_server/transaction.h>
 #include <server/transaction_server/transaction_manager.h>
 
@@ -37,6 +39,7 @@ using namespace NRpc::NProto;
 using namespace NBus;
 using namespace NYTree;
 using namespace NYTree::NProto;
+using namespace NCypressClient;
 using namespace NCypressServer;
 using namespace NTransactionServer;
 using namespace NSecurityClient;
@@ -59,7 +62,6 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
     }
 
 private:
@@ -67,7 +69,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GCCollect);
-    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, BuildSnapshot);
 
 };
 
@@ -178,6 +179,7 @@ private:
                         false,
                         NTracing::TTraceContext(),
                         nullptr,
+                        startTime,
                         TSharedRefArray());
                     NextRequest();
                     continue;
@@ -214,13 +216,14 @@ private:
                     return;
                 }
 
-                LOG_DEBUG("Execute[%v] <- %v:%v %v (RequestId: %v, Mutating: %v)",
+                LOG_DEBUG("Execute[%v] <- %v:%v %v (RequestId: %v, Mutating: %v, TransactionId: %v)",
                     CurrentRequestIndex,
                     requestHeader.service(),
                     requestHeader.method(),
                     path,
                     Context->GetRequestId(),
-                    mutating);
+                    mutating,
+                    GetTransactionId(Context));
 
                 NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateChildTraceContext());
                 NTracing::TraceEvent(
@@ -244,6 +247,7 @@ private:
                         mutating,
                         traceContextGuard.GetContext(),
                         &requestHeader,
+                        startTime,
                         asyncResponseMessage.Get());
                 } else {
                     LastMutationCommitted = asyncResponseMessage.Apply(BIND(
@@ -252,7 +256,8 @@ private:
                         CurrentRequestIndex,
                         mutating,
                         traceContextGuard.GetContext(),
-                        &requestHeader));
+                        &requestHeader,
+                        startTime));
                 }
 
                 NextRequest();
@@ -277,6 +282,7 @@ private:
         bool mutating,
         const NTracing::TTraceContext& traceContext,
         const TRequestHeader* requestHeader,
+        const TInstant startTime,
         const TErrorOr<TSharedRefArray>& responseMessageOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -300,10 +306,11 @@ private:
 
             auto error = FromProto<TError>(responseHeader.error());
 
-            LOG_DEBUG("Execute[%v] -> Error: %v (RequestId: %v)",
+            LOG_DEBUG("Execute[%v] -> Error: %v (RequestId: %v, Duration: %v)",
                 requestIndex,
                 error,
-                Context->GetRequestId());
+                Context->GetRequestId(),
+                TInstant::Now() - startTime);
         }
 
         ResponseMessages[requestIndex] = std::move(responseMessage);
@@ -361,7 +368,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    ValidateActivePeer();
+    ValidatePeer(EPeerKind::LeaderOrFollower);
 
     auto session = New<TExecuteSession>(
         Bootstrap_,
@@ -374,38 +381,12 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
     UNUSED(request);
     UNUSED(response);
 
-    context->SetRequestInfo();
+    ValidatePeer(EPeerKind::Leader);
 
-    ValidateActiveLeader();
+    context->SetRequestInfo();
 
     auto objectManager = Bootstrap_->GetObjectManager();
     context->ReplyFrom(objectManager->GCCollect());
-}
-
-DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
-{
-    bool setReadOnly = request->set_read_only();
-
-    context->SetRequestInfo("SetReadOnly: %v",
-        setReadOnly);
-
-    ValidateActiveLeader();
-
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-
-    if (setReadOnly) {
-        hydraManager->SetReadOnly(true);
-    }
-
-    hydraManager->BuildSnapshotDistributed().Subscribe(BIND([=] (const TErrorOr<int>& errorOrSnapshotId) {
-        if (!errorOrSnapshotId.IsOK()) {
-            context->Reply(errorOrSnapshotId);
-            return;
-        }
-
-        response->set_snapshot_id(errorOrSnapshotId.Value());
-        context->Reply();
-    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

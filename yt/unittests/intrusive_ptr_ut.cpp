@@ -377,15 +377,6 @@ TEST(TIntrusivePtrTest, EqualityOperator)
     TIntricateObjectPtr samePointer(&object);
     TIntricateObjectPtr anotherPointer(&anotherObject);
 
-    EXPECT_TRUE(NULL == emptyPointer);
-    EXPECT_TRUE(emptyPointer == NULL);
-
-    EXPECT_FALSE(somePointer == NULL);
-    EXPECT_FALSE(samePointer == NULL);
-
-    EXPECT_TRUE(somePointer != NULL);
-    EXPECT_TRUE(samePointer != NULL);
-
     EXPECT_FALSE(somePointer == emptyPointer);
     EXPECT_FALSE(samePointer == emptyPointer);
 

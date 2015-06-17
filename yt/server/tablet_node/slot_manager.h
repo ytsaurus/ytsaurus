@@ -47,8 +47,7 @@ public:
     void RemoveSlot(TTabletSlotPtr slot);
 
 
-    // The following section of methods is used to maintain tablet id to slot mapping.
-    // It is safe to call them from any thread.
+    // The following methods are safe to call them from any thread.
 
     //! Returns the list of snapshots for all registered tablets.
     std::vector<TTabletSnapshotPtr> GetTabletSnapshots();
@@ -71,6 +70,8 @@ public:
     //! Informs the controller that #tablet's snapshot must be updated.
     void UpdateTabletSnapshot(TTablet* tablet);
 
+    //! Returns a thread pool invoker used for building tablet snapshots.
+    IInvokerPtr GetSnapshotPoolInvoker();
 
     NYTree::IYPathServicePtr GetOrchidService();
 

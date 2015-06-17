@@ -108,8 +108,9 @@ private:
         }
 
         if (actualDataSize >  config->MaxPartitionDataSize) {
-            int splitFactor = std::min(
+            int splitFactor = std::min(std::min(
                 actualDataSize / config->DesiredPartitionDataSize + 1,
+                actualDataSize / config->MinPartitioningDataSize),
                 static_cast<i64>(config->MaxPartitionCount - partitionCount));
             if (splitFactor > 1) {
                 RunSplit(partition, splitFactor);
@@ -167,15 +168,17 @@ private:
             int sampleCount = static_cast<int>(samples.size());
             int minSampleCount = std::max(Config_->MinPartitioningSampleCount, splitFactor);
             if (sampleCount < minSampleCount) {
-                THROW_ERROR_EXCEPTION("Too few samples fetched: %v < %v",
-                    sampleCount,
-                    minSampleCount);
+                THROW_ERROR_EXCEPTION("Too few samples fetched: need %v, got %v",
+                    minSampleCount,
+                    sampleCount);
             }
 
             std::vector<TOwningKey> pivotKeys;
+            // Take the pivot of the partition.
             pivotKeys.push_back(partition->GetPivotKey());
-            for (int i = 0; i < splitFactor; ++i) {
-                int j = static_cast<int>(i * sampleCount / splitFactor);
+            // And add |splitFactor - 1| more keys from samples.
+            for (int i = 0; i < splitFactor - 1; ++i) {
+                int j = (i + 1) * sampleCount / splitFactor - 1;
                 const auto& key = samples[j];
                 if (key > pivotKeys.back()) {
                     pivotKeys.push_back(key);
@@ -226,7 +229,7 @@ private:
             partition->GetTablet()->GetTabletId(),
             JoinToString(ConvertToStrings(
                 tablet->Partitions().begin() + firstPartitionIndex,
-                tablet->Partitions().begin() + lastPartitionIndex,
+                tablet->Partitions().begin() + lastPartitionIndex + 1,
                 [] (const std::unique_ptr<TPartition>& partition) {
                      return ToString(partition->GetId());
                 })));
@@ -314,7 +317,7 @@ private:
         TPartition* partition,
         int maxSampleCount)
     {
-        YCHECK(partition->GetIndex() != TPartition::EdenIndex);
+        YCHECK(!partition->IsEden());
 
         if (maxSampleCount == 0) {
             return std::vector<TOwningKey>();

@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "dynamic_memory_store_bits.h"
+#include "row_comparer_generator.h"
 
 #include <core/misc/enum.h>
 #include <core/misc/chunked_memory_pool.h>
@@ -40,18 +41,11 @@ struct TKeyWrapper
 class TDynamicRowKeyComparer
 {
 public:
-    TDynamicRowKeyComparer(
+    static TDynamicRowKeyComparer Create(
         int keyColumnCount,
-        const TTableSchema& schema,
-        bool enableCodegen = true);
-    TDynamicRowKeyComparer(const TDynamicRowKeyComparer& other);
-    TDynamicRowKeyComparer(TDynamicRowKeyComparer&& other);
-    TDynamicRowKeyComparer();
+        const TTableSchema& schema);
 
-    TDynamicRowKeyComparer& operator=(const TDynamicRowKeyComparer& other);
-    TDynamicRowKeyComparer& operator=(TDynamicRowKeyComparer&& other);
-
-    ~TDynamicRowKeyComparer();
+    TDynamicRowKeyComparer() = default;
 
     int operator()(TDynamicRow lhs, TDynamicRow rhs) const;
     int operator()(TDynamicRow lhs, TRowWrapper rhs) const;
@@ -63,9 +57,18 @@ public:
         const TUnversionedValue* rhsEnd) const;
 
 private:
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    int KeyColumnCount_;
+    NCodegen::TCGFunction<TDDComparerSignature> DDComparer_;
+    NCodegen::TCGFunction<TDUComparerSignature> DUComparer_;
+    NCodegen::TCGFunction<TUUComparerSignature> UUComparer_;
+
+    TDynamicRowKeyComparer(
+        int keyColumnCount,
+        NCodegen::TCGFunction<TDDComparerSignature> ddComparer,
+        NCodegen::TCGFunction<TDUComparerSignature> duComparer,
+        NCodegen::TCGFunction<TUUComparerSignature> uuComparer);
 };
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

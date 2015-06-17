@@ -21,6 +21,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ConfigureLogging(const char* LogLevel, const char* logExcludeCategories, const char* logIncludeCategories);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! A tiny helper function to generate random file names.
 Stroka GenerateRandomFileName(const char* prefix);
 

@@ -81,38 +81,34 @@ public:
         YCHECK(start >= 0);
         YCHECK(start <= end);
 
-        TSharedRef result;
+        TSharedMutableRef result;
 
         i64 pos = 0;
         i64 resultSize = end - start;
 
         // We use lazy initialization.
-        bool initialized = false;
         auto initialize = [&] () {
-            if (!initialized) {
+            if (!result) {
                 struct TErasureWriterSliceTag { };
-                result = TSharedRef::Allocate<TErasureWriterSliceTag>(resultSize);
-                initialized = true;
+                result = TSharedMutableRef::Allocate<TErasureWriterSliceTag>(resultSize);
             }
         };
 
         i64 currentStart = 0;
 
-        for (auto block : Blocks_) {
-            i64 innerStart = std::max((i64)0, start - currentStart);
-            i64 innerEnd = std::min((i64)block.Size(), end - currentStart);
+        for (const auto& block : Blocks_) {
+            i64 innerStart = std::max(static_cast<i64>(0), start - currentStart);
+            i64 innerEnd = std::min(static_cast<i64>(block.Size()), end - currentStart);
 
             if (innerStart < innerEnd) {
-                auto slice = TRef(block.Begin() + innerStart, block.Begin() + innerEnd);
-
-                if (resultSize == slice.Size()) {
-                    return block.Slice(slice);
+                if (resultSize == innerEnd - innerStart) {
+                    return block.Slice(innerStart, innerEnd);
                 }
 
                 initialize();
-                std::copy(slice.Begin(), slice.End(), result.Begin() + pos);
+                std::copy(block.Begin() + innerStart, block.Begin() + innerEnd, result.Begin() + pos);
 
-                pos += slice.Size();
+                pos += (innerEnd - innerStart);
             }
             currentStart += block.Size();
 
@@ -141,11 +137,12 @@ class TErasureWriter
 public:
     TErasureWriter(
         TErasureWriterConfigPtr config,
+        const TChunkId& chunkId,
         NErasure::ICodec* codec,
         const std::vector<IChunkWriterPtr>& writers)
         : Config_(config)
+        , ChunkId_(chunkId)
         , Codec_(codec)
-        , IsOpen_(false)
         , Writers_(writers)
     {
         YCHECK(writers.size() == codec->GetTotalPartCount());
@@ -203,6 +200,11 @@ public:
 
     virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override;
 
+    virtual TChunkId GetChunkId() const override
+    {
+        return ChunkId_;
+    }
+
 private:
     void PrepareBlocks();
 
@@ -223,10 +225,11 @@ private:
     void OnClosed();
 
 
-    TErasureWriterConfigPtr Config_;
-    NErasure::ICodec* Codec_;
+    const TErasureWriterConfigPtr Config_;
+    const TChunkId ChunkId_;
+    NErasure::ICodec* const Codec_;
 
-    bool IsOpen_;
+    bool IsOpen_ = false;
 
     std::vector<IChunkWriterPtr> Writers_;
     std::vector<TSharedRef> Blocks_;
@@ -439,35 +442,41 @@ void TErasureWriter::OnClosed()
 
 IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
+    const TChunkId& chunkId,
     NErasure::ICodec* codec,
     const std::vector<IChunkWriterPtr>& writers)
 {
-    return New<TErasureWriter>(config, codec, writers);
+    return New<TErasureWriter>(
+        config,
+        chunkId,
+        codec,
+        writers);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
+    TRemoteWriterOptionsPtr options,
     const TChunkId& chunkId,
     NErasure::ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
     NRpc::IChannelPtr masterChannel,
-    EWriteSessionType sessionType,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
 {
     // Patch writer configs to ignore upload replication factor for erasure chunk parts.
-    auto config_ = NYTree::CloneYsonSerializable(config);
-    config_->UploadReplicationFactor = 1;
+    auto partConfig = NYTree::CloneYsonSerializable(config);
+    partConfig->UploadReplicationFactor = 1;
 
     TChunkServiceProxy proxy(masterChannel);
-    auto req = proxy.AllocateWriteTargets();
 
-    req->set_target_count(codec->GetTotalPartCount());
-    if (config_->PreferLocalHost) {
+    auto req = proxy.AllocateWriteTargets();
+    req->set_desired_target_count(codec->GetTotalPartCount());
+    req->set_min_target_count(codec->GetTotalPartCount());
+    if (partConfig->PreferLocalHost) {
         req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
     }
-
     ToProto(req->mutable_chunk_id(), chunkId);
 
     auto rspOrError = WaitFor(req->Invoke());
@@ -487,12 +496,13 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
         auto partId = ErasurePartIdFromChunkId(chunkId, index);
         writers.push_back(CreateReplicationWriter(
-            config_,
+            partConfig,
+            options,
             partId,
             TChunkReplicaList(1, replicas[index]),
             nodeDirectory,
             nullptr,
-            sessionType,
+            blockCache,
             throttler));
     }
 

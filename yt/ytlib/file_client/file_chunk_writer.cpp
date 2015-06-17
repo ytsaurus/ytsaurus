@@ -5,17 +5,13 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/api/public.h>
+#include <ytlib/api/config.h>
 
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/multi_chunk_writer_base.h>
-
-#include <core/logging/log.h>
-
-#include <core/rpc/channel.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -37,7 +33,8 @@ public:
     TFileChunkWriter(
         TFileChunkWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
-        IChunkWriterPtr chunkWriter);
+        IChunkWriterPtr chunkWriter,
+        NChunkClient::IBlockCachePtr blockCache);
 
     virtual bool Write(const TRef& data) override;
 
@@ -78,21 +75,27 @@ struct TFileChunkBlockTag { };
 TFileChunkWriter::TFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IChunkWriterPtr chunkWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
     : Config_(config)
-    , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, chunkWriter))
+    , EncodingChunkWriter_(New<TEncodingChunkWriter>(
+        config,
+        options,
+        chunkWriter,
+        blockCache))
     , Buffer_(TFileChunkBlockTag())
-    , Logger(FileClientLogger)
-{ 
-    Logger.AddTag("ChunkWriter: %v", chunkWriter.Get());
+{
+    Logger = FileClientLogger;
+    Logger.AddTag("ChunkId: %v", chunkWriter->GetChunkId());
 }
 
 bool TFileChunkWriter::Write(const TRef& data)
 {
     LOG_DEBUG("Writing data (Size: %v)", data.Size());
 
-    if (data.Empty())
+    if (data.Empty()) {
         return true;
+    }
 
     if (Buffer_.IsEmpty()) {
         Buffer_.Reserve(static_cast<size_t>(Config_->BlockSize));
@@ -191,9 +194,14 @@ TDataStatistics TFileChunkWriter::GetDataStatistics() const
 IFileChunkWriterPtr CreateFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IChunkWriterPtr chunkWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
 {
-    return New<TFileChunkWriter>(config, options, chunkWriter);
+    return New<TFileChunkWriter>(
+        config,
+        options,
+        chunkWriter,
+        blockCache);
 }
 
 IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
@@ -202,7 +210,8 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     IChannelPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
 {
     typedef TMultiChunkWriterBase<
         IFileMultiChunkWriter,
@@ -223,7 +232,8 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
         transactionId, 
         parentChunkListId, 
         createChunkWriter,
-        throttler);
+        throttler,
+        blockCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

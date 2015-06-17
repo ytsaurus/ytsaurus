@@ -8,7 +8,7 @@ namespace NQueryClient {
 
 const NLogging::TLogger QueryClientLogger("QueryClient");
 
-NLogging::TLogger BuildLogger(const TConstQueryPtr& query)
+NLogging::TLogger BuildLogger(TConstQueryPtr query)
 {
     NLogging::TLogger result(QueryClientLogger);
     result.AddTag("FragmentId: %v", query->Id);

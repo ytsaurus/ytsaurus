@@ -60,7 +60,7 @@ private:
     const NApi::TFileWriterConfigPtr Config;
     const NChunkClient::TMultiChunkWriterOptionsPtr Options;
 
-    bool IsOpen;
+    bool IsOpen = false;
 
     NRpc::IChannelPtr MasterChannel;
     NObjectClient::TTransactionId TransactionId;

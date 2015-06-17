@@ -35,7 +35,8 @@ public:
         TChunkWriterOptionsPtr options,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns,
-        const IChunkWriterPtr& asyncWriter);
+        IChunkWriterPtr chunkWriter,
+        IBlockCachePtr blockCache);
 
     virtual TFuture<void> Open() override;
 
@@ -44,6 +45,8 @@ public:
     virtual TFuture<void> Close() override;
 
     virtual TFuture<void> GetReadyEvent() override;
+
+    virtual i64 GetRowCount() const override;
 
     virtual i64 GetMetaSize() const override;
     virtual i64 GetDataSize() const override;
@@ -79,6 +82,10 @@ private:
     TTimestamp MinTimestamp_;
     TTimestamp MaxTimestamp_;
 
+#if 0
+    TBloomFilterBuilder KeyFilter_;
+#endif
+
     void WriteRow(
         TVersionedRow row,
         const TUnversionedValue* beginPreviousKey,
@@ -103,25 +110,33 @@ TVersionedChunkWriter::TVersionedChunkWriter(
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    const IChunkWriterPtr& asyncWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
     : Config_(config)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
-    , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
+    , EncodingChunkWriter_(New<TEncodingChunkWriter>(
+        config,
+        options,
+        chunkWriter,
+        blockCache))
     , LastKey_(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
     , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_))
     , MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
+#if 0
+    , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
+#endif
 { }
 
 TFuture<void> TVersionedChunkWriter::Open()
 {
     try {
         ValidateTableSchemaAndKeyColumns(Schema_, KeyColumns_);
+        return VoidFuture;
     } catch (const std::exception& ex) {
         return MakeFuture<void>(ex);
     }
-    return VoidFuture;
 }
 
 bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
@@ -135,10 +150,13 @@ bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
         EmitSample(rows.front());
     }
 
+    //FIXME: insert key into bloom filter.
+    //KeyFilter_.Insert(GetFarmFingerprint(rows.front().BeginKeys(), rows.front().EndKeys()));
     WriteRow(rows.front(), LastKey_.Begin(), LastKey_.End());
     FinishBlockIfLarge(rows.front());
 
     for (int i = 1; i < rows.size(); ++i) {
+        //KeyFilter_.Insert(GetFarmFingerprint(rows[i].BeginKeys(), rows[i].EndKeys()));
         WriteRow(rows[i], rows[i - 1].BeginKeys(), rows[i - 1].EndKeys());
         FinishBlockIfLarge(rows[i]);
     }
@@ -149,10 +167,8 @@ bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
 
 TFuture<void> TVersionedChunkWriter::Close()
 {
-    if (RowCount_ == 0) {
-        // Empty chunk.
-        return VoidFuture;
-    }
+    // psushin@ forbids empty chunks :)
+    YCHECK(RowCount_ > 0);
 
     return BIND(&TVersionedChunkWriter::DoClose, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
@@ -162,6 +178,11 @@ TFuture<void> TVersionedChunkWriter::Close()
 TFuture<void> TVersionedChunkWriter::GetReadyEvent()
 {
     return EncodingChunkWriter_->GetReadyEvent();
+}
+
+i64 TVersionedChunkWriter::GetRowCount() const
+{
+    return RowCount_;
 }
 
 i64 TVersionedChunkWriter::GetMetaSize() const
@@ -269,6 +290,13 @@ void TVersionedChunkWriter::DoClose()
     SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
     SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
 
+#if 0
+    if (KeyFilter_.IsValid()) {
+        KeyFilter_.Shrink();
+        //FIXME: write bloom filter to chunk.
+    }
+#endif
+
     auto& miscExt = EncodingChunkWriter_->MiscExt();
     miscExt.set_sorted(true);
     miscExt.set_row_count(RowCount_);
@@ -303,9 +331,16 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    IChunkWriterPtr asyncWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
 {
-    return New<TVersionedChunkWriter>(config, options, schema, keyColumns, asyncWriter);
+    return New<TVersionedChunkWriter>(
+        config,
+        options,
+        schema,
+        keyColumns,
+        chunkWriter,
+        blockCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -318,7 +353,8 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
 {
     typedef TMultiChunkWriterBase<
         IVersionedMultiChunkWriter,
@@ -331,7 +367,8 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
             options,
             schema,
             keyColumns,
-            underlyingWriter);
+            underlyingWriter,
+            blockCache);
     };
 
     return New<TVersionedMultiChunkWriter>(
@@ -341,7 +378,8 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         transactionId,
         parentChunkListId,
         createChunkWriter,
-        throttler);
+        throttler,
+        blockCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

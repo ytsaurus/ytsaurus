@@ -10,7 +10,6 @@
 #include "chunk_store.h"
 
 #include <core/misc/fs.h>
-#include <core/misc/sync.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -80,7 +79,7 @@ ISessionPtr TSessionManager::StartSession(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (static_cast<int>(SessionMap_.size()) >= Config_->MaxWriteSessions) {
+    if (SessionMap_.size() >= Config_->MaxWriteSessions) {
         auto error = TError("Maximum concurrent write session limit %v has been reached",
             Config_->MaxWriteSessions);
         LOG_ERROR(error);
@@ -102,10 +101,10 @@ ISessionPtr TSessionManager::CreateSession(
     const TChunkId& chunkId,
     const TSessionOptions& options)
 {
-    auto chunkStore = Bootstrap_->GetChunkStore();
-    auto location = chunkStore->GetNewChunkLocation();
-
     auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
+
+    auto chunkStore = Bootstrap_->GetChunkStore();
+    auto location = chunkStore->GetNewChunkLocation(chunkType);
 
     auto lease = TLeaseManager::CreateLease(
         Config_->SessionTimeout,

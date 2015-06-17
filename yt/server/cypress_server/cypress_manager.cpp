@@ -31,6 +31,7 @@
 
 // COMPAT(babenko): Reconstruct KeyColumns and Sorted flags for tables
 #include <server/table_server/table_node.h>
+#include <server/tablet_server/tablet.h>
 #include <server/chunk_server/chunk_list.h>
 
 namespace NYT {
@@ -298,6 +299,14 @@ public:
             EObjectAccountMode::Forbidden);
     }
 
+    virtual void ResetAllObjects() override
+    {
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        for (const auto& pair : cypressManager->Nodes()) {
+            DoReset(pair.second);
+        }
+    }
+
 private:
     EObjectType Type;
 
@@ -324,6 +333,11 @@ private:
     virtual TObjectBase* DoGetParent(TCypressNodeBase* node) override
     {
         return node->GetParent();
+    }
+
+    void DoReset(TCypressNodeBase* node)
+    {
+        node->ResetWeakRefCounter();
     }
 
 };
@@ -427,9 +441,7 @@ TCypressManager::TCypressManager(
     : TMasterAutomatonPart(bootstrap)
     , Config(config)
     , NodeMap(TNodeMapTraits(this))
-    , RootNode(nullptr)
     , AccessTracker(New<TAccessTracker>(config, bootstrap))
-    , RecomputeKeyColumns(false)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(bootstrap->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
@@ -446,20 +458,28 @@ TCypressManager::TCypressManager(
     RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap_));
     RegisterHandler(New<TDocumentNodeTypeHandler>(Bootstrap_));
 
+    // COMPAT(babenko)
     RegisterLoader(
         "Cypress.Keys",
         BIND(&TCypressManager::LoadKeys, Unretained(this)));
+    // COMPAT(babenko)
     RegisterLoader(
         "Cypress.Values",
         BIND(&TCypressManager::LoadValues, Unretained(this)));
+    RegisterLoader(
+        "CypressManager.Keys",
+        BIND(&TCypressManager::LoadKeys, Unretained(this)));
+    RegisterLoader(
+        "CypressManager.Values",
+        BIND(&TCypressManager::LoadValues, Unretained(this)));
 
     RegisterSaver(
-        ESerializationPriority::Keys,
-        "Cypress.Keys",
+        ESyncSerializationPriority::Keys,
+        "CypressManager.Keys",
         BIND(&TCypressManager::SaveKeys, Unretained(this)));
     RegisterSaver(
-        ESerializationPriority::Values,
-        "Cypress.Values",
+        ESyncSerializationPriority::Values,
+        "CypressManager.Values",
         BIND(&TCypressManager::SaveValues, Unretained(this)));
 
     RegisterMethod(BIND(&TCypressManager::HydraUpdateAccessStatistics, Unretained(this)));
@@ -539,9 +559,8 @@ TCypressNodeBase* TCypressManager::CreateNode(
     YCHECK(handler);
     YCHECK(factory);
 
-    auto* transaction = factory->GetTransaction();
-    auto* node = handler->Create(transaction, request, response).release();
-    RegisterNode(node);
+    auto nodeHolder = handler->Create(request, response);
+    auto* node = RegisterNode(std::move(nodeHolder));
 
     // Set account.
     auto securityManager = Bootstrap_->GetSecurityManager();
@@ -564,10 +583,9 @@ TCypressNodeBase* TCypressManager::CreateNode(const TNodeId& id)
 {
     auto type = TypeFromId(id);
     auto handler = GetHandler(type);
-    auto* node = handler->Instantiate(TVersionedNodeId(id)).release();
-    node->SetTrunkNode(node);
-    RegisterNode(node);
-    return node;
+    auto nodeHolder = handler->Instantiate(TVersionedNodeId(id));
+    nodeHolder->SetTrunkNode(nodeHolder.get());
+    return RegisterNode(std::move(nodeHolder));
 }
 
 TCypressNodeBase* TCypressManager::CloneNode(
@@ -959,17 +977,15 @@ TLock* TCypressManager::DoCreateLock(
     const TLockRequest& request)
 {
     auto objectManager = Bootstrap_->GetObjectManager();
-
     auto id = objectManager->GenerateId(EObjectType::Lock);
-
-    auto* lock  = new TLock(id);
-    lock->SetState(ELockState::Pending);
-    lock->SetTrunkNode(trunkNode);
-    lock->SetTransaction(transaction);
-    lock->Request() = request;
-    trunkNode->PendingLocks().push_back(lock);
-    lock->SetLockListIterator(--trunkNode->PendingLocks().end());
-    LockMap.Insert(id, lock);
+    auto lockHolder = std::make_unique<TLock>(id);
+    lockHolder->SetState(ELockState::Pending);
+    lockHolder->SetTrunkNode(trunkNode);
+    lockHolder->SetTransaction(transaction);
+    lockHolder->Request() = request;
+    trunkNode->PendingLocks().push_back(lockHolder.get());
+    lockHolder->SetLockListIterator(--trunkNode->PendingLocks().end());
+    auto* lock = LockMap.Insert(id, std::move(lockHolder));
 
     YCHECK(transaction->Locks().insert(lock).second);
     objectManager->RefObject(lock);
@@ -1153,15 +1169,115 @@ TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
 
 bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
 {
+    auto* currentNode = trunkNode;
     while (true) {
-        if (!IsObjectAlive(trunkNode)) {
+        if (!IsObjectAlive(currentNode)) {
             return true;
         }
-        if (trunkNode == RootNode) {
+        if (currentNode == RootNode) {
             return false;
         }
-        trunkNode = trunkNode->GetParent();
+        currentNode = currentNode->GetParent();
     }
+}
+
+bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transaction)
+{
+    auto hasChild = [&] (TCypressNodeBase* parentTrunkNode, TCypressNodeBase* childTrunkNode) {
+        // Compute child key or index.
+        auto parentOriginators = GetNodeOriginators(transaction, parentTrunkNode);
+        TNullable<Stroka> key;
+        for (const auto* parentNode : parentOriginators) {
+            if (IsMapLikeType(parentNode->GetType())) {
+                const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
+                auto it = parentMapNode->ChildToKey().find(childTrunkNode);
+                if (it != parentMapNode->ChildToKey().end()) {
+                    key = it->second;
+                }
+            } else if (IsListLikeType(parentNode->GetType())) {
+                const auto* parentListNode = static_cast<const TListNode*>(parentNode);
+                auto it = parentListNode->ChildToIndex().find(childTrunkNode);
+                return it != parentListNode->ChildToIndex().end();
+            } else {
+                YUNREACHABLE();
+            }
+
+            if (key) {
+                break;
+            }
+        }
+
+        if (!key) {
+            return false;
+        }
+
+        // Look for thombstones.
+        for (const auto* parentNode : parentOriginators) {
+            if (IsMapLikeType(parentNode->GetType())) {
+                const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
+                auto it = parentMapNode->KeyToChild().find(*key);
+                if (it != parentMapNode->KeyToChild().end() && it->second != childTrunkNode) {
+                    return false;
+                }
+            } else if (IsListLikeType(parentNode->GetType())) {
+                // Do nothing.
+            } else {
+                YUNREACHABLE();
+            }
+        }
+
+        return true;
+    };
+
+
+    auto* currentNode = trunkNode;
+    while (true) {
+        if (!IsObjectAlive(currentNode)) {
+            return false;
+        }
+        if (currentNode == RootNode) {
+            return true;
+        }
+        auto* parentNode = currentNode->GetParent();
+        if (!parentNode) {
+            return false;
+        }
+        if (!hasChild(parentNode, currentNode)) {
+            return false;
+        }
+        currentNode = parentNode;
+    }
+}
+
+TCypressNodeList TCypressManager::GetNodeOriginators(
+    NTransactionServer::TTransaction* transaction,
+    TCypressNodeBase* trunkNode)
+{
+    YCHECK(trunkNode->IsTrunk());
+
+    // Fast path.
+    if (!transaction) {
+        return TCypressNodeList(1, trunkNode);
+    }
+
+    // Slow path.
+    TCypressNodeList result;
+    auto* currentNode = GetVersionedNode(trunkNode, transaction);
+    while (currentNode) {
+        result.push_back(currentNode);
+        currentNode = currentNode->GetOriginator();
+    }
+
+    return result;
+}
+
+TCypressNodeList TCypressManager::GetNodeReverseOriginators(
+    NTransactionServer::TTransaction* transaction,
+    TCypressNodeBase* trunkNode)
+{
+    auto result = GetNodeOriginators(transaction, trunkNode);
+    std::reverse(result.begin(), result.end());
+    return result;
 }
 
 TCypressNodeBase* TCypressManager::BranchNode(
@@ -1180,28 +1296,28 @@ TCypressNodeBase* TCypressManager::BranchNode(
 
     // Create a branched node and initialize its state.
     auto handler = GetHandler(originatingNode);
-    auto branchedNode = handler->Branch(originatingNode, transaction, mode);
-    YCHECK(branchedNode->GetLockMode() == mode);
-    auto* branchedNode_ = branchedNode.release();
+    auto branchedNodeHolder = handler->Branch(originatingNode, transaction, mode);
 
     TVersionedNodeId versionedId(id, transaction->GetId());
-    NodeMap.Insert(versionedId, branchedNode_);
+    auto* branchedNode = NodeMap.Insert(versionedId, std::move(branchedNodeHolder));
+
+    YCHECK(branchedNode->GetLockMode() == mode);
 
     // Register the branched node with the transaction.
-    transaction->BranchedNodes().push_back(branchedNode_);
+    transaction->BranchedNodes().push_back(branchedNode);
 
     // The branched node holds an implicit reference to its originator.
     objectManager->RefObject(originatingNode->GetTrunkNode());
 
     // Update resource usage.
     auto* account = originatingNode->GetAccount();
-    securityManager->SetAccount(branchedNode_, account);
+    securityManager->SetAccount(branchedNode, account);
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Node branched (NodeId: %v, Mode: %v)",
         TVersionedNodeId(id, transaction->GetId()),
         mode);
 
-    return branchedNode_;
+    return branchedNode;
 }
 
 void TCypressManager::SaveKeys(NCellMaster::TSaveContext& context) const
@@ -1219,6 +1335,8 @@ void TCypressManager::SaveValues(NCellMaster::TSaveContext& context) const
 void TCypressManager::OnBeforeSnapshotLoaded()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
     DoClear();
 }
@@ -1240,10 +1358,16 @@ void TCypressManager::LoadValues(NCellMaster::TLoadContext& context)
 
     // COMPAT(babenko)
     RecomputeKeyColumns = (context.GetVersion() < 100);
+    // COMPAT(babenko)
+    RecomputeTabletOwners = (context.GetVersion() < 115);
 }
 
 void TCypressManager::OnAfterSnapshotLoaded()
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
     // Reconstruct immediate ancestor sets.
     for (const auto& pair : NodeMap) {
         auto* node = pair.second;
@@ -1253,20 +1377,13 @@ void TCypressManager::OnAfterSnapshotLoaded()
         }
     }
 
-    // COMPAT(babenko): Fix parent links
-    for (const auto& pair1 : NodeMap) {
-        auto* node = pair1.second;
-        if (TypeFromId(node->GetId()) == EObjectType::MapNode) {
-            auto* mapNode = static_cast<TMapNode*>(node);
-            for (const auto& pair2 : mapNode->KeyToChild()) {
-                auto* child = pair2.second;
-                if (child && !child->GetParent()) {
-                    LOG_WARNING("Parent link fixed (ChildId: %v, ParentId: %v)",
-                        child->GetId(),
-                        node->GetId());
-                    child->SetParent(node);
-                }
-            }
+    // Compute originators.
+    for (const auto& pair : NodeMap) {
+        auto* node = pair.second;
+        if (!node->IsTrunk()) {
+            auto* parentTransaction = node->GetTransaction()->GetParent();
+            auto* originator = GetVersionedNode(node->GetTrunkNode(), parentTransaction);
+            node->SetOriginator(originator);
         }
     }
 
@@ -1283,6 +1400,18 @@ void TCypressManager::OnAfterSnapshotLoaded()
         }
     }
 
+    // COMPAT(babenko)
+    if (RecomputeTabletOwners) {
+        for (const auto& pair : NodeMap) {
+            if (TypeFromId(pair.first.ObjectId) == EObjectType::Table) {
+                auto* table = dynamic_cast<NTableServer::TTableNode*>(pair.second);
+                for (auto* tablet : table->Tablets()) {
+                    tablet->SetTable(table);
+                }
+            }
+        }
+    }
+
     InitBuiltin();
 }
 
@@ -1292,17 +1421,17 @@ void TCypressManager::InitBuiltin()
     if (!RootNode) {
         // Create the root.
         auto securityManager = Bootstrap_->GetSecurityManager();
-        RootNode = new TMapNode(TVersionedNodeId(RootNodeId));
-        RootNode->SetTrunkNode(RootNode);
-        RootNode->SetAccount(securityManager->GetSysAccount());
-        RootNode->Acd().SetInherit(false);
-        RootNode->Acd().AddEntry(TAccessControlEntry(
+        auto rootNodeHolder = std::make_unique<TMapNode>(TVersionedNodeId(RootNodeId));
+        rootNodeHolder->SetTrunkNode(rootNodeHolder.get());
+        rootNodeHolder->SetAccount(securityManager->GetSysAccount());
+        rootNodeHolder->Acd().SetInherit(false);
+        rootNodeHolder->Acd().AddEntry(TAccessControlEntry(
             ESecurityAction::Allow,
             securityManager->GetEveryoneGroup(),
             EPermission::Read));
-        RootNode->Acd().SetOwner(securityManager->GetRootUser());
+        rootNodeHolder->Acd().SetOwner(securityManager->GetRootUser());
 
-        NodeMap.Insert(TVersionedNodeId(RootNodeId), RootNode);
+        RootNode = NodeMap.Insert(TVersionedNodeId(RootNodeId), std::move(rootNodeHolder));
         YCHECK(RootNode->RefObject() == 1);
     }
 }
@@ -1317,23 +1446,17 @@ void TCypressManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    TMasterAutomatonPart::Clear();
+
     DoClear();
     InitBuiltin();
-}
-
-void TCypressManager::OnRecoveryStarted()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    for (const auto& pair : NodeMap) {
-        auto* node = pair.second;
-        node->ResetWeakRefCounter();
-    }
 }
 
 void TCypressManager::OnRecoveryComplete()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::OnRecoveryComplete();
 
     AccessTracker->Start();
 }
@@ -1342,6 +1465,8 @@ void TCypressManager::OnStopLeading()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    TMasterAutomatonPart::OnStopLeading();
+
     AccessTracker->Stop();
 }
 
@@ -1349,26 +1474,30 @@ void TCypressManager::OnStopFollowing()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    TMasterAutomatonPart::OnStopFollowing();
+
     AccessTracker->Stop();
 }
 
-void TCypressManager::RegisterNode(TCypressNodeBase* node)
+TCypressNodeBase* TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> nodeHolder)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(node->IsTrunk());
+    YCHECK(nodeHolder->IsTrunk());
 
     const auto* mutationContext = GetCurrentMutationContext();
-    node->SetCreationTime(mutationContext->GetTimestamp());
-    node->SetModificationTime(mutationContext->GetTimestamp());
-    node->SetAccessTime(mutationContext->GetTimestamp());
-    node->SetRevision(mutationContext->GetVersion().ToRevision());
+    nodeHolder->SetCreationTime(mutationContext->GetTimestamp());
+    nodeHolder->SetModificationTime(mutationContext->GetTimestamp());
+    nodeHolder->SetAccessTime(mutationContext->GetTimestamp());
+    nodeHolder->SetRevision(mutationContext->GetVersion().ToRevision());
 
-    const auto& nodeId = node->GetId();
-    NodeMap.Insert(TVersionedNodeId(nodeId), node);
+    const auto& nodeId = nodeHolder->GetId();
+    auto* node = NodeMap.Insert(TVersionedNodeId(nodeId), std::move(nodeHolder));
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Type: %v)",
         nodeId,
         TypeFromId(nodeId));
+
+    return node;
 }
 
 void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
@@ -1488,52 +1617,34 @@ void TCypressManager::ListSubtreeNodes(
 {
     YCHECK(trunkNode->IsTrunk());
 
-    auto transactionManager = Bootstrap_->GetTransactionManager();
-
     if (includeRoot) {
         subtreeNodes->push_back(trunkNode);
     }
 
-    switch (trunkNode->GetType()) {
-        case EObjectType::MapNode: {
-            auto transactions = transactionManager->GetTransactionPath(transaction);
-            std::reverse(transactions.begin(), transactions.end());
-
-            yhash_map<Stroka, TCypressNodeBase*> children;
-            for (auto* currentTransaction : transactions) {
-                TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
-                const auto* node = FindNode(versionedId);
-                if (node) {
-                    const auto* mapNode = static_cast<const TMapNode*>(node);
-                    for (const auto& pair : mapNode->KeyToChild()) {
-                        if (pair.second) {
-                            children[pair.first] = pair.second;
-                        } else {
-                            // NB: erase may fail.
-                            children.erase(pair.first);
-                        }
-                    }
+    if (IsMapLikeType(trunkNode->GetType())) {
+        auto originators = GetNodeReverseOriginators(transaction, trunkNode);
+        yhash_map<Stroka, TCypressNodeBase*> children;
+        for (const auto* node : originators) {
+            const auto* mapNode = static_cast<const TMapNode*>(node);
+            for (const auto& pair : mapNode->KeyToChild()) {
+                if (pair.second) {
+                    children[pair.first] = pair.second;
+                } else {
+                    // NB: erase may fail.
+                    children.erase(pair.first);
                 }
             }
-
-            for (const auto& pair : children) {
-                ListSubtreeNodes(pair.second, transaction, true, subtreeNodes);
-            }
-
-            break;
         }
 
-        case EObjectType::ListNode: {
-            auto* node = GetVersionedNode(trunkNode, transaction);
-            auto* listRoot = static_cast<TListNode*>(node);
-            for (auto* trunkChild : listRoot->IndexToChild()) {
-                ListSubtreeNodes(trunkChild, transaction, true, subtreeNodes);
-            }
-            break;
+        for (const auto& pair : children) {
+            ListSubtreeNodes(pair.second, transaction, true, subtreeNodes);
         }
-
-        default:
-            break;
+    } else if (IsListLikeType(trunkNode->GetType())) {
+        auto* node = GetVersionedNode(trunkNode, transaction);
+        auto* listRoot = static_cast<TListNode*>(node);
+        for (auto* trunkChild : listRoot->IndexToChild()) {
+            ListSubtreeNodes(trunkChild, transaction, true, subtreeNodes);
+        }
     }
 }
 

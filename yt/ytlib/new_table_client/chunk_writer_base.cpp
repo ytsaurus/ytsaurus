@@ -16,7 +16,8 @@ namespace NVersionedTableClient {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NProto;
+using namespace NVersionedTableClient::NProto;
+
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,13 +25,18 @@ using NYT::ToProto;
 TChunkWriterBase::TChunkWriterBase(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    IChunkWriterPtr asyncWriter,
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache,
     // We pass key columns here in order to use TChunkWriterBase and
     // TSortedChunkWriterBase as template base interchangably.
     const TKeyColumns& keyColumns)
     : Config_(config)
     , Options_(options)
-    , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
+    , EncodingChunkWriter_(New<TEncodingChunkWriter>(
+        config,
+        options,
+        chunkWriter,
+        blockCache))
 { }
 
 TFuture<void> TChunkWriterBase::Open()
@@ -127,11 +133,16 @@ void TChunkWriterBase::DoClose()
 TSequentialChunkWriterBase::TSequentialChunkWriterBase(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    IChunkWriterPtr asyncWriter,
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache,
     // We pass key columns here in order to use TSequentialChunkWriterBase and
     // TSortedChunkWriterBase as a template base interchangably.
     const TKeyColumns& keyColumns)
-    : TChunkWriterBase(config, options, asyncWriter)
+    : TChunkWriterBase(
+        config,
+        options,
+        chunkWriter,
+        blockCache)
     , KeyColumns_(keyColumns)
 { }
 
@@ -235,9 +246,15 @@ bool TSequentialChunkWriterBase::IsSorted() const
 TSortedChunkWriterBase::TSortedChunkWriterBase(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IChunkWriterPtr chunkWriter,
-    TKeyColumns keyColumns)
-    : TSequentialChunkWriterBase(config, options, chunkWriter, keyColumns)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache,
+    const TKeyColumns& keyColumns)
+    : TSequentialChunkWriterBase(
+        config,
+        options,
+        chunkWriter,
+        blockCache,
+        keyColumns)
 { }
 
 TChunkMeta TSortedChunkWriterBase::GetMasterMeta() const

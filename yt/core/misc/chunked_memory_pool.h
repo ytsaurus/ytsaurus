@@ -13,18 +13,18 @@ class TChunkedMemoryPool
     : private TNonCopyable
 {
 public:
-    static const size_t DefaultChunkSize;
+    static const i64 DefaultChunkSize;
     static const double DefaultMaxSmallBlockSizeRatio;
 
     explicit TChunkedMemoryPool(
-        size_t chunkSize = DefaultChunkSize,
+        i64 chunkSize = DefaultChunkSize,
         double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio,
         TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TDefaultChunkedMemoryPoolTag>());
 
     template <class TTag>
     explicit TChunkedMemoryPool(
         TTag tag = TTag(),
-        size_t chunkSize = DefaultChunkSize,
+        i64 chunkSize = DefaultChunkSize,
         double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio)
         : TChunkedMemoryPool(
             chunkSize,
@@ -33,13 +33,14 @@ public:
     { }
 
     //! Allocates #sizes bytes without any alignment.
-    char* AllocateUnaligned(size_t size);
+    char* AllocateUnaligned(i64 size);
 
-    //! Allocates #size bytes aligned with #align-byte granularity.
-    /*!
-     *  #align must be a power of two.
-     */
-    char* AllocateAligned(size_t size, size_t align = 8);
+    //! Allocates #size bytes aligned with 8-byte granularity.
+    char* AllocateAligned(i64 size, int align = 8);
+
+    //! Allocates #n uninitialized instances of #T.
+    template <class T>
+    T* AllocateUninitialized(int n, int align = alignof(T));
 
     //! Marks all previously allocated small chunks as free for subsequent allocations but
     //! does not deallocate them.
@@ -53,55 +54,39 @@ public:
     i64 GetCapacity() const;
 
 private:
-    size_t ChunkSize_;
-    size_t MaxSmallBlockSize_;
-    TRefCountedTypeCookie TagCookie_;
+    const i64 ChunkSize_;
+    const i64 MaxSmallBlockSize_;
+    const TRefCountedTypeCookie TagCookie_;
 
     int CurrentChunkIndex_ = 0;
 
     i64 Size_ = 0;
     i64 Capacity_ = 0;
 
-    char* CurrentPtr_;
-    char* EndPtr_;
+    // Chunk memory layout:
+    //   |AAAA|....|UUUU|
+    // Legend:
+    //   A aligned allocations
+    //   U unaligned allocations
+    //   . free zone
+    char* FreeZoneBegin_;
+    char* FreeZoneEnd_;
 
-    std::vector<TSharedRef> Chunks_;
-    std::vector<TSharedRef> LargeBlocks_;
+    std::vector<TSharedMutableRef> Chunks_;
+    std::vector<TSharedMutableRef> LargeBlocks_;
 
+    char* AllocateUnalignedSlow(i64 size);
+    char* AllocateAlignedSlow(i64 size, int align);
+    char* AllocateSlowCore(i64 size);
 
-    char* AllocateUnalignedSlow(size_t size);
-
-    void AllocateChunk();
-    void SwitchChunk();
-    void SetupPointers();
-
-    TSharedRef AllocateLargeBlock(size_t size);
+    void SetupFreeZone();
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): move to inl
-inline char* TChunkedMemoryPool::AllocateUnaligned(size_t size)
-{
-    // Fast path.
-    if (CurrentPtr_ + size <= EndPtr_) {
-        char* result = CurrentPtr_;
-        CurrentPtr_ += size;
-        Size_ += size;
-        return result;
-    }
-
-    // Slow path.
-    return AllocateUnalignedSlow(size);
-}
-
-inline char* TChunkedMemoryPool::AllocateAligned(size_t size, size_t align)
-{
-    CurrentPtr_ = reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(CurrentPtr_) + align - 1) & ~(align - 1));
-    return AllocateUnaligned(size);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT
+
+#define CHUNKED_MEMORY_POOL_INL_H_
+#include "chunked_memory_pool-inl.h"
+#undef CHUNKED_MEMORY_POOL_INL_H_

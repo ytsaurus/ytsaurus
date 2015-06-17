@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "chunk_list_pool.h"
+#include "config.h"
 #include "private.h"
 
 #include <ytlib/object_client/master_ypath_proxy.h>

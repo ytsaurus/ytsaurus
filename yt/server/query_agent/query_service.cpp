@@ -69,7 +69,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
         auto planFragment = FromProto(request->plan_fragment());
-        planFragment->NodeDirectory->MergeFrom(request->node_directory());
 
         context->SetRequestInfo("FragmentId: %v", planFragment->Query->Id);
 

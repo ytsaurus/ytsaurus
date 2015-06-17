@@ -14,9 +14,9 @@ class TMemoryReader
 {
 public:
     TMemoryReader(
-        TChunkMeta meta,
+        const TChunkMeta& meta,
         std::vector<TSharedRef> blocks)
-        : Meta_(std::move(meta))
+        : Meta_(meta)
         , Blocks_(std::move(blocks))
     { }
 
@@ -51,19 +51,20 @@ public:
 
     virtual TChunkId GetChunkId() const override
     {
-        // ToDo(psushin): make YUNIMPLEMENTED, after fixing sequential reader.
         return NullChunkId;
     }
 
 private:
-    TChunkMeta Meta_;
-    std::vector<TSharedRef> Blocks_;
+    const TChunkMeta Meta_;
+    const std::vector<TSharedRef> Blocks_;
 
 };
 
-IChunkReaderPtr CreateMemoryReader(const TChunkMeta& meta, const std::vector<TSharedRef>& blocks)
+IChunkReaderPtr CreateMemoryReader(
+    const TChunkMeta& meta,
+    std::vector<TSharedRef> blocks)
 {
-    return New<TMemoryReader>(meta, blocks);
+    return New<TMemoryReader>(meta, std::move(blocks));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

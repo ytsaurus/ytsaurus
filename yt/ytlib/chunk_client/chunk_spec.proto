@@ -37,6 +37,9 @@ message TChunkSpec
 
     // Only makes sense as a part of data split.
     optional uint64 timestamp = 12;
+
+    // Mapping to ranges.
+    optional int32 range_index = 13;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

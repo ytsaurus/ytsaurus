@@ -1,7 +1,10 @@
 #pragma once
 
-#include <ytlib/chunk_client/data_statistics.pb.h>
 #include <core/yson/public.h>
+
+#include <core/ytree/public.h>
+
+#include <ytlib/chunk_client/data_statistics.pb.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -19,6 +22,7 @@ TDataStatistics  operator -  (const TDataStatistics& lhs, const TDataStatistics&
 bool operator==  (const TDataStatistics& lhs, const TDataStatistics& rhs);
 
 void Serialize(const TDataStatistics& statistics, NYson::IYsonConsumer* consumer);
+void Deserialize(TDataStatistics& value, NYTree::INodePtr node);
 
 const TDataStatistics& ZeroDataStatistics();
 

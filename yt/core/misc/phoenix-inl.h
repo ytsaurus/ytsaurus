@@ -178,7 +178,6 @@ struct TSerializer
     static void LoadImpl(C& context, T*& rawPtr, bool inplace)
     {
         typedef typename TPolymorphicTraits<T>::TBase TBase;
-        typedef typename TFactoryTraits<T>::TFactory TFactory;
         using NYT::Load;
 
         ui32 id = Load<ui32>(context);

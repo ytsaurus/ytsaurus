@@ -18,30 +18,35 @@ using namespace NConcurrency;
 TEncodingChunkWriter::TEncodingChunkWriter(
     TEncodingWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IChunkWriterPtr asyncWriter)
-    : ChunkWriter_(asyncWriter)
-    , EncodingWriter_(New<TEncodingWriter>(config, options, asyncWriter))
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
+    : ChunkWriter_(chunkWriter)
+    , EncodingWriter_(New<TEncodingWriter>(
+        config,
+        options,
+        ChunkWriter_,
+        blockCache))
 {
     MiscExt_.set_compression_codec(static_cast<int>(options->CompressionCodec));
     MiscExt_.set_eden(options->ChunksEden);
 }
 
-void TEncodingChunkWriter::WriteBlock(std::vector<TSharedRef>&& data)
+void TEncodingChunkWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock)
 {
     ++CurrentBlockIndex_;
 
-    i64 blockSize = GetTotalSize(data);
+    i64 blockSize = GetByteSize(vectorizedBlock);
     LargestBlockSize_ = std::max(LargestBlockSize_, blockSize);
 
-    EncodingWriter_->WriteBlock(std::move(data));
+    EncodingWriter_->WriteBlock(std::move(vectorizedBlock));
 }
 
-void TEncodingChunkWriter::WriteBlock(TSharedRef&& data)
+void TEncodingChunkWriter::WriteBlock(TSharedRef block)
 {
     ++CurrentBlockIndex_;
 
-    LargestBlockSize_ = std::max(LargestBlockSize_, static_cast<i64>(data.Size()));
-    EncodingWriter_->WriteBlock(std::move(data));
+    LargestBlockSize_ = std::max(LargestBlockSize_, static_cast<i64>(block.Size()));
+    EncodingWriter_->WriteBlock(std::move(block));
 }
 
 void TEncodingChunkWriter::Close()

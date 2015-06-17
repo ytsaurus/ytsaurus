@@ -58,6 +58,22 @@ void TYamrConsumer::OnInt64Scalar(i64 value)
         }
         break;
 
+    case EControlAttribute::RangeIndex:
+        if (!Config->Lenval) {
+            THROW_ERROR_EXCEPTION("Range indexes are not supported in text YAMR format");
+        }
+        WritePod(*Stream, static_cast<ui32>(-3));
+        WritePod(*Stream, static_cast<ui32>(value));
+        break;
+
+    case EControlAttribute::RowIndex:
+        if (!Config->Lenval) {
+             THROW_ERROR_EXCEPTION("Row indexes are not supported in text YAMR format");
+        }
+        WritePod(*Stream, static_cast<ui32>(-4));
+        WritePod(*Stream, static_cast<ui64>(value));
+        break;
+
     default:
         YUNREACHABLE();
     }
@@ -95,7 +111,22 @@ void TYamrConsumer::OnBooleanScalar(bool value)
         OnStringScalar(StringStorage_.back());
         return;
     }
-    THROW_ERROR_EXCEPTION("Boolean attributes are not supported by YAMR");
+
+    YASSERT(State == EState::ExpectAttributeValue);
+
+    switch (ControlAttribute) {
+    case EControlAttribute::KeySwitch:
+        if (!Config->Lenval) {
+            THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format");
+        }
+        WritePod(*Stream, static_cast<ui32>(-2));
+        break;
+
+    default:
+        THROW_ERROR_EXCEPTION("Unknown boolean control attribute received");
+    }
+
+    State = EState::ExpectEndAttributes;
 }
 
 void TYamrConsumer::OnStringScalar(const TStringBuf& value)

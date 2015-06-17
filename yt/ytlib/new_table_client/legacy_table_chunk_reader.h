@@ -24,10 +24,11 @@ public:
         TNameTablePtr nameTable,
         const TKeyColumns& keyColumns,
         NChunkClient::IChunkReaderPtr underlyingReader,
-        NChunkClient::IBlockCachePtr uncompressedBlockCache,
+        NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TReadLimit& lowerLimit,
         const NChunkClient::TReadLimit& upperLimit,
-        i64 tableRowIndex);
+        i64 tableRowIndex,
+        i32 rangeIndex);
 
     virtual TFuture<void> Open() override;
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
@@ -35,7 +36,11 @@ public:
 
     virtual TNameTablePtr GetNameTable() const override;
 
+    virtual TKeyColumns GetKeyColumns() const override;
+
     virtual i64 GetTableRowIndex() const override;
+
+    virtual i32 GetRangeIndex() const override;
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
     virtual TFuture<void> GetFetchingCompletedEvent() override;
@@ -70,6 +75,7 @@ private:
     NChunkClient::TSequentialReaderPtr SequentialReader_;
     TColumnFilter ColumnFilter_;
     TNameTablePtr NameTable_;
+    TKeyColumns KeyColumns_;
 
     NChunkClient::TReadLimit UpperLimit_;
 
@@ -84,13 +90,13 @@ private:
 
     std::vector<TColumnInfo> ColumnInfo_;
 
-    i64 TableRowIndex_;
-
-    int KeyColumnCount_;
+    const i64 TableRowIndex_;
+    const i32 RangeIndex_;
 
     i64 CurrentRowIndex_ = -1;
     i64 BeginRowIndex_ = 0;
     i64 EndRowIndex_ = 0;
+    i64 RowCount_ = 0;
 
     int UnfetchedChannelIndex_ = -1;
 
@@ -102,8 +108,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TLegacyTableChunkReader)
-
-DECLARE_REFCOUNTED_CLASS(TLegacyTableChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 

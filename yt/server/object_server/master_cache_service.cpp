@@ -111,7 +111,7 @@ private:
             : TAsyncCacheValueBase(key)
             , Success_(success)
             , ResponseMessage_(std::move(responseMessage))
-            , TotalSpace_(ResponseMessage_.ByteSize())
+            , TotalSpace_(GetByteSize(ResponseMessage_))
             , Timestamp_(timestamp)
         { }
 
@@ -132,7 +132,6 @@ private:
                 owner->Config_,
                 NProfiling::TProfiler(ObjectServerProfiler.GetPathPrefix() + "/master_cache"))
             , Owner_(owner)
-            , Logger(ObjectServerLogger)
         { }
 
         TFuture<TSharedRefArray> Lookup(
@@ -161,11 +160,9 @@ private:
                 TryRemove(entry);
             }
 
-            auto cookie = std::make_unique<TInsertCookie>(key);
-            bool inserting = BeginInsert(cookie.get());
-            auto result = cookie->GetValue();
-
-            if (inserting) {
+            auto cookie = BeginInsert(key);
+            auto result = cookie.GetValue();
+            if (cookie.IsActive()) {
                 LOG_DEBUG("Populating cache (Key: {%v})",
                     key);
 
@@ -183,7 +180,7 @@ private:
                     Passed(std::move(cookie))));
             }
 
-            return result.Apply(BIND([] (TEntryPtr entry) -> TSharedRefArray {
+            return result.Apply(BIND([] (const TEntryPtr& entry) -> TSharedRefArray {
 	            return entry->GetResponseMessage();
             }));
         }
@@ -191,7 +188,7 @@ private:
     private:
         TMasterCacheService* Owner_;
 
-        const NLogging::TLogger& Logger;
+        NLogging::TLogger Logger = ObjectServerLogger;
 
 
         virtual void OnAdded(TEntry* entry) override
@@ -232,17 +229,17 @@ private:
 
 
         void OnResponse(
-            std::unique_ptr<TInsertCookie> cookie,
+            TInsertCookie cookie,
             const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
         {
             if (!rspOrError.IsOK()) {
                 LOG_WARNING(rspOrError, "Cache population request failed");
-                cookie->Cancel(rspOrError);
+                cookie.Cancel(rspOrError);
                 return;
             }
 
             const auto& rsp = rspOrError.Value();
-            const auto& key = cookie->GetKey();
+            const auto& key = cookie.GetKey();
 
             YCHECK(rsp->part_counts_size() == 1);
             auto responseMessage = TSharedRefArray(rsp->Attachments());
@@ -256,11 +253,11 @@ private:
                 responseError);
 
             auto entry = New<TEntry>(
-                cookie->GetKey(),
+                key,
                 responseError.IsOK(),
                 TInstant::Now(),
                 responseMessage);
-            cookie->EndInsert(entry);
+            cookie.EndInsert(entry);
         }
     };
 
@@ -276,7 +273,6 @@ private:
             TCtxExecutePtr context)
             : Context_(std::move(context))
             , Proxy_(std::move(channel))
-            , Logger(ObjectServerLogger)
         {
             Request_ = Proxy_.Execute();
             MergeRequestHeaderExtensions(&Request_->Header(), Context_->RequestHeader());
@@ -309,7 +305,7 @@ private:
         TObjectServiceProxy::TReqExecutePtr Request_;
         std::vector<TPromise<TSharedRefArray>> Promises_;
 
-        const NLogging::TLogger& Logger;
+        NLogging::TLogger Logger = ObjectServerLogger;
 
 
         void OnResponse(const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)

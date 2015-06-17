@@ -16,8 +16,7 @@ namespace NVersionedTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger TableClientLogger;
-
-extern NProfiling::TProfiler TableReaderProfiler;
+extern const NProfiling::TProfiler TableReaderProfiler;
 
 template <class TPredicate>
 int LowerBound(int lowerIndex, int upperIndex, const TPredicate& less)

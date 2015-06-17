@@ -9,7 +9,6 @@
 #include "chunk_store.h"
 
 #include <core/misc/fs.h>
-#include <core/misc/sync.h>
 
 #include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/chunk_meta.pb.h>
@@ -118,7 +117,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
 
     int blockIndex = startBlockIndex;
     i64 requestSize = 0;
-
+    std::vector<int> receivedBlockIndexes;
     for (const auto& block : blocks) {
         TBlockId blockId(ChunkId_, blockIndex);
         ValidateBlockIsInWindow(blockIndex);
@@ -150,17 +149,20 @@ TFuture<void> TBlobSession::DoPutBlocks(
         slot.Block = block;
 
         if (enableCaching) {
-            blockStore->PutBlock(blockId, block, Null);
+            blockStore->PutCachedBlock(blockId, block, Null);
         }
 
         Location_->UpdateUsedSpace(block.Size());
         Size_ += block.Size();
         requestSize += block.Size();
-
-        LOG_DEBUG("Block received (Block: %v)", blockIndex);
-
+        receivedBlockIndexes.push_back(blockIndex);
         ++blockIndex;
     }
+
+    LOG_DEBUG_UNLESS(
+        receivedBlockIndexes.empty(),
+        "Blocks received (Blocks: [%v])",
+        JoinToString(receivedBlockIndexes));
 
     auto sessionManager = Bootstrap_->GetSessionManager();
     while (WindowIndex_ < Window_.size()) {
@@ -179,7 +181,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         .AsyncVia(WriteInvoker_)
         .Run()
         .Subscribe(
-            BIND(&TBlobSession::OnBlockWritten, MakeStrong(this), WindowIndex_)
+            BIND(&TBlobSession::OnBlockWritten, MakeStrong(this), WindowIndex_, slot.Block.Size())
                 .Via(Bootstrap_->GetControlInvoker()));
         ++WindowIndex_;
     }
@@ -191,9 +193,9 @@ TFuture<void> TBlobSession::DoPutBlocks(
 TFuture<void> TBlobSession::DoSendBlocks(
     int firstBlockIndex,
     int blockCount,
-    const TNodeDescriptor& target)
+    const TNodeDescriptor& targetDescriptor)
 {
-    TDataNodeServiceProxy proxy(ChannelFactory->CreateChannel(target.GetInterconnectAddress()));
+    TDataNodeServiceProxy proxy(ChannelFactory->CreateChannel(targetDescriptor.GetInterconnectAddress()));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.PutBlocks();
@@ -223,7 +225,7 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
         blockIndex,
         block.Size());
 
-    TScopedTimer timer;
+    NProfiling::TScopedTimer timer;
     try {
         if (!Writer_->WriteBlock(block)) {
             auto result = Writer_->GetReadyEvent().Get();
@@ -243,7 +245,7 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 
     LOG_DEBUG("Finished writing block %v", blockIndex);
 
-    auto& locationProfiler = Location_->Profiler();
+    auto& locationProfiler = Location_->GetProfiler();
     locationProfiler.Enqueue("/blob_block_write_size", block.Size());
     locationProfiler.Enqueue("/blob_block_write_time", writeTime.MicroSeconds());
     locationProfiler.Enqueue("/blob_block_write_throughput", block.Size() * 1000000 / (1 + writeTime.MicroSeconds()));
@@ -253,18 +255,16 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 }
 
-void TBlobSession::OnBlockWritten(int blockIndex, const TError& error)
+void TBlobSession::OnBlockWritten(int blockIndex, i64 blockSize, const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto& slot = GetSlot(blockIndex);
-
-    // NB: Update pending write size before setting the promise as the subscriber
-    // is likely to erase the slot.
+    // NB: slot could have already been erased (e.g. in case of failure).
     auto sessionManager = Bootstrap_->GetSessionManager();
-    sessionManager->UpdatePendingWriteSize(-slot.Block.Size());
+    sessionManager->UpdatePendingWriteSize(-blockSize);
 
     if (error.IsOK()) {
+        auto& slot = GetSlot(blockIndex);
         YCHECK(slot.State == ESlotState::Received);
         slot.State = ESlotState::Written;
         slot.WrittenPromise.Set(TError());
@@ -319,7 +319,7 @@ void TBlobSession::DoOpenWriter()
     PROFILE_TIMING ("/blob_chunk_open_time") {
         try {
             auto fileName = Location_->GetChunkPath(ChunkId_);
-            Writer_ = New<TFileWriter>(fileName, Options_.SyncOnClose);
+            Writer_ = New<TFileWriter>(ChunkId_, fileName, Options_.SyncOnClose);
             // File writer opens synchronously.
             Writer_->Open()
                 .Get()

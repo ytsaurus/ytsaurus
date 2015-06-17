@@ -98,7 +98,6 @@ var secure_close_deferred = Q.defer();
 
 var violentlyDieTriggered = false;
 var violentlyDie = function violentDeath() {
-    "use strict";
     if (violentlyDieTriggered) { return; }
     violentlyDieTriggered = true;
 
@@ -111,7 +110,6 @@ var violentlyDie = function violentDeath() {
 
 var gracefullyDieTriggered = false;
 var gracefullyDie = function gracefulDeath() {
-    "use strict";
     if (gracefullyDieTriggered) { return; }
     gracefullyDieTriggered = true;
 
@@ -119,12 +117,20 @@ var gracefullyDie = function gracefulDeath() {
     process.send({ type : "stopping" });
 
     try {
-        !!insecure_server ? insecure_server.close() : secure_close_deferred.resolve();
+        if (!!insecure_server) {
+            insecure_server.close();
+        } else {
+            secure_close_deferred.resolve();
+        }
     } catch (ex) {
         logger.error("Caught exception during HTTP shutdown: " + ex.toString());
     }
     try {
-        !!secure_server ? secure_server.close() : secure_close_deferred.resolve();
+        if (!!secure_server) {
+            secure_server.close();
+        } else {
+            secure_close_deferred.resolve();
+        }
     } catch (ex) {
         logger.error("Caught exception during HTTP shutdown: " + ex.toString());
     }
@@ -135,7 +141,6 @@ var supervisor_liveness;
 
 if (!__DBG.On) {
     (function sendHeartbeat() {
-        "use strict";
         process.send({ type : "heartbeat" });
         setTimeout(sendHeartbeat, 2000);
     }());
@@ -145,13 +150,11 @@ if (!__DBG.On) {
 
 // Setup signal handlers.
 process.on("SIGUSR2", function() {
-    "use strict";
     console.error("Writing a heap snapshot (" + process.pid + ")");
     heapdump.writeSnapshot();
 });
 
 process.on("SIGUSR1", function() {
-    "use strict";
     if (__PROFILE) {
         console.error("Pausing V8 profiler.");
         profiler.pause();
@@ -164,7 +167,6 @@ process.on("SIGUSR1", function() {
 
 // Setup message handlers.
 process.on("message", function(message) {
-    "use strict";
     if (!message || !message.type) {
         return; // Improper message format.
     }
@@ -199,7 +201,6 @@ application = connect()
     .use("/upravlyator", yt.YtApplicationUpravlyator())
     // TODO(sandello): Can we remove this?
     .use("/_check_availability_time", function(req, rsp, next) {
-        "use strict";
         fs.readFile("/var/lock/yt_check_availability_time", function(err, data) {
             if (err) {
                 var body = "0";
@@ -214,20 +215,17 @@ application = connect()
     // TODO(sandello): This would be deprecated with nodejs 0.10.
     // Begin of asynchronous middleware.
     .use(function(req, rsp, next) {
-        "use strict";
         req.pauser = yt.Pause(req);
         next();
     })
     .use(yt.YtAuthentication())
     .use("/api", yt.YtApplicationApi())
     .use(function(req, rsp, next) {
-        "use strict";
         process.nextTick(function() { req.pauser.unpause(); });
         next();
     })
     // End of asynchronous middleware.
     .use("/ping", function(req, rsp, next) {
-        "use strict";
         if (req.url === "/") {
             var isSelfAlive = yt.YtRegistry.get("coordinator").isSelfAlive();
             rsp.statusCode = isSelfAlive ? 200 : 503;
@@ -236,7 +234,6 @@ application = connect()
         next();
     })
     .use("/version", function(req, rsp, next) {
-        "use strict";
         if (req.url === "/") {
             return void yt.utils.dispatchAs(rsp, version.versionFull, "text/plain");
         }
@@ -247,7 +244,6 @@ config.redirect.forEach(function(site) {
     var web_path = site[0].replace(/\/+$/, "");
     var real_path = site[1].replace(/\/+$/, "");
     application.use(web_path, function(req, rsp, next) {
-        "use strict";
         return void yt.utils.redirectTo(rsp, real_path + req.url, 301);
     });
 });
@@ -260,7 +256,6 @@ config.static.forEach(function(site) {
         gzip: true,
     });
     application.use(web_path, function(req, rsp, next) {
-        "use strict";
         if (req.url === "/") {
             if (req.originalUrl === web_path) {
                 return void yt.utils.redirectTo(rsp, web_path + "/");
@@ -275,14 +270,12 @@ config.static.forEach(function(site) {
 
 application
     .use("/", function(req, rsp, next) {
-        "use strict";
         if (req.url === "/") {
             return void yt.utils.redirectTo(rsp, "/ui/");
         }
         next();
     })
     .use(function(req, rsp) {
-        "use strict";
         rsp.statusCode = 404;
         return void yt.utils.dispatchAs(
             rsp, "Invalid URI " + JSON.stringify(req.url) + ". " +
@@ -307,7 +300,6 @@ if (config.port && config.address) {
     insecure_server.on("listening", insecure_listening_deferred.resolve.bind(insecure_listening_deferred));
     insecure_server.on("connection", yt.YtLogSocket());
     insecure_server.on("connection", function(socket) {
-        "use strict";
         socket.setTimeout(5 * 60 * 1000);
         socket.setNoDelay(true);
         socket.setKeepAlive(true);
@@ -357,7 +349,6 @@ if (config.ssl_port && config.ssl_address) {
 Q
     .settle([ insecure_listening_deferred.promise, secure_listening_deferred.promise ])
     .then(function() {
-        "use strict";
         logger.info("Worker is up and running", {
             wid : cluster.worker.id,
             pid : process.pid

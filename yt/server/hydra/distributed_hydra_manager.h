@@ -13,6 +13,12 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDistributedHydraManagerOptions
+{
+    bool UseFork = false;
+    NRpc::TResponseKeeperPtr ResponseKeeper;
+};
+
 IHydraManagerPtr CreateDistributedHydraManager(
     TDistributedHydraManagerConfigPtr config,
     IInvokerPtr controlInvoker,
@@ -22,7 +28,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
     NElection::TCellManagerPtr cellManager,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
-    NRpc::TResponseKeeperPtr responseKeeper = nullptr);
+    const TDistributedHydraManagerOptions& options = TDistributedHydraManagerOptions());
 
 ///////////////////////////////////////////////////////////////////////////////
 

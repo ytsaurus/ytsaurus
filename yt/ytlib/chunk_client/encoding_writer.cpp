@@ -4,6 +4,11 @@
 #include "private.h"
 #include "dispatcher.h"
 #include "chunk_writer.h"
+#include "block_cache.h"
+
+#include <ytlib/node_tracker_client/node_directory.h>
+
+#include <core/concurrency/action_queue.h>
 
 #include <core/compression/codec.h>
 
@@ -14,106 +19,113 @@ using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkClientLogger;
-
-///////////////////////////////////////////////////////////////////////////////
-
 TEncodingWriter::TEncodingWriter(
     TEncodingWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IChunkWriterPtr asyncWriter)
-    : UncompressedSize_(0)
-    , CompressedSize_(0)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
+    : Config_(config)
+    , Options_(options)
+    , ChunkWriter_(chunkWriter)
+    , BlockCache_(blockCache)
     , CompressionRatio_(config->DefaultCompressionRatio)
-    , Config(config)
-    , ChunkWriter(asyncWriter)
-    , CompressionInvoker(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionPoolInvoker()))
-    , Semaphore(Config->EncodeWindowSize)
-    , Codec(NCompression::GetCodec(options->CompressionCodec))
-    , IsWaiting(false)
-    , CloseRequested(false)
-    , OnReadyEventCallback(
+    , CompressionInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionPoolInvoker()))
+    , Semaphore_(Config_->EncodeWindowSize)
+    , Codec_(NCompression::GetCodec(options->CompressionCodec))
+    , OnReadyEventCallback_(
         BIND(&TEncodingWriter::OnReadyEvent, MakeWeak(this))
-            .Via(CompressionInvoker))
-    , TriggerWritingCallback(
+            .Via(CompressionInvoker_))
+    , TriggerWritingCallback_(
         BIND(&TEncodingWriter::TriggerWriting, MakeWeak(this))
-            .Via(CompressionInvoker))
-{ }
-
-void TEncodingWriter::WriteBlock(const TSharedRef& block)
+            .Via(CompressionInvoker_))
 {
-    AtomicAdd(UncompressedSize_, block.Size());
-    Semaphore.Acquire(block.Size());
-    CompressionInvoker->Invoke(BIND(
-        &TEncodingWriter::DoCompressBlock,
-        MakeStrong(this),
-        block));
+    Logger = ChunkClientLogger;
+    Logger.AddTag("ChunkId: %v", ChunkWriter_->GetChunkId());
 }
 
-void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
+TEncodingWriter::~TEncodingWriter()
+{ }
+
+void TEncodingWriter::WriteBlock(TSharedRef block)
+{
+    UncompressedSize_ += block.Size();
+    Semaphore_.Acquire(block.Size());
+    CompressionInvoker_->Invoke(BIND(
+        &TEncodingWriter::DoCompressBlock,
+        MakeStrong(this),
+        std::move(block)));
+}
+
+void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock)
 {
     for (const auto& part : vectorizedBlock) {
-        Semaphore.Acquire(part.Size());
-        AtomicAdd(UncompressedSize_, part.Size());
+        Semaphore_.Acquire(part.Size());
+        UncompressedSize_ += part.Size();
     }
-    CompressionInvoker->Invoke(BIND(
+    CompressionInvoker_->Invoke(BIND(
         &TEncodingWriter::DoCompressVector,
         MakeWeak(this),
         std::move(vectorizedBlock)));
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
+void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
 {
-    LOG_DEBUG("Compressing block");
+    LOG_DEBUG("Compressing block (Block: %v)", AddedBlockIndex_);
 
-    auto compressedBlock = Codec->Compress(block);
+    auto compressedBlock = Codec_->Compress(uncompressedBlock);
+
     CompressedSize_ += compressedBlock.Size();
 
-    int sizeToRelease = -compressedBlock.Size();
-
-    if (Config->VerifyCompression) {
-        VerifyBlock(block, compressedBlock);
+    if (Config_->VerifyCompression) {
+        VerifyBlock(uncompressedBlock, compressedBlock);
     }
 
-    sizeToRelease += block.Size();
+    auto blockId = TBlockId(ChunkWriter_->GetChunkId(), AddedBlockIndex_);
+    BlockCache_->Put(blockId, EBlockType::UncompressedData, uncompressedBlock, Null);
 
+    int sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + uncompressedBlock.Size();
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorizedBlock)
+void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock)
 {
-    LOG_DEBUG("Compressing block");
+    LOG_DEBUG("Compressing block (Block: %v)", AddedBlockIndex_);
 
-    auto compressedBlock = Codec->Compress(vectorizedBlock);
-    AtomicAdd(CompressedSize_, compressedBlock.Size());
+    auto compressedBlock = Codec_->Compress(uncompressedVectorizedBlock);
 
-    i64 sizeToRelease = -static_cast<i64>(compressedBlock.Size());
+    CompressedSize_ += compressedBlock.Size();
 
-    if (Config->VerifyCompression) {
-        VerifyVector(vectorizedBlock, compressedBlock);
+    if (Config_->VerifyCompression) {
+        VerifyVector(uncompressedVectorizedBlock, compressedBlock);
     }
 
-    for (const auto& part : vectorizedBlock) {
-        sizeToRelease += part.Size();
+    auto blockId = TBlockId(ChunkWriter_->GetChunkId(), AddedBlockIndex_);
+    if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
+        // Handle none codec separately to avoid merging block parts twice.
+        auto uncompressedBlock = Options_->CompressionCodec == NCompression::ECodec::None
+            ? compressedBlock
+            : MergeRefs(uncompressedVectorizedBlock);
+        BlockCache_->Put(blockId, EBlockType::UncompressedData, uncompressedBlock, Null);
     }
 
+    i64 sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + GetByteSize(uncompressedVectorizedBlock);
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
 }
 
 void TEncodingWriter::VerifyVector(
-    const std::vector<TSharedRef>& origin,
+    const std::vector<TSharedRef>& uncompressedVectorizedBlock,
     const TSharedRef& compressedBlock)
 {
-    auto decompressedBlock = Codec->Decompress(compressedBlock);
+    auto decompressedBlock = Codec_->Decompress(compressedBlock);
 
     LOG_FATAL_IF(
-        decompressedBlock.Size() != GetTotalSize(origin),
+        decompressedBlock.Size() != GetByteSize(uncompressedVectorizedBlock),
         "Compression verification failed");
 
-    char* current = decompressedBlock.Begin();
-    for (const auto& block : origin) {
+    const char* current = decompressedBlock.Begin();
+    for (const auto& block : uncompressedVectorizedBlock) {
         LOG_FATAL_IF(
             !TRef::AreBitwiseEqual(TRef(current, block.Size()), block),
             "Compression verification failed");
@@ -122,48 +134,48 @@ void TEncodingWriter::VerifyVector(
 }
 
 void TEncodingWriter::VerifyBlock(
-    const TSharedRef& origin,
+    const TSharedRef& uncompressedBlock,
     const TSharedRef& compressedBlock)
 {
-    auto decompressedBlock = Codec->Decompress(compressedBlock);
+    auto decompressedBlock = Codec_->Decompress(compressedBlock);
     LOG_FATAL_IF(
-        !TRef::AreBitwiseEqual(decompressedBlock, origin),
+        !TRef::AreBitwiseEqual(decompressedBlock, uncompressedBlock),
         "Compression verification failed");
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeToRelease)
 {
-    SetCompressionRatio(
-        double(AtomicGet(CompressedSize_)) /
-        AtomicGet(UncompressedSize_));
+    SetCompressionRatio(double(CompressedSize_.load()) / UncompressedSize_.load());
 
     if (sizeToRelease > 0) {
-        Semaphore.Release(sizeToRelease);
+        Semaphore_.Release(sizeToRelease);
     } else {
-        Semaphore.Acquire(-sizeToRelease);
+        Semaphore_.Acquire(-sizeToRelease);
     }
 
-    PendingBlocks.push_back(block);
-    LOG_DEBUG("Pending block added");
+    PendingBlocks_.push_back(block);
+    LOG_DEBUG("Pending block added (Block: %v)", AddedBlockIndex_);
 
-    if (PendingBlocks.size() == 1) {
-        TriggerWritingCallback.Run();
+    ++AddedBlockIndex_;
+
+    if (PendingBlocks_.size() == 1) {
+        TriggerWritingCallback_.Run();
     }
 }
 
 void TEncodingWriter::OnReadyEvent(const TError& error)
 {
     if (!error.IsOK()) {
-        State.Fail(error);
+        State_.Fail(error);
         return;
     }
 
-    YCHECK(IsWaiting);
-    IsWaiting = false;
+    YCHECK(IsWaiting_);
+    IsWaiting_ = false;
 
-    if (CloseRequested) {
-        State.FinishOperation();
+    if (CloseRequested_) {
+        State_.FinishOperation();
         return;
     }
 
@@ -172,7 +184,7 @@ void TEncodingWriter::OnReadyEvent(const TError& error)
 
 void TEncodingWriter::TriggerWriting()
 {
-    if (IsWaiting) {
+    if (IsWaiting_) {
         return;
     }
 
@@ -182,62 +194,61 @@ void TEncodingWriter::TriggerWriting()
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::WritePendingBlocks()
 {
-    while (!PendingBlocks.empty()) {
-        LOG_DEBUG("Writing pending block");
-        auto& front = PendingBlocks.front();
-        auto result = ChunkWriter->WriteBlock(front);
-        Semaphore.Release(front.Size());
-        PendingBlocks.pop_front();
+    while (!PendingBlocks_.empty()) {
+        LOG_DEBUG("Writing pending block (Block: %v)", WrittenBlockIndex_);
+
+        auto& front = PendingBlocks_.front();
+        auto result = ChunkWriter_->WriteBlock(front);
+        Semaphore_.Release(front.Size());
+        PendingBlocks_.pop_front();
+        ++WrittenBlockIndex_;
 
         if (!result) {
-            IsWaiting = true;
-            ChunkWriter->GetReadyEvent().Subscribe(OnReadyEventCallback);
-            return;
+            IsWaiting_ = true;
+            ChunkWriter_->GetReadyEvent().Subscribe(OnReadyEventCallback_);
+            break;
         }
     }
 }
 
 bool TEncodingWriter::IsReady() const
 {
-    return Semaphore.IsReady() && State.IsActive();
+    return Semaphore_.IsReady() && State_.IsActive();
 }
 
 TFuture<void> TEncodingWriter::GetReadyEvent()
 {
-    if (!Semaphore.IsReady()) {
-        State.StartOperation();
+    if (!Semaphore_.IsReady()) {
+        State_.StartOperation();
 
-        Semaphore.GetReadyEvent().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            State.FinishOperation(error);
+        Semaphore_.GetReadyEvent().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            State_.FinishOperation(error);
         }));
     }
 
-    return State.GetOperationError();
+    return State_.GetOperationError();
 }
 
 TFuture<void> TEncodingWriter::Flush()
 {
-    State.StartOperation();
+    State_.StartOperation();
 
-    Semaphore.GetFreeEvent().Subscribe(
+    Semaphore_.GetFreeEvent().Subscribe(
         BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            if (IsWaiting) {
+            if (IsWaiting_) {
                 // We dumped all data to ReplicationWriter, and subscribed on ReadyEvent.
-                CloseRequested = true;
+                CloseRequested_ = true;
             } else {
-                State.FinishOperation(error);
+                State_.FinishOperation(error);
             }
-        }).Via(CompressionInvoker));
+        }).Via(CompressionInvoker_));
 
-    return State.GetOperationError();
+    return State_.GetOperationError();
 }
-
-TEncodingWriter::~TEncodingWriter()
-{ }
 
 i64 TEncodingWriter::GetUncompressedSize() const
 {
-    return AtomicGet(UncompressedSize_);
+    return UncompressedSize_.load();
 }
 
 i64 TEncodingWriter::GetCompressedSize() const
@@ -248,16 +259,13 @@ i64 TEncodingWriter::GetCompressedSize() const
 
 void TEncodingWriter::SetCompressionRatio(double value)
 {
-    TGuard<TSpinLock> guard(SpinLock);
     CompressionRatio_ = value;
 }
 
 double TEncodingWriter::GetCompressionRatio() const
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    return CompressionRatio_;
+    return CompressionRatio_.load();
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 
