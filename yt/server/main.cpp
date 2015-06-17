@@ -220,7 +220,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
         NYTree::TYsonString spec(parser.Spec.getValue());
         auto result = ExecuteTool(toolName, spec);
         Cout << result.Data();
-        return EExitCode::OK;
+        // NB: no shutdown, some initialization may still be in progress.
+        _exit(EExitCode::OK);
     }
 #endif
 
