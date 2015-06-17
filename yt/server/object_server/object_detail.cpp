@@ -238,7 +238,7 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
     LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %v, User: %v)",
         context->GetService(),
         context->GetMethod(),
-        GetRequestYPath(context),
+        ypathExt.path(),
         objectId,
         ypathExt.mutating(),
         user->GetName());
