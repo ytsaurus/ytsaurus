@@ -1,5 +1,7 @@
 #include <yt_udf.h>
 
+#include <stdlib.h>
+
 int64_t abs_udf(TExecutionContext* context, int64_t n)
 {
     return llabs(n);
