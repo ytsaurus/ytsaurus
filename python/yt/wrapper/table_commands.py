@@ -611,7 +611,14 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 self.response = None
 
             def execute_read(self):
-                table.name.attributes["lower_limit"] = {"row_index": self.index}
+                if "lower_limit" in table.name.attributes or "upper_limit" in table.name.attributes:
+                    table.name.attributes["lower_limit"] = {"row_index": self.index}
+                else:
+                    if "ranges" not in table.name.attributes:
+                        table.name.attributes["ranges"] = [{}]
+                    table.name.attributes["ranges"][0]["lower_limit"] = {"row_index": self.index}
+                    if len(table.name.attributes["ranges"]) > 1:
+                        raise YtError("Read table with multiple tanges using retries is not supported")
                 params["path"] = table.to_yson_type()
                 self.response = _make_transactional_request(
                     command_name,
