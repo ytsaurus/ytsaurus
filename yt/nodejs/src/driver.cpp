@@ -12,7 +12,6 @@
 #include <core/misc/format.h>
 
 #include <core/concurrency/async_stream.h>
-#include <core/concurrency/fiber.h>
 
 #include <core/ytree/node.h>
 #include <core/ytree/convert.h>
