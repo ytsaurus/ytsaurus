@@ -118,6 +118,7 @@ default_config = {
     # Defaults that will be passed to all operation specs
     "spec_defaults": {
     },
+    "memory_limit": None,
 
     # TODO(ignat): rename to attached_operaion_mode = false
     # If detached False all operations run under special transaction. It causes operation abort if client died.
