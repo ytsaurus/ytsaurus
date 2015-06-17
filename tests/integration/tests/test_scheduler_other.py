@@ -196,6 +196,54 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         track_op(op1)
         track_op(op2)
 
+        assert read("//tmp/out1") == []
+        assert read("//tmp/out2") == []
+
+    def test_pending_operations_after_revive(self):
+        create("table", "//tmp/in")
+        create("table", "//tmp/out1")
+        create("table", "//tmp/out2")
+        data = [{"foo": i} for i in xrange(5)]
+        write("//tmp/in", data)
+
+        op1 = map(dont_track=True, command="sleep 5.0; cat", in_=["//tmp/in"], out="//tmp/out1")
+        op2 = map(dont_track=True, command="cat", in_=["//tmp/in"], out="//tmp/out2")
+
+        time.sleep(1.5)
+
+        self.Env.kill_service("scheduler")
+        self.Env.start_schedulers("scheduler")
+
+        track_op(op1)
+        track_op(op2)
+
+        assert read("//tmp/out1") == data
+        assert read("//tmp/out2") == data
+
+    def test_abort_of_pending_operation(self):
+        create("table", "//tmp/in")
+        create("table", "//tmp/out1")
+        create("table", "//tmp/out2")
+        create("table", "//tmp/out3")
+        write("//tmp/in", [{"foo": i} for i in xrange(5)])
+
+        op1 = map(dont_track=True, command="sleep 2.0; cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
+        op2 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out2")
+        op3 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out3")
+
+        time.sleep(1.5)
+        assert get("//sys/operations/{0}/@state".format(op1)) == "running"
+        assert get("//sys/operations/{0}/@state".format(op2)) == "pending"
+        assert get("//sys/operations/{0}/@state".format(op3)) == "pending"
+
+        abort_op(op2)
+        track_op(op1)
+        track_op(op3)
+
+        assert get("//sys/operations/{0}/@state".format(op1)) == "completed"
+        assert get("//sys/operations/{0}/@state".format(op2)) == "aborted"
+        assert get("//sys/operations/{0}/@state".format(op3)) == "completed"
+
 
 class TestSchedulingTags(YTEnvSetup):
     NUM_MASTERS = 3
