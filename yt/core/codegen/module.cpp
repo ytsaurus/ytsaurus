@@ -164,6 +164,26 @@ public:
         Engine_->addObjectFile(std::move(sharedObject));
     }
 
+    bool SymbolIsLoaded(const Stroka& symbol)
+    {
+        return LoadedSymbols_.count(symbol) != 0;
+    }
+
+    void AddLoadedSymbol(const Stroka& symbol)
+    {
+        LoadedSymbols_.insert(symbol);
+    }
+
+    bool FunctionIsLoaded(const Stroka& function) const
+    {
+        return LoadedFunctions_.count(function) != 0;
+    }
+
+    void AddLoadedFunction(const Stroka& function)
+    {
+        LoadedFunctions_.insert(function);
+    }
+
 private:
     void Finalize()
     {
@@ -283,7 +303,8 @@ private:
 
     std::unique_ptr<llvm::ExecutionEngine> Engine_;
 
-    std::set<Stroka> LoadedUdfs_;
+    std::set<Stroka> LoadedFunctions_;
+    std::set<Stroka> LoadedSymbols_;
 
     bool Compiled_ = false;
 
@@ -329,6 +350,26 @@ void TCGModule::AddObjectFile(
     std::unique_ptr<llvm::object::ObjectFile> sharedObject)
 {
     Impl_->AddObjectFile(std::move(sharedObject));
+}
+
+bool TCGModule::SymbolIsLoaded(const Stroka& symbol) const
+{
+    return Impl_->SymbolIsLoaded(symbol);
+}
+
+void TCGModule::AddLoadedSymbol(const Stroka& symbol)
+{
+    Impl_->AddLoadedSymbol(symbol);
+}
+
+bool TCGModule::FunctionIsLoaded(const Stroka& function) const
+{
+    return Impl_->FunctionIsLoaded(function);
+}
+
+void TCGModule::AddLoadedFunction(const Stroka& function)
+{
+    Impl_->AddLoadedFunction(function);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

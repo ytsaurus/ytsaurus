@@ -35,8 +35,13 @@ public:
 
     void AddObjectFile(std::unique_ptr<llvm::object::ObjectFile> sharedObject);
 
-    //TODO: make this private with getters and setters
-    std::set<Stroka> LoadedFunctions;
+    bool SymbolIsLoaded(const Stroka& symbol) const;
+
+    void AddLoadedSymbol(const Stroka& symbol);
+
+    bool FunctionIsLoaded(const Stroka& function) const;
+
+    void AddLoadedFunction(const Stroka& function);
 
 private:
     class TImpl;
