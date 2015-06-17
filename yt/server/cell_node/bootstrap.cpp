@@ -343,9 +343,11 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateTimestampProxyService(
         clusterConnection->GetTimestampProvider()));
 
+    // NB: User connection's channel, not the client's one to preserve
+    // user names passed from the cache service.
     RpcServer->RegisterService(CreateMasterCacheService(
         Config->MasterCacheService,
-        MasterClient->GetMasterChannel(EMasterChannelKind::Leader),
+        MasterClient->GetConnection()->GetMasterChannel(EMasterChannelKind::Leader),
         GetCellId()));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
