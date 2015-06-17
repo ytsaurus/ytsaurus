@@ -328,6 +328,10 @@ private:
         // Process all pending samples in a row.
         int samplesProcessed = 0;
         while (SampleQueue.DequeueAll(true, [&](TQueuedSample& sample) {
+                if (samplesProcessed == 0) {
+                    EventCount.CancelWait();
+                }
+
                 ProcessSample(sample);
                 ++samplesProcessed;
             }))
@@ -335,12 +339,9 @@ private:
 
         ProfilingProfiler.Increment(DequeuedCounter, samplesProcessed);
 
-        if (samplesProcessed > 0) {
-            EventCount.CancelWait();
-            return EBeginExecuteResult::Success;
-        } else {
-            return EBeginExecuteResult::QueueEmpty;
-        }
+        return samplesProcessed > 0
+            ? EBeginExecuteResult::Success
+            : EBeginExecuteResult::QueueEmpty;
     }
 
     void EndExecute()
