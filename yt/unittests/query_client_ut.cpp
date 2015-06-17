@@ -3954,7 +3954,7 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
         ""
     }, resultSplit);
 
-    auto testUdfShareObjectImpl = TSharedRef(
+    auto testUdfSharedObjectImpl = TSharedRef(
         test_udfs_so_so,
         test_udfs_so_so_len,
         nullptr);
@@ -3964,7 +3964,7 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
             "abs_udf_so",
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
-            testUdfShareObjectImpl,
+            testUdfSharedObjectImpl,
             ECallingConvention::Simple);
     auto expUdf = New<TUserDefinedFunction>(
             "exp_udf_so",
@@ -3972,7 +3972,7 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
                 EValueType::Int64,
                 EValueType::Int64},
             EValueType::Int64,
-            testUdfShareObjectImpl,
+            testUdfSharedObjectImpl,
             ECallingConvention::Simple);
     registry->WithFunction(absUdf);
     registry->WithFunction(expUdf);
@@ -4213,6 +4213,49 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
     }, resultSplit);
 
     Evaluate("cardinality(a) < 2020u as upper, cardinality(a) > 1980u as lower from [//t] group by 1", split, source, result);
+}
+
+TEST_F(TQueryEvaluateTest, TestSharedObjectUdaf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Uint64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3u",
+        "a=53u",
+        "a=8u",
+        "a=24u",
+        "a=33u",
+        "a=333u",
+        "a=23u",
+        "a=33u"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"r", EValueType::Uint64},
+    });
+
+    auto result = BuildRows({
+        "r=333u"
+    }, resultSplit);
+
+    auto testUdfSharedObjectImpl = TSharedRef(
+        test_udfs_so_so,
+        test_udfs_so_so_len,
+        nullptr);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(New<TUserDefinedAggregateFunction>(
+        "max_udaf",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        EValueType::Uint64,
+        EValueType::Uint64,
+        EValueType::Uint64,
+        testUdfSharedObjectImpl,
+        ECallingConvention::Simple));
+
+    Evaluate("max_udaf(a) as r from [//t] group by 1", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
