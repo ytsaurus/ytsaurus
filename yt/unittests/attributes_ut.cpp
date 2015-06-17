@@ -82,7 +82,7 @@ TEST(TAttributesTest, SerializeToNode)
     EXPECT_EQ(*attributes, *convertedAttributes);
 }
 
-TEST(TAttributesTest, SerializeToProto)
+TEST(TAttributesTest, TrySerializeToProto)
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->Set<Stroka>("name", "Petr");

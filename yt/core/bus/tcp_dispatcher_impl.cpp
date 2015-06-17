@@ -5,6 +5,8 @@
 
 #include <core/misc/address.h>
 
+#include <core/profiling/profile_manager.h>
+
 #ifndef _win_
     #include <sys/socket.h>
     #include <sys/un.h>
@@ -116,12 +118,18 @@ void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpDispatcher::TImpl::TImpl()
-    : ThreadIdGenerator_(0)
 {
+    ServerThread_ = New<TTcpDispatcherThread>("BusServer");
+    ServerThread_->Start();
+
     for (int index = 0; index < ThreadCount; ++index) {
-        auto thread = New<TTcpDispatcherThread>(Format("Bus:%v", index));
+        auto thread = New<TTcpDispatcherThread>(Format("BusClient:%v", index));
         thread->Start();
-        Threads_.push_back(thread);
+        ClientThreads_.push_back(thread);
+    }
+
+    for (auto type : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
+        ProfilingData_[type].TagId = NProfiling::TProfileManager::Get()->RegisterTag("interface", type);
     }
 }
 
@@ -132,7 +140,7 @@ TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
 
 void TTcpDispatcher::TImpl::Shutdown()
 {
-    for (auto& thread : Threads_) {
+    for (auto& thread : ClientThreads_) {
         thread->Shutdown();
     }
 }
@@ -140,18 +148,28 @@ void TTcpDispatcher::TImpl::Shutdown()
 TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType interfaceType) const
 {
     // This is racy but should be OK as an approximation.
-    TTcpDispatcherStatistics result;
-    for (auto& thread : Threads_) {
+    auto result = ServerThread_->Statistics(interfaceType);
+    for (auto& thread : ClientThreads_) {
         result += thread->Statistics(interfaceType);
     }
     return result;
 }
 
-TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::AllocateThread()
+
+TTcpProfilingData* TTcpDispatcher::TImpl::GetProfilingData(ETcpInterfaceType interfaceType)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
-    size_t index = ThreadIdGenerator_.Generate<size_t>() % ThreadCount;
-    return Threads_[index];
+    return &ProfilingData_[interfaceType];
+}
+
+TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetServerThread()
+{
+    return ServerThread_;
+}
+
+TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
+{
+    size_t index = CurrentClientThreadIndex_++ % ThreadCount;
+    return ClientThreads_[index];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

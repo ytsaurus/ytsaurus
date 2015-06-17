@@ -1,8 +1,7 @@
 #pragma once
 
 #include <core/misc/public.h>
-
-#include <core/actions/callback.h>
+#include <core/misc/small_vector.h>
 
 #include <ytlib/cypress_client/public.h>
 
@@ -22,6 +21,8 @@ DECLARE_REFCOUNTED_CLASS(TAccessTracker)
 DECLARE_REFCOUNTED_CLASS(TCypressManager)
 
 class TCypressNodeBase;
+
+using TCypressNodeList = SmallVector<TCypressNodeBase*, 8>;
 
 struct TLockRequest;
 class TLock;

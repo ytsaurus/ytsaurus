@@ -7,7 +7,7 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <util/generic/ymath.h>
+#include <cmath>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -24,9 +24,9 @@ const static i64 MaxBufferSize = (i64) 1 * 1024 * 1024;
 TBuildingValueConsumer::TBuildingValueConsumer(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns)
-    : Schema_(schema.Deplete())
-    , KeyColumns_(schema.DepleteKeyColumns(keyColumns))
-    , NameTable_(TNameTable::FromSchema(Schema_, true))
+    : Schema_(schema)
+    , KeyColumns_(keyColumns)
+    , NameTable_(TNameTable::FromSchema(Schema_))
     , WrittenFlags_(NameTable_->GetSize(), false)
     , ValueWriter_(&ValueBuffer_)
 { }
@@ -237,7 +237,7 @@ void TTableConsumer::OnDoubleScalar(double value)
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else if (Depth_ == 1) {
-        if (!IsValidFloat(value)) {
+        if (std::isnan(value)) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::InvalidDoubleValue, 
                "Failed to parse double value: %Qv is not a valid double",

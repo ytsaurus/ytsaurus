@@ -151,7 +151,7 @@ TProfiler::TProfiler(
 void TProfiler::Enqueue(
     const NYPath::TYPath& path,
     TValue value,
-    const TTagIdList& tagIds)
+    const TTagIdList& tagIds) const
 {
     if (!Enabled_)
         return;
@@ -167,27 +167,27 @@ void TProfiler::Enqueue(
 TTimer TProfiler::TimingStart(
     const TYPath& path,
     const TTagIdList& tagIds,
-    ETimerMode mode)
+    ETimerMode mode) const
 {
     return TTimer(path, GetCpuInstant(), mode, tagIds);
 }
 
 TDuration TProfiler::TimingStop(
     TTimer& timer,
-    const TStringBuf& key)
+    const TStringBuf& key) const
 {
     return DoTimingStop(timer, key, Null);
 }
 
 TDuration TProfiler::TimingStop(
     TTimer& timer,
-    const TTagIdList& totalTagIds)
+    const TTagIdList& totalTagIds) const
 {
     return DoTimingStop(timer, Null, totalTagIds);
 }
 
 TDuration TProfiler::TimingStop(
-    TTimer& timer)
+    TTimer& timer) const
 {
     return DoTimingStop(timer, Null, Null);
 }
@@ -195,7 +195,7 @@ TDuration TProfiler::TimingStop(
 TDuration TProfiler::DoTimingStop(
     TTimer& timer,
     const TNullable<TStringBuf>& key,
-    const TNullable<TTagIdList>& totalTagIds)
+    const TNullable<TTagIdList>& totalTagIds) const
 {
     // Failure here means that the timer was not started or already stopped.
     YASSERT(timer.Start != 0);
@@ -216,14 +216,14 @@ TDuration TProfiler::DoTimingStop(
 
 TDuration TProfiler::TimingCheckpoint(
     TTimer& timer,
-    const TStringBuf& key)
+    const TStringBuf& key) const
 {
     return DoTimingCheckpoint(timer, key, Null);
 }
 
 TDuration TProfiler::TimingCheckpoint(
     TTimer& timer,
-    const TTagIdList& tagIds)
+    const TTagIdList& tagIds) const
 {
     return DoTimingCheckpoint(timer, Null, tagIds);
 }
@@ -231,7 +231,7 @@ TDuration TProfiler::TimingCheckpoint(
 TDuration TProfiler::DoTimingCheckpoint(
     TTimer& timer,
     const TNullable<TStringBuf>& key,
-    const TNullable<TTagIdList>& checkpointTagIds)
+    const TNullable<TTagIdList>& checkpointTagIds) const
 {
     // Failure here means that the timer was not started or already stopped.
     YASSERT(timer.Start != 0);
@@ -268,7 +268,7 @@ TDuration TProfiler::DoTimingCheckpoint(
     }
 }
 
-void TProfiler::Update(TAggregateCounter& counter, TValue value)
+void TProfiler::Update(TAggregateCounter& counter, TValue value) const
 {
     TGuard<TSpinLock> guard(counter.SpinLock);
 
@@ -279,7 +279,7 @@ void TProfiler::Update(TAggregateCounter& counter, TValue value)
     }
 }
 
-TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta)
+TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta) const
 {
     TGuard<TSpinLock> guard(counter.SpinLock);
 
@@ -294,7 +294,7 @@ TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta)
     return result;
 }
 
-void TProfiler::Update(TSimpleCounter& counter, TValue value)
+void TProfiler::Update(TSimpleCounter& counter, TValue value) const
 {
     counter.Current = value;
 
@@ -303,7 +303,7 @@ void TProfiler::Update(TSimpleCounter& counter, TValue value)
     }
 }
 
-TValue TProfiler::Increment(TSimpleCounter& counter, TValue delta)
+TValue TProfiler::Increment(TSimpleCounter& counter, TValue delta) const
 {
     auto result = (counter.Current += delta);
 
@@ -314,12 +314,12 @@ TValue TProfiler::Increment(TSimpleCounter& counter, TValue delta)
     return result;
 }
 
-bool TProfiler::IsCounterEnabled(const TCounterBase& counter)
+bool TProfiler::IsCounterEnabled(const TCounterBase& counter) const
 {
     return Enabled_ && !counter.Path.empty();
 }
 
-void TProfiler::DoUpdate(TAggregateCounter& counter, TValue value)
+void TProfiler::DoUpdate(TAggregateCounter& counter, TValue value) const
 {
     ++counter.SampleCount;
     counter.Current = value;
@@ -358,7 +358,7 @@ void TProfiler::DoUpdate(TAggregateCounter& counter, TValue value)
     }
 }
 
-void TProfiler::OnUpdated(TSimpleCounter& counter)
+void TProfiler::OnUpdated(TSimpleCounter& counter) const
 {
     auto now = GetCpuInstant();
     if (now < counter.Deadline)

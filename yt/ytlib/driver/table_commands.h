@@ -8,6 +8,8 @@
 
 #include <ytlib/new_table_client/unversioned_row.h>
 
+#include <ytlib/new_table_client/config.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -18,12 +20,15 @@ struct TReadTableRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableReader;
+    NVersionedTableClient::TControlAttributesConfigPtr ControlAttributes;
 
     TReadTableRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("table_reader", TableReader)
             .Default(nullptr);
+        RegisterParameter("control_attributes", ControlAttributes)
+            .DefaultNew();
     }
 
     virtual void OnLoaded() override
@@ -86,9 +91,9 @@ struct TTabletRequest
     {
         RegisterParameter("path", Path);
         RegisterParameter("first_tablet_index", FirstTabletIndex)
-            .Default(Null);
+            .Default();
         RegisterParameter("last_tablet_index", LastTabletIndex)
-            .Default(Null);
+            .Default();
     }
 };
 
@@ -162,9 +167,9 @@ struct TReshardTableRequest
     {
         RegisterParameter("path", Path);
         RegisterParameter("first_tablet_index", FirstTabletIndex)
-            .Default(Null);
+            .Default();
         RegisterParameter("last_tablet_index", LastTabletIndex)
-            .Default(Null);
+            .Default();
         RegisterParameter("pivot_keys", PivotKeys);
     }
 };
@@ -186,6 +191,7 @@ struct TSelectRowsRequest
     NVersionedTableClient::TTimestamp Timestamp;
     TNullable<i64> InputRowLimit;
     TNullable<i64> OutputRowLimit;
+    ui64 RangeExpansionLimit;
     bool VerboseLogging;
 
     TSelectRowsRequest()
@@ -197,9 +203,10 @@ struct TSelectRowsRequest
             .Default();
         RegisterParameter("output_row_limit", OutputRowLimit)
             .Default();
+        RegisterParameter("range_expansion_limit", RangeExpansionLimit)
+            .Default(1000);
         RegisterParameter("verbose_logging", VerboseLogging)
-            .Default();
-
+            .Default(false);
     }
 };
 
@@ -256,7 +263,7 @@ struct TLookupRowsRequest
         RegisterParameter("timestamp", Timestamp)
             .Default(NTransactionClient::SyncLastCommittedTimestamp);
         RegisterParameter("column_names", ColumnNames)
-            .Default(Null);
+            .Default();
     }
 };
 

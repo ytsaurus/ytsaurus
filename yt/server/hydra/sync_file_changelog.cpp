@@ -58,32 +58,41 @@ struct TRecordInfo
 //! Tries to read one record from the file.
 //! Returns Null if failed.
 template <class TInput>
-TNullable<TRecordInfo> ReadRecord(TInput& input)
+TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
 {
     if (input.Avail() < sizeof(TChangelogRecordHeader)) {
-        return Null;
+        return TError("Not enough bytes available in data file to read record header: need %v, got %v",
+            sizeof(TChangelogRecordHeader),
+            input.Avail());
     }
 
     int readSize = 0;
     TChangelogRecordHeader header;
     readSize += ReadPodPadded(input, header);
-    if (!input.Success() || header.DataSize <= 0) {
-        return Null;
+    if (!input.Success()) {
+        return TError("Error reading record header");
+    }
+    if (header.DataSize <= 0) {
+        return TError("Broken record header: DataSize <= 0");
     }
 
     struct TSyncChangelogRecordTag { };
-    auto data = TSharedRef::Allocate<TSyncChangelogRecordTag>(header.DataSize, false);
+    auto data = TSharedMutableRef::Allocate<TSyncChangelogRecordTag>(header.DataSize, false);
     if (input.Avail() < header.DataSize) {
-        return Null;
+        return TError("Not enough bytes available in data file to read record data: need %v, got %v",
+            header.DataSize,
+            input.Avail());
     }
     readSize += ReadPadded(input, data);
     if (!input.Success()) {
-        return Null;
+        return TError("Error reading record data");
     }
 
     auto checksum = GetChecksum(data);
-    LOG_FATAL_UNLESS(header.Checksum == checksum,
-        "Incorrect checksum of record %" PRIx64, header.RecordId);
+    if (header.Checksum != checksum) {
+        return TError("Record data checksum mismatch of record %v", header.RecordId);
+    }
+
     return TRecordInfo(header.RecordId, readSize);
 }
 
@@ -127,7 +136,7 @@ size_t ComputeValidIndexPrefix(
     // Truncate the last index entry if the corresponding changelog record is corrupt.
     file->Seek(index[result - 1].FilePosition, sSet);
     TCheckedReader<TFileWrapper> changelogReader(*file);
-    if (!ReadRecord(changelogReader)) {
+    if (!TryReadRecord(changelogReader).IsOK()) {
         --result;
     }
 
@@ -238,9 +247,10 @@ public:
         ValidateSignature(header);
 
         // Read meta.
-        SerializedMeta_ = TSharedRef::Allocate(header.MetaSize);
-        ReadPadded(*DataFile_, SerializedMeta_);
-        YCHECK(DeserializeFromProto(&Meta_, SerializedMeta_));
+        auto serializedMeta = TSharedMutableRef::Allocate(header.MetaSize);
+        ReadPadded(*DataFile_, serializedMeta);
+        DeserializeFromProto(&Meta_, serializedMeta);
+        SerializedMeta_ = serializedMeta;
 
         Open_ = true;
         SealedRecordCount_ = header.SealedRecordCount;
@@ -292,7 +302,7 @@ public:
         YCHECK(!Open_);
 
         Meta_ = meta;
-        YCHECK(SerializeToProto(Meta_, &SerializedMeta_));
+        SerializedMeta_ = SerializeToProto(Meta_);
         RecordCount_ = 0;
         Open_ = true;
 
@@ -393,7 +403,8 @@ public:
         int currentRecordCount = RecordCount_;
         std::vector<int> recordSizes;
         for (int i = 0; i < records.size(); ++i) {
-            auto record = records[i];
+            const auto& record = records[i];
+            YCHECK(!record.Empty());
             int recordId = currentRecordCount + i;
 
             int totalSize = 0;
@@ -407,7 +418,7 @@ public:
         DataFile_->Seek(0, sEnd);
         DataFile_->Write(memoryOutput.Begin(), memoryOutput.Size());
 
-        // Process written records (update index, et c).
+        // Process written records (update index etc).
         for (int i = 0; i < records.size(); ++i) {
             ProcessRecord(currentRecordCount + i, recordSizes[i]);
         }
@@ -421,8 +432,8 @@ public:
 
         LOG_DEBUG("Flushing changelog");
 
-        DataFile_->Flush();
-        IndexFile_->Flush();
+        DataFile_->FlushData();
+        IndexFile_->FlushData();
         LastFlushed_ = TInstant::Now();
 
         LOG_DEBUG("Changelog flushed");
@@ -473,7 +484,9 @@ public:
             YCHECK(header.RecordId == recordId);
 
             // Save and pad data.
-            auto data = envelope.Blob.Slice(TRef(const_cast<char*>(inputStream.Buf()), header.DataSize));
+            i64 startOffset = inputStream.Buf() - envelope.Blob.Begin();
+            i64 endOffset = startOffset + header.DataSize;
+            auto data = envelope.Blob.Slice(startOffset, endOffset);
             inputStream.Skip(AlignUp(header.DataSize));
 
             // Add data to the records.
@@ -534,8 +547,10 @@ public:
             CurrentBlockSize_ = readSize;
             CurrentFilePosition_ = envelope.GetStartPosition() + readSize;
 
-            IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
             UpdateIndexHeader();
+            IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
+            IndexFile_->Flush();
+            IndexFile_->Seek(0, sEnd);
 
             DataFile_->Resize(CurrentFilePosition_);
             DataFile_->Flush();
@@ -589,7 +604,7 @@ private:
 
         TChangelogIndexRecord LowerBound;
         TChangelogIndexRecord UpperBound;
-        TSharedRef Blob;
+        TSharedMutableRef Blob;
     };
 
 
@@ -612,17 +627,20 @@ private:
         IndexFile_->Seek(0, sEnd);
     }
 
-    //! Processes currently read or written record to changelog.
-    /*! Checks correctness of record id, updates the index, record count,
+    //! Processes records that are being or written.
+    /*!
+     *  Checks record id for correctness, updates index, record count,
      *  current block size and current file position.
      */
     void ProcessRecord(int recordId, int readSize)
     {
-        if (CurrentBlockSize_ >= Config_->IndexBlockSize || RecordCount_ == 0) {
-            // Add index record in two cases:
-            // 1) processing first record;
-            // 2) size of records since previous index record is more than IndexBlockSize.
-            YCHECK(Index_.empty() || Index_.back().RecordId != recordId);
+        YCHECK(RecordCount_ == recordId);
+
+        // We add a new index record
+        // 1) for the very first data record; or
+        // 2) if the size of data records added since last index record exceeds IndexBlockSize.
+        if (RecordCount_ == 0 || CurrentBlockSize_ >= Config_->IndexBlockSize) {
+            YCHECK(Index_.empty() || Index_.back().RecordId < recordId);
 
             CurrentBlockSize_ = 0;
             Index_.push_back(TChangelogIndexRecord(recordId, CurrentFilePosition_));
@@ -647,6 +665,7 @@ private:
         DataFile_->Seek(0, sSet);
         TChangelogHeader header(SerializedMeta_.Size(), SealedRecordCount_);
         WritePod(*DataFile_, header);
+        DataFile_->Flush();
         DataFile_->Seek(oldPosition, sSet);
     }
 
@@ -708,7 +727,7 @@ private:
         }
     }
 
-    //! Reads piece of changelog containing both #firstRecordId and #lastRecordId.
+    //! Reads a piece of changelog containing both #firstRecordId and #lastRecordId.
     TEnvelopeData ReadEnvelope(int firstRecordId, int lastRecordId, i64 maxBytes = -1)
     {
         YCHECK(!Index_.empty());
@@ -727,7 +746,7 @@ private:
                 TChangelogIndexRecord(RecordCount_, CurrentFilePosition_);
 
         struct TSyncChangelogEnvelopeTag { };
-        result.Blob = TSharedRef::Allocate<TSyncChangelogEnvelopeTag>(result.GetLength(), false);
+        result.Blob = TSharedMutableRef::Allocate<TSyncChangelogEnvelopeTag>(result.GetLength(), false);
 
         size_t bytesRead = DataFile_->Pread(
             result.Blob.Begin(),
@@ -756,35 +775,55 @@ private:
         DataFile_->Seek(CurrentFilePosition_, sSet);
         TCheckedReader<TFileWrapper> dataReader(*DataFile_);
 
-        TNullable<TRecordInfo> recordInfo;
         if (!Index_.empty()) {
-            // Skip first record.
-            recordInfo = ReadRecord(dataReader);
-            // It should be correct because we have already check index.
-            YASSERT(recordInfo);
+            // Skip the first index record.
+            // It must be correct since we have already checked the index.
+            auto recordInfoOrError = TryReadRecord(dataReader);
+            YCHECK(recordInfoOrError.IsOK());
+            const auto& recordInfo = recordInfoOrError.Value();
             RecordCount_ = Index_.back().RecordId + 1;
-            CurrentFilePosition_ += recordInfo->TotalSize;
+            CurrentFilePosition_ += recordInfo.TotalSize;
         }
 
         while (CurrentFilePosition_ < fileLength) {
-            // Record size also counts size of record header.
-            recordInfo = ReadRecord(dataReader);
-            if (!recordInfo || recordInfo->Id != RecordCount_ || RecordCount_ == SealedRecordCount_) {
-                // Broken changelog case.
-                if (!recordInfo || recordInfo->Id != RecordCount_) {
-                    LOG_ERROR("Broken record found, changelog trimmed (RecordId: %v, Offset: %v)",
-                        RecordCount_,
-                        CurrentFilePosition_);
-                } else {
-                    LOG_ERROR("Excessive records found, sealed changelog trimmed (RecordId: %v, Offset: %v)",
-                        RecordCount_,
-                        CurrentFilePosition_);
+            auto recordInfoOrError = TryReadRecord(dataReader);
+
+            bool trim = false;
+            if (!recordInfoOrError.IsOK()) {
+                LOG_WARNING(recordInfoOrError, "Error reading changelog record (RecordId: %v, Offset: %v)",
+                    RecordCount_,
+                    CurrentFilePosition_);
+                trim = true;
+            } else if (recordInfoOrError.Value().Id != RecordCount_) {
+                THROW_ERROR_EXCEPTION("Mismatched record id found in sealed changelog %v",
+                    FileName_)
+                    << TErrorAttribute("expected_record_id", RecordCount_)
+                    << TErrorAttribute("actual_record_id", recordInfoOrError.Value().Id)
+                    << TErrorAttribute("offset", CurrentFilePosition_);
+            } else if (RecordCount_ == SealedRecordCount_) {
+                LOG_WARNING("Excessive records found in sealed changelog (RecordId: %v, Offset: %v)",
+                    RecordCount_,
+                    CurrentFilePosition_);
+                trim = true;
+            }
+
+            if (trim) {
+                if (Sealed_ && RecordCount_ < SealedRecordCount_) {
+                    THROW_ERROR_EXCEPTION("Broken record found in sealed changelog %v",
+                        FileName_)
+                        << TErrorAttribute("record_id", RecordCount_)
+                        << TErrorAttribute("offset", CurrentFilePosition_);
                 }
                 DataFile_->Resize(CurrentFilePosition_);
+                DataFile_->Flush();
                 DataFile_->Seek(0, sEnd);
+                LOG_WARNING("Changelog trimmed (RecordId: %v, Offset: %v)",
+                    RecordCount_,
+                    CurrentFilePosition_);
                 break;
             }
-            ProcessRecord(recordInfo->Id, recordInfo->TotalSize);
+
+            ProcessRecord(recordInfoOrError.Value().Id, recordInfoOrError.Value().TotalSize);
         }
     }
 

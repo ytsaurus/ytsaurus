@@ -37,7 +37,8 @@ public:
     TChunkWriter(
         TChunkWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
-        IChunkWriterPtr chunkWriter);
+        IChunkWriterPtr chunkWriter,
+        IBlockCachePtr blockCache);
 
     virtual TFuture<void> Open(
         const TTableSchema& schema,
@@ -129,12 +130,17 @@ private:
 TChunkWriter::TChunkWriter(
     TChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IChunkWriterPtr chunkWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
     : Config(config)
     , Options(options)
     , UnderlyingWriter(chunkWriter)
     , OutputNameTable(New<TNameTable>())
-    , EncodingWriter(New<TEncodingWriter>(config, options, chunkWriter))
+    , EncodingWriter(New<TEncodingWriter>(
+        config,
+        options,
+        chunkWriter,
+        blockCache))
     , IsNewKey(false)
     , RowIndex(0)
     , LargestBlockSize(0)
@@ -448,9 +454,14 @@ void TChunkWriter::FlushPreviousBlock()
 ISchemafulWriterPtr CreateSchemafulChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IChunkWriterPtr chunkWriter)
+    IChunkWriterPtr chunkWriter,
+    IBlockCachePtr blockCache)
 {
-    return New<TChunkWriter>(config, options, chunkWriter);
+    return New<TChunkWriter>(
+        config,
+        options,
+        chunkWriter,
+        blockCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

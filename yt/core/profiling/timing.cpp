@@ -123,6 +123,11 @@ TValue DurationToValue(TDuration duration)
     return duration.MicroSeconds();
 }
 
+TDuration ValueToDuration(TValue value)
+{
+    return TDuration::MicroSeconds(value);
+}
+
 TValue CpuDurationToValue(TCpuDuration duration)
 {
     return

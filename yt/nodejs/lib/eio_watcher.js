@@ -7,7 +7,6 @@ var __DBG = require("./debug").that("B", "EIO");
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtEioWatcher(logger, config) {
-    "use strict";
     this.logger = logger;
     this.thread_limit = config.thread_limit;
     this.spare_threads = config.spare_threads;
@@ -18,7 +17,6 @@ function YtEioWatcher(logger, config) {
 }
 
 YtEioWatcher.prototype.tackle = function() {
-    "use strict";
     var info = binding.GetEioInformation();
 
     __DBG("Information: " + JSON.stringify(info));
@@ -31,7 +29,6 @@ YtEioWatcher.prototype.tackle = function() {
 };
 
 YtEioWatcher.prototype.is_choking = function() {
-    "use strict";
     var info = binding.GetEioInformation();
 
     if (this.thread_limit - this.spare_threads <= info.nreqs - info.npending) {

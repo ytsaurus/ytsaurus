@@ -4,7 +4,7 @@
 
 #include <core/misc/fs.h>
 
-#include <core/concurrency/action_queue.h>
+#include <core/actions/public.h>
 
 #include <core/logging/log.h>
 
@@ -29,6 +29,7 @@ public:
         TSlotManagerConfigPtr config,
         const Stroka& path,
         const Stroka& nodeId,
+        IInvokerPtr invoker,
         int slotIndex,
         TNullable<int> userId);
 
@@ -74,8 +75,8 @@ private:
 
     Stroka SandboxPath_;
 
-    NConcurrency::TActionQueuePtr SlotThread_;
-
+    IInvokerPtr Invoker_;
+    
     NCGroup::TNonOwningCGroup ProcessGroup_;
     NCGroup::TNonOwningCGroup NullCGroup_;
 

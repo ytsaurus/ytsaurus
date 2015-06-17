@@ -29,9 +29,9 @@ public:
     virtual TFuture<void> Fetch();
 
 protected:
-    TFetcherConfigPtr Config_;
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-    IInvokerPtr Invoker_;
+    const TFetcherConfigPtr Config_;
+    const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const IInvokerPtr Invoker_;
 
     //! All chunks for which info is to be fetched.
     std::vector<TRefCountedChunkSpecPtr> Chunks_;
@@ -49,7 +49,8 @@ protected:
 
     void OnChunkFailed(
         NNodeTrackerClient::TNodeId nodeId,
-        int chunkIndex);
+        int chunkIndex,
+        const TError& error);
     void OnNodeFailed(
         NNodeTrackerClient::TNodeId nodeId,
         const std::vector<int>& chunkIndexes);

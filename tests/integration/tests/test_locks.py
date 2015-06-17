@@ -570,6 +570,11 @@ class TestLocks(YTEnvSetup):
         with pytest.raises(YtError):
             lock("//tmp", mode="shared", tx=other_tx, attribute_key="a")
 
+    def test_lock_mode_for_child_and_attr_locks(self):
+        tx = start_transaction()
+        with pytest.raises(YtError): lock("//tmp", mode="exclusive", tx=tx, child_key="a")
+        with pytest.raises(YtError): lock("//tmp", mode="exclusive", tx=tx, attribute_key="a")
+
     def test_nested_tx1(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)

@@ -12,7 +12,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedRowMerger::TUnversionedRowMerger(
+TSchemafulRowMerger::TSchemafulRowMerger(
     TChunkedMemoryPool* pool,
     int schemaColumnCount,
     int keyColumnCount,
@@ -20,7 +20,6 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     : Pool_(pool)
     , SchemaColumnCount_(schemaColumnCount)
     , KeyColumnCount_(keyColumnCount)
-    , KeyComparer_(KeyColumnCount_)
 {
     if (columnFilter.All) {
         for (int id = 0; id < SchemaColumnCount_; ++id) {
@@ -48,7 +47,7 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     Cleanup();
 }
 
-void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
+void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
 {
     if (!row)
         return;
@@ -109,7 +108,7 @@ void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
     }
 }
 
-TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
+TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
 {
     if (!Started_) {
         return TUnversionedRow();
@@ -135,14 +134,14 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     return mergedRow;
 }
 
-void TUnversionedRowMerger::Reset()
+void TSchemafulRowMerger::Reset()
 {
     YCHECK(!Started_);
     Pool_->Clear();
     MergedRow_ = TUnversionedRow();
 }
 
-void TUnversionedRowMerger::Cleanup()
+void TSchemafulRowMerger::Cleanup()
 {
     LatestWrite_ = NullTimestamp;
     LatestDelete_ = NullTimestamp;
@@ -162,10 +161,19 @@ TVersionedRowMerger::TVersionedRowMerger(
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
     , MajorTimestamp_(majorTimestamp)
-    , KeyComparer_(KeyColumnCount_)
     , Keys_(KeyColumnCount_)
 {
     Cleanup();
+}
+
+TTimestamp TVersionedRowMerger::GetCurrentTimestamp() const
+{
+    return CurrentTimestamp_;
+}
+
+TTimestamp TVersionedRowMerger::GetMajorTimestamp() const
+{
+    return MajorTimestamp_;
 }
 
 void TVersionedRowMerger::AddPartialRow(TVersionedRow row)

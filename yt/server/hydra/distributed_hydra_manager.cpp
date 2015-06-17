@@ -33,6 +33,8 @@
 
 #include <ytlib/hydra/hydra_service_proxy.h>
 
+#include <server/election/election_manager.h>
+
 #include <atomic>
 
 namespace NYT {
@@ -110,7 +112,7 @@ public:
         TCellManagerPtr cellManager,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
-        TResponseKeeperPtr responseKeeper)
+        const TDistributedHydraManagerOptions& options)
         : TServiceBase(
             controlInvoker,
             NRpc::TServiceId(THydraServiceProxy::GetServiceName(), cellManager->GetCellId()),
@@ -123,11 +125,10 @@ public:
         , AutomatonInvoker_(automatonInvoker)
         , ChangelogStore_(changelogStore)
         , SnapshotStore_(snapshotStore)
-        , ResponseKeeper_(responseKeeper)
-        , Profiler(HydraProfiler)
+        , Options_(options)
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(controlInvoker, ControlThread);
-        VERIFY_INVOKER_THREAD_AFFINITY(automatonInvoker, AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
 
         Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 
@@ -142,6 +143,7 @@ public:
             ControlInvoker_,
             SnapshotStore_,
             ChangelogStore_,
+            Options_,
             Profiler);
 
         ElectionManager_ = New<TElectionManager>(
@@ -150,11 +152,15 @@ public:
             controlInvoker,
             New<TElectionCallbacks>(this));
 
+        GuardedAutomatonInvoker_ = CreateGuardedAutomatonInvoker(AutomatonInvoker_);
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LogMutations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceBuildSnapshot)
+            .SetInvoker(GuardedAutomatonInvoker_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RotateChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithLeader));
@@ -273,18 +279,25 @@ public:
         return ActiveFollower_;
     }
 
-    virtual NElection::TEpochContextPtr GetControlEpochContext() const override
+    virtual TCancelableContextPtr GetControlCancelableContext() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return ControlEpochContext_;
+        return ControlEpochContext_ ? ControlEpochContext_->CancelableContext : nullptr;
     }
 
-    virtual NElection::TEpochContextPtr GetAutomatonEpochContext() const override
+    virtual TCancelableContextPtr GetAutomatonCancelableContext() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return AutomatonEpochContext_;
+        return AutomatonEpochContext_ ? AutomatonEpochContext_->CancelableContext : nullptr;
+    }
+    
+    virtual TPeerId GetAutomatonLeaderId() const override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return AutomatonEpochContext_ ? AutomatonEpochContext_->LeaderId : InvalidPeerId;
     }
 
     virtual bool GetReadOnly() const
@@ -307,7 +320,7 @@ public:
         ReadOnly_ = value;
     }
 
-    virtual TFuture<int> BuildSnapshotDistributed() override
+    virtual TFuture<int> BuildSnapshot() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -317,6 +330,12 @@ public:
             return MakeFuture<int>(TError(
                 NHydra::EErrorCode::InvalidState,
                 "Not an active leader"));
+        }
+
+        if (!epochContext->Checkpointer->CanBuildSnapshot()) {
+            return MakeFuture<int>(TError(
+                NHydra::EErrorCode::InvalidState,
+                "Cannot build a snapshot at the moment"));
         }
 
         return BuildSnapshotAndWatch(epochContext).Apply(
@@ -424,7 +443,7 @@ private:
     const IInvokerPtr AutomatonInvoker_;
     const IChangelogStorePtr ChangelogStore_;
     const ISnapshotStorePtr SnapshotStore_;
-    const TResponseKeeperPtr ResponseKeeper_;
+    const TDistributedHydraManagerOptions Options_;
 
     std::atomic<bool> ReadOnly_ = {false};
     std::atomic<bool> ActiveLeader_ = {false};
@@ -437,11 +456,12 @@ private:
     TElectionManagerPtr ElectionManager_;
 
     TDecoratedAutomatonPtr DecoratedAutomaton_;
+    IInvokerPtr GuardedAutomatonInvoker_;
 
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
 
-    NProfiling::TProfiler Profiler;
+    NProfiling::TProfiler Profiler = HydraProfiler;
 
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
@@ -657,6 +677,28 @@ private:
             .ValueOrThrow();
 
         response->set_checksum(result.Checksum);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, ForceBuildSnapshot)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        bool setReadOnly = request->set_read_only();
+
+        context->SetRequestInfo("SetReadOnly: %v",
+            setReadOnly);
+
+        SetReadOnly(setReadOnly);
+
+        int snapshotId = WaitFor(BuildSnapshot())
+            .ValueOrThrow();
+
+        context->SetResponseInfo("SnapshotId: %v",
+            snapshotId);
+
+        response->set_snapshot_id(snapshotId);
 
         context->Reply();
     }
@@ -1035,7 +1077,7 @@ private:
                 DecoratedAutomaton_,
                 ChangelogStore_,
                 SnapshotStore_,
-                ResponseKeeper_,
+                Options_.ResponseKeeper,
                 epochContext.Get());
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
@@ -1071,8 +1113,8 @@ private:
             LOG_INFO("Leader active");
 
             ActiveLeader_ = true;
-            if (ResponseKeeper_) {
-                ResponseKeeper_->Start();
+            if (Options_.ResponseKeeper) {
+                Options_.ResponseKeeper->Start();
             }
             LeaderActive_.Fire();
 
@@ -1169,8 +1211,8 @@ public:
             VERIFY_THREAD_AFFINITY(ControlThread);
 
             ActiveFollower_ = true;
-            if (ResponseKeeper_) {
-                ResponseKeeper_->Start();
+            if (Options_.ResponseKeeper) {
+                Options_.ResponseKeeper->Start();
             }
 
             SystemLockGuard_.Release();
@@ -1224,7 +1266,7 @@ public:
             DecoratedAutomaton_,
             ChangelogStore_,
             SnapshotStore_,
-            ResponseKeeper_,
+            Options_.ResponseKeeper,
             epochContext.Get(),
             version);
 
@@ -1242,7 +1284,6 @@ public:
         auto epochContext = New<TEpochContext>();
         epochContext->LeaderId = electionEpochContext->LeaderId;
         epochContext->EpochId = electionEpochContext->EpochId;
-        epochContext->StartTime = electionEpochContext->StartTime;
         epochContext->CancelableContext = electionEpochContext->CancelableContext;
         epochContext->EpochControlInvoker = epochContext->CancelableContext->CreateInvoker(CancelableControlInvoker_);
         epochContext->EpochSystemAutomatonInvoker = epochContext->CancelableContext->CreateInvoker(DecoratedAutomaton_->GetSystemInvoker());
@@ -1407,13 +1448,16 @@ IHydraManagerPtr CreateDistributedHydraManager(
     TCellManagerPtr cellManager,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
-    TResponseKeeperPtr responseKeeper)
+    const TDistributedHydraManagerOptions& options)
 {
     YCHECK(config);
     YCHECK(controlInvoker);
     YCHECK(automatonInvoker);
     YCHECK(automaton);
     YCHECK(rpcServer);
+    YCHECK(cellManager);
+    YCHECK(changelogStore);
+    YCHECK(snapshotStore);
 
     return New<TDistributedHydraManager>(
         config,
@@ -1424,7 +1468,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
         cellManager,
         changelogStore,
         snapshotStore,
-        responseKeeper);
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

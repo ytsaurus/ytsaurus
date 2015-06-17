@@ -25,9 +25,12 @@ class TBlobReaderCache::TCachedReader
     , public TFileReader
 {
 public:
-    TCachedReader(const TChunkId& chunkId, const Stroka& fileName)
+    TCachedReader(
+        const TChunkId& chunkId,
+        const Stroka& fileName,
+        bool validateBlockChecksums)
         : TAsyncCacheValueBase<TChunkId, TCachedReader>(chunkId)
-        , TFileReader(fileName)
+        , TFileReader(chunkId, fileName, validateBlockChecksums)
         , ChunkId_(chunkId)
     { }
 
@@ -37,7 +40,7 @@ public:
     }
 
 private:
-    TChunkId ChunkId_;
+    const TChunkId ChunkId_;
 
 };
 
@@ -51,6 +54,7 @@ public:
         : TAsyncSlruCacheBase(
             config->BlobReaderCache,
             NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/block_reader_cache"))
+        , Config_(config)
     { }
 
     TFileReaderPtr GetReader(IChunkPtr chunk)
@@ -58,11 +62,11 @@ public:
         YCHECK(chunk->IsReadLockAcquired());
 
         auto location = chunk->GetLocation();
-        auto& Profiler = location->Profiler();
+        const auto& Profiler = location->GetProfiler();
 
         auto chunkId = chunk->GetId();
-        TInsertCookie cookie(chunkId);
-        if (BeginInsert(&cookie)) {
+        auto cookie = BeginInsert(chunkId);
+        if (cookie.IsActive()) {
             auto fileName = chunk->GetFileName();
             LOG_TRACE("Started opening blob chunk reader (LocationId: %v, ChunkId: %v)",
                 location->GetId(),
@@ -70,7 +74,7 @@ public:
 
             PROFILE_TIMING ("/blob_chunk_reader_open_time") {
                 try {
-                    auto reader = New<TCachedReader>(chunkId, fileName);
+                    auto reader = New<TCachedReader>(chunkId, fileName, Config_->ValidateBlockChecksums);
                     reader->Open();
                     cookie.EndInsert(reader);
                 } catch (const std::exception& ex) {
@@ -99,6 +103,9 @@ public:
     }
 
 private:
+    const TDataNodeConfigPtr Config_;
+
+
     virtual void OnAdded(TCachedReader* reader) override
     {
         LOG_TRACE("Block chunk reader added to cache (ChunkId: %v)",

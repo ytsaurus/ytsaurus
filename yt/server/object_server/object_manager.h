@@ -3,7 +3,6 @@
 #include "public.h"
 #include "type_handler.h"
 #include "schema.h"
-#include "attribute_set.h"
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
@@ -52,7 +51,7 @@ struct IObjectResolver
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Provides high-level management and tracking of objects and their attributes.
+//! Provides high-level management and tracking of objects.
 /*!
  *  \note
  *  Thread affinity: single-threaded
@@ -114,28 +113,15 @@ public:
         TObjectBase* object,
         NTransactionServer::TTransaction* transaction = nullptr);
 
-    //! Creates a new empty attribute set.
-    TAttributeSet* CreateAttributes(const TVersionedObjectId& id);
-
-    //! Creates a new empty attribute set if not exists.
-    TAttributeSet* GetOrCreateAttributes(const TVersionedObjectId& id);
-
-    //! Removes an existing attribute set.
-    void RemoveAttributes(const TVersionedObjectId& id);
-
-    //! Similar to #RemoveAttributes but may also be called for missing keys.
-    //! Returns |true| if #id was found and removed.
-    bool TryRemoveAttributes(const TVersionedObjectId& id);
-
     //! Called when a versioned object is branched.
     void BranchAttributes(
-        const TVersionedObjectId& originatingId,
-        const TVersionedObjectId& branchedId);
+        const TObjectBase* originatingObject,
+        TObjectBase* branchedObject);
 
     //! Called when a versioned object is merged during transaction commit.
     void MergeAttributes(
-        const TVersionedObjectId& originatingId,
-        const TVersionedObjectId& branchedId);
+        TObjectBase* originatingObject,
+        const TObjectBase* branchedObject);
 
     //! Fills the attributes of a given unversioned object.
     void FillCustomAttributes(
@@ -196,11 +182,9 @@ public:
         TSharedRefArray requestMessage,
         TNullable<TDuration> timeout = Null);
 
-    NProfiling::TProfiler& GetProfiler();
+    const NProfiling::TProfiler& GetProfiler();
     NProfiling::TTagId GetTypeTagId(EObjectType type);
     NProfiling::TTagId GetMethodTagId(const Stroka& method);
-
-    DECLARE_ENTITY_MAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
 private:
     friend class TObjectProxyBase;
@@ -247,9 +231,6 @@ private:
     //! Stores schemas (for serialization mostly).
     NHydra::TEntityMap<TObjectId, TSchemaObject> SchemaMap_;
 
-    //! Stores deltas from parent transaction.
-    NHydra::TEntityMap<TVersionedObjectId, TAttributeSet> AttributeMap_;
-
     bool PatchSchemasWithRemovePermissions_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -263,8 +244,10 @@ private:
 
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
+
     // COMPAT(babenko)
     void LoadSchemas(NCellMaster::TLoadContext& context);
+    std::vector<TVersionedObjectId> LegacyAttributeIds_;
 
     virtual void OnRecoveryStarted() override;
     virtual void OnRecoveryComplete() override;

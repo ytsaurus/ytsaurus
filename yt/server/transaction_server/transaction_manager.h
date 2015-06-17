@@ -54,10 +54,6 @@ public:
     //! Finds transaction by id, throws if nothing is found.
     TTransaction* GetTransactionOrThrow(const TTransactionId& id);
 
-    //! Returns the list of all transaction ids on the path up to the root.
-    //! This list includes #transaction itself and |nullptr|.
-    TTransactionPath GetTransactionPath(TTransaction* transaction) const;
-
     //! Registers and references the object with the transaction.
     void StageObject(TTransaction* transaction, NObjectServer::TObjectBase* object);
 

@@ -15,10 +15,8 @@ namespace NHydra {
 struct TRemoteSnapshotParams
     : public TSnapshotParams
 {
-    TRemoteSnapshotParams();
-
-    TPeerId PeerId;
-    int SnapshotId;
+    TPeerId PeerId = InvalidPeerId;
+    int SnapshotId = InvalidSegmentId;
 };
 
 //! Looks for the latest snapshot within the cell up to a given id.

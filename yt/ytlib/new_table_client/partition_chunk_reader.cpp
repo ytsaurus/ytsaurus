@@ -6,6 +6,7 @@
 
 #include "name_table.h"
 #include "schema.h"
+#include "private.h"
 
 #include <ytlib/chunk_client/config.h>
 
@@ -17,12 +18,11 @@ namespace NVersionedTableClient {
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
-using namespace NProto;
+using namespace NRpc;
+using namespace NNodeTrackerClient;
+using namespace NVersionedTableClient::NProto;
 
 using NChunkClient::TReadLimit;
-using NNodeTrackerClient::TNodeDirectoryPtr;
-using NRpc::IChannelPtr;
-using NVersionedTableClient::TChunkReaderConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +30,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TChunkMeta& masterMeta,
     int partitionTag)
@@ -40,14 +40,12 @@ TPartitionChunkReader::TPartitionChunkReader(
         TReadLimit(),
         underlyingReader,
         GetProtoExtension<TMiscExt>(masterMeta.extensions()),
-        uncompressedBlockCache)
+        blockCache)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , ChunkMeta_(masterMeta)
     , PartitionTag_(partitionTag)
-{
-    Logger.AddTag("PartitionChunkReader: %p", this);
-}
+{ }
 
 std::vector<TSequentialReader::TBlockInfo> TPartitionChunkReader::GetBlockSequence()
 {
@@ -127,8 +125,7 @@ TPartitionMultiChunkReader::TPartitionMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     IChannelPtr masterChannel,
-    IBlockCachePtr compressedBlockCache,
-    IBlockCachePtr uncompressedBlockCache,
+    IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec> &chunkSpecs,
     TNameTablePtr nameTable,
@@ -138,11 +135,10 @@ TPartitionMultiChunkReader::TPartitionMultiChunkReader(
           config,
           options,
           masterChannel,
-          compressedBlockCache,
+          blockCache,
           nodeDirectory,
           chunkSpecs,
           throttler)
-    , UncompressedBlockCache_(uncompressedBlockCache)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
 { }
@@ -162,7 +158,7 @@ IChunkReaderBasePtr TPartitionMultiChunkReader::CreateTemplateReader(
         config,
         asyncReader,
         NameTable_,
-        UncompressedBlockCache_,
+        BlockCache_,
         KeyColumns_,
         chunkSpec.chunk_meta(),
         chunkSpec.partition_tag());

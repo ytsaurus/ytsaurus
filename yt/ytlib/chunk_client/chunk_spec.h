@@ -49,7 +49,8 @@ void GetStatistics(
     const NProto::TChunkSpec& chunkSpec,
     i64* dataSize = nullptr,
     i64* rowCount = nullptr,
-    i64* valueCount = nullptr);
+    i64* valueCount = nullptr,
+    i64* compressedDataSize = nullptr);
 
 i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs);
 

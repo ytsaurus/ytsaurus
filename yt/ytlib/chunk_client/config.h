@@ -7,10 +7,13 @@
 #include <core/erasure/public.h>
 
 #include <core/misc/error.h>
+#include <core/misc/config.h>
 
 #include <core/rpc/config.h>
 
 #include <core/ytree/yson_serializable.h>
+
+#include <ytlib/node_tracker_client/public.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -49,10 +52,10 @@ public:
     //! Only makes sense if the reader is equipped with peer descriptor.
     TDuration PeerExpirationTimeout;
 
-    //! If True then fetched blocks are cached by the node.
-    bool EnableCaching;
+    //! If |true| then fetched blocks are cached by the node.
+    bool PopulateCache;
 
-    //! If True then the master may be asked for seeds.
+    //! If |true| then the master may be asked for seeds.
     bool AllowFetchingSeedsFromMaster;
 
     TReplicationReaderConfig()
@@ -78,7 +81,7 @@ public:
             .Default(true);
         RegisterParameter("peer_expiration_timeout", PeerExpirationTimeout)
             .Default(TDuration::Seconds(300));
-        RegisterParameter("enable_caching", EnableCaching)
+        RegisterParameter("populate_cache", PopulateCache)
             .Default(true);
         RegisterParameter("allow_fetching_seeds_from_master", AllowFetchingSeedsFromMaster)
             .Default(true);
@@ -86,6 +89,26 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationReaderConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TRemoteReaderOptions
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    Stroka NetworkName;
+    EReadSessionType SessionType;
+
+    TRemoteReaderOptions()
+    {
+        RegisterParameter("network_name", NetworkName)
+            .Default(NNodeTrackerClient::InterconnectNetworkName);
+        RegisterParameter("session_type", SessionType)
+            .Default(EReadSessionType::User);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemoteReaderOptions)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -147,7 +170,7 @@ public:
     TDuration NodePingPeriod;
 
     //! If |true| then written blocks are cached by the node.
-    bool EnableCaching;
+    bool PopulateCache;
 
     bool SyncOnClose;
 
@@ -171,7 +194,7 @@ public:
             .Default(true);
         RegisterParameter("node_ping_interval", NodePingPeriod)
             .Default(TDuration::Seconds(10));
-        RegisterParameter("enable_caching", EnableCaching)
+        RegisterParameter("populate_cache", PopulateCache)
             .Default(false);
         RegisterParameter("sync_on_close", SyncOnClose)
             .Default(true);
@@ -188,6 +211,26 @@ DEFINE_REFCOUNTED_TYPE(TReplicationWriterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TRemoteWriterOptions
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    Stroka NetworkName;
+    EWriteSessionType SessionType;
+
+    TRemoteWriterOptions()
+    {
+        RegisterParameter("network_name", NetworkName)
+            .Default(NNodeTrackerClient::InterconnectNetworkName);
+        RegisterParameter("session_type", SessionType)
+            .Default(EWriteSessionType::User);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemoteWriterOptions)
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TErasureWriterConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -197,7 +240,7 @@ public:
     TErasureWriterConfig()
     {
         RegisterParameter("erasure_window_size", ErasureWindowSize)
-            .Default((i64)8 * 1024 * 1024)
+            .Default((i64) 8 * 1024 * 1024)
             .GreaterThan(0);
     }
 };
@@ -290,11 +333,11 @@ public:
     {
         RegisterParameter("desired_chunk_size", DesiredChunkSize)
             .GreaterThan(0)
-            .Default(1024 * 1024 * 1024);
+            .Default((i64) 1024 * 1024 * 1024);
         RegisterParameter("max_meta_size", MaxMetaSize)
             .GreaterThan(0)
-            .LessThanOrEqual(64 * 1024 * 1024)
-            .Default(30 * 1024 * 1024);
+            .LessThanOrEqual((i64) 64 * 1024 * 1024)
+            .Default((i64) 30 * 1024 * 1024);
         RegisterParameter("chunks_movable", ChunksMovable)
             .Default(true);
         RegisterParameter("sync_chunk_switch", SyncChunkSwitch)
@@ -308,6 +351,7 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterConfig)
 
 class TMultiChunkWriterOptions
     : public virtual TEncodingWriterOptions
+    , public virtual TRemoteWriterOptions
 {
 public:
     int ReplicationFactor;
@@ -362,7 +406,7 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TMultiChunkReaderOptions
-    : public virtual NYTree::TYsonSerializable
+    : public TRemoteReaderOptions
 {
 public:
     bool KeepInMemory;
@@ -372,7 +416,6 @@ public:
         RegisterParameter("keep_in_memory", KeepInMemory)
             .Default(false);
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderOptions)
@@ -397,6 +440,33 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TFetcherConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TBlockCacheConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TSlruCacheConfigPtr CompressedData;
+    TSlruCacheConfigPtr UncompressedData;
+
+    i64 GetTotalCapacity() const
+    {
+        return
+            CompressedData->Capacity +
+            UncompressedData->Capacity;
+    }
+
+    TBlockCacheConfig()
+    {
+        RegisterParameter("compressed_data", CompressedData)
+            .DefaultNew();
+        RegisterParameter("uncompressed_data", UncompressedData)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBlockCacheConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 

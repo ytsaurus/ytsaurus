@@ -105,11 +105,6 @@ public:
         return TExpiringCache::Get(path);
     }
 
-    bool EraseTableInfo(const TYPath& path)
-    {
-        return TExpiringCache::Erase(path);
-    }
-
     void Clear()
     {
         TExpiringCache::Clear();
@@ -122,7 +117,7 @@ private:
     const TCellDirectoryPtr CellDirectory_;
 
 
-    virtual TFuture <TTableMountInfoPtr> DoGet(const TYPath& path) override
+    virtual TFuture<TTableMountInfoPtr> DoGet(const TYPath& path) override
     {
         LOG_DEBUG("Requesting table mount info (Path: %v)",
             path);
@@ -151,28 +146,27 @@ private:
                 tableInfo->Sorted = rsp->sorted();
                 tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns();
 
-                auto nodeDirectory = New<TNodeDirectory>();
-                nodeDirectory->MergeFrom(rsp->node_directory());
-
                 for (const auto& protoTabletInfo : rsp->tablets()) {
                     auto tabletInfo = New<TTabletInfo>();
+                    tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
                     tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
                     tabletInfo->State = ETabletState(protoTabletInfo.state());
                     tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
 
-                    if (protoTabletInfo.has_cell_config()) {
-                        auto config = ConvertTo<TCellConfigPtr>(TYsonString(protoTabletInfo.cell_config()));
-                        tabletInfo->CellId = config->CellId;
-                        CellDirectory_->RegisterCell(config, protoTabletInfo.cell_config_version());
-                    }
-
-                    for (auto nodeId : protoTabletInfo.replica_node_ids()) {
-                        tabletInfo->Replicas.push_back(TTabletReplica(
-                            nodeId,
-                            nodeDirectory->GetDescriptor(nodeId)));
+                    if (protoTabletInfo.has_cell_id()) {
+                        tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
                     }
 
                     tableInfo->Tablets.push_back(tabletInfo);
+                }
+
+                for (const auto& protoDescriptor : rsp->tablet_cells()) {
+                    auto descriptor = FromProto<TCellDescriptor>(protoDescriptor);
+                    if (CellDirectory_->ReconfigureCell(descriptor)) {
+                        LOG_DEBUG("Hive cell reconfigured (CellId: %v, ConfigVersion: %v)",
+                            descriptor.CellId,
+                            descriptor.ConfigVersion);
+                    }
                 }
 
                 LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v)",
@@ -205,11 +199,6 @@ TTableMountCache::~TTableMountCache()
 TFuture<TTableMountInfoPtr> TTableMountCache::GetTableInfo(const TYPath& path)
 {
     return Impl_->GetTableInfo(path);
-}
-
-bool TTableMountCache::EraseTableInfo(const NYPath::TYPath& path)
-{
-    return Impl_->Erase(path);
 }
 
 void TTableMountCache::Clear()

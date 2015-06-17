@@ -57,7 +57,7 @@ protected:
     class TResourceUsageVisitor;
 
     INodeTypeHandlerPtr TypeHandler;
-    NCellMaster::TBootstrap* Bootstrap;
+    TCypressManagerConfigPtr Config;
     NTransactionServer::TTransaction* Transaction;
     TCypressNodeBase* TrunkNode;
 
@@ -172,7 +172,7 @@ protected:
 
     virtual bool CanHaveChildren() const;
     
-    virtual void SetChild(
+    virtual void SetChildNode(
         NYTree::INodeFactoryPtr factory,
         const NYPath::TYPath& path,
         NYTree::INodePtr value,
@@ -311,7 +311,7 @@ private:
     { \
         return New<T##key##NodeProxy>( \
             this, \
-            Bootstrap, \
+            Bootstrap_, \
             transaction, \
             node); \
     }
@@ -355,13 +355,13 @@ private:
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
     
-    virtual void SetChild(
+    virtual void SetChildNode(
         NYTree::INodeFactoryPtr factory,
         const NYPath::TYPath& path,
         NYTree::INodePtr value,
         bool recursive) override;
     
-    virtual IYPathService::TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
+    virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
 
     void DoRemoveChild(TMapNode* impl, const Stroka& key, TCypressNodeBase* childImpl);
 
@@ -395,13 +395,13 @@ public:
 private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode> TBase;
 
-    virtual void SetChild(
+    virtual void SetChildNode(
         NYTree::INodeFactoryPtr factory,
         const NYPath::TYPath& path,
         NYTree::INodePtr value,
-        bool recursive);
+        bool recursive) override;
 
-    virtual IYPathService::TResolveResult ResolveRecursive(
+    virtual TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         NRpc::IServiceContextPtr context) override;
 
@@ -421,7 +421,7 @@ public:
         NTransactionServer::TTransaction* transaction,
         TLinkNode* trunkNode);
 
-    virtual IYPathService::TResolveResult Resolve(
+    virtual TResolveResult Resolve(
         const NYPath::TYPath& path,
         NRpc::IServiceContextPtr context) override;
 
@@ -461,7 +461,7 @@ public:
 private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TDocumentNode> TBase;
 
-    IYPathService::TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context);
+    virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
 
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
     virtual void GetRecursive(const NYPath::TYPath& path, TReqGet* request, TRspGet* response, TCtxGetPtr context) override;

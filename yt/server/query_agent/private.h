@@ -9,7 +9,7 @@ namespace NQueryAgent {
 ////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger QueryAgentLogger;
-extern NProfiling::TProfiler QueryAgentProfiler;
+extern const NProfiling::TProfiler QueryAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////
 

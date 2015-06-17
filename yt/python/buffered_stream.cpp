@@ -1,4 +1,4 @@
-#include "common.h"
+#include "helpers.h"
 #include "buffered_stream.h"
 
 namespace NYT {
@@ -9,7 +9,7 @@ namespace NPython {
 TBufferedStream::TBufferedStream(size_t bufferSize)
     : Size_(0)
     , AllowedSize_(bufferSize / 2)
-    , Data_(TSharedRef::Allocate(bufferSize, false))
+    , Data_(TSharedMutableRef::Allocate(bufferSize, false))
     , Begin_(Data_.Begin())
     , End_(Data_.Begin())
     , State_(EState::Normal)
@@ -69,16 +69,16 @@ void TBufferedStream::Finish()
     State_ = EState::Finished;
 }
 
-TFuture<void> TBufferedStream::Write(const void* buf, size_t len)
+TFuture<void> TBufferedStream::Write(const TSharedRef& buffer)
 {
     YCHECK(State_ != EState::Full);
 
     {
         TGuard<TMutex> guard(Mutex_);
 
-        if (Data_.End() - End_ < len) {
-            if (Size_ + len > Data_.Size()) {
-                Reallocate(std::max(Size_ + len, Data_.Size() * 2));
+        if (Data_.End() - End_ < buffer.Size()) {
+            if (Size_ + buffer.Size() > Data_.Size()) {
+                Reallocate(std::max(Size_ + buffer.Size(), Data_.Size() * 2));
             } else if (End_ - Begin_ <= Begin_ - Data_.Begin()) {
                 Move(Data_.Begin());
             } else {
@@ -86,10 +86,9 @@ TFuture<void> TBufferedStream::Write(const void* buf, size_t len)
             }
         }
 
-        auto buf_ = reinterpret_cast<const char*>(buf);
-        std::copy(buf_, buf_ + len, End_);
-        End_ = End_ + len;
-        Size_ += len;
+        std::copy(buffer.Begin(), buffer.Begin() + buffer.Size(), End_);
+        End_ = End_ + buffer.Size();
+        Size_ += buffer.Size();
     }
 
     if (Size_ >= AllowedSize_) {
@@ -110,7 +109,7 @@ TFuture<void> TBufferedStream::Write(const void* buf, size_t len)
 
 void TBufferedStream::Reallocate(size_t len)
 {
-    auto newData = TSharedRef::Allocate(len, false);
+    auto newData = TSharedMutableRef::Allocate(len, false);
     Move(newData.Begin());
     std::swap(Data_, newData);
 }
@@ -128,7 +127,7 @@ TSharedRef TBufferedStream::ExtractChunk(size_t size)
 
     size = std::min(size, static_cast<size_t>(End_ - Begin_));
 
-    auto result = Data_.Slice(TRef(Begin_, size));
+    auto result = Data_.Slice(Begin_, Begin_ + size);
     Begin_ += size;
 
     Size_ -= size;
@@ -146,17 +145,13 @@ TBufferedStreamWrap::TBufferedStreamWrap(Py::PythonClassInstance *self, Py::Tupl
     : Py::PythonClass<TBufferedStreamWrap>::PythonClass(self, args, kwargs)
     , Stream_(New<TBufferedStream>(Py::Int(ExtractArgument(args, kwargs, "size")).asLongLong()))
 {
-    if (args.length() > 0 || kwargs.length() > 0) {
-        throw Py::RuntimeError("Incorrect arguments for read command");
-    }
+    ValidateArgumentsEmpty(args, kwargs);
 }
 
 Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto size = Py::Int(ExtractArgument(args, kwargs, "size"));
-    if (args.length() > 0 || kwargs.length() > 0) {
-        throw Py::RuntimeError("Incorrect arguments for read function");
-    }
+    ValidateArgumentsEmpty(args, kwargs);
 
     TSharedRef result;
     {
@@ -169,9 +164,7 @@ Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
 
 Py::Object TBufferedStreamWrap::Empty(Py::Tuple& args, Py::Dict& kwargs)
 {
-    if (args.length() > 0 || kwargs.length() > 0) {
-        throw Py::RuntimeError("Incorrect arguments for empty function");
-    }
+    ValidateArgumentsEmpty(args, kwargs);
     return Py::Boolean(Stream_->Empty());
 }
 

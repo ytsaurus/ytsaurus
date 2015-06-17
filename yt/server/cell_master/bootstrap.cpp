@@ -254,9 +254,9 @@ void TBootstrap::Run()
     Sleep(TDuration::Max());
 }
 
-void TBootstrap::LoadSnapshot(const Stroka& fileName)
+void TBootstrap::DumpSnapshot(const Stroka& fileName)
 {
-    BIND(&TBootstrap::DoLoadSnapshot, this, fileName)
+    BIND(&TBootstrap::DoDumpSnapshot, this, fileName)
         .AsyncVia(HydraFacade_->GetAutomatonInvoker())
         .Run()
         .Get()
@@ -325,8 +325,9 @@ void TBootstrap::DoInitialize()
 
     CellDirectory_ = New<TCellDirectory>(
         Config_->CellDirectory,
-        GetBusChannelFactory());
-    CellDirectory_->RegisterCell(Config_->Master);
+        GetBusChannelFactory(),
+        NNodeTrackerClient::InterconnectNetworkName);
+    CellDirectory_->ReconfigureCell(Config_->Master);
 
     HiveManager_ = New<THiveManager>(
         Config_->HiveManager,
@@ -462,10 +463,10 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
 }
 
-void TBootstrap::DoLoadSnapshot(const Stroka& fileName)
+void TBootstrap::DoDumpSnapshot(const Stroka& fileName)
 {
     auto reader = CreateFileSnapshotReader(fileName, InvalidSegmentId, false);
-    HydraFacade_->LoadSnapshot(reader);
+    HydraFacade_->DumpSnapshot(reader);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

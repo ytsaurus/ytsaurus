@@ -11,7 +11,7 @@
 namespace NYT {
 namespace NTabletServer {
 
-using namespace NElection;
+using namespace NHive;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NCellMaster;
@@ -27,6 +27,12 @@ void TTabletCell::TPeer::Persist(NCellMaster::TPersistenceContext& context)
         TNullable<Stroka> address;
         Persist(context, address);
         YCHECK(!address);
+    } else if (context.IsLoad() && context.LoadContext().GetVersion() < 116) {
+        TNullable<TAddressMap> addresses;
+        Persist(context, addresses);
+        if (addresses) {
+            Descriptor = TNodeDescriptor(*addresses);
+        }
     } else {
         Persist(context, Descriptor);
     }
@@ -127,7 +133,7 @@ void TTabletCell::AttachPeer(TNode* node, TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
     YCHECK(peer.Descriptor);
-    YCHECK(peer.Descriptor->GetDefaultAddress() == node->GetAddress());
+    YCHECK(peer.Descriptor->GetDefaultAddress() == node->GetDefaultAddress());
 
     YCHECK(!peer.Node);
     peer.Node = node;
@@ -192,6 +198,17 @@ ETabletCellHealth TTabletCell::GetHealth() const
     }
 
     return ETabletCellHealth::Failed;
+}
+
+TCellDescriptor TTabletCell::GetDescriptor() const
+{
+    TCellDescriptor descriptor;
+    descriptor.CellId = Id_;
+    descriptor.ConfigVersion = ConfigVersion_;
+    for (const auto& peer : Peers_) {
+        descriptor.Peers.push_back(peer.Descriptor);
+    }
+    return descriptor;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

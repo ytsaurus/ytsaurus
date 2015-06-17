@@ -210,6 +210,8 @@ const T& TErrorOr<T>::Value() const
     return *Value_;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 Stroka ToString(const TErrorOr<T>& valueOrError)
 {

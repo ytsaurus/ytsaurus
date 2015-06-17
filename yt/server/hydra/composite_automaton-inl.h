@@ -46,11 +46,11 @@ T* TLoadContext::GetEntity(TEntitySerializationKey key) const
 
 template <class TRequest, class TResponse>
 void TCompositeAutomatonPart::RegisterMethod(
-    TCallback<TResponse(const TRequest&)> handler)
+    TCallback<TResponse(const TRequest&)> callback)
 {
     RegisterMethod(
         TRequest::default_instance().GetTypeName(),
-        BIND(&TMutationActionTraits<TRequest, TResponse>::Run, handler));
+        BIND(&TMutationActionTraits<TRequest, TResponse>::Run, callback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

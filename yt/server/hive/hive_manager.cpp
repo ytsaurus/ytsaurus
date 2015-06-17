@@ -45,10 +45,12 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NTracing;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto HiveTracingService = Stroka("HiveManager");
-static auto ClientHostAnnotation = Stroka("client_host");
+static const auto HiveTracingService = Stroka("HiveManager");
+static const auto ClientHostAnnotation = Stroka("client_host");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,7 +73,8 @@ public:
             HiveLogger)
         , TCompositeAutomatonPart(
             hydraManager,
-            automaton)
+            automaton,
+            automatonInvoker)
         , SelfCellId_(selfCellId)
         , Config_(config)
         , CellDirectory_(cellDirectory)
@@ -90,11 +93,11 @@ public:
             BIND(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
-            ESerializationPriority::Keys,
+            ESyncSerializationPriority::Keys,
             "HiveManager.Keys",
             BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "HiveManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
     }
@@ -111,8 +114,8 @@ public:
 
     TMailbox* CreateMailbox(const TCellId& cellId)
     {
-        auto* mailbox = new TMailbox(cellId);
-        MailboxMap_.Insert(cellId, mailbox);
+        auto mailboxHolder = std::make_unique<TMailbox>(cellId);
+        auto* mailbox = MailboxMap_.Insert(cellId, std::move(mailboxHolder));
         
         if (IsLeader()) {
             SendPing(mailbox);
@@ -195,8 +198,7 @@ public:
         TEncapsulatedMessage encapsulatedMessage;
         encapsulatedMessage.set_type(message.GetTypeName());
 
-        TSharedRef serializedMessage;
-        YCHECK(SerializeToProtoWithEnvelope(message, &serializedMessage));
+        auto serializedMessage = SerializeToProtoWithEnvelope(message);
         encapsulatedMessage.set_data(ToString(serializedMessage));
 
         PostMessage(mailbox, encapsulatedMessage);
@@ -210,16 +212,16 @@ public:
                     auto* mailbox = pair.second;
                     fluent
                         .Item(ToString(mailbox->GetCellId())).BeginMap()
+                            .Item("outcoming_message_count").Value(mailbox->OutcomingMessages().size())
                             .Item("first_outcoming_message_id").Value(mailbox->GetFirstOutcomingMessageId())
                             .Item("last_incoming_message_id").Value(mailbox->GetLastIncomingMessageId())
-                            .Item("in_flight_message_count").Value(mailbox->GetInFlightMessageCount())
-                            .Item("outcoming_message_count").Value(mailbox->OutcomingMessages().size())
                             .Item("incoming_message_ids").BeginList()
                                 .DoFor(mailbox->IncomingMessages(), [&] (TFluentList fluent, const TMailbox::TIncomingMessageMap::value_type& pair) {
                                     fluent
                                         .Item().Value(pair.first);
                                 })
                             .EndList()
+                            .Item("post_messages_in_flight").Value(mailbox->GetPostMessagesInFlight())
                         .EndMap();
                 })
             .EndMap();
@@ -283,33 +285,40 @@ private:
         if (!mailbox)
             return;
 
-        int lastIncomingMessageId = request.last_incoming_message_id();
-        int trimCount = lastIncomingMessageId - mailbox->GetFirstOutcomingMessageId() + 1;
-        if (trimCount <= 0)
+        mailbox->SetPostMessagesInFlight(false);
+
+        int lastAcknowledgedMessageId = request.last_acknowledged_message_id();
+        int acknowledgeCount = lastAcknowledgedMessageId - mailbox->GetFirstOutcomingMessageId() + 1;
+        if (acknowledgeCount <= 0) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "No messages acknowledged (SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v)",
+                SelfCellId_,
+                mailbox->GetCellId(),
+                mailbox->GetFirstOutcomingMessageId());
             return;
+        }
 
         auto& outcomingMessages = mailbox->OutcomingMessages();
-        if (trimCount > outcomingMessages.size()) {
+        if (acknowledgeCount > outcomingMessages.size()) {
             LOG_ERROR_UNLESS(IsRecovery(), "Requested to acknowledge too many messages "
-                "(SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v, LastIncomingMessageId: %v)",
+                "(SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v, LastAcknowledgedMessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
                 mailbox->GetFirstOutcomingMessageId(),
                 outcomingMessages.size(),
-                lastIncomingMessageId);
+                lastAcknowledgedMessageId);
             return;
         }
 
-        outcomingMessages.erase(outcomingMessages.begin(), outcomingMessages.begin() + trimCount);
+        outcomingMessages.erase(outcomingMessages.begin(), outcomingMessages.begin() + acknowledgeCount);
 
-        mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + trimCount);
+        mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + acknowledgeCount);
         LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
             mailbox->GetFirstOutcomingMessageId());
 
         if (IsLeader()) {
-            mailbox->SetInFlightMessageCount(std::max(0, mailbox->GetInFlightMessageCount() - trimCount));
+            MaybePostOutcomingMessages(mailbox);
         }
     }
 
@@ -338,10 +347,10 @@ private:
 
         if (context) {
             auto* response = &context->Response();
-            int lastIncomingMessageId = mailbox->GetLastIncomingMessageId();
-            response->set_last_incoming_message_id(lastIncomingMessageId);
-            context->SetResponseInfo("LastIncomingMessageId: %v",
-                lastIncomingMessageId);
+            int lastAcknowledgedMessageId = mailbox->GetLastIncomingMessageId();
+            response->set_last_acknowledged_message_id(lastAcknowledgedMessageId);
+            context->SetResponseInfo("LastAcknowledgedMessageId: %v",
+                lastAcknowledgedMessageId);
         }
     }
 
@@ -358,6 +367,8 @@ private:
             return;
 
         mailbox->SetConnected(true);
+        YCHECK(!mailbox->GetPostMessagesInFlight());
+
         LOG_INFO("Mailbox connected (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
@@ -369,7 +380,8 @@ private:
             return;
 
         mailbox->SetConnected(false);
-        mailbox->SetInFlightMessageCount(0);
+        mailbox->SetPostMessagesInFlight(false);
+
         LOG_INFO("Mailbox disconnected (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
@@ -456,29 +468,30 @@ private:
         if (!mailbox->GetConnected())
             return;
 
-        auto channel = FindMailboxChannel(mailbox);
-        if (!channel)
+        if (mailbox->GetPostMessagesInFlight())
             return;
 
-        if (mailbox->OutcomingMessages().size() <= mailbox->GetInFlightMessageCount())
+        if (mailbox->OutcomingMessages().empty())
+            return;
+
+        auto channel = FindMailboxChannel(mailbox);
+        if (!channel)
             return;
 
         THiveServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Config_->RpcTimeout);
 
+        int firstMessageId = mailbox->GetFirstOutcomingMessageId();
+        int messageCount = mailbox->OutcomingMessages().size();
+
         auto req = proxy.PostMessages();
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
-        int firstMessageId = mailbox->GetFirstOutcomingMessageId() + mailbox->GetInFlightMessageCount();
-        int messageCount = mailbox->OutcomingMessages().size() - mailbox->GetInFlightMessageCount();
         req->set_first_message_id(firstMessageId);
-        for (auto it = mailbox->OutcomingMessages().begin() + mailbox->GetInFlightMessageCount();
-             it != mailbox->OutcomingMessages().end();
-             ++it)
-        {
-            *req->add_messages() = *it;
+        for (const auto& message : mailbox->OutcomingMessages()) {
+            *req->add_messages() = message;
         }
 
-        mailbox->SetInFlightMessageCount(mailbox->GetInFlightMessageCount() + messageCount);
+        mailbox->SetPostMessagesInFlight(true);
 
         LOG_DEBUG("Posting outcoming messages (SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v)",
             SelfCellId_,
@@ -506,13 +519,13 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        int lastIncomingMessageId = rsp->last_incoming_message_id();
-        LOG_DEBUG("Outcoming messages posted successfully (SrcCellId: %v, DstCellId: %v, LastIncomingMessageId: %v)",
+        int lastAcknowledgedMessageId = rsp->last_acknowledged_message_id();
+        LOG_DEBUG("Outcoming messages posted successfully (SrcCellId: %v, DstCellId: %v, LastAcknowledgedMessageId: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
-            lastIncomingMessageId);
+            lastAcknowledgedMessageId);
 
-        HandleAcknowledgedMessages(mailbox, lastIncomingMessageId);
+        HandleAcknowledgedMessages(mailbox, lastAcknowledgedMessageId);
     }
 
 
@@ -533,14 +546,14 @@ private:
     }
 
 
-    void HandleAcknowledgedMessages(TMailbox* mailbox, int lastIncomingMessageId)
+    void HandleAcknowledgedMessages(TMailbox* mailbox, int lastAcknowledgedMessageId)
     {
-        if (lastIncomingMessageId < mailbox->GetFirstOutcomingMessageId())
+        if (lastAcknowledgedMessageId < mailbox->GetFirstOutcomingMessageId())
             return;
 
         TReqAcknowledgeMessages req;
         ToProto(req.mutable_cell_id(), mailbox->GetCellId());
-        req.set_last_incoming_message_id(lastIncomingMessageId);
+        req.set_last_acknowledged_message_id(lastAcknowledgedMessageId);
 
         CreateAcknowledgeMessagesMutation(req)
             ->Commit()
@@ -646,19 +659,12 @@ private:
 
     virtual void OnLeaderActive() override
     {
-        for (const auto& pair : MailboxMap_) {
-            auto* mailbox = pair.second;
-            mailbox->SetInFlightMessageCount(0);
-            mailbox->SetConnected(false);
-            SendPing(mailbox);
-        }
-    }
+        TCompositeAutomatonPart::OnLeaderActive();
 
-    virtual void OnStopLeading() override
-    {
         for (const auto& pair : MailboxMap_) {
             auto* mailbox = pair.second;
-            mailbox->SetInFlightMessageCount(0);
+            SetMailboxDisconnected(mailbox);
+            SendPing(mailbox);
         }
     }
 
@@ -676,6 +682,8 @@ private:
     
     virtual void Clear() override
     {
+        TCompositeAutomatonPart::Clear();
+
         MailboxMap_.Clear();
     }
 

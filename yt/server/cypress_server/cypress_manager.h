@@ -122,6 +122,19 @@ public:
         bool includeRoot = true);
 
     bool IsOrphaned(TCypressNodeBase* trunkNode);
+    bool IsAlive(TCypressNodeBase* trunkNode, NTransactionServer::TTransaction* transaction);
+
+    //! Returns the list consisting of the trunk node
+    //! and all of its existing versioned overrides up to #transaction;
+    //! #trunkNode is the last element.
+    TCypressNodeList GetNodeOriginators(
+        NTransactionServer::TTransaction* transaction,
+        TCypressNodeBase* trunkNode);
+
+    //! Same as GetNodeOverrides but #trunkNode is the first element.
+    TCypressNodeList GetNodeReverseOriginators(
+        NTransactionServer::TTransaction* transaction,
+        TCypressNodeBase* trunkNode);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock, TLockId);
@@ -140,7 +153,7 @@ private:
         std::unique_ptr<TCypressNodeBase> Create(const TVersionedNodeId& id) const;
 
     private:
-        TCypressManager* CypressManager;
+        TCypressManager* const CypressManager;
 
     };
 
@@ -152,19 +165,19 @@ private:
     TEnumIndexedVector<INodeTypeHandlerPtr, NObjectClient::EObjectType> TypeToHandler;
 
     TNodeId RootNodeId;
-    TCypressNodeBase* RootNode;
+    TCypressNodeBase* RootNode = nullptr;
 
     TAccessTrackerPtr AccessTracker;
 
-    bool RecomputeKeyColumns;
+    bool RecomputeKeyColumns = false;
+    bool RecomputeTabletOwners = false;
     
     
-    void RegisterNode(TCypressNodeBase* node);
+    TCypressNodeBase* RegisterNode(std::unique_ptr<TCypressNodeBase> nodeHolder);
 
     void DestroyNode(TCypressNodeBase* trunkNode);
 
     // TAutomatonPart overrides.
-    virtual void OnRecoveryStarted() override;
     virtual void OnRecoveryComplete() override;
     virtual void OnStopLeading() override;
     virtual void OnStopFollowing() override;
@@ -192,8 +205,6 @@ private:
         TCypressNodeBase* branchedNode);
     void RemoveBranchedNodes(NTransactionServer::TTransaction* transaction);
     void RemoveBranchedNode(TCypressNodeBase* branchedNode);
-    void PromoteLocks(NTransactionServer::TTransaction* transaction);
-    void PromoteLock(TLock* lock, NTransactionServer::TTransaction* parentTransaction);
 
     TError CheckLock(
         TCypressNodeBase* trunkNode,

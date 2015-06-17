@@ -12,8 +12,6 @@ namespace NYT {
 class TChunkedOutputStream
     : public TOutputStream
 {
-    struct TChunkedOutputStreamTag { };
-
 public:
     TChunkedOutputStream(
         TRefCountedTypeCookie tagCookie,
@@ -28,10 +26,7 @@ public:
         : TChunkedOutputStream(GetRefCountedTypeCookie<TTag>(), initialReserveSize, maxReserveSize)
     { }
 
-    // NB: Default constructor is required for compiling with MSVC.
-    TChunkedOutputStream()
-        : TChunkedOutputStream(TChunkedOutputStreamTag())
-    { }
+    TChunkedOutputStream();
 
     //! Remind user about the tag argument.
     template <typename U> TChunkedOutputStream(i32, U size = 0) = delete;
@@ -53,20 +48,20 @@ public:
     size_t GetCapacity() const;
 
     //! Returns a pointer to a contiguous memory block of a given #size.
-    //! Do not forget to call #Skip after use.
+    //! Do not forget to call #Advance after use.
     char* Preallocate(size_t size);
 
     //! Marks #size bytes (which were previously preallocated) as used.
     void Advance(size_t size);
 
-    //! TOutputStream override.
+    // TODO(babenko): consider moving to private and calling Write
     virtual void DoWrite(const void* buf, size_t len) override;
 
 private:
     size_t MaxReserveSize_;
     size_t CurrentReserveSize_;
 
-    size_t FinishedSize_;
+    size_t FinishedSize_ = 0;
 
     TBlob CurrentChunk_;
     std::vector<TSharedRef> FinishedChunks_;

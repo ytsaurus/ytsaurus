@@ -4,48 +4,53 @@
 #include "callbacks.h"
 #include "plan_fragment.h"
 #include "query_statistics.h"
-#include "key_trie.h"
-
-#include <core/logging/log.h>
+#include "function_registry.h"
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
-    const TConstQueryPtr& query,
-    const std::vector<TKeyRange>& ranges,
-    bool refinePredicates);
+typedef std::function<TConstExpressionPtr(
+    TConstExpressionPtr expr,
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns)> TRefiner;
 
-TDataSources GetPrunedSources(
-    const TConstExpressionPtr& predicate,
+typedef std::vector<std::vector<TRowRange>> TGroupedRanges;
+
+TGroupedRanges GetPrunedRanges(
+    TConstExpressionPtr predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
     const TDataSources& sources,
+    const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
+    const IFunctionRegistryPtr functionRegistry,
+    ui64 rangeExpansionLimit,
     bool verboseLogging);
 
-TDataSources GetPrunedSources(
-    const TConstQueryPtr& query,
+TGroupedRanges GetPrunedRanges(
+    TConstQueryPtr query,
     const TDataSources& sources,
+    const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
+    const IFunctionRegistryPtr functionRegistry,
+    ui64 rangeExpansionLimit,
     bool verboseLogging);
 
-TKeyRange GetRange(const TDataSources& sources);
+TRowRange GetRange(const TDataSources& sources);
 
-std::vector<TKeyRange> GetRanges(const std::vector<TDataSources>& groupedSplits);
+TRowRanges GetRanges(const std::vector<TDataSources>& groupedSplits);
 
 typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResult;
 
 TQueryStatistics CoordinateAndExecute(
-    const TPlanFragmentPtr& fragment,
+    TPlanFragmentPtr fragment,
     ISchemafulWriterPtr writer,
+    const std::vector<TRefiner>& ranges,
     bool isOrdered,
-    const std::vector<TKeyRange>& ranges,
-    std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
-    std::function<TQueryStatistics(const TConstQueryPtr&, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
-    bool refinePredicates = true);
+    std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
+    std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop);
 
 ////////////////////////////////////////////////////////////////////////////////
 

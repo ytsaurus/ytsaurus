@@ -19,22 +19,25 @@ typedef std::function<TCGQueryCallback()> TCGQueryCallbackGenerator;
 typedef std::function<TCGExpressionCallback()> TCGExpressionCallbackGenerator;
 
 TCGQueryCallbackGenerator Profile(
-    const TConstQueryPtr& query,
+    TConstQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    yhash_set<Stroka>* references);
+    yhash_set<Stroka>* references,
+    const IFunctionRegistryPtr functionRegistry);
 
 TCGExpressionCallbackGenerator Profile(
-    const TConstExpressionPtr& expr,
+    TConstExpressionPtr expr,
     const TTableSchema& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    yhash_set<Stroka>* references);
+    yhash_set<Stroka>* references,
+    const IFunctionRegistryPtr functionRegistry);
 
 void Profile(
     const TTableSchema& tableSchema,
     int keySize,
-    llvm::FoldingSetNodeID* id);
+    llvm::FoldingSetNodeID* id,
+    const IFunctionRegistryPtr functionRegistry);
 
 ////////////////////////////////////////////////////////////////////////////////
 

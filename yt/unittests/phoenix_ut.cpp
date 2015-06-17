@@ -189,7 +189,7 @@ TEST(TPhoenixTest, Ref2)
     Deserialize(a2, Serialize(a1));
 
     EXPECT_EQ(a2->GetRefCount(), 1);
-    EXPECT_EQ(a2->X, nullptr);
+    EXPECT_FALSE(a2->X.operator bool());
 }
 
 } // namespace NRef2

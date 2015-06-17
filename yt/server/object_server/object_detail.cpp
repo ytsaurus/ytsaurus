@@ -72,7 +72,8 @@ public:
     // IAttributeDictionary members
     virtual std::vector<Stroka> List() const override
     {
-        const auto* attributes = FindAttributes();
+        const auto* object = Proxy_->Object_;
+        const auto* attributes = object->GetAttributes();
         std::vector<Stroka> keys;
         if (attributes) {
             for (const auto& pair : attributes->Attributes()) {
@@ -86,14 +87,17 @@ public:
 
     virtual TNullable<TYsonString> FindYson(const Stroka& key) const override
     {
-        const auto* attributes = FindAttributes();
+        const auto* object = Proxy_->Object_;
+        const auto* attributes = object->GetAttributes();
         if (!attributes) {
             return Null;
         }
+
         auto it = attributes->Attributes().find(key);
         if (it == attributes->Attributes().end()) {
             return Null;
         }
+
         // Attribute cannot be empty (i.e. deleted) in null transaction.
         YASSERT(it->second);
         return it->second;
@@ -104,7 +108,8 @@ public:
         auto oldValue = FindYson(key);
         Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
 
-        auto* attributes = GetOrCreateAttributes();
+        auto* object = Proxy_->Object_;
+        auto* attributes = object->GetMutableAttributes();
         attributes->Attributes()[key] = value;
     }
 
@@ -113,57 +118,29 @@ public:
         auto oldValue = FindYson(key);
         Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
 
-        auto* attributes = FindAttributes();
+        auto* object = Proxy_->Object_;
+        auto* attributes = object->GetMutableAttributes();
         if (!attributes) {
             return false;
         }
+
         auto it = attributes->Attributes().find(key);
         if (it == attributes->Attributes().end()) {
             return false;
         }
+
         // Attribute cannot be empty (i.e. deleted) in null transaction.
         YASSERT(it->second);
         attributes->Attributes().erase(it);
         if (attributes->Attributes().empty()) {
-            RemoveAttributes();
+            object->ClearAttributes();
         }
+
         return true;
     }
 
 private:
     TObjectProxyBase* const Proxy_;
-
-    mutable bool HasCachedAttributes_ = false;
-    mutable TAttributeSet* CachedAttributes_ = nullptr;
-
-
-    TAttributeSet* FindAttributes() const
-    {
-        if (!HasCachedAttributes_) {
-            auto objectManager = Proxy_->Bootstrap_->GetObjectManager();
-            CachedAttributes_ = objectManager->FindAttributes(TVersionedObjectId(Proxy_->GetId()));
-            HasCachedAttributes_ = true;
-        }
-        return CachedAttributes_;
-    }
-
-    TAttributeSet* GetOrCreateAttributes()
-    {
-        if (!CachedAttributes_) {
-            auto objectManager = Proxy_->Bootstrap_->GetObjectManager();
-            CachedAttributes_ = objectManager->GetOrCreateAttributes(TVersionedObjectId(Proxy_->GetId()));
-            HasCachedAttributes_ = true;
-        }
-        return CachedAttributes_;
-    }
-
-    void RemoveAttributes()
-    {
-        auto objectManager = Proxy_->Bootstrap_->GetObjectManager();
-        objectManager->RemoveAttributes(TVersionedObjectId(Proxy_->GetId()));
-        HasCachedAttributes_ = false;
-        CachedAttributes_ = nullptr;
-    }
 
 };
 
@@ -277,7 +254,7 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
     NProfiling::TTagIdList tagIds;
     tagIds.push_back(objectManager->GetTypeTagId(TypeFromId(objectId.ObjectId)));
     tagIds.push_back(objectManager->GetMethodTagId(context->GetMethod()));
-    auto& Profiler = objectManager->GetProfiler();
+    const auto& Profiler = objectManager->GetProfiler();
     static const auto profilingPath = TYPath("/verb_execute_time");
     PROFILE_TIMING (profilingPath, tagIds) {
         TSupportsAttributes::Invoke(std::move(context));
@@ -622,8 +599,8 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attribu
     attributes->push_back("ref_counter");
     attributes->push_back("weak_ref_counter");
     attributes->push_back(TAttributeInfo("supported_permissions", true, true));
-    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, false));
-    attributes->push_back(TAttributeInfo("acl", hasAcd, true));
+    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, false, false, EPermission::Administer));
+    attributes->push_back(TAttributeInfo("acl", hasAcd, true, false, EPermission::Administer));
     attributes->push_back(TAttributeInfo("owner", hasOwner, false));
     attributes->push_back(TAttributeInfo("effective_acl", true, true));
 }
@@ -713,7 +690,6 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
     if (acd) {
         if (key == "inherit_acl") {
             ValidateNoTransaction();
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
             acd->SetInherit(ConvertTo<bool>(value));
             return true;
@@ -721,7 +697,6 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
 
         if (key == "acl") {
             ValidateNoTransaction();
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
             auto supportedPermissions = securityManager->GetSupportedPermissions(Object_);
             auto valueNode = ConvertToNode(value);

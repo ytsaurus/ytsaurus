@@ -2,6 +2,8 @@
 
 #include <contrib/libs/zstd/lib/zstd_static.h>
 
+#include <core/misc/finally.h>
+
 namespace NYT {
 namespace NCompression {
 
@@ -25,7 +27,10 @@ void ZstdCompress(StreamSource* source, TBlob* output)
         curOutputPos += sizeof(totalInputSize);
     }
 
-    ZSTD_cctx_t context = ZSTD_createCCtx();
+    auto context = ZSTD_createCCtx();
+    TFinallyGuard contextGuard([&] () {
+       ZSTD_freeCCtx(context);
+    });
 
     // Write header.
     {
@@ -93,5 +98,6 @@ void ZstdDecompress(StreamSource* source, TBlob* output)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}} // namespace NYT::NCompression
+} // namespace NYT
+} // namespace NCompression
 

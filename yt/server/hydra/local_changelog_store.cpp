@@ -99,9 +99,10 @@ public:
         const Stroka& threadName,
         TFileChangelogStoreConfigPtr config)
         : TAsyncSlruCacheBase(config->ChangelogReaderCache)
-        , Dispatcher_(New<TFileChangelogDispatcher>(threadName))
         , Config_(config)
-        , Logger(HydraLogger)
+        , Dispatcher_(New<TFileChangelogDispatcher>(
+            Config_,
+            threadName))
     {
         Logger.AddTag("Path: %v", Config_->Path);
     }
@@ -136,10 +137,10 @@ public:
     }
 
 private:
-    TFileChangelogDispatcherPtr Dispatcher_;
-    TFileChangelogStoreConfigPtr Config_;
+    const TFileChangelogStoreConfigPtr Config_;
+    const TFileChangelogDispatcherPtr Dispatcher_;
 
-    NLogging::TLogger Logger;
+    NLogging::TLogger Logger = HydraLogger;
 
 
     Stroka GetChangelogPath(int id)
@@ -152,8 +153,8 @@ private:
 
     IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)
     {
-        TInsertCookie cookie(id);
-        if (!BeginInsert(&cookie)) {
+        auto cookie = BeginInsert(id);
+        if (!cookie.IsActive()) {
             THROW_ERROR_EXCEPTION("Trying to create an already existing changelog %v",
                 id);
         }
@@ -175,8 +176,8 @@ private:
 
     IChangelogPtr DoOpenChangelog(int id)
     {
-        TInsertCookie cookie(id);
-        if (BeginInsert(&cookie)) {
+        auto cookie = BeginInsert(id);
+        if (cookie.IsActive()) {
             auto path = GetChangelogPath(id);
             if (!NFS::Exists(path)) {
                 cookie.Cancel(TError(

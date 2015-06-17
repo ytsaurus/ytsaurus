@@ -21,7 +21,7 @@ namespace NVersionedTableClient {
 ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
-    NChunkClient::IBlockCachePtr uncompressedBlockCache,
+    NChunkClient::IBlockCachePtr blockCache,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const NChunkClient::TReadLimit& startLimit = NChunkClient::TReadLimit(),
     const NChunkClient::TReadLimit& endLimit = NChunkClient::TReadLimit(),

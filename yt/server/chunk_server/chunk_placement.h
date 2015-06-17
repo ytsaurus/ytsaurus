@@ -30,19 +30,22 @@ public:
     void OnNodeRegistered(TNode* node);
     void OnNodeUnregistered(TNode* node);
     void OnNodeUpdated(TNode* node);
+    void OnNodeRemoved(TNode* node);
 
     double GetFillFactor(TNode* node) const;
 
     TNodeList AllocateWriteTargets(
         TChunk* chunk,
-        int replicaCount,
-        const TSortedNodeList* forbiddenNodes,
+        int desiredCount,
+        int minCount,
+        const TNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName,
         NChunkClient::EWriteSessionType sessionType);
 
     TNodeList AllocateWriteTargets(
         TChunk* chunk,
-        int targetCount,
+        int desiredCount,
+        int minCount,
         NChunkClient::EWriteSessionType sessionType);
 
     TNode* GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex);
@@ -54,13 +57,11 @@ public:
         int replicaCount);
 
     TNode* AllocateBalancingTarget(
-        TChunkPtrWithIndex chunkWithIndex,
+        TChunk* chunk,
         double maxFillFactor);
 
 private:
-    class TTargetChecker;
-    using TFactorToNode = ymultimap<double, TNode*>;
-    using TNodeToFactorIt = yhash_map<TNode*, TFactorToNode::iterator>;
+    class TTargetCollector;
 
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -71,20 +72,27 @@ private:
 
     static int GetLoadFactor(TNode* node);
 
-    TNodeList GetWriteTargets(
-        TChunk* chunk,
-        int targetCount,
-        const TSortedNodeList* forbiddenNodes,
-        const TNullable<Stroka>& preferredHostName,
-        NChunkClient::EWriteSessionType sessionType);
+    void InsertToFillFactorMap(TNode* node);
+    void RemoveFromFillFactorMap(TNode* node);
+
+    void InsertToLoadRankList(TNode* node);
+    void RemoveFromLoadRankList(TNode* node);
+    void AdvanceInLoadRankList(TNode* node);
 
     TNodeList GetWriteTargets(
         TChunk* chunk,
-        int targetCount,
-        NChunkClient::EWriteSessionType sessionType);
+        int desiredCount,
+        int minCount,
+        const TNodeList* forbiddenNodes,
+        const TNullable<Stroka>& preferredHostName);
+
+    TNodeList GetWriteTargets(
+        TChunk* chunk,
+        int desiredCount,
+        int minCount);
 
     TNode* GetBalancingTarget(
-        TChunkPtrWithIndex chunkWithIndex,
+        TChunk* chunk,
         double maxFillFactor);
 
     static bool IsFull(TNode* node);
@@ -93,15 +101,18 @@ private:
         TNode* node,
         NObjectClient::EObjectType type);
 
-    static bool IsValidWriteTarget(
+    bool IsValidWriteTarget(
         TNode* node,
-        TChunk* chunk,
-        NChunkClient::EWriteSessionType sessionType);
+        NObjectClient::EObjectType chunkType,
+        TTargetCollector* collector,
+        bool enableRackAwareness);
     
     bool IsValidBalancingTarget(
         TNode* node,
-        TChunkPtrWithIndex chunkWithIndex) const;
-    
+        NObjectClient::EObjectType chunkType,
+        TTargetCollector* collector,
+        bool enableRackAwareness);
+
     bool IsValidRemovalTarget(TNode* node);
 
     void AddSessionHint(

@@ -32,6 +32,10 @@ DECLARE_REFCOUNTED_CLASS(TFileSnapshotWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const i64 ReaderBlockSize = (i64) 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFileSnapshotReader
     : public ISnapshotReader
 {
@@ -61,11 +65,11 @@ public:
             .Run();
     }
 
-    virtual TFuture<size_t> Read(void* buf, size_t len) override
+    virtual TFuture<TSharedRef> Read() override
     {
         return BIND(&TFileSnapshotReader::DoRead, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
-            .Run(buf, len);
+            .Run();
     }
 
     virtual TSnapshotParams GetParams() const override
@@ -129,9 +133,9 @@ private:
                         Header_.CompressedLength);
                 }
 
-                auto serializedMeta = TSharedRef::Allocate(Header_.MetaSize, false);
+                auto serializedMeta = TSharedMutableRef::Allocate(Header_.MetaSize, false);
                 ReadPadded(input, serializedMeta);
-                YCHECK(DeserializeFromProto(&Meta_, serializedMeta));
+                DeserializeFromProto(&Meta_, serializedMeta);
 
                 if (IsRaw_) {
                     File_->Seek(Offset_, sSet);
@@ -211,9 +215,11 @@ private:
         LOG_DEBUG("Local snapshot reader opened");
     }
 
-    size_t DoRead(void* buf, size_t len)
+    TSharedRef DoRead()
     {
-        return FacadeInput_->Load(buf, len);
+        auto block = TSharedMutableRef::Allocate(ReaderBlockSize, false);
+        size_t length = FacadeInput_->Load(block.Begin(), block.Size());
+        return length == 0 ? TSharedRef() : block.Slice(0, length);
     }
 
 };
@@ -251,7 +257,7 @@ public:
         , Meta_(meta)
         , IsRaw_(raw)
     {
-        YCHECK(SerializeToProto(Meta_, &SerializedMeta_));
+        SerializedMeta_ = SerializeToProto(Meta_);
         Logger.AddTag("Path: %v", FileName_);
     }
 
@@ -260,6 +266,7 @@ public:
         // TODO(babenko): consider moving this code into HydraIO queue
         if (!IsClosed_) {
             try {
+                DoFinish();
                 File_->Close();
                 NFS::Remove(FileName_ + TempFileSuffix);
             } catch (const std::exception& ex) {
@@ -276,11 +283,11 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> Write(const void* buf, size_t len) override
+    virtual TFuture<void> Write(const TSharedRef& buffer) override
     {
         return BIND(&TFileSnapshotWriter::DoWrite, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
-            .Run(buf, len);
+            .Run(buffer);
     }
 
     virtual TFuture<void> Close() override
@@ -322,10 +329,10 @@ private:
     NLogging::TLogger Logger = HydraLogger;
 
 
-    void DoWrite(const void* buf, size_t len)
+    void DoWrite(const TSharedRef& buffer)
     {
         YCHECK(IsOpened_ && !IsClosed_);
-        FacadeOutput_->Write(buf, len);
+        FacadeOutput_->Write(buffer.Begin(), buffer.Size());
     }
 
     void DoOpen()
@@ -377,12 +384,8 @@ private:
         LOG_DEBUG("Local snapshot writer opened");
     }
 
-    void DoClose()
+    void DoFinish()
     {
-        YCHECK(IsOpened_ && !IsClosed_);
-
-        LOG_DEBUG("Closing local snapshot writer");
-
         // NB: Some calls might be redundant.
         FacadeOutput_->Finish();
         if (LengthMeasureOutput_) {
@@ -395,6 +398,15 @@ private:
             ChecksumOutput_->Finish();
         }
         FileOutput_->Finish();
+    }
+
+    void DoClose()
+    {
+        YCHECK(IsOpened_ && !IsClosed_);
+
+        LOG_DEBUG("Closing local snapshot writer");
+
+        DoFinish();
 
         Params_.Meta = Meta_;
         if (ChecksumOutput_) {

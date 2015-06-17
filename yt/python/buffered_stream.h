@@ -32,7 +32,7 @@ public:
 
     void Finish();
 
-    virtual TFuture<void> Write(const void* buf, size_t len) override;
+    virtual TFuture<void> Write(const TSharedRef& buffer) override;
 
 private:
     using EState = EBufferedStreamState;
@@ -40,7 +40,7 @@ private:
     size_t Size_;
     size_t AllowedSize_;
 
-    TSharedRef Data_;
+    TSharedMutableRef Data_;
     char* Begin_;
     char* End_;
 
@@ -55,6 +55,8 @@ private:
     void Move(char* dest);
     TSharedRef ExtractChunk(size_t size);
 };
+
+DEFINE_REFCOUNTED_TYPE(TBufferedStream)
 
 ///////////////////////////////////////////////////////////////////////////////
 

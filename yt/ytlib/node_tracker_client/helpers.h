@@ -74,6 +74,7 @@ bool operator == (const TNodeResources& a, const TNodeResources& b);
 bool operator != (const TNodeResources& a, const TNodeResources& b);
 
 bool Dominates(const NProto::TNodeResources& lhs, const TNodeResources& rhs);
+bool DominatesNonnegative(const NProto::TNodeResources& lhs, const TNodeResources& rhs);
 
 TNodeResources Max(const TNodeResources& a, const TNodeResources& b);
 TNodeResources Min(const TNodeResources& a, const TNodeResources& b);

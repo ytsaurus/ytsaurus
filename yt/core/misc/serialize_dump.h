@@ -1,47 +1,62 @@
 #pragma once
 
-#ifdef YT_ENABLE_SERIALIZATION_DUMP
 #include "format.h"
-#endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef YT_ENABLE_SERIALIZATION_DUMP
-
 class TSerializationDumper
 {
 public:
-    void Indent()
+    FORCED_INLINE bool IsEnabled() const
+    {
+        return Enabled_;
+    }
+
+    FORCED_INLINE void SetEnabled(bool value)
+    {
+        Enabled_ = value;
+    }
+
+
+    FORCED_INLINE void Indent()
     {
         ++IndentCount_;
     }
 
-    void Unindent()
+    FORCED_INLINE void Unindent()
     {
         --IndentCount_;
     }
 
-    void Suspend()
+
+    FORCED_INLINE void Suspend()
     {
         ++SuspendCount_;
     }
 
-    void Resume()
+    FORCED_INLINE void Resume()
     {
         --SuspendCount_;
     }
 
-    bool IsSuspended() const
+    FORCED_INLINE bool IsSuspended() const
     {
         return SuspendCount_ > 0;
     }
 
+
+    FORCED_INLINE bool IsActive() const
+    {
+        return IsEnabled() && !IsSuspended();
+    }
+
+
     template <class... TArgs>
     void Write(const char* format, const TArgs&... args)
     {
-        if (IsSuspended())
+        if (!IsActive())
             return;
 
         TStringBuilder builder;
@@ -54,6 +69,7 @@ public:
     }
 
 private:
+    bool Enabled_ = false;
     int IndentCount_ = 0;
     int SuspendCount_ = 0;
 
@@ -128,7 +144,7 @@ private:
 };
 
 #define SERIALIZATION_DUMP_WRITE(context, ...) \
-    if ((context).Dumper().IsSuspended()) \
+    if (!(context).Dumper().IsActive()) \
         { } \
     else \
         (context).Dumper().Write(__VA_ARGS__)
@@ -166,8 +182,15 @@ struct TSerializationDumpPodWriter
     }
 };
 
+// Workaround for Visual C++!
 template <class T>
-struct TSerializationDumpPodWriter<T, decltype(ToString(T()), void())>
+struct TIdentityHelper
+{
+    typedef T TType;
+};
+
+template <class T>
+struct TSerializationDumpPodWriter<T, decltype(ToString(typename TIdentityHelper<T>::TType()), void())>
 {
     template <class C>
     static void Do(C& context, const T& value)
@@ -203,22 +226,6 @@ XX(TInstant)
 XX(TDuration)
 
 #undef XX
-
-#else
-
-template <class T, class = void>
-struct TSerializeDumpWriter
-{
-    template <class C>
-    static void Do(C& /*context*/, const T& /*value*/)
-    { }
-};
-
-#define SERIALIZATION_DUMP_WRITE(...)         (void) 0
-#define SERIALIZATION_DUMP_INDENT(context)
-#define SERIALIZATION_DUMP_SUSPEND(context)
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

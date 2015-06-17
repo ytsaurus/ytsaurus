@@ -12,7 +12,8 @@ namespace NVersionedTableClient {
 ISchemafulWriterPtr CreateSchemafulChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IChunkWriterPtr chunkWriter);
+    NChunkClient::IChunkWriterPtr chunkWriter,
+    NChunkClient::IBlockCachePtr blockCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -11,6 +11,7 @@ const char* GetUnaryOpcodeLexeme(EUnaryOp opcode)
     switch (opcode) {
         case EUnaryOp::Plus:           return "+";
         case EUnaryOp::Minus:          return "-";
+        case EUnaryOp::Not:            return "NOT";
     }
     YUNREACHABLE();
 }
@@ -35,16 +36,48 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
     YUNREACHABLE();
 }
 
-// Reverse binary opcode for compariosn operations.
 EBinaryOp GetReversedBinaryOpcode(EBinaryOp opcode)
 {
     switch (opcode) {
-        case EBinaryOp::Equal:          return EBinaryOp::Equal;
         case EBinaryOp::Less:           return EBinaryOp::Greater;
         case EBinaryOp::LessOrEqual:    return EBinaryOp::GreaterOrEqual;
         case EBinaryOp::Greater:        return EBinaryOp::Less;
         case EBinaryOp::GreaterOrEqual: return EBinaryOp::LessOrEqual;
         default:                        return opcode;
+    }
+}
+
+EBinaryOp GetInversedBinaryOpcode(EBinaryOp opcode)
+{
+    switch (opcode) {
+        case EBinaryOp::Equal:          return EBinaryOp::NotEqual;
+        case EBinaryOp::NotEqual:       return EBinaryOp::Equal;
+        case EBinaryOp::Less:           return EBinaryOp::GreaterOrEqual;
+        case EBinaryOp::LessOrEqual:    return EBinaryOp::Greater;
+        case EBinaryOp::Greater:        return EBinaryOp::LessOrEqual;
+        case EBinaryOp::GreaterOrEqual: return EBinaryOp::Less;
+        default:                        YUNREACHABLE();
+    }
+}
+
+bool IsBinaryOpCompare(EBinaryOp opcode)
+{
+    switch (opcode) {
+        case EBinaryOp::Plus:           return false;
+        case EBinaryOp::Minus:          return false;
+        case EBinaryOp::Multiply:       return false;
+        case EBinaryOp::Divide:         return false;
+        case EBinaryOp::Modulo:         return false;
+        case EBinaryOp::And:            return false;
+        case EBinaryOp::Or:             return false;
+        case EBinaryOp::Equal:          return true;
+        case EBinaryOp::NotEqual:       return true;
+        case EBinaryOp::Less:           return true;
+        case EBinaryOp::LessOrEqual:    return true;
+        case EBinaryOp::Greater:        return true;
+        case EBinaryOp::GreaterOrEqual: return true;
+        default:
+            YUNREACHABLE();
     }
 }
 

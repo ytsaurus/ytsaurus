@@ -8,9 +8,8 @@ import "yt/ytlib/query_client/plan_fragment.proto";
 
 message TReqExecute
 {
-    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
-    required TPlanFragment plan_fragment = 2;
-    optional int32 response_codec = 3;
+    required TPlanFragment plan_fragment = 1;
+    optional int32 response_codec = 2;
 }
 
 message TRspExecute

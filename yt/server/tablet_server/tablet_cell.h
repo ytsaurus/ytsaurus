@@ -7,6 +7,8 @@
 #include <core/misc/small_vector.h>
 #include <core/misc/nullable.h>
 
+#include <ytlib/hive/cell_directory.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
@@ -42,7 +44,7 @@ public:
 
     typedef SmallVector<TPeer, TypicalCellSize> TPeerList;
     DEFINE_BYREF_RW_PROPERTY(TPeerList, Peers);
-    
+
     DEFINE_BYVAL_RW_PROPERTY(int, ConfigVersion);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellConfigPtr, Config);
 
@@ -74,6 +76,8 @@ public:
     int GetOnlinePeerCount() const;
 
     ETabletCellHealth GetHealth() const;
+
+    NHive::TCellDescriptor GetDescriptor() const;
 
 };
 

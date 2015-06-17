@@ -23,6 +23,8 @@
 
 namespace NYT {
 
+using namespace NPipes;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLogging::TLogger Logger("Process");
@@ -138,9 +140,6 @@ TProcess::TProcess(const Stroka& path, bool copyEnv)
 TProcess::~TProcess()
 {
     YCHECK(ProcessId_ == InvalidProcessId || Finished_);
-
-    TryClose(Pipe_.ReadFD);
-    TryClose(Pipe_.WriteFD);
 }
 
 TProcess::TProcess(TProcess&& other)
@@ -197,7 +196,7 @@ void TProcess::AddArguments(std::initializer_list<TStringBuf> args)
 void TProcess::AddCloseFileAction(int fd)
 {
     TSpawnAction action = {
-        std::bind(TryClose, fd),
+        std::bind(TryClose, fd, true),
         Format("Error closing %v file descriptor in the child", fd)
     };
 
@@ -216,6 +215,11 @@ void TProcess::AddDup2FileAction(int oldFD, int newFD)
     SpawnActions_.push_back(action);
 }
 
+Stroka TProcess::GetPath() const
+{
+    return Path_;
+}
+
 void TProcess::Spawn()
 {
 #ifdef _linux_
@@ -226,7 +230,11 @@ void TProcess::Spawn()
     Pipe_ = pipeFactory.Create();
     pipeFactory.Clear();
 
-    LOG_DEBUG("Process arguments: [%v], environment: [%v]", JoinToString(Args_), JoinToString(Env_));
+    LOG_DEBUG("Spawning new process (Path: %v, ErrorPipe: [%v],  Arguments: [%v], Environment: [%v]", 
+        Path_,
+        Pipe_,
+        JoinToString(Args_), 
+        JoinToString(Env_));
 
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
@@ -274,9 +282,7 @@ void TProcess::Spawn()
     // This should not fail ever.
     YCHECK(TrySetSignalMask(&oldSignals, nullptr));
 
-    YCHECK(TryClose(Pipe_.WriteFD));
-    Pipe_.WriteFD = TPipe::InvalidFD;
-
+    Pipe_.CloseWriteFD();
     ThrowOnChildError();
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
@@ -313,7 +319,9 @@ void TProcess::ThrowOnChildError()
 {
 #ifdef _linux_
     int data[2];
-    int res = ::read(Pipe_.ReadFD, &data, sizeof(data));
+    int res = ::read(Pipe_.GetReadFD(), &data, sizeof(data));
+    Pipe_.CloseReadFD();
+
     if (res == 0) {
         // Child successfully spawned or was killed by a signal.
         // But there is no way to ditinguish between two situations:
@@ -426,6 +434,17 @@ void TProcess::Kill(int signal)
 #endif
 }
 
+void TProcess::KillAndWait() noexcept
+{
+    try {
+        Kill(9);
+    } catch (...) { 
+    }
+    if (!Finished()) {
+        Wait();
+    }
+}
+
 int TProcess::GetProcessId() const
 {
     return ProcessId_;
@@ -441,6 +460,32 @@ bool TProcess::Finished() const
     return Finished_;
 }
 
+Stroka TProcess::GetCommandLine() const
+{
+    TStringBuilder builder;
+    builder.AppendString(Path_);
+
+    bool first = true;
+    for (auto arg : Args_) {
+        if (first) {
+            first = false;
+        } else {
+            if (arg) {
+                builder.AppendChar(' ');
+                bool needQuote = (TStringBuf(arg).find(' ') != Stroka::npos);
+                if (needQuote) {
+                    builder.AppendChar('"');
+                }
+                builder.AppendString(arg);
+                if (needQuote) {
+                    builder.AppendChar('"');
+                }
+            }
+        }
+    }
+    return builder.Flush();
+}
+
 char* TProcess::Capture(TStringBuf arg)
 {
     StringHolder_.push_back(Stroka(arg));
@@ -450,8 +495,6 @@ char* TProcess::Capture(TStringBuf arg)
 void TProcess::Child()
 {
 #ifdef _linux_
-    YCHECK(Pipe_.WriteFD != TPipe::InvalidFD);
-
     for (int actionIndex = 0; actionIndex < SpawnActions_.size(); ++actionIndex) {
         auto& action = SpawnActions_[actionIndex];
         if (!action.Callback()) {
@@ -462,7 +505,7 @@ void TProcess::Child()
             };
 
             // According to pipe(7) write of small buffer is atomic.
-            YCHECK(::write(Pipe_.WriteFD, &data, sizeof(data)) == sizeof(data));
+            YCHECK(::write(Pipe_.GetWriteFD(), &data, sizeof(data)) == sizeof(data));
             _exit(1);
         }
     }

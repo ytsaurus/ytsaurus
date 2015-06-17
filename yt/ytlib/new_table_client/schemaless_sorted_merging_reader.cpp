@@ -47,9 +47,15 @@ public:
 
     virtual TNameTablePtr GetNameTable() const override;
 
+    virtual TKeyColumns GetKeyColumns() const override;
+
     virtual i64 GetTotalRowCount() const override;
 
     virtual i64 GetSessionRowIndex() const override;
+
+    virtual i64 GetTableRowIndex() const override;
+
+    virtual i32 GetRangeIndex() const override;
 
 private:
     struct TSession
@@ -70,7 +76,7 @@ private:
     i64 RowIndex_ = 0;
 
     TFuture<void> ReadyEvent_;
-    int TableIndex_;
+    int TableIndex_ = 0;
 
     void DoOpen();
 
@@ -99,7 +105,6 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         bool enableTableIndex)
     : Logger(TableClientLogger)
     , EnableTableIndex_(enableTableIndex)
-    , TableIndex_(0)
 {
     YCHECK(!readers.empty());
     int rowsPerSession = RowBufferSize / readers.size();
@@ -122,9 +127,8 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
 
 TFuture<void> TSchemalessSortedMergingReader::Open()
 {
-    LOG_INFO(
-        "Opening schemaless sorted merging reader (SessionCount: %d)",
-        static_cast<int>(SessionHolder_.size()));
+    LOG_INFO("Opening schemaless sorted merging reader (SessionCount: %v)",
+        SessionHolder_.size());
 
     ReadyEvent_ =  BIND(&TSchemalessSortedMergingReader::DoOpen, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
@@ -135,21 +139,28 @@ TFuture<void> TSchemalessSortedMergingReader::Open()
 
 void TSchemalessSortedMergingReader::DoOpen()
 {
-    std::vector<TFuture<void>> openErrors;
-    for (auto& session : SessionHolder_) {
-        openErrors.push_back(session.Reader->Open());
-    }
-
-    for (auto& asyncError : openErrors) {
-        auto error = WaitFor(asyncError);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to open schemaless merging reader");
-    }
-
-    for (auto& session : SessionHolder_) {
-        if (session.Reader->Read(&session.Rows)) {
-            YCHECK(!session.Rows.empty());
-            SessionHeap_.push_back(&session);
+    try {
+        std::vector<TFuture<void>> openErrors;
+        for (auto& session : SessionHolder_) {
+            openErrors.push_back(session.Reader->Open());
         }
+
+        WaitFor(Combine(openErrors))
+            .ThrowOnError();
+
+        for (auto& session : SessionHolder_) {
+            while (session.Reader->Read(&session.Rows)) {
+                if (!session.Rows.empty()) {
+                    SessionHeap_.push_back(&session);
+                    break;
+                }
+
+                WaitFor(session.Reader->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to open schemaless merging reader") << ex;
     }
 
     if (!SessionHeap_.empty()) {
@@ -250,6 +261,11 @@ TNameTablePtr TSchemalessSortedMergingReader::GetNameTable() const
     return SessionHolder_.front().Reader->GetNameTable();
 }
 
+TKeyColumns TSchemalessSortedMergingReader::GetKeyColumns() const
+{
+    return SessionHolder_.front().Reader->GetKeyColumns();
+}
+
 i64 TSchemalessSortedMergingReader::GetTotalRowCount() const
 {
     return RowCount_;
@@ -258,6 +274,16 @@ i64 TSchemalessSortedMergingReader::GetTotalRowCount() const
 i64 TSchemalessSortedMergingReader::GetSessionRowIndex() const
 {
     return RowIndex_;
+}
+
+i64 TSchemalessSortedMergingReader::GetTableRowIndex() const
+{
+    YUNREACHABLE();
+}
+
+i32 TSchemalessSortedMergingReader::GetRangeIndex() const
+{
+    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

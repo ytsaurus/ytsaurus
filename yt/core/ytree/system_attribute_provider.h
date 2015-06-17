@@ -1,10 +1,12 @@
 #pragma once
 
 #include "public.h"
+#include "permission.h"
 
 #include <core/yson/consumer.h>
 
 #include <core/misc/error.h>
+#include <core/misc/nullable.h>
 
 #include <core/actions/future.h>
 
@@ -25,16 +27,19 @@ struct ISystemAttributeProvider
         bool IsPresent;
         bool IsOpaque;
         bool IsCustom;
+        NYTree::EPermissionSet WritePermission;
 
         TAttributeInfo(
             const char* key,
             bool isPresent = true,
             bool isOpaque = false,
-            bool isCustom = false)
+            bool isCustom = false,
+            EPermission writePermission = EPermission::Write)
             : Key(key)
             , IsPresent(isPresent)
             , IsOpaque(isOpaque)
             , IsCustom(isCustom)
+            , WritePermission(writePermission)
         { }
     };
 
@@ -69,9 +74,9 @@ struct ISystemAttributeProvider
 
     // Extension methods.
 
-    //! Returns an instance of TAttributeInfo matching a given #key or |nullptr| if no such
+    //! Returns an instance of TAttributeInfo matching a given #key or |Null| if no such
     //! builtin attribute is known.
-    TAttributeInfo* FindBuiltinAttributeInfo(const Stroka& key);
+    TNullable<TAttributeInfo> FindBuiltinAttributeInfo(const Stroka& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -141,6 +141,18 @@ void Serialize(const yhash_map<Stroka, T>& items, NYson::IYsonConsumer* consumer
     consumer->OnEndMap();
 }
 
+// yhash_map
+template <class T>
+void Serialize(const yhash_map<int, T>& items, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnBeginMap();
+    for (auto it : GetSortedIterators(items)) {
+        consumer->OnKeyedItem(ToString(it->first));
+        Serialize(it->second, consumer);
+    }
+    consumer->OnEndMap();
+}
+
 // map
 template <class T>
 void Serialize(const std::map<Stroka, T>& items, NYson::IYsonConsumer* consumer)
@@ -152,6 +164,20 @@ void Serialize(const std::map<Stroka, T>& items, NYson::IYsonConsumer* consumer)
         Serialize(pair->second, consumer);
     }
     consumer->OnEndMap();
+}
+
+template<class T>
+void Serialize(const TErrorOr<T>& error, NYson::IYsonConsumer* consumer)
+{
+    const TError& justError = error;
+    if (error.IsOK()) {
+        std::function<void(NYson::IYsonConsumer*)> valueProducer = [&error] (NYson::IYsonConsumer* consumer) {
+            Serialize(error.Value(), consumer);
+        };
+        Serialize(justError, consumer, &valueProducer);
+    } else {
+        Serialize(justError, consumer);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -258,6 +284,19 @@ void Deserialize(yhash_map<Stroka, T>& value, INodePtr node)
     }
 }
 
+// yhash_map
+template <class T>
+void Deserialize(yhash_map<int, T>& value, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    for (const auto& pair : mapNode->GetChildren()) {
+        int key = FromString<int>(pair.first);
+        T item;
+        Deserialize(item, pair.second);
+        value.insert(std::make_pair(key, std::move(item)));
+    }
+}
+
 // std::map
 template <class T>
 void Deserialize(std::map<Stroka, T>& value, INodePtr node)
@@ -271,6 +310,19 @@ void Deserialize(std::map<Stroka, T>& value, INodePtr node)
     }
 }
 
+template<class T>
+void Deserialize(TErrorOr<T>& error, NYTree::INodePtr node)
+{
+    TError& justError = error;
+    Deserialize(justError, node);
+    if (error.IsOK()) {
+        auto mapNode = node->AsMap();
+        auto valueNode = mapNode->FindChild("value");
+        if (valueNode) {
+            Deserialize(error.Value(), std::move(valueNode));
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

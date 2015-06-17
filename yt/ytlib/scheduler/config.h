@@ -27,29 +27,41 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Ratio of MaxWeight and MinWeight shouldn't lose precision.
+const double MinSchedulableWeight = sqrt(std::numeric_limits<double>::epsilon());
+const double MaxSchedulableWeight = 1.0 / MinSchedulableWeight;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobIOConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    NVersionedTableClient::TTableReaderConfigPtr NewTableReader;
-    NVersionedTableClient::TTableWriterConfigPtr NewTableWriter;
+    NVersionedTableClient::TTableReaderConfigPtr TableReader;
+    NVersionedTableClient::TTableWriterConfigPtr TableWriter;
+
+    NVersionedTableClient::TControlAttributesConfigPtr ControlAttributes;
 
     NApi::TFileWriterConfigPtr ErrorFileWriter;
 
-    bool EnableInputTableIndex;
+    i64 BufferRowCount;
 
     TJobIOConfig()
     {
-        RegisterParameter("table_reader", NewTableReader)
+        RegisterParameter("table_reader", TableReader)
             .DefaultNew();
-        RegisterParameter("table_writer", NewTableWriter)
+        RegisterParameter("table_writer", TableWriter)
+            .DefaultNew();
+
+        RegisterParameter("control_attributes", ControlAttributes)
             .DefaultNew();
 
         RegisterParameter("error_file_writer", ErrorFileWriter)
             .DefaultNew();
 
-        RegisterParameter("enable_input_table_index", EnableInputTableIndex)
-            .Default(false);
+        RegisterParameter("buffer_row_count", BufferRowCount)
+            .Default((i64) 10000)
+            .GreaterThan(0);
 
         RegisterInitializer([&] () {
             ErrorFileWriter->UploadReplicationFactor = 1;
@@ -91,6 +103,9 @@ public:
 
     TNullable<Stroka> SchedulingTag;
 
+    //! Limit on operation execution time.
+    TNullable<TDuration> TimeLimit;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -121,9 +136,9 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
-            .Default(Null);
+            .Default();
         RegisterParameter("max_stderr_count", MaxStderrCount)
-            .Default(Null);
+            .Default();
 
         RegisterParameter("enable_job_proxy_memory_control", EnableJobProxyMemoryControl)
             .Default(true);
@@ -132,12 +147,15 @@ public:
             .Default(true);
 
         RegisterParameter("title", Title)
-            .Default(Null);
+            .Default();
 
         RegisterParameter("scheduling_tag", SchedulingTag)
-            .Default(Null);
+            .Default();
 
         SetKeepOptions(true);
+
+        RegisterParameter("time_limit", TimeLimit)
+            .Default();
 
         RegisterValidator([&] () {
             if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -173,10 +191,12 @@ public:
     double MemoryReserveFactor;
 
     bool UseYamrDescriptors;
-    bool CheckInputStreamFullyConsumed;
+    bool CheckInputFullyConsumed;
     bool EnableCoreDump;
 
     i64 MaxStderrSize;
+
+    i64 CustomStatisticsCountLimit;
 
     TUserJobSpec()
     {
@@ -204,7 +224,7 @@ public:
             .LessThanOrEqual(1.);
         RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
-        RegisterParameter("check_input_fully_consumed", CheckInputStreamFullyConsumed)
+        RegisterParameter("check_input_fully_consumed", CheckInputFullyConsumed)
             .Default(false);
         RegisterParameter("enable_core_dump", EnableCoreDump)
             .Default(false);
@@ -212,6 +232,10 @@ public:
             .Default((i64)5 * 1024 * 1024) // 5MB
             .GreaterThan(0)
             .LessThanOrEqual((i64)1024 * 1024 * 1024);
+        RegisterParameter("custom_statistics_count_limit", CustomStatisticsCountLimit)
+            .Default(128)
+            .GreaterThan(0)
+            .LessThanOrEqual(1024);
     }
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig)
@@ -220,7 +244,7 @@ public:
             EnableInputTableIndex = (inputTableCount != 1);
         }
 
-        jobIOConfig->EnableInputTableIndex = *EnableInputTableIndex;
+        jobIOConfig->ControlAttributes->EnableTableIndex = *EnableInputTableIndex;
     }
 };
 
@@ -258,7 +282,7 @@ public:
             .DefaultNew();
 
         RegisterInitializer([&] () {
-            JobIO->NewTableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
+            JobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
         });
     }
 
@@ -546,10 +570,10 @@ public:
             .Default(TDuration::Minutes(1));
 
         RegisterInitializer([&] () {
-            PartitionJobIO->NewTableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
-            PartitionJobIO->NewTableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+            PartitionJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+            PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
-            SortJobIO->NewTableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+            SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
 
             MapSelectivityFactor = 1.0;
         });
@@ -625,10 +649,10 @@ public:
         //   MapSelectivityFactor
 
         RegisterInitializer([&] () {
-            MapJobIO->NewTableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
-            MapJobIO->NewTableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
+            MapJobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
+            MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
 
-            SortJobIO->NewTableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+            SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
         });
     }
 
@@ -679,7 +703,7 @@ public:
         RegisterParameter("job_io", JobIO)
             .DefaultNew();
         RegisterParameter("network_name", NetworkName)
-            .Default(Null);
+            .Default();
         RegisterParameter("max_chunk_count_per_job", MaxChunkCountPerJob)
             .Default(100);
     }
@@ -711,13 +735,13 @@ public:
     TResourceLimitsConfig()
     {
         RegisterParameter("user_slots", UserSlots)
-            .Default(Null)
+            .Default()
             .GreaterThanOrEqual(0);
         RegisterParameter("cpu", Cpu)
-            .Default(Null)
+            .Default()
             .GreaterThanOrEqual(0);
         RegisterParameter("memory", Memory)
-            .Default(Null)
+            .Default()
             .GreaterThanOrEqual(0);
     }
 
@@ -737,76 +761,38 @@ public:
     }
 };
 
-class TPoolConfig
+class TSchedulableConfig
     : public NYTree::TYsonSerializable
 {
 public:
     double Weight;
     double MinShareRatio;
     double MaxShareRatio;
-
-    ESchedulingMode Mode;
 
     TResourceLimitsConfigPtr ResourceLimits;
 
     TNullable<Stroka> SchedulingTag;
 
-    TPoolConfig()
-    {
-        RegisterParameter("weight", Weight)
-            .Default(1.0)
-            .GreaterThanOrEqual(0.0);
-        RegisterParameter("min_share_ratio", MinShareRatio)
-            .Default(0.0)
-            .InRange(0.0, 1.0);
-        RegisterParameter("max_share_ratio", MaxShareRatio)
-            .Default(1.0)
-            .InRange(0.0, 1.0);
-
-        RegisterParameter("mode", Mode)
-            .Default(ESchedulingMode::FairShare);
-
-        RegisterParameter("resource_limits", ResourceLimits)
-            .DefaultNew();
-
-        RegisterParameter("scheduling_tag", SchedulingTag)
-            .Default(Null);
-    }
-};
-
-////////////////////////////////////////////////////////////////////
-
-class TStrategyOperationSpec
-    : public NYTree::TYsonSerializable
-{
-public:
-    TNullable<Stroka> Pool;
-    TNullable<Stroka> SchedulingTag;
-    double Weight;
-    double MinShareRatio;
-    double MaxShareRatio;
-
-    // The following settings override schedule configuration.
+    // The following settings override scheduler configuration.
     TNullable<TDuration> MinSharePreemptionTimeout;
     TNullable<TDuration> FairSharePreemptionTimeout;
     TNullable<double> FairShareStarvationTolerance;
 
-    TResourceLimitsConfigPtr ResourceLimits;
-
-    TStrategyOperationSpec()
+    TSchedulableConfig()
     {
-        RegisterParameter("pool", Pool)
-            .Default()
-            .NonEmpty();
         RegisterParameter("weight", Weight)
             .Default(1.0)
-            .GreaterThanOrEqual(0.0);
+            .InRange(MinSchedulableWeight, MaxSchedulableWeight);
+
         RegisterParameter("min_share_ratio", MinShareRatio)
             .Default(0.0)
             .InRange(0.0, 1.0);
         RegisterParameter("max_share_ratio", MaxShareRatio)
             .Default(1.0)
             .InRange(0.0, 1.0);
+
+        RegisterParameter("resource_limits", ResourceLimits)
+            .DefaultNew();
 
         RegisterParameter("scheduling_tag", SchedulingTag)
             .Default();
@@ -818,9 +804,40 @@ public:
         RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
             .InRange(0.0, 1.0)
             .Default();
+    }
+};
 
-        RegisterParameter("resource_limits", ResourceLimits)
-            .DefaultNew();
+class TPoolConfig
+    : public TSchedulableConfig
+{
+public:
+    ESchedulingMode Mode;
+
+    TNullable<int> MaxRunningOperations;
+
+    TPoolConfig()
+    {
+        RegisterParameter("mode", Mode)
+            .Default(ESchedulingMode::FairShare);
+
+        RegisterParameter("max_running_operations", MaxRunningOperations)
+            .Default();
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TStrategyOperationSpec
+    : public TSchedulableConfig
+{
+public:
+    TNullable<Stroka> Pool;
+
+    TStrategyOperationSpec()
+    {
+        RegisterParameter("pool", Pool)
+            .Default()
+            .NonEmpty();
     }
 };
 
@@ -836,7 +853,7 @@ public:
     {
         RegisterParameter("weight", Weight)
             .Default(1.0)
-            .GreaterThanOrEqual(0.0);
+            .InRange(MinSchedulableWeight, MaxSchedulableWeight);
     }
 };
 

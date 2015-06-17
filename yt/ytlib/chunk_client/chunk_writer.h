@@ -49,6 +49,8 @@ struct IChunkWriter
      */
     virtual TChunkReplicaList GetWrittenChunkReplicas() const = 0;
 
+    //! Returns the id of the chunk being written.
+    virtual TChunkId GetChunkId() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkWriter)

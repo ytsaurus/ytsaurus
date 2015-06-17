@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/nullable.h>
+
 #include <core/rpc/public.h>
 
 #include <ytlib/hydra/public.h>
@@ -9,8 +11,38 @@
 
 #include <ytlib/election/public.h>
 
+#include <yt/ytlib/hive/cell_directory.pb.h>
+
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+
 namespace NYT {
 namespace NHive {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCellInfo
+{
+    TCellId CellId;
+    int ConfigVersion = -1;
+};
+
+void ToProto(NProto::TCellInfo* protoInfo, const TCellInfo& info);
+void FromProto(TCellInfo* info, const NProto::TCellInfo& protoInfo);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCellDescriptor
+{
+    TCellId CellId;
+    int ConfigVersion = -1;
+    std::vector<TNullable<NNodeTrackerClient::TNodeDescriptor>> Peers;
+
+    NElection::TCellConfigPtr ToConfig(const Stroka& networkName) const;
+    TCellInfo ToInfo() const;
+};
+
+void ToProto(NProto::TCellDescriptor* protoDescriptor, const TCellDescriptor& descriptor);
+void FromProto(TCellDescriptor* descriptor, const NProto::TCellDescriptor& protoDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +58,8 @@ class TCellDirectory
 public:
     TCellDirectory(
         TCellDirectoryConfigPtr config,
-        NRpc::IChannelFactoryPtr channelFactory);
+        NRpc::IChannelFactoryPtr channelFactory,
+        const Stroka& networkName);
     ~TCellDirectory();
 
 
@@ -41,30 +74,27 @@ public:
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
 
-    //! Returns the registered cell by its id (or |nullptr| if none is known).
-    NElection::TCellConfigPtr FindCellConfig(const TCellId& cellId);
+    //! Returns the list of peer addresses for a given cell id (|Null| if the cell is not known).
+    TNullable<std::vector<Stroka>> FindAddresses(const TCellId& cellId);
 
-    //! Returns the registered cell by its id (throws if none is known).
-    NElection::TCellConfigPtr GetCellConfigOrThrow(const TCellId& cellId);
+    //! Similar to #FindAddresses but throws an exception if the cell is not known.
+    std::vector<Stroka> GetAddressesOrThrow(const TCellId& cellId);
 
-
-    struct TCellDescriptor
-    {
-        int Version = -1;
-        NElection::TCellConfigPtr Config;
-    };
 
     //! Returns the list of all registered cells, their versions, and configurations.
-    std::vector<TCellDescriptor> GetRegisteredCells();
+    std::vector<TCellInfo> GetRegisteredCells();
 
 
     //! Registers a new cell or updates the configuration of an existing cell
     //! (if new configuration has a higher version).
     //! Returns |true| if the cell was registered (or an update took place).
-    bool RegisterCell(NElection::TCellConfigPtr config, int version = 0);
+    bool ReconfigureCell(NElection::TCellConfigPtr config, int configVersion = 0);
 
     //! Similar to the above but accepts discovery configuration.
-    bool RegisterCell(NHydra::TPeerConnectionConfigPtr config, int version = 0);
+    bool ReconfigureCell(NHydra::TPeerConnectionConfigPtr config, int configVersion = 0);
+
+    //! Checks versions and updates cell configuration, if needed.
+    bool ReconfigureCell(const TCellDescriptor& descriptor);
 
     //! Unregisters the cell. Returns |true| if the cell was found.
     bool UnregisterCell(const TCellId& cellId);

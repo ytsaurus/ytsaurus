@@ -2,6 +2,8 @@
 #include "node.h"
 #include "rack.h"
 
+#include <core/misc/collection_helpers.h>
+
 #include <ytlib/object_client/helpers.h>
 
 #include <server/chunk_server/job.h>
@@ -39,12 +41,12 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 
 TNode::TNode(
     TNodeId id,
-    const TNodeDescriptor& descriptor,
+    const TAddressMap& addresses,
     TNodeConfigPtr config,
     TInstant registerTime)
     : Id_(id)
     , RegisterTime_(registerTime)
-    , Descriptor_(descriptor)
+    , Addresses_(addresses)
     , Config_(config)
 {
     Init();
@@ -65,17 +67,25 @@ void TNode::Init()
     Transaction_ = nullptr;
     Decommissioned_ = Config_->Decommissioned;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
-    ResetHints();
+    RandomReplicaIt_ = StoredReplicas_.end();
+    ResetSessionHints();
 }
 
-const TNodeDescriptor& TNode::GetDescriptor() const
+const TAddressMap& TNode::GetAddresses() const
 {
-    return Descriptor_;
+    return Addresses_;
 }
 
-const Stroka& TNode::GetAddress() const
+const Stroka& TNode::GetDefaultAddress() const
 {
-    return Descriptor_.GetDefaultAddress();
+    return NNodeTrackerClient::GetDefaultAddress(Addresses_);
+}
+
+TNodeDescriptor TNode::GetDescriptor() const
+{
+    return TNodeDescriptor(
+        Addresses_,
+        Rack_ ? MakeNullable(Rack_->GetName()) : Null);
 }
 
 const TNodeConfigPtr& TNode::GetConfig() const
@@ -86,7 +96,7 @@ const TNodeConfigPtr& TNode::GetConfig() const
 void TNode::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, Descriptor_.Addresses());
+    Save(context, Addresses_);
     Save(context, State_);
     Save(context, RegisterTime_);
     Save(context, Statistics_);
@@ -102,14 +112,19 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
 void TNode::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    Descriptor_ = TNodeDescriptor(Load<TNodeDescriptor::TAddressMap>(context));
+    Load(context, Addresses_);
     Load(context, State_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 102) {
         Load(context, RegisterTime_);
     }
     Load(context, Statistics_);
-    Load(context, Alerts_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 118) {
+        Load(context, Alerts_);
+    } else {
+        YCHECK(TSizeSerializer::Load(context) == 0);
+    }
     // COMPAT(babenko)
     if (context.GetVersion() >= 106) {
         Load(context, Rack_);
@@ -126,15 +141,15 @@ bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
     auto* chunk = replica.GetPtr();
     if (cached) {
         YASSERT(!chunk->IsJournal());
-        return CachedReplicas_.insert(replica).second;
+        return DoAddCachedReplica(replica);
     } else  {
         if (chunk->IsJournal()) {
-            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
-            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
-            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
+            DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
+            DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
+            DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
         } 
         // NB: For journal chunks result is always true.
-        return StoredReplicas_.insert(replica).second;
+        return DoAddStoredReplica(replica);
     }
 }
 
@@ -143,14 +158,14 @@ void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
     auto* chunk = replica.GetPtr();
     if (cached) {
         YASSERT(!chunk->IsJournal());
-        CachedReplicas_.erase(replica);
+        DoRemoveCachedReplica(replica);
     } else {
         if (chunk->IsJournal()) {
-            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
-            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
-            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
+            DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
+            DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
+            DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
         } else {
-            StoredReplicas_.erase(replica);
+            DoRemoveStoredReplica(replica);
         }
 
         auto genericReplica = ToGeneric(replica);
@@ -171,17 +186,30 @@ bool TNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
     auto* chunk = replica.GetPtr();
     if (cached) {
         YASSERT(!chunk->IsJournal());
-        return CachedReplicas_.find(replica) != CachedReplicas_.end();
+        return DoContainsCachedReplica(replica);
     } else {
         if (chunk->IsJournal()) {
             return
-                StoredReplicas_.find(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex)) != StoredReplicas_.end() ||
-                StoredReplicas_.find(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex)) != StoredReplicas_.end() ||
-                StoredReplicas_.find(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex)) != StoredReplicas_.end();
+                DoContainsStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex)) ||
+                DoContainsStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex)) ||
+                DoContainsStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
         } else {
-            return StoredReplicas_.find(replica) != StoredReplicas_.end();
+            return DoContainsStoredReplica(replica);
         }
     }
+}
+
+TChunkPtrWithIndex TNode::PickRandomReplica()
+{
+    if (StoredReplicas_.empty()) {
+        return TChunkPtrWithIndex();
+    }
+
+    if (RandomReplicaIt_ == StoredReplicas_.end()) {
+        RandomReplicaIt_ = StoredReplicas_.begin();
+    }
+
+    return *(RandomReplicaIt_++);
 }
 
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp)
@@ -203,10 +231,10 @@ void TNode::ApproveReplica(TChunkPtrWithIndex replica)
     YCHECK(UnapprovedReplicas_.erase(ToGeneric(replica)) == 1);
     auto* chunk = replica.GetPtr();
     if (chunk->IsJournal()) {
-        StoredReplicas_.erase(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
-        StoredReplicas_.erase(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
-        StoredReplicas_.erase(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
-        YCHECK(StoredReplicas_.insert(replica).second);
+        DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
+        DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, UnsealedChunkReplicaIndex));
+        DoRemoveStoredReplica(TChunkPtrWithIndex(chunk, SealedChunkReplicaIndex));
+        YCHECK(DoAddStoredReplica(replica));
     }
 }
 
@@ -260,7 +288,7 @@ void TNode::ClearChunkSealQueue()
     ChunkSealQueue_.clear();
 }
 
-void TNode::ResetHints()
+void TNode::ResetSessionHints()
 {
     HintedUserSessionCount_ = 0;
     HintedReplicationSessionCount_ = 0;
@@ -331,6 +359,20 @@ void TNode::DetachTabletCell(const TTabletCell* cell)
     }
 }
 
+void TNode::ShrinkHashTables()
+{
+    ShrinkHashTable(&StoredReplicas_);
+    RandomReplicaIt_ = StoredReplicas_.end();
+    ShrinkHashTable(&CachedReplicas_);
+    ShrinkHashTable(&UnapprovedReplicas_);
+    ShrinkHashTable(&Jobs_);
+    for (auto& queue : ChunkReplicationQueues_) {
+        ShrinkHashTable(&queue);
+    }
+    ShrinkHashTable(&ChunkRemovalQueue_);
+    ShrinkHashTable(&ChunkSealQueue_);
+}
+
 ui64 TNode::GenerateVisitMark()
 {
     static std::atomic<ui64> result(0);
@@ -357,6 +399,45 @@ TChunkIdWithIndex TNode::ToGeneric(const TChunkIdWithIndex& replica)
     return TypeFromId(replica.Id) == EObjectType::JournalChunk
         ? TChunkIdWithIndex(replica.Id, GenericChunkReplicaIndex)
         : replica;
+}
+
+bool TNode::DoAddStoredReplica(TChunkPtrWithIndex replica)
+{
+    auto pair = StoredReplicas_.insert(replica);
+    if (pair.second) {
+        RandomReplicaIt_ = pair.first;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool TNode::DoRemoveStoredReplica(TChunkPtrWithIndex replica)
+{
+    if (RandomReplicaIt_ != StoredReplicas_.end() && *RandomReplicaIt_ == replica) {
+        ++RandomReplicaIt_;
+    }
+    return StoredReplicas_.erase(replica) == 1;
+}
+
+bool TNode::DoContainsStoredReplica(TChunkPtrWithIndex replica) const
+{
+    return StoredReplicas_.find(replica) != StoredReplicas_.end();
+}
+
+bool TNode::DoAddCachedReplica(TChunkPtrWithIndex replica)
+{
+    return CachedReplicas_.insert(replica).second;
+}
+
+bool TNode::DoRemoveCachedReplica(TChunkPtrWithIndex replica)
+{
+    return CachedReplicas_.erase(replica) == 1;
+}
+
+bool TNode::DoContainsCachedReplica(TChunkPtrWithIndex replica) const
+{
+    return CachedReplicas_.find(replica) != CachedReplicas_.end();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

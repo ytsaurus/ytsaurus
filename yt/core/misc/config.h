@@ -19,6 +19,9 @@ public:
     //! The fraction of total capacity given to the younger segment.
     double YoungerSizeFraction;
 
+    //! Capacity of internal buffer used to amortize and de-contend touch operations.
+    int TouchBufferCapacity;
+
     explicit TSlruCacheConfig(i64 capacity = 0)
     {
         RegisterParameter("capacity", Capacity)
@@ -27,6 +30,9 @@ public:
         RegisterParameter("younger_size_fraction", YoungerSizeFraction)
             .Default(0.25)
             .InRange(0.0, 1.0);
+        RegisterParameter("touch_buffer_capacity", TouchBufferCapacity)
+            .Default(65536)
+            .GreaterThan(0);
     }
 };
 

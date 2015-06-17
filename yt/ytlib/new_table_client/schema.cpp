@@ -192,28 +192,6 @@ TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) cons
     return result;
 }
 
-TTableSchema TTableSchema::Deplete() const
-{
-    TTableSchema result;
-    for (int index = 0; index < Columns().size(); ++index) {
-        if (!Columns_[index].Expression) {
-            result.Columns().push_back(Columns_[index]);
-        }
-    }
-    return result;
-}
-
-TKeyColumns TTableSchema::DepleteKeyColumns(const TKeyColumns& keyColumns) const
-{
-    TKeyColumns result;
-    for (int index = 0; index < keyColumns.size(); ++index) {
-        if (!GetColumnOrThrow(keyColumns[index]).Expression) {
-            result.push_back(keyColumns[index]);
-        }
-    }
-    return result;
-}
-
 bool TTableSchema::HasComputedColumns() const
 {
     for (const auto& column : Columns()) {
@@ -296,6 +274,27 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns)
     }
 }
 
+void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumns& newKeyColumns)
+{
+    ValidateKeyColumns(newKeyColumns);
+
+    for (int index = 0; index < std::max(oldKeyColumns.size(), newKeyColumns.size()); ++index) {
+        if (index >= newKeyColumns.size()) {
+            THROW_ERROR_EXCEPTION("Missing original key column %Qv",
+                oldKeyColumns[index]);
+        } else if (index >= oldKeyColumns.size()) {
+            // This is fine; new key column is added
+        } else {
+            if (oldKeyColumns[index] != newKeyColumns[index]) {
+                THROW_ERROR_EXCEPTION("Key column mismatch in position %v: expected %Qv, got %Qv",
+                    index,
+                    oldKeyColumns[index],
+                    newKeyColumns[index]);
+            }
+        }
+    }
+}
+
 void ValidateTableSchema(const TTableSchema& schema)
 {
     // Check for duplicate column names.
@@ -350,7 +349,8 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
         if (columnSchema.Expression) {
             if (index < keyColumns.size()) {
 #ifdef YT_USE_LLVM
-                auto expr = PrepareExpression(columnSchema.Expression.Get(), schema);
+                auto functionRegistry = CreateBuiltinFunctionRegistry();
+                auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, functionRegistry.Get());
                 if (expr->Type != columnSchema.Type) {
                     THROW_ERROR_EXCEPTION("Computed column %Qv type mismatch: declared type %v but expression type is %v",
                         columnSchema.Name,
@@ -359,7 +359,7 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
                 }
 
                 yhash_set<Stroka> references;
-                Profile(expr, schema, nullptr, nullptr, &references);
+                Profile(expr, schema, nullptr, nullptr, &references, functionRegistry);
                 for (const auto& ref : references) {
                     if (schema.GetColumnIndexOrThrow(ref) >= keyColumns.size()) {
                         THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",

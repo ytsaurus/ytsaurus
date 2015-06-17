@@ -11,6 +11,7 @@
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/versioned_chunk_reader.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -32,7 +33,9 @@ struct TTabletSnapshot
     NObjectClient::TObjectId TableId;
     TTabletSlotPtr Slot;
     TTableMountConfigPtr Config;
-
+    TTabletWriterOptionsPtr WriterOptions;
+    TOwningKey PivotKey;
+    TOwningKey NextPivotKey;
     NVersionedTableClient::TTableSchema Schema;
     NVersionedTableClient::TKeyColumns KeyColumns;
 
@@ -63,14 +66,12 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTabletPerformanceCounters
-    : public TIntrinsicRefCounted
+    : public TChunkReaderPerformanceCounters
 {
     std::atomic<i64> DynamicMemoryRowReadCount = {0};
     std::atomic<i64> DynamicMemoryRowLookupCount = {0};
     std::atomic<i64> DynamicMemoryRowWriteCount = {0};
     std::atomic<i64> DynamicMemoryRowDeleteCount = {0};
-    std::atomic<i64> StaticChunkRowReadCount = {0};
-    std::atomic<i64> StaticChunkRowLookupCount = {0};
     std::atomic<i64> UnmergedRowReadCount = {0};
     std::atomic<i64> MergedRowReadCount = {0};
 };
@@ -88,7 +89,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
     DEFINE_BYVAL_RO_PROPERTY(TTabletSlotPtr, Slot);
 
-    DEFINE_BYVAL_RW_PROPERTY(TTabletSnapshotPtr, Snapshot);
+    DEFINE_BYVAL_RO_PROPERTY(TTabletSnapshotPtr, Snapshot);
 
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TTableSchema, Schema);
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
@@ -105,8 +106,13 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastPartitioningTime);
 
+    // NB: Avoid keeping IStorePtr to simplify store removal.
+    DEFINE_BYREF_RW_PROPERTY(std::deque<TStoreId>, PreloadStoreIds);
+
 public:
-    explicit TTablet(const TTabletId& tabletId);
+    TTablet(
+        const TTabletId& tabletId,
+        TTabletSlotPtr slot);
     TTablet(
         TTableMountConfigPtr config,
         TTabletWriterOptionsPtr writerOptions,
@@ -156,17 +162,14 @@ public:
     IStorePtr FindStore(const TStoreId& id);
     IStorePtr GetStore(const TStoreId& id);
 
-    void ScheduleStorePreload(TChunkStorePtr store);
-    TChunkStorePtr PeekStoreForPreload();
-    void BeginStorePreload(TChunkStorePtr store, TFuture<void> future);
-    void EndStorePreload(TChunkStorePtr store);
-    void BackoffStorePreload(TChunkStorePtr store, TDuration delay);
-
     const TDynamicMemoryStorePtr& GetActiveStore() const;
     void SetActiveStore(TDynamicMemoryStorePtr store);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
+
+    TCallback<void(TSaveContext&)> AsyncSave();
+    void AsyncLoad(TLoadContext& context);
 
     int GetSchemaColumnCount() const;
     int GetKeyColumnCount() const;
@@ -176,9 +179,10 @@ public:
     void StopEpoch();
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
 
-    TTabletSnapshotPtr BuildSnapshot() const;
+    TTabletSnapshotPtr RebuildSnapshot();
+    void ResetSnapshot();
 
-    TDynamicRowKeyComparer GetRowKeyComparer() const;
+    const TDynamicRowKeyComparer& GetRowKeyComparer() const;
 
 private:
     TTableMountConfigPtr Config_;
@@ -198,16 +202,12 @@ private:
     yhash_map<TStoreId, IStorePtr> Stores_;
     TDynamicMemoryStorePtr ActiveStore_;
 
-    TDynamicRowKeyComparer Comparer_;
+    TDynamicRowKeyComparer RowKeyComparer_;
 
     int ColumnLockCount_ = -1;
 
-    // NB: Avoid keeping IStorePtr to simplify store removal.
-    std::deque<TStoreId> PreloadQueue_;
-
 
     void Initialize();
-    void UpdateInMemoryMode();
 
     TPartition* GetContainingPartition(IStorePtr store);
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);

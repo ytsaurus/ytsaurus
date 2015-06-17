@@ -97,16 +97,19 @@ public:
             NObjectServer::ObjectServerLogger,
             NObjectServer::ObjectServerProfiler);
 
+        TDistributedHydraManagerOptions hydraManagerOptions;
+        hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
+        hydraManagerOptions.UseFork = true;
         HydraManager_ = CreateDistributedHydraManager(
             Config_->HydraManager,
             Bootstrap_->GetControlInvoker(),
-            GetAutomatonInvoker(EAutomatonThreadQueue::Default),
+            GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
             Automaton_,
             Bootstrap_->GetRpcServer(),
             Bootstrap_->GetCellManager(),
             Bootstrap_->GetChangelogStore(),
             Bootstrap_->GetSnapshotStore(),
-            ResponseKeeper_);
+            hydraManagerOptions);
 
         HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
         HydraManager_->SubscribeLeaderRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
@@ -133,14 +136,14 @@ public:
         SnapshotCleanupExecutor_->Start();
     }
 
-    void LoadSnapshot(ISnapshotReaderPtr reader)
+    void DumpSnapshot(ISnapshotReaderPtr reader)
     {
         WaitFor(reader->Open())
             .ThrowOnError();
 
-        auto syncReader = CreateSyncAdapter(reader);
+        Automaton_->SetSerializationDumpEnabled(true);
         Automaton_->Clear();
-        Automaton_->LoadSnapshot(syncReader.get());
+        Automaton_->LoadSnapshot(reader);
     }
 
     TMasterAutomatonPtr GetAutomaton() const
@@ -191,10 +194,7 @@ private:
 
     void OnStartEpoch()
     {
-        auto cancelableContext = HydraManager_
-            ->GetAutomatonEpochContext()
-            ->CancelableContext;
-
+        auto cancelableContext = HydraManager_->GetAutomatonCancelableContext();
         for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
             auto unguardedInvoker = GetAutomatonInvoker(queue);
             EpochInvokers_[queue] = cancelableContext->CreateInvoker(unguardedInvoker);
@@ -311,9 +311,9 @@ void THydraFacade::Start()
     Impl_->Start();
 }
 
-void THydraFacade::LoadSnapshot(ISnapshotReaderPtr reader)
+void THydraFacade::DumpSnapshot(ISnapshotReaderPtr reader)
 {
-    Impl_->LoadSnapshot(reader);
+    Impl_->DumpSnapshot(reader);
 }
 
 TMasterAutomatonPtr THydraFacade::GetAutomaton() const

@@ -294,3 +294,73 @@ echo {v = 2} >&7
 
         # Check that operation has more than 1 job
         assert get("//tmp/out/@row_count") >= count + 2
+
+    def test_key_switch_yamr(self):
+        create('table', '//tmp/in')
+        create('table', '//tmp/out')
+
+        write_table(
+            '//tmp/in',
+            [
+                {'key': 'a', 'value': ''},
+                {'key': 'b', 'value': ''},
+                {'key': 'b', 'value': ''}
+            ],
+            sorted_by = ['key'])
+
+        op_id = reduce(
+            in_='//tmp/in',
+            out='//tmp/out',
+            command='cat 1>&2',
+            reduce_by=['key'],
+            spec={
+                "job_io": {"control_attributes": {"enable_key_switch": "true"}},
+                "reducer": {"format": yson.loads("<lenval=true>yamr")},
+                "job_count": 1
+            })
+
+        jobs_path = "//sys/operations/{0}/jobs".format(op_id)
+        job_ids = ls(jobs_path)
+        assert len(job_ids) == 1
+        stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
+
+        assert stderr_bytes.encode("hex") == \
+            "010000006100000000" \
+            "feffffff" \
+            "010000006200000000" \
+            "010000006200000000"
+
+    def test_key_switch_yson(self):
+        create('table', '//tmp/in')
+        create('table', '//tmp/out')
+
+        write_table(
+            '//tmp/in',
+            [
+                {'key': 'a', 'value': ''},
+                {'key': 'b', 'value': ''},
+                {'key': 'b', 'value': ''}
+            ],
+            sorted_by = ['key'])
+
+        op_id = reduce(
+            in_='//tmp/in',
+            out='//tmp/out',
+            command='cat 1>&2',
+            reduce_by=['key'],
+            spec={
+                "job_io": {"control_attributes": {"enable_key_switch": "true"}},
+                "reducer": {"format": yson.loads("<format=text>yson")},
+                "job_count": 1
+            })
+
+        jobs_path = "//sys/operations/{0}/jobs".format(op_id)
+        job_ids = ls(jobs_path)
+        assert len(job_ids) == 1
+        stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
+
+        assert stderr_bytes == \
+            '{"key"="a";"value"=""};\n' \
+            '<"key_switch"=%true>#;\n' \
+            '{"key"="b";"value"=""};\n' \
+            '{"key"="b";"value"=""};\n'

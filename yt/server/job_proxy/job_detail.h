@@ -6,7 +6,6 @@
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/job_tracker_client/job.pb.h>
-#include <ytlib/job_tracker_client/statistics.h>
 
 #include <ytlib/new_table_client/public.h>
 
@@ -29,8 +28,6 @@ protected:
 
     TInstant StartTime;
 
-    TDuration GetElapsedTime() const;
-
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual NYTree::TYsonString Strace() override;
 
@@ -50,7 +47,7 @@ public:
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
-    virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const override;
+    virtual NScheduler::TStatistics GetStatistics() const override;
 
 protected:
     const NJobTrackerClient::NProto::TJobSpec& JobSpec_;

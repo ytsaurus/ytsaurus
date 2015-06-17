@@ -9,7 +9,6 @@ set( SRCS
   ${BASE}/scheduler_connector.cpp
   ${BASE}/slot.cpp
   ${BASE}/slot_manager.cpp
-  ${BASE}/subprocess.cpp
   ${BASE}/supervisor_service.cpp
   ${BASE}/unsafe_environment.cpp
 )
@@ -25,7 +24,6 @@ set( HDRS
   ${BASE}/scheduler_connector.h
   ${BASE}/slot.h
   ${BASE}/slot_manager.h
-  ${BASE}/subprocess.h
   ${BASE}/supervisor_service.h
   ${BASE}/supervisor_service_proxy.h
   ${BASE}/unsafe_environment.h

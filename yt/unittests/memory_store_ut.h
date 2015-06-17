@@ -17,7 +17,6 @@
 #include <yt/ytlib/new_table_client/versioned_row.h>
 #include <yt/ytlib/new_table_client/unversioned_row.h>
 #include <yt/ytlib/new_table_client/versioned_reader.h>
-#include <yt/ytlib/new_table_client/versioned_lookuper.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
@@ -200,8 +199,16 @@ protected:
 
     TUnversionedOwningRow LookupRow(IStorePtr store, const TOwningKey& key, TTimestamp timestamp)
     {
-        auto lookuper = store->CreateLookuper(timestamp, TColumnFilter());
-        auto row = lookuper->Lookup(key.Get()).Get().Get().ValueOrThrow();
+        std::vector<TKey> lookupKeys(1, key.Get());
+        auto sharedLookupKeys = MakeSharedRange(std::move(lookupKeys), key);
+        auto lookupReader = store->CreateReader(sharedLookupKeys, timestamp, TColumnFilter());
+
+        std::vector<TVersionedRow> rows;
+        rows.reserve(1);
+
+        EXPECT_TRUE(lookupReader->Read(&rows));
+        EXPECT_EQ(1, rows.size());
+        auto row = rows.front();
         if (!row) {
             return TUnversionedOwningRow();
         }

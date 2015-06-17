@@ -14,7 +14,7 @@ namespace NObjectClient {
 //! |#|-prefix.
 extern TStringBuf ObjectIdPathPrefix;
 
-//! Creates the YPath pointing to an object with a given id.
+//! Creates the YPath pointing to an object with a given #id.
 NYPath::TYPath FromObjectId(const TObjectId& id);
 
 //! Checks if the given type is versioned, i.e. represents a Cypress node.
@@ -23,22 +23,28 @@ bool IsVersionedType(EObjectType type);
 //! Checks if the given type is user, i.e. regular users are allowed to create its instances.
 bool IsUserType(EObjectType type);
 
-//! Extracts the type component from an id.
+//! Checks if the nodes of the given type derive from TMapNode. 
+bool IsMapLikeType(EObjectType type);
+
+//! Checks if the nodes of the given type derive from TListNode. 
+bool IsListLikeType(EObjectType type);
+
+//! Extracts the type component from #id.
 EObjectType TypeFromId(const TObjectId& id);
 
-//! Extracts the cell id component from an id.
+//! Extracts the cell id component from #id.
 TCellTag CellTagFromId(const TObjectId& id);
 
-//! Extracts the counter component from an id.
+//! Extracts the counter component from #id.
 ui64 CounterFromId(const TObjectId& id);
 
-//! Returns |true| iff a given regular type has an associated schema type.
+//! Returns |true| iff a given regular #type has an associated schema type.
 bool HasSchema(EObjectType type);
 
-//! Returns the schema type for a given regular type.
+//! Returns the schema type for a given regular #type.
 EObjectType SchemaTypeFromType(EObjectType type);
 
-//! Returns the regular type for a given schema type.
+//! Returns the regular type for a given schema #type.
 EObjectType TypeFromSchemaType(EObjectType type);
 
 //! Constructs the id from its parts.
@@ -54,7 +60,7 @@ TObjectId MakeId(
  */
 bool IsWellKnownId(const TObjectId& id);
 
-//! Constructs a id corresponding to well-known (usually singleton) entities.
+//! Constructs the id corresponding to well-known (usually singleton) entities.
 /*
  *  The highest bit of #counter must be set.
  */

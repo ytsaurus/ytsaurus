@@ -4,6 +4,7 @@
 #include "automaton.h"
 
 #include <core/misc/serialize.h>
+#include <core/misc/checkpointable_stream.h>
 
 #include <core/logging/log.h>
 
@@ -50,10 +51,17 @@ class TSaveContext
     : public NYT::TStreamSaveContext
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(ICheckpointableOutputStream*, CheckpointableOutput);
+
+public:
+    TSaveContext();
+
     TEntitySerializationKey GenerateSerializationKey();
 
+    void Reset();
+
 private:
-    int SerializationKeyIndex_ = 0;
+    int SerializationKeyIndex_;
 
 };
 
@@ -63,6 +71,7 @@ class TLoadContext
     : public NYT::TStreamLoadContext
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(ICheckpointableInputStream*, CheckpointableInput);
     DEFINE_BYVAL_RW_PROPERTY(int, Version);
 
 public:
@@ -82,9 +91,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ESerializationPriority,
+DEFINE_ENUM(ESyncSerializationPriority,
     (Keys)
     (Values)
+);
+
+DEFINE_ENUM(EAsyncSerializationPriority,
+    (Default)
 );
 
 class TCompositeAutomatonPart
@@ -93,32 +106,47 @@ class TCompositeAutomatonPart
 public:
     TCompositeAutomatonPart(
         IHydraManagerPtr hydraManager,
-        TCompositeAutomatonPtr automaton);
+        TCompositeAutomatonPtr automaton,
+        IInvokerPtr automatonInvoker);
 
 protected:
     const IHydraManagerPtr HydraManager_;
     TCompositeAutomaton* const Automaton_;
+    const IInvokerPtr AutomatonInvoker_;
+
+    IInvokerPtr EpochAutomatonInvoker_;
+
 
     void RegisterSaver(
-        ESerializationPriority priority,
+        ESyncSerializationPriority priority,
         const Stroka& name,
-        TClosure saver);
+        TCallback<void()> callback);
+
+    void RegisterSaver(
+        ESyncSerializationPriority priority,
+        const Stroka& name,
+        TCallback<void(TSaveContext&)> callback);
+
+    void RegisterSaver(
+        EAsyncSerializationPriority priority,
+        const Stroka& name,
+        TCallback<TCallback<void()>()> callback);
+
+    void RegisterSaver(
+        EAsyncSerializationPriority priority,
+        const Stroka& name,
+        TCallback<TCallback<void(TSaveContext&)>()> callback);
 
     void RegisterLoader(
         const Stroka& name,
-        TClosure loader);
-
-    void RegisterSaver(
-        ESerializationPriority priority,
-        const Stroka& name,
-        TCallback<void(TSaveContext&)> saver);
+        TCallback<void()> callback);
 
     void RegisterLoader(
         const Stroka& name,
-        TCallback<void(TLoadContext&)> loader);
+        TCallback<void(TLoadContext&)> callback);
 
     template <class TRequest, class TResponse>
-    void RegisterMethod(TCallback<TResponse(const TRequest&)> handler);
+    void RegisterMethod(TCallback<TResponse(const TRequest&)> callback);
 
     bool IsLeader() const;
     bool IsFollower() const;
@@ -153,7 +181,7 @@ private:
 
     void RegisterMethod(
         const Stroka& name,
-        TCallback<void(TMutationContext*)> handler);
+        TCallback<void(TMutationContext*)> callback);
 
 };
 
@@ -165,19 +193,22 @@ class TCompositeAutomaton
     : public IAutomaton
 {
 public:
-    virtual void SaveSnapshot(TOutputStream* output) override;
-    virtual void LoadSnapshot(TInputStream* input) override;
+    void SetSerializationDumpEnabled(bool value);
+
+    virtual TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer) override;
+    virtual void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) override;
 
     virtual void ApplyMutation(TMutationContext* context) override;
 
     virtual void Clear() override;
 
 protected:
+    bool SerializationDumpEnabled_ = false;
+
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
-
-    TCompositeAutomaton();
+    explicit TCompositeAutomaton(IInvokerPtr asyncSnapshotInvoker);
 
     void RegisterPart(TCompositeAutomatonPart* part);
 
@@ -188,45 +219,62 @@ private:
     typedef TCompositeAutomaton TThis;
     friend class TCompositeAutomatonPart;
 
-    struct TMethodInfo
+    const IInvokerPtr AsyncSnapshotInvoker_;
+
+    struct TMethodDescriptor
     {
         TCallback<void(TMutationContext* context)> Callback;
         NProfiling::TTagId TagId;
     };
 
-    struct TSaverInfo
+    struct TSaverDescriptorBase
     {
-        ESerializationPriority Priority;
         Stroka Name;
-        TClosure Saver;
         TCompositeAutomatonPart* Part;
-
-        TSaverInfo(
-            ESerializationPriority priority,
-            const Stroka& name,
-            TClosure saver,
-            TCompositeAutomatonPart* part);
     };
 
-    struct TLoaderInfo
+    struct TSyncSaverDescriptor
+        : public TSaverDescriptorBase
+    {
+        ESyncSerializationPriority Priority;
+        TCallback<void()> Callback;
+    };
+
+    struct TAsyncSaverDescriptor
+        : public TSaverDescriptorBase
+    {
+        EAsyncSerializationPriority Priority;
+        TCallback<TCallback<void()>()> Callback;
+    };
+
+    struct TLoaderDescriptor
     {
         Stroka Name;
-        TClosure Loader;
-        TCompositeAutomatonPart* Part;
-
-        TLoaderInfo(
-            const Stroka& name,
-            TClosure loader,
-            TCompositeAutomatonPart* part);
+        TCallback<void()> Callback;
+        TCompositeAutomatonPart* Part = nullptr;
     };
 
     std::vector<TCompositeAutomatonPart*> Parts_;
 
-    yhash_map<Stroka, TMethodInfo> Methods_;
+    yhash_map<Stroka, TMethodDescriptor> MethodNameToDescriptor_;
 
-    yhash_map<Stroka, TLoaderInfo> Loaders_;
-    yhash_map<Stroka, TSaverInfo> Savers_;
+    yhash_map<Stroka, TLoaderDescriptor> PartNameToLoaderDescriptor_;
 
+    yhash_set<Stroka> SaverPartNames_;
+    std::vector<TSyncSaverDescriptor> SyncSavers_;
+    std::vector<TAsyncSaverDescriptor> AsyncSavers_;
+
+
+    void DoSaveSnapshot(
+        NConcurrency::IAsyncOutputStreamPtr writer,
+        NConcurrency::ESyncStreamAdapterStrategy strategy,
+        const std::function<void()>& callback);
+
+    void DoLoadSnapshot(
+        NConcurrency::IAsyncZeroCopyInputStreamPtr reader,
+        const std::function<void()>& callback);
+
+    void WritePartHeader(const TSaverDescriptorBase& descriptor);
 
     void OnRecoveryStarted();
     void OnRecoveryComplete();

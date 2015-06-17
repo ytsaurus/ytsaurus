@@ -11,6 +11,7 @@
 
 #include <core/concurrency/delayed_executor.h>
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/rw_spinlock.h>
 
 #include <core/bus/bus.h>
 #include <core/bus/tcp_client.h>
@@ -35,36 +36,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = RpcClientLogger;
-static auto& Profiler = RpcClientProfiler;
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-struct TMethodDescriptor
-{
-    NProfiling::TTagIdList TagIds;
-};
-
-TSpinLock MethodDescriptorLock;
-yhash_map<std::pair<Stroka, Stroka>, TMethodDescriptor> MethodDescriptors;
-
-const TMethodDescriptor& GetMethodDescriptor(const Stroka& service, const Stroka& method)
-{
-    TGuard<TSpinLock> guard(MethodDescriptorLock);
-    auto pair = std::make_pair(service, method);
-    auto it = MethodDescriptors.find(pair);
-    if (it == MethodDescriptors.end()) {
-        TMethodDescriptor descriptor;
-        auto* profilingManager = NProfiling::TProfileManager::Get();
-        descriptor.TagIds.push_back(profilingManager->RegisterTag("service", TYsonString(service)));
-        descriptor.TagIds.push_back(profilingManager->RegisterTag("method", TYsonString(method)));
-        it = MethodDescriptors.insert(std::make_pair(pair, descriptor)).first;
-    }
-    return it->second;
-}
-
-} // namespace
+static const auto& Profiler = RpcClientProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,7 +128,6 @@ private:
     volatile bool Terminated_ = false;
     TError TerminationError_;
     TSessionPtr Session_;
-
 
     TErrorOr<TSessionPtr> GetOrCreateSession()
     {
@@ -480,6 +451,36 @@ private:
             }
         }
 
+
+        //! Cached method metdata.
+        struct TMethodMetadata
+        {
+            NProfiling::TTagIdList TagIds;
+        };
+
+        const TMethodMetadata& GetMethodMetadata(const Stroka& service, const Stroka& method)
+        {
+            auto key = std::make_pair(service, method);
+
+            {
+                TReaderGuard guard(CachedMethodMetadataLock_);
+                auto it = CachedMethodMetadata_.find(key);
+                if (it != CachedMethodMetadata_.end()) {
+                    return it->second;
+                }
+            }
+
+            {
+                TMethodMetadata descriptor;
+                auto* profilingManager = NProfiling::TProfileManager::Get();
+                descriptor.TagIds.push_back(profilingManager->RegisterTag("service", TYsonString(service)));
+                descriptor.TagIds.push_back(profilingManager->RegisterTag("method", TYsonString(method)));
+                TWriterGuard guard(CachedMethodMetadataLock_);
+                auto pair = CachedMethodMetadata_.insert(std::make_pair(key, descriptor));
+                return pair.first->second;
+            }
+        }
+
     private:
         const TNullable<TDuration> DefaultTimeout_;
 
@@ -490,6 +491,9 @@ private:
         TActiveRequestMap ActiveRequestMap_;
         volatile bool Terminated_ = false;
         TError TerminationError_;
+
+        NConcurrency::TReaderWriterSpinLock CachedMethodMetadataLock_;
+        yhash_map<std::pair<Stroka, Stroka>, TMethodMetadata> CachedMethodMetadata_;
 
 
         void OnRequestSerialized(
@@ -542,12 +546,13 @@ private:
                 MakeStrong(this),
                 requestId));
 
-            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v)",
+            LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v, Timeout: %v, TrackingLevel: %v, Endpoint: %v)",
                 requestId,
                 request->GetService(),
                 request->GetMethod(),
                 timeout,
-                level);
+                level,
+                ConvertToYsonString(bus->GetEndpointDescription(), NYson::EYsonFormat::Text).Data());
         }
 
         void OnAcknowledgement(const TRequestId& requestId, const TError& error)
@@ -664,7 +669,7 @@ private:
             , Timeout_(timeout)
             , ResponseHandler_(std::move(responseHandler))
         {
-            const auto& descriptor = GetMethodDescriptor(Request_->GetService(), Request_->GetMethod());
+            const auto& descriptor = Session_->GetMethodMetadata(Request_->GetService(), Request_->GetMethod());
             Timer_ = Profiler.TimingStart(
                 "/request_time",
                 descriptor.TagIds,

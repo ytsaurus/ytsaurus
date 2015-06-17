@@ -24,29 +24,18 @@ class TSaveContext
 
 class TLoadContext
     : public NHydra::TLoadContext
-{
-public:
-    TLoadContext();
-
-    DEFINE_BYVAL_RW_PROPERTY(TTabletSlot*, Slot);
-
-    TChunkedMemoryPool* GetTempPool() const;
-    NVersionedTableClient::TUnversionedRowBuilder* GetRowBuilder() const;
-
-private:
-    const std::unique_ptr<TChunkedMemoryPool> TempPool_;
-    const std::unique_ptr<NVersionedTableClient::TUnversionedRowBuilder> RowBuilder_;
-
-};
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An instance of Hydra managing a number of tablets.
+//! An instance of Hydra automaton managing a number of tablets.
 class TTabletAutomaton
     : public NHydra::TCompositeAutomaton
 {
 public:
-    explicit TTabletAutomaton(TTabletSlotPtr slot);
+    TTabletAutomaton(
+        TTabletSlotPtr slot,
+        IInvokerPtr snapshotInvoker);
 
     virtual TSaveContext& SaveContext() override;
     virtual TLoadContext& LoadContext() override;
@@ -68,6 +57,8 @@ protected:
     const TTabletSlotPtr Slot_;
     NCellNode::TBootstrap* const Bootstrap_;
 
+    NLogging::TLogger Logger;
+
 
     explicit TTabletAutomatonPart(
         TTabletSlotPtr slot,
@@ -77,9 +68,14 @@ protected:
     virtual int GetCurrentSnapshotVersion() override;
 
     void RegisterSaver(
-        NHydra::ESerializationPriority priority,
+        NHydra::ESyncSerializationPriority priority,
         const Stroka& name,
         TCallback<void(TSaveContext&)> saver);
+
+    void RegisterSaver(
+        NHydra::EAsyncSerializationPriority priority,
+        const Stroka& name,
+        TCallback<TCallback<void(TSaveContext&)>()> callback);
 
     void RegisterLoader(
         const Stroka& name,

@@ -39,8 +39,6 @@ public:
 
     TTablet* GetTabletOrThrow(const TTabletId& id);
 
-    void BackoffStore(IStorePtr store, EStoreState state);
-
 
     void Read(
         TTabletSnapshotPtr tabletSnapshot,
@@ -49,8 +47,8 @@ public:
         NTabletClient::TWireProtocolWriter* writer);
 
     void Write(
-        TTablet* tablet,
-        TTransaction* transaction,
+        TTabletSnapshotPtr tabletSnapshot,
+        const TTransactionId& transctionId,
         NTabletClient::TWireProtocolReader* reader);
 
 

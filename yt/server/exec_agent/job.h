@@ -15,7 +15,7 @@ namespace NExecAgent {
 
 NJobAgent::IJobPtr CreateUserJob(
     const NJobTrackerClient::TJobId& jobId,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     NCellNode::TBootstrap* bootstrap);
 

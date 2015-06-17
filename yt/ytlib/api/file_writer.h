@@ -24,7 +24,7 @@ struct IFileWriter
     /*!
      *  #data must remain alive until this asynchronous operation completes.
      */
-    virtual TFuture<void> Write(const TRef& data) = 0;
+    virtual TFuture<void> Write(const TSharedRef& data) = 0;
 
     //! Closes the writer.
     //! No other method can be called after this one.

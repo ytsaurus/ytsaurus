@@ -14,6 +14,8 @@
 #include <core/ytree/ypath_service.h>
 #include <core/ytree/fluent.h>
 
+#include <server/misc/memory_usage_tracker.h>
+
 #include <server/data_node/master_connector.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -28,6 +30,7 @@ using namespace NFS;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NDataNode;
 using namespace NHydra;
@@ -35,7 +38,7 @@ using namespace NHydra;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
-static auto SlotScanPeriod = TDuration::Seconds(1);
+static const auto SlotScanPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,14 +55,14 @@ public:
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::OnScanSlots, Unretained(this)),
             SlotScanPeriod,
-            EPeriodicExecutorMode::Manual))
+            EPeriodicExecutorMode::Automatic))
     { }
 
     void Initialize()
     {
         LOG_INFO("Initializing tablet node");
 
-        Slots_.resize(Config_->Slots);
+        Slots_.resize(Config_->ResourceLimits->Slots);
 
         SlotScanExecutor_->Start();
 
@@ -70,17 +73,15 @@ public:
     bool IsOutOfMemory() const
     {
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        return
-            tracker->GetUsed(NCellNode::EMemoryConsumer::TabletDynamic) >
-            Config_->MemoryLimit;
+        return tracker->IsExceeded(EMemoryCategory::TabletDynamic);
     }
 
     bool IsRotationForced(i64 passiveUsage) const
     {
         const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return
-            tracker->GetUsed(NCellNode::EMemoryConsumer::TabletStatic) - passiveUsage >
-            Config_->MemoryLimit * Config_->ForcedRotationsMemoryRatio;
+            tracker->GetUsed(EMemoryCategory::TabletDynamic) - passiveUsage >
+            tracker->GetLimit(EMemoryCategory::TabletDynamic) * Config_->ForcedRotationsMemoryRatio;
     }
 
     
@@ -88,7 +89,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return Config_->Slots - UsedSlotCount_;
+        return Config_->ResourceLimits->Slots - UsedSlotCount_;
     }
 
     int GetUsedTabletSlotCount() const
@@ -185,8 +186,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto snapshot = tablet->BuildSnapshot();
-        tablet->SetSnapshot(snapshot);
+        auto snapshot = tablet->RebuildSnapshot();
 
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
@@ -201,7 +201,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        tablet->SetSnapshot(nullptr);
+        tablet->ResetSnapshot();
 
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
@@ -217,8 +217,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto snapshot = tablet->BuildSnapshot();
-        tablet->SetSnapshot(snapshot);
+        auto snapshot = tablet->RebuildSnapshot();
 
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
@@ -314,15 +313,15 @@ private:
                     }
                 })
                 .AsyncVia(slot->GetGuardedAutomatonInvoker())
-                .Run());
+                .Run()
+                // Silent any error to avoid premature return from WaitFor.
+                .Apply(BIND([] (const TError&) { })));
         }
+        WaitFor(Combine(asyncResults));
 
-        Combine(asyncResults).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError&) {
-            VERIFY_THREAD_AFFINITY(ControlThread);
-            EndSlotScan_.Fire();
-            LOG_DEBUG("Slot scan completed");
-            SlotScanExecutor_->ScheduleNext();
-        }).Via(GetCurrentInvoker()));
+        EndSlotScan_.Fire();
+
+        LOG_DEBUG("Slot scan completed");
     }
 
 

@@ -36,7 +36,7 @@ TSessionBase::TSessionBase(
     , Lease_(lease)
     , WriteInvoker_(CreateSerializedInvoker(Location_->GetWritePoolInvoker()))
     , Logger(DataNodeLogger)
-    , Profiler(location->Profiler())
+    , Profiler(location->GetProfiler())
 {
     YCHECK(bootstrap);
     YCHECK(location);
@@ -144,7 +144,7 @@ TFuture<void> TSessionBase::PutBlocks(
 TFuture<void> TSessionBase::SendBlocks(
     int startBlockIndex,
     int blockCount,
-    const TNodeDescriptor& target)
+    const TNodeDescriptor& targetDescriptor)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -152,7 +152,7 @@ TFuture<void> TSessionBase::SendBlocks(
         ValidateActive();
         Ping();
 
-        return DoSendBlocks(startBlockIndex, blockCount, target);
+        return DoSendBlocks(startBlockIndex, blockCount, targetDescriptor);
     } catch (const std::exception& ex) {
         return MakeFuture<void>(ex);
     }

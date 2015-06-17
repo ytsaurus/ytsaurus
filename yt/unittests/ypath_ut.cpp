@@ -302,7 +302,7 @@ TEST_F(TYPathTest, ParseRichYPath1)
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString("{a=b;channel=[a;b]; ranges=[{upper_limit={key=[2]};lower_limit={key=[1]}}]}"))));
+            ConvertToNode(TYsonString("{a=b;columns=[a;b]; ranges=[{upper_limit={key=[2]};lower_limit={key=[1]}}]}"))));
 }
 
 TEST_F(TYPathTest, ParseRichYPath2)

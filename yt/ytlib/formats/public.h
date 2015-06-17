@@ -16,6 +16,8 @@ DECLARE_REFCOUNTED_CLASS(TSchemafulDsvFormatConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IYamrConsumer)
 
+DECLARE_REFCOUNTED_STRUCT(ISchemalessFormatWriter)
+
 struct IParser;
 
 ////////////////////////////////////////////////////////////////////////////////

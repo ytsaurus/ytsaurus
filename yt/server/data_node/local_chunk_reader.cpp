@@ -1,11 +1,10 @@
 #include "stdafx.h"
 #include "local_chunk_reader.h"
 
-#include <core/tracing/trace_context.h>
-
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/block_cache.h>
 
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
@@ -25,96 +24,62 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocalChunkReader;
-typedef TIntrusivePtr<TLocalChunkReader> TLocalChunkReaderPtr;
+static const i64 ReadPriority = 0;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TLocalChunkReader
-    : public NChunkClient::IChunkReader
+    : public IChunkReader
 {
 public:
     TLocalChunkReader(
         TBootstrap* bootstrap,
         TReplicationReaderConfigPtr config,
-        IChunkPtr chunk)
+        IChunkPtr chunk,
+        IBlockCachePtr blockCache,
+        TClosure failureHandler)
         : Bootstrap_(bootstrap)
-        , Config_(config)
-        , Chunk_(chunk)
+        , Config_(std::move(config))
+        , Chunk_(std::move(chunk))
+        , BlockCache_(std::move(blockCache))
+        , FailureHandler_(std::move(failureHandler))
     { }
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
-        NTracing::TTraceSpanGuard guard(
-            // XXX(sandello): Disable tracing due to excessive output.
-            NTracing::NullTraceContext, /* NTracing::GetCurrentTraceContext(), */
-            "LocalChunkReader",
-            "ReadBlocks");
-
         auto blockStore = Bootstrap_->GetBlockStore();
-
-        std::vector<TFuture<TSharedRef>> asyncBlocks;
-        i64 priority = 0;
-        for (int blockIndex : blockIndexes) {
-            auto asyncBlock =
-                BIND(
-                    &TBlockStore::FindBlock,
-                    blockStore,
-                    Chunk_->GetId(),
-                    blockIndex,
-                    priority,
-                    Config_->EnableCaching)
-                .AsyncVia(Bootstrap_->GetControlInvoker())
-                .Run();
-
-            asyncBlocks.push_back(asyncBlock.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRef>& blockOrError) -> TSharedRef {
-                if (!blockOrError.IsOK()) {
-                    THROW_ERROR_EXCEPTION(
-                        NDataNode::EErrorCode::LocalChunkReaderFailed,
-                        "Error reading local chunk block %v:%v",
-                        Chunk_->GetId(),
-                        blockIndex)
-                        << blockOrError;
-                }
-
-                const auto& block = blockOrError.Value();
-                if (!block) {
-                    THROW_ERROR_EXCEPTION(
-                        NDataNode::EErrorCode::LocalChunkReaderFailed,
-                        "Local chunk block %v:%v is not available",
-                        Chunk_->GetId(),
-                        blockIndex);
-                }
-
-                return block;
-            })));
-            // Assign decreasing priorities to block requests to take advantage of sequential read.
-            --priority;
-        }
-
-        return Combine(asyncBlocks);
+        auto asyncResult = blockStore->ReadBlocks(
+            Chunk_->GetId(),
+            blockIndexes,
+            ReadPriority,
+            BlockCache_,
+            Config_->PopulateCache);
+        return CheckReadBlocksResult(asyncResult);
     }
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
     {
-        std::vector<int> blockIndexes;
-        for (int index = firstBlockIndex; index < firstBlockIndex + blockCount; ++index) {
-            blockIndexes.push_back(index);
-        }
-        return ReadBlocks(blockIndexes);
+        auto blockStore = Bootstrap_->GetBlockStore();
+        auto asyncResult = blockStore->ReadBlocks(
+            Chunk_->GetId(),
+            firstBlockIndex,
+            blockCount,
+            ReadPriority,
+            BlockCache_,
+            Config_->PopulateCache);
+        return CheckReadBlocksResult(asyncResult);
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {
-        NTracing::TTraceSpanGuard guard(
-            // XXX(sandello): Disable tracing due to excessive output.
-            NTracing::NullTraceContext, /* NTracing::GetCurrentTraceContext(), */
-            "LocalChunkReader",
-            "GetChunkMeta");
-        return Chunk_->GetMeta(0, extensionTags).Apply(BIND(
-            &TLocalChunkReader::OnGotChunkMeta,
-            partitionTag,
-            Passed(std::move(guard))));
+        auto asyncResult = Chunk_->ReadMeta(0, extensionTags);
+        return CheckGetMetaResult(asyncResult).Apply(BIND([=] (const TRefCountedChunkMetaPtr& meta) {
+            return partitionTag
+                ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
+                : TChunkMeta(*meta);
+        }));
     }
 
     virtual TChunkId GetChunkId() const override
@@ -126,29 +91,66 @@ private:
     const TBootstrap* Bootstrap_;
     const TReplicationReaderConfigPtr Config_;
     const IChunkPtr Chunk_;
+    const IBlockCachePtr BlockCache_;
+    const TClosure FailureHandler_;
 
 
-    static TChunkMeta OnGotChunkMeta(
-        const TNullable<int>& partitionTag,
-        NTracing::TTraceSpanGuard /*guard*/,
-        TRefCountedChunkMetaPtr meta)
+    void OnError(const TError& error)
     {
-        return partitionTag
-            ? FilterChunkMetaByPartitionTag(*meta, *partitionTag)
-            : TChunkMeta(*meta);
+        if (FailureHandler_) {
+            FailureHandler_.Run();
+        }
+
+        THROW_ERROR_EXCEPTION(
+            NDataNode::EErrorCode::LocalChunkReaderFailed,
+            "Error accessing local chunk %v",
+            Chunk_->GetId())
+            << error;
+    }
+
+    TFuture<std::vector<TSharedRef>> CheckReadBlocksResult(TFuture<std::vector<TSharedRef>> asyncResult)
+    {
+        return asyncResult.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TSharedRef>>& result) {
+            if (!result.IsOK()) {
+                OnError(result);
+            }
+
+            const auto& blocks = result.Value();
+            for (const auto& block : blocks) {
+                if (!block) {
+                    OnError(TError("Some chunk blocks are missing"));
+                }
+            }
+
+            return blocks;
+        }));
+    }
+
+    TFuture<TRefCountedChunkMetaPtr> CheckGetMetaResult(TFuture<TRefCountedChunkMetaPtr> asyncResult)
+    {
+        return asyncResult.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) {
+            if (!result.IsOK()) {
+                OnError(result);
+            }
+            return result.Value();
+        }));
     }
 
 };
 
-NChunkClient::IChunkReaderPtr CreateLocalChunkReader(
+IChunkReaderPtr CreateLocalChunkReader(
     TBootstrap* bootstrap,
     TReplicationReaderConfigPtr config,
-    IChunkPtr chunk)
+    IChunkPtr chunk,
+    IBlockCachePtr blockCache,
+    TClosure failureHandler)
 {
     return New<TLocalChunkReader>(
         bootstrap,
-        config,
-        chunk);
+        std::move(config),
+        std::move(chunk),
+        std::move(blockCache),
+        std::move(failureHandler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

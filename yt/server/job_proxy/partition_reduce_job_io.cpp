@@ -44,10 +44,9 @@ public:
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         auto reader = CreateSchemalessPartitionSortReader(
-            JobIOConfig_->NewTableReader,
+            JobIOConfig_->TableReader,
             Host_->GetMasterChannel(),
-            Host_->GetCompressedBlockCache(),
-            Host_->GetUncompressedBlockCache(),
+            Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             keyColumns,
             nameTable,
@@ -79,7 +78,6 @@ public:
         writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_node_directory());
         ToProto(schedulerJobResult->mutable_chunks(), writer->GetWrittenChunks());
     }
-
 };
 
 std::unique_ptr<IUserJobIO> CreatePartitionReduceJobIO(IJobHost* host)

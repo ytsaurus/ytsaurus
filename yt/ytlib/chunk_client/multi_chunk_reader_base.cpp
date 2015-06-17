@@ -31,39 +31,33 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-int CalculatePrefetchWindow(const std::vector<TChunkSpec>& sortedChunkSpecs, TMultiChunkReaderConfigPtr config)
+static i64 GetMemoryEstimate(const TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config)
 {
-    int prefetchWindow = 0;
-    i64 bufferSize = 0;
-    while (prefetchWindow < sortedChunkSpecs.size()) {
-        auto& chunkSpec = sortedChunkSpecs[prefetchWindow];
-        i64 currentSize;
-        GetStatistics(chunkSpec, &currentSize);
-        auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+    i64 currentSize;
+    GetStatistics(chunkSpec, &currentSize);
+    auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
 
-        // block that possibly exceeds group size + block used by upper level chunk reader.
-        i64 chunkBufferSize = ChunkReaderMemorySize + 2 * miscExt.max_block_size();
+    // Block used by upper level chunk reader.
+    i64 chunkBufferSize = ChunkReaderMemorySize + miscExt.max_block_size();
 
-        if (currentSize > miscExt.max_block_size()) {
-            chunkBufferSize += config->WindowSize + config->GroupSize;
-        }
-
-        if (bufferSize + chunkBufferSize > config->MaxBufferSize) {
-            break;
-        } else {
-            bufferSize += chunkBufferSize;
-            ++prefetchWindow;
-        }
+    if (currentSize > miscExt.max_block_size()) {
+        chunkBufferSize += config->WindowSize + config->GroupSize;
     }
-    // Don't allow overcommit during prefetching, so exclude the last chunk.
-    prefetchWindow = std::max(prefetchWindow - 1, 1);
-    prefetchWindow = std::min(prefetchWindow, MaxPrefetchWindow);
-    return prefetchWindow;
+
+    return chunkBufferSize;
 }
 
-} // namespace
+static TMultiChunkReaderConfigPtr PatchConfig(TMultiChunkReaderConfigPtr config, i64 memoryEstimate)
+{
+    if (memoryEstimate > config->WindowSize + config->GroupSize) {
+        return config;
+    }
+
+    auto newConfig = CloneYsonSerializable(config);
+    newConfig->WindowSize = std::max(memoryEstimate / 2, (i64) 1);
+    newConfig->GroupSize = std::max(memoryEstimate / 2, (i64) 1);
+    return newConfig;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,58 +70,31 @@ TMultiChunkReaderBase::TMultiChunkReaderBase(
     const std::vector<NProto::TChunkSpec>& chunkSpecs,
     IThroughputThrottlerPtr throttler)
     : Logger(ChunkClientLogger)
+    , Config_(config)
     , Options_(options)
-    , ChunkSpecs_(chunkSpecs)
     , Throttler_(throttler)
     , CompletionError_(NewPromise<void>())
     , BlockCache_(blockCache)
     , MasterChannel_(masterChannel)
     , NodeDirectory_(nodeDirectory)
+    , FreeBufferSize_(Config_->MaxBufferSize)
     , FetchingCompletedAwaiter_(New<TParallelAwaiter>(GetSyncInvoker()))
 {
     Logger.AddTag("Reader: %v", this);
 
-    Config_ = CloneYsonSerializable(config);
-
     CurrentSession_.Reset();
 
     LOG_DEBUG("Creating multi chunk reader for %v chunks",
-        ChunkSpecs_.size());
+        chunkSpecs.size());
 
-    if (ChunkSpecs_.empty()) {
+    if (chunkSpecs.empty()) {
         CompletionError_.Set(TError());
         return;
     }
 
-    if (Options_->KeepInMemory) {
-        PrefetchWindow_ = MaxPrefetchWindow;
-    } else {
-        auto sortedChunkSpecs = ChunkSpecs_;
-        std::sort(
-            sortedChunkSpecs.begin(), 
-            sortedChunkSpecs.end(), 
-            [] (const TChunkSpec& lhs, const TChunkSpec& rhs)
-            {
-                i64 lhsDataSize, rhsDataSize;
-                GetStatistics(lhs, &lhsDataSize);
-                GetStatistics(rhs, &rhsDataSize);
-
-                return lhsDataSize > rhsDataSize;
-            });
-
-        i64 smallestDataSize;
-        GetStatistics(sortedChunkSpecs.back(), &smallestDataSize);
-
-        if (smallestDataSize < Config_->WindowSize + Config_->GroupSize) {
-            // Here we limit real consumption to correspond the estimated.
-            Config_->WindowSize = std::max(smallestDataSize / 2, (i64) 1);
-            Config_->GroupSize = std::max(smallestDataSize / 2, (i64) 1);
-        }
-
-        PrefetchWindow_ = CalculatePrefetchWindow(sortedChunkSpecs, Config_);
+    for (const auto& chunkSpec : chunkSpecs) {
+        Chunks_.emplace_back(TChunk{chunkSpec, GetMemoryEstimate(chunkSpec, Config_)});
     }
-
-    LOG_DEBUG("Created multi chunk reader (PrefetchWindow: %v)", PrefetchWindow_);
 }
 
 TFuture<void> TMultiChunkReaderBase::Open()
@@ -172,37 +139,43 @@ std::vector<TChunkId> TMultiChunkReaderBase::GetFailedChunkIds() const
     return FailedChunks_;
 }
 
-void TMultiChunkReaderBase::OpenPrefetchChunks()
+void TMultiChunkReaderBase::OpenNextChunks()
 {
-    for (int i = 0; i < PrefetchWindow_; ++i) {
-        OpenNextChunk();
+    TGuard<TSpinLock> guard(PrefetchLock_);
+    for (; PrefetchIndex_ < Chunks_.size(); ++PrefetchIndex_) {
+        if (Chunks_[PrefetchIndex_].MemoryEstimate > FreeBufferSize_ &&
+            ActiveReaderCount_ > 0 &&
+            !Options_->KeepInMemory) 
+        {
+            return;
+        }
+
+        if (ActiveReaderCount_ > MaxPrefetchWindow) {
+            return;
+        }
+
+        ++ActiveReaderCount_;
+        FreeBufferSize_ -= Chunks_[PrefetchIndex_].MemoryEstimate;
+        BIND(
+            &TMultiChunkReaderBase::DoOpenChunk,
+            MakeWeak(this),
+            PrefetchIndex_)
+        .Via(TDispatcher::Get()->GetReaderInvoker())
+        .Run();
     }
 }
 
-void TMultiChunkReaderBase::OpenNextChunk()
-{
-    BIND(
-        &TMultiChunkReaderBase::DoOpenNextChunk,
-        MakeWeak(this))
-    .Via(TDispatcher::Get()->GetReaderInvoker())
-    .Run();
-}
-
-void TMultiChunkReaderBase::DoOpenNextChunk()
+void TMultiChunkReaderBase::DoOpenChunk(int chunkIndex)
 {
     if (CompletionError_.IsSet())
         return;
 
-    if (PrefetchReaderIndex_ >= ChunkSpecs_.size())
-        return;
-
-    int chunkIndex = PrefetchReaderIndex_++;
-    auto& chunkSpec = ChunkSpecs_[chunkIndex];
+    const auto& chunk = Chunks_[chunkIndex];
 
     LOG_DEBUG("Opening chunk (ChunkIndex: %v)", chunkIndex);
-    auto remoteReader = CreateRemoteReader(chunkSpec);
+    auto remoteReader = CreateRemoteReader(chunk);
 
-    auto reader = CreateTemplateReader(chunkSpec, remoteReader);
+    auto reader = CreateTemplateReader(chunk.Spec, remoteReader);
     auto error = WaitFor(reader->Open());
 
     if (!error.IsOK()) {
@@ -214,7 +187,7 @@ void TMultiChunkReaderBase::DoOpenNextChunk()
     OnReaderOpened(reader, chunkIndex);
 
     FetchingCompletedAwaiter_->Await(reader->GetFetchingCompletedEvent());
-    if (++OpenedReaderCount_ == ChunkSpecs_.size()) {
+    if (++OpenedReaderCount_ == Chunks_.size()) {
         FetchingCompletedAwaiter_->Complete();
     }
 
@@ -222,8 +195,9 @@ void TMultiChunkReaderBase::DoOpenNextChunk()
     YCHECK(ActiveReaders_.insert(reader).second);
 }
 
-IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunkSpec& chunkSpec)
+IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunk& chunk)
 {
+    const auto& chunkSpec = chunk.Spec;
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
 
@@ -254,15 +228,14 @@ IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunkSpec& chun
             TChunkReplicaList partReplicas(it, jt);
             auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
             auto reader = CreateReplicationReader(
-                Config_,
-                BlockCache_,
+                PatchConfig(Config_, chunk.MemoryEstimate),
+                Options_,
                 MasterChannel_,
                 NodeDirectory_,
                 Null,
                 partId,
                 partReplicas,
-                NNodeTrackerClient::InterconnectNetworkName,
-                EReadSessionType::User,
+                BlockCache_,
                 Throttler_);
             readers.push_back(reader);
 
@@ -273,15 +246,14 @@ IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunkSpec& chun
         return CreateNonRepairingErasureReader(readers);
     } else {
         return CreateReplicationReader(
-            Config_,
-            BlockCache_,
+            PatchConfig(Config_, chunk.MemoryEstimate),
+            Options_,
             MasterChannel_,
             NodeDirectory_,
             Null,
             chunkId,
             replicas,
-            NNodeTrackerClient::InterconnectNetworkName,
-            EReadSessionType::User,
+            BlockCache_,
             Throttler_);
     }
 }
@@ -298,8 +270,11 @@ void TMultiChunkReaderBase::OnReaderFinished()
         YCHECK(ActiveReaders_.erase(CurrentSession_.ChunkReader));
     }
 
+    --ActiveReaderCount_;
+    FreeBufferSize_ += Chunks_[CurrentSession_.ChunkIndex].MemoryEstimate;
+
     CurrentSession_.Reset();
-    OpenNextChunk();
+    OpenNextChunks();
 }
 
 bool TMultiChunkReaderBase::OnEmptyRead(bool readerFinished)
@@ -318,7 +293,7 @@ void TMultiChunkReaderBase::OnError()
 
 void TMultiChunkReaderBase::RegisterFailedChunk(int chunkIndex)
 {   
-    auto chunkId = NYT::FromProto<TChunkId>(ChunkSpecs_[chunkIndex].chunk_id());
+    auto chunkId = NYT::FromProto<TChunkId>(Chunks_[chunkIndex].Spec.chunk_id());
     LOG_WARNING("Chunk reader failed (ChunkId: %v)", chunkId);
 
     OnError();
@@ -342,19 +317,19 @@ TSequentialMultiChunkReaderBase::TSequentialMultiChunkReaderBase(
         options, 
         masterChannel, 
         blockCache, 
-        nodeDirectory, 
+        nodeDirectory,
         chunkSpecs,
         throttler)
 {
-    NextReaders_.reserve(ChunkSpecs_.size());
-    for (int i = 0; i < ChunkSpecs_.size(); ++i) {
+    NextReaders_.reserve(Chunks_.size());
+    for (int i = 0; i < Chunks_.size(); ++i) {
         NextReaders_.push_back(NewPromise<IChunkReaderBasePtr>());
     }
 }
 
 void TSequentialMultiChunkReaderBase::DoOpen()
 {
-    OpenPrefetchChunks();
+    OpenNextChunks();
     WaitForNextReader();
 }
 
@@ -377,7 +352,7 @@ void TSequentialMultiChunkReaderBase::OnReaderFinished()
 {
     TMultiChunkReaderBase::OnReaderFinished();
  
-    if (NextReaderIndex_ < ChunkSpecs_.size()) {
+    if (NextReaderIndex_ < Chunks_.size()) {
         ReadyEvent_ = BIND(
             &TSequentialMultiChunkReaderBase::WaitForNextReader,
             MakeStrong(this))
@@ -392,7 +367,7 @@ void TSequentialMultiChunkReaderBase::OnReaderFinished()
 
 void TSequentialMultiChunkReaderBase::WaitForNextReader()
 {
-    CurrentSession_.ChunkSpecIndex = NextReaderIndex_;
+    CurrentSession_.ChunkIndex = NextReaderIndex_;
     auto errorOrReader = WaitFor(NextReaders_[NextReaderIndex_].ToFuture());
 
     if (errorOrReader.IsOK()) {
@@ -411,7 +386,7 @@ void TSequentialMultiChunkReaderBase::WaitForCurrentReader()
     auto error = WaitFor(CurrentSession_.ChunkReader->GetReadyEvent());
     if (!error.IsOK()) {
         CompletionError_.TrySet(error);
-        RegisterFailedChunk(CurrentSession_.ChunkSpecIndex);
+        RegisterFailedChunk(CurrentSession_.ChunkIndex);
         THROW_ERROR error;
     }
 }
@@ -447,16 +422,15 @@ TParallelMultiChunkReaderBase::TParallelMultiChunkReaderBase(
 
 void TParallelMultiChunkReaderBase::DoOpen()
 {
-    OpenPrefetchChunks();
+    OpenNextChunks();
     WaitForReadyReader();
 }
 
 void TParallelMultiChunkReaderBase::OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex)
 {
-    UNUSED(chunkIndex);
     TSession session;
     session.ChunkReader = chunkReader;
-    session.ChunkSpecIndex = chunkIndex;
+    session.ChunkIndex = chunkIndex;
 
     ReadySessions_.Enqueue(session);
 }
@@ -484,7 +458,7 @@ void TParallelMultiChunkReaderBase::OnReaderFinished()
     TMultiChunkReaderBase::OnReaderFinished();
 
     ++FinishedReaderCount_;
-    if (FinishedReaderCount_ == ChunkSpecs_.size()) {
+    if (FinishedReaderCount_ == Chunks_.size()) {
         ReadySessions_.Enqueue(TError("Sentinel session"));
         CompletionError_.TrySet(TError());
         ReadyEvent_ = CompletionError_.ToFuture();
@@ -527,7 +501,7 @@ void TParallelMultiChunkReaderBase::WaitForReader(TSession session)
     }
 
     CompletionError_.TrySet(error);
-    RegisterFailedChunk(CurrentSession_.ChunkSpecIndex);
+    RegisterFailedChunk(CurrentSession_.ChunkIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

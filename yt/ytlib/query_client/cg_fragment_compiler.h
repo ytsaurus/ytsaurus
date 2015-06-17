@@ -177,6 +177,20 @@ public:
             CodegenValuesPtrFromRow(builder, row),
             index,
             name + ".valuePtr");
+
+        return CreateFromLlvmValue(
+            builder,
+            valuePtr,
+            staticType,
+            name);
+    }
+
+    static TCGValue CreateFromLlvmValue(
+        TCGIRBuilder& builder,
+        Value* valuePtr,
+        EValueType staticType,
+        Twine name = Twine())
+    {
         auto type = builder.CreateLoad(
             builder.CreateStructGEP(valuePtr, TTypeBuilder::Type, name + ".typePtr"),
             name + ".type");
@@ -250,6 +264,11 @@ public:
             builder.getInt16(id),
             builder.CreateStructGEP(valuePtr, TTypeBuilder::Id, nameTwine + ".idPtr"));
 
+        StoreToValue(builder, valuePtr, nameTwine);
+    }
+
+    void StoreToValue(TCGIRBuilder& builder, Value* valuePtr, Twine nameTwine = "")
+    {
         if (IsNull_) {
             builder.CreateStore(
                 GetType(builder),
@@ -354,21 +373,16 @@ public:
 
 typedef std::function<Value* (TCGIRBuilder& builder)> TCodegenBlock;
 typedef std::function<TCGValue(TCGContext& builder, Value* row)> TCodegenExpression;
-typedef std::function<void(TCGContext& builder, Value* row, Value* newRow, int index)> TCodegenAggregate;
+typedef std::function<void(TCGContext& builder, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCodegenAggregate MakeCodegenAggregateFunction(
-    EAggregateFunction aggregateFunction,
-    EValueType type,
-    Twine name = Twine());
-
 TCodegenExpression MakeCodegenLiteralExpr(
-    size_t index,
+    int index,
     EValueType type);
 
 TCodegenExpression MakeCodegenReferenceExpr(
-    size_t index,
+    int index,
     EValueType type,
     Stroka name);
 
@@ -376,7 +390,8 @@ TCodegenExpression MakeCodegenFunctionExpr(
     Stroka functionName,
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
-    Stroka name);
+    Stroka name,
+    const IFunctionRegistryPtr functionRegistry);
 
 TCodegenExpression MakeCodegenUnaryOpExpr(
     EUnaryOp opcode,
@@ -401,22 +416,27 @@ void CodegenScanOp(
     TCGContext& builder,
     const TCodegenConsumer& codegenConsumer);
 
-TCodegenSource MakeCodegenJoinOp(
-    std::vector<Stroka> joinColumns,
-    TTableSchema sourceTableSchema,
-    TCodegenSource codegenSource);
-
 TCodegenSource MakeCodegenFilterOp(
     TCodegenExpression codegenPredicate,
     TCodegenSource codegenSource);
 
-TCodegenSource MakeCodegenProjectOp(
-    std::vector<TCodegenExpression> codegenArgs,
+TCodegenSource MakeCodegenJoinOp(
+    std::vector<Stroka> joinColumns,
+    TTableSchema sourceSchema,
     TCodegenSource codegenSource);
 
 TCodegenSource MakeCodegenGroupOp(
     std::vector<TCodegenExpression> codegenGroupExprs,
-    std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates,
+    std::vector<std::pair<TCodegenExpression, TCodegenAggregateUpdate>> codegenAggregates,
+    TCodegenSource codegenSource);
+
+TCodegenSource MakeCodegenOrderOp(
+    std::vector<Stroka> orderColumns,
+    TTableSchema sourceSchema,
+    TCodegenSource codegenSource);
+
+TCodegenSource MakeCodegenProjectOp(
+    std::vector<TCodegenExpression> codegenArgs,
     TCodegenSource codegenSource);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -436,6 +456,13 @@ TResult CodegenIf(
     const std::function<TResult(TBuilder& builder)>& thenCodegen,
     const std::function<TResult(TBuilder& builder)>& elseCodegen,
     Twine name = Twine());
+
+template <class TBuilder>
+void CodegenIf(
+    TBuilder& builder,
+    Value* condition,
+    const std::function<void(TBuilder& builder)>& thenCodegen,
+    const std::function<void(TBuilder& builder)>& elseCodegen);
 
 TCGValue MakeBinaryFunctionCall(
     Stroka routineName,

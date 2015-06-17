@@ -6,7 +6,6 @@ set( SRCS
 set( HDRS
   ${BASE}/bootstrap.h
   ${BASE}/config.h
-  ${BASE}/memory_consumer.h
   ${BASE}/public.h
 )
 

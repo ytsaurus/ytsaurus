@@ -47,7 +47,6 @@ struct TTabletInfo
     NTabletClient::ETabletState State;
     NVersionedTableClient::TOwningKey PivotKey;
     NTabletClient::TTabletCellId CellId;
-    SmallVector<TTabletReplica, TypicalCellSize> Replicas;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletInfo)
@@ -86,8 +85,6 @@ public:
     ~TTableMountCache();
 
     TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path);
-
-    bool EraseTableInfo(const NYPath::TYPath& path);
 
     void Clear();
 

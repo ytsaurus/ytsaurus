@@ -94,18 +94,18 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         EObjectType type)
         : TBase(bootstrap)
-        , Type(type)
+        , Type_(type)
     { }
 
     virtual EObjectType GetType() const override
     {
-        return SchemaTypeFromType(Type);
+        return SchemaTypeFromType(Type_);
     }
 
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto* object = objectManager->GetSchema(Type);
+        auto* object = objectManager->GetSchema(Type_);
         return id == object->GetId() ? object : nullptr;
     }
 
@@ -119,9 +119,9 @@ public:
         auto permissions = NonePermissions;
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto handler = objectManager->GetHandler(Type);
+        auto handler = objectManager->GetHandler(Type_);
 
-        if (!IsVersionedType(Type)) {
+        if (!IsVersionedType(Type_)) {
             permissions |= handler->GetSupportedPermissions();
         }
 
@@ -133,14 +133,17 @@ public:
         return permissions;
     }
 
+    virtual void ResetAllObjects() override
+    { }
+
 private:
     typedef TObjectTypeHandlerBase<TSchemaObject> TBase;
 
-    const EObjectType Type;
+    const EObjectType Type_;
 
     virtual Stroka DoGetName(TSchemaObject* /*object*/) override
     {
-        return Format("%Qlv schema", Type);
+        return Format("%Qlv schema", Type_);
     }
 
     virtual IObjectProxyPtr DoGetProxy(
@@ -148,7 +151,7 @@ private:
         NTransactionServer::TTransaction* /*transaction*/) override
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        return objectManager->GetSchemaProxy(Type);
+        return objectManager->GetSchemaProxy(Type_);
     }
 
     virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TSchemaObject* object) override

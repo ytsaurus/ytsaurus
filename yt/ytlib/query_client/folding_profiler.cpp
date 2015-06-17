@@ -2,6 +2,7 @@
 #include "folding_profiler.h"
 #include "plan_helpers.h"
 #include "function_registry.h"
+#include "functions.h"
 
 #include "cg_fragment_compiler.h"
 
@@ -15,6 +16,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (JoinOp)
     (FilterOp)
     (GroupOp)
+    (OrderOp)
     (ProjectOp)
 
     (LiteralExpr)
@@ -34,10 +36,10 @@ class TFoldingProfiler
     : private TNonCopyable
 {
 public:
-    TFoldingProfiler();
+    TFoldingProfiler(const IFunctionRegistryPtr functionRegistry);
 
-    TCodegenSource Profile(const TConstQueryPtr& query);
-    TCodegenExpression Profile(const TConstExpressionPtr& expr, const TTableSchema& tableSchema);
+    TCodegenSource Profile(TConstQueryPtr query);
+    TCodegenExpression Profile(TConstExpressionPtr expr, const TTableSchema& tableSchema);
     void Profile(const TTableSchema& tableSchema, int keySize = std::numeric_limits<int>::max());
 
     TFoldingProfiler& Set(llvm::FoldingSetNodeID* id);
@@ -46,7 +48,7 @@ public:
 
 private:
     TCodegenExpression Profile(const TNamedItem& namedExpression, const TTableSchema& schema);
-    std::pair<TCodegenExpression, TCodegenAggregate> Profile(const TAggregateItem& aggregateItem, const TTableSchema& schema);
+    std::pair<TCodegenExpression, TCodegenAggregateUpdate> Profile(const TAggregateItem& aggregateItem, const TTableSchema& schema);
 
     void Fold(int numeric);
     void Fold(const char* str);
@@ -55,11 +57,14 @@ private:
     llvm::FoldingSetNodeID* Id_ = nullptr;
     TCGVariables* Variables_ = nullptr;
     yhash_set<Stroka>* References_ = nullptr;
+    const IFunctionRegistryPtr FunctionRegistry_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFoldingProfiler::TFoldingProfiler()
+TFoldingProfiler::TFoldingProfiler(
+    const IFunctionRegistryPtr functionRegistry)
+    : FunctionRegistry_(functionRegistry)
 { }
 
 TFoldingProfiler& TFoldingProfiler::Set(llvm::FoldingSetNodeID* id)
@@ -80,7 +85,7 @@ TFoldingProfiler& TFoldingProfiler::Set(yhash_set<Stroka>* references)
     return *this;
 }
 
-TCodegenSource TFoldingProfiler::Profile(const TConstQueryPtr& query)
+TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 {
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
     Profile(query->TableSchema);
@@ -116,7 +121,7 @@ TCodegenSource TFoldingProfiler::Profile(const TConstQueryPtr& query)
         Fold(static_cast<int>(EFoldingObjectType::GroupOp));
 
         std::vector<TCodegenExpression> codegenGroupExprs;
-        std::vector<std::pair<TCodegenExpression, TCodegenAggregate>> codegenAggregates;
+        std::vector<std::pair<TCodegenExpression, TCodegenAggregateUpdate>> codegenAggregates;
 
         for (const auto& groupItem : groupClause->GroupItems) {
             codegenGroupExprs.push_back(Profile(groupItem, schema));
@@ -147,10 +152,19 @@ TCodegenSource TFoldingProfiler::Profile(const TConstQueryPtr& query)
         schema = query->ProjectClause->GetTableSchema();
     }
 
+    if (auto orderClause = query->OrderClause.Get()) {
+        Fold(static_cast<int>(EFoldingObjectType::OrderOp));
+        for (const auto& column : orderClause->OrderColumns) {
+            Fold(column.c_str());
+        }
+
+        codegenSource = MakeCodegenOrderOp(orderClause->OrderColumns, schema, std::move(codegenSource));
+    }
+
     return codegenSource;
 }
 
-TCodegenExpression TFoldingProfiler::Profile(const TConstExpressionPtr& expr, const TTableSchema& schema)
+TCodegenExpression TFoldingProfiler::Profile(TConstExpressionPtr expr, const TTableSchema& schema)
 {
     Fold(static_cast<ui16>(expr->Type));
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
@@ -167,11 +181,10 @@ TCodegenExpression TFoldingProfiler::Profile(const TConstExpressionPtr& expr, co
         Fold(referenceExpr->ColumnName.c_str());
         Refer(referenceExpr);
 
-        auto column = referenceExpr->ColumnName;
         return MakeCodegenReferenceExpr(
-            schema.GetColumnIndexOrThrow(column),
+            schema.GetColumnIndexOrThrow(referenceExpr->ColumnName),
             referenceExpr->Type,
-            column.c_str());
+            referenceExpr->ColumnName);
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::FunctionExpr));
         Fold(functionExpr->FunctionName.c_str());
@@ -181,13 +194,11 @@ TCodegenExpression TFoldingProfiler::Profile(const TConstExpressionPtr& expr, co
             codegenArgs.push_back(Profile(argument, schema));
         }
 
-        Stroka functionName = functionExpr->FunctionName;
-        auto& function = GetFunctionRegistry()->GetFunction(functionName);
-
-        return function.MakeCodegenExpr(
-            std::move(codegenArgs),
-            functionExpr->Type,
-            "{" + functionExpr->GetName() + "}");
+        return FunctionRegistry_->GetFunction(functionExpr->FunctionName)
+            ->MakeCodegenExpr(
+                std::move(codegenArgs),
+                functionExpr->Type,
+                "{" + functionExpr->GetName() + "}");
     } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
         Fold(static_cast<int>(unaryOp->Opcode));
@@ -248,20 +259,22 @@ TCodegenExpression TFoldingProfiler::Profile(const TNamedItem& namedExpression, 
     return Profile(namedExpression.Expression, schema);
 }
 
-std::pair<TCodegenExpression, TCodegenAggregate> TFoldingProfiler::Profile(
+std::pair<TCodegenExpression, TCodegenAggregateUpdate> TFoldingProfiler::Profile(
     const TAggregateItem& aggregateItem,
     const TTableSchema& schema)
 {
     Fold(static_cast<int>(EFoldingObjectType::AggregateItem));
-    Fold(static_cast<int>(aggregateItem.AggregateFunction));
+    Fold(aggregateItem.AggregateFunction.c_str());
     Fold(aggregateItem.Name.c_str());
+
+    auto function = FunctionRegistry_->GetAggregateFunction(
+        aggregateItem.AggregateFunction);
 
     return std::make_pair(
         Profile(aggregateItem.Expression, schema),
-        MakeCodegenAggregateFunction(
-            aggregateItem.AggregateFunction,
+        function->MakeCodegenAggregate(
             aggregateItem.Expression->Type,
-            aggregateItem.Name.c_str()));
+            aggregateItem.Name));
 }
 
 void TFoldingProfiler::Fold(int numeric)
@@ -281,19 +294,20 @@ void TFoldingProfiler::Fold(const char* str)
 void TFoldingProfiler::Refer(const TReferenceExpression* referenceExpr)
 {
     if (References_) {
-        References_->insert(referenceExpr->ColumnName.c_str());
+        References_->insert(referenceExpr->ColumnName);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCGQueryCallbackGenerator Profile(
-    const TConstQueryPtr& query,
+    TConstQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    yhash_set<Stroka>* references)
+    yhash_set<Stroka>* references,
+    const IFunctionRegistryPtr functionRegistry)
 {
-    TFoldingProfiler profiler;
+    TFoldingProfiler profiler(functionRegistry);
     profiler.Set(id);
     profiler.Set(variables);
     profiler.Set(references);
@@ -306,13 +320,14 @@ TCGQueryCallbackGenerator Profile(
 }
 
 TCGExpressionCallbackGenerator Profile(
-    const TConstExpressionPtr& expr,
+    TConstExpressionPtr expr,
     const TTableSchema& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    yhash_set<Stroka>* references)
+    yhash_set<Stroka>* references,
+    const IFunctionRegistryPtr functionRegistry)
 {
-    TFoldingProfiler profiler;
+    TFoldingProfiler profiler(functionRegistry);
     profiler.Set(variables);
     profiler.Set(references);
 
@@ -323,9 +338,9 @@ TCGExpressionCallbackGenerator Profile(
         };
 }
 
-void Profile(const TTableSchema& tableSchema, int keySize, llvm::FoldingSetNodeID* id)
+void Profile(const TTableSchema& tableSchema, int keySize, llvm::FoldingSetNodeID* id, const IFunctionRegistryPtr functionRegistry)
 {
-    TFoldingProfiler profiler;
+    TFoldingProfiler profiler(functionRegistry);
     profiler.Set(id);
 
     profiler.Profile(tableSchema, keySize);

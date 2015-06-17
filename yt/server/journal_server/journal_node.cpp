@@ -122,21 +122,20 @@ protected:
     {
         return CreateJournalNodeProxy(
             this,
-            Bootstrap,
+            Bootstrap_,
             transaction,
             trunkNode);
     }
 
     virtual std::unique_ptr<TJournalNode> DoCreate(
         const TVersionedNodeId& id,
-        TTransaction* transaction,
         INodeTypeHandler::TReqCreate* request,
         INodeTypeHandler::TRspCreate* response) override
     {
-        auto chunkManager = this->Bootstrap->GetChunkManager();
-        auto objectManager = this->Bootstrap->GetObjectManager();
+        auto chunkManager = this->Bootstrap_->GetChunkManager();
+        auto objectManager = this->Bootstrap_->GetObjectManager();
 
-        auto node = TBase::DoCreate(id, transaction, request, response);
+        auto node = TBase::DoCreate(id, request, response);
 
         // Create an empty chunk list and reference it from the node.
         auto* chunkList = chunkManager->CreateChunkList();
@@ -173,7 +172,7 @@ protected:
         auto* chunkList = node->GetChunkList();
         if (chunkList) {
             YCHECK(chunkList->OwningNodes().erase(node) == 1);
-            auto objectManager = Bootstrap->GetObjectManager();
+            auto objectManager = Bootstrap_->GetObjectManager();
             objectManager->UnrefObject(chunkList);
         }
 
@@ -193,7 +192,7 @@ protected:
         branchedNode->SetChunkList(chunkList);
         YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(branchedNode->GetChunkList());
 
         branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
@@ -222,7 +221,7 @@ protected:
         YCHECK(originatingChunkList == branchedChunkList);
         YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(branchedChunkList);
 
         if (IsLeader()) {
@@ -267,7 +266,7 @@ protected:
         if (journal->IsSealed())
             return;
 
-        auto chunkManager = Bootstrap->GetChunkManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->MaybeScheduleChunkSeal(journal->GetTrailingChunk());
     }
 

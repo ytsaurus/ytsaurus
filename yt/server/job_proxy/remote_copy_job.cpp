@@ -25,6 +25,10 @@
 
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
+#include <ytlib/api/connection.h>
+#include <ytlib/api/client.h>
+#include <ytlib/api/config.h>
+
 #include <core/erasure/codec.h>
 
 namespace NYT {
@@ -38,6 +42,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
+using namespace NScheduler;
 using namespace NJobTrackerClient::NProto;
 using namespace NVersionedTableClient;
 using namespace NApi;
@@ -45,7 +50,7 @@ using namespace NApi;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = JobProxyLogger;
-static auto& Profiler = JobProxyProfiler;
+static const auto& Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,8 +64,8 @@ public:
         , SchedulerJobSpecExt_(JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
     {
         auto config = host->GetConfig();
-        ReaderConfig_ = config->JobIO->NewTableReader;
-        WriterConfig_ = config->JobIO->NewTableWriter;
+        ReaderConfig_ = config->JobIO->TableReader;
+        WriterConfig_ = config->JobIO->TableWriter;
 
         YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
         YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
@@ -77,12 +82,11 @@ public:
 
         {
             auto remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-            auto remoteConnectionConfig = ConvertTo<TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
-            NetworkName_ = Stroka(remoteCopySpec.network_name());
-            auto remoteConnection = CreateConnection(remoteConnectionConfig);
-            RemoteMasterChannel_ = CreateAuthenticatedChannel(
-                remoteConnection->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
-                NSecurityClient::JobUserName);
+            RemoteConnectionConfig_ = ConvertTo<TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
+            RemoteConnection_ = CreateConnection(RemoteConnectionConfig_);
+            TClientOptions clientOptions;
+            clientOptions.User = NSecurityClient::JobUserName;
+            RemoteClient_ = RemoteConnection_->CreateClient(clientOptions);
             RemoteNodeDirectory_->MergeFrom(remoteCopySpec.remote_node_directory());
         }
     }
@@ -115,14 +119,13 @@ public:
         return std::vector<TChunkId>();
     }
 
-    virtual TJobStatistics GetStatistics() const override
+    virtual TStatistics GetStatistics() const override
     {
-        TJobStatistics result;
-
-        result.set_time(GetElapsedTime().MilliSeconds());
-        // TODO(ignat): report intermediate statistics for block copying.
-        ToProto(result.mutable_input(), DataStatistics_);
-        ToProto(result.add_output(), DataStatistics_);
+        TStatistics result;
+        result.AddComplex("/data/input", DataStatistics_);
+        result.AddComplex(
+            "/data/output/" + NYPath::ToYPathLiteral(0),
+            DataStatistics_);
 
         return result;
     }
@@ -131,8 +134,9 @@ private:
     const TJobSpec& JobSpec_;
     const TSchedulerJobSpecExt& SchedulerJobSpecExt_;
 
-    IChannelPtr RemoteMasterChannel_;
-    Stroka NetworkName_;
+    TConnectionConfigPtr RemoteConnectionConfig_;
+    IConnectionPtr RemoteConnection_;
+    IClientPtr RemoteClient_;
 
     TTableReaderConfigPtr ReaderConfig_;
     TTableWriterConfigPtr WriterConfig_;
@@ -174,7 +178,7 @@ private:
 
         LOG_INFO("Creating output chunk");
 
-        // Create output chunk
+        // Create output chunk.
         TChunkId outputChunkId;
         {
             auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
@@ -196,7 +200,7 @@ private:
             FromProto(&outputChunkId, rsp->object_ids(0));
         }
 
-        // Copy chunk
+        // Copy chunk.
         LOG_INFO("Copying blocks");
 
         TChunkInfo chunkInfo;
@@ -207,26 +211,28 @@ private:
 
         if (isErasure) {
             auto erasureCodec = NErasure::GetCodec(erasureCodecId);
-
+            auto readerOptions = New<TRemoteReaderOptions>();
+            readerOptions->NetworkName = RemoteConnectionConfig_->NetworkName;
             auto readers = CreateErasureAllPartsReaders(
                 ReaderConfig_,
-                host->GetCompressedBlockCache(),
-                RemoteMasterChannel_,
+                readerOptions,
+                RemoteClient_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
                 RemoteNodeDirectory_,
                 inputChunkId,
                 inputReplicas,
                 erasureCodec,
-                NetworkName_);
+                host->GetBlockCache());
 
             chunkMeta = GetChunkMeta(readers.front());
 
+            auto writerOptions = New<TRemoteWriterOptions>();
             auto writers = CreateErasurePartWriters(
                 WriterConfig_,
+                writerOptions,
                 outputChunkId,
                 erasureCodec,
                 nodeDirectory,
-                host->GetMasterChannel(),
-                EWriteSessionType::User);
+                host->GetMasterChannel());
 
             YCHECK(readers.size() == writers.size());
 
@@ -255,25 +261,28 @@ private:
             }
             chunkInfo.set_disk_space(diskSpace);
         } else {
+            auto readerOptions = New<TRemoteReaderOptions>();
+            readerOptions->NetworkName = RemoteConnectionConfig_->NetworkName;
             auto reader = CreateReplicationReader(
                 ReaderConfig_,
-                host->GetCompressedBlockCache(),
-                RemoteMasterChannel_,
+                readerOptions,
+                RemoteClient_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
                 RemoteNodeDirectory_,
                 Null,
                 inputChunkId,
                 TChunkReplicaList(),
-                NetworkName_);
+                host->GetBlockCache());
 
             chunkMeta = GetChunkMeta(reader);
 
+            auto writerOptions = New<TRemoteWriterOptions>();
             auto writer = CreateReplicationWriter(
                 WriterConfig_,
+                writerOptions,
                 outputChunkId,
                 TChunkReplicaList(),
                 nodeDirectory,
-                host->GetMasterChannel(),
-                EWriteSessionType::User);
+                host->GetMasterChannel());
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
             int blockCount = static_cast<int>(blocksExt.blocks_size());
@@ -286,7 +295,7 @@ private:
             writtenReplicas = writer->GetWrittenChunkReplicas();
         }
 
-        // Prepare data statistics
+        // Prepare data statistics.
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
 
         TDataStatistics chunkStatistics;
@@ -302,9 +311,10 @@ private:
         LOG_INFO("Confirming output chunk");
         YCHECK(!writtenReplicas.empty());
         {
-            static const yhash_set<int> masterMetaTags({
+            static const yhash_set<int> masterMetaTags{
                 TProtoExtensionTag<TMiscExt>::Value,
-                TProtoExtensionTag<NVersionedTableClient::NProto::TBoundaryKeysExt>::Value });
+                TProtoExtensionTag<NVersionedTableClient::NProto::TBoundaryKeysExt>::Value
+            };
 
             auto masterChunkMeta = chunkMeta;
             FilterProtoExtensions(
@@ -312,8 +322,7 @@ private:
                 chunkMeta.extensions(),
                 masterMetaTags);
 
-            auto req = TChunkYPathProxy::Confirm(
-                NObjectClient::FromObjectId(outputChunkId));
+            auto req = TChunkYPathProxy::Confirm(FromObjectId(outputChunkId));
             GenerateMutationId(req);
             *req->mutable_chunk_info() = chunkInfo;
             *req->mutable_chunk_meta() = masterChunkMeta;
@@ -326,7 +335,7 @@ private:
         // Attach chunk.
         LOG_INFO("Attaching output chunk");
         {
-            auto req = TChunkListYPathProxy::Attach(NObjectClient::FromObjectId(OutputChunkListId_));
+            auto req = TChunkListYPathProxy::Attach(FromObjectId(OutputChunkListId_));
             ToProto(req->add_children_ids(), outputChunkId);
             GenerateMutationId(req);
 

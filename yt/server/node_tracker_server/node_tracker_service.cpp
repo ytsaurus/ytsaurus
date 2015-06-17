@@ -7,6 +7,8 @@
 
 #include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
+#include <ytlib/hive/cell_directory.h>
+
 #include <server/hydra/rpc_helpers.h>
 
 #include <server/object_server/object_manager.h>
@@ -41,40 +43,38 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TNodeTrackerServiceProxy::GetServiceName(),
-            NodeTrackerServerLogger)
-        , Config(config)
+            NodeTrackerServerLogger,
+            TNodeTrackerServiceProxy::GetProtocolVersion())
+        , Config_(config)
         {
             RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
-            FullHeartbeatMethodInfo = RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
                 .SetRequestHeavy(true)
                 .SetInvoker(bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Heartbeat)));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
                 .SetRequestHeavy(true));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(GetRegisteredCells));
         }
 
-
 private:
-    TNodeTrackerConfigPtr Config;
-
-    TRuntimeMethodInfoPtr FullHeartbeatMethodInfo;
+    const TNodeTrackerConfigPtr Config_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, RegisterNode)
     {
-        UNUSED(response);
-
-        ValidateActiveLeader();
+        ValidatePeer(EPeerKind::Leader);
 
         auto worldInitializer = Bootstrap_->GetWorldInitializer();
         if (worldInitializer->CheckProvisionLock()) {
             THROW_ERROR_EXCEPTION(
                 "Provision lock is found, which indicates a fresh instance of masters being run. "
                 "If this is not intended then please check snapshot/changelog directories location. "
-                "Ignoring this warning and removing the lock may cause UNRECOVERABLE DATA LOSS!");
+                "Ignoring this warning and removing the lock may cause UNRECOVERABLE DATA LOSS! "
+                "If you are sure and wish to continue then run 'yt remove //sys/@provision_lock'");
         }
 
-        auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
-        const auto& address = descriptor.GetDefaultAddress();
+        auto addresses = FromProto<TAddressMap>(request->addresses());
+        const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request->statistics();
 
         context->SetRequestInfo("Address: %v, %v",
@@ -82,22 +82,16 @@ private:
             statistics);
 
         auto nodeTracker = Bootstrap_->GetNodeTracker();
-        int fullHeartbeatQueueSize = FullHeartbeatMethodInfo->QueueSizeCounter.Current;
-        int registeredNodeCount = nodeTracker->GetRegisteredNodeCount();
-        if (fullHeartbeatQueueSize + registeredNodeCount > Config->MaxFullHeartbeatQueueSize) {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Full heartbeat throttling is active")
-                << TErrorAttribute("queue_size", fullHeartbeatQueueSize)
-                << TErrorAttribute("registered_node_count", registeredNodeCount)
-                << TErrorAttribute("limit", Config->MaxFullHeartbeatQueueSize));
-            return;
-        }
-
-
         auto config = nodeTracker->FindNodeConfigByAddress(address);
         if (config && config->Banned) {
             THROW_ERROR_EXCEPTION("Node %v is banned", address);
+        }
+
+        if (!nodeTracker->TryAcquireNodeRegistrationSemaphore()) {
+            context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Node registration throttling is active"));
+            return;
         }
 
         nodeTracker
@@ -108,7 +102,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, FullHeartbeat)
     {
-        ValidateActiveLeader();
+        ValidatePeer(EPeerKind::Leader);
 
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
@@ -118,7 +112,7 @@ private:
 
         context->SetRequestInfo("NodeId: %v, Address: %v, %v",
             nodeId,
-            node->GetAddress(),
+            node->GetDefaultAddress(),
             statistics);
 
         if (node->GetState() != ENodeState::Registered) {
@@ -137,7 +131,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, IncrementalHeartbeat)
     {
-        ValidateActiveLeader();
+        ValidatePeer(EPeerKind::Leader);
 
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
@@ -147,7 +141,7 @@ private:
 
         context->SetRequestInfo("NodeId: %v, Address: %v, %v",
             nodeId,
-            node->GetAddress(),
+            node->GetDefaultAddress(),
             statistics);
 
         if (node->GetState() != ENodeState::Online) {
@@ -162,6 +156,21 @@ private:
             ->CreateIncrementalHeartbeatMutation(context)
             ->Commit()
             .Subscribe(CreateRpcResponseHandler(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, GetRegisteredCells)
+    {
+        ValidatePeer(EPeerKind::Leader);
+
+        context->SetRequestInfo();
+
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+        ToProto(response->mutable_cell_descriptors(), nodeTracker->GetCellDescriptors());
+
+        context->SetResponseInfo("DescriptorCount: %v",
+            response->cell_descriptors_size());
+
+        context->Reply();
     }
 
 };

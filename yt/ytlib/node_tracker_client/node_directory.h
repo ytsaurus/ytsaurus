@@ -4,6 +4,7 @@
 
 #include <core/misc/nullable.h>
 #include <core/misc/property.h>
+#include <core/misc/enum.h>
 
 #include <ytlib/chunk_client/chunk_replica.h>
 
@@ -14,15 +15,18 @@ namespace NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Keeps a cached information about data node obtained by fetch request.
+//! Network-related node information.
 class TNodeDescriptor
 {
 public:
-    TNodeDescriptor();
+    DEFINE_BYREF_RO_PROPERTY(TAddressMap, Addresses);
+    DEFINE_BYVAL_RO_PROPERTY(TNullable<Stroka>, Rack);
 
-    explicit TNodeDescriptor(const yhash_map<Stroka, Stroka>& addresses);
-
-    bool IsLocal() const;
+public:
+    TNodeDescriptor() = default;
+    explicit TNodeDescriptor(
+        const TAddressMap& addresses,
+        const TNullable<Stroka>& rack = Null);
 
     const Stroka& GetDefaultAddress() const;
     const Stroka& GetInterconnectAddress() const;
@@ -31,9 +35,6 @@ public:
     TNullable<Stroka> FindAddress(const Stroka& name) const;
 
     void Persist(TStreamPersistenceContext& context);
-
-    typedef yhash_map<Stroka, Stroka> TAddressMap;
-    DEFINE_BYREF_RO_PROPERTY(TAddressMap, Addresses);
 };
 
 bool operator == (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
@@ -41,8 +42,28 @@ bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
 
 Stroka ToString(const TNodeDescriptor& descriptor);
 
-void ToProto(NProto::TNodeDescriptor* protoDescriptor, const TNodeDescriptor& descriptor);
-void FromProto(TNodeDescriptor* descriptor, const NProto::TNodeDescriptor& protoDescriptor);
+// Accessors for some well-known adddresses.
+const Stroka& GetDefaultAddress(const TAddressMap& addresses);
+const Stroka& GetInterconnectAddress(const TAddressMap& addresses);
+
+//! Please keep the items in this particular order: the further the better.
+DEFINE_ENUM(EAddressLocality,
+    (None)
+    (SameRack)
+    (SameHost)
+);
+
+EAddressLocality ComputeAddressLocality(const TNodeDescriptor& first, const TNodeDescriptor& second);
+
+namespace NProto {
+
+void ToProto(NNodeTrackerClient::NProto::TAddressMap* protoAddresses, const NNodeTrackerClient::TAddressMap& addresses);
+void FromProto(NNodeTrackerClient::TAddressMap* addresses, const NNodeTrackerClient::NProto::TAddressMap& protoAddresses);
+
+void ToProto(NNodeTrackerClient::NProto::TNodeDescriptor* protoDescriptor, const NNodeTrackerClient::TNodeDescriptor& descriptor);
+void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrackerClient::NProto::TNodeDescriptor& protoDescriptor);
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,9 +92,9 @@ public:
     void Persist(TStreamPersistenceContext& context);
 
 private:
-    TSpinLock SpinLock;
-    yhash_map<TNodeId, TNodeDescriptor> IdToDescriptor;
-    yhash_map<Stroka, TNodeDescriptor> AddressToDescriptor;
+    TSpinLock SpinLock_;
+    yhash_map<TNodeId, TNodeDescriptor> IdToDescriptor_;
+    yhash_map<Stroka, TNodeDescriptor> AddressToDescriptor_;
 
     void DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
 

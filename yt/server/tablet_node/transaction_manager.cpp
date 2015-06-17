@@ -53,11 +53,8 @@ public:
             slot,
             bootstrap)
         , Config_(config)
-        , Logger(TabletNodeLogger)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
-
-        Logger.AddTag("CellId: %v", Slot_->GetCellId());
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -65,15 +62,22 @@ public:
         RegisterLoader(
             "TransactionManager.Values",
             BIND(&TImpl::LoadValues, Unretained(this)));
+        RegisterLoader(
+            "TransactionManager.Async",
+            BIND(&TImpl::LoadAsync, Unretained(this)));
 
         RegisterSaver(
-            ESerializationPriority::Keys,
+            ESyncSerializationPriority::Keys,
             "TransactionManager.Keys",
             BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
-            ESerializationPriority::Values,
+            ESyncSerializationPriority::Values,
             "TransactionManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
+        RegisterSaver(
+            EAsyncSerializationPriority::Default,
+            "TransactionManager.Async",
+            BIND(&TImpl::SaveAsync, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this)));
     }
@@ -254,11 +258,9 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
 private:
-    TTransactionManagerConfigPtr Config_;
+    const TTransactionManagerConfigPtr Config_;
 
     TEntityMap<TTransactionId, TTransaction> TransactionMap_;
-
-    NLogging::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -358,8 +360,8 @@ private:
         auto startTimestamp = TTimestamp(request.start_timestamp());
         auto timeout = TDuration::MilliSeconds(request.timeout());
 
-        auto* transaction = new TTransaction(transactionId);
-        TransactionMap_.Insert(transactionId, transaction);
+        auto transactionHolder = std::make_unique<TTransaction>(transactionId);
+        auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
 
         const auto* mutationContext = GetCurrentMutationContext();
 
@@ -381,6 +383,10 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnLeaderActive();
+
         // Recreate leases for all active transactions.
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
@@ -396,6 +402,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        TTabletAutomatonPart::OnStopLeading();
+
         // Reset all transiently prepared transactions back into active state.
         // Mark all transactions are finished to release pending readers.
         for (const auto& pair : TransactionMap_) {
@@ -409,17 +417,44 @@ private:
 
     void SaveKeys(TSaveContext& context)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         TransactionMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         TransactionMap_.SaveValues(context);
     }
 
-    void OnBeforeSnapshotLoaded() override
+    TCallback<void(TSaveContext&)> SaveAsync()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        std::vector<std::pair<TTransactionId, TCallback<void(TSaveContext&)>>> capturedTransactions;
+        for (const auto& pair : TransactionMap_) {
+            auto* transaction = pair.second;
+            capturedTransactions.push_back(std::make_pair(transaction->GetId(), transaction->AsyncSave()));
+        }
+
+        return BIND([capturedTransactions = std::move(capturedTransactions)] (TSaveContext& context) {
+                using NYT::Save;
+
+                // NB: This is not stable.
+                for (const auto& pair : capturedTransactions) {
+                    Save(context, pair.first);
+                    pair.second.Run(context);
+                }
+            });
+    }
+
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnBeforeSnapshotLoaded();
 
         DoClear();
     }
@@ -438,14 +473,34 @@ private:
         TransactionMap_.LoadValues(context);
     }
 
+    void LoadAsync(TLoadContext& context)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        SERIALIZATION_DUMP_WRITE(context, "transactions[%v]", TransactionMap_.size());
+        SERIALIZATION_DUMP_INDENT(context) {
+            for (int index = 0; index < TransactionMap_.size(); ++index) {
+                auto transactionId = Load<TTransactionId>(context);
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", transactionId);
+                SERIALIZATION_DUMP_INDENT(context) {
+                    auto* transaction = GetTransaction(transactionId);
+                    transaction->AsyncLoad(context);
+                }
+            }
+        }
+    }
+
+
     void DoClear()
     {
         TransactionMap_.Clear();
     }
 
-    void Clear() override
+    virtual void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::Clear();
 
         DoClear();
     }

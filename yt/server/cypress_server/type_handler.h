@@ -43,12 +43,11 @@ struct INodeTypeHandler
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
-    //! Creates a node.
+    //! Creates a new trunk node.
     /*!
-     *  This is called during |Create|.
+     *  This is called during |Create| verb.
      */
     virtual std::unique_ptr<TCypressNodeBase> Create(
-        NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) = 0;
 

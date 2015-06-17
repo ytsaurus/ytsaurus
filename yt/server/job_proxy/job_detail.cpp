@@ -20,11 +20,12 @@ using namespace NJobTrackerClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NVersionedTableClient;
 using namespace NYTree;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Profiler = JobProxyProfiler;
-static auto& Logger = JobProxyLogger;
+static const auto& Profiler = JobProxyProfiler;
+static const auto& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,11 +34,6 @@ TJob::TJob(IJobHost* host)
     , StartTime(TInstant::Now())
 {
     YCHECK(host);
-}
-
-TDuration TJob::GetElapsedTime() const
-{
-    return TInstant::Now() - StartTime;
 }
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
@@ -83,9 +79,6 @@ TJobResult TSimpleJobBase::Run()
 
         LOG_INFO("Finalizing");
         {
-            auto error = WaitFor(Writer_->Close());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-
             TJobResult result;
             ToProto(result.mutable_error(), TError());
 
@@ -117,12 +110,14 @@ std::vector<TChunkId> TSimpleJobBase::GetFailedChunkIds() const
     return Reader_->GetFailedChunkIds();
 }
 
-TJobStatistics TSimpleJobBase::GetStatistics() const
+TStatistics TSimpleJobBase::GetStatistics() const
 {
-    TJobStatistics result;
-    result.set_time(GetElapsedTime().MilliSeconds());
-    ToProto(result.mutable_input(), Reader_->GetDataStatistics());
-    ToProto(result.add_output(), Writer_->GetDataStatistics());
+    TStatistics result;
+    result.AddComplex("/data/input", Reader_->GetDataStatistics());
+    result.AddComplex(
+        "/data/output/" + NYPath::ToYPathLiteral(0),
+        Writer_->GetDataStatistics());
+
     return result;
 }
 

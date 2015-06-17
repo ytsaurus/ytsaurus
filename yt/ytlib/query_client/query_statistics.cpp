@@ -54,6 +54,17 @@ TQueryStatistics FromProto(const NProto::TQueryStatistics& serialized)
     return result;
 }
 
+Stroka ToString(const TQueryStatistics& stat)
+{
+    return Format(
+        "RowsRead: %v, RowsWritten: %v, "
+        "SyncTime: %v, AsyncTime: %v, ExecuteTime: %v, ReadTime: %v, WriteTime: %v, "
+        "IncompleteInput: %v, IncompleteOutput: %v", 
+        stat.RowsRead, stat.RowsWritten,
+        stat.SyncTime, stat.AsyncTime, stat.ExecuteTime, stat.ReadTime, stat.WriteTime,
+        stat.IncompleteInput, stat.IncompleteInput);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

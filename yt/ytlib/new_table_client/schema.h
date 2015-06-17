@@ -62,9 +62,6 @@ public:
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
     TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
 
-    TTableSchema Deplete() const;
-    TKeyColumns DepleteKeyColumns(const TKeyColumns& keyColumns) const;
-
     bool HasComputedColumns() const;
 
     void Save(TStreamSaveContext& context) const;
@@ -86,6 +83,7 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
+void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumns& newKeyColumns);
 void ValidateTableSchema(const TTableSchema& schema);
 void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColumns& keyColumns);
 void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount);

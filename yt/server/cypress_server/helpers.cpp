@@ -23,26 +23,18 @@ yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    yhash_map<Stroka, TCypressNodeBase*> result;
-
     auto cypressManager = bootstrap->GetCypressManager();
-    auto transactionManager = bootstrap->GetTransactionManager();
+    auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
-    auto transactions = transactionManager->GetTransactionPath(transaction);
-    std::reverse(transactions.begin(), transactions.end());
-
-    for (const auto* currentTransaction : transactions) {
-        TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
-        const auto* node = cypressManager->FindNode(versionedId);
-        if (node) {
-            const auto* mapNode = static_cast<const TMapNode*>(node);
-            for (const auto& pair : mapNode->KeyToChild()) {
-                if (!pair.second) {
-                    // NB: key may be absent.
-                    result.erase(pair.first);
-                } else {
-                    result[pair.first] = pair.second;
-                }
+    yhash_map<Stroka, TCypressNodeBase*> result;
+    for (const auto* node : originators) {
+        const auto* mapNode = static_cast<const TMapNode*>(node);
+        for (const auto& pair : mapNode->KeyToChild()) {
+            if (!pair.second) {
+                // NB: key may be absent.
+                result.erase(pair.first);
+            } else {
+                result[pair.first] = pair.second;
             }
         }
     }
@@ -56,20 +48,14 @@ TCypressNodeBase* FindMapNodeChild(
     TTransaction* transaction,
     const Stroka& key)
 {
-    auto transactionManager = bootstrap->GetTransactionManager();
     auto cypressManager = bootstrap->GetCypressManager();
+    auto originators = cypressManager->GetNodeOriginators(transaction, trunkNode);
 
-    auto transactions = transactionManager->GetTransactionPath(transaction);
-
-    for (const auto* currentTransaction : transactions) {
-        TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
-        const auto* node = cypressManager->FindNode(versionedId);
-        if (node) {
-            const auto* mapNode = static_cast<const TMapNode*>(node);
-            auto it = mapNode->KeyToChild().find(key);
-            if (it != mapNode->KeyToChild().end()) {
-                return it->second;
-            }
+    for (const auto* node : originators) {
+        const auto* mapNode = static_cast<const TMapNode*>(node);
+        auto it = mapNode->KeyToChild().find(key);
+        if (it != mapNode->KeyToChild().end()) {
+            return it->second;
         }
     }
 
@@ -81,17 +67,12 @@ yhash_map<Stroka, NYTree::TYsonString> GetNodeAttributes(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
+    auto cypressManager = bootstrap->GetCypressManager();
+    auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
+
     yhash_map<Stroka, TYsonString> result;
-
-    auto objectManager = bootstrap->GetObjectManager();
-    auto transactionManager = bootstrap->GetTransactionManager();
-
-    auto transactions = transactionManager->GetTransactionPath(transaction);
-    std::reverse(transactions.begin(), transactions.end());
-
-    for (const auto* currentTransaction : transactions) {
-        TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
-        const auto* userAttributes = objectManager->FindAttributes(versionedId);
+    for (const auto* node : originators) {
+        const auto* userAttributes = node->GetAttributes();
         if (userAttributes) {
             for (const auto& pair : userAttributes->Attributes()) {
                 if (pair.second) {
@@ -111,17 +92,12 @@ yhash_set<Stroka> ListNodeAttributes(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
+    auto cypressManager = bootstrap->GetCypressManager();
+    auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
+
     yhash_set<Stroka> result;
-
-    auto objectManager = bootstrap->GetObjectManager();
-    auto transactionManager = bootstrap->GetTransactionManager();
-
-    auto transactions = transactionManager->GetTransactionPath(transaction);
-    std::reverse(transactions.begin(), transactions.end());
-
-    for (const auto* currentTransaction : transactions) {
-        TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
-        const auto* userAttributes = objectManager->FindAttributes(versionedId);
+    for (const auto* node : originators) {
+        const auto* userAttributes = node->GetAttributes();
         if (userAttributes) {
             for (const auto& pair : userAttributes->Attributes()) {
                 if (pair.second) {
@@ -145,24 +121,15 @@ void AttachChild(
 
     child->SetParent(trunkParent);
 
-    // Walk upwards along the transaction path and set missing parents
+    // Walk upwards along the originator links and set missing parents
     // This ensures that when a new node is created within a transaction
     // and then attached somewhere, its originators have valid parent links.
     auto* trunkChild = child->GetTrunkNode();
     if (trunkChild != child) {
-        auto cypressManager = bootstrap->GetCypressManager();
-        auto* transaction = child->GetTransaction()->GetParent();
-        while (true) {
-            TVersionedNodeId versionedId(child->GetId(), GetObjectId(transaction));
-            auto* childOriginator = cypressManager->GetNode(versionedId);
-            if (childOriginator->GetParent()) {
-                break;
-            }
-            childOriginator->SetParent(trunkParent);
-            if (!transaction) {
-                break;
-            }
-            transaction = transaction->GetParent();
+        auto* currentChild = child->GetOriginator();
+        while (currentChild && !currentChild->GetParent()) {
+            currentChild->SetParent(trunkParent);
+            currentChild = currentChild->GetOriginator();
         }
     }
 

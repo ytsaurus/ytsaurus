@@ -4,6 +4,7 @@
 
 #include <core/misc/address.h>
 #include <core/misc/ref_counted_tracker.h>
+#include <core/misc/collection_helpers.h>
 
 #include <core/concurrency/action_queue.h>
 
@@ -41,6 +42,7 @@
 #include <ytlib/api/connection.h>
 
 #include <server/misc/build_attributes.h>
+#include <server/misc/memory_usage_tracker.h>
 
 #include <server/data_node/config.h>
 #include <server/data_node/ytree_integration.h>
@@ -51,6 +53,7 @@
 #include <server/data_node/chunk_cache.h>
 #include <server/data_node/chunk_registry.h>
 #include <server/data_node/block_store.h>
+#include <server/data_node/block_cache.h>
 #include <server/data_node/blob_reader_cache.h>
 #include <server/data_node/journal_dispatcher.h>
 #include <server/data_node/location.h>
@@ -78,7 +81,7 @@
 #include <server/tablet_node/store_compactor.h>
 #include <server/tablet_node/partition_balancer.h>
 #include <server/tablet_node/security_manager.h>
-#include <server/tablet_node/store_preloader.h>
+#include <server/tablet_node/in_memory_manager.h>
 
 #include <server/query_agent/query_executor.h>
 #include <server/query_agent/query_service.h>
@@ -92,6 +95,7 @@ namespace NCellNode {
 
 using namespace NBus;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 using namespace NChunkServer;
 using namespace NElection;
 using namespace NHydra;
@@ -123,7 +127,6 @@ TBootstrap::TBootstrap(
     TCellNodeConfigPtr config)
     : ConfigFileName(configFileName)
     , Config(config)
-    , MemoryUsageTracker(Config->ExecAgent->JobController->ResourceLimits->Memory, "/cell_node")
 { }
 
 TBootstrap::~TBootstrap()
@@ -146,29 +149,25 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    {
-        auto addresses = Config->Addresses;
-        if (addresses.find(NNodeTrackerClient::DefaultNetworkName) == addresses.end()) {
-            addresses[NNodeTrackerClient::DefaultNetworkName] = TAddressResolver::Get()->GetLocalHostName();
-        }
-        for (auto& pair : addresses) {
-            pair.second = BuildServiceAddress(pair.second, Config->RpcPort);
-        }
-        LocalDescriptor = NNodeTrackerClient::TNodeDescriptor(addresses);
-    }
+    auto localAddresses = GetLocalAddresses();
 
-    LOG_INFO("Starting node (LocalDescriptor: %v, MasterAddresses: [%v])",
-        LocalDescriptor,
+    LOG_INFO("Starting node (LocalAddresses: [%v], MasterAddresses: [%v])",
+        JoinToString(GetValues(localAddresses)),
         JoinToString(Config->ClusterConnection->Master->Addresses));
 
+    MemoryUsageTracker = std::make_unique<TNodeMemoryTracker>(
+        Config->ResourceLimits->Memory,
+        std::vector<std::pair<EMemoryCategory, i64>>{
+            {EMemoryCategory::Jobs, Config->ExecAgent->JobController->ResourceLimits->Memory},
+            {EMemoryCategory::TabletStatic, Config->TabletNode->ResourceLimits->TabletStaticMemory },
+            {EMemoryCategory::TabletDynamic, Config->TabletNode->ResourceLimits->TabletDynamicMemory }
+        },
+        Logger,
+        TProfiler("/cell_node/memory_usage"));
+
     {
-        auto result = MemoryUsageTracker.TryAcquire(
-            EMemoryConsumer::Footprint,
-            FootprintMemorySize);
-        if (!result.IsOK()) {
-            THROW_ERROR_EXCEPTION("Error allocating footprint memory")
-                << result;
-        }
+        auto result = MemoryUsageTracker->TryAcquire(EMemoryCategory::Footprint, FootprintMemorySize);
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving footprint memory");
     }
 
     auto clusterConnection = CreateConnection(Config->ClusterConnection);
@@ -208,15 +207,13 @@ void TBootstrap::DoRun()
 
     BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
 
-    JournalDispatcher = New<TJournalDispatcher>(this, Config->DataNode);
+    JournalDispatcher = New<TJournalDispatcher>(Config->DataNode);
 
     ChunkRegistry = New<TChunkRegistry>(this);
 
     BlockStore = New<TBlockStore>(Config->DataNode, this);
 
-    UncompressedBlockCache = CreateClientBlockCache(
-        Config->DataNode->UncompressedBlockCache,
-        NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/uncompressed_block_cache"));
+    BlockCache = CreateServerBlockCache(Config->DataNode, this);
 
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
 
@@ -224,7 +221,12 @@ void TBootstrap::DoRun()
 
     SessionManager = New<TSessionManager>(Config->DataNode, this);
 
-    MasterConnector = New<NDataNode::TMasterConnector>(Config->DataNode, this);
+    MasterConnector = New<NDataNode::TMasterConnector>(
+        Config->DataNode,
+        localAddresses,
+        this);
+
+    MasterConnector->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
 
     ChunkStore = New<NDataNode::TChunkStore>(Config->DataNode, this);
 
@@ -257,15 +259,15 @@ void TBootstrap::DoRun()
 
     JobProxyConfig->MemoryLimitMultiplier = Config->ExecAgent->MemoryLimitMultiplier;
 
-    JobProxyConfig->ForceEnableAccounting = Config->ExecAgent->ForceEnableAccounting;
-    JobProxyConfig->EnableCGroupMemoryHierarchy = Config->ExecAgent->EnableCGroupMemoryHierarchy;
+    JobProxyConfig->EnableCGroups = Config->ExecAgent->EnableCGroups;
+    JobProxyConfig->SupportedCGroups = Config->ExecAgent->SupportedCGroups;
 
     JobProxyConfig->IopsThreshold = Config->ExecAgent->IopsThreshold;
 
     JobProxyConfig->SandboxName = SandboxDirectoryName;
     JobProxyConfig->AddressResolver = Config->AddressResolver;
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfig->SupervisorConnection->Address = LocalDescriptor.GetInterconnectAddress();
+    JobProxyConfig->SupervisorConnection->Address = GetInterconnectAddress(localAddresses);
     JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
@@ -294,7 +296,8 @@ void TBootstrap::DoRun()
     JobController->RegisterFactory(NJobAgent::EJobType::UnorderedMerge,  createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::Partition,       createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::SimpleSort,      createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::PartitionSort,   createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::IntermediateSort,createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::FinalSort,       createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::SortedReduce,    createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::PartitionReduce, createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::ReduceCombiner,  createExecJob);
@@ -330,6 +333,8 @@ void TBootstrap::DoRun()
     TabletSlotManager = New<NTabletNode::TSlotManager>(Config->TabletNode, this);
 
     SecurityManager = New<TSecurityManager>(Config->TabletNode->SecurityManager, this);
+
+    InMemoryManager = New<TInMemoryManager>(Config->TabletNode->InMemoryManager, this);
 
     QueryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
 
@@ -390,10 +395,8 @@ void TBootstrap::DoRun()
 
     // Do not start subsystems until everything is initialized.
     TabletSlotManager->Initialize();
-    BlockStore->Initialize();
     ChunkStore->Initialize();
     ChunkCache->Initialize();
-    JournalDispatcher->Initialize();
     ExecSlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
     monitoringManager->Start();
     PeerBlockUpdater->Start();
@@ -401,7 +404,6 @@ void TBootstrap::DoRun()
     SchedulerConnector->Start();
     StartStoreFlusher(Config->TabletNode, this);
     StartStoreCompactor(Config->TabletNode, this);
-    StartStorePreloader(Config->TabletNode, this);
     StartPartitionBalancer(Config->TabletNode->PartitionBalancer, this);
 
     RpcServer->Start();
@@ -453,7 +455,7 @@ IMapNodePtr TBootstrap::GetOrchidRoot() const
     return OrchidRoot;
 }
 
-TJobTrackerPtr TBootstrap::GetJobController() const
+TJobControllerPtr TBootstrap::GetJobController() const
 {
     return JobController;
 }
@@ -466,6 +468,11 @@ NTabletNode::TSlotManagerPtr TBootstrap::GetTabletSlotManager() const
 TSecurityManagerPtr TBootstrap::GetSecurityManager() const
 {
     return SecurityManager;
+}
+
+TInMemoryManagerPtr TBootstrap::GetInMemoryManager() const
+{
+    return InMemoryManager;
 }
 
 NExecAgent::TSlotManagerPtr TBootstrap::GetExecSlotManager() const
@@ -493,9 +500,9 @@ TChunkCachePtr TBootstrap::GetChunkCache() const
     return ChunkCache;
 }
 
-TNodeMemoryTracker* TBootstrap::GetMemoryUsageTracker()
+TNodeMemoryTracker* TBootstrap::GetMemoryUsageTracker() const
 {
-    return &MemoryUsageTracker;
+    return MemoryUsageTracker.get();
 }
 
 TChunkRegistryPtr TBootstrap::GetChunkRegistry() const
@@ -513,9 +520,9 @@ TBlockStorePtr TBootstrap::GetBlockStore() const
     return BlockStore;
 }
 
-IBlockCachePtr TBootstrap::GetUncompressedBlockCache() const
+IBlockCachePtr TBootstrap::GetBlockCache() const
 {
-    return UncompressedBlockCache;
+    return BlockCache;
 }
 
 TPeerBlockTablePtr TBootstrap::GetPeerBlockTable() const
@@ -541,11 +548,6 @@ NDataNode::TMasterConnectorPtr TBootstrap::GetMasterConnector() const
 NQueryClient::IExecutorPtr TBootstrap::GetQueryExecutor() const
 {
     return QueryExecutor;
-}
-
-const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
-{
-    return LocalDescriptor;
 }
 
 const TGuid& TBootstrap::GetCellId() const
@@ -621,6 +623,50 @@ IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EReadSessionType sessionType
 
         default:
             YUNREACHABLE();
+    }
+}
+
+TAddressMap TBootstrap::GetLocalAddresses()
+{
+    // First without port number.
+    auto hostNames = Config->Addresses;
+    if (hostNames.find(NNodeTrackerClient::DefaultNetworkName) == hostNames.end()) {
+        YCHECK(hostNames.insert(std::make_pair(
+            NNodeTrackerClient::DefaultNetworkName,
+            TAddressResolver::Get()->GetLocalHostName())).second);
+    }
+
+    // Now append port number.
+    TAddressMap addresses;
+    for (auto& pair : hostNames) {
+        YCHECK(addresses.insert(std::make_pair(
+            pair.first,
+            BuildServiceAddress(pair.second, Config->RpcPort))).second);
+    }
+
+    return addresses;
+}
+
+void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
+{
+    // NB: Don't used IsXXXExceeded helpers to be atomic.
+    auto totalUsed = MemoryUsageTracker->GetTotalUsed();
+    auto totalLimit = MemoryUsageTracker->GetTotalLimit();
+    if (totalUsed > totalLimit) {
+        alerts->push_back(TError("Total memory limit exceeded")
+            << TErrorAttribute("used", totalUsed)
+            << TErrorAttribute("limit", totalLimit));
+    }
+
+    for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
+        auto used = MemoryUsageTracker->GetUsed(category);
+        auto limit = MemoryUsageTracker->GetLimit(category);
+        if (used > limit) {
+            alerts->push_back(TError("Memory limit exceeded for category %Qlv",
+                category)
+                << TErrorAttribute("used", used)
+                << TErrorAttribute("limit", limit));
+        }
     }
 }
 
