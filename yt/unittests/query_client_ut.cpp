@@ -3938,9 +3938,9 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
 
     std::vector<Stroka> source = {
         "a=1;b=10",
-        "a=-2;b=2",
+        "a=2;b=2",
         "a=3;b=3",
-        "a=-10"
+        "a=10"
     };
 
     auto resultSplit = MakeSplit({
@@ -3960,24 +3960,17 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
         nullptr);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    auto absUdf = New<TUserDefinedFunction>(
-            "abs_udf_so",
-            std::vector<TType>{EValueType::Int64},
-            EValueType::Int64,
-            testUdfSharedObjectImpl,
-            ECallingConvention::Simple);
     auto expUdf = New<TUserDefinedFunction>(
-            "exp_udf_so",
-            std::vector<TType>{
-                EValueType::Int64,
-                EValueType::Int64},
+        "exp_udf",
+        std::vector<TType>{
             EValueType::Int64,
-            testUdfSharedObjectImpl,
-            ECallingConvention::Simple);
-    registry->WithFunction(absUdf);
+            EValueType::Int64},
+        EValueType::Int64,
+        testUdfSharedObjectImpl,
+        ECallingConvention::Simple);
     registry->WithFunction(expUdf);
 
-    Evaluate("exp_udf_so(b, abs_udf_so(a)) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("exp_udf(b, a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
@@ -4256,6 +4249,88 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdaf)
         ECallingConvention::Simple));
 
     Evaluate("max_udaf(a) as r from [//t] group by 1", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestLinkingError1)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3",
+    };
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(AbsUdf_);
+    registry->WithFunction(ExpUdf_);
+
+    EvaluateExpectingError("exp_udf(abs_udf(a), 3) from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("abs_udf(exp_udf(a, 3)) from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestLinkingError2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3"
+    };
+
+    auto testUdfSharedObjectImpl = TSharedRef(
+        test_udfs_so_so,
+        test_udfs_so_so_len,
+        nullptr);
+    auto absUdfSo = New<TUserDefinedFunction>(
+        "abs_udf",
+        std::vector<TType>{EValueType::Int64},
+        EValueType::Int64,
+        testUdfSharedObjectImpl,
+        ECallingConvention::Simple);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(absUdfSo);
+    registry->WithFunction(SumUdf_);
+
+    EvaluateExpectingError("sum_udf(abs_udf(a), 3) as r from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("abs_udf(sum_udf(a, 3)) as r from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestLinkingError3)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3"
+    };
+
+    auto testUdfSharedObjectImpl = TSharedRef(
+        test_udfs_so_so,
+        test_udfs_so_so_len,
+        nullptr);
+    auto absUdfSo = New<TUserDefinedFunction>(
+        "abs_udf",
+        std::vector<TType>{EValueType::Int64},
+        EValueType::Int64,
+        testUdfSharedObjectImpl,
+        ECallingConvention::Simple);
+    auto expUdfSo = New<TUserDefinedFunction>(
+        "exp_udf",
+        std::vector<TType>{EValueType::Int64, EValueType::Int64},
+        EValueType::Int64,
+        testUdfSharedObjectImpl,
+        ECallingConvention::Simple);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(absUdfSo);
+    registry->WithFunction(expUdfSo);
+
+    EvaluateExpectingError("abs_udf(exp_udf(a, 3)) as r from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("exp_udf(abs_udf(a), 3) as r from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

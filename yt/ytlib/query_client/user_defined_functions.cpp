@@ -516,6 +516,27 @@ bool LoadSharedObject(
                 "Could not find implementation for %Qv",
                 symbol);
         }
+        if (builder.Module->GetModule()->getFunction(StringRef(symbol))) {
+            THROW_ERROR_EXCEPTION(
+                "Error loading shared object for function %Qv: symbol %Qv already exists",
+                functionName,
+                symbol);
+        }
+    }
+
+    for (auto symbol : (*objectFileOrError)->symbols()) {
+        auto name = llvm::StringRef();
+        auto nameError = symbol.getName(name);
+        if (!nameError) {
+            auto nameStroka = Stroka(name.begin(), name.size());
+            if (builder.Module->SymbolIsLoaded(nameStroka)) {
+                THROW_ERROR_EXCEPTION(
+                    "Error loading shared object for function %Qv: symbol %Qv already exists",
+                    functionName,
+                    nameStroka);
+            }
+            builder.Module->AddLoadedSymbol(nameStroka);
+        }
     }
 
     builder.Module->AddObjectFile(std::move(*objectFileOrError));
@@ -548,6 +569,17 @@ bool LoadLlvmBitcode(
         callee->addFnAttr(Attribute::AttrKind::AlwaysInline);
     }
 
+    for (auto& function : implModule->getFunctionList()) {
+        auto name = function.getName();
+        auto nameStroka = Stroka(name.begin(), name.size());
+        if (builder.Module->SymbolIsLoaded(nameStroka)) {
+            THROW_ERROR_EXCEPTION(
+                "Error loading LLVM bitcode for function %Qv: symbol %Qv already exists",
+                functionName,
+                nameStroka);
+        }
+    }
+
     auto module = builder.Module->GetModule();
     // Link two modules together, with the first module modified to be the
     // composite of the two input modules.
@@ -568,7 +600,7 @@ void LoadLlvmFunctions(
     std::vector<std::pair<Stroka, llvm::FunctionType*>> functions,
     TSharedRef implementationFile)
 {
-    if (builder.Module->LoadedFunctions.count(functionName) != 0) {
+    if (builder.Module->FunctionIsLoaded(functionName)) {
         return;
     }
 
@@ -586,7 +618,7 @@ void LoadLlvmFunctions(
     auto module = builder.Module->GetModule();
 
     if (loaded) {
-        builder.Module->LoadedFunctions.insert(functionName);
+        builder.Module->AddLoadedFunction(functionName);
         for (auto function : functions) {
             auto callee = module->getFunction(StringRef(function.first));
             ICallingConvention::CheckCallee(
@@ -605,7 +637,7 @@ void LoadLlvmFunctions(
         implementationFile);
 
     if (loaded) {
-        builder.Module->LoadedFunctions.insert(functionName);
+        builder.Module->AddLoadedFunction(functionName);
         for (auto function : functions) {
             Function::Create(
                 function.second,
