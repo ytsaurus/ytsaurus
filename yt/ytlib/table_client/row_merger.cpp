@@ -3,26 +3,34 @@
 #include "config.h"
 #include "row_buffer.h"
 
+#include <ytlib/query_client/column_evaluator.h>
+
 #include <ytlib/transaction_client/helpers.h>
 
 namespace NYT {
 namespace NTableClient {
 
 using namespace NTransactionClient;
+using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemafulRowMerger::TSchemafulRowMerger(
     TRowBufferPtr rowBuffer,
-    int schemaColumnCount,
     int keyColumnCount,
-    const TColumnFilter& columnFilter)
+    const TColumnFilter& columnFilter,
+    TColumnEvaluatorPtr columnEvauator)
     : RowBuffer_(rowBuffer)
-    , SchemaColumnCount_(schemaColumnCount)
+    , TableSchema_(columnEvauator->TableSchema())
     , KeyColumnCount_(keyColumnCount)
+    , ColumnEvaluator_(std::move(columnEvauator))
 {
+    YASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
+
+    auto schemaColumnCount = TableSchema_.Columns().size();
+
     if (columnFilter.All) {
-        for (int id = 0; id < SchemaColumnCount_; ++id) {
+        for (int id = 0; id < schemaColumnCount; ++id) {
             ColumnIds_.push_back(id);
         }
     } else {
@@ -31,8 +39,8 @@ TSchemafulRowMerger::TSchemafulRowMerger(
         }
     }
 
-    ColumnIdToIndex_.resize(SchemaColumnCount_);
-    for (int id = 0; id < SchemaColumnCount_; ++id) {
+    ColumnIdToIndex_.resize(schemaColumnCount);
+    for (int id = 0; id < schemaColumnCount; ++id) {
         ColumnIdToIndex_[id] = -1;
     }
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
@@ -42,7 +50,7 @@ TSchemafulRowMerger::TSchemafulRowMerger(
         }
     }
 
-    MergedTimestamps_.resize(SchemaColumnCount_);
+    MergedTimestamps_.resize(schemaColumnCount);
 
     Cleanup();
 }
@@ -62,19 +70,18 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
         }
 
         const auto* keyBegin = row.BeginKeys();
-        auto* mergedValuesBegin = MergedRow_.Begin();
-        auto* mergedTimestampsBegin = MergedTimestamps_.data();
         for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
             int id = ColumnIds_[index];
-            auto* mergedValue = mergedValuesBegin + index;
-            mergedValue->Id = id;
+            auto* mergedValue = &MergedRow_[index];
             if (id < KeyColumnCount_) {
+                MergedTimestamps_[index] = MaxTimestamp;
                 *mergedValue = keyBegin[id];
-                mergedTimestampsBegin[index] = MaxTimestamp;
             } else {
+                MergedTimestamps_[index] = NullTimestamp;
+                mergedValue->Id = id;
                 mergedValue->Type = EValueType::Null;
-                mergedTimestampsBegin[index] = NullTimestamp;
-            }
+                mergedValue->Aggregate = false;
+             }
         }
 
         Started_ = true;
@@ -94,15 +101,19 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
         }
 
         const auto* partialValuesBegin = row.BeginValues();
-        auto* mergedValuesBegin = MergedRow_.Begin();
-        auto* mergedTimestampsBegin = MergedTimestamps_.data();
         for (int partialIndex = 0; partialIndex < row.GetValueCount(); ++partialIndex) {
             const auto& partialValue = partialValuesBegin[partialIndex];
-            int id = partialValue.Id;
-            int mergedIndex = ColumnIdToIndex_[id];
-            if (mergedIndex >= 0 && mergedTimestampsBegin[mergedIndex] < partialValue.Timestamp) {
-                mergedValuesBegin[mergedIndex] = partialValue;
-                mergedTimestampsBegin[mergedIndex] = partialValue.Timestamp;
+            if (partialValue.Timestamp > LatestDelete_) {
+                int id = partialValue.Id;
+                int mergedIndex = ColumnIdToIndex_[id];
+                if (mergedIndex >= 0) {
+                    if (TableSchema_.Columns()[id].Aggregate) {
+                        AggregateValues_.push_back(partialValue);
+                    } else if (MergedTimestamps_[mergedIndex] < partialValue.Timestamp) {
+                        MergedRow_[mergedIndex] = partialValue;
+                        MergedTimestamps_[mergedIndex] = partialValue.Timestamp;
+                    }
+                }
             }
         }
     }
@@ -119,16 +130,65 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
         return TUnversionedRow();
     }
 
-    const auto* mergedTimestampsBegin = MergedTimestamps_.data();
-    auto* mergedValuesBegin = MergedRow_.Begin();
+    AggregateValues_.erase(
+        std::remove_if(
+            AggregateValues_.begin(),
+            AggregateValues_.end(),
+            [latestDelete = LatestDelete_] (const TVersionedValue& value) {
+                return value.Timestamp <= latestDelete;
+            }),
+        AggregateValues_.end());
+
+    std::sort(
+        AggregateValues_.begin(),
+        AggregateValues_.end(),
+        [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+            return std::tie(lhs.Id, lhs.Timestamp) < std::tie(rhs.Id, rhs.Timestamp);
+        });
+
+    AggregateValues_.erase(
+        std::unique(
+            AggregateValues_.begin(),
+            AggregateValues_.end(),
+            [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+                return std::tie(lhs.Id, lhs.Timestamp) == std::tie(rhs.Id, rhs.Timestamp);
+            }),
+        AggregateValues_.end());
+
+    int begin = 0;
+    for (int index = 0; index < AggregateValues_.size(); ++index) {
+        if (index == AggregateValues_.size() - 1 || AggregateValues_[begin].Id != AggregateValues_[index + 1].Id) {
+            int id = AggregateValues_[begin].Id;
+            auto state = MakeUnversionedSentinelValue(EValueType::Null, id);
+
+            for (int valueIndex = index; valueIndex >= begin; --valueIndex) {
+                if (!AggregateValues_[valueIndex].Aggregate) {
+                    begin = valueIndex;
+                }
+            }
+
+            for (int valueIndex = begin; valueIndex <= index; ++valueIndex) {
+                TUnversionedValue tmpValue;
+                ColumnEvaluator_->MergeAggregate(id, &tmpValue, &state, &AggregateValues_[valueIndex], RowBuffer_);
+                state = tmpValue;
+            }
+
+            state.Aggregate = false;
+            auto columnIndex = ColumnIdToIndex_[id];
+            MergedTimestamps_[columnIndex] = AggregateValues_[index].Timestamp;
+            MergedRow_[columnIndex] = state;
+            begin = index + 1;
+        }
+    }
+
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
-        if (mergedTimestampsBegin[index] < LatestDelete_) {
-            mergedValuesBegin[index].Type = EValueType::Null;
+        int id = ColumnIds_[index];
+        if (MergedTimestamps_[index] < LatestDelete_ && !TableSchema_.Columns()[id].Aggregate) {
+            MergedRow_[index].Type = EValueType::Null;
         }
     }
 
     auto mergedRow = MergedRow_;
-    MergedRow_ = TUnversionedRow();
 
     Cleanup();
     return mergedRow;
@@ -143,6 +203,8 @@ void TSchemafulRowMerger::Reset()
 
 void TSchemafulRowMerger::Cleanup()
 {
+    MergedRow_ = TUnversionedRow();
+    AggregateValues_.clear();
     LatestWrite_ = NullTimestamp;
     LatestDelete_ = NullTimestamp;
     Started_ = false;
@@ -154,35 +216,16 @@ DEFINE_REFCOUNTED_TYPE(TSchemafulRowMerger)
 
 TUnversionedRowMerger::TUnversionedRowMerger(
     TRowBufferPtr rowBuffer,
-    int schemaColumnCount,
     int keyColumnCount,
-    const TColumnFilter& columnFilter)
+    TColumnEvaluatorPtr columnEvauator)
     : RowBuffer_(rowBuffer)
-    , SchemaColumnCount_(schemaColumnCount)
+    , TableSchema_(columnEvauator->TableSchema())
     , KeyColumnCount_(keyColumnCount)
+    , ColumnEvaluator_(std::move(columnEvauator))
 {
-    if (columnFilter.All) {
-        for (int id = 0; id < SchemaColumnCount_; ++id) {
-            ColumnIds_.push_back(id);
-        }
-    } else {
-        for (int id : columnFilter.Indexes) {
-            ColumnIds_.push_back(id);
-        }
-    }
+    YASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
 
-    ColumnIdToIndex_.resize(SchemaColumnCount_);
-    for (int id = 0; id < SchemaColumnCount_; ++id) {
-        ColumnIdToIndex_[id] = -1;
-    }
-    for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
-        int id = ColumnIds_[index];
-        if (id >= KeyColumnCount_) {
-            ColumnIdToIndex_[id] = index;
-        }
-    }
-
-    ValidValues_.resize(ColumnIds_.size());
+    ValidValues_.resize(TableSchema_.Columns().size());
 
     Cleanup();
 }
@@ -190,17 +233,17 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 {
     if (!Started_) {
-        MergedRow_ = TUnversionedRow::Allocate(RowBuffer_->GetPool(), ColumnIds_.size());
+        MergedRow_ = TUnversionedRow::Allocate(RowBuffer_->GetPool(), TableSchema_.Columns().size());
 
-        for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
-            int id = ColumnIds_[index];
-            if (id < KeyColumnCount_) {
-                MergedRow_[index] = row[id];
+        for (int index = 0; index < TableSchema_.Columns().size(); ++index) {
+            if (index < KeyColumnCount_) {
                 ValidValues_[index] = true;
+                MergedRow_[index] = row[index];
             } else {
-                MergedRow_[index].Id = id;
-                MergedRow_[index].Type = EValueType::Null;
                 ValidValues_[index] = false;
+                MergedRow_[index].Id = index;
+                MergedRow_[index].Type = EValueType::Null;
+                MergedRow_[index].Aggregate = TableSchema_.Columns()[index].Aggregate.HasValue();
             }
         }
     }
@@ -216,14 +259,19 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 
     InitPartialRow(row);
 
-    auto* mergedValuesBegin = MergedRow_.Begin();
     for (int partialIndex = KeyColumnCount_; partialIndex < row.GetCount(); ++partialIndex) {
-        const auto& partialValue = row[partialIndex];
+        auto& partialValue = row[partialIndex];
         int id = partialValue.Id;
-        int mergedIndex = ColumnIdToIndex_[id];
-        if (mergedIndex >= 0) {
-            mergedValuesBegin[mergedIndex] = partialValue;
-            ValidValues_[mergedIndex] = true;
+        ValidValues_[id] = true;
+
+        if (partialValue.Aggregate) {
+            YCHECK(TableSchema_.Columns()[id].Aggregate);
+            TUnversionedValue tmpValue;
+            ColumnEvaluator_->MergeAggregate(id, &tmpValue, &MergedRow_[id], &partialValue, RowBuffer_);
+            tmpValue.Aggregate = MergedRow_[id].Aggregate;
+            MergedRow_[id] = tmpValue;
+        } else {
+            MergedRow_[id] = partialValue;
         }
     }
 
@@ -232,14 +280,14 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 
 void TUnversionedRowMerger::DeletePartialRow(TUnversionedRow row)
 {
+    // NB: Since we don't have delete timestamps here we need to write Null into all columns.
+
     InitPartialRow(row);
 
-    for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
-        int id = ColumnIds_[index];
-        if (id >= KeyColumnCount_) {
-            MergedRow_[index].Type = EValueType::Null;
-            ValidValues_[index] = true;
-        }
+    for (int index = KeyColumnCount_; index < TableSchema_.Columns().size(); ++index) {
+        ValidValues_[index] = true;
+        MergedRow_[index].Type = EValueType::Null;
+        MergedRow_[index].Aggregate = false;
     }
 
     Deleted_ = true;
@@ -271,7 +319,7 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     if (fullRow) {
         mergedRow = MergedRow_;
     } else {
-        mergedRow = TUnversionedRow::Allocate(RowBuffer_->GetPool(), ColumnIds_.size());
+        mergedRow = TUnversionedRow::Allocate(RowBuffer_->GetPool(), TableSchema_.Columns().size());
         int currentIndex = 0;
         for (int index = 0; index < MergedRow_.GetCount(); ++index) {
             if (ValidValues_[index]) {
@@ -295,6 +343,7 @@ void TUnversionedRowMerger::Reset()
 
 void TUnversionedRowMerger::Cleanup()
 {
+    MergedRow_ = TUnversionedRow();
     Started_ = false;
 }
 
@@ -307,14 +356,19 @@ TVersionedRowMerger::TVersionedRowMerger(
     int keyColumnCount,
     TRetentionConfigPtr config,
     TTimestamp currentTimestamp,
-    TTimestamp majorTimestamp)
+    TTimestamp majorTimestamp,
+    TColumnEvaluatorPtr columnEvauator)
     : RowBuffer_(rowBuffer)
+    , TableSchema_(columnEvauator->TableSchema())
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
     , MajorTimestamp_(majorTimestamp)
+    , ColumnEvaluator_(std::move(columnEvauator))
     , Keys_(KeyColumnCount_)
 {
+    YASSERT(KeyColumnCount_ == ColumnEvaluator_->GetKeyColumnCount());
+
     Cleanup();
 }
 
@@ -363,25 +417,21 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         std::unique(DeleteTimestamps_.begin(), DeleteTimestamps_.end()),
         DeleteTimestamps_.end());
 
-    // Sort input values by |(id, timestamp)|.
+    // Sort input values by |(id, timestamp)| and remove duplicates.
     std::sort(
         PartialValues_.begin(),
         PartialValues_.end(),
-        [] (const TVersionedValue& lhs, const TVersionedValue& rhs) -> bool {
-            if (lhs.Id < rhs.Id) {
-                return true;
-            }
-            if (lhs.Id > rhs.Id) {
-                return false;
-            }
-            if (lhs.Timestamp < rhs.Timestamp) {
-                return true;
-            }
-            if (lhs.Timestamp > rhs.Timestamp) {
-                return false;
-            }
-            return false;
+        [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+            return std::tie(lhs.Id, lhs.Timestamp) < std::tie(rhs.Id, rhs.Timestamp);
         });
+    PartialValues_.erase(
+        std::unique(
+            PartialValues_.begin(),
+            PartialValues_.end(),
+            [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+                return std::tie(lhs.Id, lhs.Timestamp) == std::tie(rhs.Id, rhs.Timestamp);
+            }),
+        PartialValues_.end());
 
     // Scan through input values.
     auto partialValueIt = PartialValues_.begin();
@@ -441,15 +491,57 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         // Compute retention limit by MaxDataVersions and MaxDataTtl.
         auto retentionBeginIt = safetyEndIt;
         while (retentionBeginIt != ColumnValues_.begin()) {
-            if (std::distance(retentionBeginIt, ColumnValues_.end()) >= Config_->MaxDataVersions)
+            if (std::distance(retentionBeginIt, ColumnValues_.end()) >= Config_->MaxDataVersions) {
                 break;
+            }
 
             auto timestamp = (retentionBeginIt - 1)->Timestamp;
             if (timestamp < CurrentTimestamp_ &&
                 TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MaxDataTtl)
+            {
                 break;
+            }
 
             --retentionBeginIt;
+        }
+
+        // For aggregate columns merge values before MajorTimestamp_ and leave other values.
+        if (TableSchema_.Columns()[partialValueIt->Id].Aggregate) {
+            while (retentionBeginIt != ColumnValues_.begin()
+                && retentionBeginIt->Timestamp >= MajorTimestamp_)
+            {
+                --retentionBeginIt;
+            }
+
+            if (retentionBeginIt > ColumnValues_.begin()) {
+                int id = partialValueIt->Id;
+                auto aggregateBeginIt = ColumnValues_.begin();
+                for (auto valueIt = retentionBeginIt; valueIt >= aggregateBeginIt; --valueIt) {
+                    if (valueIt->Type == EValueType::TheBottom) {
+                        aggregateBeginIt = valueIt + 1;
+                    } else if (!valueIt->Aggregate) {
+                        aggregateBeginIt = valueIt;
+                    }
+                }
+
+                if (aggregateBeginIt < retentionBeginIt) {
+                    auto state = MakeUnversionedSentinelValue(EValueType::Null, id);
+
+                    for (auto valueIt = aggregateBeginIt; valueIt <= retentionBeginIt; ++valueIt) {
+                        TUnversionedValue tmpValue;
+                        ColumnEvaluator_->MergeAggregate(id, &tmpValue, &state, &(*valueIt), RowBuffer_);
+                        state = tmpValue;
+                    }
+
+                    TUnversionedValue& value = *retentionBeginIt;
+                    value = state;
+                }
+
+            }
+
+            if (retentionBeginIt->Timestamp < MajorTimestamp_) {
+                retentionBeginIt->Aggregate = false;
+            }
         }
 
         // Save output values and timestamps.

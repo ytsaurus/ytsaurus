@@ -13,7 +13,10 @@ namespace NApi {
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TWriteRowsOptions
-{ };
+{
+    // Use inserted values to reset aggregate columns.
+    bool ResetAggregateColumns = false;
+};
 
 struct TDeleteRowsOptions
 { };

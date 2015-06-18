@@ -314,12 +314,28 @@ TCodegenExpression TFoldingProfiler::Profile(TConstExpressionPtr expr, const TTa
 void TFoldingProfiler::Profile(const TTableSchema& tableSchema, int keySize)
 {
     Fold(static_cast<int>(EFoldingObjectType::TableSchema));
+    Fold(keySize);
     for (int index = 0; index < tableSchema.Columns().size() && index < keySize; ++index) {
         const auto& column = tableSchema.Columns()[index];
         Fold(static_cast<ui16>(column.Type));
         Fold(column.Name.c_str());
+        Fold(static_cast<bool>(column.Expression));
         if (column.Expression) {
             Fold(column.Expression.Get().c_str());
+        }
+    }
+    int aggregateColumnCount = 0;
+    for (int index = keySize; index < tableSchema.Columns().size(); ++index) {
+        if(tableSchema.Columns()[index].Aggregate) {
+            ++aggregateColumnCount;
+        }
+    }
+    Fold(aggregateColumnCount);
+    for (int index = keySize; index < tableSchema.Columns().size(); ++index) {
+        const auto& column = tableSchema.Columns()[index];
+        Fold(index);
+        if (column.Aggregate) {
+            Fold(column.Aggregate.Get().c_str());
         }
     }
 }

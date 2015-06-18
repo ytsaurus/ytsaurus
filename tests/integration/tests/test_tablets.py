@@ -43,6 +43,16 @@ class TestTablets(YTEnvSetup):
                 "key_columns": ["hash", "key"]
             })
 
+    def _create_table_with_aggregate_column(self, path, aggregate = "sum"):
+        create("table", path,
+            attributes = {
+                "schema": [
+                    {"name": "key", "type": "int64"},
+                    {"name": "time", "type": "int64"},
+                    {"name": "value", "type": "int64", "aggregate": aggregate}],
+                "key_columns": ["key"]
+            })
+
     def _get_tablet_leader_address(self, tablet_id):
         cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
         peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
@@ -358,6 +368,137 @@ class TestTablets(YTEnvSetup):
         expected = [{"key1": 1, "key2": 1, "value1": "4", "value2": "3"}]
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
         assert actual == expected
+
+    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
+    def test_aggregate_columns(self):
+        self.sync_create_cells(1, 1)
+        self._create_table_with_aggregate_column("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        def verify_row(key, expected):
+            actual = lookup_rows("//tmp/t", [{"key": key}])
+            assert_items_equal(actual, expected)
+            actual = select_rows("key, time, value from [//tmp/t]")
+            assert_items_equal(actual, expected)
+
+        def test_row(row, expected, **kwargs):
+            insert_rows("//tmp/t", [row], **kwargs)
+            verify_row(row["key"], [expected])
+
+        def verify_after_flush(row):
+            verify_row(row["key"], [row])
+            assert_items_equal(read_table("//tmp/t"), [row])
+
+        test_row({"key": 1, "time": 1, "value": 10}, {"key": 1, "time": 1, "value": 10})
+        test_row({"key": 1, "time": 2, "value": 10}, {"key": 1, "time": 2, "value": 20})
+        test_row({"key": 1, "time": 3, "value": 10}, {"key": 1, "time": 3, "value": 30})
+
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        verify_after_flush({"key": 1, "time": 3, "value": 30})
+        test_row({"key": 1, "time": 4, "value": 10}, {"key": 1, "time": 4, "value": 40})
+        test_row({"key": 1, "time": 5, "value": 10}, {"key": 1, "time": 5, "value": 50})
+        test_row({"key": 1, "time": 6, "value": 10}, {"key": 1, "time": 6, "value": 60})
+
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        verify_after_flush({"key": 1, "time": 6, "value": 60})
+        test_row({"key": 1, "time": 7, "value": 10}, {"key": 1, "time": 7, "value": 70})
+        test_row({"key": 1, "time": 8, "value": 10}, {"key": 1, "time": 8, "value": 80})
+        test_row({"key": 1, "time": 9, "value": 10}, {"key": 1, "time": 9, "value": 90})
+
+        delete_rows("//tmp/t", [{"key": 1}])
+        verify_row(1, [])
+        test_row({"key": 1, "time": 10, "value": 10}, {"key": 1, "time": 10, "value": 10})
+        test_row({"key": 1, "time": 11, "value": 10}, {"key": 1, "time": 11, "value": 20})
+        test_row({"key": 1, "time": 12, "value": 10}, {"key": 1, "time": 12, "value": 30})
+
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        verify_after_flush({"key": 1, "time": 12, "value": 30})
+        test_row({"key": 1, "time": 13, "value": 10}, {"key": 1, "time": 13, "value": 40})
+        test_row({"key": 1, "time": 14, "value": 10}, {"key": 1, "time": 14, "value": 50})
+        test_row({"key": 1, "time": 15, "value": 10}, {"key": 1, "time": 15, "value": 60})
+
+        self.sync_unmount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        verify_after_flush({"key": 1, "time": 15, "value": 60})
+        delete_rows("//tmp/t", [{"key": 1}])
+        verify_row(1, [])
+        test_row({"key": 1, "time": 16, "value": 10}, {"key": 1, "time": 16, "value": 10})
+        test_row({"key": 1, "time": 17, "value": 10}, {"key": 1, "time": 17, "value": 20})
+        test_row({"key": 1, "time": 18, "value": 10}, {"key": 1, "time": 18, "value": 30})
+
+        self.sync_compact_table("//tmp/t")
+
+        verify_after_flush({"key": 1, "time": 18, "value": 30})
+        test_row(
+            {"key": 1, "time": 19, "value": 10},
+            {"key": 1, "time": 19, "value": 10},
+            reset_aggregate_columns=True)
+        test_row({"key": 1, "time": 20, "value": 10}, {"key": 1, "time": 20, "value": 20})
+        test_row(
+            {"key": 1, "time": 21, "value": 10},
+            {"key": 1, "time": 21, "value": 10},
+            reset_aggregate_columns=True)
+
+        self.sync_compact_table("//tmp/t")
+
+        verify_after_flush({"key": 1, "time": 21, "value": 10})
+
+    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
+    def test_aggregate_min_max(self):
+        self.sync_create_cells(1, 1)
+        self._create_table_with_aggregate_column("//tmp/t", "min")
+        self.sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [
+            {"key": 1, "time": 1, "value": 10},
+            {"key": 2, "time": 1, "value": 20},
+            {"key": 3, "time": 1}])
+        insert_rows("//tmp/t", [
+            {"key": 1, "time": 2, "value": 30},
+            {"key": 2, "time": 2, "value": 40},
+            {"key": 3, "time": 2}])
+        assert_items_equal(select_rows("max(value) as max from [//tmp/t] group by 1"), [{"max": 20}])
+
+    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
+    def test_aggregate_alter(self):
+        self.sync_create_cells(1, 1)
+        create("table", "//tmp/t",
+            attributes = {
+                "schema": [
+                    {"name": "key", "type": "int64"},
+                    {"name": "time", "type": "int64"},
+                    {"name": "value", "type": "int64"}],
+                "key_columns": ["key"]
+            })
+        self.sync_mount_table("//tmp/t")
+
+        def verify_row(key, expected):
+            actual = lookup_rows("//tmp/t", [{"key": key}])
+            assert_items_equal(actual, expected)
+            actual = select_rows("key, time, value from [//tmp/t]")
+            assert_items_equal(actual, expected)
+
+        def test_row(row, expected, **kwargs):
+            insert_rows("//tmp/t", [row], **kwargs)
+            verify_row(row["key"], [expected])
+
+        test_row({"key": 1, "time": 1, "value": 10}, {"key": 1, "time": 1, "value": 10})
+        test_row({"key": 1, "time": 2, "value": 20}, {"key": 1, "time": 2, "value": 20})
+
+        self.sync_unmount_table("//tmp/t")
+        set("//tmp/t/@schema/2/aggregate", "sum")
+        self.sync_mount_table("//tmp/t")
+
+        verify_row(1, [{"key": 1, "time": 2, "value": 20}])
+        test_row({"key": 1, "time": 3, "value": 10}, {"key": 1, "time": 3, "value": 30})
+
 
     def test_reshard_data(self):
         self.sync_create_cells(1, 1)

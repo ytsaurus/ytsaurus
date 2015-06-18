@@ -172,6 +172,7 @@ protected:
     {
         Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
 
+        // Prepare timestamps.
         auto latestWriteTimestamp = GetLatestWriteTimestamp(dynamicRow);
         auto latestDeleteTimestamp = GetLatestDeleteTimestamp(dynamicRow);
 
@@ -181,45 +182,41 @@ protected:
 
         int writeTimestampCount = 1;
         int deleteTimestampCount = 1;
-        int valueCount = SchemaColumnCount_ - KeyColumnCount_; // an upper bound
 
         if (latestDeleteTimestamp == NullTimestamp) {
             deleteTimestampCount = 0;
         } else if (latestDeleteTimestamp > latestWriteTimestamp) {
             writeTimestampCount = 0;
-            valueCount = 0;
         }
 
-        auto versionedRow = TVersionedRow::Allocate(
-            &Pool_,
-            KeyColumnCount_,
-            valueCount,
-            writeTimestampCount,
-            deleteTimestampCount);
+        // Prepare values.
+        VersionedValues_.clear();
 
-        ProduceKeys(dynamicRow, versionedRow.BeginKeys());
+        {
+            const auto& schema = Store_->GetTablet()->Schema();
 
-        if (writeTimestampCount > 0) {
-            versionedRow.BeginWriteTimestamps()[0] = latestWriteTimestamp;
-        }
-
-        if (deleteTimestampCount > 0) {
-            versionedRow.BeginDeleteTimestamps()[0] = latestDeleteTimestamp;
-        }
-
-        if (valueCount > 0) {
-            auto* currentRowValue = versionedRow.BeginValues();
             auto fillValue = [&] (int index) {
-                auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
                 // NB: Inserting a new item into value list and adding a new write revision cannot
                 // be done atomically. We always append values before revisions but in the middle of these
                 // two steps there might be "phantom" values present in the row.
                 // To work this around, we cap the value lists by #latestWriteTimestamp to make sure that
                 // no "phantom" value is listed.
-                const auto* value = SearchByTimestamp(list, latestWriteTimestamp);
-                if (value && Store_->TimestampFromRevision(value->Revision) > latestDeleteTimestamp) {
-                    ProduceVersionedValue(currentRowValue, index, *value);
-                    ++currentRowValue;
+                auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
+                if (schema.Columns()[index].Aggregate) {
+                    ExtractByTimestamp(
+                        list,
+                        latestDeleteTimestamp,
+                        latestWriteTimestamp,
+                            [&] (const TDynamicValue& value) {
+                            VersionedValues_.push_back(TVersionedValue());
+                            ProduceVersionedValue(&VersionedValues_.back(), index, value);
+                        });
+                } else {
+                    const auto* value = SearchByTimestamp(list, latestWriteTimestamp);
+                    if (value && Store_->TimestampFromRevision(value->Revision) > latestDeleteTimestamp) {
+                        VersionedValues_.push_back(TVersionedValue());
+                        ProduceVersionedValue(&VersionedValues_.back(), index, *value);
+                    }
                 }
             };
             if (ColumnFilter_.All) {
@@ -233,8 +230,28 @@ protected:
                     }
                 }
             }
-            versionedRow.GetHeader()->ValueCount = currentRowValue - versionedRow.BeginValues();
         }
+
+        auto versionedRow = TVersionedRow::Allocate(
+            &Pool_,
+            KeyColumnCount_,
+            VersionedValues_.size(),
+            writeTimestampCount,
+            deleteTimestampCount);
+
+        // Keys.
+        ProduceKeys(dynamicRow, versionedRow.BeginKeys());
+
+        // Timestamps.
+        if (writeTimestampCount > 0) {
+            versionedRow.BeginWriteTimestamps()[0] = latestWriteTimestamp;
+        }
+        if (deleteTimestampCount > 0) {
+            versionedRow.BeginDeleteTimestamps()[0] = latestDeleteTimestamp;
+        }
+
+        // Values.
+        ::memcpy(versionedRow.BeginValues(), VersionedValues_.data(), sizeof (TVersionedValue) * VersionedValues_.size());
 
         return versionedRow;
     }
@@ -314,13 +331,14 @@ protected:
              index < KeyColumnCount_;
              ++index, nullKeyBit <<= 1, ++srcKey, ++dstKey)
         {
-            ProduceUnversionedValue(dstKey, index, *srcKey, (nullKeyMask & nullKeyBit) != 0);
+            ProduceUnversionedValue(dstKey, index, *srcKey, (nullKeyMask & nullKeyBit) != 0, false);
         }
     }
 
-    void ProduceUnversionedValue(TUnversionedValue* dstValue, int index, TDynamicValueData srcData, bool null)
+    void ProduceUnversionedValue(TUnversionedValue* dstValue, int index, TDynamicValueData srcData, bool null, bool aggregate)
     {
         dstValue->Id = index;
+        dstValue->Aggregate = aggregate;
         if (null) {
             dstValue->Type = EValueType::Null;
         } else {
@@ -336,7 +354,7 @@ protected:
 
     void ProduceVersionedValue(TVersionedValue* dstValue, int index, const TDynamicValue& srcValue)
     {
-        ProduceUnversionedValue(dstValue, index, srcValue.Data, srcValue.Null);
+        ProduceUnversionedValue(dstValue, index, srcValue.Data, srcValue.Null, srcValue.Aggregate);
         dstValue->Timestamp = Store_->TimestampFromRevision(srcValue.Revision);
     }
 
@@ -365,25 +383,79 @@ protected:
                 return nullptr;
             }
 
-            auto* left = list.Begin();
-            auto* right = list.End();
-            if (left == right) {
-                return nullptr;
-            }
+            YASSERT(!list.IsEmpty());
 
-            while (right - left > 1) {
-                auto* mid = left + (right - left) / 2;
-                if (Store_->TimestampFromRevision(ExtractRevision(*mid)) <= maxTimestamp) {
-                    left = mid;
-                } else {
-                    right = mid;
-                }
-            }
+            auto* value = std::lower_bound(
+                list.Begin(),
+                list.End(),
+                maxTimestamp,
+                [&] (const T& element, TTimestamp timestamp) {
+                    return Store_->TimestampFromRevision(ExtractRevision(element)) <= timestamp;
+                }) - 1;
 
-            YASSERT(Store_->TimestampFromRevision(ExtractRevision(*left)) <= maxTimestamp);
-            return left;
+            YASSERT(value >= list.Begin() || Store_->TimestampFromRevision(ExtractRevision(*value)) <= maxTimestamp);
+            return value;
         }
     }
+
+    template <class T, class TValueExtractor>
+    void ExtractByTimestamp(
+        TEditList<T> list,
+        TTimestamp minTimestamp,
+        TTimestamp maxTimestamp,
+        const TValueExtractor& valueExtractor)
+    {
+        while (list) {
+            if (list.GetSize() > 0 && Store_->TimestampFromRevision(ExtractRevision(list[0])) <= maxTimestamp) {
+                break;
+            }
+            list = list.GetSuccessor();
+        }
+
+        if (!list) {
+            return;
+        }
+
+        while (list) {
+            if (list.GetSize() > 0) {
+                if (Store_->TimestampFromRevision(ExtractRevision(list[list.GetSize() - 1])) <= minTimestamp) {
+                    return;
+                }
+
+                auto* begin = list.Begin();
+                auto* end = list.End();
+
+                if (Store_->TimestampFromRevision(ExtractRevision(*begin)) <= minTimestamp) {
+                    begin = std::lower_bound(
+                        begin,
+                        end,
+                        minTimestamp,
+                        [&] (const T& element, TTimestamp value) {
+                            return Store_->TimestampFromRevision(ExtractRevision(element)) <= value;
+                        });
+                }
+
+                if (end - begin > 0 && Store_->TimestampFromRevision(ExtractRevision(*(end - 1))) > maxTimestamp) {
+                    end = std::lower_bound(
+                        begin,
+                        end,
+                        maxTimestamp,
+                        [&] (const T& element, TTimestamp value) {
+                            return Store_->TimestampFromRevision(ExtractRevision(element)) <= value;
+                        });
+                }
+
+                while (begin < end) {
+                    --end;
+                    valueExtractor(*end);
+                }
+
+            }
+
+            list = list.GetSuccessor();
+        }
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1449,6 +1521,8 @@ void TDynamicMemoryStore::CaptureUnversionedValue(
     const TUnversionedValue& src)
 {
     YASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].Type);
+
+    dst->Aggregate = src.Aggregate;
 
     if (src.Type == EValueType::Null) {
         dst->Null = true;

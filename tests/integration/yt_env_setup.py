@@ -181,6 +181,14 @@ class YTEnvSetup(YTEnv):
         print "Waiting for tablets to become unmounted..."
         _wait(lambda: all(x["state"] == "unmounted" for x in yt_commands.get(path + "/@tablets")))
 
+    def sync_compact_table(self, path):
+        self.sync_unmount_table(path)
+        yt_commands.set(path + "/@forced_compaction_revision", yt_commands.get(path + "/@revision"))
+        self.sync_mount_table(path)
+
+        print "Waiting for tablets to become compacted..."
+        _wait(lambda: all(x["statistics"]["chunk_count"] == 1 for x in yt_commands.get(path + "/@tablets")))
+
     def sync_predicate(self, predicate):
         _wait(predicate)
 

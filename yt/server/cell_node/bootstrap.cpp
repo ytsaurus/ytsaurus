@@ -45,6 +45,9 @@
 
 #include <ytlib/hydra/peer_channel.h>
 
+#include <ytlib/query_client/column_evaluator.h>
+#include <ytlib/query_client/config.h>
+
 #include <server/misc/build_attributes.h>
 #include <server/misc/memory_usage_tracker.h>
 
@@ -381,6 +384,10 @@ void TBootstrap::DoRun()
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
+    ColumnEvaluatorCache = New<NQueryClient::TColumnEvaluatorCache>(
+        New<NQueryClient::TColumnEvaluatorCacheConfig>(),
+        NQueryClient::CreateBuiltinFunctionRegistry());
+
     TabletSlotManager = New<NTabletNode::TSlotManager>(Config->TabletNode, this);
 
     SecurityManager = New<TSecurityManager>(Config->TabletNode->SecurityManager, this);
@@ -611,6 +618,11 @@ NQueryClient::IExecutorPtr TBootstrap::GetQueryExecutor() const
 const TCellId& TBootstrap::GetCellId() const
 {
     return Config->ClusterConnection->PrimaryMaster->CellId;
+}
+
+NQueryClient::TColumnEvaluatorCachePtr TBootstrap::GetColumnEvaluatorCache() const
+{
+    return ColumnEvaluatorCache;
 }
 
 IThroughputThrottlerPtr TBootstrap::GetReplicationInThrottler() const

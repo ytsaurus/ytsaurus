@@ -74,6 +74,7 @@ public:
     NDataNode::TJournalDispatcherPtr GetJournalDispatcher() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
     NQueryClient::IExecutorPtr GetQueryExecutor() const;
+    NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
@@ -135,6 +136,7 @@ private:
     NTabletNode::TInMemoryManagerPtr InMemoryManager;
 
     NQueryClient::IExecutorPtr QueryExecutor;
+    NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache;
 
 
     void DoRun();

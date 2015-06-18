@@ -17,10 +17,10 @@ class TColumnEvaluator
     : public TRefCounted
 {
 public:
-    TColumnEvaluator(
+    static TColumnEvaluatorPtr Create(
         const TTableSchema& schema,
-        int keySize,
-        const IFunctionRegistryPtr functionRegistry);
+        int keyColumnCount,
+        IFunctionRegistryPtr functionRegistry);
 
     void EvaluateKey(
         TRow fullRow,
@@ -39,11 +39,35 @@ public:
     const std::vector<int>& GetReferenceIds(int index) const;
     TConstExpressionPtr GetExpression(int index) const;
 
-    void PrepareEvaluator();
+    void InitAggregate(
+        int schemaId,
+        NTableClient::TUnversionedValue* state,
+        const TRowBufferPtr& buffer);
+
+    void UpdateAggregate(
+        int schemaId,
+        NTableClient::TUnversionedValue* result,
+        NTableClient::TUnversionedValue* state,
+        NTableClient::TUnversionedValue* update,
+        const TRowBufferPtr& buffer);
+
+    void MergeAggregate(
+        int index,
+        NTableClient::TUnversionedValue* result,
+        NTableClient::TUnversionedValue* state,
+        NTableClient::TUnversionedValue* mergeeState,
+        const TRowBufferPtr& buffer);
+
+    void FinalizeAggregate(
+        int index,
+        NTableClient::TUnversionedValue* result,
+        NTableClient::TUnversionedValue* state,
+        const TRowBufferPtr& buffer);
+
+    DEFINE_BYREF_RO_PROPERTY(TTableSchema, TableSchema);
+    DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);
 
 private:
-    const TTableSchema Schema_;
-    const int KeySize_;
     const IFunctionRegistryPtr FunctionRegistry_;
 
     std::vector<TCGExpressionCallback> Evaluators_;
@@ -51,6 +75,17 @@ private:
     std::vector<std::vector<int>> ReferenceIds_;
     std::vector<TConstExpressionPtr> Expressions_;
     std::vector<std::vector<std::vector<bool>>> AllLiteralArgs_;
+    std::unordered_map<int, TCGAggregateCallbacks> Aggregates_;
+
+    TColumnEvaluator(
+        const TTableSchema& schema,
+        int keyColumnCount,
+        IFunctionRegistryPtr functionRegistry);
+
+    void Prepare();
+    void VerifyAggregate(int index);
+
+    DECLARE_NEW_FRIEND();
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnEvaluator);
@@ -63,10 +98,10 @@ class TColumnEvaluatorCache
 public:
     explicit TColumnEvaluatorCache(
         TColumnEvaluatorCacheConfigPtr config,
-        const IFunctionRegistryPtr functionRegistry);
+        IFunctionRegistryPtr functionRegistry);
     ~TColumnEvaluatorCache();
 
-    TColumnEvaluatorPtr Find(const TTableSchema& schema, int keySize);
+    TColumnEvaluatorPtr Find(const TTableSchema& schema, int keyColumnCount);
 
 private:
     class TImpl;

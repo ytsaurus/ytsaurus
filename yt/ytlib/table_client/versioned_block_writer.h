@@ -58,6 +58,7 @@ private:
 
     TChunkedOutputStream ValueStream_;
     TBitmap ValueNullFlags_;
+    TNullable<TBitmap> ValueAggregateFlags_;
 
     TChunkedOutputStream TimestampStream_;
 
@@ -70,6 +71,7 @@ private:
     void WriteValue(
         TChunkedOutputStream& stream,
         TBitmap& nullFlags,
+        TNullable<TBitmap>& aggregateFlags,
         const TUnversionedValue& value);
 
 };

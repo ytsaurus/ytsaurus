@@ -804,7 +804,7 @@ TEST_P(TEvaluateAggregationTest, Basic)
     TUnversionedValue tmp;
     TUnversionedValue state1;
     callbacks.Init(&executionContext, &state1);
-    EXPECT_EQ(state1.Type, EValueType::Null);
+    EXPECT_EQ(EValueType::Null, state1.Type);
 
     callbacks.Update(&executionContext, &tmp, &state1, &value1);
     state1 = tmp;
@@ -812,7 +812,7 @@ TEST_P(TEvaluateAggregationTest, Basic)
 
     TUnversionedValue state2;
     callbacks.Init(&executionContext, &state2);
-    EXPECT_EQ(state2.Type, EValueType::Null);
+    EXPECT_EQ(EValueType::Null, state2.Type);
 
     callbacks.Update(&executionContext, &tmp, &state2, &value2);
     state2 = tmp;

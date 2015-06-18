@@ -2183,12 +2183,20 @@ private:
             const std::vector<TUnversionedRow>& rows,
             EWireProtocolCommand command,
             int columnCount,
-            TRowValidator validateRow)
+            TRowValidator validateRow,
+            const TWriteRowsOptions& writeOptions = TWriteRowsOptions())
         {
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             int keyColumnCount = TableInfo_->KeyColumns.size();
+            const auto& schema = TableInfo_->Schema;
 
-            auto writeRequest = [&] (const TUnversionedRow row) {
+            auto writeRequest = [&] (TUnversionedRow row) {
+                for (int index = keyColumnCount; index < row.GetCount(); ++index) {
+                    int schemaId = idMapping[row[index].Id];
+                    row[index].Aggregate = schema.Columns()[schemaId].Aggregate.HasValue()
+                        ? !writeOptions.ResetAggregateColumns
+                        : false;
+                }
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
                 session->SubmitRow(command, row, &idMapping);
@@ -2239,7 +2247,8 @@ private:
                 Rows_,
                 EWireProtocolCommand::WriteRow,
                 TableInfo_->Schema.Columns().size(),
-                ValidateClientDataRow);
+                ValidateClientDataRow,
+                Options_);
         }
     };
 
@@ -2287,14 +2296,16 @@ private:
         TTabletCommitSession(
             TTransactionPtr owner,
             TTabletInfoPtr tabletInfo,
-            int keyColumnCount,
-            int schemaColumnCount)
+            TTableMountInfoPtr tableInfo,
+            TColumnEvaluatorPtr columnEvauator)
             : TransactionId_(owner->Transaction_->GetId())
             , TabletId_(tabletInfo->TabletId)
+            , TableInfo_(std::move(tableInfo))
             , Config_(owner->Client_->Connection_->GetConfig())
             , Durability_(owner->Transaction_->GetDurability())
-            , KeyColumnCount_(keyColumnCount)
-            , SchemaColumnCount_(schemaColumnCount)
+            , KeyColumnCount_(TableInfo_->KeyColumns.size())
+            , ColumnEvaluator_(std::move(columnEvauator))
+            , RowBuffer_(New<TRowBuffer>())
             , Logger(owner->Logger)
         {
             Logger.AddTag("TabletId: %v", TabletId_);
@@ -2341,9 +2352,8 @@ private:
             mergedRows.reserve(SubmittedRows_.size());
             auto merger = New<TUnversionedRowMerger>(
                 RowBuffer_,
-                SchemaColumnCount_,
                 KeyColumnCount_,
-                NTableClient::TColumnFilter());
+                ColumnEvaluator_);
 
             auto addPartialRow = [&] (const TSubmittedRow& submittedRow) {
                 switch (submittedRow.Command) {
@@ -2402,12 +2412,13 @@ private:
     private:
         const TTransactionId TransactionId_;
         const TTabletId TabletId_;
+        const TTableMountInfoPtr TableInfo_;
         const TConnectionConfigPtr Config_;
         const EDurability Durability_;
         const int KeyColumnCount_;
-        const int SchemaColumnCount_;
 
-        TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+        TColumnEvaluatorPtr ColumnEvaluator_;
+        TRowBufferPtr RowBuffer_;
 
         NLogging::TLogger Logger;
 
@@ -2531,13 +2542,15 @@ private:
         auto it = TabletToSession_.find(tabletInfo);
         if (it == TabletToSession_.end()) {
             AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
+            auto evaluatorCache = GetConnection()->GetColumnEvaluatorCache();
+            auto evaluator = evaluatorCache->Find(tableInfo->Schema, tableInfo->KeyColumns.size());
             it = TabletToSession_.insert(std::make_pair(
                 tabletInfo,
                 New<TTabletCommitSession>(
                     this,
                     tabletInfo,
-                    tableInfo->KeyColumns.size(),
-                    tableInfo->Schema.Columns().size())
+                    tableInfo,
+                    evaluator)
                 )).first;
         }
         return it->second.Get();

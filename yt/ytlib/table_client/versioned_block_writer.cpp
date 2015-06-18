@@ -31,7 +31,14 @@ TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
     , ValueStream_(TSimpleVersionedBlockWriterTag())
     , TimestampStream_(TSimpleVersionedBlockWriterTag())
     , StringDataStream_(TSimpleVersionedBlockWriterTag())
-{ }
+{
+    for (const auto& column : Schema_.Columns()) {
+        if (column.Aggregate) {
+            ValueAggregateFlags_ = TBitmap();
+            break;
+        }
+    }
+}
 
 void TSimpleVersionedBlockWriter::WriteRow(
     TVersionedRow row,
@@ -46,11 +53,12 @@ void TSimpleVersionedBlockWriter::WriteRow(
 
     ++RowCount_;
 
+    auto nullAggregateFlags = TNullable<TBitmap>();
     int keyOffset = KeyStream_.GetSize();
     for (const auto* it = row.BeginKeys(); it != row.EndKeys(); ++it) {
         const auto& value = *it;
         YASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].Type);
-        WriteValue(KeyStream_, KeyNullFlags_, value);
+        WriteValue(KeyStream_, KeyNullFlags_, nullAggregateFlags, value);
     }
 
     WritePod(KeyStream_, TimestampCount_);
@@ -86,7 +94,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
             WritePod(KeyStream_, valueCount);
             ++lastId;
         } else {
-            WriteValue(ValueStream_, ValueNullFlags_, value);
+            WriteValue(ValueStream_, ValueNullFlags_, ValueAggregateFlags_, value);
             WritePod(ValueStream_, value.Timestamp);
             ++valueCount;
         }
@@ -115,6 +123,9 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
 
     blockParts.insert(blockParts.end(), KeyNullFlags_.Flush<TSimpleVersionedBlockWriterTag>());
     blockParts.insert(blockParts.end(), ValueNullFlags_.Flush<TSimpleVersionedBlockWriterTag>());
+    if (ValueAggregateFlags_) {
+        blockParts.insert(blockParts.end(), ValueAggregateFlags_->Flush<TSimpleVersionedBlockWriterTag>());
+    }
 
     auto strings = StringDataStream_.Flush();
     blockParts.insert(blockParts.end(), strings.begin(), strings.end());
@@ -142,8 +153,13 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
 void TSimpleVersionedBlockWriter::WriteValue(
     TChunkedOutputStream& stream,
     TBitmap& nullFlags,
+    TNullable<TBitmap>& aggregateFlags,
     const TUnversionedValue& value)
 {
+    if (aggregateFlags) {
+        aggregateFlags->Append(value.Aggregate);
+    }
+
     switch (value.Type) {
         case EValueType::Int64:
             WritePod(stream, value.Data.Int64);
@@ -190,7 +206,8 @@ i64 TSimpleVersionedBlockWriter::GetBlockSize() const
         ValueStream_.GetSize() +
         TimestampStream_.GetSize() +
         KeyNullFlags_.Size() +
-        ValueNullFlags_.Size();
+        ValueNullFlags_.Size() +
+        (ValueAggregateFlags_.HasValue() ? ValueAggregateFlags_->Size() : 0);
 }
 
 i64 TSimpleVersionedBlockWriter::GetRowCount() const

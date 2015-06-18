@@ -59,6 +59,14 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     ValueNullFlags_.Reset(reinterpret_cast<const ui64*>(ptr), VersionedMeta_.value_count());
     ptr += ValueNullFlags_.GetByteSize();
 
+    for (const auto& column : ChunkSchema_.Columns()) {
+        if (column.Aggregate) {
+            ValueAggregateFlags_ = TBitmap(reinterpret_cast<const ui64*>(ptr), VersionedMeta_.value_count());
+            ptr += ValueAggregateFlags_->GetByteSize();
+            break;
+        }
+    }
+
     StringData_ = TRef(const_cast<char*>(ptr), const_cast<char*>(Block_.End()));
 
     JumpToRowIndex(0);
@@ -230,10 +238,39 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
 
     YCHECK(hasWriteTimestamp);
 
+    int aggregateCountDelta = 0;
+
+    for (const auto& mapping : SchemaIdMapping_) {
+        int valueId = mapping.ReaderSchemaIndex;
+        int chunkSchemaId = mapping.ChunkSchemaIndex;
+        int columnValueCount = GetColumnValueCount(chunkSchemaId);
+
+        if (ChunkSchema_.Columns()[chunkSchemaId].Aggregate) {
+            int valueBeginIndex = LowerBound(
+                chunkSchemaId == KeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
+                columnValueCount,
+                [&] (int index) {
+                    return ReadValueTimestamp(ValueOffset_ + index, valueId) > Timestamp_;
+                });
+            int valueEndIndex = LowerBound(
+                chunkSchemaId == KeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
+                columnValueCount,
+                [&] (int index) {
+                    return ReadValueTimestamp(ValueOffset_ + index, valueId) > deleteTimestamp;
+                });
+
+            int valueCount = valueEndIndex - valueBeginIndex;
+
+            if (valueCount > 0) {
+                aggregateCountDelta += valueCount - 1;
+            }
+        }
+    }
+
     auto row = TVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
-        SchemaIdMapping_.size(),
+        SchemaIdMapping_.size() + aggregateCountDelta,
         1,
         hasDeleteTimestamp ? 1 : 0);
 
@@ -258,14 +295,21 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
                 return ReadValueTimestamp(ValueOffset_ + index, valueId) > Timestamp_;
             });
 
-        if (valueIndex < columnValueCount) {
-            ReadValue(currentValue, ValueOffset_ + valueIndex, valueId, chunkSchemaId);
-            if (currentValue->Timestamp > deleteTimestamp) {
-                // Check that value didn't come from the previous incarnation of this row.
+        if (ChunkSchema_.Columns()[chunkSchemaId].Aggregate) {
+            for (int index = valueIndex; index < columnValueCount; ++index) {
+                ReadValue(currentValue, ValueOffset_ + index, valueId, chunkSchemaId);
                 ++currentValue;
             }
         } else {
-            // No value in the current column satisfies timestamp filtering.
+            if (valueIndex < columnValueCount) {
+                ReadValue(currentValue, ValueOffset_ + valueIndex, valueId, chunkSchemaId);
+                if (currentValue->Timestamp > deleteTimestamp) {
+                    // Check that value didn't come from the previous incarnation of this row.
+                    ++currentValue;
+                }
+            } else {
+                // No value in the current column satisfies timestamp filtering.
+            }
         }
     }
     row.GetHeader()->ValueCount = (currentValue - beginValues);
@@ -324,6 +368,7 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
 
     value->Id = id;
     value->Timestamp = timestamp;
+    value->Aggregate = ValueAggregateFlags_.HasValue() ? ValueAggregateFlags_->operator[](valueIndex) : false;
 
     bool isNull = ValueNullFlags_[valueIndex];
     if (isNull) {

@@ -27,6 +27,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/query_client/column_evaluator.h>
+
 #include <core/concurrency/scheduler.h>
 
 #include <core/misc/protobuf_helpers.h>
@@ -860,9 +862,9 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto rowMerger = New<TSchemafulRowMerger>(
         New<TRowBuffer>(),
-        tableSchema.Columns().size(),
         keyColumns.size(),
-        columnFilter);
+        columnFilter,
+        client->GetConnection()->GetColumnEvaluatorCache()->Find(tableSchema, keyColumns.size()));
 
     auto reader = CreateSchemafulOverlappingRangeChunkReader(
         std::move(boundaries),
