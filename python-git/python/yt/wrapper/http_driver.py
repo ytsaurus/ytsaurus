@@ -135,7 +135,7 @@ def make_request(command_name, params,
     if params:
         headers.update({"X-YT-Parameters": dumps(params)})
 
-    if allow_retries:
+    if command.is_volatile and allow_retries:
         def set_retry():
             if command.is_volatile:
                 params["retry"] = bool_to_string(True)
