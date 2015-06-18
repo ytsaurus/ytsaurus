@@ -57,6 +57,7 @@ private:
 
     TRef ValueData_;
     TBitmap ValueNullFlags_;
+    TNullable<TBitmap> ValueAggregateFlags_;
 
     TRef TimestampsData_;
 

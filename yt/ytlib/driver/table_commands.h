@@ -232,6 +232,7 @@ struct TInsertRowsRequest
     bool Update;
     NTransactionClient::EAtomicity Atomicity;
     NTransactionClient::EDurability Durability;
+    bool ResetAggregateColumns;
 
     TInsertRowsRequest()
     {
@@ -244,6 +245,8 @@ struct TInsertRowsRequest
             .Default(NTransactionClient::EAtomicity::Full);
         RegisterParameter("durability", Durability)
             .Default(NTransactionClient::EDurability::Sync);
+        RegisterParameter("reset_aggregate_columns", ResetAggregateColumns)
+            .Default(false);
     }
 };
 

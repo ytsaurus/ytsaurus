@@ -17,6 +17,8 @@
 
 #include <ytlib/chunk_client/public.h>
 
+#include <ytlib/query_client/column_evaluator.h>
+
 #include <server/hydra/entity_map.h>
 
 #include <atomic>
@@ -63,6 +65,8 @@ struct TTabletSnapshot
     //! Returns a partition possibly containing a given #key or
     //! |nullptr| is there's none.
     TPartitionSnapshotPtr FindContainingPartition(TKey key);
+
+    NQueryClient::TColumnEvaluatorPtr ColumnEvaluator;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
@@ -125,6 +129,7 @@ public:
         const TTabletId& tabletId,
         const NObjectClient::TObjectId& tableId,
         TTabletSlotPtr slot,
+        NQueryClient::TColumnEvaluatorCachePtr columnEvaluatorCache,
         const NTableClient::TTableSchema& schema,
         const NTableClient::TKeyColumns& keyColumns,
         TOwningKey pivotKey,
@@ -213,6 +218,8 @@ private:
 
     int ColumnLockCount_ = -1;
 
+    NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
     void Initialize();
 

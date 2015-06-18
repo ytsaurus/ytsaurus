@@ -81,9 +81,9 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 
     auto rowMerger = New<TSchemafulRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
-        tabletSnapshot->Schema.Columns().size(),
         tabletSnapshot->KeyColumns.size(),
-        columnFilter);
+        columnFilter,
+        tabletSnapshot->ColumnEvaluator);
 
     std::vector<TOwningKey> boundaries;
     boundaries.reserve(stores.size());
@@ -159,9 +159,9 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             rowBuffer
                 ? std::move(rowBuffer)
                 : New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
-            tabletSnapshot->Schema.Columns().size(),
             tabletSnapshot->KeyColumns.size(),
-            columnFilter);
+            columnFilter,
+            tabletSnapshot->ColumnEvaluator);
 
         return CreateSchemafulOverlappingLookupChunkReader(
             std::move(rowMerger),
@@ -243,7 +243,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         tabletSnapshot->KeyColumns.size(),
         tabletSnapshot->Config,
         currentTimestamp,
-        majorTimestamp);
+        majorTimestamp,
+        tabletSnapshot->ColumnEvaluator);
 
     std::vector<TOwningKey> boundaries;
     boundaries.reserve(stores.size());

@@ -130,39 +130,39 @@ inline bool IsSentinelType(EValueType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 0)
+inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 0, bool aggregate = false)
 {
-    return MakeSentinelValue<TUnversionedValue>(type, id);
+    return MakeSentinelValue<TUnversionedValue>(type, id, aggregate);
 }
 
-inline TUnversionedValue MakeUnversionedInt64Value(i64 value, int id = 0)
+inline TUnversionedValue MakeUnversionedInt64Value(i64 value, int id = 0, bool aggregate = false)
 {
-    return MakeInt64Value<TUnversionedValue>(value, id);
+    return MakeInt64Value<TUnversionedValue>(value, id, aggregate);
 }
 
-inline TUnversionedValue MakeUnversionedUint64Value(ui64 value, int id = 0)
+inline TUnversionedValue MakeUnversionedUint64Value(ui64 value, int id = 0, bool aggregate = false)
 {
-    return MakeUint64Value<TUnversionedValue>(value, id);
+    return MakeUint64Value<TUnversionedValue>(value, id, aggregate);
 }
 
-inline TUnversionedValue MakeUnversionedDoubleValue(double value, int id = 0)
+inline TUnversionedValue MakeUnversionedDoubleValue(double value, int id = 0, bool aggregate = false)
 {
-    return MakeDoubleValue<TUnversionedValue>(value, id);
+    return MakeDoubleValue<TUnversionedValue>(value, id, aggregate);
 }
 
-inline TUnversionedValue MakeUnversionedBooleanValue(bool value, int id = 0)
+inline TUnversionedValue MakeUnversionedBooleanValue(bool value, int id = 0, bool aggregate = false)
 {
-    return MakeBooleanValue<TUnversionedValue>(value, id);
+    return MakeBooleanValue<TUnversionedValue>(value, id, aggregate);
 }
 
-inline TUnversionedValue MakeUnversionedStringValue(const TStringBuf& value, int id = 0)
+inline TUnversionedValue MakeUnversionedStringValue(const TStringBuf& value, int id = 0, bool aggregate = false)
 {
-    return MakeStringValue<TUnversionedValue>(value, id);
+    return MakeStringValue<TUnversionedValue>(value, id, aggregate);
 }
 
-inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id = 0)
+inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id = 0, bool aggregate = false)
 {
-    return MakeAnyValue<TUnversionedValue>(value, id);
+    return MakeAnyValue<TUnversionedValue>(value, id, aggregate);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

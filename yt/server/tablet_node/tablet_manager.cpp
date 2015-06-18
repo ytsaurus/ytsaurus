@@ -590,6 +590,7 @@ private:
             tabletId,
             tableId,
             Slot_,
+            Slot_->GetColumnEvaluatorCache(),
             schema,
             keyColumns,
             pivotKey,

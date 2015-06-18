@@ -30,51 +30,51 @@ inline TVersionedValue MakeVersionedValue(const TUnversionedValue& value, TTimes
     return result;
 }
 
-inline TVersionedValue MakeVersionedSentinelValue(EValueType type, TTimestamp timestamp, int id = 0)
+inline TVersionedValue MakeVersionedSentinelValue(EValueType type, TTimestamp timestamp, int id = 0, bool aggregate = false)
 {
-    auto result = MakeSentinelValue<TVersionedValue>(type, id);
+    auto result = MakeSentinelValue<TVersionedValue>(type, id, aggregate);
     result.Timestamp = timestamp;
     return result;
 }
 
-inline TVersionedValue MakeVersionedInt64Value(i64 value, TTimestamp timestamp, int id = 0)
+inline TVersionedValue MakeVersionedInt64Value(i64 value, TTimestamp timestamp, int id = 0, bool aggregate = false)
 {
-    auto result = MakeInt64Value<TVersionedValue>(value, id);
+    auto result = MakeInt64Value<TVersionedValue>(value, id, aggregate);
     result.Timestamp = timestamp;
     return result;
 }
 
-inline TVersionedValue MakeVersionedUint64Value(ui64 value, TTimestamp timestamp, int id = 0)
+inline TVersionedValue MakeVersionedUint64Value(ui64 value, TTimestamp timestamp, int id = 0, bool aggregate = false)
 {
-    auto result = MakeUint64Value<TVersionedValue>(value, id);
+    auto result = MakeUint64Value<TVersionedValue>(value, id, aggregate);
     result.Timestamp = timestamp;
     return result;
 }
 
-inline TVersionedValue MakeVersionedDoubleValue(double value, TTimestamp timestamp, int id = 0)
+inline TVersionedValue MakeVersionedDoubleValue(double value, TTimestamp timestamp, int id = 0, bool aggregate = false)
 {
-    auto result = MakeDoubleValue<TVersionedValue>(value, id);
+    auto result = MakeDoubleValue<TVersionedValue>(value, id, aggregate);
     result.Timestamp = timestamp;
     return result;
 }
 
-inline TVersionedValue MakeVersionedBooleanValue(bool value, TTimestamp timestamp, int id = 0)
+inline TVersionedValue MakeVersionedBooleanValue(bool value, TTimestamp timestamp, int id = 0, bool aggregate = false)
 {
-    auto result = MakeBooleanValue<TVersionedValue>(value, id);
+    auto result = MakeBooleanValue<TVersionedValue>(value, id, aggregate);
     result.Timestamp = timestamp;
     return result;
 }
 
-inline TVersionedValue MakeVersionedStringValue(const TStringBuf& value, TTimestamp timestamp, int id = 0)
+inline TVersionedValue MakeVersionedStringValue(const TStringBuf& value, TTimestamp timestamp, int id = 0, bool aggregate = false)
 {
-    auto result = MakeStringValue<TVersionedValue>(value, id);
+    auto result = MakeStringValue<TVersionedValue>(value, id, aggregate);
     result.Timestamp = timestamp;
     return result;
 }
 
-inline TVersionedValue MakeVersionedAnyValue(const TStringBuf& value, TTimestamp timestamp, int id = 0)
+inline TVersionedValue MakeVersionedAnyValue(const TStringBuf& value, TTimestamp timestamp, int id = 0, bool aggregate = false)
 {
-    auto result = MakeAnyValue<TVersionedValue>(value, id);
+    auto result = MakeAnyValue<TVersionedValue>(value, id, aggregate);
     result.Timestamp = timestamp;
     return result;
 }

@@ -29,6 +29,7 @@ using namespace NTabletClient;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
+using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,6 +80,7 @@ TTablet::TTablet(
     , Slot_(slot)
     , Config_(New<TTableMountConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
+    , ColumnEvaluatorCache_(Slot_->GetColumnEvaluatorCache())
 { }
 
 TTablet::TTablet(
@@ -87,6 +89,7 @@ TTablet::TTablet(
     const TTabletId& tabletId,
     const TObjectId& tableId,
     TTabletSlotPtr slot,
+    TColumnEvaluatorCachePtr columnEvaluatorCache,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     TOwningKey pivotKey,
@@ -109,6 +112,7 @@ TTablet::TTablet(
         TPartition::EdenIndex,
         PivotKey_,
         NextPivotKey_))
+    , ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
 {
     Initialize();
 }
@@ -649,6 +653,7 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
     }
     Snapshot_->RowKeyComparer = RowKeyComparer_;
     Snapshot_->PerformanceCounters = PerformanceCounters_;
+    Snapshot_->ColumnEvaluator = ColumnEvaluator_;
     return Snapshot_;
 }
 
@@ -696,6 +701,8 @@ void TTablet::Initialize()
     }
 
     ColumnLockCount_ = groupToIndex.size() + 1;
+
+    ColumnEvaluator_ = ColumnEvaluatorCache_->Find(Schema_, KeyColumns_.size());
 }
 
 TPartition* TTablet::GetContainingPartition(IStorePtr store)

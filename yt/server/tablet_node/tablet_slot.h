@@ -23,6 +23,8 @@
 #include <server/cell_node/public.h>
 #include <ytlib/hive/cell_directory.h>
 
+#include <ytlib/query_client/public.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -68,7 +70,9 @@ public:
     TTabletManagerPtr GetTabletManager() const;
 
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
-   
+
+    NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() const;
+
     void Initialize(const NNodeTrackerClient::NProto::TCreateTabletSlotInfo& createInfo);
     void Configure(const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     void Finalize();

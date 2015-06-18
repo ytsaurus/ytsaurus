@@ -14,6 +14,8 @@
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/query_preparer.h>
 #include <ytlib/query_client/folding_profiler.h>
+#include <ytlib/query_client/function_registry.h>
+#include <ytlib/query_client/functions.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -32,11 +34,13 @@ TColumnSchema::TColumnSchema(
     const Stroka& name,
     EValueType type,
     const TNullable<Stroka>& lock,
-    const TNullable<Stroka>& expression)
+    const TNullable<Stroka>& expression,
+    const TNullable<Stroka>& aggregate)
     : Name(name)
     , Type(type)
     , Lock(lock)
     , Expression(expression)
+    , Aggregate(aggregate)
 { }
 
 struct TSerializableColumnSchema
@@ -63,6 +67,8 @@ struct TSerializableColumnSchema
             .Default();
         RegisterParameter("expression", Expression)
             .Default();
+        RegisterParameter("aggregate", Aggregate)
+            .Default();
 
         RegisterValidator([&] () {
             // Name
@@ -77,6 +83,11 @@ struct TSerializableColumnSchema
                 THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
                     Name)
                     << ex;
+            }
+
+            if (Expression && Aggregate) {
+                THROW_ERROR_EXCEPTION("Column %Qv can be either computed or aggregated column",
+                    Name);
             }
         });
     }
@@ -107,6 +118,9 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
     if (schema.Expression) {
         protoSchema->set_expression(*schema.Expression);
     }
+    if (schema.Aggregate) {
+        protoSchema->set_aggregate(*schema.Aggregate);
+    }
 }
 
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
@@ -115,6 +129,7 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->Type = EValueType(protoSchema.type());
     schema->Lock = protoSchema.has_lock() ? MakeNullable(protoSchema.lock()) : Null;
     schema->Expression = protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null;
+    schema->Aggregate = protoSchema.has_aggregate() ? MakeNullable(protoSchema.aggregate()) : Null;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -342,6 +357,8 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
         THROW_ERROR_EXCEPTION("Schema must contains at least one non-key column");;
     }
 
+    auto functionRegistry = CreateBuiltinFunctionRegistry();
+
     // Validate computed columns.
     for (int index = 0; index < schema.Columns().size(); ++index) {
         const auto& columnSchema = schema.Columns()[index];
@@ -372,6 +389,20 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
                 }
             } else {
                 THROW_ERROR_EXCEPTION("Computed column %Qv is not a key column", columnSchema.Name);
+            }
+        }
+
+        if (columnSchema.Aggregate) {
+            if (index < keyColumns.size()) {
+                THROW_ERROR_EXCEPTION("Aggregate column %Qv is a key column", columnSchema.Name);
+            } else {
+                if (auto descriptor = functionRegistry->FindAggregateFunction(columnSchema.Aggregate.Get())) {
+                    descriptor->GetStateType(columnSchema.Type);
+                } else {
+                    THROW_ERROR_EXCEPTION("Unknown aggregate function %Qv at column %Qv",
+                        columnSchema.Aggregate.Get(),
+                        columnSchema.Name);
+                }
             }
         }
     }

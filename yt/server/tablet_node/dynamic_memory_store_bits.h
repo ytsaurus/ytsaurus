@@ -45,7 +45,8 @@ struct TDynamicValue
     TDynamicValueData Data;
     ui32 Revision;
     bool Null;
-    char Padding[3];
+    bool Aggregate;
+    char Padding[2];
 };
 
 static_assert(

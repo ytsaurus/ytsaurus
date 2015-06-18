@@ -127,6 +127,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TCLAP::SwitchArg UpdateArg;
+    TCLAP::SwitchArg ResetAggregateColumnsArg;
     TUnlabeledStringArg ValueArg;
 
     bool UseStdIn = true;

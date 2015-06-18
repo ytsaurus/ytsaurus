@@ -288,6 +288,9 @@ std::vector<TUnversionedRow> ParseRows(
 
 void TInsertRowsCommand::DoExecute()
 {
+    TWriteRowsOptions writeOptions;
+    writeOptions.ResetAggregateColumns = Request_->ResetAggregateColumns;
+
     // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(
         Context_->GetConfig()->TableWriter,
@@ -318,7 +321,8 @@ void TInsertRowsCommand::DoExecute()
     transaction->WriteRows(
         Request_->Path.GetPath(),
         valueConsumer->GetNameTable(),
-        std::move(rows));
+        std::move(rows),
+        writeOptions);
 
     WaitFor(transaction->Commit())
         .ThrowOnError();

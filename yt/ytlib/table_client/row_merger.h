@@ -8,6 +8,8 @@
 
 #include <ytlib/api/public.h>
 
+#include <ytlib/query_client/public.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -21,9 +23,9 @@ public:
 
     TSchemafulRowMerger(
         TRowBufferPtr rowBuffer,
-        int schemaColumnCount,
         int keyColumnCount,
-        const TColumnFilter& columnFilter);
+        const TColumnFilter& columnFilter,
+        NQueryClient::TColumnEvaluatorPtr columnEvauator);
 
     void AddPartialRow(TVersionedRow row);
     TUnversionedRow BuildMergedRow();
@@ -31,8 +33,9 @@ public:
 
 private:
     TRowBufferPtr RowBuffer_;
-    int SchemaColumnCount_;
+    const TTableSchema& TableSchema_;
     int KeyColumnCount_;
+    NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
     TUnversionedRow MergedRow_;
     SmallVector<TTimestamp, TypicalColumnCount> MergedTimestamps_;
@@ -40,12 +43,13 @@ private:
     SmallVector<int, TypicalColumnCount> ColumnIds_;
     SmallVector<int, TypicalColumnCount> ColumnIdToIndex_;
 
+    SmallVector<TVersionedValue, TypicalColumnCount> AggregateValues_;
+
     TTimestamp LatestWrite_;
     TTimestamp LatestDelete_;
     bool Started_ = false;
 
     void Cleanup();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,9 +62,8 @@ public:
 
     TUnversionedRowMerger(
         TRowBufferPtr rowBuffer,
-        int schemaColumnCount,
         int keyColumnCount,
-        const TColumnFilter& columnFilter);
+        NQueryClient::TColumnEvaluatorPtr columnEvauator);
 
     void AddPartialRow(TUnversionedRow row);
     void DeletePartialRow(TUnversionedRow row);
@@ -69,16 +72,15 @@ public:
 
 private:
     TRowBufferPtr RowBuffer_;
-    int SchemaColumnCount_;
+    const TTableSchema& TableSchema_;
     int KeyColumnCount_;
+    NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+
     bool Started_;
     bool Deleted_;
 
     TUnversionedRow MergedRow_;
     SmallVector<bool, TypicalColumnCount> ValidValues_;
-
-    SmallVector<int, TypicalColumnCount> ColumnIds_;
-    SmallVector<int, TypicalColumnCount> ColumnIdToIndex_;
 
     void InitPartialRow(TUnversionedRow row);
     void Cleanup();
@@ -97,7 +99,8 @@ public:
         int keyColumnCount,
         TRetentionConfigPtr config,
         TTimestamp currentTimestamp,
-        TTimestamp majorTimestamp);
+        TTimestamp majorTimestamp,
+        NQueryClient::TColumnEvaluatorPtr columnEvauator);
 
     void AddPartialRow(TVersionedRow row);
     TVersionedRow BuildMergedRow();
@@ -108,10 +111,12 @@ public:
 
 private:
     TRowBufferPtr RowBuffer_;
+    const TTableSchema& TableSchema_;
     int KeyColumnCount_;
     TRetentionConfigPtr Config_;
     TTimestamp CurrentTimestamp_;
     TTimestamp MajorTimestamp_;
+    NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
     bool Started_;
     SmallVector<TUnversionedValue, TypicalColumnCount> Keys_;
@@ -124,7 +129,6 @@ private:
     std::vector<TTimestamp> DeleteTimestamps_;
 
     void Cleanup();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

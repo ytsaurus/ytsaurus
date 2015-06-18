@@ -1,4 +1,3 @@
-#pragma once
 
 #include "stdafx.h"
 #include "framework.h"
@@ -25,6 +24,9 @@
 #include <yt/ytlib/tablet_client/public.h>
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <ytlib/query_client/column_evaluator.h>
+#include <ytlib/query_client/config.h>
+
 #include <yt/server/tablet_node/public.h>
 #include <yt/server/tablet_node/config.h>
 #include <yt/server/tablet_node/tablet.h>
@@ -40,6 +42,7 @@ using namespace NTabletClient;
 using namespace NTableClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
+using namespace NQueryClient;
 using namespace NYson;
 using namespace NYTree;
 
@@ -58,12 +61,17 @@ protected:
             NameTable_->RegisterName(column.Name);
         }
 
+        auto columnEvaluatorCache = New<TColumnEvaluatorCache>(
+            New<TColumnEvaluatorCacheConfig>(),
+            CreateBuiltinFunctionRegistry());
+
         Tablet_.reset(new TTablet(
             New<TTableMountConfig>(),
             New<TTabletWriterOptions>(),
             NullTabletId,
             NullObjectId,
             nullptr,
+            columnEvaluatorCache,
             schema,
             keyColumns,
             MinKey(),
