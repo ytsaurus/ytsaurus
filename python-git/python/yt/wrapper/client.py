@@ -37,6 +37,7 @@ class Yt(object):
 
         self._transaction_stack = None
         self._banned_proxies = {}
+        self._ip_configured = False
         self._driver = None
 
         # Cache for API version (to check it only once)
