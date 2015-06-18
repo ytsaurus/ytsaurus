@@ -350,10 +350,10 @@ class HTTPAdapter(BaseAdapter):
         except (_SSLError, _HTTPError) as e:
             if isinstance(e, _SSLError):
                 raise SSLError(e)
-            elif isinstance(e, TimeoutError):
-                raise Timeout(e)
             else:
                 raise
+        except TimeoutError as e:
+            raise Timeout(e)
 
         r = self.build_response(request, resp)
 
