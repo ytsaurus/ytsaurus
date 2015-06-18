@@ -172,6 +172,9 @@ class Config(types.ModuleType):
             if key in old_options_short:
                 name = self.shortcuts[old_options[old_options_short.index(key)]]
                 var_type = get_var_type(self._get(name))
+                #NB: it is necessary to set boolean vaiable as 0 or 1
+                if var_type is bool:
+                    value = int(value)
                 self._set(name, var_type(value))
             elif key in self._env_configurable_options:
                 var_type = get_var_type(self.__dict__[key])
