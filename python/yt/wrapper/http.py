@@ -26,6 +26,11 @@ def get_session():
     return session_
 
 def configure_ip(client):
+    if get_option("_ip_configured", client):
+        return
+
+    set_option("_ip_configured", True, client)
+
     force_ipv4 = get_config(client)["proxy"]["force_ipv4"]
     force_ipv6 = get_config(client)["proxy"]["force_ipv6"]
 
