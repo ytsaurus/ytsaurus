@@ -147,6 +147,8 @@ class EventLog(object):
                 "compression_codec": "gzip_best_compression"
             },
             ignore_existing=True)
+        if not self.yt.exists(self._archive_number_of_first_row_attr):
+            self.yt.set(self._archive_number_of_first_row_attr, 0)
 
         self._perform_with_retries(lambda: self._do_archive(partition))
 
