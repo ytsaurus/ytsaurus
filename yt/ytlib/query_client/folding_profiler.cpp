@@ -236,13 +236,16 @@ TCodegenExpression TFoldingProfiler::Profile(TConstExpressionPtr expr, const TTa
         Fold(functionExpr->FunctionName.c_str());
 
         std::vector<TCodegenExpression> codegenArgs;
+        std::vector<EValueType> argumentTypes;
         for (const auto& argument : functionExpr->Arguments) {
             codegenArgs.push_back(Profile(argument, schema));
+            argumentTypes.push_back(argument->Type);
         }
 
         return FunctionRegistry_->GetFunction(functionExpr->FunctionName)
             ->MakeCodegenExpr(
                 std::move(codegenArgs),
+                std::move(argumentTypes),
                 functionExpr->Type,
                 "{" + functionExpr->GetName() + "}");
     } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
@@ -318,6 +321,8 @@ std::pair<TCodegenExpression, TCodegenAggregate> TFoldingProfiler::Profile(
         Profile(aggregateItem.Expression, schema),
         aggregateFunction->MakeCodegenAggregate(
             aggregateItem.Expression->Type,
+            aggregateItem.StateType,
+            aggregateItem.ResultType,
             aggregateItem.Name));
 }
 

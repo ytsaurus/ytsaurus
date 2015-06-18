@@ -22,18 +22,16 @@ struct ICallingConvention
         EValueType type,
         const Stroka& name) const = 0;
 
-    virtual void CheckResultType(
-        const Stroka& functionName,
-        Type* llvmType,
-        TType resultType,
-        TCGContext& builder) const = 0;
+    virtual llvm::FunctionType* GetCalleeType(
+        TCGContext& builder,
+        std::vector<EValueType> argumentTypes,
+        EValueType resultType) const = 0;
 
-    void CheckCallee(
+    static void CheckCallee(
+        TCGContext& builder,
         const Stroka& functionName,
         llvm::Function* callee,
-        TCGContext& builder,
-        std::vector<Value*> argumentValues,
-        TType resultType) const;
+        llvm::FunctionType* functionType);
 };
 
 DEFINE_REFCOUNTED_TYPE(ICallingConvention);
@@ -50,11 +48,10 @@ public:
         EValueType type,
         const Stroka& name) const override;
 
-    void CheckResultType(
-        const Stroka& functionName,
-        Type* llvmType,
-        TType resultType,
-        TCGContext& builder) const override;
+    virtual llvm::FunctionType* GetCalleeType(
+        TCGContext& builder,
+        std::vector<EValueType> argumentTypes,
+        EValueType resultType) const override;
 
 private:
     int RepeatedArgIndex_;
@@ -70,11 +67,10 @@ public:
         EValueType type,
         const Stroka& name) const override;
 
-    void CheckResultType(
-        const Stroka& functionName,
-        Type* llvmType,
-        TType resultType,
-        TCGContext& builder) const override;
+    virtual llvm::FunctionType* GetCalleeType(
+        TCGContext& builder,
+        std::vector<EValueType> argumentTypes,
+        EValueType resultType) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,6 +106,7 @@ public:
 
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
+        std::vector<EValueType> argumentTypes,
         EValueType type,
         const Stroka& name) const override;
 
@@ -150,7 +147,9 @@ public:
     virtual Stroka GetName() const override;
 
     virtual const TCodegenAggregate MakeCodegenAggregate(
-        EValueType type,
+        EValueType argumentType,
+        EValueType stateType,
+        EValueType resultType,
         const Stroka& name) const override;
 
     virtual EValueType GetStateType(
