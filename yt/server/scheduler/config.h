@@ -451,7 +451,7 @@ public:
 
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)
-            .Default(0);
+            .Default(1);
 
         RegisterParameter("map_operation_options", MapOperationOptions)
             .DefaultNew();
