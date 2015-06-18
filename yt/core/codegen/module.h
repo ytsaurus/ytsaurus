@@ -33,6 +33,16 @@ public:
     template <class TSignature>
     TCGFunction<TSignature> GetCompiledFunction(const Stroka& name);
 
+    void AddObjectFile(std::unique_ptr<llvm::object::ObjectFile> sharedObject);
+
+    bool SymbolIsLoaded(const Stroka& symbol) const;
+
+    void AddLoadedSymbol(const Stroka& symbol);
+
+    bool FunctionIsLoaded(const Stroka& function) const;
+
+    void AddLoadedFunction(const Stroka& function);
+
 private:
     class TImpl;
     std::unique_ptr<TImpl> Impl_;

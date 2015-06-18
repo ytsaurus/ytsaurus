@@ -115,7 +115,9 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
                 finalAggregateItems.emplace_back(
                     std::move(referenceExpr),
                     aggregateItem.AggregateFunction,
-                    aggregateItem.Name);
+                    aggregateItem.Name,
+                    aggregateItem.StateType,
+                    aggregateItem.ResultType);
             }
 
             topGroupClause->IsMerge = true;

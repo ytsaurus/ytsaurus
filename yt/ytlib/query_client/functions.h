@@ -19,6 +19,7 @@ struct IFunctionDescriptor
 
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
+        std::vector<EValueType> argumentTypes,
         EValueType type,
         const Stroka& name) const = 0;
 
@@ -38,7 +39,9 @@ struct IAggregateFunctionDescriptor
     virtual Stroka GetName() const = 0;
 
     virtual const TCodegenAggregate MakeCodegenAggregate(
-        EValueType type,
+        EValueType argumentType,
+        EValueType stateType,
+        EValueType resultType,
         const Stroka& name) const = 0;
 
     virtual EValueType GetStateType(

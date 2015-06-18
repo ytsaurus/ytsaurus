@@ -93,6 +93,8 @@ message TAggregateItem
     optional int32 aggregate_function = 2;
     required string name = 3;
     optional string aggregate_function_name = 4;
+    optional uint32 state_type = 5;
+    optional uint32 result_type = 6;
 }
 
 message TJoinClause

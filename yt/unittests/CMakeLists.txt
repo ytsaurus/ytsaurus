@@ -96,8 +96,9 @@ set( SRCS
 
 protoc( ${BASE}/rpc_ut.proto SRCS )
 
-udf( ${BASE}/udf/test_udfs.c SRCS )
-udf( ${BASE}/udf/malloc_udf.c SRCS )
+udf_bc( ${BASE}/udf/test_udfs.c SRCS )
+udf_bc( ${BASE}/udf/malloc_udf.c SRCS )
+udf_so( ${BASE}/udf/test_udfs_so.c SRCS )
 
 add_msvc_precompiled_header(
   "stdafx.h"
