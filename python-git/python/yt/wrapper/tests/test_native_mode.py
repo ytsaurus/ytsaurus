@@ -525,6 +525,51 @@ class NativeModeTester(YtTestBase, YTEnv):
                 lambda: yt.get("//sys/operations/@count") == operations_count + 1,
                 abort)
 
+    def test_transactions(self):
+        table = TEST_DIR + "/transaction_test_table"
+
+        yt.create_table(table)
+        yt.write_table(table, ["x=1\n"], format=yt.format.DsvFormat())
+
+        def read_table(client=None):
+            return yt.read_table(table, format=yt.format.DsvFormat(), client=client).read()
+
+        new_client = yt.client.Yt(token=yt.config["token"], config=yt.config)
+
+        with yt.Transaction():
+            yt.write_table(table, ["x=2\n"], format=yt.format.DsvFormat())
+            assert read_table(new_client) == "x=1\n"
+
+        assert read_table(new_client) == "x=2\n"
+
+        with yt.Transaction(timeout=2000, ping=False):
+            yt.write_table(table, ["x=3\n"], format=yt.format.DsvFormat())
+            time.sleep(3)
+
+        assert read_table() == "x=2\n"
+        assert read_table(new_client) == "x=2\n"
+
+        with yt.Transaction(timeout=1000):
+            yt.write_table(table, ["x=3\n"], format=yt.format.DsvFormat())
+            time.sleep(3)
+
+        assert read_table() == "x=3\n"
+        assert read_table(new_client) == "x=3\n"
+
+        with yt.PingableTransaction(timeout=1000):
+            yt.write_table(table, ["x=4\n"], format=yt.format.DsvFormat())
+            time.sleep(3)
+
+        assert read_table() == "x=4\n"
+
+        with yt.Transaction():
+            yt.write_table(table, ["x=5\n"], format=yt.format.DsvFormat())
+            time.sleep(3)
+            read_table(new_client) == "x=4\n"
+
+        assert read_table() == "x=5\n"
+        assert read_table(new_client) == "x=5\n"
+
     def test_lock(self):
         dir = TEST_DIR + "/dir"
 
