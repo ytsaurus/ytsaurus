@@ -347,13 +347,12 @@ class HTTPAdapter(BaseAdapter):
         except MaxRetryError as e:
             raise ConnectionError(e)
 
-        except (_SSLError, _HTTPError) as e:
-            if isinstance(e, _SSLError):
-                raise SSLError(e)
-            else:
-                raise
+        except _SSLError as e:
+            raise SSLError(e)
         except TimeoutError as e:
             raise Timeout(e)
+        except _HTTPError as e:
+            raise ConnectionError(e)
 
         r = self.build_response(request, resp)
 
