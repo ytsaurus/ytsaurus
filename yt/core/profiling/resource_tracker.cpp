@@ -90,6 +90,8 @@ void TResourceTracker::EnqueueCpuUsage()
         return;
     }
 
+    std::unordered_map<Stroka, std::pair<i64, i64>> threadStats;
+
     for (int index = 0; index < dirsList.Size(); ++index) {
         auto threadStatPath = NFS::CombinePaths(procPath, dirsList.Next());
         auto cpuStatPath = NFS::CombinePaths(threadStatPath, "stat");
@@ -109,6 +111,21 @@ void TResourceTracker::EnqueueCpuUsage()
         auto threadName = fields[1].substr(1, fields[1].size() - 2);
         i64 userJiffies = FromString<i64>(fields[13]); // In jiffies
         i64 systemJiffies = FromString<i64>(fields[14]); // In jiffies
+
+        auto it = threadStats.find(threadName);
+        if (it == threadStats.end()) {
+            threadStats.emplace(threadName, std::make_pair(userJiffies, systemJiffies));
+        } else {
+            it->second.first += userJiffies;
+            it->second.second += systemJiffies;
+        }
+    }
+
+    for (const auto stat : threadStats)
+    {
+        const auto& threadName = stat.first;
+        auto userJiffies = stat.second.first;
+        auto systemJiffies = stat.second.second;
 
         auto it = ThreadNameToJiffies.find(threadName);
         if (it != ThreadNameToJiffies.end()) {
