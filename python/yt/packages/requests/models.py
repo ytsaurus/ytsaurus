@@ -19,7 +19,8 @@ from .auth import HTTPBasicAuth
 from .cookies import cookiejar_from_dict, get_cookie_header
 from .packages.urllib3.filepost import encode_multipart_formdata
 from .packages.urllib3.util import parse_url
-from .exceptions import HTTPError, RequestException, MissingSchema, InvalidURL
+from .packages.urllib3.exceptions import TimeoutError
+from .exceptions import HTTPError, RequestException, MissingSchema, InvalidURL, Timeout
 from .utils import (
     guess_filename, get_auth_from_url, requote_uri,
     stream_decode_response_unicode, to_key_val_list, parse_header_links,
@@ -538,7 +539,10 @@ class Response(object):
 
         def generate():
             while 1:
-                chunk = self.raw.read(chunk_size, decode_content=True)
+                try:
+                    chunk = self.raw.read(chunk_size, decode_content=True)
+                except TimeoutError as e:
+                    raise Timeout(e)
                 if not chunk:
                     break
                 yield chunk
