@@ -81,7 +81,9 @@ private:
         MangleSymbol("memcpy"),
         MangleSymbol("nanosleep"),
         MangleSymbol("tolower"),
-        MangleSymbol("toupper")
+        MangleSymbol("toupper"),
+        MangleSymbol("log"),
+        MangleSymbol("memset"),
     };
 };
 

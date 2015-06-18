@@ -146,6 +146,8 @@ set( HDRS
   ${BASE}/varint.h
   ${BASE}/weak_ptr.h
   ${BASE}/zigzag.h
+  ${BASE}/hyperloglog.h
+  ${BASE}/hyperloglog_bias.h
 )
 
 list(APPEND YT_SOURCE_FILES
