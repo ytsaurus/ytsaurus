@@ -138,6 +138,7 @@ class Config(types.ModuleType):
 
         self._transaction_stack = None
         self._banned_proxies = {}
+        self._ip_configured = False
 
         # Cache for API version (to check it only once)
         self._api_version = None
