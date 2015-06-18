@@ -54,9 +54,12 @@ class Transaction(object):
     .. seealso:: `transactions on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
     """
 
-    def __init__(self, timeout=None, attributes=None, null=False, ping_ancestor_transactions=False, client=None):
+    def __init__(self, timeout=None, attributes=None, ping=True, null=False,
+                 ping_ancestor_transactions=False, client=None):
         self.null = null
         self.client = client
+        self.ping = ping
+        self.timeout = get_value(timeout, get_total_request_timeout(client))
 
         if get_option("_transaction_stack", self.client) is None:
             set_option("_transaction_stack", TransactionStack(), self.client)
@@ -75,6 +78,10 @@ class Transaction(object):
         self.finished = False
 
     def __enter__(self):
+        if self.ping and not self.finished:
+            delay = (self.timeout / 1000.0) / max(2, get_request_retry_count(self.client))
+            self.ping_thread = PingTransaction(self.transaction_id, delay, client=self.client)
+            self.ping_thread.start()
         return self
 
     def __exit__(self, type, value, traceback):
@@ -100,6 +107,8 @@ class Transaction(object):
                     else:
                         raise
         finally:
+            if self.ping:
+                self.ping_thread.stop()
             self.stack.pop()
             transaction_id, ping_ancestor_transactions = self.stack.get()
             set_option("TRANSACTION", transaction_id, self.client)
@@ -154,28 +163,10 @@ class PingTransaction(Thread):
                 if not self.is_running:
                     return
 
-
-class PingableTransaction(object):
+class PingableTransaction(Transaction):
     """Self-pinged transaction"""
+    """Deprecated! Use Transaction(...ping=True...) instead"""
     def __init__(self, timeout=None, attributes=None, ping_ancestor_transactions=False, client=None):
-        self.timeout = get_value(timeout, get_total_request_timeout(client))
-        self.attributes = attributes
-        self.ping_ancestor_transactions = ping_ancestor_transactions
-        self.client = client
+        super(PingableTransaction, self).__init__(timeout, attributes, True, False,
+              ping_ancestor_transactions, client)
 
-    def __enter__(self):
-        self.transaction = Transaction(
-            timeout=self.timeout,
-            attributes=self.attributes,
-            ping_ancestor_transactions=self.ping_ancestor_transactions,
-            client=self.client).__enter__()
-
-        transaction = get_option("TRANSACTION", self.client)
-        delay = (self.timeout / 1000.0) / max(2, get_request_retry_count(self.client))
-        self.ping = PingTransaction(transaction, delay, client=self.client)
-        self.ping.start()
-        return self
-
-    def __exit__(self, type, value, traceback):
-        self.ping.stop()
-        self.transaction.__exit__(type, value, traceback)
