@@ -444,10 +444,10 @@ class TestQuery(YTEnvSetup):
         registry_path =  "//tmp/udfs"
         create("map_node", registry_path)
 
-        abs_path = os.path.join(registry_path, "abs_udf_so")
+        abs_path = os.path.join(registry_path, "abs_udf")
         create("file", abs_path,
             attributes = { "function_descriptor": {
-                "name": "abs_udf_so",
+                "name": "abs_udf",
                 "argument_types": [{
                     "tag": "concrete_type",
                     "value": "int64"}],
@@ -456,10 +456,10 @@ class TestQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "simple"}})
 
-        sum_path = os.path.join(registry_path, "sum_udf")
+        sum_path = os.path.join(registry_path, "sum_udf2")
         create("file", sum_path,
             attributes = { "function_descriptor": {
-                "name": "sum_udf",
+                "name": "sum_udf2",
                 "argument_types": [{
                     "tag": "concrete_type",
                     "value": "int64"}],
@@ -472,13 +472,13 @@ class TestQuery(YTEnvSetup):
                 "calling_convention": "unversioned_value"}})
 
         local_bitcode_path = find_executable("test_udfs.bc")
-        local_object_path = find_executable("test_udfs_so.so")
-        upload_file(abs_path, local_object_path)
-        upload_file(sum_path, local_bitcode_path)
+        local_bitcode_path2 = find_executable("sum_udf.bc")
+        upload_file(abs_path, local_bitcode_path)
+        upload_file(sum_path, local_bitcode_path2)
 
-        self._sample_data(path="//tmp/t")
+        self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
-        actual = select_rows("abs_udf_so(-2 * a) as s from [//tmp/u] where sum_udf(b, 1, 2) = sum_udf(3, b)")
+        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u] where sum_udf2(b, 1, 2) = sum_udf2(3, b)")
         self.assertItemsEqual(actual, expected)
 
     def test_udaf(self):
@@ -503,9 +503,9 @@ class TestQuery(YTEnvSetup):
         local_implementation_path = find_executable("test_udfs.bc")
         upload_file(avg_path, local_implementation_path)
 
-        self._sample_data(path="//tmp/t")
+        self._sample_data(path="//tmp/ua")
         expected = [{"x": 5.0}]
-        actual = select_rows("avg_udaf(a) as x from [//tmp/t] group by 1")
+        actual = select_rows("avg_udaf(a) as x from [//tmp/ua] group by 1")
         self.assertItemsEqual(actual, expected)
 
     def test_aggregate_string_capture(self):
@@ -555,3 +555,28 @@ class TestQuery(YTEnvSetup):
         assert actual[0]["b"] < 1.05 * 10000
         assert actual[1]["b"] > .95 * 10000
         assert actual[1]["b"] < 1.05 * 10000
+
+    def test_shared_object_udf(self):
+        registry_path =  "//tmp/udfs"
+        create("map_node", registry_path)
+
+        abs_path = os.path.join(registry_path, "abs_udf")
+        create("file", abs_path,
+            attributes = { "function_descriptor": {
+                "name": "abs_udf",
+                "argument_types": [{
+                    "tag": "concrete_type",
+                    "value": "int64"}],
+                "result_type": {
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                "calling_convention": "simple"}})
+
+        local_bitcode_path = find_executable("test_udfs_so.so")
+        upload_file(abs_path, local_bitcode_path)
+
+        self._sample_data(path="//tmp/sou")
+        expected = [{"s": 2 * i} for i in xrange(1, 10)]
+        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/sou]")
+        self.assertItemsEqual(actual, expected)
+
