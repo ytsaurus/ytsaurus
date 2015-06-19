@@ -493,8 +493,11 @@ TCodegenSource MakeCodegenProjectOp(
 TCGQueryCallback CodegenEvaluate(
     TCodegenSource codegenSource);
 
-TCGExpressionCallback CodegenExpression(    
+TCGExpressionCallback CodegenExpression(
     TCodegenExpression codegenExpression);
+
+TCGAggregateCallbacks CodegenAggregate(
+    TCodegenAggregate codegenAggregate);
 
 ////////////////////////////////////////////////////////////////////////////////
 
