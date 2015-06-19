@@ -24,7 +24,7 @@ public:
     int RegisterName(const TStringBuf& name);
     int GetIdOrRegisterName(const TStringBuf& name);
 
-    const Stroka& GetName(int id) const;
+    TStringBuf GetName(int id) const;
 
 private:
     TSpinLock SpinLock_;

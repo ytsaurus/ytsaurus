@@ -62,7 +62,8 @@ TChannel MakeChannel(const TColumnFilter& columnFilter, TNameTablePtr nameTable)
 
     TChannel channel = TChannel::Empty();
     for (auto index : columnFilter.Indexes) {
-        channel.AddColumn(nameTable->GetName(index));
+        auto name = ToString(nameTable->GetName(index));
+        channel.AddColumn(name);
     }
     return channel;
 }
