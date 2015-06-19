@@ -82,7 +82,7 @@ public:
         BatchedRecordsData_.push_back(recordData);
         LocalFlushResult_ = std::move(localFlushResult);
 
-        LOG_DEBUG("Mutation batched (Version: %v, Type: %v)",
+        LOG_DEBUG("Mutation batched (Version: %v, MutationType: %v)",
             currentVersion,
             request.Type);
     }
