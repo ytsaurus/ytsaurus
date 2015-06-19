@@ -1466,6 +1466,37 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteNotBlocked)
     EXPECT_FALSE(blocked);
 }
 
+TEST_F(TMultiLockDynamicMemoryStoreTest, SerializeSnapshot1)
+{
+    auto key = BuildKey("1");
+
+    auto ts1 = DeleteRow(key);
+    auto ts2 = WriteRow(BuildRow("key=1;a=1", false), LockMask1);
+    auto ts3 = WriteRow(BuildRow("key=1;b=3.14", false), LockMask2);
+
+    auto check = [&] () {
+        EXPECT_EQ(1, Store_->GetKeyCount());
+        EXPECT_EQ(2, Store_->GetValueCount());
+
+        auto row = LookupDynamicRow(key);
+        EXPECT_EQ(ts1, GetLastCommitTimestamp(row));
+        EXPECT_EQ(ts2, GetLastCommitTimestamp(row, 1));
+        EXPECT_EQ(ts3, GetLastCommitTimestamp(row, 2));
+
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1 - 1), Null));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), Null));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), Stroka("key=1;a=1")));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts3), Stroka("key=1;a=1;b=3.14")));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, MaxTimestamp), Stroka("key=1;a=1;b=3.14")));
+    };
+
+    check();
+
+    ReserializeStore();
+
+    check();
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
