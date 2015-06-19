@@ -121,7 +121,7 @@ void TResourceTracker::EnqueueCpuUsage()
         }
     }
 
-    for (const auto stat : threadStats)
+    for (const auto& stat : threadStats)
     {
         const auto& threadName = stat.first;
         auto userJiffies = stat.second.first;
