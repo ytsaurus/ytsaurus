@@ -633,7 +633,14 @@ class Application(object):
                     raise SchedulingError("Pool %s does not exist" % task.pool)
 
                 pool_info = client.get("//sys/scheduler/orchid/scheduler/pools/" + task.pool)
-                usage_ratio = pool_info["usage_ratio"]
+                # This usage ratio differ from scheduler usage ratio, because it is calculated due to resource limits of pool.
+                usage_ratio = 0.0
+                for resource, usage in pool_info["resource_usage"].iteritems():
+                    limit = pool_info["resource_limits"][resource]
+                    if limit == 0:
+                        usage_ratio = 1.0
+                    else:
+                        usage_ratio = max(usage_ratio, float(usage) / limit)
                 if usage_ratio > 0.95:
                     logger.warning("Pool %s on cluster %s is almost full, can not schedule task %s", task.pool, client.config["proxy"]["url"], task.id)
                     result = False
