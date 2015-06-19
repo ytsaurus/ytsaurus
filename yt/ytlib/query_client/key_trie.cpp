@@ -115,7 +115,7 @@ std::vector<TBound> IntersectBounds(
         lhs,
         rhs,
         [&] (TBound bound, bool isOpen) {
-            if (isOpen ? ++cover == 2 : --cover == 1) {
+            if (isOpen ? cover++ == 1 : --cover == 1) {
                 if (result.empty() || !(result.back() == bound && isOpen == resultIsOpen)) {
                     result.push_back(bound);
                     resultIsOpen = !resultIsOpen;
@@ -417,7 +417,7 @@ void GetRangesFromTrieWithinRangeImpl(
                 true);
         } else if (resultMask != nullptr && trie) {
             YCHECK(prefix.size() < sizeof(mask) * 8);
-            mask |= (1 << prefix.size());
+            mask |= 1 << prefix.size();
             prefix.emplace_back(MakeUnversionedSentinelValue(EValueType::Null));
             GetRangesFromTrieWithinRangeImpl(
                 keyRange,
