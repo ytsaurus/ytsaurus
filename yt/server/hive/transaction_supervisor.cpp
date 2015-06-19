@@ -469,16 +469,14 @@ private:
                 transactionId,
                 true,
                 prepareTimestamp);
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Participant has prepared transaction (TransactionId: %v, CoordinatorCellId: %v)",
+                transactionId,
+                coordinatorCellId);
         } catch (const std::exception& ex) {
             LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error preparing transaction commit at participant (TransactionId: %v)",
                 transactionId);
             error = ex;
-        }
-
-        if (error.IsOK()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Participant has prepared transaction (TransactionId: %v, CoordinatorCellId: %v)",
-                transactionId,
-                coordinatorCellId);
         }
 
         {
