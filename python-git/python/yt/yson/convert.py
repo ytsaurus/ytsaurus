@@ -31,8 +31,13 @@ def to_yson_type(value, attributes = None):
         result.attributes = attributes
     return result
 
-def json_to_yson(json_tree):
+def json_to_yson(json_tree, encode_key=False):
     """ Converts json representation to YSON representation """
+    if encode_key:
+        if json_tree.startswith("$"):
+            if not json_tree.startswith("$$"):
+                raise YsonError("Keys should not start with signle dollar sign.")
+            json_tree = json_tree[1:]
     has_attrs = isinstance(json_tree, dict) and "$value" in json_tree
     value = json_tree["$value"] if has_attrs else json_tree
     if isinstance(value, unicode):
@@ -50,7 +55,7 @@ def json_to_yson(json_tree):
     elif isinstance(value, list):
         result = YsonList(map(json_to_yson, value))
     elif isinstance(value, dict):
-        result = YsonMap((json_to_yson(k), json_to_yson(v)) for k, v in YsonMap(value).iteritems())
+        result = YsonMap((json_to_yson(k, True), json_to_yson(v)) for k, v in YsonMap(value).iteritems())
     elif value is None:
         result = YsonEntity()
     else:
