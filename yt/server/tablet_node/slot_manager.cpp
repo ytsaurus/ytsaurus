@@ -222,7 +222,10 @@ public:
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
             auto it = TabletIdToSnapshot_.find(tablet->GetTabletId());
-            YCHECK(it != TabletIdToSnapshot_.end());
+            if (it == TabletIdToSnapshot_.end()) {
+                // NB: Snapshots could be forcefully dropped by UnregisterTabletSnapshots.
+                return;
+            }
             it->second = snapshot;
         }
 
