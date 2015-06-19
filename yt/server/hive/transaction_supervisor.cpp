@@ -483,7 +483,7 @@ private:
             TReqOnTransactionCommitPrepared hydraResponse;
             ToProto(hydraResponse.mutable_transaction_id(), transactionId);
             ToProto(hydraResponse.mutable_participant_cell_id(), HiveManager_->GetSelfCellId());
-            ToProto(hydraResponse.mutable_error(), error);
+            ToProto(hydraResponse.mutable_error(), error.Sanitize());
             PostToCoordinator(coordinatorCellId, hydraResponse);
         }
     }
