@@ -283,7 +283,7 @@ private:
             callback.Run();
         } else {
             auto delay = TDuration::Seconds(deadlineSeconds - nowSeconds + 1); // +1 to be sure
-            LOG_INFO("Timestamp generation postponed for %v to ensure monotonicity",
+            LOG_INFO("Timestamp generation postponed for %v ms to ensure monotonicity",
                 delay);
             TDelayedExecutor::Submit(callback, delay);
         }
