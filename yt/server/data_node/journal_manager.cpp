@@ -370,7 +370,7 @@ private:
 
         auto& splitEntry = it->second;
 
-        if (splitEntry.AppendSealedLogged || splitEntry.AppendSkipLogged)
+        if (splitEntry.AppendSealedLogged)
             return;
 
         if (!splitEntry.SealedChecked) {
@@ -386,12 +386,14 @@ private:
 
         int recordCount = splitEntry.Changelog->GetRecordCount();
         if (recordCount > record.Header.RecordId) {
-            LOG_INFO("Replay skips multiplexed records that are present in journal chunk; "
-                "further similar messages suppressed (ChunkId: %v, RecordId: %v, RecordCount: %v)",
-                chunkId,
-                record.Header.RecordId,
-                recordCount);
-            splitEntry.AppendSkipLogged = true;
+            if (!splitEntry.AppendSkipLogged) {
+                LOG_INFO("Replay skips multiplexed records that are present in journal chunk; "
+                    "further similar messages suppressed (ChunkId: %v, RecordId: %v, RecordCount: %v)",
+                    chunkId,
+                    record.Header.RecordId,
+                    recordCount);
+                splitEntry.AppendSkipLogged = true;
+            }
             return;
         }
 
