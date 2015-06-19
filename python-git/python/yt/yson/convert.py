@@ -36,7 +36,7 @@ def json_to_yson(json_tree, encode_key=False):
     if encode_key:
         if json_tree.startswith("$"):
             if not json_tree.startswith("$$"):
-                raise YsonError("Keys should not start with signle dollar sign.")
+                raise YsonError("Keys should not start with single dollar sign")
             json_tree = json_tree[1:]
     has_attrs = isinstance(json_tree, dict) and "$value" in json_tree
     value = json_tree["$value"] if has_attrs else json_tree
