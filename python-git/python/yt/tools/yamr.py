@@ -132,6 +132,19 @@ class Yamr(object):
         else:
             return self._as_int(self.get_field_from_server(table, "size", allow_cache=allow_cache))
 
+    def is_directory(self, path):
+        if path.endswith("/"):
+            path = path[:-1]
+        output = _check_output(
+            "{0} -server {1} -list -prefix {2} -jsonoutput".format(self.binary, self.server, path),
+            timeout=self._light_command_timeout,
+            shell=True)
+        listing = json.loads(output)
+        for entry in listing:
+            if entry["name"].startswith(path + "/"):
+                return True
+        return False
+
     def is_sorted(self, table, allow_cache=False):
         if self.fetch_info_from_http:
             return self.get_field_from_page(table, "Sorted").lower() == "yes"
