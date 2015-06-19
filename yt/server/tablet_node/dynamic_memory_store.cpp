@@ -1204,12 +1204,14 @@ void TDynamicMemoryStore::LoadRow(
             ui32 revision = CaptureTimestamp(*currentTimestamp, timestampToRevision);
             AddRevision(dynamicRow, revision, kind);
         }
-
-        auto& primaryLock = locks[TDynamicRow::PrimaryLockIndex];
-        primaryLock.LastCommitTimestamp = std::max(primaryLock.LastCommitTimestamp, *beginTimestamps);
     };
     addTimestamps(row.BeginWriteTimestamps(), row.EndWriteTimestamps(), ERevisionListKind::Write);
     addTimestamps(row.BeginDeleteTimestamps(), row.EndDeleteTimestamps(), ERevisionListKind::Delete);
+
+    if (row.BeginDeleteTimestamps() != row.EndDeleteTimestamps()) {
+        auto& primaryLock = locks[TDynamicRow::PrimaryLockIndex];
+        primaryLock.LastCommitTimestamp = std::max(primaryLock.LastCommitTimestamp, row.BeginDeleteTimestamps()[0]);
+    }
 
     Rows_->Insert(dynamicRow);
 }
