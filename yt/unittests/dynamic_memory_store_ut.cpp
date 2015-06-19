@@ -1025,14 +1025,18 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ArbitraryKeyLength)
 
 TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeEmpty)
 {
-    EXPECT_EQ(0, Store_->GetKeyCount());
+    auto check = [&] () {
+        EXPECT_EQ(0, Store_->GetKeyCount());
+        EXPECT_EQ(0, Store_->GetValueCount());
+        EXPECT_EQ(MaxTimestamp, Store_->GetMinTimestamp());
+        EXPECT_EQ(MinTimestamp, Store_->GetMaxTimestamp());
+    };
+
+    check();
 
     ReserializeStore();
 
-    EXPECT_EQ(0, Store_->GetKeyCount());
-    EXPECT_EQ(0, Store_->GetValueCount());
-    EXPECT_EQ(MaxTimestamp, Store_->GetMinTimestamp());
-    EXPECT_EQ(MinTimestamp, Store_->GetMaxTimestamp());
+    check();
 }
 
 TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeNonempty1)
@@ -1043,22 +1047,28 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeNonempty1)
         timestamps.push_back(timestamp);
     }
 
+    auto check = [&] () {
+        EXPECT_EQ(100, Store_->GetRowCount());
+        EXPECT_EQ(100, Store_->GetValueCount());
+        EXPECT_EQ(timestamps[0], Store_->GetMinTimestamp());
+        EXPECT_EQ(timestamps[99], Store_->GetMaxTimestamp());
+
+        for (int i = 0; i < 100; ++i) {
+            auto key = BuildKey(Format("%v", i));
+
+            EXPECT_TRUE(AreRowsEqual(
+                LookupRow(key, MaxTimestamp),
+                Format("key=%v;a=%v", i, i + 100)));
+
+            EXPECT_EQ(timestamps[i], GetLastCommitTimestamp(key));
+        }
+    };
+
+    check();
+
     ReserializeStore();
 
-    EXPECT_EQ(100, Store_->GetRowCount());
-    EXPECT_EQ(100, Store_->GetValueCount());
-    EXPECT_EQ(timestamps[0], Store_->GetMinTimestamp());
-    EXPECT_EQ(timestamps[99], Store_->GetMaxTimestamp());
-
-    for (int i = 0; i < 100; ++i) {
-        auto key = BuildKey(Format("%v", i));
-
-        EXPECT_TRUE(AreRowsEqual(
-            LookupRow(key, MaxTimestamp),
-            Format("key=%v;a=%v", i, i + 100)));
-
-        EXPECT_EQ(timestamps[i], GetLastCommitTimestamp(key));
-    }
+    check();
 }
 
 TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeNonempty2)
@@ -1068,19 +1078,25 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeNonempty2)
     auto ts2 = WriteRow(BuildRow("key=1;c=test", false));
     auto ts3 = DeleteRow(key);
 
+    auto check = [&] () {
+        EXPECT_EQ(1, Store_->GetRowCount());
+        EXPECT_EQ(2, Store_->GetValueCount());
+        EXPECT_EQ(ts1, Store_->GetMinTimestamp());
+        EXPECT_EQ(ts3, Store_->GetMaxTimestamp());
+
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1 - 1), Null));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), Stroka("key=1;a=1")));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), Stroka("key=1;a=1;c=test")));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts3), Null));
+
+        EXPECT_EQ(ts3, GetLastCommitTimestamp(key));
+    };
+
+    check();
+
     ReserializeStore();
 
-    EXPECT_EQ(1, Store_->GetRowCount());
-    EXPECT_EQ(2, Store_->GetValueCount());
-    EXPECT_EQ(ts1, Store_->GetMinTimestamp());
-    EXPECT_EQ(ts3, Store_->GetMaxTimestamp());
-
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1 - 1), Null));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), Stroka("key=1;a=1")));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), Stroka("key=1;a=1;c=test")));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts3), Null));
-
-    EXPECT_EQ(ts3, GetLastCommitTimestamp(key));
+    check();
 }
 
 TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot1)
