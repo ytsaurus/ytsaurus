@@ -924,7 +924,7 @@ private:
                 {
                     auto attributes = CreateEphemeralAttributes();
                     attributes->Set("title", Format("Lease for node %v", node->GetDefaultAddress()));
-                    objectManager->FillCustomAttributes(transaction, *attributes);
+                    objectManager->FillAttributes(transaction, *attributes);
                 }
 
                 // Create Cypress node.
