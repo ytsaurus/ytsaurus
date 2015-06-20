@@ -250,6 +250,12 @@ public:
             return;
         }
 
+        auto requestControl = it->second;
+        ActiveRequestMap_.erase(it);
+
+        guard.Release();
+
+        requestControl->Cancel();
     }
 
     virtual TServiceId GetServiceId() const override
