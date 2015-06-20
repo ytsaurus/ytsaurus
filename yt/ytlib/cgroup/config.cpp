@@ -9,13 +9,13 @@ namespace NCGroup {
 
 bool TCGroupConfig::IsCGroupSupported(const Stroka& cgroupType) const
 {
-    auto item = std::find_if(
+    auto it = std::find_if(
         SupportedCGroups.begin(),
         SupportedCGroups.end(),
-        [=] (const Stroka& type) {
+        [&] (const Stroka& type) {
             return type == cgroupType;
         });
-    return (item != SupportedCGroups.end());
+    return it != SupportedCGroups.end();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
