@@ -29,11 +29,6 @@ DEFINE_ENUM(ETabletState,
     ((Unmounted)       (3))
 );
 
-DEFINE_ENUM(ELockMode,
-    ((Row)             (0))
-    ((Column)          (1))
-);
-
 static const int TypicalCellSize = 5;
 
 ///////////////////////////////////////////////////////////////////////////////

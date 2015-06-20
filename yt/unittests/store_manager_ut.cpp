@@ -46,10 +46,9 @@ protected:
     TDynamicRowRef WriteRow(
         TTransaction* transaction,
         TUnversionedRow row,
-        bool prelock,
-        ELockMode lockMode = ELockMode::Row)
+        bool prelock)
     {
-        return StoreManager_->WriteRow(transaction, row, prelock, lockMode);
+        return StoreManager_->WriteRow(transaction, row, prelock);
     }
 
     void WriteRow(const TUnversionedOwningRow& row)
@@ -730,7 +729,7 @@ TEST_F(TMultiLockStoreManagerTest, WriteTakesPrimaryLock)
     auto store = Tablet_->GetActiveStore();
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
-    auto row = WriteRow(transaction_, BuildRow("key=1;c=text", false).Get(), false, ELockMode::Column).Row;
+    auto row = WriteRow(transaction_, BuildRow("key=1;c=text", false).Get(), false).Row;
     EXPECT_EQ(transaction_, GetLock(row, 0).Transaction);
     EXPECT_EQ(transaction_, GetLock(row, 1).Transaction);
     EXPECT_EQ(transaction_, GetLock(row, 2).Transaction);
@@ -742,7 +741,7 @@ TEST_F(TMultiLockStoreManagerTest, WriteTakesSecondaryLocks1)
     auto store = Tablet_->GetActiveStore();
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
-    auto row = WriteRow(transaction_, BuildRow("key=1;a=1", false).Get(), false, ELockMode::Column).Row;
+    auto row = WriteRow(transaction_, BuildRow("key=1;a=1", false).Get(), false).Row;
     EXPECT_EQ(nullptr, GetLock(row, 0).Transaction);
     EXPECT_EQ(transaction_, GetLock(row, 1).Transaction);
     EXPECT_EQ(nullptr, GetLock(row, 2).Transaction);
@@ -754,7 +753,7 @@ TEST_F(TMultiLockStoreManagerTest, WriteTakesSecondaryLocks2)
     auto store = Tablet_->GetActiveStore();
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
-    auto row = WriteRow(transaction_, BuildRow("key=1;b=3.14", false).Get(), false, ELockMode::Column).Row;
+    auto row = WriteRow(transaction_, BuildRow("key=1;b=3.14", false).Get(), false).Row;
     EXPECT_EQ(nullptr, GetLock(row, 0).Transaction);
     EXPECT_EQ(nullptr, GetLock(row, 1).Transaction);
     EXPECT_EQ(transaction_, GetLock(row, 2).Transaction);
@@ -766,7 +765,7 @@ TEST_F(TMultiLockStoreManagerTest, WriteTakesSecondaryLocks3)
     auto store = Tablet_->GetActiveStore();
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
-    auto row = WriteRow(transaction_, BuildRow("key=1;a=1;b=3.14", false).Get(), false, ELockMode::Column).Row;
+    auto row = WriteRow(transaction_, BuildRow("key=1;a=1;b=3.14", false).Get(), false).Row;
     EXPECT_EQ(nullptr, GetLock(row, 0).Transaction);
     EXPECT_EQ(transaction_, GetLock(row, 1).Transaction);
     EXPECT_EQ(transaction_, GetLock(row, 2).Transaction);
@@ -792,13 +791,13 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow1)
     auto store1 = Tablet_->GetActiveStore();
 
     auto transaction1 = StartTransaction();
-    WriteRow(transaction1.get(), BuildRow("key=1;a=1", false).Get(), false, ELockMode::Column);
+    WriteRow(transaction1.get(), BuildRow("key=1;a=1", false).Get(), false);
     EXPECT_EQ(1, transaction1->LockedRows().size());
     auto& rowRef1 = transaction1->LockedRows()[0];
     EXPECT_EQ(store1, rowRef1.Store);
 
     auto transaction2 = StartTransaction();
-    WriteRow(transaction2.get(), BuildRow("key=1;b=3.14", false).Get(), false, ELockMode::Column);
+    WriteRow(transaction2.get(), BuildRow("key=1;b=3.14", false).Get(), false);
     EXPECT_EQ(1, transaction2->LockedRows().size());
     auto& rowRef2 = transaction2->LockedRows()[0];
     EXPECT_EQ(store1, rowRef1.Store);
@@ -844,7 +843,7 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow2)
     auto store1 = Tablet_->GetActiveStore();
 
     auto transaction1 = StartTransaction();
-    WriteRow(transaction1.get(), BuildRow("key=1;a=1", false).Get(), false, ELockMode::Column);
+    WriteRow(transaction1.get(), BuildRow("key=1;a=1", false).Get(), false);
     EXPECT_EQ(1, transaction1->LockedRows().size());
     auto& rowRef1 = transaction1->LockedRows()[0];
     EXPECT_EQ(store1, rowRef1.Store);
@@ -860,7 +859,7 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow2)
     EXPECT_EQ(0, store2->GetLockCount());
 
     auto transaction2 = StartTransaction();
-    WriteRow(transaction2.get(), BuildRow("key=1;b=3.14", false).Get(), false, ELockMode::Column);
+    WriteRow(transaction2.get(), BuildRow("key=1;b=3.14", false).Get(), false);
     EXPECT_EQ(1, transaction2->LockedRows().size());
     auto& rowRef2 = transaction2->LockedRows()[0];
     EXPECT_EQ(store1, rowRef1.Store);
