@@ -124,7 +124,7 @@ public:
         const TObjectBase* branchedObject);
 
     //! Fills the attributes of a given unversioned object.
-    void FillCustomAttributes(
+    void FillAttributes(
         TObjectBase* object,
         const NYTree::IAttributeDictionary& attributes);
 

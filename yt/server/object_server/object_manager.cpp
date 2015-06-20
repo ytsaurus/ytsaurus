@@ -769,9 +769,9 @@ void TObjectManager::MergeAttributes(
     }
 }
 
-void TObjectManager::FillCustomAttributes(
+void TObjectManager::FillAttributes(
     TObjectBase* object,
-    const IAttributeDictionary& attributes)
+    const IAttributeDictionary & attributes)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(!IsVersionedType(object->GetType()));
@@ -780,11 +780,13 @@ void TObjectManager::FillCustomAttributes(
     if (keys.empty())
         return;
 
+    auto proxy = GetProxy(object, nullptr);
     auto* attributeSet = object->GetMutableAttributes();
     for (const auto& key : keys) {
-        YCHECK(attributeSet->Attributes().insert(std::make_pair(
-            key,
-            attributes.GetYson(key))).second);
+        auto value = attributes.GetYson(key);
+        if (!proxy->SetBuiltinAttribute(key, value)) {
+            YCHECK(attributeSet->Attributes().insert(std::make_pair(key, value)).second);
+        }
     }
 }
 
@@ -894,7 +896,7 @@ TObjectBase* TObjectManager::CreateObject(
         request,
         response);
 
-    FillCustomAttributes(object, *attributes);
+    FillAttributes(object, *attributes);
 
     auto* stagingTransaction = handler->GetStagingTransaction(object);
     if (stagingTransaction) {
