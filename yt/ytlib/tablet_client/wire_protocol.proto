@@ -13,9 +13,7 @@ message TReqLookupRows
 }
 
 message TReqWriteRow
-{
-    required int32 lock_mode = 1; // ELockMode
-}
+{ }
 
 message TReqDeleteRow
 { }

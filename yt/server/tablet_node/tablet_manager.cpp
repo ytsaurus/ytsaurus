@@ -1327,8 +1327,7 @@ private:
                 rowRef = storeManager->WriteRow(
                     transaction,
                     row,
-                    prelock,
-                    ELockMode(req.lock_mode()));
+                    prelock);
                 break;
             }
 
