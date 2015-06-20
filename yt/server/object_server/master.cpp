@@ -66,7 +66,7 @@ private:
         context->SetRequestInfo("TransactionId: %v, Type: %v, Account: %v, ObjectCount: %v",
             transactionId,
             type,
-            request->has_account() ? ~request->account() : "<Null>",
+            request->has_account() ? MakeNullable(request->account()) : Null,
             request->object_count());
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
