@@ -36,6 +36,13 @@ public:
     {
         RegisterParameter("cell_id", CellId);
         RegisterParameter("addresses", Addresses);
+
+        RegisterValidator([&] () {
+           if (CellId == NullCellId) {
+               THROW_ERROR_EXCEPTION("\"cell_id\" cannot be equal to %v",
+                   NullCellId);
+           }
+        });
     }
 };
 

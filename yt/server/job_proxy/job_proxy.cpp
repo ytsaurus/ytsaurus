@@ -276,7 +276,7 @@ TJobResult TJobProxy::DoRun()
     SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
     MasterChannel_ = CreateAuthenticatedChannel(
-        CreateRealmChannel(CreateBusChannel(supervisorClient), Config_->CellId),
+        CreateBusChannel(supervisorClient),
         NSecurityClient::JobUserName);
 
     RetrieveJobSpec();
