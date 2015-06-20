@@ -35,7 +35,10 @@ public:
 
     virtual TSharedRefArray Serialize() override
     {
-        return Message_;
+        YASSERT(Message_.Size() >= 2);
+        auto body = Message_[1];
+        auto attachments = std::vector<TSharedRef>(Message_.Begin() + 2, Message_.End());
+        return CreateRequestMessage(*Header_, body, attachments);
     }
 
     virtual const TRequestHeader& Header() const override
