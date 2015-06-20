@@ -58,8 +58,7 @@ private:
     {
         DeclareMutating();
 
-        auto transactionId =
-            request->has_transaction_id()
+        auto transactionId = request->has_transaction_id()
             ? FromProto<TTransactionId>(request->transaction_id())
             : NullTransactionId;
         auto type = EObjectType(request->type());
