@@ -994,8 +994,8 @@ print row + table_index
         map(in_="//tmp/t1", out="//tmp/t2", command=command, spec=spec)
         map(in_="//tmp/t1", out="//tmp/t3", command=command, spec=spec)
 
-        new_data_t2 = read("//tmp/t2", verbose=False)
-        new_data_t3 = read("//tmp/t3", verbose=False)
+        new_data_t2 = read_table("//tmp/t2", verbose=False)
+        new_data_t3 = read_table("//tmp/t3", verbose=False)
 
         assert sorted(row.items() for row in new_data_t2) == sorted(row.items() for row in new_data_t3)
 
