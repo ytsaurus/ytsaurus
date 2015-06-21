@@ -108,7 +108,7 @@ private:
         }
     }
 
-    void OnComplete()
+    void OnComplete(const TError&)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
