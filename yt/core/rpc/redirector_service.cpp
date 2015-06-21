@@ -35,7 +35,10 @@ public:
 
     virtual TSharedRefArray Serialize() override
     {
-        return Message_;
+        YASSERT(Message_.Size() >= 2);
+        auto body = Message_[1];
+        auto attachments = std::vector<TSharedRef>(Message_.Begin() + 2, Message_.End());
+        return CreateRequestMessage(*Header_, body, attachments);
     }
 
     virtual const TRequestHeader& Header() const override
@@ -91,6 +94,22 @@ public:
     virtual void SetStartTime(TInstant /*value*/) override
     {
         YUNREACHABLE();
+    }
+
+    virtual const Stroka& GetUser() const override
+    {
+        return Header_->has_user()
+            ? Header_->user()
+            : RootUserName;
+    }
+
+    virtual void SetUser(const Stroka& user) override
+    {
+        if (user == RootUserName) {
+            Header_->clear_user();
+        } else {
+            Header_->set_user(user);
+        }
     }
 
     virtual bool GetRetry() const override
@@ -234,6 +253,12 @@ public:
             return;
         }
 
+        auto requestControl = it->second;
+        ActiveRequestMap_.erase(it);
+
+        guard.Release();
+
+        requestControl->Cancel();
     }
 
     virtual TServiceId GetServiceId() const override

@@ -143,8 +143,7 @@ void TStoreManager::StopEpoch()
 TDynamicRowRef TStoreManager::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
-    bool prelock,
-    ELockMode lockMode)
+    bool prelock)
 {
     ValidateServerDataRow(row, KeyColumnCount_, Tablet_->Schema());
 
@@ -156,7 +155,7 @@ TDynamicRowRef TStoreManager::WriteRow(
             << TErrorAttribute("key", row);
     }
 
-    ui32 lockMask = ComputeLockMask(row, lockMode);
+    ui32 lockMask = ComputeLockMask(row);
 
     if (prelock) {
         CheckInactiveStoresLocks(
@@ -225,27 +224,17 @@ void TStoreManager::AbortRow(TTransaction* transaction, const TDynamicRowRef& ro
     CheckForUnlockedStore(rowRef.Store);
 }
 
-ui32 TStoreManager::ComputeLockMask(TUnversionedRow row, ELockMode lockMode)
+ui32 TStoreManager::ComputeLockMask(TUnversionedRow row)
 {
-    switch (lockMode) {
-        case ELockMode::Row:
-            return TDynamicRow::PrimaryLockMask;
-
-        case ELockMode::Column: {
-            const auto& columnIndexToLockIndex = Tablet_->ColumnIndexToLockIndex();
-            ui32 lockMask = 0;
-            for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
-                const auto& value = row[index];
-                int lockIndex = columnIndexToLockIndex[value.Id];
-                lockMask |= (1 << lockIndex);
-            }
-            YASSERT(lockMask != 0);
-            return lockMask;
-        }
-
-        default:
-            YUNREACHABLE();
+    const auto& columnIndexToLockIndex = Tablet_->ColumnIndexToLockIndex();
+    ui32 lockMask = 0;
+    for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
+        const auto& value = row[index];
+        int lockIndex = columnIndexToLockIndex[value.Id];
+        lockMask |= (1 << lockIndex);
     }
+    YASSERT(lockMask != 0);
+    return lockMask;
 }
 
 void TStoreManager::CheckInactiveStoresLocks(

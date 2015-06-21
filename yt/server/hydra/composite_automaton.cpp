@@ -157,7 +157,15 @@ void TCompositeAutomatonPart::RegisterLoader(
 {
     TCompositeAutomaton::TLoaderDescriptor descriptor;
     descriptor.Name = name;
-    descriptor.Callback = callback;
+    descriptor.Callback = BIND([=] () {
+        const auto& context = Automaton_->LoadContext();
+        if (!ValidateSnapshotVersion(context.GetVersion())) {
+            THROW_ERROR_EXCEPTION("Unsupported snapshot version %v in part %v",
+                context.GetVersion(),
+                name);
+        }
+        callback.Run();
+    });
     descriptor.Part = this;
     YCHECK(Automaton_->PartNameToLoaderDescriptor_.insert(std::make_pair(name, descriptor)).second);
 }

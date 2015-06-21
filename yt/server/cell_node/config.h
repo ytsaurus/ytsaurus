@@ -69,6 +69,9 @@ public:
     //! Metadata cache service configuration.
     NObjectServer::TMasterCacheServiceConfigPtr MasterCacheService;
 
+    //! Jobs-to-master redirector.
+    NRpc::TThrottlingChannelConfigPtr MasterRedirectorService;
+
     //! Known node addresses.
     NNodeTrackerClient::TAddressMap Addresses;
 
@@ -94,6 +97,8 @@ public:
         RegisterParameter("query_agent", QueryAgent)
             .DefaultNew();
         RegisterParameter("master_cache_service", MasterCacheService)
+            .DefaultNew();
+        RegisterParameter("master_redirector_service", MasterRedirectorService)
             .DefaultNew();
         RegisterParameter("addresses", Addresses)
             .Default();

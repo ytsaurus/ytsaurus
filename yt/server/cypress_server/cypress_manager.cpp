@@ -286,7 +286,7 @@ public:
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
-    virtual void Destroy(TObjectBase* object) override
+    virtual void DestroyObject(TObjectBase* object) throw() override
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->DestroyNode(static_cast<TCypressNodeBase*>(object));
@@ -303,7 +303,7 @@ public:
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         for (const auto& pair : cypressManager->Nodes()) {
-            DoReset(pair.second);
+            DoResetObject(pair.second);
         }
     }
 
@@ -335,7 +335,7 @@ private:
         return node->GetParent();
     }
 
-    void DoReset(TCypressNodeBase* node)
+    void DoResetObject(TCypressNodeBase* node)
     {
         node->ResetWeakRefCounter();
     }
@@ -1165,6 +1165,20 @@ TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
     TSubtreeNodes result;
     ListSubtreeNodes(trunkNode, transaction, includeRoot, &result);
     return result;
+}
+
+std::vector<TLock*> TCypressManager::ListSubtreeLocks(
+    TCypressNodeBase* trunkNode,
+    TTransaction * transaction,
+    bool includeRoot)
+{
+    auto nodes = ListSubtreeNodes(trunkNode, transaction, includeRoot);
+    std::vector<TLock*> locks;
+    for (const auto* node : nodes) {
+        locks.insert(locks.end(), node->AcquiredLocks().begin(), node->AcquiredLocks().end());
+        locks.insert(locks.end(), node->PendingLocks().begin(), node->PendingLocks().end());
+    }
+    return locks;
 }
 
 bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)

@@ -121,6 +121,7 @@ struct IMultiplexedReplayerCallbacks
     virtual IChangelogPtr OpenSplitChangelog(const TChunkId& chunkId) = 0;
     virtual void FlushSplitChangelog(const TChunkId& chunkId) = 0;
     virtual bool RemoveSplitChangelog(const TChunkId& chunkId) = 0;
+    virtual bool IsSplitChangelogSealed(const TChunkId& chunkId) = 0;
 };
 
 class TMultiplexedReplayer
@@ -203,6 +204,7 @@ private:
 
         int RecordsAdded = 0;
 
+        bool SealedChecked = false;
         bool AppendSealedLogged = false;
         bool AppendSkipLogged = false;
         bool AppendLogged = false;
@@ -368,26 +370,30 @@ private:
 
         auto& splitEntry = it->second;
 
-        if (splitEntry.Changelog->IsSealed()) {
-            LOG_INFO_UNLESS(
-                splitEntry.AppendSealedLogged,
-                "Replay ignores sealed journal chunk; further similar messages suppressed "
-                "(ChunkId: %v)",
-                chunkId);
-            splitEntry.AppendSealedLogged = true;
+        if (splitEntry.AppendSealedLogged)
             return;
+
+        if (!splitEntry.SealedChecked) {
+            splitEntry.SealedChecked = true;
+            if (Callbacks_->IsSplitChangelogSealed(chunkId)) {
+                LOG_INFO("Replay ignores sealed journal chunk; "
+                    "further similar messages suppressed (ChunkId: %v)",
+                    chunkId);
+                splitEntry.AppendSealedLogged = true;
+                return;
+            }
         }
 
         int recordCount = splitEntry.Changelog->GetRecordCount();
         if (recordCount > record.Header.RecordId) {
-            LOG_INFO_UNLESS(
-                splitEntry.AppendSkipLogged,
-                "Replay skips multiplexed records that are present in journal chunk; further similar messages suppressed "
-                "(ChunkId: %v, RecordId: %v, RecordCount: %v)",
-                chunkId,
-                record.Header.RecordId,
-                recordCount);
-            splitEntry.AppendSkipLogged = true;
+            if (!splitEntry.AppendSkipLogged) {
+                LOG_INFO("Replay skips multiplexed records that are present in journal chunk; "
+                    "further similar messages suppressed (ChunkId: %v, RecordId: %v, RecordCount: %v)",
+                    chunkId,
+                    record.Header.RecordId,
+                    recordCount);
+                splitEntry.AppendSkipLogged = true;
+            }
             return;
         }
 
@@ -549,7 +555,7 @@ public:
         auto dataFileName = GetMultiplexedChangelogPath(changelogId);
         auto cleanDataFileName = dataFileName + "." + CleanExtension;
         NFS::Rename(dataFileName, cleanDataFileName);
-        NFS::Rename(dataFileName + ChangelogIndexSuffix, cleanDataFileName + ChangelogIndexSuffix);
+        NFS::Rename(dataFileName + "." + ChangelogIndexExtension, cleanDataFileName + "." + ChangelogIndexExtension);
         LOG_INFO("Multiplexed changelog is clean (ChangelogId: %v)", changelogId);
     }
 
@@ -1090,6 +1096,13 @@ private:
                 .ThrowOnError();
 
             return true;
+        }
+
+        virtual bool IsSplitChangelogSealed(const TChunkId& chunkId) override
+        {
+             return Impl_->IsChangelogSealed(chunkId)
+                 .Get()
+                 .ValueOrThrow();
         }
 
     private:

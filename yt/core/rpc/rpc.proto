@@ -24,17 +24,9 @@ message TRequestHeader
 
     optional int64 timeout = 10;
 
+    optional string user = 12;
+
     extensions 100 to max;
-}
-
-message TAuthenticatedExt
-{
-    extend NRpc.NProto.TRequestHeader
-    {
-        optional TAuthenticatedExt authenticated_ext = 102;
-    }
-
-    required string user = 1;
 }
 
 message TTracingExt

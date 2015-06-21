@@ -1,7 +1,6 @@
 #ifndef TOOLS_INL_H_
 #error "Direct inclusion of this file is not allowed, include tools.h"
 #endif
-#undef TOOLS_INL_H_
 
 #include <core/ytree/convert.h>
 
@@ -27,7 +26,7 @@ struct TExtractValueHelper
 template <>
 struct TExtractValueHelper<void>
 {
-    static void Extract(const TError& )
+    static void Extract(const TError&)
     { }
 };
 

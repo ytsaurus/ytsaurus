@@ -26,7 +26,7 @@ public:
         RegisterValidator([&] () {
             for (const auto& type : SupportedCGroups) {
                 if (!IsValidCGroupType(type)) {
-                    THROW_ERROR_EXCEPTION("Invalid cgroup type: %v", type);
+                    THROW_ERROR_EXCEPTION("Invalid cgroup type %Qv", type);
                 }
             }
         });

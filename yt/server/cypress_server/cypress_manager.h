@@ -121,6 +121,11 @@ public:
         NTransactionServer::TTransaction* transaction,
         bool includeRoot = true);
 
+    std::vector<TLock*> ListSubtreeLocks(
+        TCypressNodeBase* trunkNode,
+        NTransactionServer::TTransaction* transaction,
+        bool includeRoot = true);
+
     bool IsOrphaned(TCypressNodeBase* trunkNode);
     bool IsAlive(TCypressNodeBase* trunkNode, NTransactionServer::TTransaction* transaction);
 

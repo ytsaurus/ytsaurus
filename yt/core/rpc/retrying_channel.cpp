@@ -183,10 +183,11 @@ private:
 
         void DoSend()
         {
-            LOG_DEBUG("Request attempt started (RequestId: %v, Method: %v:%v, Attempt: %v of %v, RequestTimeout: %v, RetryTimeout: %v)",
+            LOG_DEBUG("Request attempt started (RequestId: %v, Method: %v:%v, User: %v, Attempt: %v of %v, RequestTimeout: %v, RetryTimeout: %v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),
+                Request_->GetUser(),
                 CurrentAttempt_,
                 Config_->RetryAttempts,
                 Timeout_,

@@ -105,6 +105,127 @@ public:
     }
 };
 
+class TOperationOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    NYTree::INodePtr SpecTemplate;
+
+    TOperationOptions()
+    {
+        RegisterParameter("spec_template", SpecTemplate)
+            .Default();
+    }
+};
+
+class TMapOperationOptions
+    : public TOperationOptions
+{
+public:
+    int MaxJobCount;
+    i64 JobMaxSliceDataSize;
+
+    TMapOperationOptions()
+    {
+        RegisterParameter("max_job_count", MaxJobCount)
+            .Default(100000);
+
+        RegisterParameter("job_max_slice_data_size", JobMaxSliceDataSize)
+            .Default((i64)256 * 1024 * 1024)
+            .GreaterThan(0);
+    }
+};
+
+class TMergeOperationOptions
+    : public TOperationOptions
+{
+public:
+    int MaxJobCount;
+
+    i64 JobMaxSliceDataSize;
+
+    TMergeOperationOptions()
+    {
+        RegisterParameter("max_job_count", MaxJobCount)
+            .Default(100000);
+        RegisterParameter("job_max_slice_data_size", JobMaxSliceDataSize)
+            .Default((i64)256 * 1024 * 1024)
+            .GreaterThan(0);
+    }
+};
+
+class TOrderedMergeOperationOptions
+    : public TMergeOperationOptions
+{ };
+
+class TUnorderedMergeOperationOptions
+    : public TMergeOperationOptions
+{ };
+
+class TSortedMergeOperationOptions
+    : public TMergeOperationOptions
+{ };
+
+class TReduceOperationOptions
+    : public TSortedMergeOperationOptions
+{ };
+
+class TEraseOperationOptions
+    : public TOrderedMergeOperationOptions
+{ };
+
+class TSortOperationOptionsBase
+    : public TOperationOptions
+{
+public:
+    int MaxPartitionJobCount;
+
+    int MaxPartitionCount;
+    i64 SortJobMaxSliceDataSize;
+    i64 PartitionJobMaxSliceDataSize;
+
+    TSortOperationOptionsBase()
+    {
+        RegisterParameter("max_partition_job_count", MaxPartitionJobCount)
+            .Default(20000)
+            .GreaterThan(0);
+
+        RegisterParameter("max_partition_count", MaxPartitionCount)
+            .Default(2000)
+            .GreaterThan(0);
+
+        RegisterParameter("partition_job_max_slice_data_size", PartitionJobMaxSliceDataSize)
+            .Default((i64)256 * 1024 * 1024)
+            .GreaterThan(0);
+
+        RegisterParameter("sort_job_max_slice_data_size", SortJobMaxSliceDataSize)
+            .Default((i64)256 * 1024 * 1024)
+            .GreaterThan(0);
+    }
+};
+
+class TSortOperationOptions
+    : public TSortOperationOptionsBase
+{ };
+
+class TMapReduceOperationOptions
+    : public TSortOperationOptionsBase
+{ };
+
+class TRemoteCopyOperationOptions
+    : public TOperationOptions
+{
+public:
+    int MaxJobCount;
+
+    TRemoteCopyOperationOptions()
+    {
+        RegisterParameter("max_job_count", MaxJobCount)
+            .Default(100000)
+            .GreaterThan(0);
+    }
+};
+
 class TSchedulerConfig
     : public TFairShareStrategyConfig
 {
@@ -132,6 +253,8 @@ public:
 
     TDuration ChunkScratchPeriod;
 
+    TDuration ClusterInfoLoggingPeriod;
+    
     TNullable<TDuration> OperationTimeLimit;
 
     //! Number of chunks scratched per one LocateChunks.
@@ -170,24 +293,8 @@ public:
     //! Maximum number of chunk trees to attach per request.
     int MaxChildrenPerAttachRequest;
 
-    //! Max size of data slice for different jobs.
-    i64 MapJobMaxSliceDataSize;
-    i64 MergeJobMaxSliceDataSize;
-    i64 SortJobMaxSliceDataSize;
-    i64 PartitionJobMaxSliceDataSize;
-
     //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
     double SliceDataSizeMultiplier;
-
-    //! Maximum number of partitions during sort, ever.
-    int MaxPartitionCount;
-
-    //! Maximum number of jobs per operation (an approximation!).
-    int MaxJobCount;
-
-    //! Maximum number of partition jobs during map-reduce and sort operations.
-    //! Refines #MaxJobCount.
-    int MaxPartitionJobCount;
 
     //! Maximum number of operations that can be run concurrently.
     int MaxOperationCount;
@@ -211,15 +318,15 @@ public:
     //! nodes is less than this bound.
     int SafeOnlineNodeCount;
 
-    NYTree::INodePtr MapOperationSpec;
-    NYTree::INodePtr ReduceOperationSpec;
-    NYTree::INodePtr EraseOperationSpec;
-    NYTree::INodePtr OrderedMergeOperationSpec;
-    NYTree::INodePtr UnorderedMergeOperationSpec;
-    NYTree::INodePtr SortedMergeOperationSpec;
-    NYTree::INodePtr MapReduceOperationSpec;
-    NYTree::INodePtr SortOperationSpec;
-    NYTree::INodePtr RemoteCopyOperationSpec;
+    TMapOperationOptionsPtr MapOperationOptions;
+    TReduceOperationOptionsPtr ReduceOperationOptions;
+    TEraseOperationOptionsPtr EraseOperationOptions;
+    TOrderedMergeOperationOptionsPtr OrderedMergeOperationOptions;
+    TUnorderedMergeOperationOptionsPtr UnorderedMergeOperationOptions;
+    TSortedMergeOperationOptionsPtr SortedMergeOperationOptions;
+    TMapReduceOperationOptionsPtr MapReduceOperationOptions;
+    TSortOperationOptionsPtr SortOperationOptions;
+    TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
 
     //! Default environment variables set for every job.
     yhash_map<Stroka, Stroka> Environment;
@@ -272,6 +379,8 @@ public:
 
         RegisterParameter("chunk_scratch_period", ChunkScratchPeriod)
             .Default(TDuration::Seconds(10));
+        RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("operation_time_limit", OperationTimeLimit)
             .Default();
@@ -320,26 +429,6 @@ public:
             .Default(0.51)
             .GreaterThan(0.0);
 
-        RegisterParameter("map_job_max_slice_data_size", MapJobMaxSliceDataSize)
-            .Default((i64)256 * 1024 * 1024)
-            .GreaterThan(0);
-
-        RegisterParameter("merge_job_max_slice_data_size", MergeJobMaxSliceDataSize)
-            .Default((i64)256 * 1024 * 1024)
-            .GreaterThan(0);
-
-        RegisterParameter("partition_job_max_slice_data_size", PartitionJobMaxSliceDataSize)
-            .Default((i64)256 * 1024 * 1024)
-            .GreaterThan(0);
-
-        RegisterParameter("sort_job_max_slice_data_size", SortJobMaxSliceDataSize)
-            .Default((i64)256 * 1024 * 1024)
-            .GreaterThan(0);
-
-        RegisterParameter("max_partition_count", MaxPartitionCount)
-            .Default(10000)
-            .GreaterThan(0);
-
         RegisterParameter("max_file_size", MaxFileSize)
             .Default((i64) 10 * 1024 * 1024 * 1024);
 
@@ -362,33 +451,27 @@ public:
 
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)
-            .Default(0);
+            .Default(1);
 
-        RegisterParameter("map_operation_spec", MapOperationSpec)
-            .Default(nullptr);
-        RegisterParameter("reduce_operation_spec", ReduceOperationSpec)
-            .Default(nullptr);
-        RegisterParameter("erase_operation_spec", EraseOperationSpec)
-            .Default(nullptr);
-        RegisterParameter("ordered_merge_operation_spec", OrderedMergeOperationSpec)
-            .Default(nullptr);
-        RegisterParameter("unordered_merge_operation_spec", UnorderedMergeOperationSpec)
-            .Default(nullptr);
-        RegisterParameter("sorted_merge_operation_spec", SortedMergeOperationSpec)
-            .Default(nullptr);
-        RegisterParameter("map_reduce_operation_spec", MapReduceOperationSpec)
-            .Default(nullptr);
-        RegisterParameter("sort_operation_spec", SortOperationSpec)
-            .Default(nullptr);
-        RegisterParameter("remote_copy_operation_spec", RemoteCopyOperationSpec)
-            .Default(nullptr);
+        RegisterParameter("map_operation_options", MapOperationOptions)
+            .DefaultNew();
+        RegisterParameter("reduce_operation_options", ReduceOperationOptions)
+            .DefaultNew();
+        RegisterParameter("erase_operation_options", EraseOperationOptions)
+            .DefaultNew();
+        RegisterParameter("ordered_merge_operation_options", OrderedMergeOperationOptions)
+            .DefaultNew();
+        RegisterParameter("unordered_merge_operation_options", UnorderedMergeOperationOptions)
+            .DefaultNew();
+        RegisterParameter("sorted_merge_operation_options", SortedMergeOperationOptions)
+            .DefaultNew();
+        RegisterParameter("map_reduce_operation_options", MapReduceOperationOptions)
+            .DefaultNew();
+        RegisterParameter("sort_operation_options", SortOperationOptions)
+            .DefaultNew();
+        RegisterParameter("remote_copy_operation_options", RemoteCopyOperationOptions)
+            .DefaultNew();
 
-        RegisterParameter("max_job_count", MaxJobCount)
-            .Default(20000)
-            .GreaterThan(0);
-        RegisterParameter("max_partition_job_count", MaxPartitionJobCount)
-            .Default(20000)
-            .GreaterThan(0);
         RegisterParameter("max_operation_count", MaxOperationCount)
             .Default(1000)
             .GreaterThan(0);

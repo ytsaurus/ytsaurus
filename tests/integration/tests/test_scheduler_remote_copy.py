@@ -212,3 +212,23 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         set("//sys/schemas/transaction/@acl/end", {"action": "deny", "subjects": ["u"], "permissions": ["create"]}, driver=self.remote_driver)
         with pytest.raises(YtError):
             remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote"}, user="u")
+
+    def test_copy_attributes(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t3")
+
+        set("//tmp/t1/@custom_attr1", "attr_value1", driver=self.remote_driver)
+        set("//tmp/t1/@custom_attr2", "attr_value2", driver=self.remote_driver)
+
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "remote", "copy_attributes": True})
+
+        assert get("//tmp/t2/@custom_attr1") == "attr_value1"
+        assert get("//tmp/t2/@custom_attr2") == "attr_value2"
+
+        remote_copy(in_="//tmp/t1", out="//tmp/t3", spec={"cluster_name": "remote", "copy_attributes": True, "attribute_keys": ["custom_attr2"]})
+        assert not exists("//tmp/t3/@custom_attr1")
+        assert get("//tmp/t3/@custom_attr2") == "attr_value2"
+
+        with pytest.raises(YtError):
+            remote_copy(in_=["//tmp/t1", "//tmp/t1"], out="//tmp/t2", spec={"cluster_name": "remote", "copy_attributes": True})

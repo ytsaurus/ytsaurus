@@ -42,6 +42,10 @@ message TReqAllocateWriteTargets
 
     // Minimum acceptable number of nodes to allocate.
     required int32 min_target_count = 5;
+
+    // An override for chunk replication factor;
+    // used when one wants to upload fewer replicas but still guarantee placement safety.
+    optional int32 replication_factor_override = 6;
 }
 
 message TRspAllocateWriteTargets

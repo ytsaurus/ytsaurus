@@ -89,6 +89,7 @@ using namespace NCypressServer;
 using namespace NCellMaster;
 
 using NTabletNode::TTableMountConfigPtr;
+using NTabletNode::EInMemoryMode;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 using NNodeTrackerClient::TNodeDescriptor;
 
@@ -117,7 +118,7 @@ public:
             EObjectAccountMode::Forbidden);
     }
 
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -136,8 +137,8 @@ private:
     {
         return CreateTabletCellProxy(Bootstrap_, cell);
     }
-    
-    virtual void DoDestroy(TTabletCell* cell) override;
+
+    virtual void DoZombifyObject(TTabletCell* cell) override;
 
 };
 
@@ -167,7 +168,7 @@ private:
         return CreateTabletProxy(Bootstrap_, tablet);
     }
 
-    virtual void DoDestroy(TTablet* tablet) override;
+    virtual void DoDestroyObject(TTablet* tablet) override;
 
 };
 
@@ -290,7 +291,24 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto cellMapNodeProxy = GetCellMapNode();
-        cellMapNodeProxy->RemoveChild(ToString(cell->GetId()));
+        auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cell->GetId()));
+        auto cypressCellNodeProxy = dynamic_cast<ICypressNodeProxy*>(cellNodeProxy.Get());
+
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto locks = cypressManager->ListSubtreeLocks(cypressCellNodeProxy->GetTrunkNode(), nullptr, true);
+
+        // NB: std::set ensures stable order.
+        std::set<TTransaction*> transactions;
+        for (const auto* lock : locks) {
+            transactions.insert(lock->GetTransaction());
+        }
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        for (auto* transaction : transactions) {
+            transactionManager->AbortTransaction(transaction, true);
+        }
+
+        cellMapNodeProxy->RemoveChild(cellNodeProxy);
 
         auto hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->RemoveMailbox(cell->GetId());
@@ -335,9 +353,6 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         YCHECK(!tablet->GetCell());
-
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet destroyed (TabletId: %v)",
-            tablet->GetId());
     }
 
 
@@ -361,15 +376,27 @@ public:
         const auto* rootChunkList = table->GetChunkList();
         const auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
         const auto& treeStatistics = tabletChunkList->Statistics();
+        const auto& nodeStatistics = tablet->NodeStatistics();
+
         TTabletStatistics tabletStatistics;
-        if (tablet->GetState() == ETabletState::Mounted) {
-            const auto& nodeStatistics = tablet->NodeStatistics();
-            tabletStatistics.PartitionCount = nodeStatistics.partition_count();
-            tabletStatistics.StoreCount = nodeStatistics.store_count();
-        }
+        tabletStatistics.PartitionCount = nodeStatistics.partition_count();
+        tabletStatistics.StoreCount = nodeStatistics.store_count();
         tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
         tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
         tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
+        switch (tablet->GetInMemoryMode()) {
+            case EInMemoryMode::Compressed:
+                tabletStatistics.MemorySize = tabletStatistics.CompressedDataSize;
+                break;
+            case EInMemoryMode::Uncompressed:
+                tabletStatistics.MemorySize = tabletStatistics.UncompressedDataSize;
+                break;
+            case EInMemoryMode::None:
+                // MemorySize remains 0.
+                break;
+            default:
+                YUNREACHABLE();
+        }
         tabletStatistics.DiskSpace =
             treeStatistics.RegularDiskSpace * table->GetReplicationFactor() +
             treeStatistics.ErasureDiskSpace;
@@ -382,7 +409,10 @@ public:
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        TTabletCellId cellId)
+        const TTabletCellId& cellId,
+        i64 estimatedUncompressedSize,
+        i64 estimatedCompressedSize)
+
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
@@ -402,10 +432,10 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto chunkManager = Bootstrap_->GetChunkManager();
 
-        const auto& tablets = table->Tablets();
+        const auto& allTablets = table->Tablets();
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            const auto* tablet = tablets[index];
+            const auto* tablet = allTablets[index];
             if (tablet->GetState() == ETabletState::Unmounting) {
                 THROW_ERROR_EXCEPTION("Tablet %v is in %Qlv state",
                     tablet->GetId(),
@@ -413,9 +443,12 @@ public:
             }
         }
 
-        TYsonString serializedMountConfig;
-        TYsonString serializedWriterOptions;
-        GetTableSettings(table, &serializedMountConfig, &serializedWriterOptions);
+        TTableMountConfigPtr mountConfig;
+        NTabletNode::TTabletWriterOptionsPtr writerOptions;
+        GetTableSettings(table, &mountConfig, &writerOptions);
+
+        auto serializedMountConfig = ConvertToYsonString(mountConfig);
+        auto serializedWriterOptions = ConvertToYsonString(writerOptions);
 
         // When mounting a table with no tablets, create the tablet automatically.
         if (table->Tablets().empty()) {
@@ -441,36 +474,53 @@ public:
             objectManager->UnrefObject(oldRootChunkList);
         }
 
-        const auto& chunkLists = table->GetChunkList()->Children();
-        YCHECK(tablets.size() == chunkLists.size());
-
-        auto cells = AllocateCells(hintedCell, lastTabletIndex - firstTabletIndex + 1);
-
+        std::vector<TTablet*> tabletsToMount;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = tablets[index];
-            auto* nextTablet = index + 1 == static_cast<int>(tablets.size()) ? nullptr : tablets[index + 1];
-            if (tablet->GetCell())
-                continue;
+            auto* tablet = allTablets[index];
+            if (!tablet->GetCell()) {
+                tabletsToMount.push_back(tablet);
+            }
+        }
 
-            auto* cell = cells[index - firstTabletIndex];
+        const auto& chunkLists = table->GetChunkList()->Children();
+        YCHECK(allTablets.size() == chunkLists.size());
+
+        auto assignment = ComputeTabletAssignment(
+            table,
+            mountConfig,
+            hintedCell,
+            std::move(tabletsToMount),
+            estimatedUncompressedSize,
+            estimatedCompressedSize);
+
+        for (const auto& pair : assignment) {
+            auto* tablet = pair.first;
+            int tabletIndex = tablet->GetIndex();
+            auto pivotKey = tablet->GetPivotKey();
+            auto nextPivotKey = tablet->GetIndex() + 1 == allTablets.size()
+                ? MaxKey()
+                : allTablets[tabletIndex + 1]->GetPivotKey();
+
+            auto* cell = pair.second;
             tablet->SetCell(cell);
             YCHECK(cell->Tablets().insert(tablet).second);
             objectManager->RefObject(cell);
 
             YCHECK(tablet->GetState() == ETabletState::Unmounted);
             tablet->SetState(ETabletState::Mounting);
+            tablet->SetInMemoryMode(mountConfig->InMemoryMode);
 
-            TReqMountTablet req;           
+            TReqMountTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_table_id(), table->GetId());
             ToProto(req.mutable_schema(), schema);
             ToProto(req.mutable_key_columns()->mutable_names(), table->KeyColumns());
-            ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
-            ToProto(req.mutable_next_pivot_key(), nextTablet ? nextTablet->GetPivotKey() : MaxKey());
+            ToProto(req.mutable_pivot_key(), pivotKey);
+            ToProto(req.mutable_next_pivot_key(), nextPivotKey);
             req.set_mount_config(serializedMountConfig.Data());
             req.set_writer_options(serializedWriterOptions.Data());
 
-            auto* chunkList = chunkLists[index]->AsChunkList();
+            auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);
             for (const auto* chunk : chunks) {
                 auto* descriptor = req.add_chunk_stores();
@@ -525,9 +575,12 @@ public:
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
-        TYsonString serializedMountConfig;
-        TYsonString serializedWriterOptions;
-        GetTableSettings(table, &serializedMountConfig, &serializedWriterOptions);
+        TTableMountConfigPtr mountConfig;
+        NTabletNode::TTabletWriterOptionsPtr writerOptions;
+        GetTableSettings(table, &mountConfig, &writerOptions);
+
+        auto serializedMountConfig = ConvertToYsonString(mountConfig);
+        auto serializedWriterOptions = ConvertToYsonString(writerOptions);
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
@@ -540,6 +593,10 @@ public:
                     table->GetId(),
                     tablet->GetId(),
                     cell->GetId());
+
+                cell->TotalStatistics() -= GetTabletStatistics(tablet);
+                tablet->SetInMemoryMode(mountConfig->InMemoryMode);
+                cell->TotalStatistics() += GetTabletStatistics(tablet);
 
                 auto hiveManager = Bootstrap_->GetHiveManager();
 
@@ -1040,7 +1097,10 @@ private:
             if (!tablet || tablet->GetState() != ETabletState::Mounted)
                 continue;
 
+            auto* cell = tablet->GetCell();
+            cell->TotalStatistics() -= GetTabletStatistics(tablet);
             tablet->NodeStatistics() = tabletInfo.statistics();
+            cell->TotalStatistics() += GetTabletStatistics(tablet);
 
             auto updatePerformanceCounter = [&] (TTabletPerformanceCounter* counter, i64 curValue) {
                 i64 prevValue = counter->Count;
@@ -1215,6 +1275,8 @@ private:
             tablet->GetId(),
             cell->GetId());
 
+        cell->TotalStatistics() += GetTabletStatistics(tablet);
+
         tablet->SetState(ETabletState::Mounted);
     }
 
@@ -1245,10 +1307,15 @@ private:
             tablet->GetId(),
             cell->GetId());
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        cell->TotalStatistics() -= GetTabletStatistics(tablet);
+
+        tablet->NodeStatistics().Clear();
+        tablet->PerformanceCounters() = TTabletPerformanceCounters();
+        tablet->SetInMemoryMode(EInMemoryMode::None);
         tablet->SetState(ETabletState::Unmounted);
         tablet->SetCell(nullptr);
 
+        auto objectManager = Bootstrap_->GetObjectManager();
         YCHECK(cell->Tablets().erase(tablet) == 1);
         objectManager->UnrefObject(cell);
     }
@@ -1317,9 +1384,11 @@ private:
             }
 
             // Apply all requested changes.
+            cell->TotalStatistics() -= GetTabletStatistics(tablet);
             auto* chunkList = table->GetChunkList()->Children()[tablet->GetIndex()]->AsChunkList();
             chunkManager->AttachToChunkList(chunkList, chunksToAttach);
             chunkManager->DetachFromChunkList(chunkList, chunksToDetach);
+            cell->TotalStatistics() += GetTabletStatistics(tablet);
 
             // Unstage just attached chunks.
             // Update table resource usage.
@@ -1426,41 +1495,98 @@ private:
         THROW_ERROR_EXCEPTION("No healthy tablet cells");
     }
 
-    std::vector<TTabletCell*> AllocateCells(TTabletCell* hintedCell, int count)
+    std::vector<std::pair<TTablet*, TTabletCell*>> ComputeTabletAssignment(
+        TTableNode* table,
+        TTableMountConfigPtr mountConfig,
+        TTabletCell* hintedCell,
+        std::vector<TTablet*> tabletsToMount,
+        i64 estimatedUncompressedSize,
+        i64 estimatedCompressedSize)
     {
-        // TODO(babenko): do something smarter?
         if (hintedCell) {
-            return std::vector<TTabletCell*>(count, hintedCell);
+            std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
+            for (auto* tablet : tabletsToMount) {
+                assignment.emplace_back(tablet, hintedCell);
+            }
+            return assignment;
         }
 
-        auto allCells = GetValues(TabletCellMap_);
+        struct TCellKey
+        {
+            i64 Size;
+            TTabletCell* Cell;
 
-        allCells.erase(
-            std::remove_if(
-                allCells.begin(),
-                allCells.end(),
-                [] (const TTabletCell* cell) {
-                    return cell->IsAlive() && cell->GetHealth() != ETabletCellHealth::Good;
-                }),
-            allCells.end());
-        
-        YCHECK(!allCells.empty());
+            //! Compares by |(size, cellId)|.
+            bool operator < (const TCellKey& other) const
+            {
+                if (Size < other.Size) {
+                    return true;
+                } else if (Size > other.Size) {
+                    return false;
+                }
+                return Cell->GetId() < other.Cell->GetId();
+            }
+        };
 
+        auto getCellSize = [&] (const TTabletStatistics& statistics) -> i64 {
+            switch (mountConfig->InMemoryMode) {
+                case EInMemoryMode::None:
+                    return statistics.UncompressedDataSize;
+                case EInMemoryMode::Uncompressed:
+                case EInMemoryMode::Compressed:
+                    return statistics.MemorySize;
+                default:
+                    YUNREACHABLE();
+            }
+        };
+
+        std::set<TCellKey> cellKeys;
+        for (const auto& pair : TabletCellMap_) {
+            auto* cell = pair.second;
+            if (cell->GetHealth() == ETabletCellHealth::Good) {
+                YCHECK(cellKeys.insert(TCellKey{getCellSize(cell->TotalStatistics()), cell}).second);
+            }
+        }
+        YCHECK(!cellKeys.empty());
+
+        auto getTabletSize = [&] (const TTablet* tablet) -> i64 {
+            auto statistics = GetTabletStatistics(tablet);
+            int totalTabletCount = table->Tablets().size();
+            switch (mountConfig->InMemoryMode) {
+                case EInMemoryMode::None:
+                case EInMemoryMode::Uncompressed:
+                    return std::max(statistics.UncompressedDataSize, estimatedUncompressedSize / totalTabletCount);
+                case EInMemoryMode::Compressed:
+                    return std::max(statistics.CompressedDataSize, estimatedCompressedSize / totalTabletCount);
+                default:
+                    YUNREACHABLE();
+            }
+        };
+
+        // Sort tablets by decreasing size to improve greedy heuristic performance.
         std::sort(
-            allCells.begin(),
-            allCells.end(),
-            [] (TTabletCell* lhs, TTabletCell* rhs) {
-                return lhs->GetId() < rhs->GetId();
+            tabletsToMount.begin(),
+            tabletsToMount.end(),
+            [&] (const TTablet* lhs, const TTablet* rhs) {
+                return getTabletSize(lhs) > getTabletSize(rhs);
             });
 
-        auto* mutationContext = GetCurrentMutationContext();
+        auto chargeCell = [&] (std::set<TCellKey>::iterator it, i64 sizeDelta) {
+            const auto& existingKey = *it;
+            auto newKey = TCellKey{existingKey.Size + sizeDelta, existingKey.Cell};
+            cellKeys.erase(it);
+            YCHECK(cellKeys.insert(newKey).second);
+        };
 
-        std::vector<TTabletCell*> cells;
-        for (int index = 0; index < count; ++index) {
-            cells.push_back(allCells[mutationContext->RandomGenerator().Generate<size_t>() % allCells.size()]);
+        // Iteratively assign tablets to least-loaded cells.
+        std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
+        for (auto* tablet : tabletsToMount) {
+            auto it = cellKeys.begin();
+            assignment.emplace_back(tablet, it->Cell);
+            chargeCell(it, getTabletSize(tablet));
         }
 
-        return cells;
+        return assignment;
     }
 
 
@@ -1472,7 +1598,7 @@ private:
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Prerequisite for cell %v", cell->GetId()));
         auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->FillCustomAttributes(transaction, *attributes);
+        objectManager->FillAttributes(transaction, *attributes);
 
         YCHECK(!cell->GetPrerequisiteTransaction());
         cell->SetPrerequisiteTransaction(transaction);
@@ -1556,8 +1682,6 @@ private:
                     force);
 
                 tablet->SetState(ETabletState::Unmounting);
-                tablet->NodeStatistics().Clear();
-                tablet->PerformanceCounters() = TTabletPerformanceCounters();
             }
 
             if (cell) {
@@ -1577,32 +1701,28 @@ private:
 
     void GetTableSettings(
         TTableNode* table,
-        TYsonString* serializedMountConfig,
-        TYsonString* serializedWriterOptions)
+        TTableMountConfigPtr* mountConfig,
+        TTableWriterOptionsPtr* writerOptions)
     {
         auto objectManager = Bootstrap_->GetObjectManager();
         auto tableProxy = objectManager->GetProxy(table);
         const auto& tableAttributes = tableProxy->Attributes();
 
         // Parse and prepare mount config.
-        TTableMountConfigPtr mountConfig;
         try {
-            mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
+            *mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
                 << ex;
         }
 
-        *serializedMountConfig = ConvertToYsonString(mountConfig);
-
         // Prepare tablet writer options.
-        auto writerOptions = New<NTabletNode::TTabletWriterOptions>();
-        writerOptions->ReplicationFactor = table->GetReplicationFactor();
-        writerOptions->Account = table->GetAccount()->GetName();
-        writerOptions->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
-        writerOptions->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
-        writerOptions->ChunksVital = table->GetVital();
-        *serializedWriterOptions = ConvertToYsonString(writerOptions);
+        *writerOptions = New<TTableWriterOptions>();
+        (*writerOptions)->ReplicationFactor = table->GetReplicationFactor();
+        (*writerOptions)->Account = table->GetAccount()->GetName();
+        (*writerOptions)->CompressionCodec = tableAttributes.Get<NCompression::ECodec>("compression_codec");
+        (*writerOptions)->ErasureCodec = tableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+        (*writerOptions)->ChunksVital = table->GetVital();
     }
 
     static void ParseTabletRange(
@@ -1782,7 +1902,7 @@ TTabletManager::TTabletCellTypeHandler::TTabletCellTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TTabletManager::TTabletCellTypeHandler::Create(
+TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
@@ -1794,8 +1914,11 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::Create(
     return cell;
 }
 
-void TTabletManager::TTabletCellTypeHandler::DoDestroy(TTabletCell* cell)
+void TTabletManager::TTabletCellTypeHandler::DoZombifyObject(TTabletCell* cell)
 {
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(cell);
+    // NB: Destroy the cell right away and do not wait for GC to prevent
+    // dangling links from occuring in //sys/tablet_cells.
     Owner_->DestroyCell(cell);
 }
 
@@ -1806,8 +1929,9 @@ TTabletManager::TTabletTypeHandler::TTabletTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-void TTabletManager::TTabletTypeHandler::DoDestroy(TTablet* tablet)
+void TTabletManager::TTabletTypeHandler::DoDestroyObject(TTablet* tablet)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(tablet);
     Owner_->DestroyTablet(tablet);
 }
 
@@ -1846,13 +1970,17 @@ void TTabletManager::MountTable(
     TTableNode* table,
     int firstTabletIndex,
     int lastTabletIndex,
-    TTabletCellId cellId)
+    const TTabletCellId& cellId,
+    i64 estimatedUncompressedSize,
+    i64 estimatedCompressedSize)
 {
     Impl_->MountTable(
         table,
         firstTabletIndex,
         lastTabletIndex,
-        cellId);
+        cellId,
+        estimatedUncompressedSize,
+        estimatedCompressedSize);
 }
 
 void TTabletManager::UnmountTable(

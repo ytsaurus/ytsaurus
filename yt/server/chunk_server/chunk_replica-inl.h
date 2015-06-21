@@ -1,7 +1,6 @@
 #ifndef CHUNK_REPLICA_INL_H_
 #error "Direct inclusion of this file is not allowed, include chunk_replica.h"
 #endif
-#undef CHUNK_REPLICA_INL_H_
 
 #include <core/misc/serialize.h>
 

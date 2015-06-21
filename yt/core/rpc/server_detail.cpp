@@ -54,6 +54,10 @@ void TServiceContextBase::Initialize()
         ? FromProto<TRealmId>(RequestHeader_->realm_id())
         : NullRealmId;
 
+    User_ = RequestHeader_->has_user()
+        ? RequestHeader_->user()
+        : RootUserName;
+
     YASSERT(RequestMessage_.Size() >= 2);
     RequestBody_ = RequestMessage_[1];
     RequestAttachments_ = std::vector<TSharedRef>(
@@ -265,6 +269,11 @@ const TRealmId& TServiceContextBase::GetRealmId() const
     return RealmId_;
 }
 
+const Stroka& TServiceContextBase::GetUser() const
+{
+    return User_;
+}
+
 const TRequestHeader& TServiceContextBase::RequestHeader() const
 {
     return *RequestHeader_;
@@ -350,6 +359,11 @@ const Stroka& TServiceContextWrapper::GetMethod() const
 const TRealmId& TServiceContextWrapper::GetRealmId() const 
 {
     return UnderlyingContext_->GetRealmId();
+}
+
+const Stroka& TServiceContextWrapper::GetUser() const
+{
+    return UnderlyingContext_->GetUser();
 }
 
 bool TServiceContextWrapper::IsOneWay() const

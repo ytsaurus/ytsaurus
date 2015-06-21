@@ -466,7 +466,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         jobs_path = "//sys/operations/" + op_id + "/jobs"
         for job_id in ls(jobs_path):
-            assert len(read_file(jobs_path + "/" + job_id + "/fail_contexts/0")) > 0
+            assert len(read_file(jobs_path + "/" + job_id + "/fail_context")) > 0
 
     def test_dump_job_context(self):
         create("table", "//tmp/t1")
@@ -978,3 +978,27 @@ print row + table_index
         track_op(op_id)
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
+    def test_row_sampling(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t3")
+
+        count = 1000
+        original_data = [{"index": i} for i in xrange(count)]
+        write("//tmp/t1", original_data)
+
+        command = "cat"
+        sampling_rate = 0.5
+        spec = {"job_io": {"table_reader": {"sampling_seed": 42, "sampling_rate": sampling_rate}}}
+
+        map(in_="//tmp/t1", out="//tmp/t2", command=command, spec=spec)
+        map(in_="//tmp/t1", out="//tmp/t3", command=command, spec=spec)
+
+        new_data_t2 = read("//tmp/t2", verbose=False)
+        new_data_t3 = read("//tmp/t3", verbose=False)
+
+        assert sorted(row.items() for row in new_data_t2) == sorted(row.items() for row in new_data_t3)
+
+        actual_rate = len(new_data_t2) * 1.0 / len(original_data)
+        variation = sampling_rate * (1 - sampling_rate)
+        assert sampling_rate - variation <= actual_rate <= sampling_rate + variation

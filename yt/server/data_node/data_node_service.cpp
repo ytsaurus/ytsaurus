@@ -181,7 +181,7 @@ private:
 
         context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
             chunkId,
-            blockCount ? ToString(*blockCount) : "<null>");
+            blockCount);
 
         ValidateConnected();
 
@@ -891,7 +891,9 @@ private:
     {
         auto masterConnector = Bootstrap_->GetMasterConnector();
         if (!masterConnector->IsConnected()) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Master is not connected");
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::MasterNotConnected, 
+                "Master is not connected");
         }
     }
 

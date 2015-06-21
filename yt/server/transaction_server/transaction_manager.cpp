@@ -220,7 +220,7 @@ public:
             EObjectAccountMode::Forbidden);
     }
 
-    virtual TNonversionedObjectBase* Create(
+    virtual TNonversionedObjectBase* CreateObject(
         TTransaction* parent,
         TAccount* /*account*/,
         IAttributeDictionary* attributes,
@@ -462,10 +462,10 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto handler = objectManager->GetHandler(object);
+        const auto& handler = objectManager->GetHandler(object);
         auto* transaction = handler->GetStagingTransaction(object);
 
-        handler->Unstage(object, recursive);
+        handler->UnstageObject(object, recursive);
 
         if (transaction) {
             YCHECK(transaction->StagedObjects().erase(object) == 1);
@@ -589,8 +589,8 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
 
         for (auto* object : transaction->StagedObjects()) {
-            auto handler = objectManager->GetHandler(object);
-            handler->Unstage(object, false);
+            const auto& handler = objectManager->GetHandler(object);
+            handler->UnstageObject(object, false);
             objectManager->UnrefObject(object);
         }
         transaction->StagedObjects().clear();
@@ -774,7 +774,7 @@ TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(TImpl* own
     , Owner_(owner)
 { }
 
-TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::Create(
+TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObject(
     TTransaction* parent,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,

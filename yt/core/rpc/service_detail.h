@@ -477,21 +477,14 @@ protected:
         }
     };
 
-    //! Describes a service method and its runtime statistics.
-    struct TRuntimeMethodInfo
+    //! Per-user and per-method profiling counters.
+    struct TMethodPerformanceCounters
         : public TIntrinsicRefCounted
     {
-        explicit TRuntimeMethodInfo(
-            const TMethodDescriptor& descriptor,
-            const NProfiling::TTagIdList& tagIds);
-
-        TMethodDescriptor Descriptor;
+        explicit TMethodPerformanceCounters(const NProfiling::TTagIdList& tagIds);
 
         //! Counts the number of method calls.
-        NProfiling::TAggregateCounter RequestCounter;
-
-        //! The number of currently queued requests.
-        NProfiling::TAggregateCounter QueueSizeCounter;
+        NProfiling::TSimpleCounter RequestCounter;
 
         //! Time spent while handling the request.
         NProfiling::TAggregateCounter ExecutionTimeCounter;
@@ -504,9 +497,30 @@ protected:
 
         //! Time between the request arrival and the moment when it is fully processed.
         NProfiling::TAggregateCounter TotalTimeCounter;
+    };
+
+    typedef TIntrusivePtr<TMethodPerformanceCounters> TMethodPerformanceCountersPtr;
+
+    //! Describes a service method and its runtime statistics.
+    struct TRuntimeMethodInfo
+        : public TIntrinsicRefCounted
+    {
+        TRuntimeMethodInfo(
+            const TMethodDescriptor& descriptor,
+            const NProfiling::TTagIdList& tagIds);
+
+        TMethodDescriptor Descriptor;
+        const NProfiling::TTagIdList TagIds;
+
+        //! The number of currently queued requests.
+        NProfiling::TAggregateCounter QueueSizeCounter;
 
         std::atomic<int> RunningRequestSemaphore = {0};
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
+
+        NConcurrency::TReaderWriterSpinLock PerformanceCountersLock;
+        yhash_map<Stroka, TMethodPerformanceCountersPtr> UserToPerformanceCounters;
+        TMethodPerformanceCountersPtr RootPerformanceCounters;
     };
 
     typedef TIntrusivePtr<TRuntimeMethodInfo> TRuntimeMethodInfoPtr;
@@ -582,7 +596,6 @@ private:
     int ProtocolVersion_;
 
     NProfiling::TTagId ServiceTagId_;
-    NProfiling::TSimpleCounter RequestCounter_;
 
     NConcurrency::TReaderWriterSpinLock MethodMapLock_;
     yhash_map<Stroka, TRuntimeMethodInfoPtr> MethodMap_;
@@ -591,7 +604,7 @@ private:
     yhash_map<TRequestId, TServiceContext*> IdToContext_;
     yhash_map<NBus::IBusPtr, yhash_set<TServiceContext*>> ReplyBusToContexts_;
 
-    void Init(
+    void Initialize(
         IPrioritizedInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
         const NLogging::TLogger& logger,
@@ -617,6 +630,14 @@ private:
     void RegisterCancelableRequest(TServiceContext* context);
     void UnregisterCancelableRequest(TServiceContext* context);
     TServiceContextPtr FindCancelableRequest(const TRequestId& requestId);
+
+    TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
+        const TRuntimeMethodInfoPtr& runtimeInfo,
+        const Stroka& user);
+
+    TMethodPerformanceCounters* LookupMethodPerformanceCounters(
+        const TRuntimeMethodInfoPtr& runtimeInfo,
+        const Stroka& user);
 
 };
 

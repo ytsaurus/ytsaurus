@@ -120,7 +120,7 @@ public:
 
         YCHECK(PendingResponses_.insert(std::make_pair(id, NewPromise<TSharedRefArray>())).second);
 
-        LOG_DEBUG("Response will be kept (MutationId: %v)", id);
+        LOG_TRACE("Response will be kept (MutationId: %v)", id);
 
         return TFuture<TSharedRefArray>();
     }
@@ -153,7 +153,7 @@ public:
             promise.Set(response);
         }
 
-        LOG_DEBUG("Response kept (MutationId: %v)", id);
+        LOG_TRACE("Response kept (MutationId: %v)", id);
         UpdateCounters(response, +1);
         OnProfiling();
     }

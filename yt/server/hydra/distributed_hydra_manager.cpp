@@ -26,9 +26,6 @@
 
 #include <core/logging/log.h>
 
-#include <core/profiling/profiler.h>
-#include <core/profiling/profile_manager.h>
-
 #include <ytlib/election/cell_manager.h>
 
 #include <ytlib/hydra/hydra_service_proxy.h>
@@ -132,9 +129,6 @@ public:
 
         Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 
-        auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("cell_id", CellManager_->GetCellId());
-        Profiler.TagIds().push_back(tagId);
-
         DecoratedAutomaton_ = New<TDecoratedAutomaton>(
             Config_,
             CellManager_,
@@ -143,8 +137,7 @@ public:
             ControlInvoker_,
             SnapshotStore_,
             ChangelogStore_,
-            Options_,
-            Profiler);
+            Options_);
 
         ElectionManager_ = New<TElectionManager>(
             Config_,
@@ -460,8 +453,6 @@ private:
 
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
-
-    NProfiling::TProfiler Profiler = HydraProfiler;
 
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
@@ -1034,8 +1025,7 @@ private:
             CellManager_,
             DecoratedAutomaton_,
             ChangelogStore_,
-            epochContext.Get(),
-            Profiler);
+            epochContext.Get());
         epochContext->LeaderCommitter->SubscribeCheckpointNeeded(
             BIND(&TDistributedHydraManager::OnCheckpointNeeded, MakeWeak(this), MakeWeak(epochContext)));
         epochContext->LeaderCommitter->SubscribeCommitFailed(
@@ -1168,8 +1158,7 @@ public:
             Config_,
             CellManager_,
             DecoratedAutomaton_,
-            epochContext.Get(),
-            Profiler);
+            epochContext.Get());
 
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);

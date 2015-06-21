@@ -11,7 +11,6 @@ set( SRCS
   ${BASE}/partition_balancer.cpp
   ${BASE}/private.cpp
   ${BASE}/row_comparer_generator.cpp
-  ${BASE}/row_merger.cpp
   ${BASE}/security_manager.cpp
   ${BASE}/serialize.cpp
   ${BASE}/slot_manager.cpp
@@ -43,7 +42,6 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/row_comparer_generator.h
-  ${BASE}/row_merger.h
   ${BASE}/security_manager.h
   ${BASE}/serialize.h
   ${BASE}/slot_manager.h

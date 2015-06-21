@@ -83,15 +83,21 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int desiredTargetCount = request->desired_target_count();
         int minTargetCount = request->min_target_count();
+        auto replicationFactorOverride = request->has_replication_factor_override()
+            ? MakeNullable(request->replication_factor_override())
+            : Null;
         auto preferredHostName = request->has_preferred_host_name()
-            ? TNullable<Stroka>(request->preferred_host_name())
+            ? MakeNullable(request->preferred_host_name())
             : Null;
         const auto& forbiddenAddresses = request->forbidden_addresses();
 
-        context->SetRequestInfo("ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, PeferredHostName: %v, ForbiddenAddresses: [%v]",
+        context->SetRequestInfo(
+            "ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
+            "PeferredHostName: %v, ForbiddenAddresses: [%v]",
             chunkId,
             desiredTargetCount,
             minTargetCount,
+            replicationFactorOverride,
             preferredHostName,
             JoinToString(forbiddenAddresses));
         
@@ -113,6 +119,7 @@ private:
             chunk,
             desiredTargetCount,
             minTargetCount,
+            replicationFactorOverride,
             &forbiddenNodes,
             preferredHostName);
 

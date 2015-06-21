@@ -1,7 +1,6 @@
 #ifndef SKIP_LIST_INL_H_
 #error "Direct inclusion of this file is not allowed, include skip_list.h"
 #endif
-#undef SKIP_LIST_INL_H_
 
 #include "chunked_memory_pool.h"
 

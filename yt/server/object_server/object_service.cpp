@@ -102,7 +102,7 @@ public:
 
         ResponseMessages.resize(RequestCount);
         RequestHeaders.resize(RequestCount);
-        UserName = FindAuthenticatedUser(Context);
+        UserName = Context->GetUser();
 
         auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
         auto sync = hydraManager->SyncWithLeader();
@@ -126,7 +126,7 @@ private:
     std::vector<TRequestHeader> RequestHeaders;
     int CurrentRequestIndex = 0;
     int CurrentRequestPartIndex = 0;
-    TNullable<Stroka> UserName;
+    Stroka UserName;
 
     const NLogging::TLogger& Logger = ObjectServerLogger;
 
@@ -354,9 +354,7 @@ private:
     TUser* GetAuthenticatedUser()
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        return UserName
-            ? securityManager->GetUserByNameOrThrow(*UserName)
-            : securityManager->GetRootUser();
+        return securityManager->GetUserByNameOrThrow(UserName);
     }
 
 };

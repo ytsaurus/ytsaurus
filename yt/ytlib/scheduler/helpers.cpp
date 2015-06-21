@@ -39,19 +39,11 @@ TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId)
         + "/stderr";
 }
 
-TYPath GetFailContextRootPath(const TOperationId& operationId, const TJobId& jobId)
+TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId)
 {
     return
         GetJobPath(operationId, jobId)
-        + "/fail_contexts";
-}
-
-TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId, size_t index)
-{
-    return
-        GetFailContextRootPath(operationId, jobId)
-        + "/"
-        + ToString(index);
+        + "/fail_context";
 }
 
 TYPath GetSnapshotPath(const TOperationId& operationId)
@@ -96,6 +88,7 @@ bool IsOperationInProgress(EOperationState state)
     return
         state == EOperationState::Initializing ||
         state == EOperationState::Preparing ||
+        state == EOperationState::Pending ||
         state == EOperationState::Reviving ||
         state == EOperationState::Running ||
         state == EOperationState::Completing ||

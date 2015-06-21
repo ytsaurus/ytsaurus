@@ -1,11 +1,9 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/job_prober_client )
 set( SRCS
-  ${BASE}/public.cpp
 )
 set( HDRS
   ${BASE}/job_prober_service_proxy.h
-  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES

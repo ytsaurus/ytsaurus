@@ -167,17 +167,7 @@ void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
         } else {
             DoRemoveStoredReplica(replica);
         }
-
-        auto genericReplica = ToGeneric(replica);
-        UnapprovedReplicas_.erase(genericReplica);
-
-        ChunkRemovalQueue_.erase(TChunkIdWithIndex(chunk->GetId(), genericReplica.GetIndex()));
-
-        for (auto& queue : ChunkReplicationQueues_) {
-            queue.erase(genericReplica);
-        }
-
-        ChunkSealQueue_.erase(chunk);
+        UnapprovedReplicas_.erase(ToGeneric(replica));
     }
 }
 

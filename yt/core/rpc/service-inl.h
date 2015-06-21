@@ -1,7 +1,6 @@
 #ifndef SERVICE_INL_H_
 #error "Direct inclusion of this file is not allowed, include service.h"
 #endif
-#undef SERVICE_INL_H_
 
 #include <core/misc/format.h>
 

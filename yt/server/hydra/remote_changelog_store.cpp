@@ -306,12 +306,6 @@ private:
             return DataSize_;
         }
 
-        virtual bool IsSealed() const override
-        {
-            // TODO(babenko): implement
-            return false;
-        }
-
         virtual TFuture<void> Append(const TSharedRef& data) override
         {
             YCHECK(Writer_);
@@ -336,16 +330,11 @@ private:
                 .Run(firstRecordId, maxRecords);
         }
 
-        virtual TFuture<void> Seal(int recordCount) override
+        virtual TFuture<void> Truncate(int recordCount) override
         {
             // TODO(babenko): implement
             YCHECK(recordCount == RecordCount_);
             return VoidFuture;
-        }
-
-        virtual TFuture<void> Unseal() override
-        {
-            YUNREACHABLE();
         }
 
         virtual TFuture<void> Close() override

@@ -78,8 +78,9 @@ TFuture<IChunkPtr> TJournalSession::DoFinish(
     const TChunkMeta& /*chunkMeta*/,
     const TNullable<int>& blockCount)
 {
-    auto sealResult = VoidFuture;
     auto changelog = Chunk_->GetAttachedChangelog();
+    auto result = changelog->Close();
+
     if (blockCount) {
         if (*blockCount != changelog->GetRecordCount()) {
             THROW_ERROR_EXCEPTION("Block count mismatch in journal session %v: expected %v, got %v",
@@ -87,14 +88,15 @@ TFuture<IChunkPtr> TJournalSession::DoFinish(
                 changelog->GetRecordCount(),
                 *blockCount);
         }
-        sealResult = changelog->Seal(changelog->GetRecordCount());
+        result = result.Apply(BIND(&TJournalChunk::Seal, Chunk_)
+            .AsyncVia(Bootstrap_->GetControlInvoker()));
     }
 
-    return sealResult.Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) -> IChunkPtr {
+    return result.Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) -> IChunkPtr {
         DoCancel();
         error.ThrowOnError();
         return IChunkPtr(Chunk_);
-    }).AsyncVia(GetCurrentInvoker()));
+    }).AsyncVia(Bootstrap_->GetControlInvoker()));
 }
 
 TFuture<void> TJournalSession::DoPutBlocks(

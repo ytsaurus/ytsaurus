@@ -109,7 +109,7 @@ public:
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual void Destroy(TObjectBase* /*object*/) override
+    virtual void DestroyObject(TObjectBase* /*object*/) override
     {
         YUNREACHABLE();
     }
@@ -119,7 +119,7 @@ public:
         auto permissions = NonePermissions;
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto handler = objectManager->GetHandler(Type_);
+        const auto& handler = objectManager->GetHandler(Type_);
 
         if (!IsVersionedType(Type_)) {
             permissions |= handler->GetSupportedPermissions();

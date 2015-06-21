@@ -57,7 +57,6 @@ DEFINE_REFCOUNTED_TYPE(ICypressNodeFactory)
 //! logical Cypress nodes.
 struct ICypressNodeProxy
     : public virtual NYTree::INode
-    , public virtual NYTree::ISystemAttributeProvider
     , public virtual NObjectServer::IObjectProxy
 {
     //! Returns the transaction for which the proxy is created.

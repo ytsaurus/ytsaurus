@@ -4,7 +4,6 @@
 #include "tablet_slot.h"
 #include "partition.h"
 #include "store.h"
-#include "row_merger.h"
 #include "config.h"
 #include "private.h"
 
@@ -17,6 +16,7 @@
 #include <ytlib/new_table_client/versioned_row.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/versioned_reader.h>
+#include <ytlib/new_table_client/row_merger.h>
 
 #include <atomic>
 

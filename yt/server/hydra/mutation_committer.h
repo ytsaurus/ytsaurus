@@ -9,8 +9,6 @@
 
 #include <core/logging/log.h>
 
-#include <core/profiling/profiler.h>
-
 #include <ytlib/election/public.h>
 
 #include <ytlib/hydra/hydra_service_proxy.h>
@@ -29,8 +27,7 @@ protected:
         TDistributedHydraManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        TEpochContext* epochContext,
-        const NProfiling::TProfiler& profiler);
+        TEpochContext* epochContext);
 
     ~TCommitterBase();
 
@@ -44,7 +41,6 @@ protected:
     NProfiling::TSimpleCounter FlushCounter_;
 
     NLogging::TLogger Logger;
-    NProfiling::TProfiler Profiler;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -67,8 +63,7 @@ public:
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
-        TEpochContext* epochContext,
-        const NProfiling::TProfiler& profiler);
+        TEpochContext* epochContext);
 
     void Finalize();
 
@@ -111,6 +106,7 @@ private:
     TIntrusivePtr<TBatch> GetOrCreateBatch(TVersion version);
     void AddToBatch(
         TVersion version,
+        const TMutationRequest& request,
         const TSharedRef& recordData,
         TFuture<void> localFlushResult);
     void FlushCurrentBatch();
@@ -156,8 +152,7 @@ public:
         TDistributedHydraManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        TEpochContext* epochContext,
-        const NProfiling::TProfiler& profiler);
+        TEpochContext* epochContext);
 
     ~TFollowerCommitter();
 

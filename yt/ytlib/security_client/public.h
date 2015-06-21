@@ -1,6 +1,8 @@
 #pragma once
 
-#include <core/misc/guid.h>
+#include <core/misc/common.h>
+
+#include <core/rpc/public.h>
 
 #include <ytlib/object_client/public.h>
 
@@ -18,7 +20,7 @@ extern const Stroka TmpAccountName;
 extern const Stroka SysAccountName;
 extern const Stroka IntermediateAccountName;
 
-extern const Stroka RootUserName;
+using NRpc::RootUserName;
 extern const Stroka GuestUserName;
 extern const Stroka JobUserName;
 extern const Stroka SchedulerUserName;

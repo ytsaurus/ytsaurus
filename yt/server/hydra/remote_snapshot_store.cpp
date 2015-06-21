@@ -291,7 +291,12 @@ private:
                     TFileWriterOptions options;
                     options.TransactionId = Transaction_->GetId();
                     options.PrerequisiteTransactionIds = Store_->PrerequisiteTransactionIds_;
-                    options.Config = Store_->Config_->Writer;
+
+                    // Aim for safely: always upload snapshots with maximum RF.
+                    options.Config = CloneYsonSerializable(Store_->Config_->Writer);
+                    options.Config->UploadReplicationFactor = Store_->Options_->SnapshotReplicationFactor;
+                    options.Config->MinUploadReplicationFactor = Store_->Options_->SnapshotReplicationFactor;
+
                     Writer_ = Store_->MasterClient_->CreateFileWriter(Store_->GetSnapshotPath(SnapshotId_), options);
 
                     WaitFor(Writer_->Open())

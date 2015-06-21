@@ -51,7 +51,7 @@ int TNameTable::GetId(const TStringBuf& name) const
     return *index;
 }
 
-const Stroka& TNameTable::GetName(int id) const
+TStringBuf TNameTable::GetName(int id) const
 {
     TGuard<TSpinLock> guard(SpinLock_);
     YCHECK(id >= 0 && id < IdToName_.size());
@@ -90,7 +90,8 @@ void ToProto(NProto::TNameTableExt* protoNameTable, const TNameTablePtr& nameTab
 {
     protoNameTable->clear_names();
     for (int id = 0; id < nameTable->GetSize(); ++id) {
-        protoNameTable->add_names(nameTable->GetName(id));
+        auto name = nameTable->GetName(id);
+        protoNameTable->add_names(name.data(), name.length());
     }
 }
 

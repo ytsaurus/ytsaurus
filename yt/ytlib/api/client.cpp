@@ -70,6 +70,8 @@
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/table_ypath_proxy.h>
+#include <ytlib/new_table_client/row_merger.h>
+#include <ytlib/new_table_client/row_base.h>
 
 namespace NYT {
 namespace NApi {
@@ -1396,6 +1398,8 @@ private:
         if (options.CellId != NullTabletCellId) {
             ToProto(req->mutable_cell_id(), options.CellId);
         }
+        req->set_estimated_uncompressed_size(options.EstimatedUncompressedSize);
+        req->set_estimated_compressed_size(options.EstimatedCompressedSize);
 
         auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
@@ -1411,7 +1415,7 @@ private:
             req->set_first_tablet_index(*options.FirstTabletIndex);
         }
         if (options.LastTabletIndex) {
-            req->set_first_tablet_index(*options.LastTabletIndex);
+            req->set_last_tablet_index(*options.LastTabletIndex);
         }
         req->set_force(options.Force);
 
@@ -1869,6 +1873,7 @@ public:
         NTransactionClient::TTransactionPtr transaction)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
+        , RowBuffer_(New<TRowBuffer>())
         , Logger(Client_->Logger)
     {
         Logger.AddTag("TransactionId: %v", GetId());
@@ -2110,9 +2115,15 @@ public:
 #undef DELEGATE_TRANSACTIONAL_METHOD
 #undef DELEGATE_TIMESTAMPED_METHOD
 
+    TRowBufferPtr GetRowBuffer() const
+    {
+        return RowBuffer_;
+    }
+
 private:
     const TClientPtr Client_;
     const NTransactionClient::TTransactionPtr Transaction_;
+    TRowBufferPtr RowBuffer_;
 
     NLogging::TLogger Logger;
 
@@ -2167,7 +2178,6 @@ private:
 
         void WriteRequests(
             const std::vector<TUnversionedRow>& rows,
-            const ::google::protobuf::MessageLite& req,
             EWireProtocolCommand command,
             int columnCount,
             TRowValidator validateRow)
@@ -2177,14 +2187,12 @@ private:
 
             auto writeRequest = [&] (const TUnversionedRow row) {
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
-                auto* writer = Transaction_->GetTabletWriter(tabletInfo);
-                writer->WriteCommand(command);
-                writer->WriteMessage(req);
-                writer->WriteUnversionedRow(row, &idMapping);
+                auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
+                session->SubmitRow(command, row, &idMapping);
             };
 
             if (TableInfo_->NeedKeyEvaluation) {
-                auto rowBuffer = New<TRowBuffer>();
+                const auto& rowBuffer = Transaction_->GetRowBuffer();
                 auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
                 auto evaluator = evaluatorCache->Find(TableInfo_->Schema, keyColumnCount);
 
@@ -2224,11 +2232,8 @@ private:
 
         virtual void DoRun() override
         {
-            TReqWriteRow req;
-            req.set_lock_mode(static_cast<int>(Options_.LockMode));
             WriteRequests(
                 Rows_,
-                req,
                 EWireProtocolCommand::WriteRow,
                 TableInfo_->Schema.Columns().size(),
                 ValidateClientDataRow);
@@ -2256,10 +2261,8 @@ private:
 
         virtual void DoRun() override
         {
-            TReqDeleteRow req;
             WriteRequests(
                 Keys_,
-                req,
                 EWireProtocolCommand::DeleteRow,
                 TableInfo_->KeyColumns.size(),
                 [ ](
@@ -2280,10 +2283,15 @@ private:
     public:
         TTabletCommitSession(
             TTransactionPtr owner,
-            TTabletInfoPtr tabletInfo)
+            TTabletInfoPtr tabletInfo,
+            int keyColumnCount,
+            int schemaColumnCount)
             : TransactionId_(owner->Transaction_->GetId())
             , TabletId_(tabletInfo->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
+            , KeyColumnCount_(keyColumnCount)
+            , SchemaColumnCount_(schemaColumnCount)
+            , RowBuffer_(New<TRowBuffer>())
             , Logger(owner->Logger)
         {
             Logger.AddTag("TabletId: %v", TabletId_);
@@ -2299,14 +2307,83 @@ private:
             return &batch->Writer;
         }
 
+        void SubmitRow(
+            EWireProtocolCommand command,
+            TUnversionedRow row,
+            const TNameTableToSchemaIdMapping* idMapping)
+        {
+            SubmittedRows_.push_back(TSubmittedRow{
+                command,
+                row,
+                idMapping,
+                static_cast<int>(SubmittedRows_.size())});
+        }
+
         TFuture<void> Invoke(IChannelPtr channel)
         {
+            std::sort(
+                SubmittedRows_.begin(),
+                SubmittedRows_.end(),
+                [=] (const TSubmittedRow& lhs, const TSubmittedRow& rhs) {
+                    int res = CompareRows(lhs.Row, rhs.Row, KeyColumnCount_);
+                    return res != 0 ? res < 0 : lhs.SequentialId < rhs.SequentialId;
+                });
+
+            std::vector<TSubmittedRow> mergedRows;
+            mergedRows.reserve(SubmittedRows_.size());
+            auto merger = TUnversionedRowMerger(
+                RowBuffer_->GetPool(),
+                SchemaColumnCount_,
+                KeyColumnCount_,
+                NVersionedTableClient::TColumnFilter());
+
+            auto addPartialRow = [&] (const TSubmittedRow& submittedRow) {
+                switch (submittedRow.Command) {
+                    case EWireProtocolCommand::DeleteRow:
+                        merger.DeletePartialRow(submittedRow.Row);
+                        break;
+
+                    case EWireProtocolCommand::WriteRow:
+                        merger.AddPartialRow(submittedRow.Row);
+                        break;
+
+                    default:
+                        YUNREACHABLE();
+                }
+            };
+
+            int index = 0;
+            while (index < SubmittedRows_.size()) {
+                if (index < SubmittedRows_.size() - 1 &&
+                    CompareRows(SubmittedRows_[index].Row, SubmittedRows_[index + 1].Row, KeyColumnCount_) == 0)
+                {
+                    addPartialRow(SubmittedRows_[index]);
+                    while (index < SubmittedRows_.size() - 1 &&
+                        CompareRows(SubmittedRows_[index].Row, SubmittedRows_[index + 1].Row, KeyColumnCount_) == 0)
+                    {
+                        ++index;
+                        addPartialRow(SubmittedRows_[index]);
+                    }
+                    SubmittedRows_[index].Row = merger.BuildMergedRow();
+                }
+                mergedRows.push_back(SubmittedRows_[index]);
+                ++index;
+            }
+
+            SubmittedRows_ = std::move(mergedRows);
+
+            for (const auto& submittedRow : SubmittedRows_) {
+                WriteRow(submittedRow);
+            }
+
             // Do all the heavy lifting here.
             for (auto& batch : Batches_) {
                 batch->RequestData = NCompression::CompressWithEnvelope(
                     batch->Writer.Flush(),
                     Config_->WriteRequestCodec);;
             }
+
+            merger.Reset();
 
             InvokeChannel_ = channel;
             InvokeNextBatch();
@@ -2317,6 +2394,9 @@ private:
         const TTransactionId TransactionId_;
         const TTabletId TabletId_;
         const TConnectionConfigPtr Config_;
+        const int KeyColumnCount_;
+        const int SchemaColumnCount_;
+        TRowBufferPtr RowBuffer_;
 
         NLogging::TLogger Logger;
 
@@ -2329,10 +2409,49 @@ private:
 
         std::vector<std::unique_ptr<TBatch>> Batches_;
 
+        struct TSubmittedRow
+        {
+            EWireProtocolCommand Command;
+            TUnversionedRow Row;
+            const TNameTableToSchemaIdMapping* IdMapping;
+            int SequentialId;
+        };
+
+        std::vector<TSubmittedRow> SubmittedRows_;
+
         IChannelPtr InvokeChannel_;
         int InvokeBatchIndex_ = 0;
         TPromise<void> InvokePromise_ = NewPromise<void>();
 
+        void WriteRow(const TSubmittedRow& submittedRow)
+        {
+            if (Batches_.empty() || Batches_.back()->RowCount >= Config_->MaxRowsPerWriteRequest) {
+                Batches_.emplace_back(new TBatch());
+            }
+            auto& batch = Batches_.back();
+            ++batch->RowCount;
+            auto& writer = batch->Writer;
+            writer.WriteCommand(submittedRow.Command);
+
+            switch (submittedRow.Command) {
+                case EWireProtocolCommand::DeleteRow: {
+                    auto req = TReqDeleteRow();
+                    writer.WriteMessage(req);
+                    break;
+                }
+
+                case EWireProtocolCommand::WriteRow: {
+                    auto req = TReqWriteRow();
+                    writer.WriteMessage(req);
+                    break;
+                }
+
+                default:
+                    YUNREACHABLE();
+            }
+
+            writer.WriteUnversionedRow(submittedRow.Row, submittedRow.IdMapping);
+        }
 
         void InvokeNextBatch()
         {
@@ -2393,16 +2512,21 @@ private:
         return it->second;
     }
 
-    TWireProtocolWriter* GetTabletWriter(const TTabletInfoPtr& tabletInfo)
+    TTabletCommitSession* GetTabletSession(const TTabletInfoPtr& tabletInfo, const TTableMountInfoPtr& tableInfo)
     {
         auto it = TabletToSession_.find(tabletInfo);
         if (it == TabletToSession_.end()) {
             AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             it = TabletToSession_.insert(std::make_pair(
                 tabletInfo,
-                New<TTabletCommitSession>(this, tabletInfo))).first;
+                New<TTabletCommitSession>(
+                    this,
+                    tabletInfo,
+                    tableInfo->KeyColumns.size(),
+                    tableInfo->Schema.Columns().size())
+                )).first;
         }
-        return it->second->GetWriter();
+        return it->second.Get();
     }
 
     void DoCommit(const TTransactionCommitOptions& options)

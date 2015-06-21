@@ -9,6 +9,7 @@ namespace NRpc {
 const TRequestId NullRequestId;
 const TRealmId NullRealmId;
 const TMutationId NullMutationId;
+const Stroka RootUserName("root");
 
 bool IsRetriableError(const TError& error)
 {

@@ -369,6 +369,10 @@ void TSequentialMultiChunkReaderBase::WaitForNextReader()
 {
     CurrentSession_.ChunkIndex = NextReaderIndex_;
     auto errorOrReader = WaitFor(NextReaders_[NextReaderIndex_].ToFuture());
+    if (!Options_->KeepInMemory) {
+        // Avoid memory leaks.
+        NextReaders_[CurrentSession_.ChunkIndex].Reset();
+    }
 
     if (errorOrReader.IsOK()) {
         CurrentSession_.ChunkReader = errorOrReader.Value();
@@ -377,7 +381,8 @@ void TSequentialMultiChunkReaderBase::WaitForNextReader()
     }
 
     if (CompletionError_.IsSet()) {
-        THROW_ERROR_EXCEPTION_IF_FAILED(CompletionError_.Get());
+        CompletionError_.Get()
+            .ThrowOnError();
     }
 }
 
@@ -387,8 +392,8 @@ void TSequentialMultiChunkReaderBase::WaitForCurrentReader()
     if (!error.IsOK()) {
         CompletionError_.TrySet(error);
         RegisterFailedChunk(CurrentSession_.ChunkIndex);
-        THROW_ERROR error;
     }
+    error.ThrowOnError();
 }
 
 void TSequentialMultiChunkReaderBase::OnError()
@@ -488,7 +493,8 @@ void TParallelMultiChunkReaderBase::WaitForReadyReader()
     }
 
     if (CompletionError_.IsSet()) {
-        THROW_ERROR CompletionError_.Get();
+        CompletionError_.Get()
+            .ThrowOnError();
     }
 }
 
@@ -501,7 +507,7 @@ void TParallelMultiChunkReaderBase::WaitForReader(TSession session)
     }
 
     CompletionError_.TrySet(error);
-    RegisterFailedChunk(CurrentSession_.ChunkIndex);
+    RegisterFailedChunk(session.ChunkIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

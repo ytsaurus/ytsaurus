@@ -55,7 +55,7 @@ struct ISystemAttributeProvider
 
     //! Gets the value of a builtin attribute.
     /*!
-     *  \returns False if there is no builtin attribute with the given key.
+     *  \returns |false| if there is no builtin attribute with the given key.
      */
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) = 0;
 
@@ -67,7 +67,7 @@ struct ISystemAttributeProvider
 
     //! Sets the value of a builtin attribute.
     /*!
-     *  \returns False if there is no writable builtin attribute with the given key.
+     *  \returns |false| if there is no writable builtin attribute with the given key.
      */
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) = 0;
 

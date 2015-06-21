@@ -198,12 +198,15 @@ void TBootstrap::DoRun()
         "/ref_counted",
         TRefCountedTracker::Get()->GetMonitoringProducer());
 
-    auto throttlingMasterChannel = CreateThrottlingChannel(
-        Config->MasterCacheService,
+    auto jobRedirectorChannel = CreateThrottlingChannel(
+        Config->MasterRedirectorService,
         MasterClient->GetMasterChannel(EMasterChannelKind::Leader));
     RpcServer->RegisterService(CreateRedirectorService(
-        TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), GetCellId()),
-        throttlingMasterChannel));
+        TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), NullCellId),
+        jobRedirectorChannel));
+    RpcServer->RegisterService(CreateRedirectorService(
+        TServiceId(NObjectClient::TObjectServiceProxy::GetServiceName(), NullCellId),
+        jobRedirectorChannel));
 
     BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
 
@@ -271,7 +274,6 @@ void TBootstrap::DoRun()
     JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
-    JobProxyConfig->CellId = GetCellId();
 
     ExecSlotManager = New<NExecAgent::TSlotManager>(Config->ExecAgent->SlotManager, this);
 
@@ -343,9 +345,11 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateTimestampProxyService(
         clusterConnection->GetTimestampProvider()));
 
+    // NB: User connection's channel, not the client's one to preserve
+    // user names passed from the cache service.
     RpcServer->RegisterService(CreateMasterCacheService(
         Config->MasterCacheService,
-        MasterClient->GetMasterChannel(EMasterChannelKind::Leader),
+        MasterClient->GetConnection()->GetMasterChannel(EMasterChannelKind::Leader),
         GetCellId()));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();

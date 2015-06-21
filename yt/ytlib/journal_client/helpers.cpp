@@ -219,7 +219,7 @@ private:
             auto miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
             Infos_.push_back(miscExt);
 
-            LOG_INFO("Received info for journal chunk (Address: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+            LOG_INFO("Received info for journal chunk (ChunkId: %v, Address: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress(),
                 miscExt.row_count(),

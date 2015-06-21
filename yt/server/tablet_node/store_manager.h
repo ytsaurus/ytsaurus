@@ -50,8 +50,7 @@ public:
     TDynamicRowRef WriteRow(
         TTransaction* transaction,
         TUnversionedRow row,
-        bool prelock,
-        ELockMode lockMode = ELockMode::Row);
+        bool prelock);
 
     TDynamicRowRef DeleteRow(
         TTransaction* transaction,
@@ -115,7 +114,7 @@ private:
     NLogging::TLogger Logger;
 
 
-    ui32 ComputeLockMask(TUnversionedRow row, ELockMode lockMode);
+    ui32 ComputeLockMask(TUnversionedRow row);
 
     void CheckInactiveStoresLocks(
         TTransaction* transaction,

@@ -5,6 +5,8 @@
 #include "master_connector.h"
 #include "job_resources.h"
 
+#include <iostream>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -180,7 +182,11 @@ public:
             Host->GetExecNodeCount());
         auto limits = Min(totalLimits, ResourceLimits());
 
-        Attributes_.DominantResource = GetDominantResource(usage, totalLimits);
+        if (usage == ZeroNodeResources()) {
+            Attributes_.DominantResource = GetDominantResource(demand, totalLimits);
+        } else {
+            Attributes_.DominantResource = GetDominantResource(usage, totalLimits);
+        }
 
         i64 dominantDemand = GetResource(demand, Attributes_.DominantResource);
         i64 dominantUsage = GetResource(usage, Attributes_.DominantResource);
@@ -454,14 +460,33 @@ public:
         return false;
     }
 
-    void AddChild(ISchedulerElementPtr child)
+    void AddChild(ISchedulerElementPtr child, bool enabled = true)
     {
-        YCHECK(Children.insert(child).second);
+        if (enabled) {
+            YCHECK(Children.insert(child).second);
+        } else {
+            YCHECK(DisabledChildren.insert(child).second);
+        }
+    }
+
+    void EnableChild(ISchedulerElementPtr child)
+    {
+        auto it = DisabledChildren.find(child);
+        YCHECK(it != DisabledChildren.end());
+        Children.insert(child);
+        DisabledChildren.erase(it);
     }
 
     void RemoveChild(ISchedulerElementPtr child)
     {
-        YCHECK(Children.erase(child) == 1);
+        bool foundInChildren = (Children.find(child) != Children.end());
+        bool foundInDisabledChildren = (DisabledChildren.find(child) != DisabledChildren.end());
+        YCHECK((foundInChildren && !foundInDisabledChildren) || (!foundInChildren && foundInDisabledChildren));
+        if (foundInChildren) {
+            Children.erase(child);
+        } else {
+            DisabledChildren.erase(child);
+        }
     }
 
     std::vector<ISchedulerElementPtr> GetChildren() const
@@ -471,7 +496,7 @@ public:
 
     bool IsEmpty() const
     {
-        return Children.empty();
+        return Children.empty() && DisabledChildren.empty();
     }
 
     DEFINE_BYVAL_RW_PROPERTY(TCompositeSchedulerElement*, Parent);
@@ -485,6 +510,7 @@ protected:
     ESchedulingMode Mode;
 
     yhash_set<ISchedulerElementPtr> Children;
+    yhash_set<ISchedulerElementPtr> DisabledChildren;
 
     ISchedulerElement* BestLeafDescendant_ = nullptr;
 
@@ -817,9 +843,15 @@ private:
 
     TNodeResources ComputeResourceLimits() const
     {
-        auto combinedLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config_->MaxShareRatio;
-        auto perTypeLimits = Config_->ResourceLimits->ToNodeResources();
-        return Min(combinedLimits, perTypeLimits);
+        auto poolLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config_->MaxShareRatio;
+        poolLimits = Min(poolLimits, Config_->ResourceLimits->ToNodeResources());
+
+        auto totalChildrenLimits = ZeroNodeResources();
+        for (const auto& child : Children) {
+            totalChildrenLimits += child->ResourceLimits();
+        }
+
+        return Min(poolLimits, totalChildrenLimits);
     }
 
 };
@@ -1450,13 +1482,6 @@ private:
     void OnOperationRegistered(TOperationPtr operation)
     {
         auto spec = ParseSpec(operation, operation->GetSpec());
-        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
-        auto pool = FindPool(poolName);
-        if (!pool) {
-            pool = New<TPool>(Host, poolName, Config);
-            RegisterPool(pool);
-        }
-
         auto params = BuildInitialRuntimeParams(spec);
         auto operationElement = New<TOperationElement>(
             Config,
@@ -1465,21 +1490,13 @@ private:
             Host,
             operation);
         YCHECK(OperationToElement.insert(std::make_pair(operation, operationElement)).second);
-        operationElement->SetPool(pool.Get());
 
-        auto operationCount = OperationToElement.size();
-        if (CanAddOperationToPool(pool.Get()) && operationCount < Config->MaxRunningOperations) {
-            AddOperationToTree(operation);
-        } else {
-            OperationQueue.push_back(operation);
-            operation->SetQueued(true);
+        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
+        auto pool = FindPool(poolName);
+        if (!pool) {
+            pool = New<TPool>(Host, poolName, Config);
+            RegisterPool(pool);
         }
-    }
-
-    void AddOperationToTree(TOperationPtr operation)
-    {
-        auto operationElement = GetOperationElement(operation);
-        auto pool = operationElement->GetPool();
         if (!pool->GetParent()) {
             auto defaultParentPool = FindPool(Config->DefaultParentPool);
             if (!defaultParentPool) {
@@ -1489,8 +1506,24 @@ private:
                 SetPoolParent(pool, defaultParentPool);
             }
         }
-        pool->AddChild(operationElement);
+        pool->AddChild(operationElement, false);
         pool->IncreaseUsage(operationElement->ResourceUsage());
+        operationElement->SetPool(pool.Get());
+
+        auto operationCount = OperationToElement.size();
+        if (CanAddOperationToPool(pool.Get()) && operationCount < Config->MaxRunningOperations) {
+            ActivateOperation(operation);
+        } else {
+            OperationQueue.push_back(operation);
+            operation->SetQueued(true);
+        }
+    }
+
+    void ActivateOperation(TOperationPtr operation)
+    {
+        auto operationElement = GetOperationElement(operation);
+        auto pool = operationElement->GetPool();
+        pool->EnableChild(operationElement);
 
         TCompositeSchedulerElement* element = pool;
         while (element && !element->IsRoot()) {
@@ -1516,25 +1549,40 @@ private:
             operation->GetId(),
             pool->GetId());
 
-        TCompositeSchedulerElement* element = pool;
-        while (element && !element->IsRoot()) {
-            RunningOperationCount[element->GetId()] -= 1;
-            element = element->GetParent();
+        bool IsPending = false;
+        {
+            auto it = OperationQueue.begin();
+            while (it != OperationQueue.end()) {
+                if (*it == operationElement->GetOperation()) {
+                    IsPending = true;
+                    OperationQueue.erase(it);
+                    break;
+                }
+                ++it;
+            }
         }
 
-        // Try to run operations from queue.
-        auto it = OperationQueue.begin();
-        while (it != OperationQueue.end() && OperationToElement.size() < Config->MaxRunningOperations) {
-            auto operation = *it;
-            if (CanAddOperationToPool(GetOperationElement(operation)->GetPool())) {
-                AddOperationToTree(operation);
-                operation->SetState(EOperationState::Running);
-                operation->SetQueued(false);
+        if (!IsPending) {
+            TCompositeSchedulerElement* element = pool;
+            while (element && !element->IsRoot()) {
+                RunningOperationCount[element->GetId()] -= 1;
+                element = element->GetParent();
+            }
 
-                auto toRemove = it++;
-                OperationQueue.erase(toRemove);
-            } else {
-                ++it;
+            // Try to run operations from queue.
+            auto it = OperationQueue.begin();
+            while (it != OperationQueue.end() && OperationToElement.size() < Config->MaxRunningOperations) {
+                auto operation = *it;
+                if (CanAddOperationToPool(GetOperationElement(operation)->GetPool())) {
+                    ActivateOperation(operation);
+                    operation->SetState(EOperationState::Running);
+                    operation->SetQueued(false);
+
+                    auto toRemove = it++;
+                    OperationQueue.erase(toRemove);
+                } else {
+                    ++it;
+                }
             }
         }
 

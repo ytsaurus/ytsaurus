@@ -19,12 +19,12 @@ struct TChangelogHeader
     static const ui64 ExpectedSignature = 0x3330303044435459ull; // YTCD0003
 
     //! Indicates that the changelog is not yet sealed.
-    static const i32 UnsealedRecordCount = -2;
+    static const i32 NotTruncatedRecordCount = -2;
 
     ui64 Signature;
     i32 HeaderSize; // with padding
     i32 MetaSize;
-    i32 SealedRecordCount;
+    i32 TruncatedRecordCount;
     i32 Padding = 0;
 
     TChangelogHeader()
@@ -39,7 +39,7 @@ struct TChangelogHeader
         : Signature(ExpectedSignature)
         , HeaderSize(sizeof (TChangelogHeader) + AlignUp(metaSize))
         , MetaSize(metaSize)
-        , SealedRecordCount(sealedRecordCount)
+        , TruncatedRecordCount(sealedRecordCount)
     { }
 };
 

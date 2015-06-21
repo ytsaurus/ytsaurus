@@ -56,8 +56,8 @@ public:
     }
 
 private:
-    TMasterCacheServiceConfigPtr Config_;
-    IChannelPtr MasterChannel_;
+    const TMasterCacheServiceConfigPtr Config_;
+    const IChannelPtr MasterChannel_;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 
@@ -186,9 +186,9 @@ private:
         }
 
     private:
-        TMasterCacheService* Owner_;
+        TMasterCacheService* const Owner_;
 
-        NLogging::TLogger Logger = ObjectServerLogger;
+        const NLogging::TLogger Logger = ObjectServerLogger;
 
 
         virtual void OnAdded(TEntry* entry) override
@@ -275,6 +275,7 @@ private:
             , Proxy_(std::move(channel))
         {
             Request_ = Proxy_.Execute();
+            Request_->SetUser(Context_->GetUser());
             MergeRequestHeaderExtensions(&Request_->Header(), Context_->RequestHeader());
         }
 
@@ -295,17 +296,18 @@ private:
         {
             LOG_DEBUG("Running cache bypass request (RequestId: %v, SubrequestCount: %v)",
                 Context_->GetRequestId(),
-                static_cast<int>(Promises_.size()));
+                Promises_.size());
             Request_->Invoke().Subscribe(BIND(&TMasterRequest::OnResponse, MakeStrong(this)));
         }
 
     private:
-        TCtxExecutePtr Context_;
+        const TCtxExecutePtr Context_;
+
         TObjectServiceProxy Proxy_;
         TObjectServiceProxy::TReqExecutePtr Request_;
         std::vector<TPromise<TSharedRefArray>> Promises_;
 
-        NLogging::TLogger Logger = ObjectServerLogger;
+        const NLogging::TLogger Logger = ObjectServerLogger;
 
 
         void OnResponse(const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError)
@@ -348,7 +350,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
     context->SetRequestInfo("RequestCount: %v",
         request->part_counts_size());
 
-    auto user = FindAuthenticatedUser(context).Get(RootUserName);
+    const auto& user = context->GetUser();
 
     int attachmentIndex = 0;
     const auto& attachments = request->Attachments();

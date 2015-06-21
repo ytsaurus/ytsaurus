@@ -52,6 +52,7 @@ private:
         attributes->push_back("table_id");
         attributes->push_back("pivot_key");
         attributes->push_back("chunk_list_id");
+        attributes->push_back("in_memory_mode");
         attributes->push_back(TAttributeInfo("cell_id", tablet->GetCell()));
         TBase::ListSystemAttributes(attributes);
     }
@@ -101,6 +102,12 @@ private:
         if (key == "chunk_list_id") {
             BuildYsonFluently(consumer)
                 .Value(table->GetChunkList()->Children()[tablet->GetIndex()]->GetId());
+            return true;
+        }
+
+        if (key == "in_memory_mode") {
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetInMemoryMode());
             return true;
         }
 

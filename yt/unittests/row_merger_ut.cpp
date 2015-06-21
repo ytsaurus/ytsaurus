@@ -8,9 +8,8 @@
 #include <ytlib/new_table_client/versioned_row.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/row_buffer.h>
-
-#include <server/tablet_node/row_merger.h>
-#include <server/tablet_node/config.h>
+#include <ytlib/new_table_client/row_merger.h>
+#include <ytlib/new_table_client/config.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -18,7 +17,6 @@ namespace {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NTabletNode;
 using namespace NTransactionClient;
 
 using ::ToString;
@@ -247,6 +245,116 @@ TEST_F(TSchemafulRowMergerTest, Filter2)
     merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
     merger.AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
     merger.AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\""));
+
+    EXPECT_EQ(
+        BuildUnversionedRow("<id=1> 2; <id=2> 3.14"),
+        merger.BuildMergedRow());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUnversionedRowMergerTest
+    : public TRowMergerTestBase
+{ };
+
+TEST_F(TUnversionedRowMergerTest, Simple1)
+{
+    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.14"));
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3> \"test\""));
+
+    EXPECT_EQ(
+        BuildUnversionedRow("<id=0> 0; <id=1> 2; <id=2> 3.14; <id=3> \"test\""),
+        merger.BuildMergedRow());
+}
+
+TEST_F(TUnversionedRowMergerTest, Simple2)
+{
+    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1"));
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 3"));
+
+    EXPECT_EQ(
+        BuildUnversionedRow("<id=0> 0; <id=1> 3;"),
+        merger.BuildMergedRow());
+}
+
+TEST_F(TUnversionedRowMergerTest, Delete1)
+{
+    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+
+    merger.DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
+
+    EXPECT_EQ(
+        BuildUnversionedRow("<id=0> 0"),
+        merger.BuildMergedRow());
+}
+
+TEST_F(TUnversionedRowMergerTest, Delete2)
+{
+    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+
+    merger.DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""));
+
+    EXPECT_EQ(
+        BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""),
+        merger.BuildMergedRow());
+}
+
+TEST_F(TUnversionedRowMergerTest, Delete3)
+{
+    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+
+    merger.DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""));
+    merger.DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
+
+    EXPECT_EQ(
+        BuildUnversionedRow("<id=0> 0"),
+        merger.BuildMergedRow());
+}
+
+TEST_F(TUnversionedRowMergerTest, Delete4)
+{
+    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+
+    merger.DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""));
+    merger.DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.15"));
+
+    EXPECT_EQ(
+        BuildUnversionedRow("<id=0> 0; <id=1> #; <id=2> 3.15; <id=3> #"),
+        merger.BuildMergedRow());
+}
+
+TEST_F(TUnversionedRowMergerTest, Filter1)
+{
+    TColumnFilter filter { 0 };
+    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, filter);
+
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.14"));
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3> \"test\""));
+
+    EXPECT_EQ(
+        BuildUnversionedRow("<id=0> 0"),
+        merger.BuildMergedRow());
+}
+
+TEST_F(TUnversionedRowMergerTest, Filter2)
+{
+    TColumnFilter filter { 1, 2 };
+    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, filter);
+
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.14"));
+    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=1> 2; <id=2> 3.14"),

@@ -13,40 +13,6 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetAuthenticatedUser(TRequestHeader* header, const Stroka& user)
-{
-    auto* ext = header->MutableExtension(TAuthenticatedExt::authenticated_ext);
-    ext->set_user(user);
-}
-
-void SetAuthenticatedUser(IClientRequestPtr request, const Stroka& user)
-{
-    SetAuthenticatedUser(&request->Header(), user);
-}
-
-TNullable<Stroka> FindAuthenticatedUser(const TRequestHeader& header)
-{
-    return header.HasExtension(TAuthenticatedExt::authenticated_ext)
-        ? TNullable<Stroka>(header.GetExtension(TAuthenticatedExt::authenticated_ext).user())
-        : Null;
-}
-
-TNullable<Stroka> FindAuthenticatedUser(IServiceContextPtr context)
-{
-    return FindAuthenticatedUser(context->RequestHeader());
-}
-
-Stroka GetAuthenticatedUserOrThrow(IServiceContextPtr context)
-{
-    auto user = FindAuthenticatedUser(context);
-    if (!user) {
-        THROW_ERROR_EXCEPTION("Must specify an authenticated user in request header");
-    }
-    return user.Get();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TAuthenticatedChannel
     : public TChannelWrapper
 {
@@ -62,7 +28,7 @@ public:
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
-        SetAuthenticatedUser(request, User_);
+        request->SetUser(User_);
         return UnderlyingChannel_->Send(
             request,
             responseHandler,
@@ -71,7 +37,7 @@ public:
     }
 
 private:
-    Stroka User_;
+    const Stroka User_;
 
 };
 
@@ -102,8 +68,8 @@ public:
     }
 
 private:
-    IChannelFactoryPtr UnderlyingFactory_;
-    Stroka User_;
+    const IChannelFactoryPtr UnderlyingFactory_;
+    const Stroka User_;
 
 };
 
@@ -142,7 +108,7 @@ public:
     }
 
 private:
-    TRealmId RealmId_;
+    const TRealmId RealmId_;
 
 };
 
@@ -173,8 +139,8 @@ public:
     }
 
 private:
-    IChannelFactoryPtr UnderlyingFactory_;
-    TRealmId RealmId_;
+    const IChannelFactoryPtr UnderlyingFactory_;
+    const TRealmId RealmId_;
 
 };
 

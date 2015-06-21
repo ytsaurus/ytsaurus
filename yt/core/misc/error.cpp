@@ -61,6 +61,7 @@ TError::TErrorOr(const std::exception& ex)
     } else {
         Code_ = NYT::EErrorCode::Generic;
         Message_ = ex.what();
+        CaptureOriginAttributes();
     }
 }
 
@@ -347,40 +348,42 @@ Stroka ToString(const TError& error)
 
 void ToProto(NYT::NProto::TError* protoError, const TError& error)
 {
-    protoError->set_code(error.GetCode());
+    protoError->set_code(error.Code_);
 
-    if (!error.GetMessage().empty()) {
+    if (!error.Message_.empty()) {
         protoError->set_message(error.GetMessage());
     } else {
         protoError->clear_message();
     }
 
-    if (!error.Attributes().List().empty()) {
-        ToProto(protoError->mutable_attributes(), error.Attributes());
+    if (error.Attributes_) {
+        ToProto(protoError->mutable_attributes(), *error.Attributes_);
     } else {
         protoError->clear_attributes();
     }
 
     protoError->clear_inner_errors();
-    for (const auto& innerError : error.InnerErrors()) {
+    for (const auto& innerError : error.InnerErrors_) {
         ToProto(protoError->add_inner_errors(), innerError);
     }
 }
 
 void FromProto(TError* error, const NYT::NProto::TError& protoError)
 {
-    *error = TError(
-        protoError.code(),
-        protoError.has_message() ? protoError.message() : "");
-
+    error->Code_ = protoError.code();
+    error->Message_ = protoError.has_message() ? protoError.message() : Stroka();
     if (protoError.has_attributes()) {
-        error->Attributes().MergeFrom(*FromProto(protoError.attributes()));
+        error->Attributes_ = FromProto(protoError.attributes());
+    } else {
+        error->Attributes_.reset();
     }
-
-    error->InnerErrors() = FromProto<TError>(protoError.inner_errors());
+    error->InnerErrors_ = FromProto<TError>(protoError.inner_errors());
 }
 
-void Serialize(const TError& error, NYson::IYsonConsumer* consumer, const std::function<void(NYson::IYsonConsumer*)>* valueProducer)
+void Serialize(
+    const TError& error,
+    IYsonConsumer* consumer,
+    const std::function<void(IYsonConsumer*)>* valueProducer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -408,22 +411,16 @@ void Deserialize(TError& error, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
 
-    error = TError(
-        mapNode->GetChild("code")->GetValue<i64>(),
-        mapNode->GetChild("message")->GetValue<Stroka>());
+    error.Code_ = mapNode->GetChild("code")->GetValue<i64>();
+    error.Message_ = mapNode->GetChild("message")->GetValue<Stroka>();
+    error.Attributes_ = IAttributeDictionary::FromMap(mapNode->GetChild("attributes")->AsMap());
 
-    error.Attributes().Clear();
-    auto attributesNode = mapNode->FindChild("attributes");
-    if (attributesNode) {
-        error.Attributes().MergeFrom(attributesNode->AsMap());
-    }
-
-    error.InnerErrors().clear();
+    error.InnerErrors_.clear();
     auto innerErrorsNode = mapNode->FindChild("inner_errors");
     if (innerErrorsNode) {
-        for (auto innerErrorNode : innerErrorsNode->AsList()->GetChildren()) {
+        for (const auto& innerErrorNode : innerErrorsNode->AsList()->GetChildren()) {
             auto innerError = ConvertTo<TError>(innerErrorNode);
-            error.InnerErrors().push_back(innerError);
+            error.InnerErrors_.push_back(innerError);
         }
     }
 }

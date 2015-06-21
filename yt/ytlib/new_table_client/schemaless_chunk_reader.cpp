@@ -7,6 +7,7 @@
 #include "legacy_table_chunk_reader.h"
 #include "name_table.h"
 #include "private.h"
+#include "row_sampler.h"
 #include "schema.h"
 #include "schemaless_block_reader.h"
 #include "table_ypath_proxy.h"
@@ -109,6 +110,8 @@ private:
     TChunkMeta ChunkMeta_;
     TBlockMetaExt BlockMetaExt_;
 
+    std::unique_ptr<IRowSampler> RowSampler_;
+
     virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
 
     virtual void InitFirstBlock() override;
@@ -157,12 +160,19 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     , PartitionTag_(partitionTag)
     , ChunkMeta_(masterMeta)
 {
+    if (Config_->SamplingRate) {
+        RowSampler_ = CreateChunkRowSampler(
+            UnderlyingReader_->GetChunkId(),
+            Config_->SamplingRate.Get(),
+            Config_->SamplingSeed.Get(std::random_device()()));
+    }
+
     LOG_DEBUG("LowerLimit: %v, UpperLimit: %v",
         LowerLimit_,
         UpperLimit_);
 }
 
-std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequence() 
+std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequence()
 {
     YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
 
@@ -354,10 +364,12 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
             return !rows->empty();
         }
 
-        ++RowCount_;
         ++CurrentRowIndex_;
-        rows->push_back(BlockReader_->GetRow(&MemoryPool_));
-        
+        if (!RowSampler_ || RowSampler_->ShouldTakeRow(GetTableRowIndex())) {
+            rows->push_back(BlockReader_->GetRow(&MemoryPool_));
+            ++RowCount_;
+        }
+
         if (!BlockReader_->NextRow()) {
             BlockEnded_ = true;
             return true;
@@ -412,14 +424,14 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     switch (formatVersion) {
         case ETableChunkFormat::SchemalessHorizontal:
             return New<TSchemalessChunkReader>(
-                config, 
-                underlyingReader, 
+                config,
+                underlyingReader,
                 nameTable,
                 blockCache,
-                keyColumns, 
-                masterMeta, 
-                lowerLimit, 
-                upperLimit, 
+                keyColumns,
+                masterMeta,
+                lowerLimit,
+                upperLimit,
                 columnFilter,
                 tableRowIndex,
                 rangeIndex,
@@ -564,11 +576,11 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
         : TChannel::Universal();
 
     return CreateSchemalessChunkReader(
-        Config_, 
-        asyncReader, 
+        Config_,
+        asyncReader,
         NameTable_,
         BlockCache_,
-        KeyColumns_, 
+        KeyColumns_,
         chunkSpec.chunk_meta(),
         chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
         chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit(),
