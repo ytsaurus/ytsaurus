@@ -8,7 +8,6 @@
 #include "dispatcher.h"
 #include "replication_reader.h"
 
-#include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/scheduler.h>
 
 #include <core/erasure/codec.h>
@@ -89,7 +88,6 @@ public:
         }
 
         std::vector<TFuture<std::vector<TSharedRef>>> readBlocksFutures;
-        auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetReaderInvoker());
         for (int readerIndex = 0; readerIndex < Readers_.size(); ++readerIndex) {
             auto reader = Readers_[readerIndex];
             readBlocksFutures.push_back(reader->ReadBlocks(blockLocations[readerIndex].first));
