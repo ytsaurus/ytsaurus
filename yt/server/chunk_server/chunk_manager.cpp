@@ -183,6 +183,7 @@ protected:
 
     virtual void DoResetObject(TChunk* chunk) override
     {
+        TObjectTypeHandlerWithMapBase::DoResetObject(chunk);
         chunk->SetRefreshScheduled(false);
         chunk->SetPropertiesUpdateScheduled(false);
         chunk->SetSealScheduled(false);
@@ -1564,13 +1565,15 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
 
 void TChunkManager::TChunkTypeHandlerBase::DoDestroyObject(TChunk* chunk)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunk);
     Owner_->DestroyChunk(chunk);
 }
 
 void TChunkManager::TChunkTypeHandlerBase::DoUnstageObject(
     TChunk* chunk,
-    bool /*recursive*/)
+    bool recursive)
 {
+    TObjectTypeHandlerWithMapBase::DoUnstageObject(chunk, recursive);
     Owner_->UnstageChunk(chunk);
 }
 
@@ -1603,6 +1606,7 @@ TObjectBase* TChunkManager::TChunkListTypeHandler::CreateObject(
 
 void TChunkManager::TChunkListTypeHandler::DoDestroyObject(TChunkList* chunkList)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunkList);
     Owner_->DestroyChunkList(chunkList);
 }
 
@@ -1610,6 +1614,7 @@ void TChunkManager::TChunkListTypeHandler::DoUnstageObject(
     TChunkList* chunkList,
     bool recursive)
 {
+    TObjectTypeHandlerWithMapBase::DoUnstageObject(chunkList, recursive);
     Owner_->UnstageChunkList(chunkList, recursive);
 }
 

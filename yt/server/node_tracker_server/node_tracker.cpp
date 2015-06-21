@@ -1327,6 +1327,7 @@ IObjectProxyPtr TNodeTracker::TRackTypeHandler::DoGetProxy(
 
 void TNodeTracker::TRackTypeHandler::DoDestroyObject(TRack* rack)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(rack);
     Owner_->DestroyRack(rack);
 }
 

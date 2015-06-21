@@ -1514,6 +1514,7 @@ IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(
 
 void TSecurityManager::TAccountTypeHandler::DoDestroyObject(TAccount* account)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(account);
     Owner_->DestroyAccount(account);
 }
 
@@ -1546,6 +1547,7 @@ IObjectProxyPtr TSecurityManager::TUserTypeHandler::DoGetProxy(
 
 void TSecurityManager::TUserTypeHandler::DoDestroyObject(TUser* user)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(user);
     Owner_->DestroyUser(user);
 }
 
@@ -1578,6 +1580,7 @@ IObjectProxyPtr TSecurityManager::TGroupTypeHandler::DoGetProxy(
 
 void TSecurityManager::TGroupTypeHandler::DoDestroyObject(TGroup* group)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(group);
     Owner_->DestroyGroup(group);
 }
 
