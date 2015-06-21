@@ -985,7 +985,7 @@ print row + table_index
 
         count = 1000
         original_data = [{"index": i} for i in xrange(count)]
-        write("//tmp/t1", original_data)
+        write_table("//tmp/t1", original_data)
 
         command = "cat"
         sampling_rate = 0.5
