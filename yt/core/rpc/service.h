@@ -61,6 +61,9 @@ struct IServiceContext
     //! Returns request realm id.
     virtual const TRealmId& GetRealmId() const = 0;
 
+    //! Returns the name of the user issuing the request.
+    virtual const Stroka& GetUser() const = 0;
+
     //! Returns |true| if the request if one-way, i.e. replying to it is not possible.
     virtual bool IsOneWay() const = 0;
 

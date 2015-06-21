@@ -113,7 +113,7 @@ void TPartitionChunkReader::InitNameTable(TNameTablePtr chunkNameTable)
     IdMapping_.resize(chunkNameTable->GetSize());
 
     for (int chunkNameId = 0; chunkNameId < chunkNameTable->GetSize(); ++chunkNameId) {
-        auto& name = chunkNameTable->GetName(chunkNameId);
+        auto name = chunkNameTable->GetName(chunkNameId);
         auto id = NameTable_->GetIdOrRegisterName(name);
         IdMapping_[chunkNameId] = id;
     }

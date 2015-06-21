@@ -81,7 +81,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next)
         return void epilogue(config.guest_login, config.guest_realm);
     }
 
-    return result.then(
+    return void result.then(
     function(result) {
         if (result.isAuthenticated) {
             return void epilogue(result.login, result.realm);
@@ -97,7 +97,8 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next)
             error: error.toJson()
         });
         return void utils.dispatchLater(rsp, 60);
-    });
+    })
+    .done();
 };
 
 

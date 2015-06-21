@@ -40,6 +40,39 @@ typedef TIntrusivePtr<TFairShareStrategyConfig> TFairShareStrategyConfigPtr;
 class TEventLogConfig;
 typedef TIntrusivePtr<TEventLogConfig> TEventLogConfigPtr;
 
+class TMapOperationOptions;
+typedef TIntrusivePtr<TMapOperationOptions> TMapOperationOptionsPtr;
+
+class TReduceOperationOptions;
+typedef TIntrusivePtr<TReduceOperationOptions> TReduceOperationOptionsPtr;
+
+class TMergeOperationOptions;
+typedef TIntrusivePtr<TMergeOperationOptions> TMergeOperationOptionsPtr;
+
+class TEraseOperationOptions;
+typedef TIntrusivePtr<TEraseOperationOptions> TEraseOperationOptionsPtr;
+
+class TOrderedMergeOperationOptions;
+typedef TIntrusivePtr<TOrderedMergeOperationOptions> TOrderedMergeOperationOptionsPtr;
+
+class TUnorderedMergeOperationOptions;
+typedef TIntrusivePtr<TUnorderedMergeOperationOptions> TUnorderedMergeOperationOptionsPtr;
+
+class TSortedMergeOperationOptions;
+typedef TIntrusivePtr<TSortedMergeOperationOptions> TSortedMergeOperationOptionsPtr;
+
+class TSortOperationOptionsBase;
+typedef TIntrusivePtr<TSortOperationOptionsBase> TSortOperationOptionsBasePtr;
+
+class TMapReduceOperationOptions;
+typedef TIntrusivePtr<TMapReduceOperationOptions> TMapReduceOperationOptionsPtr;
+
+class TSortOperationOptions;
+typedef TIntrusivePtr<TSortOperationOptions> TSortOperationOptionsPtr;
+
+class TRemoteCopyOperationOptions;
+typedef TIntrusivePtr<TRemoteCopyOperationOptions> TRemoteCopyOperationOptionsPtr;
+
 class TSchedulerConfig;
 typedef TIntrusivePtr<TSchedulerConfig> TSchedulerConfigPtr;
 

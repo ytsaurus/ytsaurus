@@ -62,7 +62,8 @@ TChannel MakeChannel(const TColumnFilter& columnFilter, TNameTablePtr nameTable)
 
     TChannel channel = TChannel::Empty();
     for (auto index : columnFilter.Indexes) {
-        channel.AddColumn(nameTable->GetName(index));
+        auto name = ToString(nameTable->GetName(index));
+        channel.AddColumn(name);
     }
     return channel;
 }
@@ -512,6 +513,13 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
         }
     }
 
+    if (config->SamplingRate) {
+        RowSampler_ = CreateChunkRowSampler(
+            underlyingReader->GetChunkId(),
+            config->SamplingRate.Get(),
+            config->SamplingSeed.Get(std::random_device()()));
+    }
+
     Initializer_ = New<TInitializer>(
         config,
         this,
@@ -558,10 +566,12 @@ bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
     }
 
     while (rows->size() < rows->capacity()) {
-        auto row = TUnversionedRow::Allocate(&MemoryPool_, CurrentRow_.size());
-        std::copy(CurrentRow_.begin(), CurrentRow_.end(), row.Begin());
-        rows->push_back(row);
-        ++RowCount_;
+        if (!RowSampler_ || RowSampler_->ShouldTakeRow(GetTableRowIndex())) {
+            auto row = TUnversionedRow::Allocate(&MemoryPool_, CurrentRow_.size());
+            std::copy(CurrentRow_.begin(), CurrentRow_.end(), row.Begin());
+            rows->push_back(row);
+            ++RowCount_;
+        }
 
         if (!FetchNextRow() || CurrentRow_.empty()) {
             return true;

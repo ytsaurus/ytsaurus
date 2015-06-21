@@ -206,7 +206,7 @@ public:
         const Stroka& fileName,
         TFileChangelogConfigPtr config)
         : FileName_(fileName)
-        , IndexFileName_(fileName + ChangelogIndexSuffix)
+        , IndexFileName_(fileName + "." + ChangelogIndexExtension)
         , Config_(config)
         , Logger(HydraLogger)
     {
@@ -253,22 +253,16 @@ public:
         SerializedMeta_ = serializedMeta;
 
         Open_ = true;
-        SealedRecordCount_ = header.SealedRecordCount;
-        Sealed_ = (SealedRecordCount_ != TChangelogHeader::UnsealedRecordCount);
+        TruncatedRecordCount_ = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
+            ? Null
+            : MakeNullable(header.TruncatedRecordCount);
 
         ReadIndex(header);
         ReadChangelogUntilEnd(header);
 
-        if (Sealed_ && SealedRecordCount_ != RecordCount_) {
-            THROW_ERROR_EXCEPTION(
-                "Sealed record count does not match total record count: %v != %v",
-                RecordCount_,
-                SealedRecordCount_);
-        }
-
-        LOG_DEBUG("Changelog opened (RecordCount: %v, Sealed: %v)",
+        LOG_DEBUG("Changelog opened (RecordCount: %v, Truncated: %v)",
             RecordCount_,
-            Sealed_);
+            TruncatedRecordCount_.HasValue());
     }
 
     void Close()
@@ -280,10 +274,10 @@ public:
         if (!Open_)
             return;
 
-        DataFile_->Flush();
+        DataFile_->FlushData();
         DataFile_->Close();
 
-        IndexFile_->Flush();
+        IndexFile_->FlushData() ;
         IndexFile_->Close();
 
         LOG_DEBUG("Changelog closed");
@@ -314,7 +308,7 @@ public:
 
             TChangelogHeader header(
                 SerializedMeta_.Size(),
-                TChangelogHeader::UnsealedRecordCount);
+                TChangelogHeader::NotTruncatedRecordCount);
             WritePod(tempFile, header);
 
             WritePadded(tempFile, SerializedMeta_);
@@ -322,7 +316,7 @@ public:
             currentFilePosition = tempFile.GetPosition();
             YCHECK(currentFilePosition == header.HeaderSize);
 
-            tempFile.Flush();
+            tempFile.FlushData();
             tempFile.Close();
 
             NFS::Replace(tempFileName, FileName_);
@@ -366,14 +360,6 @@ public:
         return CurrentFilePosition_;
     }
 
-    bool IsSealed() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        std::lock_guard<std::mutex> guard(Mutex_);
-        return Sealed_;
-    }
-
     TInstant GetLastFlushed()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -391,11 +377,12 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
-        LOG_DEBUG("Appending %v records to changelog",
-            records.size());
+        LOG_DEBUG("Appending to changelog (RecordIds: %v-%v)",
+            firstRecordId,
+            firstRecordId + records.size() - 1);
 
         YCHECK(Open_);
-        YCHECK(!Sealed_);
+        YCHECK(!TruncatedRecordCount_);
         YCHECK(firstRecordId == RecordCount_);
 
         // Write records to one blob in memory.
@@ -453,10 +440,10 @@ public:
         YCHECK(maxRecords >= 0);
         YCHECK(Open_);
 
-        LOG_DEBUG("Reading up to %v records and up to %v bytes from record %v",
+        LOG_DEBUG("Reading changelog (FirstRecordId: %v, MaxRecords: %v, MaxBytes: %v)",
+            firstRecordId,
             maxRecords,
-            maxBytes,
-            firstRecordId);
+            maxBytes);
 
         std::vector<TSharedRef> records;
 
@@ -499,84 +486,23 @@ public:
         return records;
     }
 
-    void Seal(int recordCount)
+    void Truncate(int recordCount)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
         YCHECK(Open_);
-        YCHECK(!Sealed_);
         YCHECK(recordCount >= 0);
-
-        LOG_DEBUG("Sealing changelog with %v records", recordCount);
-
-        auto oldRecordCount = RecordCount_;
+        YCHECK(!TruncatedRecordCount_ || recordCount <= *TruncatedRecordCount_);
 
         RecordCount_ = recordCount;
-        SealedRecordCount_ = recordCount;
-        Sealed_ = true;
+        TruncatedRecordCount_ = recordCount;
 
         UpdateLogHeader();
 
-        if (oldRecordCount != recordCount) {
-            auto envelope = ReadEnvelope(recordCount, recordCount);
-            if (recordCount == 0) {
-                Index_.clear();
-            } else {
-                auto cutBound =
-                    envelope.LowerBound.RecordId == recordCount
-                        ? envelope.LowerBound
-                        : envelope.UpperBound;
-                auto indexPosition =
-                    std::lower_bound(Index_.begin(), Index_.end(), cutBound, CompareRecordIds) -
-                    Index_.begin();
-                Index_.resize(indexPosition);
-            }
-
-            i64 readSize = 0;
-            TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
-            for (int index = envelope.GetStartRecordId(); index < recordCount; ++index) {
-                TChangelogRecordHeader header;
-                readSize += ReadPodPadded(inputStream, header);
-                auto alignedSize = AlignUp(header.DataSize);
-                inputStream.Skip(alignedSize);
-                readSize += alignedSize;
-            }
-
-            CurrentBlockSize_ = readSize;
-            CurrentFilePosition_ = envelope.GetStartPosition() + readSize;
-
-            UpdateIndexHeader();
-            IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
-            IndexFile_->Flush();
-            IndexFile_->Seek(0, sEnd);
-
-            DataFile_->Resize(CurrentFilePosition_);
-            DataFile_->Flush();
-            DataFile_->Seek(0, sEnd);
-        }
-
-        LOG_DEBUG("Changelog sealed");
-    }
-
-    void Unseal()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        std::lock_guard<std::mutex> guard(Mutex_);
-
-        YCHECK(Open_);
-        YCHECK(Sealed_);
-
-        LOG_DEBUG("Unsealing changelog");
-
-        SealedRecordCount_ = TChangelogHeader::UnsealedRecordCount;
-        Sealed_ = false;
-
-        UpdateLogHeader();
-
-        LOG_DEBUG("Changelog unsealed");
+        LOG_DEBUG("Changelog truncated to (RecordCount: %v)",
+            recordCount);
     }
 
 private:
@@ -617,7 +543,7 @@ private:
         TChangelogIndexHeader header(0);
         WritePod(tempFile, header);
 
-        tempFile.Flush();
+        tempFile.FlushData();
         tempFile.Close();
 
         NFS::Replace(tempFileName, IndexFileName_);
@@ -660,19 +586,21 @@ private:
     //! Rewrites changelog header.
     void UpdateLogHeader()
     {
-        DataFile_->Flush();
+        DataFile_->FlushData();
         i64 oldPosition = DataFile_->GetPosition();
         DataFile_->Seek(0, sSet);
-        TChangelogHeader header(SerializedMeta_.Size(), SealedRecordCount_);
+        TChangelogHeader header(
+            SerializedMeta_.Size(),
+            TruncatedRecordCount_ ? *TruncatedRecordCount_ : TChangelogHeader::NotTruncatedRecordCount);
         WritePod(*DataFile_, header);
-        DataFile_->Flush();
+        DataFile_->FlushData();
         DataFile_->Seek(oldPosition, sSet);
     }
 
     //! Rewrites index header.
     void UpdateIndexHeader()
     {
-        IndexFile_->Flush();
+        IndexFile_->FlushData();
         i64 oldPosition = IndexFile_->GetPosition();
         IndexFile_->Seek(0, sSet);
         TChangelogIndexHeader header(Index_.size());
@@ -708,7 +636,7 @@ private:
 
                 TChangelogIndexRecord indexRecord;
                 ReadPod(indexStream, indexRecord);
-                if (Sealed_ && indexRecord.RecordId >= SealedRecordCount_) {
+                if (TruncatedRecordCount_ && indexRecord.RecordId >= *TruncatedRecordCount_) {
                     break;
                 }
                 Index_.push_back(indexRecord);
@@ -787,39 +715,34 @@ private:
 
         while (CurrentFilePosition_ < fileLength) {
             auto recordInfoOrError = TryReadRecord(dataReader);
-
-            bool trim = false;
             if (!recordInfoOrError.IsOK()) {
-                LOG_WARNING(recordInfoOrError, "Error reading changelog record (RecordId: %v, Offset: %v)",
-                    RecordCount_,
-                    CurrentFilePosition_);
-                trim = true;
-            } else if (recordInfoOrError.Value().Id != RecordCount_) {
-                THROW_ERROR_EXCEPTION("Mismatched record id found in sealed changelog %v",
-                    FileName_)
-                    << TErrorAttribute("expected_record_id", RecordCount_)
-                    << TErrorAttribute("actual_record_id", recordInfoOrError.Value().Id)
-                    << TErrorAttribute("offset", CurrentFilePosition_);
-            } else if (RecordCount_ == SealedRecordCount_) {
-                LOG_WARNING("Excessive records found in sealed changelog (RecordId: %v, Offset: %v)",
-                    RecordCount_,
-                    CurrentFilePosition_);
-                trim = true;
-            }
-
-            if (trim) {
-                if (Sealed_ && RecordCount_ < SealedRecordCount_) {
-                    THROW_ERROR_EXCEPTION("Broken record found in sealed changelog %v",
+                if (TruncatedRecordCount_ && RecordCount_ < *TruncatedRecordCount_) {
+                    THROW_ERROR_EXCEPTION("Broken record found in truncated changelog %v",
                         FileName_)
                         << TErrorAttribute("record_id", RecordCount_)
                         << TErrorAttribute("offset", CurrentFilePosition_);
                 }
+
                 DataFile_->Resize(CurrentFilePosition_);
-                DataFile_->Flush();
+                DataFile_->FlushData();
                 DataFile_->Seek(0, sEnd);
-                LOG_WARNING("Changelog trimmed (RecordId: %v, Offset: %v)",
+
+                LOG_WARNING(recordInfoOrError, "Broken record found in changelog, trimmed (RecordId: %v, Offset: %v)",
                     RecordCount_,
                     CurrentFilePosition_);
+                break;
+            }
+
+            const auto& recordInfo = recordInfoOrError.Value();
+            if (recordInfo.Id != RecordCount_) {
+                THROW_ERROR_EXCEPTION("Mismatched record id found in changelog %v",
+                    FileName_)
+                    << TErrorAttribute("expected_record_id", RecordCount_)
+                    << TErrorAttribute("actual_record_id", recordInfoOrError.Value().Id)
+                    << TErrorAttribute("offset", CurrentFilePosition_);
+            }
+
+            if (TruncatedRecordCount_ && RecordCount_ == *TruncatedRecordCount_) {
                 break;
             }
 
@@ -833,9 +756,8 @@ private:
     const TFileChangelogConfigPtr Config_;
 
     bool Open_ = false;
-    bool Sealed_ = false;
     int RecordCount_ = -1;
-    int SealedRecordCount_ = TChangelogHeader::UnsealedRecordCount;
+    TNullable<int> TruncatedRecordCount_;
     i64 CurrentBlockSize_ = -1;
     i64 CurrentFilePosition_ = -1;
     TInstant LastFlushed_;
@@ -908,11 +830,6 @@ const TChangelogMeta& TSyncFileChangelog::GetMeta() const
     return Impl_->GetMeta();
 }
 
-bool TSyncFileChangelog::IsSealed() const
-{
-    return Impl_->IsSealed();
-}
-
 void TSyncFileChangelog::Append(
     int firstRecordId,
     const std::vector<TSharedRef>& records)
@@ -938,14 +855,9 @@ std::vector<TSharedRef> TSyncFileChangelog::Read(
     return Impl_->Read(firstRecordId, maxRecords, maxBytes);
 }
 
-void TSyncFileChangelog::Seal(int recordCount)
+void TSyncFileChangelog::Truncate(int recordCount)
 {
-    Impl_->Seal(recordCount);
-}
-
-void TSyncFileChangelog::Unseal()
-{
-    Impl_->Unseal();
+    Impl_->Truncate(recordCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

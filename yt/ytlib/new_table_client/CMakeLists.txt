@@ -18,6 +18,8 @@ set( SRCS
   ${BASE}/public.cpp
   ${BASE}/row_base.cpp
   ${BASE}/row_buffer.cpp
+  ${BASE}/row_sampler.cpp
+  ${BASE}/row_merger.cpp
   ${BASE}/samples_fetcher.cpp
   ${BASE}/schema.cpp
   ${BASE}/schemaful_block_reader.cpp
@@ -67,6 +69,8 @@ set( HDRS
   ${BASE}/reader.h
   ${BASE}/row_base.h
   ${BASE}/row_buffer.h
+  ${BASE}/row_sampler.h
+  ${BASE}/row_merger.h
   ${BASE}/samples_fetcher.h
   ${BASE}/schema.h
   ${BASE}/schemaful_block_reader.h

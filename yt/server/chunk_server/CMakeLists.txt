@@ -26,6 +26,7 @@ set( SRCS
 
 set( HDRS
   ${BASE}/chunk.h
+  ${BASE}/chunk-inl.h
   ${BASE}/chunk_list.h
   ${BASE}/chunk_list_proxy.h
   ${BASE}/chunk_manager.h

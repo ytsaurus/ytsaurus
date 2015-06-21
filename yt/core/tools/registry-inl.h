@@ -1,7 +1,6 @@
 #ifndef REGISTRY_INL_H_
 #error "Direct inclusion of this file is not allowed, include registry.h"
 #endif
-#undef REGISTRY_INL_H_
 
 #include <core/ytree/convert.h>
 

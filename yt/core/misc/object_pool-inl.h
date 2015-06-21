@@ -1,7 +1,6 @@
 #ifndef OBJECT_POOL_INL_H_
 #error "Direct inclusion of this file is not allowed, include object_pool.h"
 #endif
-#undef OBJECT_POOL_INL_H_
 
 #include "mpl.h"
 #include "ref_counted_tracker.h"

@@ -156,20 +156,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TReshardTableRequest
-    : public TRequest
+    : public TTabletRequest
 {
-    NYPath::TRichYPath Path;
-    TNullable<int> FirstTabletIndex;
-    TNullable<int> LastTabletIndex;
     std::vector<NVersionedTableClient::TOwningKey> PivotKeys;
 
     TReshardTableRequest()
     {
-        RegisterParameter("path", Path);
-        RegisterParameter("first_tablet_index", FirstTabletIndex)
-            .Default();
-        RegisterParameter("last_tablet_index", LastTabletIndex)
-            .Default();
         RegisterParameter("pivot_keys", PivotKeys);
     }
 };

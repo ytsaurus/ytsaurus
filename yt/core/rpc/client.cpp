@@ -123,6 +123,22 @@ void TClientRequest::SetStartTime(TInstant value)
     Header_.set_request_start_time(value.MicroSeconds());
 }
 
+const Stroka& TClientRequest::GetUser() const
+{
+    return Header_.has_user()
+        ? Header_.user()
+        : RootUserName;
+}
+
+void TClientRequest::SetUser(const Stroka& user)
+{
+    if (user == RootUserName) {
+        Header_.clear_user();
+    } else {
+        Header_.set_user(user);
+    }
+}
+
 bool TClientRequest::GetRetry() const
 {
     return Header_.retry();

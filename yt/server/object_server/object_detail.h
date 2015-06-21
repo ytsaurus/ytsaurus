@@ -28,7 +28,6 @@ namespace NObjectServer {
 
 class TObjectProxyBase
     : public virtual NYTree::TSupportsAttributes
-    , public virtual NYTree::ISystemAttributeProvider
     , public virtual IObjectProxy
 {
 public:
@@ -72,7 +71,7 @@ protected:
 
     // NYTree::TSupportsAttributes members
     virtual NYTree::IAttributeDictionary* GetCustomAttributes() override;
-    virtual ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
+    virtual NYTree::ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
     virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateCustomAttributes();
 

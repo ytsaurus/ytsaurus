@@ -167,6 +167,12 @@ public:
 
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
+
+        LoggingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::OnLogging, MakeWeak(this)),
+            Config_->ClusterInfoLoggingPeriod);
+        LoggingExecutor_->Start();
     }
 
     ISchedulerStrategy* GetStrategy()
@@ -750,6 +756,8 @@ private:
     TNodeResources TotalResourceLimits_;
     TNodeResources TotalResourceUsage_;
 
+    TPeriodicExecutorPtr LoggingExecutor_;
+
     Stroka ServiceAddress_;
 
     ISchemalessWriterPtr EventLogWriter_;
@@ -778,6 +786,19 @@ private:
 
         ProfileResources(TotalResourceLimitsProfiler_, TotalResourceLimits_);
         ProfileResources(TotalResourceUsageProfiler_, TotalResourceUsage_);
+    }
+
+
+    void OnLogging()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (IsConnected()) {
+            LogEventFluently(ELogEventType::ClusterInfo)
+                .Item("node_count").Value(GetExecNodeCount())
+                .Item("resource_limits").Value(TotalResourceLimits_)
+                .Item("resource_usage").Value(TotalResourceUsage_);
+        }
     }
 
 
@@ -1597,27 +1618,35 @@ private:
         auto jobFailed = job->GetState() == EJobState::Failed;
         const auto& schedulerResultExt = job->Result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-        std::vector<TChunkId> failContexts;
-        for (const auto& item : schedulerResultExt.fail_context_chunk_ids()) {
-            failContexts.push_back(FromProto<TGuid>(item));
+        auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id() 
+            ? FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id())
+            : NullChunkId;
+
+        auto failContextChunkId = schedulerResultExt.has_fail_context_chunk_id()
+            ? FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id())
+            : NullChunkId;
+
+        auto operation = job->GetOperation();
+        if (jobFailed) {
+            if (stderrChunkId != NullChunkId) {
+                operation->SetStderrCount(operation->GetStderrCount() + 1);
+            }
+            MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
+            return;
         }
 
-        if (schedulerResultExt.has_stderr_chunk_id()) {
-            auto operation = job->GetOperation();
-            auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
+        YCHECK(failContextChunkId == NullChunkId);
+        if (stderrChunkId == NullChunkId) {
+            // Do not create job node.
+            return;
+        }
 
-            if (jobFailed || operation->GetStderrCount() < operation->GetMaxStderrCount()) {
-                if (jobFailed) {
-                    MasterConnector_->CreateJobNode(job, stderrChunkId, failContexts);
-                } else {
-                    MasterConnector_->CreateJobNode(job, stderrChunkId, std::vector<TChunkId>());
-                }
-                operation->SetStderrCount(operation->GetStderrCount() + 1);
-            } else {
-                ReleaseStderrChunk(job, stderrChunkId);
-            }
-        } else if (jobFailed) {
-            MasterConnector_->CreateJobNode(job, NullChunkId, failContexts);
+        // Job has not failed, but has stderr.
+        if (operation->GetStderrCount() < operation->GetMaxStderrCount()) {
+            MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
+            operation->SetStderrCount(operation->GetStderrCount() + 1);
+        } else {
+            ReleaseStderrChunk(job, stderrChunkId);
         }
     }
 
@@ -1678,33 +1707,33 @@ private:
     {
         switch (type) {
             case EOperationType::Map:
-                return Config_->MapOperationSpec;
+                return Config_->MapOperationOptions->SpecTemplate;
             case EOperationType::Merge: {
                 auto mergeSpec = ParseOperationSpec<TMergeOperationSpec>(spec);
                 switch (mergeSpec->Mode) {
                     case EMergeMode::Unordered: {
-                        return Config_->UnorderedMergeOperationSpec;
+                        return Config_->UnorderedMergeOperationOptions->SpecTemplate;
                     }
                     case EMergeMode::Ordered: {
-                        return Config_->OrderedMergeOperationSpec;
+                        return Config_->OrderedMergeOperationOptions->SpecTemplate;
                     }
                     case EMergeMode::Sorted: {
-                        return Config_->SortedMergeOperationSpec;
+                        return Config_->SortedMergeOperationOptions->SpecTemplate;
                     }
                     default:
                         YUNREACHABLE();
                 }
             }
             case EOperationType::Erase:
-                return Config_->EraseOperationSpec;
+                return Config_->EraseOperationOptions->SpecTemplate;
             case EOperationType::Sort:
-                return Config_->SortOperationSpec;
+                return Config_->SortOperationOptions->SpecTemplate;
             case EOperationType::Reduce:
-                return Config_->ReduceOperationSpec;
+                return Config_->ReduceOperationOptions->SpecTemplate;
             case EOperationType::MapReduce:
-                return Config_->MapReduceOperationSpec;
+                return Config_->MapReduceOperationOptions->SpecTemplate;
             case EOperationType::RemoteCopy:
-                return Config_->RemoteCopyOperationSpec;
+                return Config_->RemoteCopyOperationOptions->SpecTemplate;
             default:
                 YUNREACHABLE();
         }

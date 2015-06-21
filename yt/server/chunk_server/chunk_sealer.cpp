@@ -61,13 +61,8 @@ public:
         , Bootstrap_(bootstrap)
         , Semaphore_(Config_->MaxConcurrentChunkSeals)
     {
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        for (const auto& pair : chunkManager->Chunks()) {
-            auto* chunk = pair.second;
-            if (chunk->IsAlive() && chunk->IsJournal()) {
-                MaybeScheduleSeal(chunk);
-            }
-        }
+        YCHECK(Config_);
+        YCHECK(Bootstrap_);
     }
 
     void Start()
@@ -88,7 +83,7 @@ public:
         }
     }
 
-    void MaybeScheduleSeal(TChunk* chunk)
+    void ScheduleSeal(TChunk* chunk)
     {
         YASSERT(chunk->IsAlive());
         YASSERT(chunk->IsJournal());
@@ -99,8 +94,8 @@ public:
     }
 
 private:
-    TChunkManagerConfigPtr Config_;
-    TBootstrap* Bootstrap_;
+    const TChunkManagerConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
 
     TAsyncSemaphore Semaphore_;
 
@@ -310,15 +305,14 @@ void TChunkSealer::Start()
     Impl_->Start();
 }
 
-
 void TChunkSealer::Stop()
 {
     Impl_->Stop();
 }
 
-void TChunkSealer::MaybeScheduleSeal(TChunk* chunk)
+void TChunkSealer::ScheduleSeal(TChunk* chunk)
 {
-    Impl_->MaybeScheduleSeal(chunk);
+    Impl_->ScheduleSeal(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

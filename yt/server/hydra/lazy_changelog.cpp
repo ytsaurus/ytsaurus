@@ -45,14 +45,6 @@ public:
             : BacklogDataSize_;
     }
 
-    virtual bool IsSealed() const override
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        return UnderlyingChangelog_
-            ? UnderlyingChangelog_->IsSealed()
-            : false;
-    }
-
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -104,20 +96,13 @@ public:
         }
     }
 
-    virtual TFuture<void> Seal(int recordCount) override
+    virtual TFuture<void> Truncate(int recordCount) override
     {
         return FutureChangelog_.Apply(BIND([=] (const TErrorOr<IChangelogPtr>& changelogOrError) -> TFuture<void> {
             if (!changelogOrError.IsOK()) {
                 return MakeFuture<void>(TError(changelogOrError));
             }
-            return changelogOrError.Value()->Seal(recordCount);
-        }));
-    }
-
-    virtual TFuture<void> Unseal() override
-    {
-        return FutureChangelog_.Apply(BIND([=] (IChangelogPtr changelog) -> TFuture<void> {
-            return changelog->Unseal();
+            return changelogOrError.Value()->Truncate(recordCount);
         }));
     }
 

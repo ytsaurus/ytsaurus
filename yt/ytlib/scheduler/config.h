@@ -687,6 +687,8 @@ public:
     i64 DataSizePerJob;
     TJobIOConfigPtr JobIO;
     int MaxChunkCountPerJob;
+    bool CopyAttributes;
+    TNullable<std::vector<Stroka>> AttributeKeys;
 
     TRemoteCopyOperationSpec()
     {
@@ -706,6 +708,10 @@ public:
             .Default();
         RegisterParameter("max_chunk_count_per_job", MaxChunkCountPerJob)
             .Default(100);
+        RegisterParameter("copy_attributes", CopyAttributes)
+            .Default(false);
+        RegisterParameter("attribute_keys", AttributeKeys)
+            .Default();
     }
 
     virtual void OnLoaded() override

@@ -405,7 +405,9 @@ def clear_metadata_caches():
     
 def create_account(name, **kwargs):
     kwargs["type"] = "account"
-    kwargs["attributes"] = {"name": name}
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
 
 def remove_account(name, **kwargs):
@@ -414,7 +416,9 @@ def remove_account(name, **kwargs):
 
 def create_user(name, **kwargs):
     kwargs["type"] = "user"
-    kwargs["attributes"] = {"name": name}
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
 
 def remove_user(name, **kwargs):
@@ -423,7 +427,9 @@ def remove_user(name, **kwargs):
 
 def create_group(name, **kwargs):
     kwargs["type"] = "group"
-    kwargs["attributes"] = {"name": name}
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
 
 def remove_group(name, **kwargs):
@@ -440,8 +446,12 @@ def remove_member(member, group, **kwargs):
     kwargs["group"] = group
     execute_command("remove_member", kwargs)
 
-def create_tablet_cell(size):
-    return yson.loads(execute_command("create", {"type": "tablet_cell", "attributes": {"size": size}}))
+def create_tablet_cell(size, **kwargs):
+    kwargs["type"] = "tablet_cell"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["size"] = size
+    return yson.loads(execute_command("create", kwargs))
 
 def remove_tablet_cell(id):
     remove("//sys/tablet_cells/" + id)
@@ -449,7 +459,9 @@ def remove_tablet_cell(id):
 
 def create_rack(name, **kwargs):
     kwargs["type"] = "rack"
-    kwargs["attributes"] = {"name": name}
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
 
 def remove_rack(name, **kwargs):

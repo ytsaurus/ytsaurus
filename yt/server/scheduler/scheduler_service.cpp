@@ -56,7 +56,7 @@ private:
         auto type = EOperationType(request->type());
         auto transactionId = GetTransactionId(context);
         auto mutationId = GetMutationId(context);
-        auto user = GetAuthenticatedUserOrThrow(context);
+        const auto& user = context->GetUser();
 
         IMapNodePtr spec;
         try {
@@ -96,7 +96,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        auto user = GetAuthenticatedUserOrThrow(context);
+        const auto& user = context->GetUser();
 
         context->SetRequestInfo("OperationId: %v", operationId);
 
@@ -119,7 +119,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, SuspendOperation)
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        auto user = GetAuthenticatedUserOrThrow(context);
+        const auto& user = context->GetUser();
 
         context->SetRequestInfo("OperationId: %v", operationId);
 
@@ -140,7 +140,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, ResumeOperation)
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        auto user = GetAuthenticatedUserOrThrow(context);
+        const auto& user = context->GetUser();
 
         context->SetRequestInfo("OperationId: %v", operationId);
 

@@ -4,6 +4,7 @@
 #include "chunk_replica.h"
 
 #include <core/misc/small_vector.h>
+#include <core/misc/nullable.h>
 
 #include <core/actions/signal.h>
 
@@ -52,6 +53,7 @@ public:
         TChunk* chunk,
         int desiredCount,
         int minCount,
+        TNullable<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName);
 

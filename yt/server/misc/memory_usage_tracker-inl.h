@@ -1,7 +1,6 @@
 #ifndef MEMORY_USAGE_TRACKER_INL_H_
 #error "Direct inclusion of this file is not allowed, include memory_usage_tracker.h"
 #endif
-#undef MEMORY_USAGE_TRACKER_INL_H_
 
 #include <core/concurrency/thread_affinity.h>
 

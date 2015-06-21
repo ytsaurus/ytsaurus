@@ -8,6 +8,8 @@
 #include <core/misc/proc.h>
 #include <core/misc/fs.h>
 
+#include <util/string/vector.h>
+
 #ifdef _linux_
     #include <sys/eventfd.h>
     #include <sys/stat.h>
@@ -35,7 +37,7 @@ T CreateCGroup(const Stroka& name)
 ////////////////////////////////////////////////////////////////////////////////
 
 
-TEST(CGroup, CreateDestroy)
+TEST(TCGroup, CreateDestroy)
 {
     for (int i = 0; i < 2; ++i) {
         auto group = CreateCGroup<TBlockIO>("create_destory_" + ToString(TGuid::Create()));
@@ -45,13 +47,13 @@ TEST(CGroup, CreateDestroy)
 
 #ifdef _linux_
 
-TEST(CGroup, NotExistingGroupGetTasks)
+TEST(TCGroup, NotExistingGroupGetTasks)
 {
     TBlockIO group("not_existing_group_get_tasks" + ToString(TGuid::Create()));
     EXPECT_THROW(group.GetTasks(), std::exception);
 }
 
-TEST(CGroup, NotExistingRemoveAllSubcgroup)
+TEST(TCGroup, NotExistingRemoveAllSubcgroup)
 {
     TBlockIO group("not_existing_remove_all_subcgroup" + ToString(TGuid::Create()));
     group.RemoveAllSubcgroups();
@@ -59,7 +61,7 @@ TEST(CGroup, NotExistingRemoveAllSubcgroup)
 
 #endif
 
-TEST(CGroup, DoubleCreate)
+TEST(TCGroup, DoubleCreate)
 {
     TBlockIO group("double_create_" + ToString(TGuid::Create()));
     group.Create();
@@ -67,7 +69,7 @@ TEST(CGroup, DoubleCreate)
     group.Destroy();
 }
 
-TEST(CGroup, EmptyHasNoTasks)
+TEST(TCGroup, EmptyHasNoTasks)
 {
     auto group = CreateCGroup<TBlockIO>("empty_has_no_tasks_" + ToString(TGuid::Create()));
     auto tasks = group.GetTasks();
@@ -77,7 +79,7 @@ TEST(CGroup, EmptyHasNoTasks)
 
 #ifdef _linux_
 
-TEST(CGroup, AddCurrentTask)
+TEST(TCGroup, AddCurrentTask)
 {
     auto group = CreateCGroup<TBlockIO>("add_current_task_" + ToString(TGuid::Create()));
 
@@ -99,7 +101,7 @@ TEST(CGroup, AddCurrentTask)
     ASSERT_EQ(pid, waitedpid);
 }
 
-TEST(CGroup, DISABLED_UnableToDestoryNotEmptyCGroup)
+TEST(TCGroup, DISABLED_UnableToDestoryNotEmptyCGroup)
 {
     auto group = CreateCGroup<TBlockIO>("unable_to_destroy_not_empty_cgroup_"
         + ToString(TGuid::Create()));
@@ -136,7 +138,7 @@ TEST(CGroup, DISABLED_UnableToDestoryNotEmptyCGroup)
     ASSERT_EQ(0, close(triedRemoveEvent));
 }
 
-TEST(CGroup, GetCpuAccStat)
+TEST(TCGroup, GetCpuAccStat)
 {
     auto group = CreateCGroup<TCpuAccounting>("get_cpu_acc_stat_" + ToString(TGuid::Create()));
 
@@ -147,7 +149,7 @@ TEST(CGroup, GetCpuAccStat)
     group.Destroy();
 }
 
-TEST(CGroup, GetBlockIOStat)
+TEST(TCGroup, GetBlockIOStat)
 {
     auto group = CreateCGroup<TBlockIO>("get_block_io_stat_" + ToString(TGuid::Create()));
 
@@ -158,7 +160,7 @@ TEST(CGroup, GetBlockIOStat)
     group.Destroy();
 }
 
-TEST(CGroup, GetMemoryStats)
+TEST(TCGroup, GetMemoryStats)
 {
     auto group = CreateCGroup<TMemory>("get_memory_stat_" + ToString(TGuid::Create()));
 
@@ -168,7 +170,7 @@ TEST(CGroup, GetMemoryStats)
     group.Destroy();
 }
 
-TEST(CGroup, UsageInBytesWithoutLimit)
+TEST(TCGroup, UsageInBytesWithoutLimit)
 {
     const i64 memoryUsage = 8 * 1024 * 1024;
     auto group = CreateCGroup<TMemory>("usage_in_bytes_without_limit_" + ToString(TGuid::Create()));
@@ -205,7 +207,7 @@ TEST(CGroup, UsageInBytesWithoutLimit)
 }
 
 // This test proves that there is a bug in memory cgroup
-TEST(CGroup, Bug)
+TEST(TCGroup, Bug)
 {
     char buffer[1024];
 
@@ -267,7 +269,7 @@ TEST(CGroup, Bug)
     EXPECT_TRUE(waitedpid == pid);
 }
 
-TEST(CGroup, RemoveAllSubcgroupsAfterLock)
+TEST(TCGroup, RemoveAllSubcgroupsAfterLock)
 {
     auto parentName = "remove_all_subcgroups_after_lock_" + ToString(TGuid::Create());
     auto parent = CreateCGroup<TFreezer>(parentName);
@@ -278,14 +280,14 @@ TEST(CGroup, RemoveAllSubcgroupsAfterLock)
     parent.RemoveAllSubcgroups();
 }
 
-TEST(CGroup, FreezerEmpty)
+TEST(TCGroup, FreezerEmpty)
 {
     auto group = CreateCGroup<TFreezer>("freezer_empty_" + ToString(TGuid::Create()));
 
     EXPECT_EQ("THAWED", group.GetState());
 }
 
-TEST(CGroup, FreezerFreeze)
+TEST(TCGroup, FreezerFreeze)
 {
     auto group = CreateCGroup<TFreezer>("freezer_freeze_" + ToString(TGuid::Create()));
 
@@ -324,14 +326,14 @@ TEST(CGroup, FreezerFreeze)
     ASSERT_EQ(pid, waitedpid);
 }
 
-TEST(ProcessCGroup, Empty)
+TEST(TProcessCGroup, Empty)
 {
     Stroka empty;
     auto result = ParseProcessCGroups(empty);
     EXPECT_TRUE(result.empty());
 }
 
-TEST(ProcessCGroup, Basic)
+TEST(TProcessCGroup, Basic)
 {
     Stroka basic("4:blkio:/\n3:cpuacct:/\n2:freezer:/some\n1:memory:/\n");
     auto result = ParseProcessCGroups(basic);
@@ -342,7 +344,7 @@ TEST(ProcessCGroup, Basic)
     EXPECT_EQ(4, result.size());
 }
 
-TEST(ProcessCGroup, Multiple)
+TEST(TProcessCGroup, Multiple)
 {
     auto basic("5:cpuacct,cpu,cpuset:/daemons\n");
     auto result = ParseProcessCGroups(basic);
@@ -352,7 +354,7 @@ TEST(ProcessCGroup, Multiple)
     EXPECT_EQ(3, result.size());
 }
 
-TEST(ProcessCGroup, BadInput)
+TEST(TProcessCGroup, BadInput)
 {
     Stroka basic("xxx:cpuacct,cpu,cpuset:/daemons\n");
     EXPECT_THROW(ParseProcessCGroups(basic), std::exception);

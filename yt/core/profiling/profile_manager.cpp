@@ -40,7 +40,8 @@ class TProfileManager::TImpl
 {
 public:
     TImpl()
-        : WasShutdown(false)
+        : WasStarted(false)
+        , WasShutdown(false)
         , Queue(New<TInvokerQueue>(
             &EventCount,
             EmptyTagIds,
@@ -58,6 +59,9 @@ public:
 
     void Start()
     {
+        YCHECK(!WasStarted);
+        YCHECK(!WasShutdown);
+        WasStarted = true;
         Thread->Start();
         Queue->SetThreadId(Thread->GetId());
 #ifdef _linux_
@@ -75,8 +79,9 @@ public:
 
     void Enqueue(const TQueuedSample& sample, bool selfProfiling)
     {
-        if (WasShutdown)
+        if (!WasStarted || WasShutdown) {
             return;
+        }
 
         if (!selfProfiling) {
             ProfilingProfiler.Increment(EnqueuedCounter);
@@ -288,6 +293,7 @@ private:
 
 
     TEventCount EventCount;
+    volatile bool WasStarted;
     volatile bool WasShutdown;
     TInvokerQueuePtr Queue;
     TIntrusivePtr<TThread> Thread;
@@ -322,6 +328,10 @@ private:
         // Process all pending samples in a row.
         int samplesProcessed = 0;
         while (SampleQueue.DequeueAll(true, [&](TQueuedSample& sample) {
+                if (samplesProcessed == 0) {
+                    EventCount.CancelWait();
+                }
+
                 ProcessSample(sample);
                 ++samplesProcessed;
             }))
@@ -329,12 +339,9 @@ private:
 
         ProfilingProfiler.Increment(DequeuedCounter, samplesProcessed);
 
-        if (samplesProcessed > 0) {
-            EventCount.CancelWait();
-            return EBeginExecuteResult::Success;
-        } else {
-            return EBeginExecuteResult::QueueEmpty;
-        }
+        return samplesProcessed > 0
+            ? EBeginExecuteResult::Success
+            : EBeginExecuteResult::QueueEmpty;
     }
 
     void EndExecute()

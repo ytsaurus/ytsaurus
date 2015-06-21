@@ -31,8 +31,6 @@ public:
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
 
-    TGuid CellId;
-
     Stroka SandboxName;
 
     TDuration HeartbeatPeriod;
@@ -61,8 +59,6 @@ public:
         RegisterParameter("supervisor_connection", SupervisorConnection);
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));
-
-        RegisterParameter("cell_id", CellId);
 
         RegisterParameter("sandbox_name", SandboxName)
             .NonEmpty();

@@ -143,11 +143,6 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    virtual bool IsSealed() const override
-    {
-        return UnderlyingChangelog_->IsSealed();
-    }
-
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
         if (!EnableMultiplexing_) {
@@ -177,14 +172,9 @@ public:
         return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
     }
 
-    virtual TFuture<void> Seal(int recordCount) override
+    virtual TFuture<void> Truncate(int recordCount) override
     {
-        return UnderlyingChangelog_->Seal(recordCount);
-    }
-
-    virtual TFuture<void> Unseal() override
-    {
-        return UnderlyingChangelog_->Unseal();
+        return UnderlyingChangelog_->Truncate(recordCount);
     }
 
     virtual TFuture<void> Close() override

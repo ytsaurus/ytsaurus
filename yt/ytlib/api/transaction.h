@@ -13,9 +13,7 @@ namespace NApi {
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TWriteRowsOptions
-{
-    NTabletClient::ELockMode LockMode = NTabletClient::ELockMode::Column;
-};
+{ };
 
 struct TDeleteRowsOptions
 { };

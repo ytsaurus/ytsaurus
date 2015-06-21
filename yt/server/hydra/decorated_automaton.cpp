@@ -41,6 +41,7 @@ using namespace NPipes;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const i64 SnapshotTransferBlockSize = (i64) 1024 * 1024;
+static const auto& Profiler = HydraProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -397,10 +398,10 @@ private:
 
     void OnFinished()
     {
-        WaitFor(SnapshotWriter_->Close())
+        WaitFor(AsyncTransferResult_)
             .ThrowOnError();
 
-        WaitFor(AsyncTransferResult_)
+        WaitFor(SnapshotWriter_->Close())
             .ThrowOnError();
     }
 
@@ -597,8 +598,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     IInvokerPtr controlInvoker,
     ISnapshotStorePtr snapshotStore,
     IChangelogStorePtr changelogStore,
-    const TDistributedHydraManagerOptions& options,
-    const NProfiling::TProfiler& profiler)
+    const TDistributedHydraManagerOptions& options)
     : State_(EPeerState::Stopped)
     , Config_(config)
     , CellManager_(cellManager)
@@ -612,7 +612,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , Options_(options)
     , BatchCommitTimeCounter_("/batch_commit_time")
     , Logger(HydraLogger)
-    , Profiler(profiler)
 {
     YCHECK(Config_);
     YCHECK(CellManager_);
@@ -787,11 +786,6 @@ void TDecoratedAutomaton::LogLeaderMutation(
     MutationHeader_.set_record_id(pendingMutation.Version.RecordId);
 
     *recordData = SerializeMutationRecord(MutationHeader_, request.Data);
-
-    LOG_DEBUG("Logging mutation (Version: %v, MutationType: %v)",
-        pendingMutation.Version,
-        request.Type);
-
     *localFlushResult = Changelog_->Append(*recordData);
     *commitResult = pendingMutation.CommitPromise;
 
@@ -877,19 +871,10 @@ void TDecoratedAutomaton::DoRotateChangelog()
     WaitFor(Changelog_->Flush())
         .ThrowOnError();
 
-    auto loggedVersion = GetLoggedVersion();
-
-    if (Changelog_->IsSealed()) {
-        LOG_WARNING("Changelog %v is already sealed",
-            loggedVersion.SegmentId);
-    } else {
-        WaitFor(Changelog_->Seal(Changelog_->GetRecordCount()))
-            .ThrowOnError();
-    }
-
     TChangelogMeta meta;
     meta.set_prev_record_count(Changelog_->GetRecordCount());
 
+    auto loggedVersion = GetLoggedVersion();
     auto asyncNewChangelog = ChangelogStore_->CreateChangelog(
         loggedVersion.SegmentId + 1,
         meta);

@@ -58,8 +58,7 @@ private:
     {
         DeclareMutating();
 
-        auto transactionId =
-            request->has_transaction_id()
+        auto transactionId = request->has_transaction_id()
             ? FromProto<TTransactionId>(request->transaction_id())
             : NullTransactionId;
         auto type = EObjectType(request->type());
@@ -67,7 +66,7 @@ private:
         context->SetRequestInfo("TransactionId: %v, Type: %v, Account: %v, ObjectCount: %v",
             transactionId,
             type,
-            request->has_account() ? ~request->account() : "<Null>",
+            request->has_account() ? MakeNullable(request->account()) : Null,
             request->object_count());
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
@@ -157,7 +156,7 @@ public:
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual void Destroy(TObjectBase* /*object*/) override
+    virtual void DestroyObject(TObjectBase* /*object*/) throw() override
     {
         YUNREACHABLE();
     }

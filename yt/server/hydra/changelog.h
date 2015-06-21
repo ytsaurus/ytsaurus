@@ -24,10 +24,6 @@ struct IChangelog
     //! Returns an approximate byte size in a changelog.
     virtual i64 GetDataSize() const = 0;
 
-    //! Returns |true| if the changelog is sealed, i.e.
-    //! no further appends are possible.
-    virtual bool IsSealed() const = 0;
-
     //! Asynchronously appends a record to the changelog.
     /*!
      *  \param recordId Record ids must be contiguous.
@@ -57,17 +53,11 @@ struct IChangelog
         int maxRecords,
         i64 maxBytes) const = 0;
 
-    //! Asynchronously seals the changelog flushing and truncating it if necessary.
+    //! Asynchronously flushes and truncates the changelog.
     /*!
-     *  \returns an asynchronous flag either indicating an error or a success.
+     *  Most implementations will not allow appending more records to a truncated changelog.
      */
-    virtual TFuture<void> Seal(int recordCount) = 0;
-
-    //! Asynchronously resets seal flag.
-    /*!
-     *  Mostly useful for administrative tools.
-     */
-    virtual TFuture<void> Unseal() = 0;
+    virtual TFuture<void> Truncate(int recordCount) = 0;
 
     //! Asynchronously flushes and closes the changelog, releasing all underlying resources.
     /*

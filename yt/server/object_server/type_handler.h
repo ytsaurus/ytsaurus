@@ -88,15 +88,18 @@ struct IObjectTypeHandler
      *  Once #Create is completed, all request attributes are copied to object attributes.
      *  The handler may alter the request appropriately to control this process.
      */
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
         TReqCreateObjects* request,
         TRspCreateObjects* response) = 0;
 
-    //! Performs the necessary type-dependent cleanup.
-    virtual void Destroy(TObjectBase* object) = 0;
+    //! Raised when the strong ref-counter of the object decreases to zero.
+    virtual void ZombifyObject(TObjectBase* object) throw() = 0;
+
+    //! Raised when GC finally destroys the object.
+    virtual void DestroyObject(TObjectBase* object) throw() = 0;
 
     //! Given #object, returns its staging transaction or |nullptr| is #object
     //! is not staged.
@@ -107,7 +110,7 @@ struct IObjectTypeHandler
     /*!
      *  If #recursive is |true| then all child objects are also released.
      */
-    virtual void Unstage(TObjectBase* object, bool recursive) = 0;
+    virtual void UnstageObject(TObjectBase* object, bool recursive) = 0;
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) = 0;

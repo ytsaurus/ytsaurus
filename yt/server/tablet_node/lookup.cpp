@@ -2,7 +2,6 @@
 #include "lookup.h"
 #include "tablet.h"
 #include "store.h"
-#include "row_merger.h"
 #include "tablet_slot.h"
 #include "private.h"
 
@@ -15,6 +14,7 @@
 
 #include <ytlib/tablet_client/wire_protocol.h>
 #include <ytlib/tablet_client/wire_protocol.pb.h>
+#include <ytlib/new_table_client/row_merger.h>
 
 #include <ytlib/new_table_client/versioned_reader.h>
 

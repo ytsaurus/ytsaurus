@@ -49,7 +49,7 @@ public:
 
     void CreateJobNode(TJobPtr job,
         const NChunkClient::TChunkId& stderrChunkId,
-        const std::vector<NChunkClient::TChunkId>& failContexts);
+        const NChunkClient::TChunkId& failContextChunkId);
 
     void AttachToLivePreview(
         TOperationPtr operation,

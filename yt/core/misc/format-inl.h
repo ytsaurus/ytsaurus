@@ -1,7 +1,6 @@
 #ifndef FORMAT_INL_H_
 #error "Direct inclusion of this file is not allowed, include format.h"
 #endif
-#undef FORMAT_INL_H_
 
 #include "mpl.h"
 #include "string.h"

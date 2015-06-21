@@ -76,19 +76,15 @@ IInvokerPtr GetNullInvoker()
 
 static TLazyIntrusivePtr<TActionQueue> FinalizerThread(
     TActionQueue::CreateFactory("Finalizer", false, false));
-static std::atomic<bool> FinalizerThreadShutdown;
 
 IInvokerPtr GetFinalizerInvoker()
 {
-    return FinalizerThreadShutdown ? GetNullInvoker() : FinalizerThread->GetInvoker();
+    return FinalizerThread->GetInvoker();
 }
 
 void ShutdownFinalizerThread()
 {
-    if (FinalizerThread.HasValue()) {
-        FinalizerThread->Shutdown();
-    }
-    FinalizerThreadShutdown = true;
+    FinalizerThread->Ref(); // Evil hack to leave thread spinning indefinitely.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

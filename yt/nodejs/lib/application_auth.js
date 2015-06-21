@@ -5,6 +5,7 @@ var fs = require("fs");
 var mustache = require("mustache");
 var Q = require("bluebird");
 
+var YtAuthentication = require("./authentication.js");
 var YtError = require("./error").that;
 var utils = require("./utils");
 
@@ -43,6 +44,8 @@ YtApplicationAuth.prototype.dispatch = function(req, rsp, next)
                 return self._dispatchIndex(req, rsp, body);
             case "/login":
                 return self._dispatchLogin(req, rsp, body);
+            case "/whoami":
+                return self._dispatchWhoAmI(req, rsp, body);
             case "/new":
                 return self._dispatchNew(req, rsp, body);
             // There are only static routes below.
@@ -124,6 +127,22 @@ YtApplicationAuth.prototype._dispatchLogin = function(req, rsp, body)
         return Q.reject(YtError.ensureWrapped(
             err, "Failed to authenticate by token"));
     });
+};
+
+YtApplicationAuth.prototype._dispatchWhoAmI = function(req, rsp)
+{
+    var deferred = Q.defer();
+    var self = this;
+
+    (new YtAuthentication(self.config, req.logger || self.logger, authority))
+        .dispatch(req, rsp, function() {
+            return void utils.dispatchJson(rsp, {
+                login: req.authenticated_user,
+                realm: req.authenticated_from
+            });
+        });
+
+    return deferred.promise;
 };
 
 YtApplicationAuth.prototype._dispatchNew = function(req, rsp)

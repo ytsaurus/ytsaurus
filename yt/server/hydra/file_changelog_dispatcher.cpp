@@ -76,7 +76,6 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             YCHECK(
                 !SealRequested_ &&
-                !UnsealRequested_ &&
                 !Sealed_ &&
                 !CloseRequested_ &&
                 !Closed_);
@@ -111,25 +110,10 @@ public:
         TFuture<void> result;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(!SealRequested_ && !UnsealRequested_);
+            YCHECK(!SealRequested_);
             SealRequested_ = true;
             SealRecordCount_ = recordCount;
             result = SealPromise_ = NewPromise<void>();
-        }
-
-        return result;
-    }
-
-    TFuture<void> AsyncUnseal()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        TFuture<void> result;
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(!SealRequested_ && !UnsealRequested_);
-            UnsealRequested_ = true;
-            result = UnsealPromise_ = NewPromise<void>();
         }
 
         return result;
@@ -173,10 +157,6 @@ public:
             return true;
         }
 
-        if (UnsealRequested_) {
-            return true;
-        }
-
         if (CloseRequested_) {
             return true;
         }
@@ -190,7 +170,6 @@ public:
 
         SyncFlush();
         MaybeSyncSeal();
-        MaybeSyncUnseal();
         MaybeSyncClose();
     }
 
@@ -207,10 +186,6 @@ public:
             }
 
             if (SealRequested_ && !SealPromise_.IsSet()) {
-                return TPromise<void>();
-            }
-
-            if (UnsealRequested_ && !UnsealPromise_.IsSet()) {
                 return TPromise<void>();
             }
 
@@ -313,9 +288,6 @@ private:
     bool SealRequested_ = false;
     int SealRecordCount_ = -1;
 
-    TPromise<void> UnsealPromise_;
-    bool UnsealRequested_ = false;
-
     TPromise<void> ClosePromise_;
     bool CloseRequested_ = false;
 
@@ -392,34 +364,9 @@ private:
         SyncFlushAll();
 
         TError error;
-        PROFILE_TIMING("/changelog_seal_io_time") {
+        PROFILE_TIMING("/changelog_truncate_io_time") {
             try {
-                Changelog_->Seal(SealRecordCount_);
-            } catch (const std::exception& ex) {
-                error = ex;
-            }
-        }
-
-        promise.Set(error);
-    }
-
-    void MaybeSyncUnseal()
-    {
-        TPromise<void> promise;
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            if (!UnsealRequested_)
-                return;
-            promise = UnsealPromise_;
-            UnsealPromise_.Reset();
-            UnsealRequested_ = false;
-            Sealed_ = false;
-        }
-
-        TError error;
-        PROFILE_TIMING("/changelog_unseal_io_time") {
-            try {
-                Changelog_->Unseal();
+                Changelog_->Truncate(SealRecordCount_);
             } catch (const std::exception& ex) {
                 error = ex;
             }
@@ -551,15 +498,6 @@ public:
     {
         auto queue = GetQueueAndLock(changelog);
         auto result = queue->AsyncSeal(recordCount);
-        queue->Unlock();
-        Wakeup();
-        return result;
-    }
-
-    TFuture<void> Unseal(TSyncFileChangelogPtr changelog)
-    {
-        auto queue = GetQueueAndLock(changelog);
-        auto result = queue->AsyncUnseal();
         queue->Unlock();
         Wakeup();
         return result;
@@ -760,11 +698,6 @@ public:
         return SyncChangelog_->GetMeta();
     }
 
-    virtual bool IsSealed() const override
-    {
-        return SyncChangelog_->IsSealed();
-    }
-
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
         RecordCount_ += 1;
@@ -789,17 +722,12 @@ public:
             maxBytes);
     }
 
-    virtual TFuture<void> Seal(int recordCount) override
+    virtual TFuture<void> Truncate(int recordCount) override
     {
         YCHECK(recordCount <= RecordCount_);
         RecordCount_.store(recordCount);
 
         return DispatcherImpl_->Seal(SyncChangelog_, recordCount);
-    }
-
-    virtual TFuture<void> Unseal() override
-    {
-        return DispatcherImpl_->Unseal(SyncChangelog_);
     }
 
     virtual TFuture<void> Close() override

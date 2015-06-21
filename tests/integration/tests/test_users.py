@@ -181,3 +181,15 @@ class TestUsers(YTEnvSetup):
         with pytest.raises(YtError): add_member("u", "everyone")
         with pytest.raises(YtError): add_member("u", "users")
 
+    def test_create_banned_user(self):
+        create_user("u", attributes={"banned": True})
+        users = ls("//sys/users", attributes=["banned"])
+        assert get("//sys/users/u/@banned")
+        found = False
+        for item in users:
+            if str(item) == "u":
+                assert item.attributes["banned"]
+                found = True
+        assert found
+
+

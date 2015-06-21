@@ -21,11 +21,11 @@ public:
     void Start();
     void Stop();
 
-    void MaybeScheduleSeal(TChunk* chunk);
+    void ScheduleSeal(TChunk* chunk);
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

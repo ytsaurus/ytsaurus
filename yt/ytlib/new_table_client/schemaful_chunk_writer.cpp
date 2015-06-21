@@ -422,7 +422,8 @@ void TChunkWriter::DoClose(TPromise<void> result)
 
         TKeyColumnsExt keyColumnsExt;
         for (int id : KeyIds) {
-            keyColumnsExt.add_names(InputNameTable->GetName(id));
+            auto name = InputNameTable->GetName(id);
+            keyColumnsExt.add_names(name.data(), name.length());
         }
         SetProtoExtension(Meta.mutable_extensions(), keyColumnsExt);
     }

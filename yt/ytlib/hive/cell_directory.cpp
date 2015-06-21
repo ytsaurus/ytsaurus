@@ -105,8 +105,8 @@ public:
     IChannelPtr FindChannel(const TCellId& cellId, EPeerKind peerKind)
     {
         TReaderGuard guard(SpinLock_);
-        auto it = CellMap_.find(cellId);
-        return it == CellMap_.end() ? nullptr : it->second.Channels[peerKind];
+        auto it = RegisteredCellMap_.find(cellId);
+        return it == RegisteredCellMap_.end() ? nullptr : it->second.Channels[peerKind];
     }
 
     IChannelPtr GetChannelOrThrow(const TCellId& cellId, EPeerKind peerKind)
@@ -123,8 +123,8 @@ public:
     {
         TReaderGuard guard(SpinLock_);
         std::vector<TCellInfo> result;
-        result.reserve(CellMap_.size());
-        for (const auto& pair : CellMap_) {
+        result.reserve(RegisteredCellMap_.size());
+        for (const auto& pair : RegisteredCellMap_) {
             TCellInfo info;
             info.CellId = pair.first;
             info.ConfigVersion = pair.second.ConfigVersion;
@@ -133,11 +133,17 @@ public:
         return result;
     }
 
+    bool IsCellUnregistered(const TCellId& cellId)
+    {
+        TReaderGuard guard(SpinLock_);
+        return UnregisteredCellIds_.find(cellId) != UnregisteredCellIds_.end();
+    }
+
     TNullable<std::vector<Stroka>> FindAddresses(const TCellId& cellId)
     {
         TReaderGuard guard(SpinLock_);
-        auto it = CellMap_.find(cellId);
-        if (it == CellMap_.end()) {
+        auto it = RegisteredCellMap_.find(cellId);
+        if (it == RegisteredCellMap_.end()) {
             return Null;
         }
         std::vector<Stroka> addresses;
@@ -163,18 +169,20 @@ public:
     {
         TWriterGuard guard(SpinLock_);
         bool result = false;
-        auto it = CellMap_.find(config->CellId);
-        auto* entry = (it == CellMap_.end()) ? nullptr : &it->second;
-        if (!entry ) {
-            auto it = CellMap_.insert(std::make_pair(config->CellId, TEntry())).first;
-            entry = &it->second;
-            result = true;
-        }
-        if (entry->ConfigVersion < configVersion) {
-            entry->Config = CloneYsonSerializable(config);
-            entry->ConfigVersion = configVersion;
-            InitChannel(entry);
-            result = true;
+        if (UnregisteredCellIds_.find(config->CellId) == UnregisteredCellIds_.end()) {
+            auto it = RegisteredCellMap_.find(config->CellId);
+            auto* entry = (it == RegisteredCellMap_.end()) ? nullptr : &it->second;
+            if (!entry) {
+                auto it = RegisteredCellMap_.insert(std::make_pair(config->CellId, TEntry())).first;
+                entry = &it->second;
+                result = true;
+            }
+            if (entry->ConfigVersion < configVersion) {
+                entry->Config = CloneYsonSerializable(config);
+                entry->ConfigVersion = configVersion;
+                InitChannel(entry);
+                result = true;
+            }
         }
         return result;
     }
@@ -205,19 +213,14 @@ public:
     bool UnregisterCell(const TCellId& cellId)
     {
         TWriterGuard guard(SpinLock_);
-        auto it = CellMap_.find(cellId);
-        if (it == CellMap_.end()) {
-            return false;
-        } else {
-            CellMap_.erase(it);
-            return true;
-        }
+        UnregisteredCellIds_.insert(cellId);
+        return RegisteredCellMap_.erase(cellId) == 1;
     }
 
     void Clear()
     {
         TWriterGuard guard(SpinLock_);
-        CellMap_.clear();
+        RegisteredCellMap_.clear();
     }
 
 private:
@@ -233,7 +236,8 @@ private:
     };
 
     TReaderWriterSpinLock SpinLock_;
-    yhash_map<TCellId, TEntry> CellMap_;
+    yhash_map<TCellId, TEntry> RegisteredCellMap_;
+    yhash_set<TCellId> UnregisteredCellIds_;
 
 
     void InitChannel(TEntry* entry)
@@ -296,6 +300,11 @@ std::vector<Stroka> TCellDirectory::GetAddressesOrThrow(const TCellId& cellId)
 std::vector<TCellInfo> TCellDirectory::GetRegisteredCells()
 {
     return Impl_->GetRegisteredCells();
+}
+
+bool TCellDirectory::IsCellUnregistered(const TCellId& cellId)
+{
+    return Impl_->IsCellUnregistered(cellId);
 }
 
 bool TCellDirectory::ReconfigureCell(TCellConfigPtr config, int configVersion)

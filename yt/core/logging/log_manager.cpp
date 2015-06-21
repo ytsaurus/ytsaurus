@@ -432,12 +432,16 @@ private:
         }
 
         int eventsWritten = 0;
-        bool configsUpdated = false;
+        bool empty = true;
 
         while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& eventOrConfig) {
+                if (empty) {
+                    EventCount_.CancelWait();
+                    empty = false;
+                }
+
                 if (const auto* configPtr = eventOrConfig.TryAs<TLogConfigPtr>()) {
                     UpdateConfig(*configPtr);
-                    configsUpdated = true;
                 } else if (const auto* eventPtr = eventOrConfig.TryAs<TLogEvent>()) {
                     if (ReopenRequested_) {
                         ReopenRequested_ = false;
@@ -465,12 +469,7 @@ private:
 
         DequeuedLogEvents_ += eventsWritten;
 
-        if (configsUpdated || eventsWritten > 0) {
-            EventCount_.CancelWait();
-            return EBeginExecuteResult::Success;
-        } else {
-            return EBeginExecuteResult::QueueEmpty;
-        }
+        return empty ? EBeginExecuteResult::QueueEmpty : EBeginExecuteResult::Success;
     }
 
     void EndExecute()

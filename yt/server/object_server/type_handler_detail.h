@@ -43,7 +43,7 @@ public:
         return Null;
     }
 
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         NTransactionServer::TTransaction* /*transaction*/,
         NSecurityServer::TAccount* /*account*/,
         NYTree::IAttributeDictionary* /*attributes*/,
@@ -53,14 +53,20 @@ public:
         YUNREACHABLE();
     }
 
+    virtual void ZombifyObject(TObjectBase* object) throw() override
+    {
+        DoZombifyObject(static_cast<TObject*>(object));
+    }
+
     virtual NTransactionServer::TTransaction* GetStagingTransaction(TObjectBase* object) override
+        TObjectBase* object) override
     {
         return DoGetStagingTransaction(static_cast<TObject*>(object));
     }
 
-    virtual void Unstage(TObjectBase* object, bool recursive) override
+    virtual void UnstageObject(TObjectBase* object, bool recursive) override
     {
-        DoUnstage(static_cast<TObject*>(object), recursive);
+        DoUnstageObject(static_cast<TObject*>(object), recursive);
     }
 
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) override
@@ -94,15 +100,17 @@ protected:
         return New<TNonversionedObjectProxyBase<TObject>>(Bootstrap_, object);
     }
 
-    virtual NTransactionServer::TTransaction* DoGetStagingTransaction(TObject* /*object*/)
+    virtual void DoZombifyObject(TObject* /*object*/)
+    { }
+
+    virtual NTransactionServer::TTransaction* DoGetStagingTransaction(
+        TObject* /*object*/)
     {
         return nullptr;
     }
 
-    virtual void DoUnstage(TObject* /*object*/, bool /*recursive*/)
-    {
-        YUNREACHABLE();
-    }
+    virtual void DoUnstageObject(TObject* /*object*/, bool /*recursive*/)
+    { }
 
     virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* /*object*/)
     {
@@ -130,18 +138,10 @@ public:
         , Map_(map)
     { }
 
-    virtual void Destroy(TObjectBase* object) override
+    virtual void DestroyObject(TObjectBase* object) throw() override
     {
-        // Clear ACD, if any.
-        auto* acd = this->FindAcd(object);
-        if (acd) {
-            acd->Clear();
-        }
-
-        // Run custom destruction logic.
-        this->DoDestroy(static_cast<TObject*>(object));
-
-        // Remove the object from the map but keep it alive.
+        this->DoDestroyObject(static_cast<TObject*>(object));
+    	// Remove the object from the map but keep it alive.
         Map_->Release(object->GetId()).release();
     }
 
@@ -154,20 +154,28 @@ public:
     {
         for (const auto& pair : *Map_) {
             auto* object = pair.second;
-            object->ResetWeakRefCounter();
-            this->DoReset(object);
+            this->DoResetObject(object);
         }
+    }
+
+protected:
+    virtual void DoDestroyObject(TObject* object)
+    {
+        // Clear ACD, if any.
+        auto* acd = this->FindAcd(object);
+        if (acd) {
+            acd->Clear();
+        }
+    }
+
+    virtual void DoResetObject(TObject* object)
+    {
+        object->ResetWeakRefCounter();
     }
 
 private:
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* const Map_;
-
-    virtual void DoDestroy(TObject* /*object*/)
-    { }
-
-    virtual void DoReset(TObject* /*object*/)
-    { }
 
 };
 

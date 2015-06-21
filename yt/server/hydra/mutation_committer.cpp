@@ -30,6 +30,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto AutoCheckpointCheckPeriod = TDuration::Seconds(15);
+static const auto& Profiler = HydraProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,8 +38,7 @@ TCommitterBase::TCommitterBase(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
-    TEpochContext* epochContext,
-    const NProfiling::TProfiler& profiler)
+    TEpochContext* epochContext)
     : Config_(config)
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
@@ -46,7 +46,6 @@ TCommitterBase::TCommitterBase(
     , CommitCounter_("/commits")
     , FlushCounter_("/flushes")
     , Logger(HydraLogger)
-    , Profiler(profiler)
 {
     YCHECK(Config_);
     YCHECK(DecoratedAutomaton_);
@@ -74,7 +73,10 @@ public:
         , Logger(Owner_->Logger)
     { }
 
-    void AddMutation(const TSharedRef& recordData, TFuture<void> localFlushResult)
+    void AddMutation(
+        const TMutationRequest& request,
+        const TSharedRef& recordData,
+        TFuture<void> localFlushResult)
     {
         TVersion currentVersion(
             StartVersion_.SegmentId,
@@ -83,7 +85,9 @@ public:
         BatchedRecordsData_.push_back(recordData);
         LocalFlushResult_ = std::move(localFlushResult);
 
-        LOG_DEBUG("Mutation is batched (Version: %v)", currentVersion);
+        LOG_DEBUG("Mutation batched (Version: %v, MutationType: %v)",
+            currentVersion,
+            request.Type);
     }
 
     TFuture<void> GetQuorumFlushResult()
@@ -100,11 +104,11 @@ public:
             StartVersion_,
             mutationCount);
 
-        Owner_->Profiler.Enqueue("/commit_batch_size", mutationCount);
+        Profiler.Enqueue("/commit_batch_size", mutationCount);
 
         Awaiter_ = New<TParallelAwaiter>(Owner_->EpochContext_->EpochControlInvoker);
 
-        Timer_ = Owner_->Profiler.TimingStart(
+        Timer_ = Profiler.TimingStart(
             "/changelog_flush_time",
             NProfiling::EmptyTagIds,
             NProfiling::ETimerMode::Parallel);
@@ -165,7 +169,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        Owner_->Profiler.TimingCheckpoint(
+        Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerTags(followerId));
 
@@ -198,7 +202,7 @@ private:
 
         LOG_DEBUG("Mutations are flushed locally");
 
-        Owner_->Profiler.TimingCheckpoint(
+        Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerTags(Owner_->CellManager_->GetSelfPeerId()));
 
@@ -231,7 +235,7 @@ private:
     {
         LOG_DEBUG("Mutations are flushed by quorum");
 
-        Owner_->Profiler.TimingCheckpoint(
+        Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerQuorumTags());
 
@@ -243,7 +247,7 @@ private:
 
     void SetFailed(const TError& error)
     {
-        Owner_->Profiler.TimingCheckpoint(
+        Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerQuorumTags());
 
@@ -285,14 +289,12 @@ TLeaderCommitter::TLeaderCommitter(
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
-    TEpochContext* epochContext,
-    const NProfiling::TProfiler& profiler)
+    TEpochContext* epochContext)
     : TCommitterBase(
         config,
         cellManager,
         decoratedAutomaton,
-        epochContext,
-        profiler)
+        epochContext)
     , ChangelogStore_(changelogStore)
 {
     YCHECK(CellManager_);
@@ -335,6 +337,7 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(const TMutationRequest& requ
 
     AddToBatch(
         version,
+        request,
         std::move(recordData),
         std::move(localFlushResult));
 
@@ -397,7 +400,12 @@ void TLeaderCommitter::ResumeLogging()
             &localFlushResult,
             &commitResult);
 
-        AddToBatch(version, recordData, std::move(localFlushResult));
+        AddToBatch(
+            version,
+            pendingMutation.Request,
+            recordData,
+            std::move(localFlushResult));
+
         pendingMutation.Promise.SetFrom(std::move(commitResult));
     }
 
@@ -407,12 +415,16 @@ void TLeaderCommitter::ResumeLogging()
 
 void TLeaderCommitter::AddToBatch(
     TVersion version,
+    const TMutationRequest& request,
     const TSharedRef& recordData,
     TFuture<void> localFlushResult)
 {
     TGuard<TSpinLock> guard(BatchSpinLock_);
     auto batch = GetOrCreateBatch(version);
-    batch->AddMutation(recordData, std::move(localFlushResult));
+    batch->AddMutation(
+        request,
+        recordData,
+        std::move(localFlushResult));
     if (batch->GetMutationCount() >= Config_->MaxCommitBatchRecordCount) {
         FlushCurrentBatch();
     }
@@ -497,14 +509,12 @@ TFollowerCommitter::TFollowerCommitter(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
-    TEpochContext* epochContext,
-    const NProfiling::TProfiler& profiler)
+    TEpochContext* epochContext)
     : TCommitterBase(
         config,
         cellManager,
         decoratedAutomaton,
-        epochContext,
-        profiler)
+        epochContext)
 { }
 
 TFollowerCommitter::~TFollowerCommitter()

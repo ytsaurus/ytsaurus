@@ -108,9 +108,16 @@ private:
 
     void CaptureOriginAttributes();
 
-};
+    friend void ToProto(NProto::TError* protoError, const TError& error);
+    friend void FromProto(TError* error, const NProto::TError& protoError);
 
-Stroka ToString(const TError& error);
+    friend void Serialize(
+        const TError& error,
+        NYson::IYsonConsumer* consumer,
+        const std::function<void(NYson::IYsonConsumer*)>* valueProducer);
+    friend void Deserialize(TError& error, NYTree::INodePtr node);
+
+};
 
 void ToProto(NProto::TError* protoError, const TError& error);
 void FromProto(TError* error, const NProto::TError& protoError);
@@ -120,6 +127,8 @@ void Serialize(
     NYson::IYsonConsumer* consumer,
     const std::function<void(NYson::IYsonConsumer*)>* valueProducer = nullptr);
 void Deserialize(TError& error, NYTree::INodePtr node);
+
+Stroka ToString(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 

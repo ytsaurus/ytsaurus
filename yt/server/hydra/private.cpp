@@ -14,7 +14,7 @@ using namespace NConcurrency;
 
 const Stroka SnapshotExtension("snapshot");
 const Stroka ChangelogExtension("log");
-const Stroka ChangelogIndexSuffix(".index");
+const Stroka ChangelogIndexExtension("index");
 
 IInvokerPtr GetHydraIOInvoker()
 {

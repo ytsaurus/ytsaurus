@@ -93,6 +93,16 @@ void TYPathRequest::SetStartTime(TInstant /*value*/)
     YUNREACHABLE();
 }
 
+void TYPathRequest::SetUser(const Stroka& /*user*/)
+{
+    YUNREACHABLE();
+}
+
+const Stroka& TYPathRequest::GetUser() const
+{
+    YUNREACHABLE();
+}
+
 bool TYPathRequest::GetRetry() const
 {
     return Header_.retry();

@@ -2,6 +2,8 @@
 #include "tablet_cell.h"
 #include "tablet.h"
 
+#include <core/ytree/fluent.h>
+
 #include <ytlib/tablet_client/config.h>
 
 #include <server/transaction_server/transaction.h>
@@ -11,6 +13,7 @@
 namespace NYT {
 namespace NTabletServer {
 
+using namespace NYTree;
 using namespace NHive;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
@@ -62,6 +65,7 @@ void TTabletCell::Save(TSaveContext& context) const
     Save(context, *Config_);
     Save(context, *Options_);
     Save(context, Tablets_);
+    Save(context, TotalStatistics_);
     Save(context, PrerequisiteTransaction_);
 }
 
@@ -76,12 +80,15 @@ void TTabletCell::Load(TLoadContext& context)
     Load(context, *Config_);
     Load(context, *Options_);
     Load(context, Tablets_);
+    // COMPAT(babenko)
+    YCHECK(context.GetVersion() >= 119);
+    Load(context, TotalStatistics_);
     Load(context, PrerequisiteTransaction_);
 }
 
 TPeerId TTabletCell::FindPeerId(const Stroka& address) const
 {
-    for (TPeerId peerId = 0; peerId < static_cast<int>(Peers_.size()); ++peerId) {
+    for (TPeerId peerId = 0; peerId < Peers_.size(); ++peerId) {
         const auto& peer = Peers_[peerId];
         if (peer.Descriptor && peer.Descriptor->GetDefaultAddress() == address) {
             return peerId;
@@ -99,7 +106,7 @@ TPeerId TTabletCell::GetPeerId(const Stroka& address) const
 
 TPeerId TTabletCell::FindPeerId(TNode* node) const
 {
-    for (TPeerId peerId = 0; peerId < static_cast<int>(Peers_.size()); ++peerId) {
+    for (TPeerId peerId = 0; peerId < Peers_.size(); ++peerId) {
         if (Peers_[peerId].Node == node) {
             return peerId;
         }

@@ -53,10 +53,12 @@ public:
     TSortControllerBase(
         TSchedulerConfigPtr config,
         TSortOperationSpecBasePtr spec,
+        TSortOperationOptionsBasePtr options,
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, spec, host, operation)
         , Spec(spec)
+        , Options(options)
         , Config(config)
         , CompletedPartitionCount(0)
         , SortedMergeJobCounter(0)
@@ -118,6 +120,8 @@ private:
     TSortOperationSpecBasePtr Spec;
 
 protected:
+    TSortOperationOptionsBasePtr Options;
+
     TSchedulerConfigPtr Config;
 
     // Counters.
@@ -1403,7 +1407,12 @@ protected:
 
     i64 GetSortBuffersMemorySize(const TChunkStripeStatistics& stat) const
     {
-        return (i64) 16 * Spec->SortBy.size() * stat.RowCount + (i64) 20 * stat.RowCount;
+        // Calculate total size of buffers, presented in TSchemalessPartitionSortReader.
+        return 
+            (i64) 16 * Spec->SortBy.size() * stat.RowCount + // KeyBuffer
+            (i64) 12 * stat.RowCount +                       // RowDescriptorBuffer
+            (i64) 4 * stat.RowCount +                        // Buckets
+            (i64) 4 * stat.RowCount;                         // SortedIndexes
     }
 
     i64 GetRowCountEstimate(TPartitionPtr partition, i64 dataSize) const
@@ -1455,7 +1464,7 @@ protected:
         } else {
             result = GetEmpiricalParitionCount(dataSizeAfterPartition);
         }
-        return static_cast<int>(Clamp(result, 1, Config->MaxPartitionCount));
+        return static_cast<int>(Clamp(result, 1, Options->MaxPartitionCount));
     }
 
     int SuggestPartitionJobCount() const
@@ -1464,7 +1473,8 @@ protected:
             return SuggestJobCount(
                 TotalEstimatedInputDataSize,
                 Spec->DataSizePerPartitionJob.Get(TotalEstimatedInputDataSize),
-                Spec->PartitionJobCount);
+                Spec->PartitionJobCount,
+                Options->MaxPartitionJobCount);
         } else {
             // Experiments show that this number is suitable as default
             // both for partition count and for partition job count.
@@ -1472,7 +1482,7 @@ protected:
             return static_cast<int>(Clamp(
                 partitionCount,
                 1,
-                std::min(Config->MaxJobCount, Config->MaxPartitionJobCount)));
+                Options->MaxPartitionJobCount));
         }
     }
 
@@ -1641,6 +1651,7 @@ public:
         : TSortControllerBase(
             config,
             spec,
+            config->SortOperationOptions,
             host,
             operation)
         , Spec(spec)
@@ -1776,8 +1787,8 @@ private:
             Clamp(
                 1 + TotalEstimatedInputDataSize / Spec->DataSizePerSortJob,
                 1,
-                Config->MaxJobCount));
-        auto stripes = SliceInputChunks(Config->SortJobMaxSliceDataSize, sortJobCount);
+                Options->MaxPartitionJobCount));
+        auto stripes = SliceInputChunks(Options->SortJobMaxSliceDataSize, sortJobCount);
         sortJobCount = std::min(sortJobCount, static_cast<int>(stripes.size()));
 
         // Create the fake partition.
@@ -1867,7 +1878,7 @@ private:
         InitShufflePool();
 
         int partitionJobCount = SuggestPartitionJobCount();
-        auto stripes = SliceInputChunks(Config->PartitionJobMaxSliceDataSize, partitionJobCount);
+        auto stripes = SliceInputChunks(Options->PartitionJobMaxSliceDataSize, partitionJobCount);
         partitionJobCount = std::min(static_cast<int>(stripes.size()), partitionJobCount);
 
         PartitionJobCounter.Set(partitionJobCount);
@@ -2037,13 +2048,14 @@ private:
         bool memoryReserveEnabled) const override
     {
         UNUSED(memoryReserveEnabled);
-        i64 memory = GetSortBuffersMemorySize(stat) + GetFootprintMemorySize();
+        i64 memory = 
+            GetSortBuffersMemorySize(stat) + 
+            GetSortInputIOMemorySize(stat) +
+            GetFootprintMemorySize();
 
         if (IsSortedMergeNeeded(partition)) {
-            memory += GetSortInputIOMemorySize(stat);
             memory += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
         } else {
-            memory += GetSortInputIOMemorySize(stat);
             memory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig);
         }
 
@@ -2166,6 +2178,7 @@ public:
         : TSortControllerBase(
             config,
             spec,
+            config->MapReduceOperationOptions,
             host,
             operation)
         , Spec(spec)
@@ -2340,7 +2353,7 @@ private:
         int partitionCount = SuggestPartitionCount();
 
         // Don't create more partitions than allowed by the global config.
-        partitionCount = std::min(partitionCount, Config->MaxPartitionCount);
+        partitionCount = std::min(partitionCount, Options->MaxPartitionCount);
 
         InitJobIOConfigs();
 
@@ -2360,7 +2373,7 @@ private:
         int partitionJobCount = SuggestPartitionJobCount();
 
         auto stripes = SliceInputChunks(
-            Config->PartitionJobMaxSliceDataSize,
+            Options->PartitionJobMaxSliceDataSize,
             partitionJobCount);
         partitionJobCount = std::min(static_cast<int>(stripes.size()), partitionJobCount);
 
@@ -2601,29 +2614,28 @@ private:
         TNodeResources result;
         result.set_user_slots(1);
 
+        i64 memory = 
+            GetSortInputIOMemorySize(stat) +
+            GetSortBuffersMemorySize(stat) +
+            GetFootprintMemorySize();
+
         if (!IsSortedMergeNeeded(partition)) {
             result.set_cpu(Spec->Reducer->CpuLimit);
             result.set_memory(
-                GetSortInputIOMemorySize(stat) +
+                memory +
                 GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
-                GetSortBuffersMemorySize(stat) +
-                GetMemoryReserve(memoryReserveEnabled, Spec->Reducer) +
-                GetFootprintMemorySize());
+                GetMemoryReserve(memoryReserveEnabled, Spec->Reducer));
         } else if (Spec->ReduceCombiner) {
             result.set_cpu(Spec->ReduceCombiner->CpuLimit);
             result.set_memory(
-                GetSortInputIOMemorySize(stat) +
+                memory +
                 GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
-                GetSortBuffersMemorySize(stat) +
-                GetMemoryReserve(memoryReserveEnabled, Spec->ReduceCombiner) +
-                GetFootprintMemorySize());
+                GetMemoryReserve(memoryReserveEnabled, Spec->ReduceCombiner));
         } else {
             result.set_cpu(1);
             result.set_memory(
-                GetSortInputIOMemorySize(stat) +
-                GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
-                GetSortBuffersMemorySize(stat) +
-                GetFootprintMemorySize());
+                memory +
+                GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig));
         }
 
         result.set_network(Spec->ShuffleNetworkLimit);

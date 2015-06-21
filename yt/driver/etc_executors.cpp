@@ -32,6 +32,7 @@ void TBuildSnapshotExecutor::DoExecute()
     auto admin = Driver->GetConnection()->CreateAdmin();
     TBuildSnapshotOptions options;
     options.CellId = CellIdArg.getValue();
+    options.SetReadOnly = SetReadOnlyArg.getValue();
 
     int snapshotId = WaitFor(admin->BuildSnapshot(options))
         .ValueOrThrow();

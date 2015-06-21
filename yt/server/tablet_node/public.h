@@ -33,7 +33,6 @@ using NTabletClient::NullStoreId;
 using NTabletClient::TPartitionId;
 using NTabletClient::NullPartitionId;
 
-using NTabletClient::ELockMode;
 using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
 using NTabletClient::TTabletCellOptions;
@@ -144,7 +143,6 @@ DEFINE_ENUM(EInMemoryMode,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManageConfig)
-DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
 DECLARE_REFCOUNTED_CLASS(TTableMountConfig)
 DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
@@ -200,11 +198,8 @@ class TEditList;
 using TValueList = TEditList<TDynamicValue>;
 using TRevisionList = TEditList<ui32>;
 
-class TSchemafulRowMerger;
-class TVersionedRowMerger;
-
 using TTabletWriterOptions = NVersionedTableClient::TTableWriterOptions;
-using TTabletWriterOptionsPtr =  NVersionedTableClient::TTableWriterOptionsPtr;
+using TTabletWriterOptionsPtr = NVersionedTableClient::TTableWriterOptionsPtr;
 
 //! This is the hard limit.
 //! Moreover, it is quite expensive to be graceful in preventing it from being exceeded.

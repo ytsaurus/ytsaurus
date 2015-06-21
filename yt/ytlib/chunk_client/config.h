@@ -122,6 +122,9 @@ public:
     //! Maximum amount of data to be transfered via a single RPC request.
     i64 GroupSize;
 
+    TNullable<double> SamplingRate;
+    TNullable<ui64> SamplingSeed;
+
     TSequentialReaderConfig()
     {
         RegisterParameter("window_size", WindowSize)
@@ -130,6 +133,12 @@ public:
         RegisterParameter("group_size", GroupSize)
             .Default((i64) 15 * 1024 * 1024)
             .GreaterThan(0);
+
+        RegisterParameter("sampling_rate", SamplingRate)
+            .Default()
+            .InRange(0, 1);
+        RegisterParameter("sampling_seed", SamplingSeed)
+            .Default();
 
         RegisterValidator([&] () {
             if (GroupSize > WindowSize) {
@@ -189,7 +198,7 @@ public:
             .Default(2);
         RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
             .Default(2)
-            .GreaterThan(0);
+            .GreaterThanOrEqual(1);
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
         RegisterParameter("node_ping_interval", NodePingPeriod)

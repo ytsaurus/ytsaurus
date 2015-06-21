@@ -37,7 +37,8 @@ bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs);
 struct TChunkDynamicData
     : public NHydra::TEntityDynamicDataBase
 {
-    struct {
+    struct
+    {
         bool RefreshScheduled : 1;
         bool PropertiesUpdateScheduled : 1;
         bool SealScheduled : 1;
@@ -113,6 +114,8 @@ public:
     const TNullable<TChunkRepairQueueIterator>& GetRepairQueueIterator() const;
     void SetRepairQueueIterator(const TNullable<TChunkRepairQueueIterator>& value);
 
+    void Reset();
+
     int GetReplicationFactor() const;
     void SetReplicationFactor(int value);
 
@@ -155,7 +158,11 @@ public:
 
     //! Returns the maximum number of replicas that can be stored in the same
     //! rack without violating the availability guarantees.
-    int GetMaxReplicasPerRack() const;
+    /*!
+     *  \param replicationFactorOverride An override for replication factor;
+     *  used when one wants to upload fewer replicas but still guarantee placement safety.
+     */
+    int GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride = Null) const;
 
 private:
     struct {
@@ -174,3 +181,7 @@ private:
 
 } // namespace NChunkServer
 } // namespace NYT
+
+#define CHUNK_INL_H_
+#include "chunk-inl.h"
+#undef CHUNK_INL_H_

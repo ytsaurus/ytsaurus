@@ -93,7 +93,7 @@ public:
             EObjectAccountMode::Forbidden);
     }
 
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -115,7 +115,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TAccount* account, TTransaction* transaction) override;
 
-    virtual void DoDestroy(TAccount* account) override;
+    virtual void DoDestroyObject(TAccount* account) override;
 
     virtual TAccessControlDescriptor* DoFindAcd(TAccount* account) override
     {
@@ -144,7 +144,7 @@ public:
             EObjectAccountMode::Forbidden);
     }
 
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -161,7 +161,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TUser* user, TTransaction* transaction) override;
 
-    virtual void DoDestroy(TUser* user) override;
+    virtual void DoDestroyObject(TUser* user) override;
 
 };
 
@@ -185,7 +185,7 @@ public:
             EObjectAccountMode::Forbidden);
     }
 
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -202,7 +202,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TGroup* group, TTransaction* transaction) override;
 
-    virtual void DoDestroy(TGroup* group) override;
+    virtual void DoDestroyObject(TGroup* group) override;
 
 };
 
@@ -666,14 +666,14 @@ public:
     EPermissionSet GetSupportedPermissions(TObjectBase* object)
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto handler = objectManager->GetHandler(object);
+        const auto& handler = objectManager->GetHandler(object);
         return handler->GetSupportedPermissions();
     }
 
     TAccessControlDescriptor* FindAcd(TObjectBase* object)
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto handler = objectManager->GetHandler(object);
+        const auto& handler = objectManager->GetHandler(object);
         return handler->FindAcd(object);
     }
 
@@ -689,7 +689,7 @@ public:
         TAccessControlList result;
         auto objectManager = Bootstrap_->GetObjectManager();
         while (object) {
-            auto handler = objectManager->GetHandler(object);
+            const auto& handler = objectManager->GetHandler(object);
             auto* acd = handler->FindAcd(object);
             if (acd) {
                 result.Entries.insert(result.Entries.end(), acd->Acl().Entries.begin(), acd->Acl().Entries.end());
@@ -745,7 +745,7 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto* currentObject = object;
         while (currentObject) {
-            auto handler = objectManager->GetHandler(currentObject);
+            const auto& handler = objectManager->GetHandler(currentObject);
             auto* acd = handler->FindAcd(currentObject);
 
             // Check the current ACL, if any.
@@ -817,7 +817,7 @@ public:
                     permission,
                     objectManager->GetHandler(object)->GetName(object),
                     result.Subject->GetName(),
-                    objectManager->GetHandler(object)->GetName(result.Object));
+                    objectManager->GetHandler(result.Object)->GetName(result.Object));
             } else {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
@@ -1484,7 +1484,7 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TSecurityManager::TAccountTypeHandler::Create(
+TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
@@ -1504,8 +1504,9 @@ IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(
     return CreateAccountProxy(Owner_->Bootstrap_, account);
 }
 
-void TSecurityManager::TAccountTypeHandler::DoDestroy(TAccount* account)
+void TSecurityManager::TAccountTypeHandler::DoDestroyObject(TAccount* account)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(account);
     Owner_->DestroyAccount(account);
 }
 
@@ -1516,7 +1517,7 @@ TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TSecurityManager::TUserTypeHandler::Create(
+TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
@@ -1536,8 +1537,9 @@ IObjectProxyPtr TSecurityManager::TUserTypeHandler::DoGetProxy(
     return CreateUserProxy(Owner_->Bootstrap_, user);
 }
 
-void TSecurityManager::TUserTypeHandler::DoDestroy(TUser* user)
+void TSecurityManager::TUserTypeHandler::DoDestroyObject(TUser* user)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(user);
     Owner_->DestroyUser(user);
 }
 
@@ -1548,7 +1550,7 @@ TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
     , Owner_(owner)
 { }
 
-TObjectBase* TSecurityManager::TGroupTypeHandler::Create(
+TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
@@ -1568,8 +1570,9 @@ IObjectProxyPtr TSecurityManager::TGroupTypeHandler::DoGetProxy(
     return CreateGroupProxy(Owner_->Bootstrap_, group);
 }
 
-void TSecurityManager::TGroupTypeHandler::DoDestroy(TGroup* group)
+void TSecurityManager::TGroupTypeHandler::DoDestroyObject(TGroup* group)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(group);
     Owner_->DestroyGroup(group);
 }
 

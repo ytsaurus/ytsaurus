@@ -1,7 +1,6 @@
 #ifndef STATISTICS_INL_H_
 #error "Direct inclusion of this file is not allowed, include statistics.h"
 #endif
-#undef STATISTICS_INL_H_
 
 namespace NYT {
 namespace NScheduler {

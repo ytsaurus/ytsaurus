@@ -159,12 +159,22 @@ public:
             EObjectAccountMode::Required);
     }
 
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
         TReqCreateObjects* request,
         TRspCreateObjects* response) override;
+
+
+    virtual void ResetAllObjects() override
+    {
+        // NB: All chunk type handlers share the same map.
+        // No need to reset chunks multiple types.
+        if (GetType() == EObjectType::Chunk) {
+            TObjectTypeHandlerWithMapBase::ResetAllObjects();
+        }
+    }
 
 protected:
     TImpl* const Owner_;
@@ -172,21 +182,19 @@ protected:
 
     virtual IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
 
-    virtual void DoDestroy(TChunk* chunk) override;
+    virtual void DoDestroyObject(TChunk* chunk) override;
 
     virtual TTransaction* DoGetStagingTransaction(TChunk* chunk) override
     {
         return chunk->GetStagingTransaction();
     }
 
-    virtual void DoUnstage(TChunk* chunk, bool recursive) override;
+    virtual void DoUnstageObject(TChunk* chunk, bool recursive) override;
 
-    virtual void DoReset(TChunk* chunk) override
+    virtual void DoResetObject(TChunk* chunk) override
     {
-        chunk->SetRefreshScheduled(false);
-        chunk->SetPropertiesUpdateScheduled(false);
-        chunk->SetSealScheduled(false);
-        chunk->SetRepairQueueIterator(Null);
+        TObjectTypeHandlerWithMapBase::DoResetObject(chunk);
+        chunk->Reset();
     }
 };
 
@@ -279,7 +287,7 @@ public:
             EObjectAccountMode::Forbidden);
     }
 
-    virtual TObjectBase* Create(
+    virtual TObjectBase* CreateObject(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -297,31 +305,17 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TChunkList* chunkList, TTransaction* transaction) override;
 
-    virtual void DoDestroy(TChunkList* chunkList) override;
+    virtual void DoDestroyObject(TChunkList* chunkList) override;
 
     virtual TTransaction* DoGetStagingTransaction(TChunkList* chunkList) override
     {
         return chunkList->GetStagingTransaction();
     }
 
-    virtual void DoUnstage(TChunkList* chunkList, bool recursive) override;
+    virtual void DoUnstageObject(TChunkList* chunkList, bool recursive) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EAddReplicaReason,
-    (IncrementalHeartbeat)
-    (FullHeartbeat)
-    (Confirmation)
-);
-
-DEFINE_ENUM(ERemoveReplicaReason,
-    (None)
-    (IncrementalHeartbeat)
-    (FailedToApprove)
-    (ChunkIsDead)
-    (NodeRemoved)
-);
 
 class TChunkManager::TImpl
     : public TMasterAutomatonPart
@@ -397,6 +391,7 @@ public:
         TChunk* chunk,
         int desiredCount,
         int minCount,
+        TNullable<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName)
     {
@@ -404,6 +399,7 @@ public:
             chunk,
             desiredCount,
             minCount,
+            replicationFactorOverride,
             forbiddenNodes,
             preferredHostName,
             EWriteSessionType::User);
@@ -743,7 +739,7 @@ public:
 
     void MaybeScheduleChunkSeal(TChunk* chunk)
     {
-        ChunkSealer_->MaybeScheduleSeal(chunk);
+        ChunkSealer_->ScheduleSeal(chunk);
     }
 
 
@@ -921,7 +917,7 @@ private:
             TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
             node->RemoveReplica(chunkWithIndex, cached);
             if (ChunkReplicator_ && !cached) {
-                ChunkReplicator_->ScheduleChunkRemoval(node, chunkWithIndex);
+                ChunkReplicator_->ScheduleReplicaRemoval(node, chunkWithIndex);
             }
         };
 
@@ -1259,11 +1255,31 @@ private:
     {
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
+        ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap_);
+        ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_);
+        ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap_);
+
         LOG_INFO("Scheduling full chunk refresh");
         PROFILE_TIMING ("/full_chunk_refresh_schedule_time") {
-            ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap_);
-            ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_);
-            ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap_);
+            auto nodeTracker = Bootstrap_->GetNodeTracker();
+            for (const auto& pair : nodeTracker->Nodes()) {
+                auto* node = pair.second;
+                ChunkReplicator_->OnNodeRegistered(node);
+            }
+
+            for (const auto& pair : ChunkMap_) {
+                auto* chunk = pair.second;
+                if (!IsObjectAlive(chunk))
+                    continue;
+
+                ChunkReplicator_->ScheduleChunkRefresh(chunk);
+                ChunkReplicator_->SchedulePropertiesUpdate(chunk);
+
+                if (chunk->IsJournal()) {
+                    ChunkSealer_->ScheduleSeal(chunk);
+                }
+            }
+
         }
         LOG_INFO("Full chunk refresh scheduled");
     }
@@ -1325,7 +1341,7 @@ private:
         }
 
         if (ChunkSealer_ && !cached && chunk->IsJournal()) {
-            ChunkSealer_->MaybeScheduleSeal(chunk);
+            ChunkSealer_->ScheduleSeal(chunk);
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
@@ -1338,6 +1354,7 @@ private:
         auto* chunk = chunkWithIndex.GetPtr();
         auto nodeId = node->GetId();
         TNodePtrWithIndex nodeWithIndex(node, chunkWithIndex.GetIndex());
+        TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), nodeWithIndex.GetIndex());
 
         if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !node->HasReplica(chunkWithIndex, cached)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",
@@ -1349,11 +1366,16 @@ private:
             return;
         }
 
+        chunk->RemoveReplica(nodeWithIndex, cached);
+
         switch (reason) {
             case ERemoveReplicaReason::IncrementalHeartbeat:
             case ERemoveReplicaReason::FailedToApprove:
             case ERemoveReplicaReason::ChunkIsDead:
                 node->RemoveReplica(chunkWithIndex, cached);
+                if (ChunkReplicator_ && !cached) {
+                    ChunkReplicator_->OnReplicaRemoved(node, chunkWithIndex, reason);
+                }
                 break;
             case ERemoveReplicaReason::NodeRemoved:
                 // Do nothing.
@@ -1361,7 +1383,6 @@ private:
             default:
                 YUNREACHABLE();
         }
-        chunk->RemoveReplica(nodeWithIndex, cached);
 
         if (!IsRecovery()) {
             LOG_EVENT(
@@ -1428,7 +1449,7 @@ private:
                 cached);
 
             if (ChunkReplicator_) {
-                ChunkReplicator_->ScheduleUnknownChunkRemoval(node, chunkIdWithIndex);
+                ChunkReplicator_->ScheduleUnknownReplicaRemoval(node, chunkIdWithIndex);
             }
 
             return;
@@ -1520,7 +1541,7 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
     return CreateChunkProxy(Bootstrap_, chunk);
 }
 
-TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
+TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
@@ -1569,15 +1590,17 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     return chunk;
 }
 
-void TChunkManager::TChunkTypeHandlerBase::DoDestroy(TChunk* chunk)
+void TChunkManager::TChunkTypeHandlerBase::DoDestroyObject(TChunk* chunk)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunk);
     Owner_->DestroyChunk(chunk);
 }
 
-void TChunkManager::TChunkTypeHandlerBase::DoUnstage(
+void TChunkManager::TChunkTypeHandlerBase::DoUnstageObject(
     TChunk* chunk,
-    bool /*recursive*/)
+    bool recursive)
 {
+    TObjectTypeHandlerWithMapBase::DoUnstageObject(chunk, recursive);
     Owner_->UnstageChunk(chunk);
 }
 
@@ -1595,7 +1618,7 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
     return CreateChunkListProxy(Bootstrap_, chunkList);
 }
 
-TObjectBase* TChunkManager::TChunkListTypeHandler::Create(
+TObjectBase* TChunkManager::TChunkListTypeHandler::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
@@ -1608,15 +1631,17 @@ TObjectBase* TChunkManager::TChunkListTypeHandler::Create(
     return chunkList;
 }
 
-void TChunkManager::TChunkListTypeHandler::DoDestroy(TChunkList* chunkList)
+void TChunkManager::TChunkListTypeHandler::DoDestroyObject(TChunkList* chunkList)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(chunkList);
     Owner_->DestroyChunkList(chunkList);
 }
 
-void TChunkManager::TChunkListTypeHandler::DoUnstage(
+void TChunkManager::TChunkListTypeHandler::DoUnstageObject(
     TChunkList* chunkList,
     bool recursive)
 {
+    TObjectTypeHandlerWithMapBase::DoUnstageObject(chunkList, recursive);
     Owner_->UnstageChunkList(chunkList, recursive);
 }
 
@@ -1660,6 +1685,7 @@ TNodeList TChunkManager::AllocateWriteTargets(
     TChunk* chunk,
     int desiredCount,
     int minCount,
+    TNullable<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
 {
@@ -1667,6 +1693,7 @@ TNodeList TChunkManager::AllocateWriteTargets(
         chunk,
         desiredCount,
         minCount,
+        replicationFactorOverride,
         forbiddenNodes,
         preferredHostName);
 }
