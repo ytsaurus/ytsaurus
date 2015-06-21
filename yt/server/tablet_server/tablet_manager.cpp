@@ -1916,6 +1916,7 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
 
 void TTabletManager::TTabletCellTypeHandler::DoZombifyObject(TTabletCell* cell)
 {
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(cell);
     // NB: Destroy the cell right away and do not wait for GC to prevent
     // dangling links from occuring in //sys/tablet_cells.
     Owner_->DestroyCell(cell);
@@ -1930,6 +1931,7 @@ TTabletManager::TTabletTypeHandler::TTabletTypeHandler(TImpl* owner)
 
 void TTabletManager::TTabletTypeHandler::DoDestroyObject(TTablet* tablet)
 {
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(tablet);
     Owner_->DestroyTablet(tablet);
 }
 

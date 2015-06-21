@@ -97,7 +97,7 @@ protected:
         TObject* object,
         NTransactionServer::TTransaction* /*transaction*/)
     {
-        return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap_, object);
+        return New<TNonversionedObjectProxyBase<TObject>>(Bootstrap_, object);
     }
 
     virtual void DoZombifyObject(TObject* /*object*/)
@@ -110,9 +110,7 @@ protected:
     }
 
     virtual void DoUnstageObject(TObject* /*object*/, bool /*recursive*/)
-    {
-        YUNREACHABLE();
-    }
+    { }
 
     virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* /*object*/)
     {
@@ -142,16 +140,7 @@ public:
 
     virtual void DestroyObject(TObjectBase* object) throw() override
     {
-        // Clear ACD, if any.
-        auto* acd = this->FindAcd(object);
-        if (acd) {
-            acd->Clear();
-        }
-
-        // Run custom destruction logic.
         this->DoDestroyObject(static_cast<TObject*>(object));
-
-        // Remove the object from the map.
         Map_->Remove(object->GetId());
     }
 
@@ -164,21 +153,28 @@ public:
     {
         for (const auto& pair : *Map_) {
             auto* object = pair.second;
-            object->ResetWeakRefCounter();
             this->DoResetObject(object);
         }
+    }
+
+protected:
+    virtual void DoDestroyObject(TObject* object)
+    {
+        // Clear ACD, if any.
+        auto* acd = this->FindAcd(object);
+        if (acd) {
+            acd->Clear();
+        }
+    }
+
+    virtual void DoResetObject(TObject* object)
+    {
+        object->ResetWeakRefCounter();
     }
 
 private:
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* const Map_;
-
-
-    virtual void DoDestroyObject(TObject* /*object*/)
-    { }
-
-    virtual void DoResetObject(TObject* /*object*/)
-    { }
 
 };
 
