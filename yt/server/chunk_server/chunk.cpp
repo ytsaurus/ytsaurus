@@ -3,12 +3,11 @@
 #include "chunk_tree_statistics.h"
 #include "chunk_list.h"
 
-#include <ytlib/chunk_client/public.h>
+#include <core/erasure/codec.h>
+
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/object_client/helpers.h>
-
-#include <core/erasure/codec.h>
 
 #include <server/cell_master/serialize.h>
 
@@ -49,11 +48,6 @@ TChunk::TChunk(const TChunkId& id)
     ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
     ChunkMeta_.mutable_extensions();
-}
-
-TChunkDynamicData* TChunk::GetDynamicData() const
-{
-    return GetTypedDynamicData<TChunkDynamicData>();
 }
 
 TChunkTreeStatistics TChunk::GetStatistics() const
@@ -228,128 +222,6 @@ void TChunk::ValidateConfirmed()
         THROW_ERROR_EXCEPTION("Chunk %v is not confirmed",
             Id);
     }
-}
-
-bool TChunk::GetMovable() const
-{
-    return Flags_.Movable;
-}
-
-void TChunk::SetMovable(bool value)
-{
-    Flags_.Movable = value;
-}
-
-bool TChunk::GetVital() const
-{
-    return Flags_.Vital;
-}
-
-void TChunk::SetVital(bool value)
-{
-    Flags_.Vital = value;
-}
-
-bool TChunk::GetRefreshScheduled() const
-{
-    return GetDynamicData()->Flags.RefreshScheduled;
-}
-
-void TChunk::SetRefreshScheduled(bool value)
-{
-    GetDynamicData()->Flags.RefreshScheduled = value;
-}
-
-bool TChunk::GetPropertiesUpdateScheduled() const
-{
-    return GetDynamicData()->Flags.PropertiesUpdateScheduled;
-}
-
-void TChunk::SetPropertiesUpdateScheduled(bool value)
-{
-    GetDynamicData()->Flags.PropertiesUpdateScheduled = value;
-}
-
-bool TChunk::GetSealScheduled() const
-{
-    return GetDynamicData()->Flags.SealScheduled;
-}
-
-void TChunk::SetSealScheduled(bool value)
-{
-    GetDynamicData()->Flags.SealScheduled = value;
-}
-
-const TNullable<TChunkRepairQueueIterator>& TChunk::GetRepairQueueIterator() const
-{
-    return GetDynamicData()->RepairQueueIterator;
-}
-
-void TChunk::SetRepairQueueIterator(const TNullable<TChunkRepairQueueIterator>& value)
-{
-    GetDynamicData()->RepairQueueIterator = value;
-}
-
-void TChunk::Reset()
-{
-    auto* data = GetDynamicData();
-    data->Flags = {};
-    data->RepairQueueIterator.Reset();
-}
-
-int TChunk::GetReplicationFactor() const
-{
-    return ReplicationFactor_;
-}
-
-void TChunk::SetReplicationFactor(int value)
-{
-    ReplicationFactor_ = value;
-}
-
-int TChunk::GetReadQuorum() const
-{
-    return ReadQuorum_;
-}
-
-void TChunk::SetReadQuorum(int value)
-{
-    ReadQuorum_ = value;
-}
-
-int TChunk::GetWriteQuorum() const
-{
-    return WriteQuorum_;
-}
-
-void TChunk::SetWriteQuorum(int value)
-{
-    WriteQuorum_ = value;
-}
-
-NErasure::ECodec TChunk::GetErasureCodec() const
-{
-    return ErasureCodec_;
-}
-
-void TChunk::SetErasureCodec(NErasure::ECodec value)
-{
-    ErasureCodec_ = value;
-}
-
-bool TChunk::IsErasure() const
-{
-    return GetType() == EObjectType::ErasureChunk;
-}
-
-bool TChunk::IsJournal() const
-{
-    return GetType() == EObjectType::JournalChunk;
-}
-
-bool TChunk::IsRegular() const
-{
-    return GetType() == EObjectType::Chunk;
 }
 
 bool TChunk::IsAvailable() const

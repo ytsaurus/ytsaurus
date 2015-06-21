@@ -37,14 +37,12 @@ bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs);
 struct TChunkDynamicData
     : public NHydra::TEntityDynamicDataBase
 {
-    struct TFlags
+    struct
     {
         bool RefreshScheduled : 1;
         bool PropertiesUpdateScheduled : 1;
         bool SealScheduled : 1;
-    };
-
-    TFlags Flags = {};
+    } Flags = {};
 
     //! Contains a valid iterator for those chunks belonging to the repair queue
     //! and |Null| for others.
@@ -183,3 +181,7 @@ private:
 
 } // namespace NChunkServer
 } // namespace NYT
+
+#define CHUNK_INL_H_
+#include "chunk-inl.h"
+#undef CHUNK_INL_H_
