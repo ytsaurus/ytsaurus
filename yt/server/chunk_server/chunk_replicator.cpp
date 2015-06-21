@@ -84,22 +84,9 @@ TChunkReplicator::TChunkReplicator(
     , ChunkPlacement_(chunkPlacement)
     , ChunkRefreshDelay_(DurationToCpuDuration(config->ChunkRefreshDelay))
 {
-    YCHECK(config);
-    YCHECK(bootstrap);
-    YCHECK(chunkPlacement);
-
-    auto nodeTracker = Bootstrap_->GetNodeTracker();
-    for (const auto& pair : nodeTracker->Nodes()) {
-        auto* node = pair.second;
-        OnNodeRegistered(node);
-    }
-
-    auto chunkManager = Bootstrap_->GetChunkManager();
-    for (const auto& pair : chunkManager->Chunks()) {
-        auto* chunk = pair.second;
-        ScheduleChunkRefresh(chunk);
-        SchedulePropertiesUpdate(chunk);
-    }
+    YCHECK(Config_);
+    YCHECK(Bootstrap_);
+    YCHECK(ChunkPlacement_);
 }
 
 void TChunkReplicator::Start()

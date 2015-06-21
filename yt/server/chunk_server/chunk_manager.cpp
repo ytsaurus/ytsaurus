@@ -739,7 +739,7 @@ public:
 
     void MaybeScheduleChunkSeal(TChunk* chunk)
     {
-        ChunkSealer_->MaybeScheduleSeal(chunk);
+        ChunkSealer_->ScheduleSeal(chunk);
     }
 
 
@@ -1255,11 +1255,31 @@ private:
     {
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
+        ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap_);
+        ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_);
+        ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap_);
+
         LOG_INFO("Scheduling full chunk refresh");
         PROFILE_TIMING ("/full_chunk_refresh_schedule_time") {
-            ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap_);
-            ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_);
-            ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap_);
+            auto nodeTracker = Bootstrap_->GetNodeTracker();
+            for (const auto& pair : nodeTracker->Nodes()) {
+                auto* node = pair.second;
+                ChunkReplicator_->OnNodeRegistered(node);
+            }
+
+            for (const auto& pair : ChunkMap_) {
+                auto* chunk = pair.second;
+                if (!IsObjectAlive(chunk))
+                    continue;
+
+                ChunkReplicator_->ScheduleChunkRefresh(chunk);
+                ChunkReplicator_->SchedulePropertiesUpdate(chunk);
+
+                if (chunk->IsJournal()) {
+                    ChunkSealer_->ScheduleSeal(chunk);
+                }
+            }
+
         }
         LOG_INFO("Full chunk refresh scheduled");
     }
@@ -1321,7 +1341,7 @@ private:
         }
 
         if (ChunkSealer_ && !cached && chunk->IsJournal()) {
-            ChunkSealer_->MaybeScheduleSeal(chunk);
+            ChunkSealer_->ScheduleSeal(chunk);
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
