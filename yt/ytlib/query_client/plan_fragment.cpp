@@ -10,16 +10,18 @@
 #include "callbacks.h"
 #include "functions.h"
 
+#include <core/ytree/convert.h>
+
+#include <core/misc/protobuf_helpers.h>
+
 #include <ytlib/tablet_client/wire_protocol.h>
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
-#include <core/ytree/convert.h>
-
-#include <core/misc/protobuf_helpers.h>
-
 #include <ytlib/query_client/plan_fragment.pb.h>
+
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <limits>
 #include <unordered_set>
