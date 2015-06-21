@@ -204,7 +204,7 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
         data = [{"foo": i} for i in xrange(5)]
-        write("//tmp/in", data)
+        write_table("//tmp/in", data)
 
         op1 = map(dont_track=True, command="sleep 5.0; cat", in_=["//tmp/in"], out="//tmp/out1")
         op2 = map(dont_track=True, command="cat", in_=["//tmp/in"], out="//tmp/out2")
@@ -225,7 +225,7 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
         create("table", "//tmp/out3")
-        write("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
         op1 = map(dont_track=True, command="sleep 2.0; cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
         op2 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out2")
