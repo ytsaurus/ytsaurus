@@ -1062,7 +1062,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     proxy.SetDefaultTimeout(timeout.Get(Config_->ForwardingRpcTimeout));
 
     auto batchReq = proxy.ExecuteBatch();
-    SetAuthenticatedUser(batchReq, user->GetName());
+    batchReq->SetUser(user->GetName());
     batchReq->AddRequestMessage(requestMessage);
 
     return batchReq->Invoke().Apply(BIND([] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {

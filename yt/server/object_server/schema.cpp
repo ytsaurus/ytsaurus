@@ -109,7 +109,7 @@ public:
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual void DestroyObject(TObjectBase* /*object*/) override
+    virtual void DestroyObject(TObjectBase* /*object*/) throw() override
     {
         YUNREACHABLE();
     }
