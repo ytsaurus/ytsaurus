@@ -99,8 +99,8 @@ public:
     }
 
 private:
-    TChunkManagerConfigPtr Config_;
-    TBootstrap* Bootstrap_;
+    const TChunkManagerConfigPtr Config_;
+    TBootstrap* const Bootstrap_;
 
     TAsyncSemaphore Semaphore_;
 
@@ -309,7 +309,6 @@ void TChunkSealer::Start()
 {
     Impl_->Start();
 }
-
 
 void TChunkSealer::Stop()
 {
