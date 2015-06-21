@@ -196,8 +196,8 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         track_op(op1)
         track_op(op2)
 
-        assert read("//tmp/out1") == []
-        assert read("//tmp/out2") == []
+        assert read_table("//tmp/out1") == []
+        assert read_table("//tmp/out2") == []
 
     def test_pending_operations_after_revive(self):
         create("table", "//tmp/in")
@@ -217,8 +217,8 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         track_op(op1)
         track_op(op2)
 
-        assert read("//tmp/out1") == data
-        assert read("//tmp/out2") == data
+        assert read_table("//tmp/out1") == data
+        assert read_table("//tmp/out2") == data
 
     def test_abort_of_pending_operation(self):
         create("table", "//tmp/in")
