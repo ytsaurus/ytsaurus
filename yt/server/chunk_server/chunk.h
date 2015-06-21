@@ -37,11 +37,14 @@ bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs);
 struct TChunkDynamicData
     : public NHydra::TEntityDynamicDataBase
 {
-    struct {
+    struct TFlags
+    {
         bool RefreshScheduled : 1;
         bool PropertiesUpdateScheduled : 1;
         bool SealScheduled : 1;
-    } Flags = {};
+    };
+
+    TFlags Flags = {};
 
     //! Contains a valid iterator for those chunks belonging to the repair queue
     //! and |Null| for others.
@@ -112,6 +115,8 @@ public:
 
     const TNullable<TChunkRepairQueueIterator>& GetRepairQueueIterator() const;
     void SetRepairQueueIterator(const TNullable<TChunkRepairQueueIterator>& value);
+
+    void Reset();
 
     int GetReplicationFactor() const;
     void SetReplicationFactor(int value);

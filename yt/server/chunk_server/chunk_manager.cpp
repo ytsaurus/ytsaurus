@@ -184,10 +184,7 @@ protected:
     virtual void DoResetObject(TChunk* chunk) override
     {
         TObjectTypeHandlerWithMapBase::DoResetObject(chunk);
-        chunk->SetRefreshScheduled(false);
-        chunk->SetPropertiesUpdateScheduled(false);
-        chunk->SetSealScheduled(false);
-        chunk->SetRepairQueueIterator(Null);
+        chunk->Reset();
     }
 };
 

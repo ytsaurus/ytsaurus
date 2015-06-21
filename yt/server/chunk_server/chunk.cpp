@@ -290,6 +290,13 @@ void TChunk::SetRepairQueueIterator(const TNullable<TChunkRepairQueueIterator>& 
     GetDynamicData()->RepairQueueIterator = value;
 }
 
+void TChunk::Reset()
+{
+    auto* data = GetDynamicData();
+    data->Flags = {};
+    data->RepairQueueIterator.Reset();
+}
+
 int TChunk::GetReplicationFactor() const
 {
     return ReplicationFactor_;
