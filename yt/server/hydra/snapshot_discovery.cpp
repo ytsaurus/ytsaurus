@@ -4,11 +4,6 @@
 #include "config.h"
 
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/parallel_awaiter.h>
-
-#include <core/actions/invoker_util.h>
-
-#include <core/logging/log.h>
 
 #include <ytlib/election/cell_manager.h>
 
@@ -40,14 +35,13 @@ public:
 
     TFuture<TRemoteSnapshotParams> Run(int maxSnapshotId, bool exactId)
     {
-        auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
-
         if (exactId) {
             LOG_INFO("Looking for snapshot %v", maxSnapshotId);
         } else {
             LOG_INFO("Looking for the latest snapshot up to %v", maxSnapshotId);
         }
 
+        std::vector<TFuture<void>> asyncResults;
         for (auto peerId = 0; peerId < CellManager_->GetPeerCount(); ++peerId) {
             auto channel = CellManager_->GetPeerChannel(peerId);
             if (!channel)
@@ -61,13 +55,12 @@ public:
             auto req = proxy.LookupSnapshot();
             req->set_max_snapshot_id(maxSnapshotId);
             req->set_exact_id(exactId);
-            awaiter->Await(
-                req->Invoke(),
-                BIND(&TSnapshotDiscovery::OnResponse, MakeStrong(this), peerId));
+            asyncResults.push_back(req->Invoke().Apply(
+                BIND(&TSnapshotDiscovery::OnResponse, MakeStrong(this), peerId)));
         }
         LOG_INFO("Snapshot lookup requests sent");
 
-        awaiter->Complete(
+        Combine(asyncResults).Subscribe(
             BIND(&TSnapshotDiscovery::OnComplete, MakeStrong(this)));
 
         return Promise_;
