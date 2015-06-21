@@ -22,14 +22,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChangelogInfo::TChangelogInfo()
-    : PeerId(InvalidPeerId)
-    , ChangelogId(InvalidSegmentId)
-    , RecordCount(-1)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChangelogDiscovery
     : public TRefCounted
 {

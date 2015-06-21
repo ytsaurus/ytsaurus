@@ -13,11 +13,9 @@ namespace NHydra {
 
 struct TChangelogInfo
 {
-    TChangelogInfo();
-
-    TPeerId PeerId;
-    int ChangelogId;
-    int RecordCount;
+    TPeerId PeerId = InvalidPeerId;
+    int ChangelogId = InvalidSegmentId;
+    int RecordCount = -1;
 };
 
 //! Looks for a changelog with a given id containing the desired number of records.
