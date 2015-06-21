@@ -29,6 +29,8 @@
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
 
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+
 #ifdef YT_USE_LLVM
 #include <ytlib/query_client/folding_profiler.h>
 #endif
