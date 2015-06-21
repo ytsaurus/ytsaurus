@@ -1,7 +1,6 @@
 #ifndef SERIALIZE_INL_H_
 #error "Direct inclusion of this file is not allowed, include serialize.h"
 #endif
-#undef SERIALIZE_INL_H_
 
 #include "node.h"
 #include "yson_stream.h"

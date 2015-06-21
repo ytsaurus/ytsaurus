@@ -1,7 +1,6 @@
 #ifndef VIRTUAL_INL_H_
 #error "Direct inclusion of this file is not allowed, include virtual.h"
 #endif
-#undef VIRTUAL_INL_H_
 
 #include <core/misc/string.h>
 #include <core/misc/collection_helpers.h>

@@ -1,7 +1,6 @@
 #ifndef CHUNK_INL_H_
 #error "Direct inclusion of this file is not allowed, include chunk.h"
 #endif
-#undef CHUNK_INL_H_
 
 namespace NYT {
 namespace NChunkServer {

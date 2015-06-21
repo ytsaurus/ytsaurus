@@ -1,7 +1,6 @@
 #ifndef VARIANT_INL_H_
 #error "Direct inclusion of this file is not allowed, include variant.h"
 #endif
-#undef VARIANT_INL_H_
 
 #include <type_traits>
 

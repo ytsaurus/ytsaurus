@@ -1,7 +1,6 @@
 #ifndef HELPERS_INL_H_
 #error "Direct inclusion of this file is not allowed, include helpers.h"
 #endif
-#undef HELPERS_INL_H_
 
 namespace NYT {
 namespace NScheduler {
