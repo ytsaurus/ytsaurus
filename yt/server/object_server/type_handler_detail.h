@@ -58,7 +58,7 @@ public:
         DoZombifyObject(static_cast<TObject*>(object));
     }
 
-    virtual NTransactionServer::TTransaction* GetStagingTransaction(TObjectBase* object) override
+    virtual NTransactionServer::TTransaction* GetStagingTransaction(
         TObjectBase* object) override
     {
         return DoGetStagingTransaction(static_cast<TObject*>(object));
