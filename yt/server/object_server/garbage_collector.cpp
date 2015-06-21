@@ -110,8 +110,8 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
     YCHECK(Zombies_.erase(object) == 1);
 
     auto objectManager = Bootstrap_->GetObjectManager();
-    auto handler = objectManager->GetHandler(object->GetType());
-    handler->Destroy(object);
+    const auto& handler = objectManager->GetHandler(object->GetType());
+    handler->DestroyObject(object);
 
     if (object->GetObjectWeakRefCounter() > 0) {
         LOG_DEBUG("Zombie has become ghost (ObjectId: %v, WeakRefCounter: %v)",
