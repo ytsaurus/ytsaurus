@@ -166,6 +166,16 @@ public:
         TReqCreateObjects* request,
         TRspCreateObjects* response) override;
 
+
+    virtual void ResetAllObjects() override
+    {
+        // NB: All chunk type handlers share the same map.
+        // No need to reset chunks multiple types.
+        if (GetType() == EObjectType::Chunk) {
+            TObjectTypeHandlerWithMapBase::ResetAllObjects();
+        }
+    }
+
 protected:
     TImpl* const Owner_;
 
