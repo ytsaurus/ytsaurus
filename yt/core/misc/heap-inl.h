@@ -1,7 +1,6 @@
 #ifndef HEAP_INL_H_
 #error "Direct inclusion of this file is not allowed, include heap.h"
 #endif
-#undef HEAP_INL_H_
 
 #include <iterator>
 

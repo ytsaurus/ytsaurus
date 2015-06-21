@@ -1,7 +1,6 @@
 #ifndef COLLECTION_HELPERS_INL_H_
 #error "Direct inclusion of this file is not allowed, include collection_helpers.h"
 #endif
-#undef COLLECTION_HELPERS_INL_H_
 
 namespace NYT {
 
