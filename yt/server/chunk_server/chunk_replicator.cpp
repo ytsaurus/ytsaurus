@@ -1389,6 +1389,7 @@ void TChunkReplicator::OnPropertiesUpdate()
     TReqUpdateChunkProperties request;
 
     int totalCount = 0;
+    int aliveCount = 0;
     PROFILE_TIMING ("/properties_update_time") {
         for (int i = 0; i < Config_->MaxChunksPerPropertiesUpdate; ++i) {
             if (PropertiesUpdateList_.empty())
@@ -1399,6 +1400,7 @@ void TChunkReplicator::OnPropertiesUpdate()
             ++totalCount;
 
             if (IsObjectAlive(chunk)) {
+                ++aliveCount;
                 chunk->SetPropertiesUpdateScheduled(false);
                 auto newProperties = ComputeChunkProperties(chunk);
                 auto oldProperties = chunk->GetChunkProperties();
@@ -1421,8 +1423,9 @@ void TChunkReplicator::OnPropertiesUpdate()
         }
     }
 
-    LOG_DEBUG("Starting chunk properties update (TotalCount: %v, AliveCount: %v)",
+    LOG_DEBUG("Starting chunk properties update (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
         totalCount,
+        aliveCount,
         request.updates_size());
 
     if (request.updates_size() == 0) {
