@@ -231,7 +231,7 @@ def _prepare_binary(binary, operation_type, input_format=None, output_format=Non
 def _prepare_destination_tables(tables, replication_factor, compression_codec, client=None):
     if tables is None:
         if get_config(client)["yamr_mode"]["throw_on_missing_destination"]:
-            raise YtError("Destination tables are absent")
+            raise YtError("Destination tables are missing")
         return []
     tables = map(lambda name: to_table(name, client=client), flatten(tables))
     for table in tables:
@@ -686,7 +686,7 @@ def copy_table(source_table, destination_table, replace=True, client=None):
     if _are_nodes(source_tables, destination_table):
         if replace and exists(destination_table.name, client=client) and \
            to_name(source_tables[0], client=client) != to_name(destination_table, client=client):
-            # in copy destination should be absent
+            # in copy destination should be missing
             remove(destination_table.name, client=client)
         dirname = os.path.dirname(destination_table.name)
         if dirname != "//":
