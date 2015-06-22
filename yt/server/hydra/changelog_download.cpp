@@ -54,12 +54,6 @@ void DoDownloadChangelog(
         auto asyncChangelogInfo = DiscoverChangelog(config, cellManager, changelogId, recordCount);
         auto changelogInfo = WaitFor(asyncChangelogInfo)
             .ValueOrThrow();
-        if (changelogInfo.ChangelogId == InvalidSegmentId) {
-            THROW_ERROR_EXCEPTION("Unable to find a download source for changelog %v with %v records",
-                changelogId,
-                recordCount);
-        }
-
         int downloadedRecordCount = changelog->GetRecordCount();
 
         LOG_INFO("Downloading records %v-%v from peer %v",

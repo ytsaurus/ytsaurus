@@ -4,11 +4,6 @@
 #include "config.h"
 
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/parallel_awaiter.h>
-
-#include <core/actions/invoker_util.h>
-
-#include <core/logging/log.h>
 
 #include <ytlib/election/cell_manager.h>
 
@@ -31,78 +26,60 @@ public:
         TCellManagerPtr cellManager,
         int changelogId,
         int minRecordCount)
-        : Config(config)
-        , CellManager(cellManager)
-        , MinRecordCount(minRecordCount)
-        , PromiseLock(false)
-        , Awaiter(New<TParallelAwaiter>(GetSyncInvoker()))
-        , Promise(NewPromise<TChangelogInfo>())
-        , Logger(HydraLogger)
+        : Config_(config)
+        , CellManager_(cellManager)
+        , ChangelogId_(changelogId)
+        , MinRecordCount_(minRecordCount)
     {
-        YCHECK(Config);
-        YCHECK(CellManager);
+        YCHECK(Config_);
+        YCHECK(CellManager_);
 
-        Logger.AddTag("CellId: %v", CellManager->GetCellId());
-
-        ChangelogInfo.ChangelogId = changelogId;
+        Logger = HydraLogger;
+        Logger.AddTag("CellId: %v",
+            ChangelogId_,
+            CellManager_->GetCellId());
     }
 
     TFuture<TChangelogInfo> Run()
     {
-        auto awaiter = Awaiter;
-        auto promise = Promise;
+        LOG_INFO("Running changelog discovery (ChangelogId: %v)",
+            ChangelogId_);
 
-        LOG_INFO("Looking for a replica of changelog %v with at least %v records",
-            ChangelogInfo.ChangelogId,
-            MinRecordCount);
-
-        for (auto peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
-            auto channel = CellManager->GetPeerChannel(peerId);
+        std::vector<TFuture<void>> asyncResults;
+        for (auto peerId = 0; peerId < CellManager_->GetPeerCount(); ++peerId) {
+            auto channel = CellManager_->GetPeerChannel(peerId);
             if (!channel)
                 continue;
 
-            LOG_INFO("Requesting changelog info from peer %v", peerId);
+            LOG_INFO("Requesting changelog info (PeerId: %v, ChangelogId: %v)",
+                ChangelogId_,
+                peerId);
 
             THydraServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Config->ControlRpcTimeout);
+            proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
             auto req = proxy.LookupChangelog();
-            req->set_changelog_id(ChangelogInfo.ChangelogId);
-            awaiter->Await(
-                req->Invoke(),
-                BIND(&TChangelogDiscovery::OnResponse, MakeStrong(this), peerId));
+            req->set_changelog_id(ChangelogId_);
+            asyncResults.push_back(req->Invoke().Apply(
+                BIND(&TChangelogDiscovery::OnResponse, MakeStrong(this), peerId)));
         }
-        LOG_INFO("Changelog lookup requests sent");
 
-        awaiter->Complete(
+        Combine(asyncResults).Subscribe(
             BIND(&TChangelogDiscovery::OnComplete, MakeStrong(this)));
 
-        return promise;
+        return Promise_;
     }
 
 private:
-    TDistributedHydraManagerConfigPtr Config;
-    NElection::TCellManagerPtr CellManager;
-    int MinRecordCount;
+    const TDistributedHydraManagerConfigPtr Config_;
+    const NElection::TCellManagerPtr CellManager_;
+    const int ChangelogId_;
+    const int MinRecordCount_;
 
-    TAtomic PromiseLock;
-    TParallelAwaiterPtr Awaiter;
-    TPromise<TChangelogInfo> Promise;
-    TChangelogInfo ChangelogInfo;
+    TPromise<TChangelogInfo> Promise_ = NewPromise<TChangelogInfo>();
 
     NLogging::TLogger Logger;
 
-
-    bool AcquireLock()
-    {
-        return AtomicCas(&PromiseLock, true, false);
-    }
-
-    void SetPromise()
-    {
-        Promise.Set(ChangelogInfo);
-        Awaiter->Cancel();
-    }
 
     void OnResponse(
         TPeerId peerId,
@@ -111,44 +88,47 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error looking up changelog at peer %v",
-                peerId);
+            LOG_WARNING(rspOrError, "Error requesting changelog info (PeerId: %v, ChangelogId: %v)",
+                peerId,
+                ChangelogId_);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
-        LOG_INFO("Found changelog %v on peer %v with %v record(s)",
-            ChangelogInfo.ChangelogId,
+        int recordCount = rsp->record_count();
+        LOG_INFO("Changelog info received (PeerId: %v, ChangelogId: %v, RecordCount: %v)",
             peerId,
-            rsp->record_count());
+            ChangelogId_,
+            recordCount);
 
-        if (rsp->record_count() < MinRecordCount)
+        if (recordCount < MinRecordCount_)
             return;
 
-        if (!AcquireLock())
-            return;
+        TChangelogInfo result;
+        result.ChangelogId = ChangelogId_;
+        result.PeerId = peerId;
+        result.RecordCount = recordCount;
 
-        ChangelogInfo.PeerId = peerId;
-        ChangelogInfo.RecordCount = rsp->record_count();
-        SetPromise();
+        if (Promise_.TrySet(result)) {
+            LOG_INFO("Changelog discovery succeded (PeerId: %v, ChangelogId: %v, RecordCount: %v)",
+                peerId,
+                ChangelogId_,
+                recordCount);
+        }
     }
 
-    void OnComplete()
+    void OnComplete(const TError&)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (ChangelogInfo.ChangelogId == InvalidSegmentId) {
-            LOG_INFO("Changelog lookup failed, no suitable replica found");
-        } else {
-            LOG_INFO("Changelog lookup succeeded, found replica on peer %v (RecordCount: %v)",
-                ChangelogInfo.PeerId,
-                ChangelogInfo.RecordCount);
+        auto error = TError("Unable to find a download source for changelog %v with %v records",
+            ChangelogId_,
+            MinRecordCount_);
+        if (Promise_.TrySet(error)) {
+            LOG_INFO("Changelog discovery failed, no suitable peer found (ChangelogId: %v, MinRecordCount: %v)",
+                ChangelogId_,
+                MinRecordCount_);
         }
-
-        if (!AcquireLock())
-            return;
-
-        SetPromise();
     }
 
 };
