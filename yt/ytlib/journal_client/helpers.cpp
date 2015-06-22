@@ -4,16 +4,10 @@
 
 #include <core/misc/string.h>
 
-#include <core/concurrency/parallel_awaiter.h>
-
-#include <core/logging/log.h>
-
 #include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-
-#include <atomic>
 
 namespace NYT {
 namespace NJournalClient {
@@ -153,6 +147,7 @@ public:
         , Timeout_(timeout)
         , Quorum_(quorum)
     {
+        Logger = JournalClientLogger;
         Logger.AddTag("ChunkId: %v", ChunkId_);
     }
 
@@ -170,12 +165,13 @@ private:
     const TDuration Timeout_;
     const int Quorum_;
 
+    TSpinLock SpinLock_;
     std::vector<TMiscExt> Infos_;
     std::vector<TError> InnerErrors_;
 
     TPromise<TMiscExt> Promise_ = NewPromise<TMiscExt>();
 
-    NLogging::TLogger Logger = JournalClientLogger;
+    NLogging::TLogger Logger;
 
 
     void DoRun()
@@ -190,10 +186,9 @@ private:
         }
 
         LOG_INFO("Computing quorum info for journal chunk (Addresses: [%v])",
-            ChunkId_,
             JoinToString(Replicas_));
 
-        auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
+        std::vector<TFuture<void>> asyncResults;
         for (const auto& descriptor : Replicas_) {
             auto channel = LightNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress());
             TDataNodeServiceProxy proxy(channel);
@@ -201,12 +196,11 @@ private:
             auto req = proxy.GetChunkMeta();
             ToProto(req->mutable_chunk_id(), ChunkId_);
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
-            awaiter->Await(
-                req->Invoke(),
-                BIND(&TComputeQuorumRowCountSession::OnResponse, MakeStrong(this), descriptor));
+            asyncResults.push_back(req->Invoke().Apply(
+                BIND(&TComputeQuorumRowCountSession::OnResponse, MakeStrong(this), descriptor)));
         }
 
-        awaiter->Complete(
+        Combine(asyncResults).Subscribe(
             BIND(&TComputeQuorumRowCountSession::OnComplete, MakeStrong(this)));
     }
 
@@ -217,24 +211,29 @@ private:
         if (rspOrError.IsOK()) {
             const auto& rsp = rspOrError.Value();
             auto miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
-            Infos_.push_back(miscExt);
 
-            LOG_INFO("Received info for journal chunk (ChunkId: %v, Address: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-                ChunkId_,
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+                Infos_.push_back(miscExt);
+            }
+
+            LOG_INFO("Received info for journal chunk (Address: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
                 descriptor.GetDefaultAddress(),
                 miscExt.row_count(),
                 miscExt.uncompressed_data_size(),
                 miscExt.compressed_data_size());
         } else {
-            InnerErrors_.push_back(rspOrError);
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+                InnerErrors_.push_back(rspOrError);
+            }
 
             LOG_WARNING(rspOrError, "Failed to get journal info (Address: %v)",
-                ChunkId_,
                 descriptor.GetDefaultAddress());
         }
     }
 
-    void OnComplete()
+    void OnComplete(const TError&)
     {
         if (Infos_.size() < Quorum_) {
             auto error = TError("Unable to compute quorum info for journal chunk %v: too few replicas alive, %v found, %v needed",
@@ -256,7 +255,6 @@ private:
         const auto& quorumInfo = Infos_[Quorum_ - 1];
 
         LOG_INFO("Quorum info for journal chunk computed successfully (RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-            ChunkId_,
             quorumInfo.row_count(),
             quorumInfo.uncompressed_data_size(),
             quorumInfo.compressed_data_size());
