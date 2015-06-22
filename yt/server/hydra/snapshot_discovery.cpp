@@ -123,18 +123,23 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (Params_.SnapshotId == InvalidSegmentId) {
+        if (ExactId_ && Params_.SnapshotId == InvalidSegmentId) {
             LOG_INFO("Snapshot discovery failed, no suitable peer found");
-            auto error = ExactId_
-                ? TError("Unable to find a download source for snapshot %v", MaxSnapshotId_)
-                : TError("Unable to find a download source for snapshots up to %v", MaxSnapshotId_);
+            auto error = TError("Unable to find a download source for snapshot %v",
+                MaxSnapshotId_);
             Promise_.Set(error);
+            return;
+        }
+
+        if (Params_.SnapshotId == InvalidSegmentId) {
+            LOG_INFO("Snapshot discovery finished, no feasible snapshot is found");
         } else {
             LOG_INFO("Snapshot discovery succeeded (PeerId: %v, SnapshotId: %v)",
                 Params_.PeerId,
                 Params_.SnapshotId);
-            Promise_.Set(Params_);
         }
+
+        Promise_.Set(Params_);
     }
 
 };
