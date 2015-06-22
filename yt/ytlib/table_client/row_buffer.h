@@ -10,7 +10,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDefaultRowBufferPoolTag  { };
+struct TDefaultRowBufferPoolTag { };
 
 //! Holds data for a bunch of rows.
 /*!
@@ -25,6 +25,14 @@ public:
         i64 chunkSize = TChunkedMemoryPool::DefaultChunkSize,
         double maxSmallBlockRatio = TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio,
         TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TDefaultRowBufferPoolTag>());
+
+    template <class T>
+    explicit TRowBuffer(
+        TRefCountedTypeTag<T>,
+        i64 chunkSize = TChunkedMemoryPool::DefaultChunkSize,
+        double maxSmallBlockRatio = TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio)
+        : TRowBuffer(chunkSize, maxSmallBlockRatio, GetRefCountedTypeCookie<T>())
+    { }
 
     TChunkedMemoryPool* GetPool();
 

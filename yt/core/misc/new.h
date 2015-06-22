@@ -68,6 +68,9 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+struct TRefCountedTypeTag { };
+
+template <class T>
 TRefCountedTypeKey GetRefCountedTypeKey()
 {
     return &typeid(T);
