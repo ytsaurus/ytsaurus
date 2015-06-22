@@ -7,8 +7,6 @@
 #include "changelog.h"
 #include "snapshot_discovery.h"
 
-#include <core/concurrency/parallel_awaiter.h>
-
 #include <ytlib/election/cell_manager.h>
 
 #include <ytlib/hydra/version.h>
@@ -168,7 +166,7 @@ private:
         SnapshotChecksums_[Owner_->CellManager_->GetSelfPeerId()] = params.Checksum;
     }
 
-    void OnSnapshotsComplete()
+    void OnSnapshotsComplete(const TError&)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
@@ -199,7 +197,7 @@ private:
 
     void RequestChangelogRotation()
     {
-        auto awaiter = ChangelogAwaiter_ = New<TParallelAwaiter>(Owner_->EpochContext_->EpochControlInvoker);
+        std::vector<TFuture<void>> asyncResults;
         for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
             if (peerId == Owner_->CellManager_->GetSelfPeerId())
                 continue;
@@ -217,17 +215,19 @@ private:
             ToProto(req->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
             req->set_revision(Version_.ToRevision());
 
-            awaiter->Await(
-                req->Invoke(),
-                BIND(&TSession::OnRemoteChangelogRotated, MakeStrong(this), peerId));
+            asyncResults.push_back(req->Invoke().Apply(
+                BIND(&TSession::OnRemoteChangelogRotated, MakeStrong(this), peerId)
+                    .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
         }
 
-        awaiter->Await(
-            Owner_->DecoratedAutomaton_->RotateChangelog(Owner_->EpochContext_),
-            BIND(&TSession::OnLocalChangelogRotated, MakeStrong(this)));
+        asyncResults.push_back(
+            Owner_->DecoratedAutomaton_->RotateChangelog(Owner_->EpochContext_).Apply(
+                BIND(&TSession::OnLocalChangelogRotated, MakeStrong(this))
+                    .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
 
-        awaiter->Complete(
-            BIND(&TSession::OnRotationFailed, MakeStrong(this)));
+        Combine(asyncResults).Subscribe(
+            BIND(&TSession::OnRotationFailed, MakeStrong(this))
+                .Via(Owner_->EpochContext_->EpochControlInvoker));
     }
 
     void OnRemoteChangelogRotated(TPeerId id, const THydraServiceProxy::TErrorOrRspRotateChangelogPtr& rspOrError)
@@ -251,8 +251,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
+        if (ChangelogPromise_.IsSet())
+            return;
+
         if (!error.IsOK()) {
-            SetFailed(TError("Error rotating local changelog") << error);
+            ChangelogPromise_.Set(TError("Error rotating local changelog") << error);
             return;
         }
 
@@ -267,6 +270,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
+        if (ChangelogPromise_.IsSet())
+            return;
+
         // NB: It is vital to wait for the local rotation to complete.
         // Otherwise we risk assigning out-of-order versions.
         if (!LocalRotationSuccessFlag_ || RemoteRotationSuccessCount_ < Owner_->CellManager_->GetQuorumCount() - 1)
@@ -275,7 +281,7 @@ private:
         Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(
             BIND(&TSession::OnRotationSucceded, MakeStrong(this)));
 
-        SetSucceded();
+        ChangelogPromise_.Set();
     }
 
     void OnRotationSucceded()
@@ -287,30 +293,17 @@ private:
         Owner_->LeaderCommitter_->ResumeLogging();
     }
 
-    void OnRotationFailed()
+    void OnRotationFailed(const TError&)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        // NB: Otherwise an error is already reported.
-        YCHECK(LocalRotationSuccessFlag_);
-        SetFailed(TError("Not enough successful changelog rotation replies: %v out of %v",
+        if (ChangelogPromise_.IsSet())
+            return;
+
+        ChangelogPromise_.Set(TError("Not enough successful changelog rotation replies: %v out of %v",
             RemoteRotationSuccessCount_ + 1,
             Owner_->CellManager_->GetPeerCount()));
     }
-
-
-    void SetSucceded()
-    {
-        ChangelogAwaiter_->Cancel();
-        ChangelogPromise_.Set(TError());
-    }
-
-    void SetFailed(const TError& error)
-    {
-        ChangelogAwaiter_->Cancel();
-        ChangelogPromise_.Set(error);
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
