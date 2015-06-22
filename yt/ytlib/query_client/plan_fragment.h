@@ -237,8 +237,11 @@ struct TJoinClause
     : public TIntrinsicRefCounted
 {
     TTableSchema ForeignTableSchema;
-    TKeyColumns ForeignKeyColumns;
-    std::vector<Stroka> JoinColumns;
+    i64 ForeignKeyColumnsCount;
+
+    TTableSchema RenamedTableSchema;
+
+    std::vector<std::pair<TConstExpressionPtr, TConstExpressionPtr>> Equations;
 
     TGuid ForeignDataId;
 
@@ -324,7 +327,8 @@ struct TQuery
         , OutputRowLimit(other.OutputRowLimit)
         , Id(TGuid::Create())
         , TableSchema(other.TableSchema)
-        , KeyColumns(other.KeyColumns)
+        , KeyColumnsCount(other.KeyColumnsCount)
+        , RenamedTableSchema(other.RenamedTableSchema)
         , JoinClauses(other.JoinClauses)
         , WhereClause(other.WhereClause)
         , GroupClause(other.GroupClause)
@@ -340,8 +344,9 @@ struct TQuery
 
     // TODO: Move out TableSchema and KeyColumns 
     TTableSchema TableSchema;
-    TKeyColumns KeyColumns;
+    i64 KeyColumnsCount;
 
+    TTableSchema RenamedTableSchema;
     std::vector<TConstJoinClausePtr> JoinClauses;
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
@@ -365,7 +370,7 @@ struct TQuery
             return JoinClauses.back()->GetTableSchema();
         }
 
-        return TableSchema;
+        return RenamedTableSchema;
     }
 };
 

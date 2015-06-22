@@ -439,7 +439,7 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
 
     ExpectPrepareThrowsWithDiagnostics(
         "a, b from [//t] join [//s] using b",
-        ContainsRegex("Column \"a\" collision"));
+        ContainsRegex("Column \"a\" occurs both in main and joined tables"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
@@ -449,7 +449,7 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] join [//s] using b",
-        ContainsRegex("Column \"k\" collision"));
+        ContainsRegex("Column \"k\" occurs both in main and joined tables"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3590,10 +3590,50 @@ TEST_F(TQueryEvaluateTest, TestJoin)
     }, resultSplit);
 
     Evaluate("sum(a) as x, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, result);
+    Evaluate("sum(a) as x, z FROM [//left] join [//right] on b = b group by c % 2 as z", splits, sources, result);
+    Evaluate("sum(l.a) as x, z FROM [//left] as l join [//right] as r on l.b = r.b group by r.c % 2 as z", splits, sources, result);
 
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, ComplexAlias)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"s", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=10;s=x",
+        "a=20;s=y",
+        "a=30;s=x",
+        "a=40;s=x",
+        "a=42",
+        "a=50;s=x",
+        "a=60;s=y",
+        "a=70;s=z",
+        "a=72",
+        "a=80;s=y",
+        "a=85",
+        "a=90;s=z"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::String},
+        {"t", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=y;t=160",
+        "x=x;t=120",
+        "t=199",
+        "x=z;t=160"
+    }, resultSplit);
+
+    Evaluate("x, sum(p.a) as t FROM [//t] as p where p.a > 10 group by p.s as x", split, source, result);
+
+    SUCCEED();
+}
 
 TEST_F(TQueryEvaluateTest, TestJoinMany)
 {
@@ -3664,7 +3704,6 @@ TEST_F(TQueryEvaluateTest, TestJoinMany)
 
     SUCCEED();
 }
-
 
 TEST_F(TQueryEvaluateTest, TestOrderBy)
 {
@@ -4580,7 +4619,9 @@ protected:
         auto prunedSplits = GetPrunedRanges(
             query->WhereClause,
             query->JoinClauses[0]->ForeignTableSchema,
-            query->JoinClauses[0]->ForeignKeyColumns,
+            TableSchemaToKeyColumns(
+                query->JoinClauses[0]->RenamedTableSchema,
+                query->JoinClauses[0]->ForeignKeyColumnsCount),
             foreignSplits,
             rowBuffer,
             ColumnEvaluatorCache_,

@@ -111,7 +111,11 @@ class TestQuery(YTEnvSetup):
         expected = [
             {"k": 0, "aa": 49.0, "mb": 0, "ab": 490.0},
             {"k": 1, "aa": 50.0, "mb": 10, "ab": 500.0}]
-        actual = select_rows("k, avg(a) as aa, min(b) as mb, avg(b) as ab from [//tmp/t] group by a % 2 as k order by k limit 2")
+        actual = select_rows("""
+            k, avg(a) as aa, min(b) as mb, avg(b) as ab
+            from [//tmp/t]
+            group by a % 2 as k
+            order by k limit 2""")
         assert expected == actual
 
     def test_merging_group_by2(self):
@@ -233,6 +237,15 @@ class TestQuery(YTEnvSetup):
             {"a": 2, "b": 1, "c": 53, "d": 2, "e": 1}]
 
         actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using c where (a, b) IN ((2, 1))")
+        assert expected == actual
+
+        expected = [
+            {"l.a": 2, "l.b": 1, "l.c": 53, "r.c": 53, "r.d": 2, "r.e": 1}]
+
+        actual = select_rows("""
+            * from [//tmp/jl] as l
+            join [//tmp/jr] as r on l.c + 1 = r.c + 1
+             where (l.a, l.b) in ((2, 1))""")
         assert expected == actual
 
     def test_join_many(self):

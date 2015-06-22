@@ -23,6 +23,16 @@ using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TKeyColumns TableSchemaToKeyColumns(const TTableSchema& schema, size_t keySize)
+{
+    TKeyColumns keyColumns;
+    keySize = std::min(keySize, schema.Columns().size());
+    for (size_t i = 0; i < keySize; ++ i) {
+        keyColumns.push_back(schema.Columns()[i].Name);
+    }
+    return keyColumns;
+}
+
 //! Computes key index for a given column name.
 int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName)
 {

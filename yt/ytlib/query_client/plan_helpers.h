@@ -14,6 +14,8 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TKeyColumns TableSchemaToKeyColumns(const TTableSchema& schema, size_t keySize);
+
 //! Computes key index for a given column name.
 int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName);
 
