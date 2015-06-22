@@ -175,7 +175,9 @@ private:
         }
         auto* chunk = SealQueue_.front();
         SealQueue_.pop_front();
-        chunk->SetSealScheduled(false);
+        if (chunk->IsAlive()) {
+            chunk->SetSealScheduled(false);
+        }
         LOG_DEBUG("Chunk extracted from seal queue (ChunkId: %v)",
             chunk->GetId());
         return chunk;
