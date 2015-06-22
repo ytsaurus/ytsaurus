@@ -23,22 +23,29 @@ class TSnapshotDiscovery
 public:
     TSnapshotDiscovery(
         TDistributedHydraManagerConfigPtr config,
-        TCellManagerPtr cellManager)
+        TCellManagerPtr cellManager,
+        int maxSnapshotId,
+        bool exactId)
         : Config_(config)
         , CellManager_(cellManager)
+        , MaxSnapshotId_(maxSnapshotId)
+        , ExactId_(exactId)
     {
         YCHECK(Config_);
         YCHECK(CellManager_);
 
+        Logger = HydraLogger;
         Logger.AddTag("CellId: %v", CellManager_->GetCellId());
     }
 
-    TFuture<TRemoteSnapshotParams> Run(int maxSnapshotId, bool exactId)
+    TFuture<TRemoteSnapshotParams> Run()
     {
-        if (exactId) {
-            LOG_INFO("Looking for snapshot %v", maxSnapshotId);
+        if (ExactId_) {
+            LOG_INFO("Running snapshot discovery (SnapshotId: %v)",
+                MaxSnapshotId_);
         } else {
-            LOG_INFO("Looking for the latest snapshot up to %v", maxSnapshotId);
+            LOG_INFO("Running latest snapshot discovery (MaxSnapshotId: %v)",
+                MaxSnapshotId_);
         }
 
         std::vector<TFuture<void>> asyncResults;
@@ -47,18 +54,18 @@ public:
             if (!channel)
                 continue;
 
-            LOG_INFO("Requesting snapshot info from peer %v", peerId);
+            LOG_INFO("Requesting snapshot info (PeerId: %v)",
+                peerId);
 
             TSnapshotServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
             auto req = proxy.LookupSnapshot();
-            req->set_max_snapshot_id(maxSnapshotId);
-            req->set_exact_id(exactId);
+            req->set_max_snapshot_id(MaxSnapshotId_);
+            req->set_exact_id(ExactId_);
             asyncResults.push_back(req->Invoke().Apply(
                 BIND(&TSnapshotDiscovery::OnResponse, MakeStrong(this), peerId)));
         }
-        LOG_INFO("Snapshot lookup requests sent");
 
         Combine(asyncResults).Subscribe(
             BIND(&TSnapshotDiscovery::OnComplete, MakeStrong(this)));
@@ -69,13 +76,15 @@ public:
 private:
     const TDistributedHydraManagerConfigPtr Config_;
     const NElection::TCellManagerPtr CellManager_;
+    const int MaxSnapshotId_;
+    const bool ExactId_;
 
     TPromise<TRemoteSnapshotParams> Promise_ = NewPromise<TRemoteSnapshotParams>();
 
     TSpinLock SpinLock_;
     TRemoteSnapshotParams Params_;
 
-    NLogging::TLogger Logger = HydraLogger;
+    NLogging::TLogger Logger;
 
 
     void OnResponse(
@@ -85,21 +94,23 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error looking up snapshots at peer %v",
+            LOG_WARNING(rspOrError, "Error requesting snapshot info (PeerId: %v)",
                 peerId);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
-        LOG_INFO("Found snapshot %v found on peer %v",
-            rsp->snapshot_id(),
-            peerId);
+        int snapshotId = rsp->snapshot_id();
+
+        LOG_INFO("Snapshot info received (PeerId: %v, SnapshotId: %v)",
+            peerId,
+            snapshotId);
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
             if (rsp->snapshot_id() > Params_.SnapshotId) {
                 Params_.PeerId = peerId;
-                Params_.SnapshotId = rsp->snapshot_id();
+                Params_.SnapshotId = snapshotId;
                 Params_.CompressedLength = rsp->compressed_length();
                 Params_.UncompressedLength = rsp->uncompressed_length();
                 Params_.Checksum = rsp->checksum();
@@ -113,14 +124,17 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (Params_.SnapshotId == InvalidSegmentId) {
-            LOG_INFO("Snapshot lookup failed, no suitable snapshot found");
+            LOG_INFO("Snapshot discovery failed, no suitable peer found");
+            auto error = ExactId_
+                ? TError("Unable to find a download source for snapshot %v", MaxSnapshotId_)
+                : TError("Unable to find a download source for snapshots up to %v", MaxSnapshotId_);
+            Promise_.Set(error);
         } else {
-            LOG_INFO("Snapshot lookup succeeded (PeerId: %v, SnapshotId: %v)",
+            LOG_INFO("Snapshot discovery succeeded (PeerId: %v, SnapshotId: %v)",
                 Params_.PeerId,
                 Params_.SnapshotId);
+            Promise_.Set(Params_);
         }
-
-        Promise_.Set(Params_);
     }
 
 };
@@ -130,8 +144,12 @@ TFuture<TRemoteSnapshotParams> DiscoverLatestSnapshot(
     TCellManagerPtr cellManager,
     int maxSnapshotId)
 {
-    auto discovery = New<TSnapshotDiscovery>(config, cellManager);
-    return discovery->Run(maxSnapshotId, false);
+    auto discovery = New<TSnapshotDiscovery>(
+        config,
+        cellManager,
+        maxSnapshotId,
+        false);
+    return discovery->Run();
 }
 
 TFuture<TRemoteSnapshotParams> DiscoverSnapshot(
@@ -139,8 +157,12 @@ TFuture<TRemoteSnapshotParams> DiscoverSnapshot(
     TCellManagerPtr cellManager,
     int snapshotId)
 {
-    auto discovery = New<TSnapshotDiscovery>(config, cellManager);
-    return discovery->Run(snapshotId, true);
+    auto discovery = New<TSnapshotDiscovery>(
+        config,
+        cellManager,
+        snapshotId,
+        true);
+    return discovery->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

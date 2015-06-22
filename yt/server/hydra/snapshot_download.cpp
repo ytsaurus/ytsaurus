@@ -37,11 +37,6 @@ void DoDownloadSnapshot(
     try {
         auto params = WaitFor(DiscoverSnapshot(config, cellManager, snapshotId))
             .ValueOrThrow();
-        if (params.SnapshotId == InvalidSegmentId) {
-            THROW_ERROR_EXCEPTION("Unable to find a download source for snapshot %v",
-                snapshotId);
-        }
-
         auto writer = fileStore->CreateRawWriter(snapshotId);
 
         WaitFor(writer->Open())

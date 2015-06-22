@@ -125,12 +125,14 @@ private:
 
     int DoGetLatestSnapshotId(int maxSnapshotId)
     {
-        auto remoteSnapshotInfo = WaitFor(DiscoverLatestSnapshot(
+        auto asyncParams = DiscoverLatestSnapshot(
             Config_,
             CellManager_,
-            maxSnapshotId)).ValueOrThrow();
+            maxSnapshotId);
+        auto params = WaitFor(asyncParams)
+            .ValueOrThrow();
         int localSnapshotId = FileStore_->GetLatestSnapshotId(maxSnapshotId);
-        return std::max(localSnapshotId, remoteSnapshotInfo.SnapshotId);
+        return std::max(localSnapshotId, params.SnapshotId);
     }
 
 };
