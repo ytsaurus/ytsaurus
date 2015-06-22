@@ -144,3 +144,7 @@ public:
 } // namespace NObjectServer
 } // namespace NYT
 
+#define OBJECT_INL_H_
+#include "object-inl.h"
+#undef OBJECT_INL_H_
+

@@ -15,27 +15,6 @@ using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectBase::TObjectBase(const TObjectId& id)
-    : Id_(id)
-{ }
-
-TObjectBase::~TObjectBase()
-{
-    // To make debugging easier.
-    RefCounter_ = DisposedRefCounter;
-}
-
-void TObjectBase::SetDestroyed()
-{
-    YASSERT(RefCounter_ == 0);
-    RefCounter_ = DestroyedRefCounter;
-}
-
-const TObjectId& TObjectBase::GetId() const
-{
-    return Id_;
-}
-
 EObjectType TObjectBase::GetType() const
 {
     return TypeFromId(Id_);
@@ -44,61 +23,6 @@ EObjectType TObjectBase::GetType() const
 bool TObjectBase::IsBuiltin() const
 {
     return IsWellKnownId(Id_);
-}
-
-int TObjectBase::RefObject()
-{
-    YASSERT(RefCounter_ >= 0);
-    return ++RefCounter_;
-}
-
-int TObjectBase::UnrefObject()
-{
-    YASSERT(RefCounter_ > 0);
-    return --RefCounter_;
-}
-
-int TObjectBase::WeakRefObject()
-{
-    YCHECK(IsAlive());
-    YASSERT(WeakRefCounter_ >= 0);
-    return ++WeakRefCounter_;
-}
-
-int TObjectBase::WeakUnrefObject()
-{
-    YASSERT(WeakRefCounter_ > 0);
-    return --WeakRefCounter_;
-}
-
-void TObjectBase::ResetWeakRefCounter()
-{
-    WeakRefCounter_ = 0;
-}
-
-int TObjectBase::GetObjectRefCounter() const
-{
-    return RefCounter_;
-}
-
-int TObjectBase::GetObjectWeakRefCounter() const
-{
-    return WeakRefCounter_;
-}
-
-bool TObjectBase::IsAlive() const
-{
-    return RefCounter_ > 0;
-}
-
-bool TObjectBase::IsDestroyed() const
-{
-    return RefCounter_ == DestroyedRefCounter;
-}
-
-bool TObjectBase::IsLocked() const
-{
-    return WeakRefCounter_ > 0;
 }
 
 bool TObjectBase::IsTrunk() const
@@ -153,22 +77,6 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
         }
     }
 }
-
-TObjectId GetObjectId(const TObjectBase* object)
-{
-    return object ? object->GetId() : NullObjectId;
-}
-
-bool IsObjectAlive(const TObjectBase* object)
-{
-    return object && object->IsAlive();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TNonversionedObjectBase::TNonversionedObjectBase(const TObjectId& id)
-    : TObjectBase(id)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
