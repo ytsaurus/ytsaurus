@@ -56,10 +56,12 @@ class Transaction(object):
 
     def __init__(self, timeout=None, attributes=None, ping=True, null=False,
                  ping_ancestor_transactions=False, client=None):
+        timeout = get_value(timeout, get_total_request_timeout(client))
+
         self.null = null
         self.client = client
         self.ping = ping
-        self.timeout = get_value(timeout, get_total_request_timeout(client))
+        self.timeout = timeout
 
         if get_option("_transaction_stack", self.client) is None:
             set_option("_transaction_stack", TransactionStack(), self.client)
@@ -71,6 +73,7 @@ class Transaction(object):
             self.transaction_id = "0-0-0-0"
         else:
             self.transaction_id = start_transaction(timeout=timeout, attributes=attributes, client=client)
+
         self.stack.append(self.transaction_id, ping_ancestor_transactions)
         set_option("TRANSACTION", self.transaction_id, self.client)
         set_option("PING_ANCESTOR_TRANSACTIONS", ping_ancestor_transactions, self.client)
@@ -103,7 +106,7 @@ class Transaction(object):
                         abort_transaction(self.transaction_id, client=self.client)
                 except YtResponseError as rsp:
                     if rsp.is_resolve_error():
-                        logger.warning("Transaction %s is absent, cannot commit or abort" % self.transaction_id)
+                        logger.warning("Transaction %s is missing, cannot commit or abort" % self.transaction_id)
                     else:
                         raise
         finally:
@@ -167,6 +170,11 @@ class PingableTransaction(Transaction):
     """Self-pinged transaction"""
     """Deprecated! Use Transaction(...ping=True...) instead"""
     def __init__(self, timeout=None, attributes=None, ping_ancestor_transactions=False, client=None):
-        super(PingableTransaction, self).__init__(timeout, attributes, True, False,
-              ping_ancestor_transactions, client)
+        super(PingableTransaction, self).__init__(
+            timeout=timeout,
+            attributes=attributes,
+            ping=True,
+            null=False,
+            ping_ancestor_transactions=ping_ancestor_transactions,
+            client=client)
 
