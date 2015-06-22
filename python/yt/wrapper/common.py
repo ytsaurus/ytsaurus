@@ -106,13 +106,6 @@ def get_value(value, default):
 def dump_to_json(obj):
     return json.dumps(yson.yson_to_json(obj), indent=2)
 
-def chunk_iter(stream, chunk_size):
-    while True:
-        chunk = stream.read(chunk_size)
-        if not chunk:
-            break
-        yield chunk
-
 def chunk_iter_lines(lines, chunk_size):
     size = 0
     chunk = []
@@ -131,6 +124,16 @@ def chunk_iter_stream(stream, chunk_size):
         if not chunk:
             break
         yield chunk
+
+def chunk_iter_string(string, chunk_size):
+    index = 0
+    while True:
+        lower_index = index * chunk_size
+        upper_index = min((index + 1) * chunk_size, len(string))
+        if lower_index >= len(string):
+            return
+        yield string[lower_index:upper_index]
+        index += 1
 
 def get_backoff(timeout, start_time):
     def get_total_seconds(timedelta):

@@ -2,7 +2,7 @@
 
 import yt.logger as logger
 from config import get_config
-from common import require, chunk_iter, bool_to_string, parse_bool
+from common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool
 from errors import YtError, YtResponseError
 from http import get_api_version
 from heavy_commands import make_heavy_request
@@ -59,9 +59,11 @@ def upload_file(stream, destination, file_writer=None, client=None):
     :param file_writer: (dict) spec of upload operation
     """
     # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO (it has bug with default iteration)
-    if hasattr(stream, 'read'):
+    if hasattr(stream, "read"):
         # read files by chunks, not by lines
-        stream = chunk_iter(stream, get_config(client)["write_retries"]["chunk_size"])
+        stream = chunk_iter_stream(stream, get_config(client)["write_retries"]["chunk_size"])
+    if isinstance(stream, basestring):
+        stream = chunk_iter_string(stream, get_config(client)["write_retries"]["chunk_size"])
 
     params = {}
     if file_writer is not None:
