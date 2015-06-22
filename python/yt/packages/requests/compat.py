@@ -74,7 +74,7 @@ is_hpux = ('hpux' in str(sys.platform).lower())   # Complete guess.
 is_solaris = ('solar==' in str(sys.platform).lower())   # Complete guess.
 
 try:
-    import simplejson as json
+    import yt.packages.simplejson as json
 except ImportError:
     import json
 
