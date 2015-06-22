@@ -101,7 +101,7 @@ private:
 
         SnapshotChecksums_.resize(Owner_->CellManager_->GetPeerCount());
 
-        auto awaiter = New<TParallelAwaiter>(Owner_->EpochContext_->EpochControlInvoker);
+        std::vector<TFuture<void>> asyncResults;
         for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
             if (peerId == Owner_->CellManager_->GetSelfPeerId())
                 continue;
@@ -119,17 +119,19 @@ private:
             ToProto(req->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
             req->set_revision(Version_.ToRevision());
 
-            awaiter->Await(
-                req->Invoke(),
-                BIND(&TSession::OnRemoteSnapshotBuilt, MakeStrong(this), peerId));
+            asyncResults.push_back(req->Invoke().Apply(
+                BIND(&TSession::OnRemoteSnapshotBuilt, MakeStrong(this), peerId)
+                    .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
         }
 
-        awaiter->Await(
-            Owner_->DecoratedAutomaton_->BuildSnapshot(),
-            BIND(&TSession::OnLocalSnapshotBuilt, MakeStrong(this)));
+        asyncResults.push_back(
+            Owner_->DecoratedAutomaton_->BuildSnapshot().Apply(
+                BIND(&TSession::OnLocalSnapshotBuilt, MakeStrong(this))
+                    .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
 
-        awaiter->Complete(
-            BIND(&TSession::OnSnapshotsComplete, MakeStrong(this)));
+        Combine(asyncResults).Subscribe(
+            BIND(&TSession::OnSnapshotsComplete, MakeStrong(this))
+                .Via(Owner_->EpochContext_->EpochControlInvoker));
     }
 
     void OnRemoteSnapshotBuilt(TPeerId id, const THydraServiceProxy::TErrorOrRspBuildSnapshotPtr& rspOrError)
@@ -179,7 +181,7 @@ private:
             for (TPeerId id2 = id1 + 1; id2 < SnapshotChecksums_.size(); ++id2) {
                 const auto& checksum2 = SnapshotChecksums_[id2];
                 if (checksum1 && checksum2 && checksum1 != checksum2) {
-                    LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v)"
+                    LOG_ERROR("Snapshot checksum mismatch (SnapshotId: %v)",
                         Version_.SegmentId + 1);
                 }
             }
