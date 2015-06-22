@@ -7,10 +7,7 @@
 #include "mutation_context.h"
 #include "changelog.h"
 
-#include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/periodic_executor.h>
-
-#include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
 #include <core/profiling/timing.h>
@@ -106,7 +103,7 @@ public:
 
         Profiler.Enqueue("/commit_batch_size", mutationCount);
 
-        Awaiter_ = New<TParallelAwaiter>(Owner_->EpochContext_->EpochControlInvoker);
+        std::vector<TFuture<void>> asyncResults;
 
         Timer_ = Profiler.TimingStart(
             "/changelog_flush_time",
@@ -115,9 +112,9 @@ public:
 
         if (!BatchedRecordsData_.empty()) {
             YCHECK(LocalFlushResult_);
-            Awaiter_->Await(
-                LocalFlushResult_,
-                BIND(&TBatch::OnLocalFlush, MakeStrong(this)));
+            asyncResults.push_back(LocalFlushResult_.Apply(
+                BIND(&TBatch::OnLocalFlush, MakeStrong(this))
+                    .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
 
             for (auto followerId = 0; followerId < Owner_->CellManager_->GetPeerCount(); ++followerId) {
                 if (followerId == Owner_->CellManager_->GetSelfPeerId())
@@ -140,13 +137,15 @@ public:
                 request->set_committed_revision(committedVersion.ToRevision());
                 request->Attachments() = BatchedRecordsData_;
 
-                Awaiter_->Await(
-                    request->Invoke(),
-                    BIND(&TBatch::OnRemoteFlush, MakeStrong(this), followerId));
+                asyncResults.push_back(request->Invoke().Apply(
+                    BIND(&TBatch::OnRemoteFlush, MakeStrong(this), followerId)
+                        .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
             }
         }
 
-        Awaiter_->Complete(BIND(&TBatch::OnCompleted, MakeStrong(this)));
+        Combine(asyncResults).Subscribe(
+            BIND(&TBatch::OnCompleted, MakeStrong(this))
+                .Via(Owner_->EpochContext_->EpochControlInvoker));
     }
 
     int GetMutationCount() const
@@ -182,9 +181,7 @@ private:
         const auto& rsp = rspOrError.Value();
         if (rsp->logged()) {
             LOG_DEBUG("Mutations are flushed by follower %v", followerId);
-
-            ++FlushCount_;
-            CheckQuorum();
+            OnSuccessfulFlush();
         } else {
             LOG_DEBUG("Mutations are acknowledged by follower %v", followerId);
         }
@@ -192,6 +189,8 @@ private:
 
     void OnLocalFlush(const TError& error)
     {
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+
         if (!error.IsOK()) {
             SetFailed(TError(
                 NHydra::EErrorCode::MaybeCommitted,
@@ -200,18 +199,18 @@ private:
             return;
         }
 
-        LOG_DEBUG("Mutations are flushed locally");
-
         Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerTags(Owner_->CellManager_->GetSelfPeerId()));
 
-        ++FlushCount_;
-        CheckQuorum();
+        LOG_DEBUG("Mutations are flushed locally");
+        OnSuccessfulFlush();
     }
 
-    void OnCompleted()
+    void OnCompleted(const TError&)
     {
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+
         SetFailed(TError(
             NHydra::EErrorCode::MaybeCommitted,
             "Mutations are uncertain: %v out of %v commits were successful",
@@ -220,39 +219,38 @@ private:
     }
 
 
-    bool CheckQuorum()
+    void OnSuccessfulFlush()
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        if (FlushCount_ < Owner_->CellManager_->GetQuorumCount())
-            return false;
-
-        SetSucceded();
-        return true;
+        ++FlushCount_;
+        if (FlushCount_ == Owner_->CellManager_->GetQuorumCount()) {
+            SetSucceded();
+        }
     }
 
     void SetSucceded()
     {
+        if (QuorumFlushResult_.IsSet())
+            return;
+
         LOG_DEBUG("Mutations are flushed by quorum");
 
         Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerQuorumTags());
 
-        Awaiter_->Cancel();
-        Awaiter_.Reset();
-
         QuorumFlushResult_.Set(TError());
     }
 
     void SetFailed(const TError& error)
     {
+        if (QuorumFlushResult_.IsSet())
+            return;
+
         Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerQuorumTags());
-
-        Awaiter_->Cancel();
-        Awaiter_.Reset();
 
         QuorumFlushResult_.Set(error);
 
@@ -270,7 +268,6 @@ private:
     // Counting with the local flush.
     int FlushCount_ = 0;
 
-    TParallelAwaiterPtr Awaiter_;
     TFuture<void> LocalFlushResult_;
     TPromise<void> QuorumFlushResult_ = NewPromise<void>();
     std::vector<TSharedRef> BatchedRecordsData_;
