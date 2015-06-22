@@ -38,7 +38,7 @@ class TCypressManager
     : public NCellMaster::TMasterAutomatonPart
 {
 public:
-    explicit TCypressManager(
+    TCypressManager(
         TCypressManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
