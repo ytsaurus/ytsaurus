@@ -279,7 +279,7 @@ def search(root="", node_type=None,
             if rsp.is_access_denied():
                 logger.warning("Cannot traverse %s, access denied" % path)
             elif rsp.is_resolve_error():
-                logger.warning("Path %s is absent" % path)
+                logger.warning("Path %s is missing" % path)
             else:
                 raise
         return None
