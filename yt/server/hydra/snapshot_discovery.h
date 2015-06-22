@@ -30,7 +30,7 @@ TFuture<TRemoteSnapshotParams> DiscoverLatestSnapshot(
 
 //! Looks for a particular snapshot within the cell.
 /*!
- *  If the snapshot is not found, then |InvalidSegmentId| is returned in the info.
+ *  If the snapshot is not found, then an error is returned.
  */
 TFuture<TRemoteSnapshotParams> DiscoverSnapshot(
     TDistributedHydraManagerConfigPtr config,
