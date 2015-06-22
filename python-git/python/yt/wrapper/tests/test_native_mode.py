@@ -162,6 +162,9 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.upload_file("", file_path)
         self.assertEqual("", yt.download_file(file_path).read())
 
+        yt.upload_file("0" * 1000, file_path)
+        self.assertEqual("0" * 1000, yt.download_file(file_path).read())
+
         _, filename = tempfile.mkstemp()
         with open(filename, "w") as fout:
             fout.write("some content")
