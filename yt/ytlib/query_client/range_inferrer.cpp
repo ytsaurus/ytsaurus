@@ -275,26 +275,26 @@ public:
     TRangeInferrerHeavy(
         TConstExpressionPtr predicate,
         const TTableSchema& schema,
-        const TKeyColumns& keyColumns,
+        const TKeyColumns& renamedKeyColumns,
         const TColumnEvaluatorCachePtr& evaluatorCache,
         const IFunctionRegistryPtr functionRegistry,
         ui64 rangeExpansionLimit,
         bool verboseLogging)
         : Schema_(schema)
-        , KeyColumns_(keyColumns)
+        , KeySize_(renamedKeyColumns.size())
         , RangeExpansionLimit_(rangeExpansionLimit)
         , VerboseLogging_(verboseLogging)
     {
-        Evaluator_ = evaluatorCache->Find(Schema_, KeyColumns_.size());
+        Evaluator_ = evaluatorCache->Find(Schema_, KeySize_);
         yhash_set<Stroka> references;
         if (predicate) {
             Profile(predicate, schema, nullptr, nullptr, &references, functionRegistry);
         }
 
         ui32 mask = 0;
-        for (int index = 0; index < KeyColumns_.size(); ++index) {
+        for (int index = 0; index < KeySize_; ++index) {
             auto column = Schema_.Columns()[index];
-            if (column.Expression && references.find(column.Name) == references.end()) {
+            if (column.Expression && references.find(renamedKeyColumns[index]) == references.end()) {
                 mask |= 1 << index;
             }
         }
@@ -302,7 +302,7 @@ public:
         // TODO(savrus): use enriched key columns here.
         KeyTrie_ = ExtractMultipleConstraints(
             predicate,
-            KeyColumns_,
+            renamedKeyColumns,
             Buffer_,
             functionRegistry);
 
@@ -352,7 +352,7 @@ public:
 
 private:
     const TTableSchema Schema_;
-    TKeyColumns KeyColumns_;
+    size_t KeySize_;
     const ui64 RangeExpansionLimit_;
     const bool VerboseLogging_;
 
@@ -556,7 +556,7 @@ private:
             IsIntegralType(range.first[prefixSize].Type) &&
             IsIntegralType(range.second[prefixSize].Type);
 
-        int shrinkSize = KeyColumns_.size();
+        int shrinkSize = KeySize_;
         ui64 rangeCount = 1;
         std::vector<std::pair<int, TModuloRangeGenerator>> moduloComputedColumns;
         std::vector<int> exactlyComputedColumns;
@@ -576,7 +576,7 @@ private:
         };
 
         // For each column check that we can use existing value, copmpute it or generate.
-        for (int index = 0; index < KeyColumns_.size(); ++index) {
+        for (int index = 0; index < KeySize_; ++index) {
             if (IsUserColumn(index, range, unboundedColumnMask, prefixSize)) {
                 continue;
             } else if (IsExactColumn(index, range, unboundedColumnMask, prefixSize)) {
@@ -646,10 +646,10 @@ private:
         RangeExpansionLeft_ -= std::min(rangeCount, RangeExpansionLeft_);
 
         // Map depleted key onto enriched key.
-        auto lowerRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeyColumns_.size() + 1);
-        auto upperRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeyColumns_.size() + 1);
-        int lowerSize = ExpandKey(lowerRow, range.first, KeyColumns_.size(), unboundedColumnMask);
-        int upperSize = ExpandKey(upperRow, range.second, KeyColumns_.size(), unboundedColumnMask);
+        auto lowerRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeySize_ + 1);
+        auto upperRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeySize_ + 1);
+        int lowerSize = ExpandKey(lowerRow, range.first, KeySize_, unboundedColumnMask);
+        int upperSize = ExpandKey(upperRow, range.second, KeySize_, unboundedColumnMask);
         bool isShrinked = shrinkSize < prefixSize;
 
         // Trim trailing modulo computed columns.

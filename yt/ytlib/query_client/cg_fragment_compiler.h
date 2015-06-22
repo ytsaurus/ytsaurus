@@ -440,7 +440,7 @@ TCodegenSource MakeCodegenFilterOp(
 
 TCodegenSource MakeCodegenJoinOp(
     int index,
-    std::vector<Stroka> joinColumns,
+    std::vector<TCodegenExpression> equations,
     TTableSchema sourceSchema,
     TCodegenSource codegenSource);
 

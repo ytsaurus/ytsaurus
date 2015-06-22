@@ -96,12 +96,19 @@ message TAggregateItem
     optional uint32 result_type = 6;
 }
 
+message TEquation
+{
+    required TExpression left = 1;
+    required TExpression right = 2;
+}
+
 message TJoinClause
 {
-    repeated string join_columns = 1;
+    repeated TEquation equations = 1;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt joined_table_schema = 2;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
-    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt renamed_table_schema = 6;
+    required int64 foreign_key_columns_count = 4;
     required NYT.NProto.TGuid foreign_data_id = 5;
 }
 
@@ -133,7 +140,9 @@ message TQuery
     required int64 limit = 4;
 
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt table_schema = 5;
-    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 6;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt renamed_table_schema = 13;
+    required int64 key_columns_count = 6;
+
 
     repeated TJoinClause join_clauses = 7;
     optional TExpression predicate = 8;

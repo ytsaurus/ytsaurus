@@ -70,6 +70,7 @@
 %token KwGroupBy "keyword `GROUP BY`"
 %token KwOrderBy "keyword `ORDER BY`"
 %token KwAs "keyword `AS`"
+%token KwOn "keyword `ON`"
 
 %token KwAnd "keyword `AND`"
 %token KwOr "keyword `OR`"
@@ -87,6 +88,7 @@
 %token <double> DoubleLiteral "double literal"
 %token <Stroka> StringLiteral "string literal"
 
+
 %token OpModulo 37 "`%`"
 
 %token LeftParenthesis 40 "`(`"
@@ -96,6 +98,7 @@
 %token OpPlus 43 "`+`"
 %token Comma 44 "`,`"
 %token OpMinus 45 "`-`"
+%token Dot 46 "`.`"
 %token OpDivide 47 "`/`"
 
 %token OpLess 60 "`<`"
@@ -107,6 +110,7 @@
 
 %type <TTableDescriptor> table-descriptor
 
+%type <TReferenceExpressionPtr> qualified-identifier
 %type <TIdentifierList> identifier-list
 %type <TNamedExpressionList> named-expression-list
 %type <TNamedExpression> named-expression
@@ -173,6 +177,11 @@ table-descriptor
         {
             $$ = TTableDescriptor(Stroka($path), Stroka($alias));
         }
+    | Identifier[path] KwAs Identifier[alias]
+        {
+            $$ = TTableDescriptor(Stroka($path), Stroka($alias));
+        }
+    |
     |   Identifier[path]
         {
             $$ = TTableDescriptor(Stroka($path), Stroka());
@@ -190,6 +199,10 @@ join-clause
     : join-clause KwJoin table-descriptor[table] KwUsing identifier-list[fields]
         {
             head->As<TQuery>().Joins.emplace_back($table, $fields);
+        }
+    | join-clause KwJoin table-descriptor[table] KwOn additive-op-expr[lhs] OpEqual additive-op-expr[rhs]
+        {
+            head->As<TQuery>().Joins.emplace_back($table, $lhs, $rhs);
         }
     |
 ;
@@ -235,14 +248,14 @@ limit-clause
 ;
 
 identifier-list
-    : identifier-list[list] Comma Identifier[value]
+    : identifier-list[list] Comma qualified-identifier[value]
         {
             $$.swap($list);
-            $$.push_back(Stroka($value));
+            $$.push_back($value);
         }
-    | Identifier[value]
+    | qualified-identifier[value]
         {
-            $$.push_back(Stroka($value));
+            $$.push_back($value);
         }
 ;
 
@@ -395,10 +408,21 @@ unary-op
         { $$ = EUnaryOp::Minus; }
 ;
 
-atomic-expr
+qualified-identifier
     : Identifier[name]
         {
             $$ = New<TReferenceExpression>(@$, $name);
+        }
+    | Identifier[table] Dot Identifier[name]
+        {
+            $$ = New<TReferenceExpression>(@$, $name, $table);
+        }
+;
+
+atomic-expr
+    : qualified-identifier[identifier]
+        {
+            $$ = $identifier;
         }
     | Identifier[name] LeftParenthesis comma-expr[args] RightParenthesis
         {

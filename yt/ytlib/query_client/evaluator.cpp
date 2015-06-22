@@ -72,7 +72,11 @@ public:
 
             auto Logger = BuildLogger(query);
 
-            LOG_DEBUG("Executing query (%v)", queryFingerprint);
+            LOG_DEBUG("Executing query (Fingerprint: %v, InputSchema: %v, RenamedSchema: %v, ResultSchema: %v)",
+                queryFingerprint,
+                NYTree::ConvertToYsonString(query->TableSchema, NYson::EYsonFormat::Text).Data(),
+                NYTree::ConvertToYsonString(query->RenamedTableSchema, NYson::EYsonFormat::Text).Data(),
+                NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).Data());
 
             TQueryStatistics statistics;
             TDuration wallTime;
