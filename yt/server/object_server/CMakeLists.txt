@@ -21,6 +21,7 @@ set( HDRS
   ${BASE}/master.h
   ${BASE}/master_cache_service.h
   ${BASE}/object.h
+  ${BASE}/object-inl.h
   ${BASE}/object_detail.h
   ${BASE}/object_manager.h
   ${BASE}/object_proxy.h
