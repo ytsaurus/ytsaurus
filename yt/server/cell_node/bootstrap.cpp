@@ -41,6 +41,8 @@
 #include <ytlib/api/client.h>
 #include <ytlib/api/connection.h>
 
+#include <ytlib/hydra/peer_channel.h>
+
 #include <server/misc/build_attributes.h>
 #include <server/misc/memory_usage_tracker.h>
 
@@ -198,11 +200,15 @@ void TBootstrap::DoRun()
         "/ref_counted",
         TRefCountedTracker::Get()->GetMonitoringProducer());
 
-    // NB: User connection's channel, not the client's one to preserve
-    // user names passed from the cache service.
+    // NB: No retries, no user overriding.
+    auto directMasterChannel = CreatePeerChannel(
+        Config->ClusterConnection->Master,
+        GetBusChannelFactory(),
+        EPeerKind::Leader);
+
     auto masterRedirectorChannel = CreateThrottlingChannel(
         Config->MasterRedirectorService,
-        MasterClient->GetConnection()->GetMasterChannel(EMasterChannelKind::Leader));
+        directMasterChannel);
     RpcServer->RegisterService(CreateRedirectorService(
         TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), NullCellId),
         masterRedirectorChannel));
@@ -347,11 +353,9 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateTimestampProxyService(
         clusterConnection->GetTimestampProvider()));
 
-    // NB: User connection's channel, not the client's one to preserve
-    // user names passed from the cache service.
     RpcServer->RegisterService(CreateMasterCacheService(
         Config->MasterCacheService,
-        MasterClient->GetConnection()->GetMasterChannel(EMasterChannelKind::Leader),
+        directMasterChannel,
         GetCellId()));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
