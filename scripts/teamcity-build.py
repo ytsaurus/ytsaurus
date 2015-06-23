@@ -282,6 +282,11 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
             mkdirp(os.path.join(sandbox_archive, "build"))
             for file in working_files_to_archive:
                 shutil.copy(os.path.join(options.working_directory, file), os.path.join(sandbox_archive, "build"))
+            mkdirp(os.path.join(sandbox_archive, "cores_dumps"))
+            for dir, _, files in os.walk(suite_path):
+                for file in files:
+                    if file.startswith("core."):
+                        shutil.copy(os.path.join(dir, file), os.path.join(sandbox_archive, "core_dumps"))
 
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
