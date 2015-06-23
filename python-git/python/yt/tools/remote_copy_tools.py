@@ -209,6 +209,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
 
             spec = deepcopy(spec_template)
             spec["data_size_per_job"] = 1
+            spec["mapper"] = {"memory_limit": 2 * 1024 * 1024 * 1024}
 
             destination_client.create("table", dst, ignore_existing=True)
             run_operation_and_notify(
