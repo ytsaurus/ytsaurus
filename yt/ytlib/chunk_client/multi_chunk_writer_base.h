@@ -88,7 +88,7 @@ private:
     const IBlockCachePtr BlockCache_;
 
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-    const NConcurrency::TParallelAwaiterPtr CloseChunksAwaiter_;
+    std::vector<TFuture<void>> CloseChunkEvents_;
 
     volatile double Progress_ = 0.0;
 

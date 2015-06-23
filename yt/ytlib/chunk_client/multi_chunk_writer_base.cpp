@@ -22,7 +22,6 @@
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <core/concurrency/scheduler.h>
-#include <core/concurrency/parallel_awaiter.h>
 
 #include <core/erasure/codec.h>
 
@@ -61,7 +60,6 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , Throttler_(throttler)
     , BlockCache_(blockCache)
     , NodeDirectory_(New<NNodeTrackerClient::TNodeDirectory>())
-    , CloseChunksAwaiter_(New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker()))
 {
     YCHECK(Config_);
     YCHECK(MasterChannel_);
@@ -252,7 +250,7 @@ TFuture<void> TNontemplateMultiChunkWriterBase::FinishSession(const TSession& se
     .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
     .Run();
 
-    CloseChunksAwaiter_->Await(sessionFinishedEvent);
+    CloseChunkEvents_.push_back(sessionFinishedEvent);
 
     return sessionFinishedEvent;
 }
@@ -379,7 +377,7 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
 
 void TNontemplateMultiChunkWriterBase::DoClose()
 {
-    WaitFor(CloseChunksAwaiter_->Complete())
+    WaitFor(Combine(CloseChunkEvents_))
         .ThrowOnError();
 
     if (CompletionError_.IsSet()) {
