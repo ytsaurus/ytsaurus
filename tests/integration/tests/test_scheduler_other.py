@@ -243,8 +243,8 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         track_op(op1)
         track_op(op2)
 
-        assert read("//tmp/out1") == data
-        assert read("//tmp/out2") == data
+        assert sorted(read("//tmp/out1")) == sorted(data)
+        assert sorted(read("//tmp/out2")) == sorted(data)
 
     def test_abort_of_pending_operation(self):
         create("table", "//tmp/in")
