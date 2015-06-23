@@ -6,13 +6,9 @@
 #include <core/concurrency/delayed_executor.h>
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/concurrency/parallel_awaiter.h>
-
 #include <core/ytree/fluent.h>
 
 #include <core/rpc/service_detail.h>
-
-#include <core/logging/log.h>
 
 #include <ytlib/election/cell_manager.h>
 #include <ytlib/election/election_service_proxy.h>
@@ -47,32 +43,27 @@ public:
 
 private:
     class TVotingRound;
-    friend class TVotingRound;
-    typedef TIntrusivePtr<TVotingRound> TVotingRoundPtr;
 
     class TFollowerPinger;
-    friend class TFollowerPinger;
     typedef TIntrusivePtr<TFollowerPinger> TFollowerPingerPtr;
 
+    const TElectionManagerConfigPtr Config;
+    const TCellManagerPtr CellManager;
+    const IInvokerPtr ControlInvoker;
+    const IElectionCallbacksPtr ElectionCallbacks;
 
-    TElectionManagerConfigPtr Config;
-    TCellManagerPtr CellManager;
-    IInvokerPtr ControlInvoker;
-    IElectionCallbacksPtr ElectionCallbacks;
-
-    EPeerState State;
+    EPeerState State = EPeerState::Stopped;
 
     // Voting parameters.
-    TPeerId VoteId;
+    TPeerId VoteId = InvalidPeerId;
     TEpochId VoteEpochId;
 
     // Epoch parameters.
     TEpochContextPtr EpochContext;
     IInvokerPtr ControlEpochInvoker;
 
-    typedef yhash_set<TPeerId> TPeerSet;
-    TPeerSet AliveFollowers;
-    TPeerSet PotentialFollowers;
+    yhash_set<TPeerId> AliveFollowers;
+    yhash_set<TPeerId> PotentialFollowers;
 
     NConcurrency::TDelayedExecutorCookie PingTimeoutCookie;
     TFollowerPingerPtr FollowerPinger;
@@ -117,15 +108,14 @@ class TElectionManager::TImpl::TFollowerPinger
 public:
     explicit TFollowerPinger(TImplPtr owner)
         : Owner(owner)
-        , Awaiter(New<TParallelAwaiter>(Owner->ControlEpochInvoker))
         , Logger(Owner->Logger)
     { }
 
-    void Start()
+    void Run()
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
-        auto& cellManager = Owner->CellManager;
+        const auto& cellManager = Owner->CellManager;
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
             if (id != cellManager->GetSelfPeerId()) {
                 SendPing(id);
@@ -133,27 +123,14 @@ public:
         }
     }
 
-    void Stop()
-    {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
-
-        // Do nothing.
-    }
-
 private:
-    TImplPtr Owner;
-    
-    TParallelAwaiterPtr Awaiter;
-
-    NLogging::TLogger Logger;
+    const TImplPtr Owner;
+    const NLogging::TLogger Logger;
 
 
     void SendPing(TPeerId peerId)
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
-
-        if (Awaiter->IsCanceled())
-            return;
 
         auto channel = Owner->CellManager->GetPeerChannel(peerId);
         if (!channel) {
@@ -170,8 +147,7 @@ private:
         req->set_leader_id(Owner->CellManager->GetSelfPeerId());
         ToProto(req->mutable_epoch_id(), Owner->EpochContext->EpochId);
 
-        Awaiter->Await(
-            req->Invoke(),
+        req->Invoke().Subscribe(
             BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), peerId)
                 .Via(Owner->ControlEpochInvoker));
     }
@@ -181,7 +157,7 @@ private:
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
         TDelayedExecutor::Submit(
-            BIND(&TFollowerPinger::SendPing, MakeWeak(this), id)
+            BIND(&TFollowerPinger::SendPing, MakeStrong(this), id)
                 .Via(Owner->ControlEpochInvoker),
             Owner->Config->FollowerPingPeriod);
     }
@@ -204,10 +180,10 @@ private:
 
         if (Owner->PotentialFollowers.find(id) != Owner->PotentialFollowers.end()) {
             LOG_INFO("Follower %v is up, first success", id);
-            Owner->PotentialFollowers.erase(id);
+            YCHECK(Owner->PotentialFollowers.erase(id) == 1);
         } else if (Owner->AliveFollowers.find(id) == Owner->AliveFollowers.end()) {
             LOG_INFO("Follower %v is up", id);
-            Owner->AliveFollowers.insert(id);
+            YCHECK(Owner->AliveFollowers.insert(id).second);
         }
 
         SchedulePing(id);
@@ -265,10 +241,8 @@ class TElectionManager::TImpl::TVotingRound
 public:
     explicit TVotingRound(TImplPtr owner)
         : Owner(owner)
-        , ControlEpochInvoker(owner->ControlEpochInvoker)
-        , Awaiter(New<TParallelAwaiter>(ControlEpochInvoker))
-        , Logger(Owner->Logger)
     {
+        Logger = Owner->Logger;
         Logger.AddTag("RoundId: %v, VoteEpochId: %v",
             TGuid::Create(),
             Owner->VoteEpochId);
@@ -295,6 +269,7 @@ public:
                 priority,
                 Owner->VoteEpochId));
 
+        std::vector<TFuture<void>> asyncResults;
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
             if (id == cellManager->GetSelfPeerId())
                 continue;
@@ -307,15 +282,20 @@ public:
             proxy.SetDefaultTimeout(Owner->Config->ControlRpcTimeout);
 
             auto req = proxy.GetStatus();
-            Awaiter->Await(
-                req->Invoke(),
-                BIND(&TVotingRound::OnResponse, MakeStrong(this), id));
+            asyncResults.push_back(
+                req->Invoke().Apply(
+                    BIND(&TVotingRound::OnResponse, MakeStrong(this), id)
+                        .AsyncVia(Owner->ControlEpochInvoker)));
         }
 
-        Awaiter->Complete(BIND(&TVotingRound::OnComplete, MakeStrong(this)));
+        Combine(asyncResults).Subscribe(
+            BIND(&TVotingRound::OnComplete, MakeStrong(this))
+                .Via(Owner->ControlEpochInvoker));
     }
 
 private:
+    const TImplPtr Owner;
+
     struct TStatus
     {
         EPeerState State;
@@ -337,10 +317,9 @@ private:
 
     typedef yhash_map<TPeerId, TStatus> TStatusTable;
 
-    TImplPtr Owner;
-    IInvokerPtr ControlEpochInvoker;
-    TParallelAwaiterPtr Awaiter;
     TStatusTable StatusTable;
+
+    bool Finished = false;
 
     NLogging::TLogger Logger;
 
@@ -360,6 +339,9 @@ private:
     void OnResponse(TPeerId id, const TElectionServiceProxy::TErrorOrRspGetStatusPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+
+        if (Finished)
+            return;
 
         if (!rspOrError.IsOK()) {
             LOG_INFO(rspOrError, "Error requesting status from peer %v",
@@ -410,15 +392,15 @@ private:
             voteCount,
             quorum);
 
-        Awaiter->Cancel();
+        Finished = true;
 
         // Become a leader or a follower.
         if (candidateId == Owner->CellManager->GetSelfPeerId()) {
-            ControlEpochInvoker->Invoke(BIND(
+            Owner->ControlEpochInvoker->Invoke(BIND(
                 &TImpl::StartLeading,
                 Owner));
         } else {
-            ControlEpochInvoker->Invoke(BIND(
+            Owner->ControlEpochInvoker->Invoke(BIND(
                 &TImpl::StartFollowing,
                 Owner,
                 candidateId,
@@ -459,18 +441,23 @@ private:
     // Compare votes lexicographically by (priority, id).
     static bool IsBetterCandidate(const TStatus& lhs, const TStatus& rhs)
     {
-        if (lhs.Priority > rhs.Priority)
+        if (lhs.Priority > rhs.Priority) {
             return true;
+        }
 
-        if (lhs.Priority < rhs.Priority)
+        if (lhs.Priority < rhs.Priority) {
             return false;
+        }
 
         return lhs.VoteId < rhs.VoteId;
     }
 
-    void OnComplete()
+    void OnComplete(const TError&)
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+
+        if (Finished)
+            return;
 
         LOG_DEBUG("Voting round completed");
 
@@ -512,14 +499,12 @@ TElectionManager::TImpl::TImpl(
     , CellManager(cellManager)
     , ControlInvoker(controlInvoker)
     , ElectionCallbacks(electionCallbacks)
-    , State(EPeerState::Stopped)
-    , VoteId(InvalidPeerId)
 {
     YCHECK(Config);
     YCHECK(CellManager);
     YCHECK(ControlInvoker);
     YCHECK(ElectionCallbacks);
-    VERIFY_INVOKER_THREAD_AFFINITY(controlInvoker, ControlThread);
+    VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker, ControlThread);
 
     Logger.AddTag("CellId: %v, SelfPeerId: %v",
         CellManager->GetCellId(),
@@ -766,7 +751,7 @@ void TElectionManager::TImpl::StartLeading()
     // Send initial pings.
     YCHECK(!FollowerPinger);
     FollowerPinger = New<TFollowerPinger>(this);
-    FollowerPinger->Start();
+    FollowerPinger->Run();
 
     LOG_INFO("Started leading (EpochId: %v)",
         EpochContext->EpochId);
@@ -785,7 +770,6 @@ void TElectionManager::TImpl::StopLeading()
     ElectionCallbacks->OnStopLeading();
 
     YCHECK(FollowerPinger);
-    FollowerPinger->Stop();
     FollowerPinger.Reset();
 
     Reset();

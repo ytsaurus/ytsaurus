@@ -66,7 +66,7 @@ private:
     class TImpl;
     typedef TIntrusivePtr<TImpl> TImplPtr;
 
-    TImplPtr Impl;
+    const TImplPtr Impl;
 
 };
 
