@@ -112,11 +112,9 @@ public:
             hydraManagerOptions);
 
         HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-        HydraManager_->SubscribeLeaderRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
         HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
         HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-        HydraManager_->SubscribeFollowerRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
         HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
         for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
@@ -209,14 +207,8 @@ private:
         }
     }
 
-    void OnRecoveryComplete()
-    {
-        ResponseKeeper_->Start();
-    }
-
     void OnStopEpoch()
     {
-        ResponseKeeper_->Stop();
         std::fill(EpochInvokers_.begin(), EpochInvokers_.end(), nullptr);
     }
 
