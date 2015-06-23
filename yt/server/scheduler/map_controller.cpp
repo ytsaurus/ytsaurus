@@ -264,9 +264,7 @@ private:
                 Spec->DataSizePerJob,
                 Spec->JobCount,
                 Options->MaxJobCount);
-
-            auto stripes = SliceInputChunks(Options->JobMaxSliceDataSize, jobCount);
-            jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
+            auto stripes = SliceInputChunks(Options->JobMaxSliceDataSize, &jobCount);
 
             MapTask = New<TMapTask>(this, jobCount);
             MapTask->Initialize();

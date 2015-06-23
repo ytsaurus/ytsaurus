@@ -769,7 +769,7 @@ protected:
     //! |TotalEstimateInputDataSize / jobCount|, whichever is smaller. If the resulting
     //! list contains less than |jobCount| stripes then |jobCount| is decreased
     //! appropriately.
-    std::vector<TChunkStripePtr> SliceInputChunks(i64 maxSliceDataSize, int jobCount);
+    std::vector<TChunkStripePtr> SliceInputChunks(i64 maxSliceDataSize, int* jobCount);
 
     int SuggestJobCount(
         i64 totalDataSize,

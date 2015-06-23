@@ -1054,7 +1054,8 @@ private:
             if (list->TotalDataSize >= idealDataSizePerJob) {
                 break;
             }
-            if (list->Stripes.size() > MaxChunkStripesPerJob) {
+            // NB: We should ignore check of chunk stripe count in case of last job.
+            if (list->Stripes.size() > MaxChunkStripesPerJob && GetFreePendingJobCount() > 1) {
                 break;
             }
             auto stripeIndex = *it;
