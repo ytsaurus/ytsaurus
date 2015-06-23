@@ -73,6 +73,16 @@ try:
 except ImportError:
     from StringIO import StringIO
 
+# Types definition for dispatch table.
+class _class:
+    def _method():
+        pass
+
+_method = _class._method
+StaticMethodType = type(staticmethod(_method))
+ClassMethodType = type(classmethod(_method))
+PropertyType = property()
+
 def islambda(func):
     return getattr(func,'func_name') == '<lambda>'
 
@@ -597,10 +607,18 @@ class CloudPickler(pickle.Pickler):
             self.save_inst_logic(obj)
     dispatch[types.InstanceType] = save_inst
 
+    def save_staticmethod(self, obj):
+        self.save_reduce(staticmethod, (obj.__func__,), obj=obj)
+    dispatch[StaticMethodType] = save_staticmethod
+
+    def save_classmethod(self, obj):
+        self.save_reduce(classmethod, (obj.__func__,), obj=obj)
+    dispatch[ClassMethodType] = save_classmethod
+
     def save_property(self, obj):
         # properties not correctly saved in python
         self.save_reduce(property, (obj.fget, obj.fset, obj.fdel, obj.__doc__), obj=obj)
-    dispatch[property] = save_property
+    dispatch[PropertyType] = save_property
 
     def save_itemgetter(self, obj):
         """itemgetter serializer (needed for namedtuple support)

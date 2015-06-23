@@ -361,9 +361,10 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.run_map(change_x, table, table)
         self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
 
-        yt.write_table(table, ["x=1\n", "y=2\n"])
-        yt.run_map(ChangeX__(), table, table)
-        self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
+        for mode in ["method", "staticmethod", "classmethod"]:
+            yt.write_table(table, ["x=1\n", "y=2\n"])
+            yt.run_map(ChangeX__(mode), table, table)
+            self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
 
         yt.write_table(table, ["x=2\n", "x=2\ty=2\n"])
         yt.run_sort(table, sort_by=["x"])
@@ -1006,13 +1007,33 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         yt.config["tabular_data_format"] = old_format
 
-
 # Map method for test operations with python entities
+def _change_x(rec):
+    if "x" in rec:
+        rec["x"] = int(rec["x"]) + 1
+
 class ChangeX__(object):
+    def __init__(self, mode):
+        self.change_x = {
+            "method": self._change_x,
+            "staticmethod": self._change_x_staticmethod,
+            "classmethod": self._change_x_classmethod
+            }[mode]
+
     def __call__(self, rec):
-        if "x" in rec:
-            rec["x"] = int(rec["x"]) + 1
+        self.change_x(rec)
         yield rec
+
+    def _change_x(self, rec):
+        _change_x(rec)
+
+    @staticmethod
+    def _change_x_staticmethod(rec):
+        _change_x(rec)
+
+    @classmethod
+    def _change_x_classmethod(cls, rec):
+        _change_x(rec)
 
 class TestNativeModeV2(NativeModeTester):
     @classmethod
