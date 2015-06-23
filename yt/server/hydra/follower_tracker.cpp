@@ -50,13 +50,6 @@ void TFollowerTracker::Start()
     OnPeerActivated();
 }
 
-bool TFollowerTracker::IsFollowerActive(TPeerId peerId) const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return PeerStates_[peerId] == EPeerState::Following;
-}
-
 void TFollowerTracker::ResetFollower(TPeerId followerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
