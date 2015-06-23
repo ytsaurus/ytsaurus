@@ -259,7 +259,7 @@ TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0)
     return dataSplit;
 }
 
-TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns)
+TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, TKeyColumns keyColumns = TKeyColumns())
 {
     TDataSplit dataSplit;
 
@@ -267,7 +267,6 @@ TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns)
         dataSplit.mutable_chunk_id(),
         MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
-    TKeyColumns keyColumns;
     SetKeyColumns(&dataSplit, keyColumns);
 
     TTableSchema tableSchema;
@@ -3394,6 +3393,52 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
     }, resultSplit);
 
     Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"x", EValueType::String},
+        {"y", EValueType::String}
+    }, {"x"});
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "x=a",
+        "x=b",
+        "x=c"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"x", EValueType::String}
+    }, {"a"});
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "a=1;x=a",
+        "a=2;x=b",
+        "a=3;x=c"
+    });
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"a", EValueType::Int64},
+        {"y", EValueType::String},
+    });
+
+    auto result = BuildRows({
+        "a=1;x=a",
+        "a=2;x=b",
+        "a=3;x=c"
+    }, resultSplit);
+
+    Evaluate("* FROM [//left] join [//right] using x", splits, sources, result);
 
     SUCCEED();
 }

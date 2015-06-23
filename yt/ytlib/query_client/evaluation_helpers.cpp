@@ -177,13 +177,15 @@ TJoinEvaluator GetJoinEvaluator(
             column));
     }
 
+    auto subqueryTableSchema = subquery->GetTableSchema();
+
     std::vector<std::pair<bool, int>> columnMapping;
 
     for (const auto& column : joinedTableSchema.Columns()) {
         if (auto self = selfTableSchema.FindColumn(column.Name)) {
             columnMapping.emplace_back(true, selfTableSchema.GetColumnIndex(*self));
-        } else if (auto foreign = foreignTableSchema.FindColumn(column.Name)) {
-            columnMapping.emplace_back(false, foreignTableSchema.GetColumnIndex(*foreign));
+        } else if (auto foreign = subqueryTableSchema.FindColumn(column.Name)) {
+            columnMapping.emplace_back(false, subqueryTableSchema.GetColumnIndex(*foreign));
         } else {
             YUNREACHABLE();
         }        
