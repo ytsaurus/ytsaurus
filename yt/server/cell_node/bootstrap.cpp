@@ -198,15 +198,17 @@ void TBootstrap::DoRun()
         "/ref_counted",
         TRefCountedTracker::Get()->GetMonitoringProducer());
 
-    auto jobRedirectorChannel = CreateThrottlingChannel(
+    // NB: User connection's channel, not the client's one to preserve
+    // user names passed from the cache service.
+    auto masterRedirectorChannel = CreateThrottlingChannel(
         Config->MasterRedirectorService,
-        MasterClient->GetMasterChannel(EMasterChannelKind::Leader));
+        MasterClient->GetConnection()->GetMasterChannel(EMasterChannelKind::Leader));
     RpcServer->RegisterService(CreateRedirectorService(
         TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), NullCellId),
-        jobRedirectorChannel));
+        masterRedirectorChannel));
     RpcServer->RegisterService(CreateRedirectorService(
         TServiceId(NObjectClient::TObjectServiceProxy::GetServiceName(), NullCellId),
-        jobRedirectorChannel));
+        masterRedirectorChannel));
 
     BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
 
