@@ -139,7 +139,7 @@ def make_request(command_name, params,
         def set_retry():
             if command.is_volatile:
                 params["retry"] = bool_to_string(True)
-                headers.update({"X-YT-Parameters": json.dumps(escape_utf8(params))})
+                headers.update({"X-YT-Parameters": dumps(params)})
         retry_action = set_retry
     else:
         retry_action = None
