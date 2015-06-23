@@ -26,8 +26,6 @@ public:
 
     void Start();
 
-    bool IsFollowerActive(TPeerId followerId) const;
-
     void ResetFollower(TPeerId followerId);
 
     TFuture<void> GetActiveQuorum();
