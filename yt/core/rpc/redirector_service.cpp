@@ -316,27 +316,5 @@ IServicePtr CreateRedirectorService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IClientRequestControlPtr RedirectServiceRequest(
-    IServiceContextPtr context,
-    IChannelPtr channel)
-{
-    YCHECK(context);
-    YCHECK(channel);
-
-    auto requestHeader = std::make_unique<TRequestHeader>(context->RequestHeader());
-
-    auto responseMessageHandler = BIND([=] (TSharedRefArray message) {
-        context->Reply(std::move(message));
-    });
-
-    return DoRedirectServiceRequest(
-        std::move(requestHeader),
-        context->GetRequestMessage(),
-        std::move(responseMessageHandler),
-        std::move(channel));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NRpc
 } // namespace NYT
