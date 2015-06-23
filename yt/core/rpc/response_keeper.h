@@ -40,6 +40,7 @@ public:
 
     //! Activates the keeper.
     /*!
+     *  If the keeper is already started, the call does nothing.
      *  The keeper will start remembering responses.
      *  During the warm-up period, however, it cannot detect duplicate requests
      *  reliably and thus #TryBeginRequest may throw.
@@ -48,6 +49,7 @@ public:
 
     //! Deactivates the keeper.
     /*!
+     *  If the keeper is already stopped, the call does nothing.
      *  Calling #TryBeginRequest for an inactive keeper will lead to an exception.
      */
     void Stop();
