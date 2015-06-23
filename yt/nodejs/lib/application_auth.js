@@ -134,7 +134,7 @@ YtApplicationAuth.prototype._dispatchWhoAmI = function(req, rsp)
     var deferred = Q.defer();
     var self = this;
 
-    (new YtAuthentication(self.config, req.logger || self.logger, authority))
+    (new YtAuthentication(self.config, req.logger || self.logger, self.authority))
         .dispatch(req, rsp, function() {
             return void utils.dispatchJson(rsp, {
                 login: req.authenticated_user,
