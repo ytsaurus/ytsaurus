@@ -259,7 +259,7 @@ private:
         if (key == "owning_nodes") {
             SerializeOwningNodesPaths(
                 cypressManager,
-                const_cast<TChunk*>(chunk),
+                chunk,
                 consumer);
             return true;
         }
