@@ -14,7 +14,6 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/scheduler.h>
 
 #include <core/erasure/codec.h>
@@ -78,7 +77,6 @@ TMultiChunkReaderBase::TMultiChunkReaderBase(
     , MasterChannel_(masterChannel)
     , NodeDirectory_(nodeDirectory)
     , FreeBufferSize_(Config_->MaxBufferSize)
-    , FetchingCompletedAwaiter_(New<TParallelAwaiter>(GetSyncInvoker()))
 {
     Logger.AddTag("Reader: %v", this);
 
@@ -129,8 +127,7 @@ TDataStatistics TMultiChunkReaderBase::GetDataStatistics() const
 
 bool TMultiChunkReaderBase::IsFetchingCompleted() const
 {
-    return FetchingCompletedAwaiter_->IsCompleted() &&
-        (FetchingCompletedAwaiter_->GetRequestCount() == FetchingCompletedAwaiter_->GetResponseCount());
+    return FetchingCompleted_.IsSet();
 }
 
 std::vector<TChunkId> TMultiChunkReaderBase::GetFailedChunkIds() const
@@ -186,9 +183,9 @@ void TMultiChunkReaderBase::DoOpenChunk(int chunkIndex)
 
     OnReaderOpened(reader, chunkIndex);
 
-    FetchingCompletedAwaiter_->Await(reader->GetFetchingCompletedEvent());
+    FetchingCompletedEvents_.push_back(reader->GetFetchingCompletedEvent());
     if (++OpenedReaderCount_ == Chunks_.size()) {
-        FetchingCompletedAwaiter_->Complete();
+        FetchingCompleted_.SetFrom(Combine(FetchingCompletedEvents_));
     }
 
     TGuard<TSpinLock> guard(DataStatisticsLock_);
