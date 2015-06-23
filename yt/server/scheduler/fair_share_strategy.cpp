@@ -53,7 +53,7 @@ struct TSchedulableAttributes
     double UsageRatio = 0.0;
     double FairShareRatio = 0.0;
     double AdjustedMinShareRatio = 0.0;
-    double MaxShareRatio = 1.0;
+    double MaxPossibleUsageRatio = 1.0;
     double SatisfactionRatio = 0.0;
     double BestAllocationRatio = 1.0;
     i64 DominantLimit = 0;
@@ -104,6 +104,7 @@ struct ISchedulerElement
     virtual const TNodeResources& ResourceUsage() const = 0;
     virtual const TNodeResources& ResourceUsageDiscount() const = 0;
     virtual const TNodeResources& ResourceLimits() const = 0;
+    virtual const TNodeResources& MaxPossibleResourceUsage() const = 0;
 
     virtual void IncreaseUsage(const TNodeResources& delta) = 0;
 };
@@ -180,7 +181,7 @@ public:
             demand,
             totalLimits,
             Host->GetExecNodeCount());
-        auto limits = Min(totalLimits, ResourceLimits());
+        auto maxPossibleResourceUsage = Min(totalLimits, MaxPossibleResourceUsage());
 
         if (usage == ZeroNodeResources()) {
             Attributes_.DominantResource = GetDominantResource(demand, totalLimits);
@@ -204,12 +205,12 @@ public:
 
         Attributes_.DominantLimit = dominantLimit;
 
-        Attributes_.MaxShareRatio = GetMaxShareRatio();
+        Attributes_.MaxPossibleUsageRatio = GetMaxShareRatio();
         if (Attributes_.UsageRatio > RatioComputationPrecision)
         {
-            Attributes_.MaxShareRatio = std::min(
-                GetMinResourceRatio(limits, usage) * Attributes_.UsageRatio,
-                Attributes_.MaxShareRatio);
+            Attributes_.MaxPossibleUsageRatio = std::min(
+                GetMinResourceRatio(maxPossibleResourceUsage, usage) * Attributes_.UsageRatio,
+                Attributes_.MaxPossibleUsageRatio);
         }
     }
 
@@ -340,15 +341,18 @@ public:
     virtual void UpdateBottomUp() override
     {
         ResourceDemand_ = ZeroNodeResources();
+        auto maxPossibleChildrenResourceUsage_ = ZeroNodeResources();
         Attributes_.BestAllocationRatio = 0.0;
         for (const auto& child : Children) {
             child->UpdateBottomUp();
 
             ResourceDemand_ += child->ResourceDemand();
+            maxPossibleChildrenResourceUsage_ += child->MaxPossibleResourceUsage();
             Attributes_.BestAllocationRatio = std::max(
                 Attributes_.BestAllocationRatio,
                 child->Attributes().BestAllocationRatio);
         }
+        MaxPossibleResourceUsage_ = Min(maxPossibleChildrenResourceUsage_, ResourceLimits_);
         TSchedulerElementBase::UpdateBottomUp();
     }
 
@@ -505,6 +509,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
     DEFINE_BYREF_RO_PROPERTY(TNodeResources, ResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(TNodeResources, MaxPossibleResourceUsage);
 
 protected:
     ESchedulingMode Mode;
@@ -592,10 +597,8 @@ protected:
         for (const auto& child : Children) {
             auto& childAttributes = child->Attributes();
             double result = child->GetMinShareRatio();
-            // Never give more than demanded.
-            result = std::min(result, childAttributes.DemandRatio);
-            // Never give more than max share allows.
-            result = std::min(result, childAttributes.MaxShareRatio);
+            // Never give more than can be used.
+            result = std::min(result, childAttributes.MaxPossibleUsageRatio);
             // Never give more than we can allocate.
             result = std::min(result, childAttributes.BestAllocationRatio);
             childAttributes.AdjustedMinShareRatio = result;
@@ -622,10 +625,8 @@ protected:
                 double result = fitFactor * child->GetWeight() / minWeight;
                 // Never give less than promised by min share.
                 result = std::max(result, childAttributes.AdjustedMinShareRatio);
-                // Never give more than demanded.
-                result = std::min(result, childAttributes.DemandRatio);
-                // Never give more than max share allows.
-                result = std::min(result, childAttributes.MaxShareRatio);
+                // Never give more than can be used.
+                result = std::min(result, childAttributes.MaxPossibleUsageRatio);
                 // Never give more than we can allocate.
                 result = std::min(result, childAttributes.BestAllocationRatio);
                 return result;
@@ -844,14 +845,7 @@ private:
     TNodeResources ComputeResourceLimits() const
     {
         auto poolLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config_->MaxShareRatio;
-        poolLimits = Min(poolLimits, Config_->ResourceLimits->ToNodeResources());
-
-        auto totalChildrenLimits = ZeroNodeResources();
-        for (const auto& child : Children) {
-            totalChildrenLimits += child->ResourceLimits();
-        }
-
-        return Min(poolLimits, totalChildrenLimits);
+        return Min(poolLimits, Config_->ResourceLimits->ToNodeResources());
     }
 
 };
@@ -974,12 +968,18 @@ public:
 
     virtual const TNodeResources& ResourceLimits() const override
     {
-        ResourceLimits_ = Host->GetResourceLimits(GetSchedulingTag());
+        ResourceLimits_ = Host->GetResourceLimits(GetSchedulingTag()) * Spec_->MaxShareRatio;
 
         auto perTypeLimits = Spec_->ResourceLimits->ToNodeResources();
         ResourceLimits_ = Min(ResourceLimits_, perTypeLimits);
 
         return ResourceLimits_;
+    }
+
+    virtual const TNodeResources& MaxPossibleResourceUsage() const override
+    {
+        MaxPossibleResourceUsage_ = Min(ResourceLimits(), ResourceDemand());
+        return MaxPossibleResourceUsage_;
     }
 
     ESchedulableStatus GetStatus() const
@@ -1062,6 +1062,7 @@ public:
 private:
     mutable TNodeResources ResourceDemand_;
     mutable TNodeResources ResourceLimits_;
+    mutable TNodeResources MaxPossibleResourceUsage_;
 
     TFairShareStrategyConfigPtr Config;
 };
@@ -1345,7 +1346,7 @@ public:
         return Format(
             "Scheduling = {Status: %v, DominantResource: %v, Demand: %.4lf, "
             "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lf, AdjustedMinShare: %.4lf, "
-            "MaxShare: %.4lf,  BestAllocation: %.4lf, "
+            "MaxPossibleUsage: %.4lf,  BestAllocation: %.4lf, "
             "Starving: %v, Weight: %v, "
             "PreemptableRunningJobs: %v}",
             element->GetStatus(),
@@ -1355,7 +1356,7 @@ public:
             attributes.FairShareRatio,
             attributes.SatisfactionRatio,
             attributes.AdjustedMinShareRatio,
-            attributes.MaxShareRatio,
+            attributes.MaxPossibleUsageRatio,
             attributes.BestAllocationRatio,
             element->GetStarving(),
             element->GetWeight(),
@@ -1883,8 +1884,9 @@ private:
             .Item("dominant_resource").Value(attributes.DominantResource)
             .Item("weight").Value(element->GetWeight())
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
+            .Item("max_share_ratio").Value(element->GetMaxShareRatio())
             .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
-            .Item("max_share_ratio").Value(attributes.MaxShareRatio)
+            .Item("max_possible_usage_ratio").Value(attributes.MaxPossibleUsageRatio)
             .Item("usage_ratio").Value(attributes.UsageRatio)
             .Item("demand_ratio").Value(attributes.DemandRatio)
             .Item("fair_share_ratio").Value(attributes.FairShareRatio)
