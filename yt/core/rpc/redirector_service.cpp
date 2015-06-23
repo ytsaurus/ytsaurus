@@ -35,6 +35,17 @@ public:
 
     virtual TSharedRefArray Serialize() override
     {
+        auto now = TInstant::Now();
+
+        // This is a redirected request so request_start_time is already set.
+        if (FirstTimeSerialization_) {
+            FirstTimeSerialization_ = false;
+        } else {
+            Header_->set_retry(true);
+        }
+
+        Header_->set_retry_start_time(now.MicroSeconds());
+
         YASSERT(Message_.Size() >= 2);
         auto body = Message_[1];
         auto attachments = std::vector<TSharedRef>(Message_.Begin() + 2, Message_.End());
@@ -125,6 +136,8 @@ public:
 private:
     const std::unique_ptr<TRequestHeader> Header_;
     const TSharedRefArray Message_;
+
+    bool FirstTimeSerialization_ = true;
 
 };
 
