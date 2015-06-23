@@ -270,14 +270,6 @@ void TBootstrap::DoInitialize()
         GetCellId(),
         GetCellTag());
 
-    if (GetCellId() == TCellId()) {
-        LOG_ERROR("No custom cell id is set, cluster can only be used for testing purposes");
-    }
-
-    if (GetCellTag() == 0) {
-        LOG_ERROR("No custom cell tag is set, cluster can only be used for testing purposes");
-    }
-
     Config_->Master->ValidateAllPeersPresent();
 
     HttpServer_.reset(new NHttp::TServer(Config_->MonitoringPort));
