@@ -10,15 +10,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class... TArgs>
-void TCallbackList<void(TArgs...)>::Subscribe(const TCallback& callback)
+template <class TResult, class... TArgs>
+void TCallbackList<TResult(TArgs...)>::Subscribe(const TCallback& callback)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     Callbacks_.push_back(callback);
 }
 
-template <class... TArgs>
-void TCallbackList<void(TArgs...)>::Unsubscribe(const TCallback& callback)
+template <class TResult, class... TArgs>
+void TCallbackList<TResult(TArgs...)>::Unsubscribe(const TCallback& callback)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     for (auto it = Callbacks_.begin(); it != Callbacks_.end(); ++it) {
@@ -29,16 +29,23 @@ void TCallbackList<void(TArgs...)>::Unsubscribe(const TCallback& callback)
     }
 }
 
-template <class... TArgs>
-void TCallbackList<void(TArgs...)>::Clear()
+template <class TResult, class... TArgs>
+std::vector<TCallback<TResult(TArgs...)>> TCallbackList<TResult(TArgs...)>::ToVector() const
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    return std::vector<TCallback>(Callbacks_.begin(), Callbacks_.end());
+}
+
+template <class TResult, class... TArgs>
+void TCallbackList<TResult(TArgs...)>::Clear()
 {
     TGuard<TSpinLock> guard(SpinLock_);
     Callbacks_.clear();
 }
 
-template <class... TArgs>
+template <class TResult, class... TArgs>
 template <class... TCallArgs>
-void TCallbackList<void(TArgs...)>::Fire(TCallArgs&&... args) const
+void TCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args) const
 {
     TGuard<TSpinLock> guard(SpinLock_);
 
@@ -53,9 +60,9 @@ void TCallbackList<void(TArgs...)>::Fire(TCallArgs&&... args) const
     }
 }
 
-template <class... TArgs>
+template <class TResult, class... TArgs>
 template <class... TCallArgs>
-void TCallbackList<void(TArgs...)>::FireAndClear(TCallArgs&&... args)
+void TCallbackList<TResult(TArgs...)>::FireAndClear(TCallArgs&&... args)
 {
     SmallVector<TCallback, 4> callbacks;
     {
@@ -72,8 +79,8 @@ void TCallbackList<void(TArgs...)>::FireAndClear(TCallArgs&&... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class... TArgs>
-void TSingleShotCallbackList<void(TArgs...)>::Subscribe(const TCallback& callback)
+template <class TResult, class... TArgs>
+void TSingleShotCallbackList<TResult(TArgs...)>::Subscribe(const TCallback& callback)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     if (Fired_) {
@@ -84,8 +91,8 @@ void TSingleShotCallbackList<void(TArgs...)>::Subscribe(const TCallback& callbac
     Callbacks_.push_back(callback);
 }
 
-template <class... TArgs>
-void TSingleShotCallbackList<void(TArgs...)>::Unsubscribe(const TCallback& callback)
+template <class TResult, class... TArgs>
+void TSingleShotCallbackList<TResult(TArgs...)>::Unsubscribe(const TCallback& callback)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     for (auto it = Callbacks_.begin(); it != Callbacks_.end(); ++it) {
@@ -96,9 +103,16 @@ void TSingleShotCallbackList<void(TArgs...)>::Unsubscribe(const TCallback& callb
     }
 }
 
-template <class... TArgs>
+template <class TResult, class... TArgs>
+std::vector<TCallback<TResult(TArgs...)>> TSingleShotCallbackList<TResult(TArgs...)>::ToVector() const
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    return std::vector<TCallback>(Callbacks_.begin(), Callbacks_.end());
+}
+
+template <class TResult, class... TArgs>
 template <class... TCallArgs>
-bool TSingleShotCallbackList<void(TArgs...)>::Fire(TCallArgs&&... args)
+bool TSingleShotCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args)
 {
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -118,8 +132,8 @@ bool TSingleShotCallbackList<void(TArgs...)>::Fire(TCallArgs&&... args)
     return true;
 }
 
-template <class... TArgs>
-bool TSingleShotCallbackList<void(TArgs...)>::IsFired() const
+template <class TResult, class... TArgs>
+bool TSingleShotCallbackList<TResult(TArgs...)>::IsFired() const
 {
     TGuard<TSpinLock> guard(SpinLock_);
     return Fired_;
