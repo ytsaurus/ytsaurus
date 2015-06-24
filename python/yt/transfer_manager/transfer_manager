@@ -313,7 +313,7 @@ class Application(object):
 
     def _take_lock(self):
         yt_client = deepcopy(self._yt)
-        with yt_client.PingableTransaction():
+        with yt_client.Transaction():
             while True:
                 try:
                     yt_client.lock(self._lock_path)
