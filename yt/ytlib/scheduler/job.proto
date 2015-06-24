@@ -300,7 +300,6 @@ message TRemoteCopyJobSpecExt
     }
 
     required string connection_config = 1;
-    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory remote_node_directory = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
