@@ -299,7 +299,13 @@ public:
         return StartTimestamp_;
     }
 
-    
+    ETransactionState GetState()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        return State_;
+    }
+
+
     TFuture<void> AddTabletParticipant(const TCellId& cellId)
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
@@ -631,6 +637,10 @@ private:
                         LOG_WARNING(rspOrError, "Error pinging transaction (TransactionId: %v, CellId: %v)",
                             Id_,
                             cellId);
+                        THROW_ERROR_EXCEPTION("Failed to ping transaction %v at cell %v",
+                            Id_,
+                            cellId)
+                            << rspOrError;
                     }
                 })));
         }
@@ -640,15 +650,13 @@ private:
 
     void RunPeriodicPings()
     {
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            if (State_ != ETransactionState::Active)
-                return;           
-        }
+        if (GetState() != ETransactionState::Active)
+            return;
 
-        SendPing().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            if (!error.IsOK())
+        SendPing().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError&) {
+            if (GetState() != ETransactionState::Active)
                 return;
+
             TDelayedExecutor::Submit(
                 BIND(IgnoreResult(&TImpl::RunPeriodicPings), MakeWeak(this)),
                 Owner_->Config_->PingPeriod);
