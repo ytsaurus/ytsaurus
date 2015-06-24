@@ -9,6 +9,7 @@
 
 #include <server/node_tracker_server/node_tracker.h>
 #include <server/node_tracker_server/node.h>
+#include <server/node_tracker_server/config.h>
 
 #include <server/table_server/table_node.h>
 
@@ -242,6 +243,12 @@ bool TTabletTracker::IsFailoverNeeded(TTabletCell* cell, TPeerId peerId)
 
     if (peer.Node) {
         return false;
+    }
+
+    auto nodeTracker = Bootstrap_->GetNodeTracker();
+    auto config = nodeTracker->FindNodeConfigByAddress(peer.Descriptor->GetDefaultAddress());
+    if (config && config->Banned) {
+        return true;
     }
 
     if (peer.LastSeenTime > TInstant::Now() - Config_->PeerFailoverTimeout) {
