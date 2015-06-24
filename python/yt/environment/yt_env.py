@@ -378,7 +378,6 @@ class YTEnv(object):
             })
             config['exec_agent']['slot_manager']['start_uid'] = current_user
             config['exec_agent']['slot_manager']['path'] = os.path.join(current, 'slots')
-            config['tablet_node']['snapshots']['temp_path'] = os.path.join(current, 'snapshots')
 
             current_user += config['exec_agent']['job_controller']['resource_limits']['user_slots'] + 1
 

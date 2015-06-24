@@ -72,6 +72,12 @@ def get_master_config():
         default_transaction_timeout = 300000;
     };
 
+    hydra_manager = {
+        leader_lease_check_period = 100;
+        leader_lease_timeout = 200;
+        disable_leader_lease_grace_delay = true;
+    };
+
     chunk_manager = {
         chunk_refresh_delay = 300;
         chunk_refresh_period = 10;
@@ -268,8 +274,10 @@ def get_node_config():
     };
 
     tablet_node = {
-        snapshots = {
-            temp_path = "";
+        hydra_manager = {
+            leader_lease_check_period = 100;
+            leader_lease_timeout = 200;
+            disable_leader_lease_grace_delay = true;
         };
     };
 

@@ -17,7 +17,7 @@ public:
     TDuration ControlRpcTimeout;
     TDuration FollowerPingPeriod;
     TDuration FollowerPingRpcTimeout;
-    TDuration LeaderLeaseTimeout;
+    TDuration LeaderPingTimeout;
     TDuration FollowerGraceTimeout;
 
     TElectionManagerConfig()
@@ -30,7 +30,7 @@ public:
             .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("follower_ping_rpc_timeout", FollowerPingRpcTimeout)
             .Default(TDuration::MilliSeconds(5000));
-        RegisterParameter("leader_lease_timeout", LeaderLeaseTimeout)
+        RegisterParameter("leader_ping_timeout", LeaderPingTimeout)
             .Default(TDuration::MilliSeconds(5000));
         RegisterParameter("follower_grace_timeout", FollowerGraceTimeout)
             .Default(TDuration::MilliSeconds(5000));

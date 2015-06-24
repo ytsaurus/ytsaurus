@@ -49,12 +49,17 @@ struct IHydraManager
 
     //! Returns |true| if the peer is a leader ready to carry out distributed commits.
     /*!
+     *  This check also ensures that the leader has acquired and is still holding the lease.
+     *
      *  \note Thread affinity: any
      */
     virtual bool IsActiveLeader() const = 0;
 
     //! Returns |true| if the peer is a follower ready to serve reads.
     /*!
+     *  Any follower still can lag arbitrarily behind the leader.
+     *  One should use #SyncWithLeader to workaround stale reads.
+     *
      *  \note Thread affinity: any
      */
     virtual bool IsActiveFollower() const = 0;
@@ -140,6 +145,12 @@ struct IHydraManager
     DECLARE_INTERFACE_SIGNAL(void(), FollowerRecoveryComplete);
     //! Raised within the automaton thread when the peer has stopped following.
     DECLARE_INTERFACE_SIGNAL(void(), StopFollowing);
+
+    //! Raised during periodic leader lease checks.
+    //! The subscriber must start an appropriate check and return a future
+    //! summarizing its outcome.
+    DECLARE_INTERFACE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
+
 
     // Extension methods.
     bool IsLeader() const;

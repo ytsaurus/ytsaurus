@@ -40,7 +40,7 @@ struct TEpochContext
     TFollowerRecoveryPtr FollowerRecovery;
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
-    TFollowerTrackerPtr FollowerTracker;
+    TLeaseTrackerPtr LeaseTracker;
 
     std::atomic<bool> Restarted = {false};
 

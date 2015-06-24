@@ -11,7 +11,7 @@ set( SRCS
   ${BASE}/file_changelog_dispatcher.cpp
   ${BASE}/file_helpers.cpp
   ${BASE}/file_snapshot_store.cpp
-  ${BASE}/follower_tracker.cpp
+  ${BASE}/lease_tracker.cpp
   ${BASE}/format.cpp
   ${BASE}/hydra_manager.cpp
   ${BASE}/hydra_service.cpp
@@ -51,7 +51,7 @@ set( HDRS
   ${BASE}/file_helpers-inl.h
   ${BASE}/file_helpers.h
   ${BASE}/file_snapshot_store.h
-  ${BASE}/follower_tracker.h
+  ${BASE}/lease_tracker.h
   ${BASE}/format.h
   ${BASE}/hydra_manager.h
   ${BASE}/hydra_service.h

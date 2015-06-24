@@ -724,7 +724,7 @@ void TElectionManager::TImpl::StartFollowing(
     PingTimeoutCookie = TDelayedExecutor::Submit(
         BIND(&TImpl::OnFollowerPingTimeout, MakeWeak(this))
             .Via(ControlEpochInvoker),
-        Config->LeaderLeaseTimeout);
+        Config->LeaderPingTimeout);
 
     LOG_INFO("Started following (LeaderId: %v, EpochId: %v)",
         EpochContext->LeaderId,
@@ -869,7 +869,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
     PingTimeoutCookie = TDelayedExecutor::Submit(
         BIND(&TImpl::OnFollowerPingTimeout, MakeWeak(this))
             .Via(ControlEpochInvoker),
-        Config->LeaderLeaseTimeout);
+        Config->LeaderPingTimeout);
 
     context->Reply();
 }
