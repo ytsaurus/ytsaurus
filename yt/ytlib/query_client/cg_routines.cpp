@@ -484,6 +484,11 @@ ui64 FarmHash(
     return GetFarmFingerprint(begin, end);
 }
 
+ui64 FarmHashUint64(ui64 value)
+{
+    return FarmFingerprint(value);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoutines
@@ -515,6 +520,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(IsRowInArray);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHash);
+    REGISTER_ROUTINE(FarmHashUint64);
     REGISTER_ROUTINE(AddRow);
     REGISTER_ROUTINE(OrderOpHelper);
 #undef REGISTER_ROUTINE

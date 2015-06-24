@@ -334,7 +334,7 @@ public:
             auto destType = TDataTypeBuilder::TUint64::get(builder.getContext());
             if (bitcast) {
                 result = builder.CreateBitCast(value, destType);
-            } else if (StaticType_ == EValueType::Uint64) {
+            } else if (StaticType_ == EValueType::Uint64 || StaticType_ == EValueType::Boolean) {
                 result = builder.CreateIntCast(value, destType, false);
             } else if (StaticType_ == EValueType::Double) {
                 result = builder.CreateFPToSI(value, destType);
@@ -345,7 +345,7 @@ public:
             auto destType = TDataTypeBuilder::TUint64::get(builder.getContext());
             if (bitcast) {
                 result = builder.CreateBitCast(value, destType);
-            } if (StaticType_ == EValueType::Int64) {
+            } else if (StaticType_ == EValueType::Int64 || StaticType_ == EValueType::Boolean) {
                 result = builder.CreateIntCast(value, destType, true);
             } else if (StaticType_ == EValueType::Double) {
                 result = builder.CreateFPToUI(value, destType);
@@ -356,7 +356,7 @@ public:
             auto destType = TDataTypeBuilder::TDouble::get(builder.getContext());
             if (bitcast) {
                 result = builder.CreateBitCast(value, destType);
-            } if (StaticType_ == EValueType::Uint64) {
+            } else if (StaticType_ == EValueType::Uint64) {
                 result = builder.CreateUIToFP(value, destType);
             } else if (StaticType_ == EValueType::Int64) {
                 result = builder.CreateSIToFP(value, destType);
