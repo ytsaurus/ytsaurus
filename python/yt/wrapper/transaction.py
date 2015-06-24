@@ -4,6 +4,7 @@ from common import get_value
 from errors import YtResponseError
 from transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
 
+from copy import deepcopy
 from thread import interrupt_main
 from time import sleep
 from threading import Thread
@@ -62,6 +63,8 @@ class Transaction(object):
         self.client = client
         self.ping = ping
         self.timeout = timeout
+        self.ping_ancestor_transactions = ping_ancestor_transactions
+        self.attributes = deepcopy(attributes)
 
         if get_option("_transaction_stack", self.client) is None:
             set_option("_transaction_stack", TransactionStack(), self.client)
@@ -69,22 +72,15 @@ class Transaction(object):
 
         self.stack.init(get_option("TRANSACTION", self.client), get_option("PING_ANCESTOR_TRANSACTIONS", self.client))
 
-        if self.null:
-            self.transaction_id = "0-0-0-0"
-        else:
-            self.transaction_id = start_transaction(timeout=timeout, attributes=attributes, client=client)
-
-        self.stack.append(self.transaction_id, ping_ancestor_transactions)
-        set_option("TRANSACTION", self.transaction_id, self.client)
-        set_option("PING_ANCESTOR_TRANSACTIONS", ping_ancestor_transactions, self.client)
-
         self.finished = False
 
     def __enter__(self):
-        if self.ping and not self.finished:
-            delay = (self.timeout / 1000.0) / max(2, get_request_retry_count(self.client))
-            self.ping_thread = PingTransaction(self.transaction_id, delay, client=self.client)
-            self.ping_thread.start()
+        if not self.finished:
+            self.start_new_transaction()
+            if self.ping and not self.null:
+                delay = (self.timeout / 1000.0) / max(2, get_request_retry_count(self.client))
+                self.ping_thread = PingTransaction(self.transaction_id, delay, client=self.client)
+                self.ping_thread.start()
         return self
 
     def __exit__(self, type, value, traceback):
@@ -110,13 +106,25 @@ class Transaction(object):
                     else:
                         raise
         finally:
-            if self.ping:
+            if self.ping and not self.null:
                 self.ping_thread.stop()
             self.stack.pop()
             transaction_id, ping_ancestor_transactions = self.stack.get()
             set_option("TRANSACTION", transaction_id, self.client)
             set_option("PING_ANCESTOR_TRANSACTIONS", ping_ancestor_transactions, self.client)
             self.finished = True
+
+    def start_new_transaction(self):
+        if self.null:
+            self.transaction_id = "0-0-0-0"
+        else:
+            self.transaction_id = start_transaction(timeout=self.timeout,
+                                                    attributes=self.attributes,
+                                                    client=self.client)
+
+        self.stack.append(self.transaction_id, self.ping_ancestor_transactions)
+        set_option("TRANSACTION", self.transaction_id, self.client)
+        set_option("PING_ANCESTOR_TRANSACTIONS", self.ping_ancestor_transactions, self.client)
 
 
 class PingTransaction(Thread):

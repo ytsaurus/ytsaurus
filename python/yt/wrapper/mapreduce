@@ -530,7 +530,7 @@ Examples:
                            replication_factor=replication_factor,
                            compression_codec=args.codec)
         else:
-            with yt.PingableTransaction():
+            with yt.Transaction():
                 visited = set()
                 for key, records in groupby(outputformat.load_rows(sys.stdin), key=lambda rec: rec.tableIndex):
                     table = dst[key]
@@ -595,7 +595,7 @@ Examples:
             if len(args.src) != len(dst):
                 exit("Number of source and destination tables must be the same "
                      "in case of multiple destination tables in copy or move")
-            with yt.PingableTransaction():
+            with yt.Transaction():
                 for source_table, destination_table in zip(args.src, dst):
                     method(source_table, destination_table)
         else:

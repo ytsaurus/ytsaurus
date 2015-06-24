@@ -19,7 +19,7 @@ def main():
     parser.add_argument('--conflict-exit-code', type=int, default=1)
     args = parser.parse_args()
 
-    with yt.PingableTransaction() as tx:
+    with yt.Transaction() as tx:
         try:
             yt.lock(args.path)
         except yt.YtResponseError as error:
@@ -43,7 +43,7 @@ def main():
                                 preexec_fn=lambda: libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM))
 
         while True:
-            if not tx.ping.is_alive():
+            if not tx.ping_thread.is_alive():
                 logger.error("Pinging thread failed. Terminating command.")
                 proc.send_signal(2)
                 time.sleep(args.step)
