@@ -2684,6 +2684,40 @@ TEST_F(TQueryEvaluateTest, IsSubstrStrings)
     Evaluate("s FROM [//t] where is_substr(\"foo\", s) or is_substr(s, \"XX baz YY\")", split, source, result);
 }
 
+TEST_F(TQueryEvaluateTest, GroupByBool)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean},
+        {"t", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=%false;t=200",
+        "x=%true;t=240"
+    }, resultSplit);
+
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x", split, source, result);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, Complex)
 {
     auto split = MakeSplit({
