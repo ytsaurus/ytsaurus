@@ -195,7 +195,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
     files = _prepare_read_from_yt_command(source_client, src, "json", tmp_dir, fastbone, pack=True)
 
     try:
-        with source_client.PingableTransaction():
+        with source_client.Transaction():
             sorted_by = None
             if source_client.exists(src + "/@sorted_by"):
                 sorted_by = source_client.get(src + "/@sorted_by")
@@ -302,7 +302,7 @@ done"""
 
     logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
     try:
-        with yt_client.PingableTransaction():
+        with yt_client.Transaction():
             run_operation_and_notify(
                 message_queue,
                 yt_client.run_map,
@@ -365,7 +365,7 @@ while True:
         tmp_dir)
 
     try:
-        with yt_client.PingableTransaction():
+        with yt_client.Transaction():
             yt_client.lock(src, mode="snapshot")
 
             row_count = yt_client.get(src + "/@row_count")

@@ -4,7 +4,7 @@ import yt.logger as logger
 from config import get_option, get_total_request_timeout, get_single_request_timeout, get_request_retry_count
 from common import get_backoff
 from table import to_table
-from transaction import PingableTransaction
+from transaction import Transaction
 from transaction_commands import _make_transactional_request
 from http import RETRIABLE_ERRORS
 
@@ -16,9 +16,9 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
     request_timeout = get_total_request_timeout(client)
 
     title = "Python wrapper: {0} {1}".format(command_name, path.name)
-    with PingableTransaction(timeout=request_timeout,
-                             attributes={"title": title},
-                             client=client):
+    with Transaction(timeout=request_timeout,
+                     attributes={"title": title},
+                     client=client):
         create_object(path.name)
         if use_retries:
             started = False
@@ -36,7 +36,7 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                 for attempt in xrange(get_request_retry_count(client)):
                     current_time = datetime.now()
                     try:
-                        with PingableTransaction(timeout=request_timeout, client=client):
+                        with Transaction(timeout=request_timeout, client=client):
                             params["path"] = path.to_yson_type()
                             _make_transactional_request(
                                 command_name,
