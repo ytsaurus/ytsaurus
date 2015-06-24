@@ -1469,8 +1469,7 @@ private:
                             static_cast<double>(requestCounter - user->GetCheckpointRequestCounter()) /
                             (now - user->GetCheckpointTime()).SecondsFloat();
                         user->SetRequestRate(requestRate);
-                        // TODO(babenko): use tags in master
-                        Profiler.Enqueue("/user_request_rate/" + ToYPathLiteral(user->GetName()), static_cast<int>(requestRate));
+                        Profiler.Enqueue("/user_request_rate", static_cast<int>(requestRate), tags);
                     }
                     user->SetCheckpointTime(now);
                     user->SetCheckpointRequestCounter(requestCounter);
