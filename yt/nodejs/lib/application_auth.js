@@ -5,7 +5,7 @@ var fs = require("fs");
 var mustache = require("mustache");
 var Q = require("bluebird");
 
-var YtAuthentication = require("./authentication.js");
+var YtAuthentication = require("./authentication.js").that;
 var YtError = require("./error").that;
 var utils = require("./utils");
 
@@ -25,8 +25,9 @@ var _STATIC_STYLE = fs.readFileSync(__dirname + "/../static/bootstrap.min.css");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplicationAuth(logger, authority)
+function YtApplicationAuth(config, logger, authority)
 {
+    this.config = config;
     this.logger = logger;
     this.authority = authority;
 }
@@ -134,13 +135,23 @@ YtApplicationAuth.prototype._dispatchWhoAmI = function(req, rsp)
     var deferred = Q.defer();
     var self = this;
 
-    (new YtAuthentication(self.config, req.logger || self.logger, self.authority))
-        .dispatch(req, rsp, function() {
-            return void utils.dispatchJson(rsp, {
-                login: req.authenticated_user,
-                realm: req.authenticated_from
+    (new YtAuthentication(
+        self.config,
+        req.logger || self.logger,
+        self.authority)).dispatch(
+            req,
+            rsp,
+            function() {
+                utils.dispatchJson(rsp, {
+                    login: req.authenticated_user,
+                    realm: req.authenticated_from
+                });
+                deferred.resolve();
+                return void 0;
+            }, function() {
+                deferred.reject();
+                return void 0;
             });
-        });
 
     return deferred.promise;
 };
