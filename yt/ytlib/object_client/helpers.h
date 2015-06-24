@@ -84,3 +84,6 @@ TObjectId ReplaceTypeInId(
 } // namespace NObjectClient
 } // namespace NYT
 
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_
