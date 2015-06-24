@@ -159,6 +159,7 @@ class PingTransaction(Thread):
             try:
                 ping_transaction(self.transaction, client=self.client)
             except:
+                logger.exception("Ping failed")
                 interrupt_main()
             start_time = datetime.now()
             while datetime.now() - start_time < timedelta(seconds=self.delay):
