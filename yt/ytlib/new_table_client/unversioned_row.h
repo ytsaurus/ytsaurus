@@ -1,5 +1,6 @@
 #pragma once
 
+#ifndef YT_COMPILING_UDF
 #include "public.h"
 #include "row_base.h"
 #include "schema.h"
@@ -15,6 +16,12 @@
 #include <core/yson/public.h>
 
 #include <ytlib/chunk_client/schema.pb.h>
+
+#else
+#include "row_base.h"
+
+#include <util/system/defaults.h>
+#endif
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -52,6 +59,8 @@ struct TUnversionedValue
 
     TUnversionedValueData Data;
 };
+
+#ifndef YT_COMPILING_UDF
 
 class TUnversionedOwningValue
 {
@@ -743,8 +752,12 @@ TUnversionedOwningRow BuildRow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#endif
+
 } // namespace NVersionedTableClient
 } // namespace NYT
+
+#ifndef YT_COMPILING_UDF
 
 //! A hasher for TUnversionedValue.
 template <>
@@ -756,3 +769,4 @@ struct hash<NYT::NVersionedTableClient::TUnversionedValue>
     }
 };
 
+#endif
