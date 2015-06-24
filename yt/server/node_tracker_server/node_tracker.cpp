@@ -768,24 +768,20 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         Profiler.SetEnabled(true);
-
-        for (const auto& pair : NodeMap_) {
-            auto* node = pair.second;
-            RefreshNodeConfig(node);
-        }
-
-        PendingRegisterNodeMutationCount_ = 0;
-
-        NodeRemovalQueue_.clear();
-        PendingRemoveNodeMutationCount_ = 0;
     }
 
     virtual void OnLeaderActive() override
     {
         TMasterAutomatonPart::OnLeaderActive();
 
+        PendingRegisterNodeMutationCount_ = 0;
+
+        NodeRemovalQueue_.clear();
+        PendingRemoveNodeMutationCount_ = 0;
+
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
+            RefreshNodeConfig(node);
             if (node->GetState() == ENodeState::Unregistered) {
                 NodeRemovalQueue_.push_back(node);
             }
