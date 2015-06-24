@@ -9,7 +9,7 @@
 #include "snapshot.h"
 #include "config.h"
 #include "automaton.h"
-#include "follower_tracker.h"
+#include "lease_tracker.h"
 #include "mutation_context.h"
 #include "mutation_committer.h"
 #include "checkpointer.h"
@@ -159,10 +159,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithLeader));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitMutation)
             .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
-
-        CellManager_->SubscribePeerReconfigured(
-            BIND(&TDistributedHydraManager::OnPeerReconfigured, MakeWeak(this))
-                .Via(CancelableControlInvoker_));
     }
 
     virtual void Initialize() override
@@ -209,8 +205,9 @@ public:
 
         ControlState_ = EPeerState::Stopped;
 
-        ActiveLeader_ = false;
-        ActiveFollower_ = false;
+        LeaderLease_->Invalidate();
+        LeaderRecovered_ = false;
+        FollowerRecovered_ = false;
 
         SwitchTo(AutomatonInvoker_);
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -262,14 +259,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return ActiveLeader_;
+        return LeaderRecovered_ && LeaderLease_->IsValid();
     }
 
     virtual bool IsActiveFollower() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return ActiveFollower_;
+        return FollowerRecovered_;
     }
 
     virtual TCancelableContextPtr GetControlCancelableContext() const override
@@ -319,7 +316,7 @@ public:
 
         auto epochContext = AutomatonEpochContext_;
 
-        if (!epochContext || GetAutomatonState() != EPeerState::Leading || !ActiveLeader_) {
+        if (!epochContext || !IsActiveLeader()) {
             return MakeFuture<int>(TError(
                 NHydra::EErrorCode::InvalidState,
                 "Not an active leader"));
@@ -349,8 +346,8 @@ public:
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
                     .Item("elections").Do(ElectionManager_->GetMonitoringProducer())
-                    .Item("active_leader").Value(ActiveLeader_)
-                    .Item("active_follower").Value(ActiveFollower_)
+                    .Item("active_leader").Value(IsActiveLeader())
+                    .Item("active_follower").Value(IsActiveFollower())
                 .EndMap();
         });
     }
@@ -360,15 +357,15 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(!HasMutationContext());
 
-        if (ActiveLeader_) {
-            return VoidFuture;
-        }
-
         auto epochContext = AutomatonEpochContext_;
-        if (!epochContext || !ActiveLeader_ && !ActiveFollower_) {
+        if (!epochContext || !IsActiveLeader() && !IsActiveFollower()) {
             return MakeFuture(TError(
                 NHydra::EErrorCode::InvalidState,
                 "Not an active peer"));
+        }
+
+        if (GetAutomatonState() == EPeerState::Leading) {
+            return VoidFuture;
         }
 
         if (!epochContext->PendingLeaderSyncPromise) {
@@ -415,7 +412,6 @@ public:
         }
     }
 
-
     DEFINE_SIGNAL(void(), StartLeading);
     DEFINE_SIGNAL(void(), LeaderRecoveryComplete);
     DEFINE_SIGNAL(void(), LeaderActive);
@@ -424,6 +420,8 @@ public:
     DEFINE_SIGNAL(void(), StartFollowing);
     DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
     DEFINE_SIGNAL(void(), StopFollowing);
+
+    DEFINE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
 
 private:
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
@@ -439,8 +437,9 @@ private:
     const TDistributedHydraManagerOptions Options_;
 
     std::atomic<bool> ReadOnly_ = {false};
-    std::atomic<bool> ActiveLeader_ = {false};
-    std::atomic<bool> ActiveFollower_ = {false};
+    const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
+    std::atomic<bool> LeaderRecovered_ = {false};
+    std::atomic<bool> FollowerRecovered_ = {false};
     EPeerState ControlState_ = EPeerState::None;
     TSystemLockGuard SystemLockGuard_;
 
@@ -789,7 +788,7 @@ private:
         context->SetRequestInfo("EpochId: %v",
             epochId);
 
-        if (!ActiveLeader_) {
+        if (!IsActiveLeader()) {
             THROW_ERROR_EXCEPTION(
                 NHydra::EErrorCode::InvalidState,
                 "Not an active leader");
@@ -930,13 +929,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (!ActiveLeader_)
+        auto epochContext = epochContext_.Lock();
+        if (!epochContext || !IsActiveLeader())
             return;
 
-        auto epochContext = epochContext_.Lock();
-        if (!epochContext)
-            return;
-        
         auto checkpointer = epochContext->Checkpointer;
         if (checkpointer->CanBuildSnapshot()) {
             BuildSnapshotAndWatch(epochContext);
@@ -947,7 +943,6 @@ private:
             return;
         }
     }
-
 
     void OnCommitFailed(TWeakPtr<TEpochContext> epochContext_, const TError& error)
     {
@@ -961,6 +956,19 @@ private:
 
         if (Restart(epochContext)) {
             LOG_ERROR(error, "Error committing mutation, restarting");
+        }
+    }
+
+    void OnLeaderLeaseLost(TWeakPtr<TEpochContext> epochContext_, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto epochContext = epochContext_.Lock();
+        if (!epochContext)
+            return;
+
+        if (Restart(epochContext)) {
+            LOG_ERROR(error, "Leader lease is lost, restarting");
         }
     }
 
@@ -1014,11 +1022,15 @@ private:
         StartEpoch();
         auto epochContext = ControlEpochContext_;
 
-        epochContext->FollowerTracker = New<TFollowerTracker>(
+        epochContext->LeaseTracker = New<TLeaseTracker>(
             Config_,
             CellManager_,
             DecoratedAutomaton_,
-            epochContext.Get());
+            epochContext.Get(),
+            LeaderLease_,
+            LeaderLeaseCheck_.ToVector());
+        epochContext->LeaseTracker->GetLeaseLost().Subscribe(
+            BIND(&TDistributedHydraManager::OnLeaderLeaseLost, MakeWeak(this), MakeWeak(epochContext)));
 
         epochContext->LeaderCommitter = New<TLeaderCommitter>(
             Config_,
@@ -1039,7 +1051,7 @@ private:
             SnapshotStore_,
             epochContext.Get());
 
-        epochContext->FollowerTracker->Start();
+        epochContext->LeaseTracker->Start();
 
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1089,10 +1101,12 @@ private:
 
             LOG_INFO("Leader recovery complete");
 
-            WaitFor(epochContext->FollowerTracker->GetActiveQuorum())
+            LOG_INFO("Waiting for leader lease");
+
+            WaitFor(epochContext->LeaseTracker->GetLeaseAcquired())
                 .ThrowOnError();
 
-            LOG_INFO("Active quorum established");
+            LOG_INFO("Leader lease acquired");
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1100,9 +1114,9 @@ private:
             WaitFor(epochContext->Checkpointer->RotateChangelog())
                 .ThrowOnError();
 
-            LOG_INFO("Leader active");
+            LOG_INFO("Initial changelog rotated");
 
-            ActiveLeader_ = true;
+            LeaderRecovered_ = true;
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
             }
@@ -1119,7 +1133,6 @@ private:
         }
     }
 
-public:
     void OnElectionStopLeading()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1199,7 +1212,7 @@ public:
             SwitchTo(epochContext->EpochControlInvoker);
             VERIFY_THREAD_AFFINITY(ControlThread);
 
-            ActiveFollower_ = true;
+            FollowerRecovered_ = true;
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
             }
@@ -1291,8 +1304,9 @@ public:
         YCHECK(ControlEpochContext_);
         ControlEpochContext_->CancelableContext->Cancel();
         ControlEpochContext_.Reset();
-        ActiveLeader_ = false;
-        ActiveFollower_ = false;
+        LeaderLease_->Invalidate();
+        LeaderRecovered_ = false;
+        FollowerRecovered_ = false;
 
         SystemLockGuard_.Release();
     }
@@ -1310,18 +1324,6 @@ public:
                 epochId);
         }
         return ControlEpochContext_;
-    }
-
-
-    void OnPeerReconfigured(TPeerId peerId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if ((ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::LeaderRecovery) &&
-            peerId != CellManager_->GetSelfPeerId())
-        {
-            ControlEpochContext_->FollowerTracker->ResetFollower(peerId);
-        }
     }
 
 

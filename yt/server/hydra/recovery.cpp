@@ -8,7 +8,11 @@
 
 #include <core/concurrency/scheduler.h>
 
+#include <core/profiling/scoped_timer.h>
+
 #include <core/rpc/response_keeper.h>
+
+#include <core/profiling/scoped_timer.h>
 
 #include <ytlib/election/cell_manager.h>
 
@@ -291,7 +295,18 @@ void TLeaderRecovery::DoRun(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    NProfiling::TScopedTimer timer;
     RecoverToVersion(targetVersion);
+    auto elapsedTime = timer.GetElapsed();
+
+    if (Config_->DisableLeaderLeaseGraceDelay) {
+        LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
+    } else if (elapsedTime < Config_->LeaderLeaseGraceDelay) {
+        LOG_INFO("Waiting for previous leader lease to expire");
+        WaitFor(TDelayedExecutor::MakeDelayed(Config_->LeaderLeaseGraceDelay - elapsedTime))
+            .ThrowOnError();
+    }
+
 }
 
 bool TLeaderRecovery::IsLeader() const

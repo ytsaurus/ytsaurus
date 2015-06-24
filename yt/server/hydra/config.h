@@ -149,6 +149,19 @@ class TDistributedHydraManagerConfig
     : public NElection::TElectionManagerConfig
 {
 public:
+    //! Interval between consequent lease lease checks.
+    TDuration LeaderLeaseCheckPeriod;
+
+    //! Timeout after which leader lease expires.
+    TDuration LeaderLeaseTimeout;
+
+    //! Time a newly elected leader waits before becoming active.
+    TDuration LeaderLeaseGraceDelay;
+
+    //! When set to |true|, disables leader grace delay.
+    //! For tests only!
+    bool DisableLeaderLeaseGraceDelay;
+
     //! Leader-to-follower commit timeout.
     TDuration CommitFlushRpcTimeout;
 
@@ -203,6 +216,15 @@ public:
 
     TDistributedHydraManagerConfig()
     {
+        RegisterParameter("leader_lease_check_period", LeaderLeaseCheckPeriod)
+            .Default(TDuration::Seconds(2));
+        RegisterParameter("leader_lease_timeout", LeaderLeaseTimeout)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("leader_lease_grace_delay", LeaderLeaseGraceDelay)
+            .Default(TDuration::Seconds(6));
+        RegisterParameter("disable_leader_lease_grace_delay", DisableLeaderLeaseGraceDelay)
+            .Default(false);
+
         RegisterParameter("commit_flush_rpc_timeout", CommitFlushRpcTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("commit_forwarding_rpc_timeout", CommitForwardingRpcTimeout)
@@ -245,6 +267,12 @@ public:
         RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
+
+        RegisterValidator([&] () {
+            if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {
+                THROW_ERROR_EXCEPTION("\"leader_grace_time\" must be larger than \"leader_lease_timeout\"");
+            }
+        });
     }
 };
 
