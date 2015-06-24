@@ -16,8 +16,20 @@ function(UDF udf output type)
   set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
   set(_h_dirname ${CMAKE_BINARY_DIR}/include/udf)
   set(_h_file ${_h_dirname}/${_filename}.h)
+  set(_extrasymbols ${ARGV3})
 
   set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
+
+  get_property( _dirs
+    DIRECTORY
+      ${CMAKE_SOURCE_DIR}/yt
+    PROPERTY
+      INCLUDE_DIRECTORIES
+  )
+
+  foreach( _dir ${_dirs})
+    set(_include_dirs ${_include_dirs} -I${_dir})
+  endforeach()
 
   find_program(CLANG_EXECUTABLE
     NAMES clang-3.6 clang
@@ -30,11 +42,13 @@ function(UDF udf output type)
   )
 
   if(${_extension} STREQUAL ".cpp") 
-    set(_compiler ${CLANGPP_EXECUTABLE} -std=c++1y)
+    set(_compiler ${CLANGPP_EXECUTABLE} -std=c++1y -Wglobal-constructors)
     set(_depends ${_include_dir}/yt_udf_cpp.h)
+    set(_lang "CXX")
   else()
     set(_compiler ${CLANG_EXECUTABLE})
     set(_depends ${_include_dir}/yt_udf.h)
+    set(_lang "C")
   endif()
 
   if(${type} STREQUAL "so")
@@ -52,17 +66,30 @@ function(UDF udf output type)
       ${_compiler} -c
         ${_options}
         -I${_include_dir}
-        -I${CMAKE_SOURCE_DIR}/yt
-        -I${CMAKE_SOURCE_DIR}
-        -I${CMAKE_BINARY_DIR}/include
+        ${_include_dirs}
         -o ${_inter_filename}
         ${_realpath}
+    COMMAND
+      test ${type} = "bc" 
+      && opt-3.6
+        -internalize
+        -internalize-public-api-list=${_filename},${_filename}_init,${_filename}_update,${_filename}_merge,${_filename}_finalize,${_extrasymbols}
+        -globalopt
+        -globaldce
+        -prune-eh
+        -o ${_inter_filename}.tmp
+        ${_inter_filename}
+      || cp ${_inter_filename} ${_inter_filename}.tmp
+    COMMAND
+      mv ${_inter_filename}.tmp ${_inter_filename}
     COMMAND
       xxd -i ${_inter_filename} > ${_h_file}
     MAIN_DEPENDENCY
       ${_realpath}
     DEPENDS
       ${_depends}
+    IMPLICIT_DEPENDS
+      ${_lang} ${_realpath}
     WORKING_DIRECTORY
       ${_inter_dirname}
     COMMENT "Generating UDF header for ${_filename}..."
@@ -70,11 +97,11 @@ function(UDF udf output type)
 endfunction()
 
 macro(UDF_BC udf_impl output)
-    udf(${udf_impl} ${output} bc)
+    udf(${udf_impl} ${output} bc ${ARGV2})
 endmacro()
 
 macro(UDF_SO udf_impl output)
-    udf(${udf_impl} ${output} so)
+    udf(${udf_impl} ${output} so ${ARGV2})
 endmacro()
 
 function(PROTOC proto output)
