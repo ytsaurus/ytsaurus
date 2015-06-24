@@ -202,4 +202,39 @@ describe("ApplicationAuth", function() {
             token: "foobar"
         }));
     });
+
+    it("should respond with login & realm on proper GET /whoami with token", function(done) {
+        var mock = nock("http://localhost:9000")
+            .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=foobar")
+            .reply(200, {
+                error: "OK",
+                login: "donkey",
+                oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
+            });
+        ask("GET", "/whoami", {"Authorization": "OAuth foobar"}, function(rsp) {
+            rsp.should.be.http2xx;
+            expect(rsp.json.login).to.eql("donkey");
+            expect(rsp.json.realm).to.eql("blackbox-ytrealm-key");
+            mock.done();
+        }, done).end();
+    });
+
+    it("should respond with login & realm on proper GET /whoami with cookie", function(done) {
+        var mock = nock("http://localhost:9000")
+            .get("/blackbox?method=sessionid&format=json&userip=127.0.0.1&host=&sessionid=mysessionid")
+            .reply(200, {
+                status: { value: "VALID", id: 0 },
+                login: "donkey",
+            });
+        ask("GET", "/whoami",
+        { "Cookie": "Session_id=mysessionid;" },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            expect(rsp.json.login).to.eql("donkey");
+            expect(rsp.json.realm).to.eql("blackbox_session_cookie");
+            mock.done();
+        }, done).end();
+    });
+
+
 });

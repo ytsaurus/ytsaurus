@@ -15,7 +15,7 @@ function YtAuthentication(config, logger, authority)
     this.authority = authority;
 }
 
-YtAuthentication.prototype.dispatch = function(req, rsp, next)
+YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
 {
     "use strict";
 
@@ -52,7 +52,9 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next)
                 header: req.headers["authorization"]
             });
             // Reject all invalid requests.
-            return void utils.dispatchUnauthorized(rsp, "YT");
+            utils.dispatchUnauthorized(rsp, "YT");
+            prev && prev();
+            return void 0;
         }
 
         if (token) {
@@ -87,7 +89,9 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next)
             return void epilogue(result.login, result.realm);
         } else {
             logger.debug("Client has failed to authenticate");
-            return void utils.dispatchUnauthorized(rsp, "YT");
+            utils.dispatchUnauthorized(rsp, "YT");
+            prev && prev();
+            return void 0;
         }
     },
     function(err) {
@@ -96,7 +100,9 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next)
         logger.info("An error occured during authentication", {
             error: error.toJson()
         });
-        return void utils.dispatchLater(rsp, 60);
+        utils.dispatchLater(rsp, 60);
+        prev && prev();
+        return void 0;
     })
     .done();
 };
