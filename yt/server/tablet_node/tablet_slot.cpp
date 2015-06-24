@@ -25,6 +25,7 @@
 #include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/transaction_client/timestamp_provider.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/tablet_client/config.h>
 
@@ -138,11 +139,11 @@ public:
         return CellDescriptor_;
     }
 
-    const TTransactionId& GetPrerequisiteTransactionId() const
+    TTransactionId GetPrerequisiteTransactionId() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return PrerequisiteTransactionId_;
+        return PrerequisiteTransaction_->GetId();
     }
 
     IHydraManagerPtr GetHydraManager() const
@@ -239,11 +240,17 @@ public:
         Logger.AddTag("CellId: %v", CellDescriptor_.CellId);
 
         Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options()));
-        PrerequisiteTransactionId_ = FromProto<TTransactionId>(createInfo.prerequisite_transaction_id());
+
+        auto prerequisiteTransactionId = FromProto<TTransactionId>(createInfo.prerequisite_transaction_id());
+        auto transactionManager = Bootstrap_->GetMasterClient()->GetTransactionManager();
+        TTransactionAttachOptions attachOptions;
+        attachOptions.Ping = false;
+        PrerequisiteTransaction_ = transactionManager->Attach(prerequisiteTransactionId, attachOptions);
+
         State_ = EPeerState::Stopped;
 
         LOG_INFO("Slot initialized (PrerequisiteTransactionId: %v)",
-            PrerequisiteTransactionId_);
+            prerequisiteTransactionId);
     }
 
     void Configure(const TConfigureTabletSlotInfo& configureInfo)
@@ -272,7 +279,7 @@ public:
                 GetSnapshotInvoker());
 
             std::vector<TTransactionId> prerequisiteTransactionIds;
-            prerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
+            prerequisiteTransactionIds.push_back(GetPrerequisiteTransactionId());
 
             auto cellId = GetCellId();
 
@@ -316,6 +323,8 @@ public:
             
             HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
             HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+
+            HydraManager_->SubscribeLeaderLeaseCheck(BIND(&TImpl::OnLeaderLeaseCheckThunk, MakeWeak(this)));
 
             {
                 TGuard<TSpinLock> guard(InvokersSpinLock_);
@@ -416,7 +425,7 @@ private:
     TPeerId PeerId_ = InvalidPeerId;
     TCellDescriptor CellDescriptor_;
     TTabletCellOptionsPtr Options_;
-    TTransactionId PrerequisiteTransactionId_;
+    TTransactionPtr PrerequisiteTransaction_;
 
     TCellManagerPtr CellManager_;
 
@@ -468,6 +477,20 @@ private:
     void OnStopEpoch()
     {
         ResetEpochInvokers();
+    }
+
+
+    static TFuture<void> OnLeaderLeaseCheckThunk(TWeakPtr<TImpl> weakThis)
+    {
+        auto this_ = weakThis.Lock();
+        return this_ ? this_->OnLeaderLeaseCheck() : VoidFuture;
+    }
+
+    TFuture<void> OnLeaderLeaseCheck()
+    {
+        LOG_DEBUG("Checking prerequisite transaction");
+
+        return PrerequisiteTransaction_->Ping();
     }
 
 
@@ -530,7 +553,7 @@ private:
 
         BuildYsonMapFluently(consumer)
             .Item("state").Value(GetControlState())
-            .Item("prerequisite_transaction_id").Value(PrerequisiteTransactionId_)
+            .Item("prerequisite_transaction_id").Value(GetPrerequisiteTransactionId())
             .Item("options").Value(*Options_);
     }
 
@@ -617,7 +640,7 @@ const TCellDescriptor& TTabletSlot::GetCellDescriptor() const
     return Impl_->GetCellDescriptor();
 }
 
-const TTransactionId& TTabletSlot::GetPrerequisiteTransactionId() const
+TTransactionId TTabletSlot::GetPrerequisiteTransactionId() const
 {
     return Impl_->GetPrerequisiteTransactionId();
 }
