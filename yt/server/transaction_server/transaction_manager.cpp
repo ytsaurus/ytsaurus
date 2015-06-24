@@ -625,7 +625,7 @@ private:
 
         LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %v)",
             transaction->GetId(),
-            *timeout);
+            timeout);
     }
 
 
