@@ -19,11 +19,11 @@ template <class TSignature>
 class TCallbackList
 { };
 
-template <class... TArgs>
-class TCallbackList<void(TArgs...)>
+template <class TResult, class... TArgs>
+class TCallbackList<TResult(TArgs...)>
 {
 public:
-    typedef NYT::TCallback<void(TArgs...)> TCallback;
+    typedef NYT::TCallback<TResult(TArgs...)> TCallback;
 
     //! Adds a new handler to the list.
     /*!
@@ -37,14 +37,19 @@ public:
      */
     void Unsubscribe(const TCallback& callback);
 
+    //! Returns the vector of currently added callbacks.
+    std::vector<TCallback> ToVector() const;
+
     //! Clears the list of handlers.
     void Clear();
 
     //! Runs all handlers in the list.
+    //! The return values (if any) are ignored.
     template <class... TCallArgs>
     void Fire(TCallArgs&&... args) const;
 
     //! Runs all handlers in the list and clears the list.
+    //! The return values (if any) are ignored.
     template <class... TCallArgs>
     void FireAndClear(TCallArgs&&... args);
 
@@ -67,11 +72,11 @@ template <class TSignature>
 class TSingleShotCallbackList
 { };
 
-template <class... TArgs>
-class TSingleShotCallbackList<void(TArgs...)>
+template <class TResult, class... TArgs>
+class TSingleShotCallbackList<TResult(TArgs...)>
 {
 public:
-    typedef NYT::TCallback<void(TArgs...)> TCallback;
+    typedef NYT::TCallback<TResult(TArgs...)> TCallback;
 
     //! Adds a new handler to the list.
     /*!
@@ -85,7 +90,11 @@ public:
      */
     void Unsubscribe(const TCallback& callback);
 
+    //! Returns the vector of currently added callbacks.
+    std::vector<TCallback> ToVector() const;
+
     //! Runs all handlers in the list.
+    //! The return values (if any) are ignored.
     /*!
      *  \returns |true| if this is the first attempt to fire the list.
      */
