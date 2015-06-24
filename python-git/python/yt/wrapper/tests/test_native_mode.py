@@ -559,7 +559,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         assert read_table() == "x=3\n"
         assert read_table(new_client) == "x=3\n"
 
-        with yt.PingableTransaction(timeout=1000):
+        with yt.Transaction(timeout=1000):
             yt.write_table(table, ["x=4\n"], format=yt.format.DsvFormat())
             time.sleep(3)
 

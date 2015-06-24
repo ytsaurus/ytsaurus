@@ -62,7 +62,7 @@ from cypress_commands import exists, remove, remove_with_empty_dirs, get_attribu
 from file_commands import smart_upload_file
 from operation_commands import Operation, WaitStrategy
 from transaction_commands import _make_transactional_request, abort_transaction
-from transaction import PingableTransaction, Transaction, Abort
+from transaction import Transaction, Abort
 from format import create_format, YsonFormat, YamrFormat
 from lock import lock
 from heavy_commands import make_heavy_request
@@ -351,7 +351,7 @@ def _make_operation_request(command_name, spec, strategy, sync,
     if get_config(client)["detached"]:
         return _manage_operation(finalizer)
     else:
-        transaction = PingableTransaction(
+        transaction = Transaction(
             attributes={"title": "Python wrapper: envelope transaction of operation"},
             client=client)
 
@@ -569,8 +569,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
         return execute_with_retries(simple_read)
     else:
         title = "Python wrapper: read {0}".format(to_name(table, client=client))
-        tx = PingableTransaction(attributes={"title": title},
-                                 client=client)
+        tx = Transaction(attributes={"title": title}, client=client)
         tx.__enter__()
 
         def iter_with_retries(iter):
