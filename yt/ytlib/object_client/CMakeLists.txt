@@ -7,6 +7,7 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/helpers.h
+  ${BASE}/helpers-inl.h
   ${BASE}/master_ypath_proxy.h
   ${BASE}/object_service_proxy-inl.h
   ${BASE}/object_service_proxy.h
