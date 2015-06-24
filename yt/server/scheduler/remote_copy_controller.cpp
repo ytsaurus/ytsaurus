@@ -209,7 +209,7 @@ private:
             auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             NNodeTrackerClient::TNodeDirectoryBuilder directoryBuilder(
                 Controller_->NodeDirectory,
-                remoteCopyJobSpecExt->mutable_remote_node_directory());
+                schedulerJobSpecExt->mutable_node_directory());
 
             auto* inputSpec = schedulerJobSpecExt->add_input_specs();
             auto list = joblet->InputStripeList;

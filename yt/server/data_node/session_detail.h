@@ -41,7 +41,7 @@ public:
     virtual void Cancel(const TError& error) override;
 
     virtual TFuture<IChunkPtr> Finish(
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const NChunkClient::NProto::TChunkMeta* chunkMeta,
         const TNullable<int>& blockCount) override;
 
     virtual TFuture<void> PutBlocks(
@@ -77,7 +77,7 @@ protected:
     virtual TFuture<void> DoStart() = 0;
     virtual void DoCancel() = 0;
     virtual TFuture<IChunkPtr> DoFinish(
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const NChunkClient::NProto::TChunkMeta* chunkMeta,
         const TNullable<int>& blockCount) = 0;
     virtual TFuture<void> DoPutBlocks(
         int startBlockIndex,

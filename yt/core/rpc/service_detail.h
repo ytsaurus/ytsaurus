@@ -210,7 +210,7 @@ public:
 private:
     void SerializeResponseAndReply()
     {
-        auto data = SerializeToProtoWithEnvelope(*Response_, this->Options_.ResponseCodec);
+        auto data = SerializeToProtoWithEnvelope(*Response_, this->Options_.ResponseCodec, false);
         this->UnderlyingContext_->SetResponseBody(std::move(data));
         this->UnderlyingContext_->Reply(TError());
     }
