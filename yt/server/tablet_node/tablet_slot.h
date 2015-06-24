@@ -46,8 +46,8 @@ public:
     NHydra::EPeerState GetAutomatonState() const;
     NHydra::TPeerId GetPeerId() const;
     const NHive::TCellDescriptor& GetCellDescriptor() const;
-    const NTransactionClient::TTransactionId& GetPrerequisiteTransactionId() const;
-    
+    NTransactionClient::TTransactionId GetPrerequisiteTransactionId() const;
+
     NHydra::IHydraManagerPtr GetHydraManager() const;
     NRpc::TResponseKeeperPtr GetResponseKeeper() const;
     TTabletAutomatonPtr GetAutomaton() const;
