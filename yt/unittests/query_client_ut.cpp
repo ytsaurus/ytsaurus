@@ -3560,44 +3560,6 @@ TEST_F(TQueryEvaluateTest, TestJoin)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, ComplexAlias)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"s", EValueType::String}
-    });
-
-    std::vector<Stroka> source = {
-        "a=10;s=x",
-        "a=20;s=y",
-        "a=30;s=x",
-        "a=40;s=x",
-        "a=42",
-        "a=50;s=x",
-        "a=60;s=y",
-        "a=70;s=z",
-        "a=72",
-        "a=80;s=y",
-        "a=85",
-        "a=90;s=z"
-    };
-
-    auto resultSplit = MakeSplit({
-        {"x", EValueType::String},
-        {"t", EValueType::Int64}
-    });
-
-    auto result = BuildRows({
-        "x=y;t=160",
-        "x=x;t=120",
-        "t=199",
-        "x=z;t=160"
-    }, resultSplit);
-
-    Evaluate("x, sum(p.a) as t FROM [//t] as p where p.a > 10 group by p.s as x", split, source, result);
-
-    SUCCEED();
-}
 
 TEST_F(TQueryEvaluateTest, TestJoinMany)
 {
@@ -3668,6 +3630,7 @@ TEST_F(TQueryEvaluateTest, TestJoinMany)
 
     SUCCEED();
 }
+
 
 TEST_F(TQueryEvaluateTest, TestOrderBy)
 {
