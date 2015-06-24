@@ -2,6 +2,7 @@ from yt.wrapper.common import update
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 import random
 import string
+import pytest
 
 def test_update():
     assert update({"a": 10}, {"b": 20}) == {"a": 10, "b": 20}
@@ -65,3 +66,10 @@ class TestResponseStream(object):
         assert len([x for x in stream.chunk_iter()]) == 0
         assert stream.readline() == ""
 
+        values = []
+        for value in stream:
+            values.append(value)
+        assert len(values) == 0
+
+        with pytest.raises(StopIteration):
+            stream.next()
