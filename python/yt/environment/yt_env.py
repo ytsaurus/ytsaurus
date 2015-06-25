@@ -372,7 +372,9 @@ class YTEnv(object):
             config['cluster_connection']['timestamp_provider']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
 
             config['data_node']['multiplexed_changelog']['path'] = os.path.join(current, 'multiplexed')
-            config['data_node']['cache_location']['path'] = os.path.join(current, 'chunk_cache')
+            config['data_node']['cache_locations'].append({
+                'path': os.path.join(current, 'chunk_cache')
+            })
             config['data_node']['store_locations'].append({
                 'path': os.path.join(current, 'chunk_store'),
                 'low_watermark' : 0,

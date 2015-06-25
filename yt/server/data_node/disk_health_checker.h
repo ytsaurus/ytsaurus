@@ -45,7 +45,6 @@ private:
     IInvokerPtr CheckInvoker_;
 
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
-    std::atomic_flag FailedLock_;
 
     NLogging::TLogger Logger;
 
