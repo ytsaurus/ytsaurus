@@ -472,7 +472,7 @@ class TestQuery(YTEnvSetup):
                 "calling_convention": "unversioned_value"}})
 
         local_bitcode_path = find_executable("test_udfs.bc")
-        local_bitcode_path2 = find_executable("sum_udf.bc")
+        local_bitcode_path2 = find_executable("sum_udf2.bc")
         upload_file(abs_path, local_bitcode_path)
         upload_file(sum_path, local_bitcode_path2)
 

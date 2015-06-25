@@ -1450,6 +1450,11 @@ TUnversionedOwningRow BuildRow(
 ////////////////////////////////////////////////////////////////////////////////
 #endif
 
+#ifdef YT_COMPILING_UDF
+#undef YUNREACHABLE
+#define YUNREACHABLE() {}
+#endif
+
 // Forever-fixed Google FarmHash fingerprint.
 TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
 {

@@ -16,7 +16,7 @@ function(UDF udf output type)
   set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
   set(_h_dirname ${CMAKE_BINARY_DIR}/include/udf)
   set(_h_file ${_h_dirname}/${_filename}.h)
-  set(_extrasymbols ${ARGV3})
+  set(_extrasymbols ${ARGN})
 
   set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
 
@@ -30,6 +30,7 @@ function(UDF udf output type)
   foreach( _dir ${_dirs})
     set(_include_dirs ${_include_dirs} -I${_dir})
   endforeach()
+  set(_include_dirs ${_include_dirs} -I${_include_dir})
 
   find_program(CLANG_EXECUTABLE
     NAMES clang-3.6 clang
@@ -42,7 +43,8 @@ function(UDF udf output type)
   )
 
   if(${_extension} STREQUAL ".cpp") 
-    set(_compiler ${CLANGPP_EXECUTABLE} -std=c++1y -Wglobal-constructors)
+    set(_compiler ${CLANGPP_EXECUTABLE})
+    set(_options -std=c++1y -Wglobal-constructors)
     set(_depends ${_include_dir}/yt_udf_cpp.h)
     set(_lang "CXX")
   else()
@@ -52,9 +54,9 @@ function(UDF udf output type)
   endif()
 
   if(${type} STREQUAL "so")
-    set(_options -fPIC)
+    set(_options ${_options} -fPIC)
   else()
-    set(_options -emit-llvm)
+    set(_options ${_options} -emit-llvm)
   endif()
 
   add_custom_command(
@@ -64,8 +66,8 @@ function(UDF udf output type)
       ${CMAKE_COMMAND} -E make_directory ${_h_dirname}
     COMMAND
       ${_compiler} -c
+        -DYT_COMPILING_UDF
         ${_options}
-        -I${_include_dir}
         ${_include_dirs}
         -o ${_inter_filename}
         ${_realpath}
@@ -97,11 +99,11 @@ function(UDF udf output type)
 endfunction()
 
 macro(UDF_BC udf_impl output)
-    udf(${udf_impl} ${output} bc ${ARGV2})
+    udf(${udf_impl} ${output} bc ${ARGN})
 endmacro()
 
 macro(UDF_SO udf_impl output)
-    udf(${udf_impl} ${output} so ${ARGV2})
+    udf(${udf_impl} ${output} so ${ARGN})
 endmacro()
 
 function(PROTOC proto output)

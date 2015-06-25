@@ -86,8 +86,7 @@ private:
         MangleSymbol("tolower"),
         MangleSymbol("toupper"),
         MangleSymbol("log"),
-        MangleSymbol("memset"),
-        MangleSymbol("_ZN3NYT7NDetail14AssertTrapImplEPKcS2_S2_i")
+        MangleSymbol("memset")
     };
 };
 

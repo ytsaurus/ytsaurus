@@ -1,5 +1,3 @@
-#define YT_COMPILING_UDF
-
 #include <yt/ytlib/new_table_client/unversioned_row.cpp>
 #include <contrib/libs/farmhash/farmhash.cc>
 #include <core/misc/hyperloglog.h>
@@ -8,7 +6,7 @@
 static uint64_t Hash(TUnversionedValue* v)
 {
     auto value = (NYT::NVersionedTableClient::TUnversionedValue*)v;
-    return NYT::NVersionedTableClient::GetFarmFingerprint(value, value + 1);
+    return NYT::NVersionedTableClient::GetFarmFingerprint(*value);
 }
 
 typedef NYT::THyperLogLog<14> THLL;
