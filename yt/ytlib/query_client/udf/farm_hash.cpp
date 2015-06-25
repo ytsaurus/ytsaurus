@@ -1,5 +1,3 @@
-#define YT_COMPILING_UDF
-
 #include <yt/ytlib/new_table_client/unversioned_row.cpp>
 #include <contrib/libs/farmhash/farmhash.cc>
 #include <yt_udf_cpp.h>
