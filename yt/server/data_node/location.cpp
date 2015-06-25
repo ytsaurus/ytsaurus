@@ -35,6 +35,7 @@ using namespace NConcurrency;
 using namespace NElection;
 using namespace NObjectClient;
 using namespace NHydra;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -315,32 +316,77 @@ bool TLocation::IsEnabled() const
     return Enabled_.load();
 }
 
-void TLocation::Disable(const TError& reason)
+void TLocation::CheckMinimumSpace()
 {
-    LOG_ERROR(reason);
-    if (Enabled_.exchange(false)) {
-        ScheduleDisable(reason);
+    LOG_INFO("Checking minimum space");
+
+    if (Config_->MinDiskSpace) {
+        i64 minSpace = *Config_->MinDiskSpace;
+        i64 totalSpace = GetTotalSpace();
+        if (totalSpace < minSpace) {
+            THROW_ERROR_EXCEPTION("Minimum disk space requirement is not met: required %v, actual %v",
+                minSpace,
+                totalSpace);
+        }
     }
 }
 
-void TLocation::ScheduleDisable(const TError& reason)
+void TLocation::CheckErrorFile()
 {
-    Bootstrap_->GetControlInvoker()->Invoke(
-        BIND(&TLocation::DoDisable, MakeStrong(this), reason));
+    LOG_INFO("Checking lock file");
+
+    auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
+    if (!NFS::Exists(lockFilePath)) {
+        return;
+    }
+
+    TError error;
+    {
+        TFile file(lockFilePath, OpenExisting | RdOnly | Seq | CloseOnExec);
+        TBufferedFileInput fileInput(file);
+        auto errorData = fileInput.ReadAll();
+        if (!errorData.Empty()) {
+            error = ConvertTo<TError>(TYsonString(errorData));
+        } else {
+            error = TError("Empty lock file detected");
+        }
+    }
+
+    auto masterConnector = Bootstrap_->GetMasterConnector();
+    masterConnector->RegisterAlert(TError("Location at %v is disabled",
+        GetPath())
+        << error);
+
+    error.ThrowOnError();
 }
 
-void TLocation::DoDisable(const TError& reason)
+void TLocation::Disable(const TError& reason)
 {
-    LOG_ERROR(reason, "Location disabled");
+    // save the reason in a file and exit
+    // location will be disabled during the scan in the restart process
+    if (Enabled_.exchange(false)) {
+        auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
+        try {
+            auto ysonError = ConvertToYsonString(reason, NYson::EYsonFormat::Text);
+            auto errorData = ysonError.Data();
+            TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
+            TFileOutput fileOutput(file);
+            fileOutput << errorData;
+        } catch (const std::exception& ex) {
+            // exit anyway
+        }
+        _exit(1);
+    }
+}
+
+void TLocation::MakeDisabled()
+{
+    Enabled_.store(false);
 
     AvailableSpace_ = 0;
     UsedSpace_ = 0;
     SessionCount_ = 0;
     ChunkCount_ = 0;
-
-    TrashCheckExecutor_->Stop();
-
-    Disabled_.Fire(reason);
 }
 
 std::vector<TChunkDescriptor> TLocation::Scan()
@@ -353,25 +399,17 @@ std::vector<TChunkDescriptor> TLocation::Scan()
     } catch (const std::exception& ex) {
         auto error = TError("Location scan failed") << ex;
         LOG_ERROR(error);
-        ScheduleDisable(error);
+        MakeDisabled();
     }
-
-    TrashCheckExecutor_->Start();
 
     return result;
 }
 
 std::vector<TChunkDescriptor> TLocation::DoScan()
 {
-    if (Config_->MinDiskSpace) {
-        i64 minSpace = *Config_->MinDiskSpace;
-        i64 totalSpace = GetTotalSpace();
-        if (totalSpace < minSpace) {
-            THROW_ERROR_EXCEPTION("Minimum disk space requirement is not met: required %v, actual %v",
-                minSpace,
-                totalSpace);
-        }
-    }
+    CheckMinimumSpace();
+
+    CheckErrorFile();
 
     LOG_INFO("Scanning storage location");
 
@@ -608,7 +646,7 @@ void TLocation::Start()
     } catch (const std::exception& ex) {
         auto error = TError("Location startup failed") << ex;
         LOG_ERROR(error);
-        ScheduleDisable(error);
+        MakeDisabled();
     }
 }
 
@@ -642,20 +680,13 @@ void TLocation::DoStart()
     // Start health checker.
     HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker_->Start();
+
+    TrashCheckExecutor_->Start();
 }
 
 void TLocation::OnHealthCheckFailed(const TError& error)
 {
-    switch (Type_) {
-        case ELocationType::Store:
-            Disable(error);
-            break;
-        case ELocationType::Cache:
-            LOG_FATAL(error, "Cache location has failed");
-            break;
-        default:
-            YUNREACHABLE();
-    }
+    Disable(error);
 }
 
 void TLocation::RemoveChunkFiles(const TChunkId& chunkId)

@@ -1,7 +1,5 @@
 #include "artifact.h"
 
-#include <ytlib/object_client/helpers.h>
-
 #include <core/misc/hash.h>
 
 namespace NYT {
@@ -102,7 +100,6 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
 
         return true;
     };
-
 
     for (size_t index = 0; index < chunks_size(); ++index) {
         const auto& lhs = chunks(index);
