@@ -1,4 +1,4 @@
-#include <yt/ytlib/new_table_client/unversioned_row.cpp>
+#include <yt/ytlib/new_table_client/unversioned_value.cpp>
 #include <contrib/libs/farmhash/farmhash.cc>
 #include <yt_udf_cpp.h>
 
