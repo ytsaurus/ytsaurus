@@ -162,7 +162,7 @@ public:
      *  \param replicationFactorOverride An override for replication factor;
      *  used when one wants to upload fewer replicas but still guarantee placement safety.
      */
-    int GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride = Null) const;
+    int GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride) const;
 
 private:
     struct {
