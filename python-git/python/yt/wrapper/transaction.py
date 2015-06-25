@@ -76,7 +76,7 @@ class Transaction(object):
 
     def __enter__(self):
         if not self.finished:
-            self.start_new_transaction()
+            self._start_new_transaction()
             if self.ping and not self.null:
                 delay = (self.timeout / 1000.0) / max(2, get_request_retry_count(self.client))
                 self.ping_thread = PingTransaction(self.transaction_id, delay, client=self.client)
@@ -114,7 +114,7 @@ class Transaction(object):
             set_option("PING_ANCESTOR_TRANSACTIONS", ping_ancestor_transactions, self.client)
             self.finished = True
 
-    def start_new_transaction(self):
+    def _start_new_transaction(self):
         if self.null:
             self.transaction_id = "0-0-0-0"
         else:
