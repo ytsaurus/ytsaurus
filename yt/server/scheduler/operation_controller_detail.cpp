@@ -498,14 +498,13 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
     // Async part.
     auto controller = MakeStrong(Controller); // hold the controller
-    auto operation = MakeStrong(Controller->Operation); // hold the operation
     auto jobSpecBuilder = BIND([=, this_ = MakeStrong(this)] (TJobSpec* jobSpec) {
         BuildJobSpec(joblet, jobSpec);
-        Controller->CustomizeJobSpec(joblet, jobSpec);
+        controller->CustomizeJobSpec(joblet, jobSpec);
 
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_enable_job_proxy_memory_control(Controller->Spec->EnableJobProxyMemoryControl);
-        schedulerJobSpecExt->set_enable_sort_verification(Controller->Spec->EnableSortVerification);
+        schedulerJobSpecExt->set_enable_job_proxy_memory_control(controller->Spec->EnableJobProxyMemoryControl);
+        schedulerJobSpecExt->set_enable_sort_verification(controller->Spec->EnableSortVerification);
 
         // Adjust sizes if approximation flag is set.
         if (joblet->InputStripeList->IsApproximate) {
