@@ -123,8 +123,6 @@ private:
 
     void DoRegisterChunk(const TChunkEntry& entry);
 
-    void OnLocationDisabled(TLocationPtr location, const TError& reason);
-
     static TChunkEntry BuildEntry(IChunkPtr chunk);
     IChunkPtr CreateFromDescriptor(TLocationPtr location, const TChunkDescriptor& descriptor);
 

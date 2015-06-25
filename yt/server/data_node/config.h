@@ -255,7 +255,7 @@ public:
     std::vector<TLocationConfigPtr> StoreLocations;
 
     //! Cached chunks location.
-    TLocationConfigPtr CacheLocation;
+    std::vector<TLocationConfigPtr> CacheLocations;
 
     //! Remote reader configuration used to download chunks into cache.
     NChunkClient::TReplicationReaderConfigPtr CacheRemoteReader;
@@ -350,8 +350,8 @@ public:
 
         RegisterParameter("store_locations", StoreLocations)
             .NonEmpty();
-        RegisterParameter("cache_location", CacheLocation)
-            .DefaultNew();
+        RegisterParameter("cache_locations", CacheLocations)
+            .NonEmpty();
 
         RegisterParameter("cache_remote_reader", CacheRemoteReader)
             .DefaultNew();

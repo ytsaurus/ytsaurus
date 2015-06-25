@@ -153,12 +153,6 @@ public:
     //! Moves the files comprising a given chunk into trash directory.
     void MoveChunkFilesToTrash(const TChunkId& chunkId);
 
-    //! Raised when the location gets disabled.
-    /*!
-     *  Raised at most once in Control thread.
-     */
-    DEFINE_SIGNAL(void(const TError&), Disabled);
-
 private:
     const ELocationType Type_;
     const Stroka Id_;
@@ -198,6 +192,9 @@ private:
 
     mutable NLogging::TLogger Logger;
 
+    void CheckMinimumSpace();
+    void CheckErrorFile();
+    void CreateErrorFile(const TError& reason);
 
     std::vector<TChunkDescriptor> DoScan();
     TNullable<TChunkDescriptor> RepairBlobChunk(const TChunkId& chunkId);
@@ -207,8 +204,7 @@ private:
     void DoStart();
 
     void OnHealthCheckFailed(const TError& error);
-    void ScheduleDisable(const TError& reason);
-    void DoDisable(const TError& reason);
+    void MakeDisabled();
 
     static Stroka GetRelativeChunkPath(const TChunkId& chunkId);
     std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const;

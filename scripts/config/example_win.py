@@ -117,13 +117,13 @@ class Holder(WinNode, Server):
             },
             'data_node' : {
                 'incremental_heartbeat_period' : 500,
-                'store_locations' : [
-                    { 'path' : r'%(work_dir)s\chunk_store.0' }
-                ],
-                'cache_location' : {
+                'store_locations' : [{
+                    'path' : r'%(work_dir)s\chunk_store.0'
+                }],
+                'cache_locations' : [{
                     'path' : r'%(work_dir)s\chunk_cache',
                     'quota' : 10 * 1024 * 1024
-                },
+                }],
                 'multiplexed_changelog' : {
                     'path' : r'%(work_dir)s\multiplexed'
                 },
@@ -158,6 +158,7 @@ class Holder(WinNode, Server):
                 print >>fd, 'rmdir /S /Q %s' % cls.config['data_node']['multiplexed_changelog']['path']
                 for location in cls.config['data_node']['store_locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location['path']
-                print >>fd, 'rmdir /S /Q   %s' % cls.config['data_node']['cache_location']['path']
+                for location in cls.config['data_node']['cache_locations']:
+                        print >>fd, 'rmdir /S /Q   %s' % location['path']
 
 configure(Base)
