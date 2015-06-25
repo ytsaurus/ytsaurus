@@ -421,11 +421,9 @@ public:
 
         auto* currentTransaction = transaction;
         while (currentTransaction) {
-            if (currentTransaction->GetState() != ETransactionState::Active) {
-                currentTransaction->ThrowInvalidState();
+            if (currentTransaction->GetState() == ETransactionState::Active) {
+                DoPingTransaction(currentTransaction);
             }
-
-            DoPingTransaction(currentTransaction);
 
             if (!pingAncestors)
                 break;
