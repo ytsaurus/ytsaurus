@@ -552,11 +552,16 @@ public:
 
     void MarkMultiplexedChangelogClean(int changelogId)
     {
-        auto dataFileName = GetMultiplexedChangelogPath(changelogId);
-        auto cleanDataFileName = dataFileName + "." + CleanExtension;
-        NFS::Rename(dataFileName, cleanDataFileName);
-        NFS::Rename(dataFileName + "." + ChangelogIndexExtension, cleanDataFileName + "." + ChangelogIndexExtension);
-        LOG_INFO("Multiplexed changelog is clean (ChangelogId: %v)", changelogId);
+        LOG_INFO("Multiplexed changelog will be marked as clean (ChangelogId: %v)", changelogId);
+        TDelayedExecutor::Submit(
+            BIND([=, this_ = MakeStrong(this)] () {
+                auto dataFileName = GetMultiplexedChangelogPath(changelogId);
+                auto cleanDataFileName = dataFileName + "." + CleanExtension;
+                NFS::Rename(dataFileName, cleanDataFileName);
+                NFS::Rename(dataFileName + "." + ChangelogIndexExtension, cleanDataFileName + "." + ChangelogIndexExtension);
+                LOG_INFO("Multiplexed changelog is marked as clean (ChangelogId: %v)", changelogId);
+            }),
+            Config_->CleanDelay);
     }
 
 private:
