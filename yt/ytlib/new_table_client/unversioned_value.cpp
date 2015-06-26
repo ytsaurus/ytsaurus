@@ -9,7 +9,7 @@ namespace NVersionedTableClient {
 
 #ifdef YT_COMPILING_UDF
 #undef YUNREACHABLE
-#define YUNREACHABLE() {}
+#define YUNREACHABLE() { __builtin_unreachable(); }
 #endif
 
 ui64 GetHash(const TUnversionedValue& value)
