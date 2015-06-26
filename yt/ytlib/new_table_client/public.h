@@ -190,8 +190,7 @@ DECLARE_REFCOUNTED_CLASS(TTableWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)
 
-typedef NChunkClient::TSequentialReaderConfig TChunkReaderConfig;
-typedef NChunkClient::TSequentialReaderConfigPtr TChunkReaderConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)

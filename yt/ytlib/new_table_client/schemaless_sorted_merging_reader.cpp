@@ -14,6 +14,8 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Reasonable default for max data size per one read call.
+const i64 MaxDataSizePerRead = 16 * 1024 * 1024;
 const i64 RowBufferSize = 10000;
 
 using namespace NChunkClient;
@@ -193,8 +195,11 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
     }
 
     TableIndex_ = session->Reader->GetTableIndex();
-    while (rows->size() < rows->capacity()) {
+
+    i64 dataWeight = 0;
+    while (rows->size() < rows->capacity() && dataWeight < MaxDataSizePerRead) {
         rows->push_back(session->Rows[session->CurrentRowIndex]);
+        dataWeight += GetDataWeight(rows->back());
         ++session->CurrentRowIndex;
         ++RowIndex_;
 

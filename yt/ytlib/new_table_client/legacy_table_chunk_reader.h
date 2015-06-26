@@ -73,6 +73,8 @@ private:
 
     void FinishReader();
 
+    TChunkReaderConfigPtr Config_;
+
     NChunkClient::TSequentialReaderPtr SequentialReader_;
     TColumnFilter ColumnFilter_;
     TNameTablePtr NameTable_;

@@ -691,7 +691,7 @@ private:
 
         auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
 
-        auto config = New<TMultiChunkReaderConfig>();
+        auto config = New<TTableReaderConfig>();
         auto options = New<TMultiChunkReaderOptions>();
         auto nameTable = New<TNameTable>();
         auto reader = CreateSchemalessSequentialMultiChunkReader(

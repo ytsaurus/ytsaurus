@@ -481,7 +481,8 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
     const TReadLimit& upperLimit,
     i64 tableRowIndex,
     i32 rangeIndex)
-    : SequentialReader_(nullptr)
+    : Config_(config)
+    , SequentialReader_(nullptr)
     , ColumnFilter_(columnFilter)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
@@ -491,7 +492,7 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
     , RangeIndex_(rangeIndex)
     , Logger(TableClientLogger)
 {
-    YCHECK(config);
+    YCHECK(Config_);
     YCHECK(underlyingReader);
 
     Logger.AddTag("ChunkId: %v", underlyingReader->GetChunkId());
@@ -513,15 +514,15 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
         }
     }
 
-    if (config->SamplingRate) {
+    if (Config_->SamplingRate) {
         RowSampler_ = CreateChunkRowSampler(
             underlyingReader->GetChunkId(),
-            config->SamplingRate.Get(),
-            config->SamplingSeed.Get(std::random_device()()));
+            Config_->SamplingRate.Get(),
+            Config_->SamplingSeed.Get(std::random_device()()));
     }
 
     Initializer_ = New<TInitializer>(
-        config,
+        Config_,
         this,
         underlyingReader,
         blockCache,
@@ -565,11 +566,13 @@ bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
         return false;
     }
 
-    while (rows->size() < rows->capacity()) {
+    i64 dataWeight = 0;
+    while (rows->size() < rows->capacity() && dataWeight < Config_->MaxDataSizePerRead) {
         if (!RowSampler_ || RowSampler_->ShouldTakeRow(GetTableRowIndex())) {
             auto row = TUnversionedRow::Allocate(&MemoryPool_, CurrentRow_.size());
             std::copy(CurrentRow_.begin(), CurrentRow_.end(), row.Begin());
             rows->push_back(row);
+            dataWeight += GetDataWeight(row);
             ++RowCount_;
         }
 

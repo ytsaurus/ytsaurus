@@ -15,6 +15,9 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 
+// Reasonable default for max data size per one read call.
+const i64 MaxDataSizePerRead = 16 * 1024 * 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessSortingReader
@@ -74,8 +77,10 @@ public:
             return false;
         }
 
-        while (ReadRowCount_ < Rows_.size() && rows->size() < rows->capacity()) {
+        i64 dataWeight = 0;
+        while (ReadRowCount_ < Rows_.size() && rows->size() < rows->capacity() && dataWeight < MaxDataSizePerRead) {
             rows->push_back(Rows_[ReadRowCount_].Get());
+            dataWeight += GetDataWeight(rows->back());
             ++ReadRowCount_;
         }
 

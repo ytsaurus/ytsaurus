@@ -86,6 +86,7 @@ public:
     virtual TKeyColumns GetKeyColumns() const override;
 
 private:
+    TChunkReaderConfigPtr Config_;
     const TNameTablePtr NameTable_;
     TNameTablePtr ChunkNameTable_;
 
@@ -151,6 +152,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
         underlyingReader, 
         GetProtoExtension<TMiscExt>(masterMeta.extensions()),
         blockCache)
+    , Config_(config)
     , NameTable_(nameTable)
     , ChunkNameTable_(New<TNameTable>())
     , ColumnFilter_(columnFilter)
@@ -353,7 +355,8 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
         return OnBlockEnded();
     }
 
-    while (rows->size() < rows->capacity()) {
+    i64 dataWeight = 0;
+    while (rows->size() < rows->capacity() && dataWeight < Config_->MaxDataSizePerRead) {
         if (CheckRowLimit_ && CurrentRowIndex_ >= UpperLimit_.GetRowIndex()) {
             LOG_DEBUG("Upper limit row index reached %v", CurrentRowIndex_);
             return !rows->empty();
@@ -367,6 +370,7 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
         ++CurrentRowIndex_;
         if (!RowSampler_ || RowSampler_->ShouldTakeRow(GetTableRowIndex())) {
             rows->push_back(BlockReader_->GetRow(&MemoryPool_));
+            dataWeight += GetDataWeight(rows->back());
             ++RowCount_;
         }
 
@@ -465,7 +469,7 @@ class TSchemalessMultiChunkReader
 {
 public:
     TSchemalessMultiChunkReader(
-        TMultiChunkReaderConfigPtr config,
+        TTableReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
         IChannelPtr masterChannel,
         IBlockCachePtr blockCache,
@@ -492,7 +496,7 @@ public:
     virtual i32 GetRangeIndex() const override;
 
 private:
-    const TMultiChunkReaderConfigPtr Config_;
+    const TTableReaderConfigPtr Config_;
     const TNameTablePtr NameTable_;
     const TKeyColumns KeyColumns_;
     const IBlockCachePtr BlockCache_;
@@ -514,7 +518,7 @@ private:
 
 template<class TBase>
 TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
-    TMultiChunkReaderConfigPtr config,
+    TTableReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     IChannelPtr masterChannel,
     IBlockCachePtr blockCache,
@@ -642,7 +646,7 @@ int TSchemalessMultiChunkReader<TBase>::GetTableIndex() const
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
-    TMultiChunkReaderConfigPtr config,
+    TTableReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     IChannelPtr masterChannel,
     IBlockCachePtr blockCache,
@@ -667,7 +671,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
-    TMultiChunkReaderConfigPtr config,
+    TTableReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     IChannelPtr masterChannel,
     IBlockCachePtr blockCache,
