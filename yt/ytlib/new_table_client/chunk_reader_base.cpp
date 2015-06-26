@@ -18,7 +18,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReaderBase::TChunkReaderBase(
-    TChunkReaderConfigPtr config,
+    TSequentialReaderConfigPtr config,
     const NChunkClient::TReadLimit& lowerLimit,
     const NChunkClient::TReadLimit& upperLimit,
     NChunkClient::IChunkReaderPtr underlyingReader,

@@ -39,6 +39,9 @@ static const int RowsBetweenAtomicUpdate = 10000;
 static const i32 BucketEndSentinel = -1;
 static const double ReallocationFactor = 1.1;
 
+// Reasonable default for max data size per one read call.
+const i64 MaxDataSizePerRead = 16 * 1024 * 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessPartitionSortReader
@@ -130,12 +133,13 @@ public:
             sortedRowCount = AtomicGet(SortedRowCount_);
         }
 
-        while (ReadRowCount_ < sortedRowCount && rows->size() < rows->capacity()) {
+        i64 dataWeight = 0;
+        while (ReadRowCount_ < sortedRowCount && rows->size() < rows->capacity() && dataWeight < MaxDataSizePerRead) {
             auto sortedIndex = SortedIndexes_[ReadRowCount_];
             auto& rowDescriptor = RowDescriptorBuffer_[sortedIndex];
-            YCHECK(rowDescriptor.BlockReader->JumpToRowIndex(rowDescriptor.RowIndex))   ;
+            YCHECK(rowDescriptor.BlockReader->JumpToRowIndex(rowDescriptor.RowIndex));
             rows->push_back(rowDescriptor.BlockReader->GetRow(&MemoryPool_));
-
+            dataWeight += GetDataWeight(rows->back());
             ++ReadRowCount_;
         }
 
@@ -307,7 +311,6 @@ private:
         }
 
     };
-
 
     TKeyColumns KeyColumns_;
     int KeyColumnCount_;
