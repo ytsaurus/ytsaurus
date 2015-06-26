@@ -242,9 +242,6 @@ private:
 
     };
 
-    typedef TIntrusivePtr<TRemoteCopyTask> TRemoteCopyTaskPtr;
-
-    TRemoteCopyTaskPtr RemoteCopyTask_;
     TTaskGroupPtr RemoteCopyTaskGroup_;
 
     TJobIOConfigPtr JobIOConfig_;
