@@ -140,6 +140,14 @@ set -e
 tar xvf yt.tar >/dev/null
 set +e"""
 
+        if format == "yson":
+            files.append(_pack_module("yt_yson_bindings", tmp_dir))
+            prepare_command += """
+set -e
+tar xvf yt_yson_bindings.tar >/dev/null
+set +e"""
+
+
     read_command = _get_read_from_yt_command(yt_client, src, format, fastbone)
     files.append(_pack_string("read_from_yt.sh", _get_read_ranges_command(prepare_command, read_command), tmp_dir))
 
@@ -192,7 +200,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
         spec_template = {}
 
     tmp_dir = tempfile.mkdtemp()
-    files = _prepare_read_from_yt_command(source_client, src, "json", tmp_dir, fastbone, pack=True)
+    files = _prepare_read_from_yt_command(source_client, src, "yson", tmp_dir, fastbone, pack=True)
 
     try:
         with source_client.Transaction():
@@ -221,7 +229,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 files=files,
                 spec=spec,
                 input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
-                output_format=yt.JsonFormat())
+                output_format=yt.YsonFormat())
 
             result_row_count = destination_client.records_count(dst)
             if row_count != result_row_count:

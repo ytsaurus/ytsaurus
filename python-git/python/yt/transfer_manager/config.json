@@ -34,6 +34,16 @@
             "dc_name": "sas",
             "table_url_pattern": "http://yt.yandex.net/aristotle/#page=navigation&path=%table%"
         },
+        "freud": {
+            "type": "yt",
+            "options": {
+                "proxy": "freud.yt.yandex.net"
+            },
+            "fastbone": true,
+            "dc_name": "fin",
+            "table_url_pattern": "http://yt.yandex.net/freud/#page=navigation&path=%table%",
+            "version": 2
+        },
         "marx": {
             "type": "yt",
             "options": {
@@ -196,7 +206,7 @@
         "betula": ["smith", "plato", "cedar", "redwood"],
         "redwood": ["plato", "smith", "cedar", "betula"],
         "bsmr": ["plato"],
-        "aristotle": ["plato", "kiwi_apteryx", "kiwi_main", "kiwi_oxygen"],
+        "aristotle": ["plato", "kiwi_apteryx", "kiwi_main", "kiwi_oxygen", "freud"],
         "tasmania": ["plato"]
     },
     "backend_tag": "testing",
