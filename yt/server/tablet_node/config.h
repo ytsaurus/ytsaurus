@@ -333,7 +333,7 @@ public:
     //! Maximum number of concurrent partition samplings.
     int MaxConcurrentSamplings;
 
-    //! Mininmum intervals between resampling.
+    //! Minimum interval between resampling.
     TDuration ResamplingPeriod;
 
     TPartitionBalancerConfig()
