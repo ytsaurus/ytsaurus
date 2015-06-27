@@ -62,10 +62,10 @@ public:
     //! starting from the eldest ones.
     i64 TrashCleanupWatermark;
 
-    //! Controls if blob chunks are enabled for this location.
+    //! Controls if new blob chunks are accpeted by this location.
     bool EnableBlobs;
 
-    //! Controls if journal chunks are enabled for this location.
+    //! Controls if new journal chunks are accepted by this location.
     bool EnableJournals;
 
     TLocationConfig()
