@@ -166,10 +166,7 @@ public:
             ReplayChangelog(id);
         }
 
-        for (const auto& pair : SplitMap_) {
-            const auto& entry = pair.second;
-            Callbacks_->FlushSplitChangelog(entry.ChunkId);
-        }
+        FlushSplitChangelogs();
 
         if (maxDirtyId >= 0) {
             return maxDirtyId + 1;
@@ -306,6 +303,14 @@ private:
         dumpChunkIds(RemoveChunkIds_, "remove");
     }
 
+    void FlushSplitChangelogs()
+    {
+        for (const auto& pair : SplitMap_) {
+            const auto& entry = pair.second;
+            Callbacks_->FlushSplitChangelog(entry.ChunkId);
+        }
+    }
+
     void ReplayChangelog(int changelogId)
     {
         LOG_INFO("Replaying dirty multiplexed changelog (ChangelogId: %v)", changelogId);
@@ -342,8 +347,9 @@ private:
                 .Get()
                 .ThrowOnError();
 
-            LOG_INFO("Replay appended to journal chunk (ChunkId: %v, RecordsAdded: %v)",
+            LOG_INFO("Replay appended to journal chunk (ChunkId: %v, RecordCount: %v, RecordsAdded: %v)",
                 pair.first,
+                entry.Changelog->GetRecordCount(),
                 entry.RecordsAdded);
 
             entry.RecordsAdded = 0;
@@ -404,13 +410,14 @@ private:
                 record.Header.RecordId);
         }
 
-        LOG_INFO_UNLESS(
-            splitEntry.AppendLogged,
-            "Replay appends record to journal chunk; further similar messages suppressed "
-            "(ChunkId: %v, RecordId: %v)",
-            chunkId,
-            record.Header.RecordId);
-        splitEntry.AppendLogged = true;
+        if (!splitEntry.AppendLogged) {
+            LOG_INFO(
+                "Replay appends record to journal chunk; further similar messages suppressed "
+                "(ChunkId: %v, RecordId: %v)",
+                chunkId,
+                record.Header.RecordId);
+            splitEntry.AppendLogged = true;
+        }
 
         splitEntry.Changelog->Append(record.Data);
         ++splitEntry.RecordsAdded;
