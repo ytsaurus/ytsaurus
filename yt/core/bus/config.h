@@ -73,14 +73,9 @@ public:
             .Default();
 
         RegisterValidator([&] () {
-            if (Address) {
-                return;
+            if (!Address && !UnixDomainName) {
+                THROW_ERROR_EXCEPTION("\"address\" and \"unix_domain_name\" cannot be both empty");
             }
-            if (UnixDomainName) {
-                return;
-            }
-
-            THROW_ERROR_EXCEPTION("Address and UnixDomainName are empty at the same time");
         });
     }
 

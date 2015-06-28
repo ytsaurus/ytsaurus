@@ -88,10 +88,16 @@ public:
         DispatcherThread_->AsyncRegister(Connection_);
     }
 
-    virtual TYsonString GetEndpointDescription() const override
+    virtual Stroka GetEndpointTextDescription() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        return Connection_->GetEndpointDescription();
+        return Connection_->GetEndpointTextDescription();
+    }
+
+    virtual TYsonString GetEndpointYsonDescription() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return Connection_->GetEndpointYsonDescription();
     }
 
     virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) override
@@ -146,9 +152,16 @@ public:
         : Config_(config)
     { }
 
-    virtual TYsonString GetEndpointDescription() const override
+    virtual Stroka GetEndpointTextDescription() const override
     {
-        return ConvertToYsonString(Config_->Address);
+        return Config_->Address
+            ? *Config_->Address
+            : "unix://" + *Config_->UnixDomainName;
+    }
+
+    virtual TYsonString GetEndpointYsonDescription() const override
+    {
+        return ConvertToYsonString(GetEndpointTextDescription());
     }
 
     virtual IBusPtr CreateBus(IMessageHandlerPtr handler) override
