@@ -83,7 +83,8 @@ public:
             "TimestampManager",
             BIND(&TImpl::Save, Unretained(this)));
 
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTimestamp, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND(&TImpl::HydraCommitTimestamp, Unretained(this)));
     }
 
     IServicePtr GetRpcService()
