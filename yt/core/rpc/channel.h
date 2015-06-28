@@ -45,9 +45,13 @@ struct IChannel
     //! Sets the default timeout.
     virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) = 0;
 
-    //! Returns a textual representation of channel's endpoint.
-    //! For informative uses only.
-    virtual NYTree::TYsonString GetEndpointDescription() const = 0;
+    //! Returns a textual representation of the channel's endpoint.
+    //! Typically used for logging
+    virtual Stroka GetEndpointTextDescription() const = 0;
+
+    //! Returns a YSON representation of the channel's endpoint.
+    //! Typically used for constructing error attributes.
+    virtual NYTree::TYsonString GetEndpointYsonDescription() const = 0;
 
     //! Sends a request via the channel.
     /*!

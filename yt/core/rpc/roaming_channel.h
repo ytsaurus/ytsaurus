@@ -15,7 +15,8 @@ namespace NRpc {
 struct IRoamingChannelProvider
     : public virtual TRefCounted
 {
-    virtual NYTree::TYsonString GetEndpointDescription() const = 0;
+    virtual Stroka GetEndpointTextDescription() const = 0;
+    virtual NYTree::TYsonString GetEndpointYsonDescription() const = 0;
     virtual TFuture<IChannelPtr> DiscoverChannel(IClientRequestPtr request) = 0;
 };
 

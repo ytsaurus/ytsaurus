@@ -41,9 +41,14 @@ public:
         DefaultTimeout_ = timeout;
     }
 
-    virtual TYsonString GetEndpointDescription() const override
+    virtual Stroka GetEndpointTextDescription() const override
     {
-        return ConvertToYsonString(Stroka("<local>"));
+        return "<local>";
+    }
+
+    virtual TYsonString GetEndpointYsonDescription() const override
+    {
+        return ConvertToYsonString(GetEndpointTextDescription());
     }
 
     virtual IClientRequestControlPtr Send(
@@ -112,9 +117,14 @@ private:
             }
         }
 
-        virtual TYsonString GetEndpointDescription() const
+        virtual Stroka GetEndpointTextDescription() const
         {
-            return ConvertToYsonString(Stroka("<local>"));
+            return "<local>";
+        }
+
+        virtual TYsonString GetEndpointYsonDescription() const
+        {
+            return ConvertToYsonString(GetEndpointTextDescription());
         }
 
         virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel /*level*/) override
@@ -166,7 +176,7 @@ private:
         void ReportError(const TError& error)
         {
             auto detailedError = error
-                << TErrorAttribute("endpoint", GetEndpointDescription());
+                << TErrorAttribute("endpoint", GetEndpointYsonDescription());
             Handler_->HandleError(detailedError);
         }
 
