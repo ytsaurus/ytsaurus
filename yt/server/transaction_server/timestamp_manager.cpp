@@ -47,6 +47,7 @@ public:
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton)
         : TServiceBase(
+            // Ignored, method handlers use TimestampInvoker_.
             GetSyncInvoker(),
             TTimestampServiceProxy::GetServiceName(),
             TransactionServerLogger)
