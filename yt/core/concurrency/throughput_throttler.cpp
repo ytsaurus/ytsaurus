@@ -98,6 +98,9 @@ private:
         {
             TGuard<TSpinLock> guard(SpinLock_);
             Available_ += ThroughputPerPeriod_;
+            if (Available_ > ThroughputPerPeriod_) {
+                Available_ = ThroughputPerPeriod_;
+            }
             while (!Requests_.empty() && Available_ > 0) {
                 auto& request = Requests_.front();
                 LOG_DEBUG("Finished waiting for throttler (Count: %v)", request.Count);
