@@ -238,10 +238,12 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec, c
         if exists(table.name, client=client):
             compression_codec_ok = (compression_codec is None) or \
                                    (compression_codec == get_attribute(table.name,
-                                                                       "compression_codec"))
+                                                                       "compression_codec",
+                                                                       client=client))
             replication_factor_ok = (replication_factor is None) or \
                                     (replication_factor == get_attribute(table.name,
-                                                                         "replication_factor"))
+                                                                         "replication_factor",
+                                                                         client=client))
             require(compression_codec_ok and replication_factor_ok,
                     YtError("Cannot append to table %s and set replication factor "
                             "or compression codec" % table))
