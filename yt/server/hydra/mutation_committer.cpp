@@ -152,11 +152,6 @@ public:
         return static_cast<int>(BatchedRecordsData_.size());
     }
 
-    TVersion GetStartVersion() const
-    {
-        return StartVersion_;
-    }
-
     TVersion GetCommittedVersion() const
     {
         return CommittedVersion_;
