@@ -63,11 +63,10 @@ class YtTestBase(object):
 
     @classmethod
     def teardown_class(cls):
+        cls.env.clear_environment()
         for node_config in cls.env.configs["node"]:
             shutil.rmtree(node_config["data_node"]["store_locations"][0]["path"])
             shutil.rmtree(node_config["data_node"]["cache_location"]["path"])
-        
-        cls.env.clear_environment()
 
     def setup(self):
         os.environ["PATH"] = ".:" + os.environ["PATH"]
