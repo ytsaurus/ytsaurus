@@ -21,6 +21,9 @@ protected:
         const NLogging::TLogger& logger,
         int protocolVersion = NRpc::TProxyBase::DefaultProtocolVersion);
 
+
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue);
+
 private:
     virtual void BeforeInvoke() override;
 
