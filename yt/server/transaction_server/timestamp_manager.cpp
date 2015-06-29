@@ -216,7 +216,7 @@ private:
                 .Via(TimestampInvoker_));
     }
 
-    void OnTimestampCommitted(TTimestamp timestamp, TErrorOr<TMutationResponse> result)
+    void OnTimestampCommitted(TTimestamp timestamp, const TErrorOr<TMutationResponse>& result)
     {
         VERIFY_THREAD_AFFINITY(TimestampThread);
 
