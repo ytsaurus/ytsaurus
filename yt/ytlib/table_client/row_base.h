@@ -7,7 +7,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(EValueType, ui16,
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EValueType, ui8,
     ((Min)         (0x00))
 
     ((TheBottom)   (0x01))
@@ -71,6 +71,7 @@ TValue MakeSentinelValue(EValueType type, int id = 0)
     TValue result;
     result.Id = id;
     result.Type = type;
+    result.Aggregate = 0;
     return result;
 }
 
@@ -80,6 +81,7 @@ TValue MakeInt64Value(i64 value, int id = 0)
     TValue result;
     result.Id = id;
     result.Type = EValueType::Int64;
+    result.Aggregate = 0;
     result.Data.Int64 = value;
     return result;
 }
@@ -90,6 +92,7 @@ TValue MakeUint64Value(ui64 value, int id = 0)
     TValue result;
     result.Id = id;
     result.Type = EValueType::Uint64;
+    result.Aggregate = 0;
     result.Data.Uint64 = value;
     return result;
 }
@@ -100,6 +103,7 @@ TValue MakeDoubleValue(double value, int id = 0)
     TValue result;
     result.Id = id;
     result.Type = EValueType::Double;
+    result.Aggregate = 0;
     result.Data.Double = value;
     return result;
 }
@@ -110,6 +114,7 @@ TValue MakeBooleanValue(bool value, int id = 0)
     TValue result;
     result.Id = id;
     result.Type = EValueType::Boolean;
+    result.Aggregate = 0;
     result.Data.Boolean = value;
     return result;
 }
@@ -120,6 +125,7 @@ TValue MakeStringValue(const TStringBuf& value, int id = 0)
     TValue result;
     result.Id = id;
     result.Type = EValueType::String;
+    result.Aggregate = 0;
     result.Length = value.length();
     result.Data.String = value.begin();
     return result;
@@ -131,6 +137,7 @@ TValue MakeAnyValue(const TStringBuf& value, int id = 0)
     TValue result;
     result.Id = id;
     result.Type = EValueType::Any;
+    result.Aggregate = 0;
     result.Length = value.length();
     result.Data.String = value.begin();
     return result;
