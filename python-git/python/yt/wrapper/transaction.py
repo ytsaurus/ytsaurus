@@ -86,6 +86,8 @@ class Transaction(object):
     def __exit__(self, type, value, traceback):
         if self.finished:
             return
+        if self.ping and not self.null:
+            self.ping_thread.stop()
         try:
             if not self.null:
                 if type is not None and type is not Abort:
@@ -106,8 +108,6 @@ class Transaction(object):
                     else:
                         raise
         finally:
-            if self.ping and not self.null:
-                self.ping_thread.stop()
             self.stack.pop()
             transaction_id, ping_ancestor_transactions = self.stack.get()
             set_option("TRANSACTION", transaction_id, self.client)
