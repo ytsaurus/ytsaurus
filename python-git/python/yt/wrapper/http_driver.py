@@ -136,10 +136,13 @@ def make_request(command_name, params,
         headers.update({"X-YT-Parameters": dumps(params)})
 
     if command.is_volatile and allow_retries:
-        def set_retry():
+        def set_retry(arguments):
             if command.is_volatile:
                 params["retry"] = bool_to_string(True)
-                headers.update({"X-YT-Parameters": dumps(params)})
+                if command.input_type is None:
+                    arguments["data"] = dumps(params)
+                else:
+                    arguments["headers"].update({"X-YT-Parameters": dumps(params)})
         retry_action = set_retry
     else:
         retry_action = None
