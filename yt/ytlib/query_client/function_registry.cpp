@@ -3,7 +3,20 @@
 #include "builtin_functions.h"
 #include "user_defined_functions.h"
 
-#include "udf/builtin_functions.h"
+#include "udf/hyperloglog.h"
+#include "udf/double.h"
+#include "udf/farm_hash.h"
+#include "udf/int64.h"
+#include "udf/is_null.h"
+#include "udf/is_substr.h"
+#include "udf/lower.h"
+#include "udf/simple_hash.h"
+#include "udf/sleep.h"
+#include "udf/uint64.h"
+#include "udf/min.h"
+#include "udf/max.h"
+#include "udf/sum.h"
+#include "udf/avg.h"
 
 #include <ytlib/api/public.h>
 #include <ytlib/api/client.h>
@@ -91,30 +104,34 @@ IAggregateFunctionDescriptorPtr TFunctionRegistry::FindAggregateFunction(const S
 
 void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 {
-    auto builtinImplementations = TSharedRef(
-        builtin_functions_bc,
-        builtin_functions_bc_len,
-        nullptr);
-
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "is_substr",
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Boolean,
-        builtinImplementations,
+        TSharedRef(
+            is_substr_bc,
+            is_substr_bc_len,
+            nullptr),
         ECallingConvention::Simple));
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "lower",
         std::vector<TType>{EValueType::String},
         EValueType::String,
-        builtinImplementations,
+        TSharedRef(
+            lower_bc,
+            lower_bc_len,
+            nullptr),
         ECallingConvention::Simple));
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "sleep",
         std::vector<TType>{EValueType::Int64},
         EValueType::Int64,
-        builtinImplementations,
+        TSharedRef(
+            sleep_bc,
+            sleep_bc_len,
+            nullptr),
         ECallingConvention::Simple));
 
     TUnionType hashTypes = TUnionType{
@@ -125,40 +142,152 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "simple_hash",
+        std::unordered_map<TTypeArgument, TUnionType>(),
         std::vector<TType>{},
         hashTypes,
         EValueType::Uint64,
-        builtinImplementations));
+        TSharedRef(
+            simple_hash_bc,
+            simple_hash_bc_len,
+            nullptr)));
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "farm_hash",
+        std::unordered_map<TTypeArgument, TUnionType>(),
         std::vector<TType>{},
         hashTypes,
         EValueType::Uint64,
-        builtinImplementations));
+        TSharedRef(
+            farm_hash_bc,
+            farm_hash_bc_len,
+            nullptr)));
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "is_null",
         std::vector<TType>{0},
         EValueType::Boolean,
-        builtinImplementations,
+        TSharedRef(
+            is_null_bc,
+            is_null_bc_len,
+            nullptr),
         ECallingConvention::UnversionedValue));
+
+    auto typeArg = 0;
+    auto castConstraints = std::unordered_map<TTypeArgument, TUnionType>();
+    castConstraints[typeArg] = std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double};
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "int64",
+        castConstraints,
+        std::vector<TType>{typeArg},
+        EValueType::Null,
+        EValueType::Int64,
+        TSharedRef(
+            int64_bc,
+            int64_bc_len,
+            nullptr)));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "uint64",
+        castConstraints,
+        std::vector<TType>{typeArg},
+        EValueType::Null,
+        EValueType::Uint64,
+        TSharedRef(
+            uint64_bc,
+            uint64_bc_len,
+            nullptr)));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "double",
+        "double_cast",
+        castConstraints,
+        std::vector<TType>{typeArg},
+        EValueType::Null,
+        EValueType::Double,
+        TSharedRef(
+            double_bc,
+            double_bc_len,
+            nullptr)));
 
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
-    registry->RegisterFunction(New<TCastFunction>(
-        EValueType::Int64,
-        "int64"));
-    registry->RegisterFunction(New<TCastFunction>(
-        EValueType::Uint64,
-        "uint64"));
-    registry->RegisterFunction(New<TCastFunction>(
-        EValueType::Double,
-        "double"));
 
-    registry->RegisterAggregateFunction(New<TAggregateFunction>("sum"));
-    registry->RegisterAggregateFunction(New<TAggregateFunction>("min"));
-    registry->RegisterAggregateFunction(New<TAggregateFunction>("max"));
+    auto constraints = std::unordered_map<TTypeArgument, TUnionType>();
+    constraints[typeArg] = std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double,
+        EValueType::String};
+    auto sumConstraints = std::unordered_map<TTypeArgument, TUnionType>();
+    sumConstraints[typeArg] = std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double};
+
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "sum",
+        sumConstraints,
+        typeArg,
+        typeArg,
+        typeArg,
+        TSharedRef(
+            sum_bc,
+            sum_bc_len,
+            nullptr),
+        ECallingConvention::UnversionedValue));
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "min",
+        constraints,
+        typeArg,
+        typeArg,
+        typeArg,
+        TSharedRef(
+            min_bc,
+            min_bc_len,
+            nullptr),
+        ECallingConvention::UnversionedValue));
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "max",
+        constraints,
+        typeArg,
+        typeArg,
+        typeArg,
+        TSharedRef(
+            max_bc,
+            max_bc_len,
+            nullptr),
+        ECallingConvention::UnversionedValue));
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "avg",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        EValueType::Int64,
+        EValueType::Double,
+        EValueType::String,
+        TSharedRef(
+            avg_bc,
+            avg_bc_len,
+            nullptr),
+        ECallingConvention::UnversionedValue));
+    registry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        "cardinality",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<EValueType>{
+            EValueType::String,
+            EValueType::Uint64,
+            EValueType::Int64,
+            EValueType::Double,
+            EValueType::Boolean},
+        EValueType::Uint64,
+        EValueType::String,
+        TSharedRef(
+            hyperloglog_bc,
+            hyperloglog_bc_len,
+            nullptr),
+        ECallingConvention::UnversionedValue));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -271,6 +400,30 @@ public:
 DECLARE_REFCOUNTED_CLASS(TCypressFunctionDescriptor)
 DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
 
+class TCypressAggregateDescriptor
+    : public TYsonSerializable
+{
+public:
+    Stroka Name;
+    TDescriptorType ArgumentType;
+    TDescriptorType StateType;
+    TDescriptorType ResultType;
+    ECallingConvention CallingConvention;
+
+    TCypressAggregateDescriptor()
+    {
+        RegisterParameter("name", Name)
+            .NonEmpty();
+        RegisterParameter("argument_type", ArgumentType);
+        RegisterParameter("state_type", StateType);
+        RegisterParameter("result_type", ResultType);
+        RegisterParameter("calling_convention", CallingConvention);
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TCypressAggregateDescriptor)
+DEFINE_REFCOUNTED_TYPE(TCypressAggregateDescriptor)
+
 TSharedRef ReadFile(const Stroka& fileName, NApi::IClientPtr client)
 {
     auto reader = client->CreateFileReader(fileName);
@@ -318,79 +471,138 @@ IFunctionDescriptorPtr TCypressFunctionRegistry::FindFunction(const Stroka& func
         LOG_DEBUG("Found a cached implementation of function %Qv", functionName);
         return function;
     } else {
-        LookupAndRegister(functionName);
+        LookupAndRegisterFunction(functionName);
         return UdfRegistry_->FindFunction(functionName);
     }
 }
 
-void TCypressFunctionRegistry::LookupAndRegister(const Stroka& functionName)
+template <class TDescriptor>
+TDescriptor LookupDescriptor(
+    const Stroka& descriptorAttribute,
+    const Stroka& functionName,
+    const Stroka& functionPath,
+    NApi::IClientPtr client)
 {
     LOG_DEBUG("Looking for implementation of function %Qv in Cypress",
         functionName);
     
-    const auto descriptorAttribute = "function_descriptor";
-
-    auto functionPath = RegistryPath_ + "/" + ToYPathLiteral(to_lower(functionName));
-
     auto getDescriptorOptions = NApi::TGetNodeOptions();
     getDescriptorOptions.AttributeFilter = TAttributeFilter(
         EAttributeFilterMode::MatchingOnly,
         std::vector<Stroka>{descriptorAttribute});
 
-    auto cypressFunctionOrError = WaitFor(Client_->GetNode(
+    auto cypressFunctionOrError = WaitFor(client->GetNode(
         functionPath,
         getDescriptorOptions));
 
     if (!cypressFunctionOrError.IsOK()) {
         LOG_DEBUG(cypressFunctionOrError, "Failed to find implementation of function %Qv in Cypress",
             functionName);
-        return;
+        return nullptr;
     }
 
     LOG_DEBUG("Found implementation of function %Qv in Cypress",
         functionName);
 
-    TCypressFunctionDescriptorPtr cypressFunction;
+    TDescriptor cypressDescriptor;
     try {
-        cypressFunction = ConvertToNode(cypressFunctionOrError.Value())
+        cypressDescriptor = ConvertToNode(cypressFunctionOrError.Value())
             ->Attributes()
-            .Get<TCypressFunctionDescriptorPtr>(descriptorAttribute);
-        
-        if (cypressFunction->CallingConvention == ECallingConvention::Simple && 
-            cypressFunction->RepeatedArgumentType)
-        {
-            THROW_ERROR_EXCEPTION("Function using the simple calling convention may not have repeated arguments");
-        }
+            .Find<TDescriptor>(descriptorAttribute);
     } catch (const TErrorException& exception) {
         THROW_ERROR_EXCEPTION(
             "Error while deserializing UDF descriptor from Cypress")
             << exception;
     }
-  
+
+    return cypressDescriptor;
+}
+
+void TCypressFunctionRegistry::LookupAndRegisterFunction(const Stroka& functionName)
+{
+    const auto descriptorAttribute = "function_descriptor";
+
+    auto functionPath = RegistryPath_ + "/" + ToYPathLiteral(to_lower(functionName));
+
+    auto cypressDescriptor = LookupDescriptor<TCypressFunctionDescriptorPtr>(
+        descriptorAttribute,
+        functionName,
+        functionPath,
+        Client_);
+
+    if (!cypressDescriptor) {
+        return;
+    }
+
+    if (cypressDescriptor->CallingConvention == ECallingConvention::Simple &&
+        cypressDescriptor->RepeatedArgumentType)
+    {
+        THROW_ERROR_EXCEPTION("Function using the simple calling convention may not have repeated arguments");
+    }
+
     auto implementationFile = ReadFile(
         functionPath,
         Client_);
 
-    if (!cypressFunction->RepeatedArgumentType) {
+    if (!cypressDescriptor->RepeatedArgumentType) {
         UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
-            cypressFunction->Name,
-            cypressFunction->GetArgumentsTypes(),
-            cypressFunction->ResultType.Type,
+            cypressDescriptor->Name,
+            cypressDescriptor->GetArgumentsTypes(),
+            cypressDescriptor->ResultType.Type,
             implementationFile,
-            cypressFunction->CallingConvention));
+            cypressDescriptor->CallingConvention));
     } else {
         UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
-            cypressFunction->Name,
-            cypressFunction->GetArgumentsTypes(),
-            cypressFunction->RepeatedArgumentType->Type,
-            cypressFunction->ResultType.Type,
+            cypressDescriptor->Name,
+            std::unordered_map<TTypeArgument, TUnionType>(),
+            cypressDescriptor->GetArgumentsTypes(),
+            cypressDescriptor->RepeatedArgumentType->Type,
+            cypressDescriptor->ResultType.Type,
             implementationFile));
     }
 }
 
 IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::FindAggregateFunction(const Stroka& aggregateName)
 {
-    return BuiltinRegistry_->FindAggregateFunction(aggregateName);
+    if (auto aggregate = BuiltinRegistry_->FindAggregateFunction(aggregateName)) {
+        return aggregate;
+    } else if (auto aggregate = UdfRegistry_->FindAggregateFunction(aggregateName)) {
+        LOG_DEBUG("Found a cached implementation of function %Qv", aggregateName);
+        return aggregate;
+    } else {
+        LookupAndRegisterAggregate(aggregateName);
+        return UdfRegistry_->FindAggregateFunction(aggregateName);
+    }
+}
+
+void TCypressFunctionRegistry::LookupAndRegisterAggregate(const Stroka& aggregateName)
+{
+    const auto descriptorAttribute = "aggregate_descriptor";
+
+    auto aggregatePath = RegistryPath_ + "/" + ToYPathLiteral(to_lower(aggregateName));
+
+    auto cypressDescriptor = LookupDescriptor<TCypressAggregateDescriptorPtr>(
+        descriptorAttribute,
+        aggregateName,
+        aggregatePath,
+        Client_);
+
+    if (!cypressDescriptor) {
+        return;
+    }
+
+    auto implementationFile = ReadFile(
+        aggregatePath,
+        Client_);
+
+    UdfRegistry_->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+        aggregateName,
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        cypressDescriptor->ArgumentType.Type,
+        cypressDescriptor->ResultType.Type,
+        cypressDescriptor->StateType.Type,
+        implementationFile,
+        cypressDescriptor->CallingConvention));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

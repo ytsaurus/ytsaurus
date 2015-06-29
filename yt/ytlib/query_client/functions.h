@@ -19,6 +19,7 @@ struct IFunctionDescriptor
 
     virtual TCodegenExpression MakeCodegenExpr(
         std::vector<TCodegenExpression> codegenArgs,
+        std::vector<EValueType> argumentTypes,
         EValueType type,
         const Stroka& name) const = 0;
 
@@ -37,9 +38,18 @@ struct IAggregateFunctionDescriptor
 {
     virtual Stroka GetName() const = 0;
 
-    virtual TCodegenAggregateUpdate MakeCodegenAggregate(
-        EValueType type,
+    virtual const TCodegenAggregate MakeCodegenAggregate(
+        EValueType argumentType,
+        EValueType stateType,
+        EValueType resultType,
         const Stroka& name) const = 0;
+
+    virtual EValueType GetStateType(
+        EValueType type) const = 0;
+
+    virtual EValueType InferResultType(
+        EValueType argumentType,
+        const TStringBuf& source) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAggregateFunctionDescriptor)

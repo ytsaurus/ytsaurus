@@ -13,6 +13,7 @@ namespace NQueryClient {
 
 typedef std::function<TQueryStatistics(
     const TQueryPtr& query,
+    TGuid dataId,
     ISchemafulWriterPtr writer)> TExecuteQuery;
 
 ////////////////////////////////////////////////////////////////////////////////

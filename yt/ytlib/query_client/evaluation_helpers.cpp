@@ -134,13 +134,13 @@ bool UpdateAndCheckRowLimit(i64* limit, char* flag)
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,
     TConstExpressionPtr predicate,
-    const TTableSchema& selfTableSchema,
-    TExecuteQuery executeCallback)
+    const TTableSchema& selfTableSchema)
 {
     const auto& joinColumns = joinClause.JoinColumns;
     auto& foreignTableSchema = joinClause.ForeignTableSchema;
     auto& foreignKeyColumns = joinClause.ForeignKeyColumns;
     auto& joinedTableSchema = joinClause.JoinedTableSchema;
+    auto& foreignDataId = joinClause.ForeignDataId;
     auto foreignPredicate = ExtractPredicateForColumnSubset(predicate, foreignTableSchema);
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
@@ -153,7 +153,6 @@ TJoinEvaluator GetJoinEvaluator(
     for (const auto& column : foreignTableSchema.Columns()) {
         if (std::find(joinColumns.begin(), joinColumns.end(), column.Name) != joinColumns.end()) {
             projectClause->AddProjection(New<TReferenceExpression>(
-                NullSourceLocation,
                 column.Type,
                 column.Name),
                 column.Name);
@@ -163,7 +162,6 @@ TJoinEvaluator GetJoinEvaluator(
     for (const auto& column : foreignTableSchema.Columns()) {
         if (std::find(joinColumns.begin(), joinColumns.end(), column.Name) == joinColumns.end()) {
             projectClause->AddProjection(New<TReferenceExpression>(
-                NullSourceLocation,
                 column.Type,
                 column.Name),
                 column.Name);
@@ -175,97 +173,97 @@ TJoinEvaluator GetJoinEvaluator(
     std::vector<TConstExpressionPtr> joinKeyExprs;
     for (const auto& column : joinColumns) {
         joinKeyExprs.push_back(New<TReferenceExpression>(
-            NullSourceLocation,
             foreignTableSchema.GetColumnOrThrow(column).Type,
             column));
     }
+
+    auto subqueryTableSchema = subquery->GetTableSchema();
 
     std::vector<std::pair<bool, int>> columnMapping;
 
     for (const auto& column : joinedTableSchema.Columns()) {
         if (auto self = selfTableSchema.FindColumn(column.Name)) {
             columnMapping.emplace_back(true, selfTableSchema.GetColumnIndex(*self));
-        } else if (auto foreign = foreignTableSchema.FindColumn(column.Name)) {
-            columnMapping.emplace_back(false, foreignTableSchema.GetColumnIndex(*foreign));
+        } else if (auto foreign = subqueryTableSchema.FindColumn(column.Name)) {
+            columnMapping.emplace_back(false, subqueryTableSchema.GetColumnIndex(*foreign));
         } else {
             YUNREACHABLE();
         }        
     }
 
-    return [=, executeCallback = std::move(executeCallback)] (
-            TExecutionContext* executionContext,
-            ui64 (*groupHasher)(TRow),
-            char (*groupComparer)(TRow, TRow),
-            const std::vector<TRow>& keys,
-            const std::vector<TRow>& allRows,
-            std::vector<TRow>* joinedRows)
+    return [=] (
+        TExecutionContext* context,
+        ui64 (*groupHasher)(TRow),
+        char (*groupComparer)(TRow, TRow),
+        const std::vector<TRow>& keys,
+        const std::vector<TRow>& allRows,
+        std::vector<TRow>* joinedRows)
+    {
+        subquery->WhereClause = New<TInOpExpression>(
+            joinKeyExprs,
+            // TODO(babenko): fixme
+            TSharedRange<TRow>(MakeRange(keys), nullptr));
+
+        if (foreignPredicate) {
+            subquery->WhereClause = MakeAndExpression(
+                subquery->WhereClause,
+                foreignPredicate);
+        }
+
+        // Execute subquery.
+        NApi::IRowsetPtr rowset;
+
         {
-            subquery->WhereClause = New<TInOpExpression>(
-                NullSourceLocation,
-                joinKeyExprs,
-                // TODO(babenko): fixme
-                TSharedRange<TRow>(MakeRange(keys), nullptr));
+            ISchemafulWriterPtr writer;
+            TFuture<NApi::IRowsetPtr> rowsetFuture;
+            std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter();
+            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
 
-            if (foreignPredicate) {
-                subquery->WhereClause = MakeAndExpression(
-                    subquery->WhereClause,
-                    foreignPredicate);
+            auto statistics = context->ExecuteCallback(subquery, foreignDataId,  writer);
+            LOG_DEBUG("Remote subquery statistics %v", statistics);
+            *context->Statistics += statistics;
+
+            rowset = WaitFor(rowsetFuture).ValueOrThrow();
+        }
+
+        const auto& foreignRows = rowset->GetRows();
+
+        LOG_DEBUG("Got %v foreign rows", foreignRows.size());
+
+        TJoinLookupRows foreignLookup(
+            InitialGroupOpHashtableCapacity,
+            groupHasher,
+            groupComparer);
+
+        for (auto row : foreignRows) {
+            foreignLookup.insert(row);
+        }
+
+        // Join rowsets.
+        TRowBuilder rowBuilder;
+        for (auto row : allRows) {
+            rowBuilder.Reset();
+            for (const auto& column : joinColumns) {
+                rowBuilder.AddValue(row[selfTableSchema.GetColumnIndexOrThrow(column)]);
             }
 
-            // Execute subquery.
-            NApi::IRowsetPtr rowset;
-
-            {
-                ISchemafulWriterPtr writer;
-                TFuture<NApi::IRowsetPtr> rowsetFuture;
-                std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter();
-                NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
-
-                auto statistics = executeCallback(subquery, writer);
-                LOG_DEBUG("Remote subquery statistics %v", statistics);
-                *executionContext->Statistics += statistics;
-
-                rowset = WaitFor(rowsetFuture).ValueOrThrow();
-            }
-
-            const auto& foreignRows = rowset->GetRows();  
-
-            LOG_DEBUG("Got %v foreign rows", foreignRows.size());
-
-            TJoinLookupRows foreignLookup(
-                InitialGroupOpHashtableCapacity,
-                groupHasher,
-                groupComparer);
-
-            for (auto row : foreignRows) {
-                foreignLookup.insert(row);
-            }
-
-            // Join rowsets.
-            TRowBuilder rowBuilder;
-            for (auto row : allRows) {
+            auto equalRange = foreignLookup.equal_range(rowBuilder.GetRow());
+            for (auto it = equalRange.first; it != equalRange.second; ++it) {
                 rowBuilder.Reset();
-                for (const auto& column : joinColumns) {
-                    rowBuilder.AddValue(row[selfTableSchema.GetColumnIndexOrThrow(column)]);
+                auto foreignRow = *it;
+                for (auto columnIndex : columnMapping) {
+                    rowBuilder.AddValue(columnIndex.first ? row[columnIndex.second] : foreignRow[columnIndex.second]);
                 }
 
-                auto equalRange = foreignLookup.equal_range(rowBuilder.GetRow());
-                for (auto it = equalRange.first; it != equalRange.second; ++it) {
-                    rowBuilder.Reset();
-                    auto foreignRow = *it;
-                    for (auto columnIndex : columnMapping) {
-                        rowBuilder.AddValue(columnIndex.first ? row[columnIndex.second] : foreignRow[columnIndex.second]);
-                    }
-
-                    if (!UpdateAndCheckRowLimit(&executionContext->JoinRowLimit, &executionContext->StopFlag)) {
-                        executionContext->Statistics->IncompleteOutput = true;
-                        return;
-                    }
-
-                    joinedRows->push_back(executionContext->PermanentBuffer->Capture(rowBuilder.GetRow()));
+                if (!UpdateAndCheckRowLimit(&context->JoinRowLimit, &context->StopFlag)) {
+                    context->Statistics->IncompleteOutput = true;
+                    return;
                 }
+
+                joinedRows->push_back(context->PermanentBuffer->Capture(rowBuilder.GetRow()));
             }
-        };
+        }
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

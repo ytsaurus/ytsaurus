@@ -38,6 +38,7 @@
 #include <ytlib/tablet_client/public.h>
 
 #include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
 
 #include <server/data_node/block_store.h>
 #include <server/data_node/chunk.h>
@@ -128,28 +129,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteExecutor
-    : public IExecutor
-{
-public:
-    explicit TRemoteExecutor(TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
-    { }
-
-    virtual TFuture<TQueryStatistics> Execute(
-        TPlanFragmentPtr fragment,
-        ISchemafulWriterPtr writer) override
-    {
-        auto executor = Bootstrap_->GetMasterClient()->GetQueryExecutor();
-        return executor->Execute(fragment, std::move(writer));
-    }
-
-private:
-    TBootstrap* const Bootstrap_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TQueryExecutor
     : public IExecutor
 {
@@ -160,7 +139,6 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Evaluator_(New<TEvaluator>(Config_))
-        , RemoteExecutor_(New<TRemoteExecutor>(bootstrap))
         , FunctionRegistry_(Bootstrap_->GetMasterClient()->GetConnection()->GetFunctionRegistry())
         , ColumnEvaluatorCache_(Bootstrap_->GetMasterClient()->GetConnection()->GetColumnEvaluatorCache())
     { }
@@ -186,7 +164,6 @@ private:
     const TQueryAgentConfigPtr Config_;
     TBootstrap* const Bootstrap_;
     const TEvaluatorPtr Evaluator_;
-    const IExecutorPtr RemoteExecutor_;
     const IFunctionRegistryPtr FunctionRegistry_;
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
@@ -201,6 +178,17 @@ private:
     {
         auto Logger = BuildLogger(fragment->Query);
 
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto maybeUser = securityManager->GetAuthenticatedUser();
+
+        NApi::TClientOptions clientOptions;
+        if (maybeUser) {
+            clientOptions.User = maybeUser.Get();
+        }
+
+        auto remoteExecutor = Bootstrap_->GetMasterClient()->GetConnection()
+            ->CreateClient(clientOptions)->GetQueryExecutor();
+
         return CoordinateAndExecute(
             fragment,
             writer,
@@ -213,29 +201,40 @@ private:
 
                 LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
 
+                auto foreignExecuteCallback = [&] (
+                    const TQueryPtr& subquery,
+                    TGuid dataId,
+                    ISchemafulWriterPtr writer) -> TQueryStatistics
+                {
+                    LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
+
+                    auto planFragment = New<TPlanFragment>();
+                    planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+                    planFragment->Timestamp = fragment->Timestamp;
+                    planFragment->DataSources.push_back({
+                        dataId,
+                        {
+                            planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
+                            planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
+                        }});
+
+                    planFragment->Query = subquery;
+                    planFragment->VerboseLogging = fragment->VerboseLogging;
+
+                    auto subqueryResult = remoteExecutor->Execute(planFragment, writer);
+
+                    return WaitFor(subqueryResult)
+                        .ValueOrThrow();
+                };
+
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-                    .Run(subquery, mergingReader, pipe->GetWriter(), [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
-                        LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
-
-                        auto planFragment = New<TPlanFragment>();
-                        planFragment->Timestamp = fragment->Timestamp;
-                        planFragment->DataSources.push_back({
-                            fragment->ForeignDataId,
-                            {
-                                planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                                planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
-                            }});
-
-                        planFragment->Query = subquery;
-                        planFragment->VerboseLogging = fragment->VerboseLogging;
-
-                        auto subqueryResult = RemoteExecutor_->Execute(planFragment, writer);
-
-                        return WaitFor(subqueryResult)
-                            .ValueOrThrow();
-                    },
-                    FunctionRegistry_);
+                    .Run(
+                        subquery,
+                        mergingReader,
+                        pipe->GetWriter(),
+                        foreignExecuteCallback,
+                        FunctionRegistry_);
 
                 asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
@@ -256,7 +255,8 @@ private:
                 auto result = WaitFor(asyncQueryStatisticsOrError);
                 LOG_DEBUG(result, "Finished evaluating topQuery (TopQueryId: %v)", topQuery->Id);
                 return result.ValueOrThrow();
-            });
+            },
+            FunctionRegistry_);
     }
 
     TQueryStatistics DoExecute(
@@ -302,8 +302,12 @@ private:
 
         LOG_DEBUG("Grouping %v splits", splits.size());
 
-        for (int queryIndex = 1; queryIndex <= Config_->MaxSubqueries; ++queryIndex) {
-            int nextSplitOffset = queryIndex * splitCount / Config_->MaxSubqueries;
+        auto maxSubqueries = fragment->MaxSubqueries > 0
+            ? fragment->MaxSubqueries
+            : Config_->MaxSubqueries;
+
+        for (int queryIndex = 1; queryIndex <= maxSubqueries; ++queryIndex) {
+            int nextSplitOffset = queryIndex * splitCount / maxSubqueries;
             if (splitOffset != nextSplitOffset) {
                 groupedSplits.emplace_back(splits.begin() + splitOffset, splits.begin() + nextSplitOffset);
                 splitOffset = nextSplitOffset;

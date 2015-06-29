@@ -18,6 +18,8 @@
 #include <ytlib/new_table_client/table_consumer.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
+#include <ytlib/new_table_client/schemaful_reader_adapter.h>
+#include <ytlib/new_table_client/schemaful_writer_adapter.h>
 
 #include <ytlib/scheduler/statistics.h>
 
@@ -26,6 +28,11 @@
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/cgroup/cgroup.h>
+
+#include <ytlib/query_client/public.h>
+#include <ytlib/query_client/evaluator.h>
+#include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/query_statistics.h>
 
 #include <core/pipes/async_reader.h>
 #include <core/pipes/async_writer.h>
@@ -40,6 +47,8 @@
 #include <core/tools/tools.h>
 
 #include <core/concurrency/action_queue.h>
+
+#include <core/misc/public.h>
 
 #include <util/folder/dirut.h>
 
@@ -61,8 +70,10 @@ using namespace NJobAgent;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NPipes;
+using namespace NQueryClient;
 
 using NJobTrackerClient::NProto::TJobResult;
+using NJobTrackerClient::NProto::TJobSpec;
 using NScheduler::NProto::TUserJobSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,13 +181,13 @@ public:
 
     virtual double GetProgress() const override
     {
-        i64 total = 0;
-        i64 current = 0;
-
-        for (const auto& reader : JobIO_->GetReaders()) {
-            total += reader->GetTotalRowCount();
-            current += reader->GetSessionRowIndex();
+        const auto& reader = JobIO_->GetReader();
+        if (!reader) {
+            return 0;
         }
+
+        i64 total = reader->GetTotalRowCount();
+        i64 current = reader->GetSessionRowIndex();
 
         if (total == 0) {
             return 0.0;
@@ -188,7 +199,8 @@ public:
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
         std::vector<TChunkId> failedChunks;
-        for (const auto& reader : JobIO_->GetReaders()) {
+        const auto& reader = JobIO_->GetReader();
+        if (reader) {
             auto chunks = reader->GetFailedChunkIds();
             failedChunks.insert(failedChunks.end(), chunks.begin(), chunks.end());
         }
@@ -470,7 +482,7 @@ private:
     int GetMaxReservedDescriptor() const
     {
         int outputCount = JobIO_->GetWriters().size();
-        int inputCount = JobIO_->GetReaders().size();
+        int inputCount = 1;
 
         if (UserJobSpec_.use_yamr_descriptors()) {
             return 2 + outputCount;
@@ -543,34 +555,24 @@ private:
         return asyncInput;
     }
 
-    void PrepareInputTablePipe(
-        TPipe&& pipe,
+    void PrepareInputActionsPassthrough(
         int jobDescriptor,
-        ISchemalessMultiChunkReaderPtr reader,
-        const TFormat& format)
+        const TFormat& format,
+        TAsyncWriterPtr asyncOutput)
     {
-
-        Process_.AddDup2FileAction(pipe.GetReadFD(), jobDescriptor);
-
-        Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
-
-        auto asyncOutput = pipe.CreateAsyncWriter();
-        TablePipeWriters_.push_back(asyncOutput);
-        auto output = CreateSyncAdapter(asyncOutput);
-        auto bufferRowCount = Config_->JobIO->BufferRowCount;
-
+        JobIO_->CreateReader();
+        const auto& reader = JobIO_->GetReader();
         auto writer = CreateSchemalessWriterForFormat(
             format,
             reader->GetNameTable(),
-            std::move(output),
+            CreateSyncAdapter(asyncOutput),
             true,
             Config_->JobIO->ControlAttributes->EnableKeySwitch,
             reader->GetKeyColumns().size());
 
         FormatWriters_.push_back(writer);
 
-        // NB: we do not bother to close it. Anyway, job proxy process would not live long.
-        auto readFD = pipe.ReleaseReadFD();
+        auto bufferRowCount = Config_->JobIO->BufferRowCount;
 
         InputActions_.push_back(BIND([=] () {
             try {
@@ -588,6 +590,77 @@ private:
                         << ex;
             }
         }));
+    }
+
+    void PrepareInputActionsQuery(
+        TSchedulerJobSpecExt& spec,
+        int jobDescriptor,
+        const TFormat& format,
+        TAsyncWriterPtr asyncOutput)
+    {
+        auto writerFactory = [=] (TNameTablePtr nameTable) {
+            YCHECK(!JobIO_->IsKeySwitchEnabled());
+
+            auto writer = CreateSchemalessWriterForFormat(
+                format,
+                nameTable,
+                CreateSyncAdapter(asyncOutput),
+                true,
+                Config_->JobIO->EnableInputTableIndex,
+                JobIO_->IsKeySwitchEnabled(),
+                0);
+
+            FormatWriters_.push_back(writer);
+
+            return writer;
+        };
+
+        auto reader = CreateSchemafulReaderAdapter(JobIO_->GetReaderFactory());
+        auto writer = CreateSchemafulWriterAdapter(writerFactory);
+
+        InputActions_.push_back(BIND([=] () {
+            try {
+                auto registry = CreateBuiltinFunctionRegistry();
+                auto queryString = FromProto<Stroka>(spec.input_query());
+                auto schema = FromProto<TTableSchema>(spec.input_schema());
+                auto query = PrepareJobQuery(queryString, schema, registry.Get());
+                auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
+                evaluator->Run(query, reader, writer, registry);
+                WaitFor(asyncOutput->Close())
+                    .ThrowOnError();
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Query evaluation failed")
+                    << TErrorAttribute("fd", jobDescriptor)
+                    << ex;
+            }
+        }));
+    }
+
+    void PrepareInputTablePipe(TPipeFactory* pipeFactory)
+    {
+        YCHECK(pipeFactory);
+        auto pipe = pipeFactory->Create();
+        int jobDescriptor = 0;
+
+        Process_.AddDup2FileAction(pipe.GetReadFD(), jobDescriptor);
+        Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
+
+        auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
+        auto asyncOutput = pipe.CreateAsyncWriter();
+        TablePipeWriters_.push_back(asyncOutput);
+
+        // NB: we do not bother to close it. Anyway, job proxy process would not live long.
+        auto readFD = pipe.ReleaseReadFD();
+
+        auto host = Host.Lock();
+        YCHECK(host);
+
+        auto jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        if (jobSpec.has_input_query()) {
+            PrepareInputActionsQuery(jobSpec, jobDescriptor, format, asyncOutput);
+        } else {
+            PrepareInputActionsPassthrough(jobDescriptor, format, asyncOutput);
+        }
 
         if (!UserJobSpec_.check_input_fully_consumed()) {
             return;
@@ -603,19 +676,6 @@ private:
             }
             YCHECK(TryClose(readFD, false));
         }, readFD));
-    }
-
-    void PrepareInputTablePipes(TPipeFactory* pipeFactory)
-    {
-        YCHECK(pipeFactory);
-        auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
-        const auto& readers = JobIO_->GetReaders();
-
-        YCHECK(!UserJobSpec_.use_yamr_descriptors() || readers.size() == 1);
-
-        for (int i = 0; i < readers.size(); ++i) {
-            PrepareInputTablePipe(pipeFactory->Create(), 3 * i, readers[i], format);
-        }
     }
 
     void PreparePipes()
@@ -661,7 +721,7 @@ private:
             PrepareOutputPipe(pipeFactory.Create(), JobStatisticsFD, CreateStatisticsOutput());
         }
 
-        PrepareInputTablePipes(&pipeFactory);
+        PrepareInputTablePipe(&pipeFactory);
 
         // Close reserved descriptors.
         pipeFactory.Clear();
@@ -737,7 +797,10 @@ private:
 
     void FillCurrentDataStatistics(TStatistics& statistics) const
     {
-        statistics.AddComplex("/data/input", GetDataStatistics(JobIO_->GetReaders()));
+        const auto& reader = JobIO_->GetReader();
+        if (reader) {
+            statistics.AddComplex("/data/input", reader->GetDataStatistics());
+        }
 
         int i = 0;
         for (const auto& writer : JobIO_->GetWriters()) {

@@ -83,8 +83,20 @@ DEFINE_REFCOUNTED_TYPE(TClientContext)
 class TClientRequest
     : public IClientRequest
 {
+protected:
+    NProto::TRequestHeader Header_;
+
 public:
-    DEFINE_BYREF_RW_PROPERTY(NProto::TRequestHeader, Header);
+    virtual NProto::TRequestHeader& Header() override
+    {
+        return Header_;
+    }
+
+    virtual const NProto::TRequestHeader& Header() const override
+    {
+        return Header_;
+    }
+
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck);

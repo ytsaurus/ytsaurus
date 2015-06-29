@@ -31,14 +31,14 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/savrus/dev/yt/jobql/yt/ytlib/query_client/parser.hpp
+ ** \file /home/lukyan/yt/src/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::NAst::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_JOBQL_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_JOBQL_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
 
     #include "ast.h"
@@ -289,7 +289,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // "string literal"
       char dummy3[sizeof(Stroka)];
 
-      // where-clause-impl
       // expression
       // or-op-expr
       // and-op-expr
@@ -302,38 +301,35 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // atomic-expr
       char dummy4[sizeof(TExpressionPtr)];
 
-      // order-by-clause-impl
       // identifier-list
       char dummy5[sizeof(TIdentifierList)];
 
-      // named-expression
-      char dummy6[sizeof(TNamedExpression)];
-
-      // group-by-clause-impl
-      // named-expression-list
-      char dummy7[sizeof(TNamedExpressionList)];
-
-      // select-clause-impl
-      char dummy8[sizeof(TNullableNamedExpressionList)];
-
-      // "identifier"
-      char dummy9[sizeof(TStringBuf)];
-
-      // literal-expr
-      char dummy10[sizeof(TUnversionedValue)];
-
       // literal-list
       // literal-tuple
-      char dummy11[sizeof(TValueList)];
+      char dummy6[sizeof(TLiteralValueList)];
 
       // literal-tuple-list
-      char dummy12[sizeof(TValueTupleList)];
+      char dummy7[sizeof(TLiteralValueTupleList)];
+
+      // named-expression
+      char dummy8[sizeof(TNamedExpression)];
+
+      // named-expression-list
+      char dummy9[sizeof(TNamedExpressionList)];
+
+      // literal-value
+      char dummy10[sizeof(TNullable<TLiteralValue>)];
+
+      // "identifier"
+      char dummy11[sizeof(TStringBuf)];
+
+      // table-descriptor
+      char dummy12[sizeof(TTableDescriptor)];
 
       // "double literal"
       char dummy13[sizeof(double)];
 
       // "int64 literal"
-      // limit-clause-impl
       char dummy14[sizeof(i64)];
 
       // "uint64 literal"
@@ -367,24 +363,25 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         StrayWillParseExpression = 997,
         KwFrom = 1002,
         KwWhere = 1003,
-        KwLimit = 1004,
-        KwJoin = 1005,
-        KwUsing = 1006,
-        KwGroupBy = 1007,
-        KwOrderBy = 1008,
-        KwAs = 1009,
-        KwAnd = 1010,
-        KwOr = 1011,
-        KwNot = 1012,
-        KwBetween = 1013,
-        KwIn = 1014,
-        KwFalse = 1015,
-        KwTrue = 1016,
-        Identifier = 1017,
-        Int64Literal = 1018,
-        Uint64Literal = 1019,
-        DoubleLiteral = 1020,
-        StringLiteral = 1021,
+        KwHaving = 1004,
+        KwLimit = 1005,
+        KwJoin = 1006,
+        KwUsing = 1007,
+        KwGroupBy = 1008,
+        KwOrderBy = 1009,
+        KwAs = 1010,
+        KwAnd = 1011,
+        KwOr = 1012,
+        KwNot = 1013,
+        KwBetween = 1014,
+        KwIn = 1015,
+        KwFalse = 1016,
+        KwTrue = 1017,
+        Identifier = 1018,
+        Int64Literal = 1019,
+        Uint64Literal = 1020,
+        DoubleLiteral = 1021,
+        StringLiteral = 1022,
         OpModulo = 37,
         LeftParenthesis = 40,
         RightParenthesis = 41,
@@ -394,11 +391,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         OpMinus = 45,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1022,
+        OpLessOrEqual = 1023,
         OpEqual = 61,
-        OpNotEqual = 1023,
+        OpNotEqual = 1024,
         OpGreater = 62,
-        OpGreaterOrEqual = 1024
+        OpGreaterOrEqual = 1025
       };
     };
 
@@ -443,19 +440,19 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   basic_symbol (typename Base::kind_type t, const TIdentifierList v, const location_type& l);
 
+  basic_symbol (typename Base::kind_type t, const TLiteralValueList v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TLiteralValueTupleList v, const location_type& l);
+
   basic_symbol (typename Base::kind_type t, const TNamedExpression v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNamedExpressionList v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TNullableNamedExpressionList v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TUnversionedValue v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TValueList v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TValueTupleList v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TTableDescriptor v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const double v, const location_type& l);
 
@@ -548,6 +545,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     static inline
     symbol_type
     make_KwWhere (const location_type& l);
+
+    static inline
+    symbol_type
+    make_KwHaving (const location_type& l);
 
     static inline
     symbol_type
@@ -679,7 +680,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
     /// Build a parser object.
-    TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, TRowBufferPtr rowBuffer_yyarg, const Stroka& source_yyarg);
+    TParser (TLexer& lexer_yyarg, TAstHead* head_yyarg, const Stroka& source_yyarg);
     virtual ~TParser ();
 
     /// Parse.
@@ -762,7 +763,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const unsigned char yytable_[];
 
-  static const signed char yycheck_[];
+  static const unsigned char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -877,20 +878,19 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 133,     ///< Last index in yytable_.
-      yynnts_ = 37,  ///< Number of nonterminal symbols.
+      yylast_ = 129,     ///< Last index in yytable_.
+      yynnts_ = 35,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 37, ///< Termination state number.
+      yyfinal_ = 36, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 41  ///< Number of tokens.
+      yyntokens_ = 42  ///< Number of tokens.
     };
 
 
     // User arguments.
     TLexer& lexer;
     TAstHead* head;
-    TRowBufferPtr rowBuffer;
     const Stroka& source;
   };
 
@@ -900,4 +900,4 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
 
-#endif // !YY_YT_QL_YY_HOME_SAVRUS_DEV_YT_JOBQL_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED

@@ -41,7 +41,7 @@ static const int PlanFragmentDepthLimit = 50;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka InferName(TConstExpressionPtr expr)
+Stroka InferName(TConstExpressionPtr expr, bool omitValues)
 {
     bool newTuple = true;
     auto comma = [&] {
@@ -59,27 +59,29 @@ Stroka InferName(TConstExpressionPtr expr)
     if (!expr) {
         return Stroka();
     } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        return ToString(static_cast<TUnversionedValue>(literalExpr->Value));
+        return omitValues
+            ? ToString("?")
+            : ToString(static_cast<TUnversionedValue>(literalExpr->Value));
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         return referenceExpr->ColumnName;
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         auto str = functionExpr->FunctionName + "(";
         for (const auto& argument : functionExpr->Arguments) {
-            str += comma() + InferName(argument);
+            str += comma() + InferName(argument, omitValues);
         }
         return str + ")";
     } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-        auto rhsName = InferName(unaryOp->Operand);
+        auto rhsName = InferName(unaryOp->Operand, omitValues);
         if (!canOmitParenthesis(unaryOp->Operand)) {
             rhsName = "(" + rhsName + ")";
         }
         return Stroka() + GetUnaryOpcodeLexeme(unaryOp->Opcode) + " " + rhsName;
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        auto lhsName = InferName(binaryOp->Lhs);
+        auto lhsName = InferName(binaryOp->Lhs, omitValues);
         if (!canOmitParenthesis(binaryOp->Lhs)) {
             lhsName = "(" + lhsName + ")";
         }
-        auto rhsName = InferName(binaryOp->Rhs);
+        auto rhsName = InferName(binaryOp->Rhs, omitValues);
         if (!canOmitParenthesis(binaryOp->Rhs)) {
             rhsName = "(" + rhsName + ")";
         }
@@ -90,15 +92,19 @@ Stroka InferName(TConstExpressionPtr expr)
     } else if (auto inOp = expr->As<TInOpExpression>()) {
         Stroka str;
         for (const auto& argument : inOp->Arguments) {
-            str += comma() + InferName(argument);
+            str += comma() + InferName(argument, omitValues);
         }
         if (inOp->Arguments.size() > 1) {
             str = "(" + str + ")";
         }
         str += " IN (";
-        newTuple = true;
-        for (const auto& row : inOp->Values) {
-            str += comma() + ToString(row);
+        if (omitValues) {
+            str += "??";
+        } else {
+            newTuple = true;
+            for (const auto& row : inOp->Values) {
+                str += comma() + ToString(row);
+            }
         }
         return str + ")";
     } else {
@@ -106,10 +112,10 @@ Stroka InferName(TConstExpressionPtr expr)
     }
 }
 
-Stroka InferName(TConstQueryPtr query)
+Stroka InferName(TConstQueryPtr query, bool omitValues)
 {
-    auto namedItemFormatter = [] (const TNamedItem& item) {
-        return InferName(item.Expression) + " AS " + item.Name;
+    auto namedItemFormatter = [=] (const TNamedItem& item) {
+        return InferName(item.Expression, omitValues) + " AS " + item.Name;
     };
 
     std::vector<Stroka> clauses;
@@ -123,12 +129,16 @@ Stroka InferName(TConstQueryPtr query)
     clauses.emplace_back("SELECT " + str);
 
     if (query->WhereClause) {
-        str = InferName(query->WhereClause);
+        str = InferName(query->WhereClause, omitValues);
         clauses.push_back(Stroka("WHERE ") + str);
     }
     if (query->GroupClause) {
         str = JoinToString(query->GroupClause->GroupItems, namedItemFormatter);
         clauses.push_back(Stroka("GROUP BY ") + str);
+    }
+    if (query->HavingClause) {
+        str = InferName(query->HavingClause, omitValues);
+        clauses.push_back(Stroka("HAVING ") + str);
     }
     if (query->OrderClause) {
         str = JoinToString(query->OrderClause->OrderColumns);
@@ -335,10 +345,11 @@ protected:
             result.insert(result.end(), typedLhsExprs.begin(), typedLhsExprs.end());
             result.insert(result.end(), typedRhsExprs.begin(), typedRhsExprs.end());
         } else if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
+            const auto& literalValue = literalExpr->Value;
+
             result.push_back(New<TLiteralExpression>(
-                literalExpr->SourceLocation,
-                EValueType(literalExpr->Value.Type),
-                literalExpr->Value));
+                GetType(literalValue),
+                GetValue(literalValue)));
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
             const auto* column = GetColumnPtr(referenceExpr->ColumnName);
             if (!column) {
@@ -346,7 +357,6 @@ protected:
             }
 
             result.push_back(New<TReferenceExpression>(
-                referenceExpr->SourceLocation,
                 column->Type,
                 referenceExpr->ColumnName));
         } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
@@ -365,7 +375,6 @@ protected:
                         functionRegistry);
 
                     result.push_back(New<TReferenceExpression>(
-                        NullSourceLocation,
                         aggregateColumn->Type,
                         aggregateColumn->Name));
 
@@ -384,7 +393,6 @@ protected:
                 }
 
                 result.push_back(New<TFunctionExpression>(
-                    functionExpr->SourceLocation,
                     InferFunctionExprType(functionName, types, functionExpr->GetSource(source), functionRegistry),
                     functionName,
                     typedOperands));
@@ -397,7 +405,6 @@ protected:
                     result.push_back(foldedExpr);
                 } else {
                     result.push_back(New<TUnaryOpExpression>(
-                        unaryExpr->SourceLocation,
                         InferUnaryExprType(
                             unaryExpr->Opcode,
                             operand->Type,
@@ -415,7 +422,7 @@ protected:
                 if (auto foldedExpr = FoldConstants(binaryExpr, lhs, rhs)) {
                     return foldedExpr;
                 } else {
-                    return New<TBinaryOpExpression>(binaryExpr->SourceLocation, type, op, lhs, rhs);
+                    return New<TBinaryOpExpression>(type, op, lhs, rhs);
                 }
             };
 
@@ -488,7 +495,6 @@ protected:
 
             auto capturedRows = TupleListsToRows(inExpr->Values, argTypes, inExpr->GetSource(source));
             result.push_back(New<TInOpExpression>(
-                inExpr->SourceLocation,
                 std::move(inExprOperands),
                 std::move(capturedRows)));
         }
@@ -503,27 +509,24 @@ protected:
         {
             return expr;
         } else if (auto inExpr = expr->As<TInOpExpression>()) {
-            TArguments propagatedArgumenst;
+            std::vector<TConstExpressionPtr> propagatedArgumenst;
             for (auto argument : inExpr->Arguments) {
                 propagatedArgumenst.push_back(PropagateNotExpression(argument));
             }
             return New<TInOpExpression>(
-                inExpr->SourceLocation,
                 std::move(propagatedArgumenst),
                 inExpr->Values);
         } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-            TArguments propagatedArgumenst;
+            std::vector<TConstExpressionPtr> propagatedArgumenst;
             for (auto argument : functionExpr->Arguments) {
                 propagatedArgumenst.push_back(PropagateNotExpression(argument));
             }
             return New<TFunctionExpression>(
-                functionExpr->SourceLocation,
                 functionExpr->Type,
                 functionExpr->FunctionName,
                 std::move(propagatedArgumenst));
         } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
             return New<TBinaryOpExpression>(
-                binaryOp->SourceLocation,
                 binaryOp->Type,
                 binaryOp->Opcode,
                 PropagateNotExpression(binaryOp->Lhs),
@@ -539,30 +542,25 @@ protected:
                     if (operandBinaryOp->Opcode == EBinaryOp::And) {
                         return PropagateNotExpression(MakeOrExpression(
                             New<TUnaryOpExpression>(
-                                operandBinaryOp->Lhs->SourceLocation,
                                 operandBinaryOp->Lhs->Type,
                                 EUnaryOp::Not,
                                 operandBinaryOp->Lhs),
                             New<TUnaryOpExpression>(
-                                operandBinaryOp->Rhs->SourceLocation,
                                 operandBinaryOp->Rhs->Type,
                                 EUnaryOp::Not,
                                 operandBinaryOp->Rhs)));
                     } else if (operandBinaryOp->Opcode == EBinaryOp::Or) {
                         return PropagateNotExpression(MakeAndExpression(
                             New<TUnaryOpExpression>(
-                                operandBinaryOp->Lhs->SourceLocation,
                                 operandBinaryOp->Lhs->Type,
                                 EUnaryOp::Not,
                                 operandBinaryOp->Lhs),
                             New<TUnaryOpExpression>(
-                                operandBinaryOp->Rhs->SourceLocation,
                                 operandBinaryOp->Rhs->Type,
                                 EUnaryOp::Not,
                                 operandBinaryOp->Rhs)));
-                    } else if (IsBinaryOpCompare(operandBinaryOp->Opcode)) {
+                    } else if (IsRelationalBinaryOp(operandBinaryOp->Opcode)) {
                         return PropagateNotExpression(New<TBinaryOpExpression>(
-                            operandBinaryOp->SourceLocation,
                             operandBinaryOp->Type,
                             GetInversedBinaryOpcode(operandBinaryOp->Opcode),
                             operandBinaryOp->Lhs,
@@ -572,13 +570,11 @@ protected:
                     TUnversionedValue value = literal->Value;
                     value.Data.Boolean = !value.Data.Boolean;
                     return New<TLiteralExpression>(
-                        literal->SourceLocation,
                         literal->Type,
                         value);
                 }
             }
             return New<TUnaryOpExpression>(
-                unaryOp->SourceLocation,
                 unaryOp->Type,
                 unaryOp->Opcode,
                 PropagateNotExpression(operand));
@@ -602,16 +598,53 @@ protected:
 
         TNullable<Stroka> result;
 
-        if (functionRegistry->FindAggregateFunction(name))
-        {
+        if (functionRegistry->FindAggregateFunction(name)) {
             result.Assign(name);
         }
 
         return result;
     };
 
+    static EValueType GetType(const NAst::TLiteralValue& literalValue)
+    {
+        switch (literalValue.Tag()) {
+            case NAst::TLiteralValue::TagOf<i64>():
+                return EValueType::Int64;
+            case NAst::TLiteralValue::TagOf<ui64>():
+                return EValueType::Uint64;
+            case NAst::TLiteralValue::TagOf<double>():
+                return EValueType::Double;
+            case NAst::TLiteralValue::TagOf<bool>():
+                return EValueType::Boolean;
+            case NAst::TLiteralValue::TagOf<Stroka>():
+                return EValueType::String;
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    static TValue GetValue(const NAst::TLiteralValue& literalValue)
+    {
+        switch (literalValue.Tag()) {
+            case NAst::TLiteralValue::TagOf<i64>():
+                return MakeUnversionedInt64Value(literalValue.As<i64>());
+            case NAst::TLiteralValue::TagOf<ui64>():
+                return MakeUnversionedUint64Value(literalValue.As<ui64>());
+            case NAst::TLiteralValue::TagOf<double>():
+                return MakeUnversionedDoubleValue(literalValue.As<double>());
+            case NAst::TLiteralValue::TagOf<bool>():
+                return MakeUnversionedBooleanValue(literalValue.As<bool>());
+            case NAst::TLiteralValue::TagOf<Stroka>():
+                return MakeUnversionedStringValue(
+                    literalValue.As<Stroka>().c_str(),
+                    literalValue.As<Stroka>().length());
+            default:
+                YUNREACHABLE();
+        }
+    }
+
     static TSharedRange<TRow> TupleListsToRows(
-        const NAst::TValueTupleList& literalTuples,
+        const NAst::TLiteralValueTupleList& literalTuples,
         const std::vector<EValueType>& argTypes,
         const TStringBuf& source)
     {
@@ -625,14 +658,14 @@ protected:
             }
 
             for (int i = 0; i < tuple.size(); ++i) {
-                if (tuple[i].Type != argTypes[i]) {
+                if (GetType(tuple[i]) != argTypes[i]) {
                     THROW_ERROR_EXCEPTION("IN operator types mismatch")
                         << TErrorAttribute("source", source)
                         << TErrorAttribute("expected", argTypes[i])
-                        << TErrorAttribute("actual", tuple[i].Type);
+                        << TErrorAttribute("actual", GetType(tuple[i]));
                 }
 
-                rowBuilder.AddValue(tuple[i]);
+                rowBuilder.AddValue(GetValue(tuple[i]));
             }
             rows.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
             rowBuilder.Reset();
@@ -672,10 +705,7 @@ protected:
         };
 
         if (auto value = foldConstants(unaryExpr->Opcode, operand)) {
-            return New<TLiteralExpression>(
-                unaryExpr->SourceLocation,
-                EValueType(value->Type),
-                *value);
+            return New<TLiteralExpression>(EValueType(value->Type), *value);
         }
 
         return TConstExpressionPtr();
@@ -831,10 +861,7 @@ protected:
         };
 
         if (auto value = foldConstants(binaryExpr->Opcode, lhsExpr, rhsExpr)) {
-            return New<TLiteralExpression>(
-                binaryExpr->SourceLocation,
-                EValueType(value->Type),
-                *value);
+            return New<TLiteralExpression>(EValueType(value->Type), *value);
         }
 
         if (binaryExpr->Opcode == EBinaryOp::Divide) {
@@ -863,12 +890,10 @@ protected:
 
                     auto makeBinaryExpr = [&] (TUnversionedValue divisor) {
                         return New<TBinaryOpExpression>(
-                            binaryExpr->SourceLocation,
                             divisor.Type,
                             EBinaryOp::Divide,
                             lhsBinaryExpr->Lhs,
                             New<TLiteralExpression>(
-                                rhsLiteralExpr->SourceLocation,
                                 divisor.Type,
                                 divisor));
                     };
@@ -935,7 +960,7 @@ public:
         return column;
     }
 
-    virtual void Finish()
+    virtual void Finish() override
     {
         if (SourceTableSchema_) {
             for (const auto& column : SourceTableSchema_->Columns()) {
@@ -984,7 +1009,7 @@ public:
         return column;
     }
 
-    virtual void Finish()
+    virtual void Finish() override
     {
         Self_->Finish();
         Foreign_->Finish();
@@ -992,15 +1017,11 @@ public:
         auto tableSchema = GetTableSchema();
 
         for (const auto& column : Self_->GetTableSchema()->Columns()) {
-            if (!tableSchema->FindColumn(column.Name)) {
-                AddColumn(tableSchema, column);
-            }
+            GetColumnPtr(column.Name);
         }
 
         for (const auto& column : Foreign_->GetTableSchema()->Columns()) {
-            if (!tableSchema->FindColumn(column.Name)) {
-                AddColumn(tableSchema, column);
-            }
+            GetColumnPtr(column.Name);
         }
     }
 
@@ -1033,7 +1054,7 @@ public:
         const NAst::TExpression* arguments,
         Stroka subexprName,
         Stroka source,
-        IFunctionRegistry* functionRegistry)
+        IFunctionRegistry* functionRegistry) override
     {
         const TColumnSchema* aggregateColumn = GetTableSchema()->FindColumn(subexprName);
 
@@ -1049,14 +1070,23 @@ public:
                     aggregateFunction);
             }
 
+            auto descriptor = functionRegistry
+                ->GetAggregateFunction(aggregateFunction);
+            auto stateType = descriptor
+                ->GetStateType(typedOperands.front()->Type);
+            auto resultType = descriptor
+                ->InferResultType(typedOperands.front()->Type, source);
+
             CheckExpressionDepth(typedOperands.front());
 
             AggregateItems_->emplace_back(
                 typedOperands.front(),
                 aggregateFunction,
-                subexprName);
+                subexprName,
+                stateType,
+                resultType);
 
-            aggregateColumn = AddColumn(GetTableSchema(), TColumnSchema(subexprName, typedOperands.front()->Type));
+            aggregateColumn = AddColumn(GetTableSchema(), TColumnSchema(subexprName, resultType));
         }
 
         return aggregateColumn;
@@ -1106,6 +1136,8 @@ TConstGroupClausePtr BuildGroupClause(
     IFunctionRegistry* functionRegistry)
 {
     auto groupClause = New<TGroupClause>();
+    groupClause->IsMerge = false;
+    groupClause->IsFinal = true;
     TTableSchema& tableSchema = groupClause->GroupedTableSchema;
 
     for (const auto& expr : expressionsAst.Get()) {
@@ -1128,6 +1160,37 @@ TConstGroupClausePtr BuildGroupClause(
     schemaProxy = New<TGroupSchemaProxy>(&tableSchema, std::move(schemaProxy), &groupClause->AggregateItems);
 
     return groupClause;
+}
+
+TConstExpressionPtr BuildHavingClause(
+    NAst::TExpressionPtr& expressionAst,
+    const Stroka& source,
+    const TSchemaProxyPtr& schemaProxy,
+    IFunctionRegistry* functionRegistry)
+{
+    auto typedPredicate = schemaProxy->BuildTypedExpression(
+        expressionAst.Get(),
+        source,
+        functionRegistry);
+
+    if (typedPredicate.size() != 1) {
+        THROW_ERROR_EXCEPTION("Expecting scalar expression")
+            << TErrorAttribute("source", expressionAst->GetSource(source));
+    }
+
+    auto predicate = typedPredicate.front();
+
+    CheckExpressionDepth(predicate);
+
+    auto actualType = predicate->Type;
+    EValueType expectedType(EValueType::Boolean);
+    if (actualType != expectedType) {
+        THROW_ERROR_EXCEPTION("HAVING-clause is not a boolean expression")
+            << TErrorAttribute("actual_type", actualType)
+            << TErrorAttribute("expected_type", expectedType);
+    }
+
+    return predicate;
 }
 
 TConstProjectClausePtr BuildProjectClause(
@@ -1176,6 +1239,13 @@ void PrepareQuery(
         query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy, functionRegistry);
     }
 
+    if (ast.HavingPredicate) {
+        if (!query->GroupClause) {
+            THROW_ERROR_EXCEPTION("Expected GROUP BY before HAVING");
+        }
+        query->HavingClause = BuildHavingClause(ast.HavingPredicate, source, schemaProxy, functionRegistry);
+    }
+
     if (ast.OrderFields) {
         auto orderClause = New<TOrderClause>();
         orderClause->OrderColumns = ast.OrderFields.Get();
@@ -1191,12 +1261,11 @@ void PrepareQuery(
 
 void ParseYqlString(
     NAst::TAstHead* astHead,
-    TRowBufferPtr rowBuffer,
     const Stroka& source,
     NAst::TParser::token::yytokentype strayToken)
 {
     NAst::TLexer lexer(source, strayToken);
-    NAst::TParser parser(lexer, astHead, rowBuffer, source);
+    NAst::TParser parser(lexer, astHead, source);
 
     int result = parser.parse();
 
@@ -1215,58 +1284,44 @@ TPlanFragmentPtr PreparePlanFragment(
     TTimestamp timestamp)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
-    auto rowBuffer = New<TRowBuffer>();
     ParseYqlString(
         &astHead,
-        rowBuffer,
         source,
         NAst::TParser::token::StrayWillParseQuery);
 
     auto& ast = astHead.As<NAst::TQuery>();
     
     TDataSplit selfDataSplit;
-    TDataSplit foreignDataSplit;
 
     auto query = New<TQuery>(inputRowLimit, outputRowLimit, TGuid::Create());
     TSchemaProxyPtr schemaProxy;
-    
-    if (auto simpleSource = ast.Source->As<NAst::TSimpleSource>()) {
-        LOG_DEBUG("Getting initial data split for %v", simpleSource->Path);
 
-        selfDataSplit = WaitFor(callbacks->GetInitialSplit(simpleSource->Path, timestamp)).ValueOrThrow();
-        auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
-        auto keyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
+    auto table = ast.Table;
+    LOG_DEBUG("Getting initial data split for %v", table.Path);
 
-        query->KeyColumns = keyColumns;
-        schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema, keyColumns.size());
-    } else if (auto joinSource = ast.Source->As<NAst::TJoinSource>()) {
-        LOG_DEBUG("Getting initial data split for %v and %v", joinSource->LeftPath, joinSource->RightPath);
+    selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp)).ValueOrThrow();
+    auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
+    auto keyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
 
-        std::vector<TFuture<TDataSplit>> splitFutures({
-            callbacks->GetInitialSplit(joinSource->LeftPath, timestamp),
-            callbacks->GetInitialSplit(joinSource->RightPath, timestamp)
-        });
+    query->KeyColumns = keyColumns;
+    schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema, keyColumns.size());
 
-        auto splits = WaitFor(Combine<TDataSplit>(splitFutures)).ValueOrThrow();
+    for (const auto& join : ast.Joins) {
+        auto foreignDataSplit = WaitFor(callbacks->GetInitialSplit(join.Table.Path, timestamp)).ValueOrThrow();
 
-        selfDataSplit = splits[0];
-        auto selfTableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
-        auto selfKeyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
-
-        foreignDataSplit = splits[1];
         auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
         auto foreignKeyColumns = GetKeyColumnsFromDataSplit(foreignDataSplit);
 
         auto joinClause = New<TJoinClause>();
-        
-        const auto& joinFields = joinSource->Fields;
-        joinClause->JoinColumns = joinFields;
+        joinClause->JoinColumns = join.Fields;
+        joinClause->ForeignKeyColumns = foreignKeyColumns;
+        joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
 
-        auto selfSourceProxy = New<TSimpleSchemaProxy>(&query->TableSchema, selfTableSchema, selfKeyColumns.size());
         auto foreignSourceProxy = New<TSimpleSchemaProxy>(&joinClause->ForeignTableSchema, foreignTableSchema, foreignKeyColumns.size());
+
         // Merge columns.
-        for (const auto& name : joinFields) {
-            const auto* selfColumn = selfSourceProxy->GetColumnPtr(name);
+        for (const auto& name : join.Fields) {
+            const auto* selfColumn = schemaProxy->GetColumnPtr(name);
             const auto* foreignColumn = foreignSourceProxy->GetColumnPtr(name);
 
             if (!selfColumn || !foreignColumn) {
@@ -1284,14 +1339,10 @@ TPlanFragmentPtr PreparePlanFragment(
 
         schemaProxy = New<TJoinSchemaProxy>(
             &joinClause->JoinedTableSchema, 
-            selfSourceProxy,
+            schemaProxy,
             foreignSourceProxy);
-        
-        query->KeyColumns = selfKeyColumns;
-        joinClause->ForeignKeyColumns = foreignKeyColumns;
-        query->JoinClause = std::move(joinClause);
-    } else {
-        YUNREACHABLE();
+
+        query->JoinClauses.push_back(std::move(joinClause));
     }
 
     PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
@@ -1320,10 +1371,6 @@ TPlanFragmentPtr PreparePlanFragment(
         GetObjectIdFromDataSplit(selfDataSplit),
         rowRange});
 
-    if (query->JoinClause) {
-        planFragment->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
-    }
-    
     return planFragment;
 }
 
@@ -1333,10 +1380,8 @@ TQueryPtr PrepareJobQuery(
     IFunctionRegistry* functionRegistry)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
-    auto rowBuffer = New<TRowBuffer>();
     ParseYqlString(
         &astHead,
-        rowBuffer,
         source,
         NAst::TParser::token::StrayWillParseJobQuery);
 
@@ -1367,10 +1412,8 @@ TConstExpressionPtr PrepareExpression(
     IFunctionRegistry* functionRegistry)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>()};
-    auto rowBuffer = New<TRowBuffer>();
     ParseYqlString(
         &astHead,
-        rowBuffer,
         source,
         NAst::TParser::token::StrayWillParseExpression);
 
@@ -1393,8 +1436,6 @@ TConstExpressionPtr PrepareExpression(
 void ToProto(NProto::TExpression* serialized, TConstExpressionPtr original)
 {
     serialized->set_type(static_cast<int>(original->Type));
-    serialized->set_location_begin(original->SourceLocation.first);
-    serialized->set_location_end(original->SourceLocation.second);
 
     if (auto literalExpr = original->As<TLiteralExpression>()) {
         serialized->set_kind(static_cast<int>(EExpressionKind::Literal));
@@ -1469,11 +1510,10 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
 {
     auto kind = EExpressionKind(serialized.kind());
     auto type = EValueType(serialized.type());
-    TSourceLocation sourceLocation(serialized.location_begin(), serialized.location_end());
 
     switch (kind) {
         case EExpressionKind::Literal: {
-            auto typedResult = New<TLiteralExpression>(sourceLocation, type);
+            auto typedResult = New<TLiteralExpression>(type);
             auto data = serialized.GetExtension(NProto::TLiteralExpression::literal_expression);
 
             switch (type) {
@@ -1510,14 +1550,14 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
         }
 
         case EExpressionKind::Reference: {
-            auto typedResult = New<TReferenceExpression>(sourceLocation, type);
+            auto typedResult = New<TReferenceExpression>(type);
             auto data = serialized.GetExtension(NProto::TReferenceExpression::reference_expression);
             typedResult->ColumnName = data.column_name();
             return typedResult;
         }
 
         case EExpressionKind::Function: {
-            auto typedResult = New<TFunctionExpression>(sourceLocation, type);
+            auto typedResult = New<TFunctionExpression>(type);
             auto data = serialized.GetExtension(NProto::TFunctionExpression::function_expression);
             typedResult->FunctionName = data.function_name();
             typedResult->Arguments.reserve(data.arguments_size());
@@ -1528,7 +1568,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
         }
 
         case EExpressionKind::UnaryOp: {
-            auto typedResult = New<TUnaryOpExpression>(sourceLocation, type);
+            auto typedResult = New<TUnaryOpExpression>(type);
             auto data = serialized.GetExtension(NProto::TUnaryOpExpression::unary_op_expression);
             typedResult->Opcode = EUnaryOp(data.opcode());
             typedResult->Operand = FromProto(data.operand());
@@ -1536,7 +1576,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
         }
 
         case EExpressionKind::BinaryOp: {
-            auto typedResult = New<TBinaryOpExpression>(sourceLocation, type);
+            auto typedResult = New<TBinaryOpExpression>(type);
             auto data = serialized.GetExtension(NProto::TBinaryOpExpression::binary_op_expression);
             typedResult->Opcode = EBinaryOp(data.opcode());
             typedResult->Lhs = FromProto(data.lhs());
@@ -1545,7 +1585,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
         }
 
         case EExpressionKind::InOp: {
-            auto typedResult = New<TInOpExpression>(sourceLocation, type);
+            auto typedResult = New<TInOpExpression>(type);
             auto data = serialized.GetExtension(NProto::TInOpExpression::in_op_expression);
             typedResult->Arguments.reserve(data.arguments_size());
             for (int i = 0; i < data.arguments_size(); ++i) {
@@ -1574,6 +1614,8 @@ void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
 {
     ToProto(serialized->mutable_expression(), original.Expression);
     serialized->set_aggregate_function_name(original.AggregateFunction);
+    serialized->set_state_type(static_cast<int>(original.StateType));
+    serialized->set_result_type(static_cast<int>(original.ResultType));
     ToProto(serialized->mutable_name(), original.Name);
 }
 
@@ -1583,12 +1625,16 @@ void ToProto(NProto::TJoinClause* proto, TConstJoinClausePtr original)
     ToProto(proto->mutable_joined_table_schema(), original->JoinedTableSchema);
     ToProto(proto->mutable_foreign_table_schema(), original->ForeignTableSchema);
     ToProto(proto->mutable_foreign_key_columns(), original->ForeignKeyColumns);
+    ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
 }
 
 void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
 {
     ToProto(proto->mutable_group_items(), original->GroupItems);
     ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
+    ToProto(proto->mutable_grouped_table_schema(), original->GroupedTableSchema);
+    proto->set_is_merge(original->IsMerge);
+    proto->set_is_final(original->IsFinal);
 }
 
 void ToProto(NProto::TProjectClause* proto, TConstProjectClausePtr original)
@@ -1612,9 +1658,7 @@ void ToProto(NProto::TQuery* proto, TConstQueryPtr original)
     ToProto(proto->mutable_table_schema(), original->TableSchema);
     ToProto(proto->mutable_key_columns(), original->KeyColumns);
 
-    if (original->JoinClause) {
-        ToProto(proto->mutable_join_clause(), original->JoinClause);
-    }
+    ToProto(proto->mutable_join_clauses(), original->JoinClauses);
 
     if (original->WhereClause) {
         ToProto(proto->mutable_predicate(), original->WhereClause);
@@ -1622,6 +1666,10 @@ void ToProto(NProto::TQuery* proto, TConstQueryPtr original)
 
     if (original->GroupClause) {
         ToProto(proto->mutable_group_clause(), original->GroupClause);
+    }
+
+    if (original->HavingClause) {
+        ToProto(proto->mutable_having_clause(), original->HavingClause);
     }
 
     if (original->OrderClause) {
@@ -1643,8 +1691,12 @@ TNamedItem FromProto(const NProto::TNamedItem& serialized)
 TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
 {
     Stroka aggregateFunction;
+    EValueType stateType;
+    EValueType resultType;
     if (serialized.has_aggregate_function_name()) {
         aggregateFunction = serialized.aggregate_function_name();
+        stateType = EValueType(serialized.state_type());
+        resultType = EValueType(serialized.result_type());
     } else {
         switch (EAggregateFunction(serialized.aggregate_function())) {
             case EAggregateFunction::Min:
@@ -1657,12 +1709,16 @@ TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
                 aggregateFunction = "sum";
                 break;
         }
+        stateType = EValueType(serialized.expression().type());
+        resultType = EValueType(serialized.expression().type());
     }
 
     return TAggregateItem(
         FromProto(serialized.expression()),
         aggregateFunction,
-        serialized.name());
+        serialized.name(),
+        stateType,
+        resultType);
 }
 
 TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
@@ -1677,6 +1733,7 @@ TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
     FromProto(&result->JoinedTableSchema, serialized.joined_table_schema());
     FromProto(&result->ForeignTableSchema, serialized.foreign_table_schema());
     FromProto(&result->ForeignKeyColumns, serialized.foreign_key_columns());
+    FromProto(&result->ForeignDataId, serialized.foreign_data_id());
 
     return result;
 }
@@ -1684,13 +1741,17 @@ TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
 TGroupClausePtr FromProto(const NProto::TGroupClause& serialized)
 {
     auto result = New<TGroupClause>();
+    FromProto(&result->GroupedTableSchema, serialized.grouped_table_schema());
+    result->IsMerge = serialized.is_merge();
+    result->IsFinal = serialized.is_final();
+
     result->GroupItems.reserve(serialized.group_items_size());
     for (int i = 0; i < serialized.group_items_size(); ++i) {
-        result->AddGroupItem(FromProto(serialized.group_items(i)));
+        result->GroupItems.push_back(FromProto(serialized.group_items(i)));
     }
     result->AggregateItems.reserve(serialized.aggregate_items_size());
     for (int i = 0; i < serialized.aggregate_items_size(); ++i) {
-        result->AddAggregateItem(FromProto(serialized.aggregate_items(i)));
+        result->AggregateItems.push_back(FromProto(serialized.aggregate_items(i)));
     }
 
     return result;
@@ -1732,8 +1793,9 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
     FromProto(&query->TableSchema, serialized.table_schema());
     FromProto(&query->KeyColumns, serialized.key_columns());
 
-    if (serialized.has_join_clause()) {
-        query->JoinClause = FromProto(serialized.join_clause());
+    query->JoinClauses.reserve(serialized.join_clauses_size());
+    for (int i = 0; i < serialized.join_clauses_size(); ++i) {
+        query->JoinClauses.push_back(FromProto(serialized.join_clauses(i)));
     }
 
     if (serialized.has_predicate()) {
@@ -1742,6 +1804,10 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
 
     if (serialized.has_group_clause()) {
         query->GroupClause = FromProto(serialized.group_clause());       
+    }
+
+    if (serialized.has_having_clause()) {
+        query->HavingClause = FromProto(serialized.having_clause());
     }
 
     if (serialized.has_order_clause()) {
@@ -1771,9 +1837,9 @@ void ToProto(NProto::TPlanFragment* proto, TConstPlanFragmentPtr fragment)
 
     ToProto(proto->mutable_data_bounds(), ToString(MergeRefs(writer.Flush())));
 
-    ToProto(proto->mutable_foreign_data_id(), fragment->ForeignDataId);
     proto->set_ordered(fragment->Ordered);
     proto->set_verbose_logging(fragment->VerboseLogging);
+    proto->set_max_subqueries(fragment->MaxSubqueries);
     
     proto->set_source(fragment->Source);
     proto->set_timestamp(fragment->Timestamp);
@@ -1786,6 +1852,7 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
     result->Query = FromProto(serialized.query());
     result->Ordered = serialized.ordered();
     result->VerboseLogging = serialized.verbose_logging();
+    result->MaxSubqueries = serialized.max_subqueries();
     result->Timestamp = serialized.timestamp();
 
     NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.data_bounds()));
@@ -1801,8 +1868,6 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
         dataSource.Range = TRowRange(lowerBound, upperBound);
         result->DataSources.push_back(dataSource);
     }
-
-    FromProto(&result->ForeignDataId, serialized.foreign_data_id());
 
     return result;
 }

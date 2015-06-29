@@ -89,13 +89,16 @@ set( SRCS
   ${BASE}/yverify_ut.cpp
   ${BASE}/zigzag_ut.cpp
   ${BASE}/persistent_queue_ut.cpp
+  ${BASE}/hyperloglog_ut.cpp
   ${BASE}/udf/invalid_ir.h
 )
 
 protoc( ${BASE}/rpc_ut.proto SRCS )
 
-udf( ${BASE}/udf/test_udfs.c SRCS )
-udf( ${BASE}/udf/malloc_udf.c SRCS )
+udf_bc( ${BASE}/udf/test_udfs.c SRCS )
+udf_bc( ${BASE}/udf/sum_udf.c SRCS )
+udf_bc( ${BASE}/udf/malloc_udf.c SRCS )
+udf_so( ${BASE}/udf/test_udfs_so.c SRCS )
 
 add_msvc_precompiled_header(
   "stdafx.h"

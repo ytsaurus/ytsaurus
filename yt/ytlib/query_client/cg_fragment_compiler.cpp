@@ -141,6 +141,20 @@ void CodegenIf(
     builder.SetInsertPoint(endBB);
 }
 
+template <class TBuilder>
+void CodegenIf(
+    TBuilder& builder,
+    Value* condition,
+    const std::function<void(TBuilder& builder)>& thenCodegen)
+{
+    CodegenIf<TBuilder>(
+        builder,
+        condition,
+        thenCodegen,
+        [&] (TBuilder& builder) {
+        });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Row manipulation helpers
 //
@@ -555,6 +569,32 @@ Function* CodegenRowComparerFunction(
     return CodegenTupleComparerFunction(compareArgs, module);
 }
 
+Value* CodegenLexicographicalCompare(
+    TCGContext& builder,
+    Value* lhsData,
+    Value* lhsLength,
+    Value* rhsData,
+    Value* rhsLength)
+{
+    Value* lhsLengthIsLess = builder.CreateICmpULT(lhsLength, rhsLength);
+    Value* minLength = builder.CreateSelect(
+        lhsLengthIsLess,
+        lhsLength,
+        rhsLength);
+
+    Value* cmpResult = builder.CreateCall3(
+        builder.Module->GetRoutine("memcmp"),
+        lhsData,
+        rhsData,
+        builder.CreateZExt(minLength, builder.getSizeType()));
+
+    return builder.CreateOr(
+        builder.CreateICmpSLT(cmpResult, builder.getInt32(0)),
+        builder.CreateAnd(
+            builder.CreateICmpEQ(cmpResult, builder.getInt32(0)),
+            lhsLengthIsLess));
+};
+
 TCodegenExpression MakeCodegenLiteralExpr(
     int index,
     EValueType type)
@@ -717,7 +757,7 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
     Stroka name)
 {
 
-    if (IsBinaryOpCompare(opcode))
+    if (IsRelationalBinaryOp(opcode))
     {
         return [
             MOVE(opcode),
@@ -852,26 +892,6 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
                                             });
                                     };
 
-                                    auto codegenLexicographicalCompare = [&] (Value* lhsData, Value* lhsLength, Value* rhsData, Value* rhsLength) {
-                                        Value* lhsLengthIsLess = builder.CreateICmpULT(lhsLength, rhsLength);
-                                        Value* minLength = builder.CreateSelect(
-                                            lhsLengthIsLess,
-                                            lhsLength,
-                                            rhsLength);
-
-                                        Value* cmpResult = builder.CreateCall3(
-                                            builder.Module->GetRoutine("memcmp"),
-                                            lhsData,
-                                            rhsData,
-                                            builder.CreateZExt(minLength, builder.getSizeType()));
-
-                                        return builder.CreateOr(
-                                            builder.CreateICmpSLT(cmpResult, builder.getInt32(0)),
-                                            builder.CreateAnd(
-                                                builder.CreateICmpEQ(cmpResult, builder.getInt32(0)),
-                                                lhsLengthIsLess));
-                                    };
-
                                     switch (opcode) {
                                         case EBinaryOp::Equal:
                                             evalData = codegenEqual();
@@ -880,18 +900,18 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
                                             evalData = builder.CreateNot(codegenEqual());
                                             break;
                                         case EBinaryOp::Less:
-                                            evalData = codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength);
+                                            evalData = CodegenLexicographicalCompare(builder, lhsData, lhsLength, rhsData, rhsLength);
                                             break;
                                         case EBinaryOp::Greater:
-                                            evalData = codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength);
+                                            evalData = CodegenLexicographicalCompare(builder, rhsData, rhsLength, lhsData, lhsLength);
                                             break;
                                         case EBinaryOp::LessOrEqual:
                                             evalData =  builder.CreateNot(
-                                                codegenLexicographicalCompare(rhsData, rhsLength, lhsData, lhsLength));
+                                                CodegenLexicographicalCompare(builder, rhsData, rhsLength, lhsData, lhsLength));
                                             break;
                                         case EBinaryOp::GreaterOrEqual:
                                             evalData = builder.CreateNot(
-                                                codegenLexicographicalCompare(lhsData, lhsLength, rhsData, rhsLength));
+                                                CodegenLexicographicalCompare(builder, lhsData, lhsLength, rhsData, rhsLength));
                                             break;
                                         default:
                                             YUNREACHABLE();
@@ -1106,11 +1126,13 @@ void CodegenScanOp(
 }
 
 TCodegenSource MakeCodegenJoinOp(
+    int index,
     std::vector<Stroka> joinColumns,
     TTableSchema sourceSchema,
     TCodegenSource codegenSource)
 {
     return [
+        index,
         MOVE(joinColumns),
         MOVE(sourceSchema),
         codegenSource = std::move(codegenSource)
@@ -1228,6 +1250,7 @@ TCodegenSource MakeCodegenJoinOp(
             builder.Module->GetRoutine("JoinOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
+                builder.getInt32(index),
                 CodegenGroupHasherFunction(keyTypes, *builder.Module),
                 CodegenGroupComparerFunction(keyTypes, *builder.Module),
 
@@ -1309,15 +1332,177 @@ TCodegenSource MakeCodegenProjectOp(
     };
 }
 
-TCodegenSource MakeCodegenGroupOp(
+std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
+    std::vector<TCodegenExpression> codegenGroupExprs)
+{
+    return [
+        MOVE(codegenGroupExprs)
+    ] (TCGContext& builder, Value* srcRow, Value* dstRow) {
+        for (int index = 0; index < codegenGroupExprs.size(); index++) {
+            auto id = index;
+            auto value = codegenGroupExprs[index](builder, srcRow);
+            value.StoreToRow(builder, dstRow, index, id);
+        }
+    };
+}
+
+std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArgs(
     std::vector<TCodegenExpression> codegenGroupExprs,
-    std::vector<std::pair<TCodegenExpression, TCodegenAggregateUpdate>> codegenAggregates,
-    TCodegenSource codegenSource)
+    std::vector<TCodegenExpression> codegenAggregateExprs,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    bool isMerge,
+    TTableSchema inputSchema)
 {
     return [
         MOVE(codegenGroupExprs),
+        MOVE(codegenAggregateExprs),
         MOVE(codegenAggregates),
-        codegenSource = std::move(codegenSource)
+        isMerge,
+        inputSchema
+    ] (TCGContext& builder, Value* srcRow, Value* dstRow) {
+        auto keySize = codegenGroupExprs.size();
+        auto aggregatesCount = codegenAggregates.size();
+
+        if (!isMerge) {
+            for (int index = 0; index < aggregatesCount; index++) {
+                auto id = keySize + index;
+                auto value = codegenAggregateExprs[index](builder, srcRow);
+                value.StoreToRow(builder, dstRow, keySize + index, id);
+            }
+        } else {
+            for (int index = 0; index < aggregatesCount; index++) {
+                auto id = keySize + index;
+                TCGValue::CreateFromRow(
+                    builder,
+                    srcRow,
+                    keySize + index,
+                    inputSchema.Columns()[id].Type)
+                    .StoreToRow(
+                        builder,
+                        dstRow,
+                        keySize + index,
+                        id);
+            }
+        }
+    };
+}
+
+std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpdate(
+    std::vector<TCodegenAggregate> codegenAggregates,
+    int keySize,
+    bool isMerge)
+{
+    return [
+        MOVE(codegenAggregates),
+        keySize,
+        isMerge
+    ] (TCGContext& builder, Value* newRow, Value* groupRow) {
+        for (int index = 0; index < codegenAggregates.size(); index++) {
+            auto aggState = builder.CreateConstInBoundsGEP1_32(
+                CodegenValuesPtrFromRow(builder, groupRow),
+                keySize + index);
+            auto newValue = builder.CreateConstInBoundsGEP1_32(
+                CodegenValuesPtrFromRow(builder, newRow),
+                keySize + index);
+
+            auto id = keySize + index;
+            TCodegenAggregateUpdate updateFunction;
+            if (isMerge) {
+                updateFunction = codegenAggregates[index].Merge;
+            } else {
+                updateFunction = codegenAggregates[index].Update;
+            }
+            updateFunction(
+                builder,
+                aggState,
+                newValue)
+                .StoreToRow(
+                    builder,
+                    groupRow,
+                    keySize + index,
+                    id);
+        }
+    };
+}
+
+std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinalize(
+    std::vector<TCodegenAggregate> codegenAggregates,
+    int keySize,
+    bool isFinal)
+{
+    return [
+        MOVE(codegenAggregates),
+        keySize,
+        isFinal
+    ] (TCGContext& builder, Value* row) {
+        if (!isFinal) {
+            return;
+        }
+        for (int index = 0; index < codegenAggregates.size(); index++) {
+            auto id = keySize + index;
+            auto valuesPtr = CodegenValuesPtrFromRow(builder, row);
+            auto resultValue = codegenAggregates[index].Finalize(
+                builder,
+                builder.CreateConstInBoundsGEP1_32(
+                    valuesPtr,
+                    keySize + index));
+            resultValue.StoreToRow(
+                builder,
+                row,
+                keySize + index,
+                id);
+        }
+    };
+}
+
+std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateInitialize(
+    std::vector<TCodegenAggregate> codegenAggregates,
+    int keySize)
+{
+    return [
+        MOVE(codegenAggregates),
+        keySize
+    ] (TCGContext& builder, Value* row) {
+        for (int index = 0; index < codegenAggregates.size(); index++) {
+            auto id = keySize + index;
+            auto initState = codegenAggregates[index].Initialize(
+                builder,
+                row);
+            initState.StoreToRow(
+                builder,
+                row,
+                keySize + index,
+                id);
+        }
+    };
+}
+
+TCodegenSource MakeCodegenGroupOp(
+    std::function<void(TCGContext&, Value*)> codegenInitialize,
+    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateGroups,
+    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateAggregateArgs,
+    std::function<void(TCGContext&, Value*, Value*)> codegenUpdate,
+    std::function<void(TCGContext&, Value*)> codegenFinalize,
+    TCodegenSource codegenSource,
+    int keySize,
+    int groupRowSize,
+    TTableSchema groupedSchema)
+{
+    // codegenInitialize calls the aggregates' initialisation functions
+    // codegenEvaluateGroups evaluates the group expressions
+    // codegenEvaluateAggregateArgs evaluates the aggregates' arguments
+    // codegenUpdate calls the aggregates' update or merge functions
+    // codegenFinalize calls the aggregates' finalize functions if needed
+    return [
+        codegenInitialize = std::move(codegenInitialize),
+        codegenEvaluateGroups = std::move(codegenEvaluateGroups),
+        codegenEvaluateAggregateArgs = std::move(codegenEvaluateAggregateArgs),
+        codegenUpdate = std::move(codegenUpdate),
+        codegenFinalize = std::move(codegenFinalize),
+        codegenSource = std::move(codegenSource),
+        keySize,
+        groupRowSize,
+        groupedSchema
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         auto module = builder.Module->GetModule();
 
@@ -1339,18 +1524,13 @@ TCodegenSource MakeCodegenGroupOp(
             &builder,
             collectClosure);
 
-        int keySize = codegenGroupExprs.size();
-        int aggregatesCount = codegenAggregates.size();
-
         Value* newRowPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
         collectBuilder.CreateCall3(
             builder.Module->GetRoutine("AllocatePermanentRow"),
             collectBuilder.GetExecutionContextPtr(),
-            builder.getInt32(keySize + aggregatesCount),
+            builder.getInt32(groupRowSize),
             newRowPtr);
-
-        std::vector<EValueType> keyTypes;
 
         codegenSource(
             collectBuilder,
@@ -1361,54 +1541,46 @@ TCodegenSource MakeCodegenGroupOp(
                 Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
                 Value* newRowRef = builder.CreateLoad(newRowPtrRef);
 
-                for (int index = 0; index < keySize; ++index) {
-                    auto id = index;
+                codegenEvaluateGroups(builder, row, newRowRef);
 
-                    auto value = codegenGroupExprs[index](builder, row);
-                    keyTypes.push_back(value.GetStaticType());
-                    value.StoreToRow(builder, newRowRef, index, id);
-                }
-
-                std::vector<EValueType> aggregateTypes;
-                for (int index = 0; index < aggregatesCount; ++index) {
-                    auto id = keySize + index;
-
-                    codegenAggregates[index].first(builder, row)
-                        .StoreToRow(builder, newRowRef, keySize + index, id);
-                }
-
-                Value* foundRowPtr = builder.CreateCall5(
+                auto groupRowPtr = builder.CreateCall5(
                     builder.Module->GetRoutine("InsertGroupRow"),
                     executionContextPtrRef,
                     lookupRef,
                     groupedRowsRef,
                     newRowPtrRef,
-                    builder.getInt32(keySize + aggregatesCount));
-
-                Value* condition = builder.CreateICmpNE(
-                    foundRowPtr,
-                    llvm::ConstantPointerNull::get(newRowRef->getType()->getPointerTo()));
+                    builder.getInt32(groupRowSize));
 
                 CodegenIf<TCGContext>(
                     builder,
-                    condition,
+                    builder.CreateIsNotNull(groupRowPtr),
                     [&] (TCGContext& builder) {
-                        Value* foundRow = builder.CreateLoad(foundRowPtr);
-                        for (int index = 0; index < aggregatesCount; ++index) {
-                            auto aggState = builder.CreateConstInBoundsGEP1_32(
-                                CodegenValuesPtrFromRow(builder, foundRow),
-                                keySize + index);
-                            auto newValue = builder.CreateConstInBoundsGEP1_32(
-                                CodegenValuesPtrFromRow(builder, newRowRef),
-                                keySize + index);
-                            codegenAggregates[index].second(builder, aggState, newValue);
-                        }
-                    },
-                    [&] (TCGContext& builder) { });
+                        auto groupRow = builder.CreateLoad(groupRowPtr);
+                        auto newRow = builder.CreateLoad(newRowPtrRef);
+                        auto inserted = builder.CreateICmpNE(
+                            builder.CreateExtractValue(
+                                newRow,
+                                TypeBuilder<TRow, false>::Fields::Header),
+                            builder.CreateExtractValue(
+                                newRowRef,
+                                TypeBuilder<TRow, false>::Fields::Header));
+
+                        CodegenIf<TCGContext>(
+                            builder,
+                            inserted,
+                            [&] (TCGContext& builder) {
+                                codegenInitialize(builder, groupRow);
+                            });
+
+                        codegenEvaluateAggregateArgs(builder, row, newRow);
+                        codegenUpdate(builder, newRow, groupRow);
+                    });
+                
             });
 
         collectBuilder.CreateRetVoid();
 
+        // See GroupOpHelper.
         Function* consume = Function::Create(
             TypeBuilder<void(void**, void*, char*), false>::get(builder.getContext()),
             Function::ExternalLinkage,
@@ -1426,14 +1598,27 @@ TCodegenSource MakeCodegenGroupOp(
             &builder,
             consumeClosure);
 
+        auto codegenFinalizingConsumer = [
+            MOVE(codegenConsumer),
+            MOVE(codegenFinalize)
+        ] (TCGContext& builder, Value* row) {
+            codegenFinalize(builder, row);
+            codegenConsumer(builder, row);
+        };
+
         CodegenForEachRow(
             consumeBuilder,
             consumeBuilder.CreateCall(builder.Module->GetRoutine("GetRowsData"), finalGroupedRows),
             consumeBuilder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), finalGroupedRows),
             stopFlag,
-            codegenConsumer);
+            codegenFinalizingConsumer);
 
         consumeBuilder.CreateRetVoid();
+
+        auto keyTypes = std::vector<EValueType>();
+        for (int id = 0; id < keySize; id++) {
+            keyTypes.push_back(groupedSchema.Columns()[id].Type);
+        }
 
         builder.CreateCallWithArgs(
             builder.Module->GetRoutine("GroupOpHelper"),

@@ -40,17 +40,12 @@ DEFINE_ENUM(EOperatorKind,
 struct TExpression
     : public TIntrinsicRefCounted
 {
-    TExpression(
-        const TSourceLocation& sourceLocation,
-        EValueType type)
-        : SourceLocation(sourceLocation)
-        , Type(type)
+    TExpression(EValueType type)
+        : Type(type)
     { }
 
-    TSourceLocation SourceLocation;
     const EValueType Type;
 
-    TStringBuf GetSource(const TStringBuf& source) const;
     Stroka GetName() const;
 
     template <class TDerived>
@@ -64,7 +59,6 @@ struct TExpression
     {
         return dynamic_cast<TDerived*>(this);
     }
-    
 };
 
 DEFINE_REFCOUNTED_TYPE(TExpression)
@@ -72,111 +66,86 @@ DEFINE_REFCOUNTED_TYPE(TExpression)
 struct TLiteralExpression
     : public TExpression
 {
-    TLiteralExpression(
-        const TSourceLocation& sourceLocation,
-        EValueType type)
-        : TExpression(sourceLocation, type)
+    TLiteralExpression(EValueType type)
+        : TExpression(type)
     { }
 
-    TLiteralExpression(
-        const TSourceLocation& sourceLocation,
-        EValueType type,
-        TOwningValue value)
-        : TExpression(sourceLocation, type)
+    TLiteralExpression(EValueType type, TOwningValue value)
+        : TExpression(type)
         , Value(value)
     { }
 
     TOwningValue Value;
-
 };
 
 struct TReferenceExpression
     : public TExpression
 {
-    TReferenceExpression(
-        const TSourceLocation& sourceLocation,
-        EValueType type)
-        : TExpression(sourceLocation, type)
+    TReferenceExpression(EValueType type)
+        : TExpression(type)
     { }
 
-    TReferenceExpression(
-        const TSourceLocation& sourceLocation,
-        EValueType type,
-        TStringBuf columnName)
-        : TExpression(sourceLocation, type)
+    TReferenceExpression(EValueType type, TStringBuf columnName)
+        : TExpression(type)
         , ColumnName(columnName)
     { }
 
     Stroka ColumnName;
-
 };
-
-typedef std::vector<TConstExpressionPtr> TArguments;
 
 struct TFunctionExpression
     : public TExpression
 {
-    TFunctionExpression(
-        const TSourceLocation& sourceLocation,
-        EValueType type)
-        : TExpression(sourceLocation, type)
+    TFunctionExpression(EValueType type)
+        : TExpression(type)
     { }
 
     TFunctionExpression(
-        const TSourceLocation& sourceLocation,
         EValueType type,
         const Stroka& functionName,
-        const TArguments& arguments)
-        : TExpression(sourceLocation, type)
+        const std::vector<TConstExpressionPtr>& arguments)
+        : TExpression(type)
         , FunctionName(functionName)
         , Arguments(arguments)
     { }
 
     Stroka FunctionName;
-    TArguments Arguments;
-
+    std::vector<TConstExpressionPtr> Arguments;
 };
 
 struct TUnaryOpExpression
     : public TExpression
 {
-    TUnaryOpExpression(
-        const TSourceLocation& sourceLocation,
-        EValueType type)
-        : TExpression(sourceLocation, type)
+    TUnaryOpExpression(EValueType type)
+        : TExpression(type)
     { }
 
     TUnaryOpExpression(
-        const TSourceLocation& sourceLocation,
         EValueType type,
         EUnaryOp opcode,
         TConstExpressionPtr operand)
-        : TExpression(sourceLocation, type)
+        : TExpression(type)
         , Opcode(opcode)
         , Operand(operand)
     { }
 
     EUnaryOp Opcode;
     TConstExpressionPtr Operand;
-
 };
 
 struct TBinaryOpExpression
     : public TExpression
 {
-    TBinaryOpExpression(
-        const TSourceLocation& sourceLocation,
-        EValueType type)
-        : TExpression(sourceLocation, type)
+    TBinaryOpExpression(EValueType type)
+        : TExpression(type)
     { }
 
     TBinaryOpExpression(
-        const TSourceLocation& sourceLocation,
         EValueType type,
         EBinaryOp opcode,
         TConstExpressionPtr lhs,
         TConstExpressionPtr rhs)
-        : TExpression(sourceLocation, type)
+        : TExpression(type)
         , Opcode(opcode)
         , Lhs(lhs)
         , Rhs(rhs)
@@ -185,30 +154,25 @@ struct TBinaryOpExpression
     EBinaryOp Opcode;
     TConstExpressionPtr Lhs;
     TConstExpressionPtr Rhs;
-
 };
 
 struct TInOpExpression
     : public TExpression
 {
-    TInOpExpression(
-        const TSourceLocation& sourceLocation,
-        EValueType type)
-        : TExpression(sourceLocation, type)
+    TInOpExpression(EValueType type)
+        : TExpression(type)
     { }
 
     TInOpExpression(
-        const TSourceLocation& sourceLocation,
-        TArguments arguments,
+        std::vector<TConstExpressionPtr> arguments,
         TSharedRange<TRow> values)
-        : TExpression(sourceLocation, EValueType::Boolean)
+        : TExpression(EValueType::Boolean)
         , Arguments(std::move(arguments))
         , Values(std::move(values))
     { }
 
-    TArguments Arguments;
+    std::vector<TConstExpressionPtr> Arguments;
     TSharedRange<TRow> Values;
-
 };
 
 EValueType InferBinaryExprType(
@@ -251,12 +215,18 @@ struct TAggregateItem
     TAggregateItem(
         TConstExpressionPtr expression,
         const Stroka& aggregateFunction,
-        const Stroka& name)
+        const Stroka& name,
+        EValueType stateType,
+        EValueType resultType)
         : TNamedItem(expression, name)
         , AggregateFunction(aggregateFunction)
+        , StateType(stateType)
+        , ResultType(resultType)
     { }
 
-    const Stroka AggregateFunction;
+    Stroka AggregateFunction;
+    EValueType StateType;
+    EValueType ResultType;
 };
 
 typedef std::vector<TAggregateItem> TAggregateItemList;
@@ -269,6 +239,8 @@ struct TJoinClause
     TTableSchema ForeignTableSchema;
     TKeyColumns ForeignKeyColumns;
     std::vector<Stroka> JoinColumns;
+
+    TGuid ForeignDataId;
 
     // TODO: Use ITableSchemaInterface
     TTableSchema JoinedTableSchema;
@@ -286,21 +258,11 @@ struct TGroupClause
 {
     TNamedItemList GroupItems;
     TAggregateItemList AggregateItems;
+    bool IsMerge;
+    bool IsFinal;
 
     // TODO: Use ITableSchemaInterface
     TTableSchema GroupedTableSchema;
-
-    void AddGroupItem(const TNamedItem& namedItem)
-    {
-        GroupItems.push_back(namedItem);
-        GroupedTableSchema.Columns().emplace_back(namedItem.Name, namedItem.Expression->Type);
-    }
-
-    void AddAggregateItem(const TAggregateItem& aggregateItem)
-    {
-        AggregateItems.push_back(aggregateItem);
-        GroupedTableSchema.Columns().emplace_back(aggregateItem.Name, aggregateItem.Expression->Type);
-    }
 
     TTableSchema GetTableSchema() const
     {
@@ -363,9 +325,10 @@ struct TQuery
         , Id(TGuid::Create())
         , TableSchema(other.TableSchema)
         , KeyColumns(other.KeyColumns)
-        , JoinClause(other.JoinClause)
+        , JoinClauses(other.JoinClauses)
         , WhereClause(other.WhereClause)
         , GroupClause(other.GroupClause)
+        , HavingClause(other.HavingClause)
         , ProjectClause(other.ProjectClause)
         , OrderClause(other.OrderClause)
         , Limit(other.Limit)
@@ -379,9 +342,10 @@ struct TQuery
     TTableSchema TableSchema;
     TKeyColumns KeyColumns;
 
-    TConstJoinClausePtr JoinClause;
+    std::vector<TConstJoinClausePtr> JoinClauses;
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
+    TConstExpressionPtr HavingClause;
     TConstProjectClausePtr ProjectClause;
     TConstOrderClausePtr OrderClause;
 
@@ -397,8 +361,8 @@ struct TQuery
             return GroupClause->GetTableSchema();
         }
 
-        if (JoinClause) {
-            return JoinClause->GetTableSchema();
+        if (!JoinClauses.empty()) {
+            return JoinClauses.back()->GetTableSchema();
         }
 
         return TableSchema;
@@ -429,11 +393,11 @@ struct TPlanFragment
 
     const TRowBufferPtr KeyRangesRowBuffer = New<TRowBuffer>();
     TDataSources DataSources;
-    TGuid ForeignDataId;
 
     TConstQueryPtr Query;
     bool Ordered = false;
     bool VerboseLogging = false;
+    ui64 MaxSubqueries = 0;
     ui64 RangeExpansionLimit = 0;
 };
 
@@ -460,8 +424,8 @@ TConstExpressionPtr PrepareExpression(
     TTableSchema initialTableSchema,
     IFunctionRegistry* functionRegistry = CreateBuiltinFunctionRegistry().Get());
 
-Stroka InferName(TConstExpressionPtr expr);
-Stroka InferName(TConstQueryPtr query);
+Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
+Stroka InferName(TConstQueryPtr query, bool omitValues = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
