@@ -281,21 +281,28 @@ public:
         ui64 rangeExpansionLimit,
         bool verboseLogging)
         : Schema_(schema)
-        , KeySize_(keyColumns.size())
+        , KeyColumns_(keyColumns)
         , RangeExpansionLimit_(rangeExpansionLimit)
         , VerboseLogging_(verboseLogging)
     {
-        Evaluator_ = evaluatorCache->Find(Schema_, KeySize_);
+        Evaluator_ = evaluatorCache->Find(Schema_, KeyColumns_.size());
         yhash_set<Stroka> references;
         if (predicate) {
             Profile(predicate, schema, nullptr, nullptr, &references, functionRegistry);
         }
-        auto depletedKeyColumns = BuildDepletedIdMapping(references);
+
+        ui32 mask = 0;
+        for (int index = 0; index < KeyColumns_.size(); ++index) {
+            auto column = Schema_.Columns()[index];
+            if (column.Expression && references.find(column.Name) == references.end()) {
+                mask |= 1 << index;
+            }
+        }
 
         // TODO(savrus): use enriched key columns here.
         KeyTrie_ = ExtractMultipleConstraints(
             predicate,
-            depletedKeyColumns,
+            KeyColumns_,
             Buffer_,
             functionRegistry);
 
@@ -317,7 +324,7 @@ public:
             : 0;
 
         for (int index = 0; index < ranges.first.size(); ++index) {
-            EnrichKeyRange(ranges.first[index], ranges.second[index], EnrichedRanges_);
+            EnrichKeyRange(ranges.first[index], ranges.second[index] | mask, EnrichedRanges_);
         }
         EnrichedRanges_ = MergeOverlappingRanges(std::move(EnrichedRanges_));
     }
@@ -345,7 +352,7 @@ public:
 
 private:
     const TTableSchema Schema_;
-    const int KeySize_;
+    TKeyColumns KeyColumns_;
     const ui64 RangeExpansionLimit_;
     const bool VerboseLogging_;
 
@@ -355,48 +362,8 @@ private:
     // TODO(babenko): rename this
     const TRowBufferPtr Buffer_ = New<TRowBuffer>();
 
-    std::vector<int> DepletedToSchemaMapping_;
-    std::vector<int> ComputedColumnIndexes_;
-    std::vector<int> SchemaToDepletedMapping_;
-
     ui64 RangeExpansionLeft_;
     std::vector<TRowRange> EnrichedRanges_;
-
-    TKeyColumns BuildDepletedIdMapping(const yhash_set<Stroka>& references)
-    {
-        TKeyColumns depletedKeyColumns;
-        SchemaToDepletedMapping_.resize(KeySize_ + 1, -1);
-
-        auto addIndexToMapping = [&] (int index) {
-            SchemaToDepletedMapping_[index] = DepletedToSchemaMapping_.size();
-            DepletedToSchemaMapping_.push_back(index);
-        };
-
-        for (int index = 0; index < KeySize_; ++index) {
-            auto column = Schema_.Columns()[index];
-            if (!column.Expression || references.find(column.Name) != references.end()) {
-                addIndexToMapping(index);
-                depletedKeyColumns.push_back(column.Name);
-            } else {
-                ComputedColumnIndexes_.push_back(index);
-            }
-        }
-        addIndexToMapping(KeySize_);
-
-        return depletedKeyColumns;
-    }
-
-    int SchemaToDepletedIndex(int schemaIndex)
-    {
-        YCHECK(schemaIndex >= 0 && schemaIndex < SchemaToDepletedMapping_.size());
-        return SchemaToDepletedMapping_[schemaIndex];
-    }
-
-    int DepletedToSchemaIndex(int depletedIndex)
-    {
-        YCHECK(depletedIndex >= 0 && depletedIndex < DepletedToSchemaMapping_.size());
-        return DepletedToSchemaMapping_[depletedIndex];
-    }
 
     bool IsUnboundedColumn(int depletedIndex, ui32 unboundedColumnMask)
     {
@@ -404,7 +371,7 @@ private:
         return unboundedColumnMask & (1 << depletedIndex);
     }
 
-    TDivisors GetDivisors(int keyIndex, std::vector<int> referries)
+    TDivisors GetDivisors(int keyIndex, const std::vector<int>& referries)
     {
         auto name = Schema_.Columns()[keyIndex].Name;
         TUnversionedValue one;
@@ -467,51 +434,31 @@ private:
         return result;
     }
 
-    bool IsUserColumn(int index, const std::pair<TRow, TRow>& range, ui32 unboundedColumnMask, int depletedPrefixSize)
+    bool IsUserColumn(int index, const std::pair<TRow, TRow>& range, ui32 unboundedColumnMask, int prefixSize)
     {
-        int depletedIndex = SchemaToDepletedIndex(index);
-        return !(depletedIndex >= depletedPrefixSize ||
-            depletedIndex == -1 ||
-            IsUnboundedColumn(depletedIndex, unboundedColumnMask) ||
-            IsSentinelType(range.first[depletedIndex].Type) ||
-            IsSentinelType(range.second[depletedIndex].Type) ||
-            range.first[depletedIndex] != range.second[depletedIndex]);
+        return !(index >= prefixSize ||
+            IsUnboundedColumn(index, unboundedColumnMask) ||
+            IsSentinelType(range.first[index].Type) ||
+            IsSentinelType(range.second[index].Type));
     }
 
-    TNullable<int> IsExactColumn(int index, const std::pair<TRow, TRow>& range, ui32 unboundedColumnMask, int depletedPrefixSize)
-    {
-        if (!Schema_.Columns()[index].Expression) {
-            return Null;
-        }
-        const auto& references = Evaluator_->GetReferenceIds(index);
-        for (int referenceIndex : references) {
-            if (!IsUserColumn(referenceIndex, range, unboundedColumnMask, depletedPrefixSize)) {
-                return Null;
-            }
-        }
-        return references.empty() ? -1 : references.back();
-    }
-
-    bool CanEnumerate(int index, const std::pair<TRow, TRow>& range, ui32 unboundedColumnMask, int depletedPrefixSize)
+    bool IsExactColumn(int index, const std::pair<TRow, TRow>& range, ui32 unboundedColumnMask, int prefixSize)
     {
         if (!Schema_.Columns()[index].Expression) {
             return false;
         }
         const auto& references = Evaluator_->GetReferenceIds(index);
         for (int referenceIndex : references) {
-            int depletedIndex = SchemaToDepletedIndex(referenceIndex);
-            if (depletedIndex >= depletedPrefixSize + 1 ||
-                depletedIndex == -1 ||
-                IsUnboundedColumn(depletedIndex, unboundedColumnMask) ||
-                IsSentinelType(range.first[depletedIndex].Type) ||
-                IsSentinelType(range.second[depletedIndex].Type) ||
-                (depletedIndex < depletedPrefixSize &&
-                    range.first[depletedIndex] != range.second[depletedIndex]))
-            {
+            if (!IsUserColumn(referenceIndex, range, unboundedColumnMask, prefixSize)) {
                 return false;
             }
         }
         return true;
+    }
+
+    bool IsEnumerableColumn(int index, const std::pair<TRow, TRow>& range, ui32 unboundedColumnMask, int prefixSize)
+    {
+        return IsExactColumn(index, range, unboundedColumnMask, prefixSize + 1);
     }
 
     TNullable<TModuloRangeGenerator> GetModuloGeneratorForColumn(int index)
@@ -535,10 +482,9 @@ private:
     int ExpandKey(TRow destination, TRow source, int size, ui32 unboundedColumnMask)
     {
         for (int index = 0; index < size; ++index) {
-            int depletedIndex = SchemaToDepletedIndex(index);
-            if (depletedIndex != -1 && !IsUnboundedColumn(depletedIndex, unboundedColumnMask)) {
-                if (depletedIndex < source.GetCount()) {
-                    destination[index] = source[depletedIndex];
+            if (!IsUnboundedColumn(index, unboundedColumnMask)) {
+                if (index < source.GetCount()) {
+                    destination[index] = source[index];
                 } else {
                     return index;
                 }
@@ -593,25 +539,24 @@ private:
         auto upperSentinel = TrimSentinel(range.second);
 
         // Find the longest common prefix for depleted bounds.
-        int depletedPrefixSize = 0;
-        while (depletedPrefixSize < range.first.GetCount() &&
-            depletedPrefixSize < range.second.GetCount() &&
-            (range.first[depletedPrefixSize] == range.second[depletedPrefixSize] ||
-                IsUnboundedColumn(depletedPrefixSize, unboundedColumnMask)))
+        int prefixSize = 0;
+        while (prefixSize < range.first.GetCount() &&
+            prefixSize < range.second.GetCount() &&
+            (range.first[prefixSize] == range.second[prefixSize] ||
+                IsUnboundedColumn(prefixSize, unboundedColumnMask)))
         {
-            ++depletedPrefixSize;
+            ++prefixSize;
         }
 
         // Check if we need to iterate over a first column after the longest common prefix.
         bool canEnumerate =
-            depletedPrefixSize < range.first.GetCount() &&
-            depletedPrefixSize < range.second.GetCount() &&
-            !IsUnboundedColumn(depletedPrefixSize, unboundedColumnMask) &&
-            IsIntegralType(range.first[depletedPrefixSize].Type) &&
-            IsIntegralType(range.second[depletedPrefixSize].Type);
+            prefixSize < range.first.GetCount() &&
+            prefixSize < range.second.GetCount() &&
+            !IsUnboundedColumn(prefixSize, unboundedColumnMask) &&
+            IsIntegralType(range.first[prefixSize].Type) &&
+            IsIntegralType(range.second[prefixSize].Type);
 
-        int prefixSize = DepletedToSchemaIndex(depletedPrefixSize);
-        int shrinkSize = KeySize_;
+        int shrinkSize = KeyColumns_.size();
         ui64 rangeCount = 1;
         std::vector<std::pair<int, TModuloRangeGenerator>> moduloComputedColumns;
         std::vector<int> exactlyComputedColumns;
@@ -631,13 +576,13 @@ private:
         };
 
         // For each column check that we can use existing value, copmpute it or generate.
-        for (int index = 0; index < KeySize_; ++index) {
-            if (IsUserColumn(index, range, unboundedColumnMask, depletedPrefixSize)) {
+        for (int index = 0; index < KeyColumns_.size(); ++index) {
+            if (IsUserColumn(index, range, unboundedColumnMask, prefixSize)) {
                 continue;
-            } else if (auto lastReference = IsExactColumn(index, range, unboundedColumnMask, depletedPrefixSize)) {
+            } else if (IsExactColumn(index, range, unboundedColumnMask, prefixSize)) {
                 exactlyComputedColumns.push_back(index);
                 continue;
-            } else if (canEnumerate && CanEnumerate(index, range, unboundedColumnMask, depletedPrefixSize)) {
+            } else if (canEnumerate && IsEnumerableColumn(index, range, unboundedColumnMask, prefixSize)) {
                 if (index < prefixSize) {
                     enumerableColumns.push_back(index);
                 } else {
@@ -682,8 +627,8 @@ private:
         // Check if we can use iteration.
         if (canEnumerate && !enumerableColumns.empty()) {
             auto generator = CreateQuotientEnumerationGenerator(
-                range.first[depletedPrefixSize],
-                range.second[depletedPrefixSize],
+                range.first[prefixSize],
+                range.second[prefixSize],
                 GetDivisors(prefixSize, enumerableColumns));
 
             if (generator &&
@@ -701,11 +646,11 @@ private:
         RangeExpansionLeft_ -= std::min(rangeCount, RangeExpansionLeft_);
 
         // Map depleted key onto enriched key.
-        auto lowerRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeySize_ + 1);
-        auto upperRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeySize_ + 1);
-        int lowerSize = ExpandKey(lowerRow, range.first, KeySize_, unboundedColumnMask);
-        int upperSize = ExpandKey(upperRow, range.second, KeySize_, unboundedColumnMask);
-        bool isShrinked = shrinkSize < DepletedToSchemaIndex(depletedPrefixSize);
+        auto lowerRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeyColumns_.size() + 1);
+        auto upperRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeyColumns_.size() + 1);
+        int lowerSize = ExpandKey(lowerRow, range.first, KeyColumns_.size(), unboundedColumnMask);
+        int upperSize = ExpandKey(upperRow, range.second, KeyColumns_.size(), unboundedColumnMask);
+        bool isShrinked = shrinkSize < prefixSize;
 
         // Trim trailing modulo computed columns.
         while (!moduloComputedColumns.empty() &&

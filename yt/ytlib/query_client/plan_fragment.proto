@@ -11,8 +11,8 @@ message TExpression
     required int32 kind = 1;
     required uint32 type = 2;
 
-    required int32 location_begin = 3;
-    required int32 location_end = 4;
+    // required int32 location_begin = 3; (deprecated)
+    // required int32 location_end = 4; (deprecated)
 
     extensions 100 to max;
 }
@@ -93,6 +93,8 @@ message TAggregateItem
     optional int32 aggregate_function = 2;
     required string name = 3;
     optional string aggregate_function_name = 4;
+    optional uint32 state_type = 5;
+    optional uint32 result_type = 6;
 }
 
 message TJoinClause
@@ -101,12 +103,16 @@ message TJoinClause
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt joined_table_schema = 2;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
+    required NYT.NProto.TGuid foreign_data_id = 5;
 }
 
 message TGroupClause
 {
     repeated TNamedItem group_items = 1;
     repeated TAggregateItem aggregate_items = 2;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt grouped_table_schema = 3;
+    required bool is_merge = 4;
+    required bool is_final = 5;
 }
 
 message TOrderClause
@@ -130,9 +136,10 @@ message TQuery
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt table_schema = 5;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 6;
 
-    optional TJoinClause join_clause = 7;
+    repeated TJoinClause join_clauses = 7;
     optional TExpression predicate = 8;
     optional TGroupClause group_clause = 9;
+    optional TExpression having_clause = 12;
     optional TOrderClause order_clause = 11;
     optional TProjectClause project_clause = 10;
 }
@@ -144,11 +151,11 @@ message TPlanFragment
 
     repeated NYT.NProto.TGuid data_id = 3;
     required bytes data_bounds = 8;
-    required NYT.NProto.TGuid foreign_data_id = 4;
 
     required TQuery query = 5;
     required bool ordered = 6;
     optional bool verbose_logging = 7 [default = false];
+    optional uint64 max_subqueries = 9 [default = 16];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

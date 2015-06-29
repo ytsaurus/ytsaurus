@@ -2,11 +2,10 @@
 #include "framework.h"
 #include "versioned_table_client_ut.h"
 
-#ifdef YT_USE_LLVM
 #include "udf/test_udfs.h"
+#include "udf/test_udfs_so.h"
 #include "udf/malloc_udf.h"
 #include "udf/invalid_ir.h"
-#endif
 
 #include <core/concurrency/action_queue.h>
 
@@ -29,9 +28,7 @@
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
 
-#ifdef YT_USE_LLVM
 #include <ytlib/query_client/folding_profiler.h>
-#endif
 
 #include <tuple>
 
@@ -261,7 +258,7 @@ TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0)
     return dataSplit;
 }
 
-TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns)
+TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, TKeyColumns keyColumns = TKeyColumns())
 {
     TDataSplit dataSplit;
 
@@ -269,7 +266,6 @@ TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns)
         dataSplit.mutable_chunk_id(),
         MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
-    TKeyColumns keyColumns;
     SetKeyColumns(&dataSplit, keyColumns);
 
     TTableSchema tableSchema;
@@ -429,6 +425,29 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
     ExpectPrepareThrowsWithDiagnostics(
         "sum(a) from [//t]",
         ContainsRegex("Misuse of aggregate function .*"));
+}
+
+TEST_F(TQueryPrepareTest, JoinColumnCollision)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//s", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//s"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "a, b from [//t] join [//s] using b",
+        ContainsRegex("Column \"a\" collision"));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//s", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//s"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "* from [//t] join [//s] using b",
+        ContainsRegex("Column \"k\" collision"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -601,7 +620,6 @@ template <class TTypedExpression, class... TArgs>
 static TConstExpressionPtr Make(TArgs&&... args)
 {
     return New<TTypedExpression>(
-        NullSourceLocation,
         EValueType::TheBottom,
         std::forward<TArgs>(args)...);
 }
@@ -1754,8 +1772,6 @@ TEST_F(TArithmeticTest, ConstantDivisorsFolding)
 
 }
 
-#ifdef YT_USE_LLVM
-
 TEST_P(TArithmeticTest, Evaluate)
 {
     auto& param = GetParam();
@@ -1798,8 +1814,6 @@ TEST_P(TArithmeticTest, Evaluate)
     EXPECT_EQ(expected, result)
         << "row: " << ::testing::PrintToString(row);
 }
-
-#endif
 
 INSTANTIATE_TEST_CASE_P(
     TArithmeticTest,
@@ -2030,8 +2044,6 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef YT_USE_LLVM
-
 class TReaderMock
     : public ISchemafulReader
 {
@@ -2088,89 +2100,59 @@ TOwningRow BuildRow(
             yson, keyColumns, tableSchema, treatMissingAsNull);
 }
 
-struct TQueryExecutor
-    : public IExecutor
+TFuture<TQueryStatistics> DoExecuteQuery(
+    const std::vector<Stroka>& source,
+    IFunctionRegistryPtr functionRegistry,
+    bool shouldFail,
+    TPlanFragmentPtr fragment,
+    ISchemafulWriterPtr writer,
+    TExecuteQuery executeCallback = nullptr)
 {
-    TQueryExecutor(
-        const std::vector<Stroka>& source,
-        IFunctionRegistryPtr functionRegistry,
-        bool shouldFail,
-        IExecutorPtr executeCallback = nullptr)
-        : Source(source)
-        , FunctionRegistry(functionRegistry)
-        , ShouldFail_(shouldFail)
-        , ExecuteCallback(std::move(executeCallback))
-    {
-        ReaderMock_ = New<StrictMock<TReaderMock>>();
-    }
+    std::vector<TOwningRow> owningSource;
+    std::vector<TRow> sourceRows;
 
-    
-    std::vector<Stroka> Source;
-    IFunctionRegistryPtr FunctionRegistry;
-    bool ShouldFail_;
-    IExecutorPtr ExecuteCallback;
-    TIntrusivePtr<StrictMock<TReaderMock>> ReaderMock_;
+    auto readerMock = New<StrictMock<TReaderMock>>();
 
-    virtual TFuture<TQueryStatistics> Execute(
-        TPlanFragmentPtr fragment,
-        ISchemafulWriterPtr writer)
-    {
-        std::vector<TOwningRow> owningSource;
-        std::vector<TRow> sourceRows;
-
-        auto onOpened = [&] (const TTableSchema& targetSchema) {
-            TKeyColumns emptyKeyColumns;
-            for (const auto& row : Source) {
-                owningSource.push_back(NVersionedTableClient::BuildRow(row, emptyKeyColumns, targetSchema));
-            }
-
-            sourceRows.resize(owningSource.size());
-            typedef const TRow(TOwningRow::*TGetFunction)() const;
-
-            std::transform(
-                owningSource.begin(),
-                owningSource.end(),
-                sourceRows.begin(),
-                std::mem_fn(TGetFunction(&TOwningRow::Get)));
-
-            ON_CALL(*ReaderMock_, Read(_))
-                .WillByDefault(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
-            if (!ShouldFail_) {
-                EXPECT_CALL(*ReaderMock_, Read(_));
-            }
-        };
-        
-        ON_CALL(*ReaderMock_, Open(_))
-            .WillByDefault(DoAll(Invoke(onOpened), Return(WrapVoidInFuture())));
-
-        if (!ShouldFail_) {
-            EXPECT_CALL(*ReaderMock_, Open(_));
+    auto onOpened = [&] (const TTableSchema& targetSchema) {
+        TKeyColumns emptyKeyColumns;
+        for (const auto& row : source) {
+            owningSource.push_back(NVersionedTableClient::BuildRow(row, emptyKeyColumns, targetSchema));
         }
 
-        auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
-        return MakeFuture(evaluator->RunWithExecutor(
-            fragment->Query,
-            ReaderMock_,
-            writer,
-            [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
-                auto planFragment = New<TPlanFragment>();
+        sourceRows.resize(owningSource.size());
+        typedef const TRow(TOwningRow::*TGetFunction)() const;
 
-                planFragment->Timestamp = fragment->Timestamp;
-                planFragment->DataSources.push_back({
-                    fragment->ForeignDataId, {
-                        planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                        planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())}
-                    });
-                planFragment->Query = subquery;
-                
-                auto subqueryResult = ExecuteCallback->Execute(planFragment, writer);
+        std::transform(
+            owningSource.begin(),
+            owningSource.end(),
+            sourceRows.begin(),
+            std::mem_fn(TGetFunction(&TOwningRow::Get)));
 
-                return WaitFor(subqueryResult)
-                    .ValueOrThrow();
-            },
-            FunctionRegistry));
+        ON_CALL(*readerMock, Read(_))
+            .WillByDefault(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
+        if (!shouldFail) {
+            EXPECT_CALL(*readerMock, Read(_));
+        }
+    };
+
+    ON_CALL(*readerMock, Open(_))
+        .WillByDefault(DoAll(Invoke(onOpened), Return(WrapVoidInFuture())));
+
+    if (!shouldFail) {
+        EXPECT_CALL(*readerMock, Open(_));
     }
-};
+
+    std::vector<TExecuteQuery> executeCallbacks;
+
+    auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
+    return MakeFuture(evaluator->RunWithExecutor(
+        fragment->Query,
+        readerMock,
+        writer,
+        executeCallback,
+        functionRegistry));
+}
+
 
 class TQueryEvaluateTest
     : public ::testing::Test
@@ -2219,6 +2201,7 @@ protected:
             ECallingConvention::UnversionedValue);
         SumUdf_ = New<TUserDefinedFunction>(
             "sum_udf",
+            std::unordered_map<TTypeArgument, TUnionType>(),
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
             EValueType::Int64,
@@ -2363,21 +2346,51 @@ protected:
             }
         }
 
-        IExecutorPtr executor;
+        auto prepareAndExecute = [&] () {
+            auto primaryFragment = PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit);
 
-        size_t index = owningSources.size();
-        while (index > 0) {
-            const auto& owningSource = owningSources[--index];
-            auto newExecutor = New<TQueryExecutor>(owningSource, functionRegistry, shouldFail, executor);
-            executor = newExecutor;
-        }
+            size_t foreignSplitIndex = 1;
+            auto executeCallback = [&] (
+                const TQueryPtr& subquery,
+                TGuid foreignDataId,
+                ISchemafulWriterPtr writer) mutable -> TQueryStatistics
+            {
+                auto planFragment = New<TPlanFragment>();
+
+                planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+                planFragment->Timestamp = primaryFragment->Timestamp;
+                planFragment->DataSources.push_back({
+                    foreignDataId,
+                    {
+                        planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
+                        planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
+                    }});
+                planFragment->Query = subquery;
+
+                auto subqueryResult = DoExecuteQuery(
+                    owningSources[foreignSplitIndex++],
+                    functionRegistry,
+                    shouldFail,
+                    planFragment,
+                    writer);
+
+                return WaitFor(subqueryResult)
+                    .ValueOrThrow();
+            };
+
+            return DoExecuteQuery(
+                owningSources.front(),
+                functionRegistry,
+                shouldFail,
+                primaryFragment,
+                WriterMock_,
+                executeCallback);
+        };
 
         if (shouldFail) {
-            EXPECT_THROW(
-                executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit), WriterMock_),
-                TErrorException);
+            EXPECT_THROW(prepareAndExecute(), TErrorException);
         } else {
-            executor->Execute(PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit), WriterMock_);
+            prepareAndExecute();
         }
     }
 
@@ -2849,6 +2862,89 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     }, resultSplit);
 
     Evaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", split, source, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, HavingClause1)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=2;b=20",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"t", EValueType::Int64},
+    });
+
+    auto result = BuildRows({
+        "x=1;t=20",
+    }, resultSplit);
+
+    Evaluate("a as x, sum(b) as t FROM [//t] group by a having a = 1", split, source, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, HavingClause2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=2;b=20",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"t", EValueType::Int64},
+    });
+
+    auto result = BuildRows({
+        "x=1;t=20",
+    }, resultSplit);
+
+    Evaluate("a as x, sum(b) as t FROM [//t] group by a having sum(b) = 20", split, source, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, HavingClause3)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=2;b=20",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+    }, resultSplit);
+
+    Evaluate("a as x FROM [//t] group by a having sum(b) = 20", split, source, result);
 
     SUCCEED();
 }
@@ -3334,6 +3430,113 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"x", EValueType::String},
+        {"y", EValueType::String}
+    }, {"x"});
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "x=a",
+        "x=b",
+        "x=c"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"x", EValueType::String}
+    }, {"a"});
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "a=1;x=a",
+        "a=2;x=b",
+        "a=3;x=c"
+    });
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::String},
+        {"a", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "a=1;x=a",
+        "a=2;x=b",
+        "a=3;x=c"
+    }, resultSplit);
+
+    Evaluate("* FROM [//left] join [//right] using x", splits, sources, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinManySimple)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    splits["//a"] = MakeSplit({
+        {"a", EValueType::Int64},
+        {"c", EValueType::String}
+    });
+    sources.push_back({
+        "a=2;c=b",
+        "a=3;c=c",
+        "a=4;c=a"
+    });
+
+    splits["//b"] = MakeSplit({
+        {"b", EValueType::Int64},
+        {"c", EValueType::String},
+        {"d", EValueType::String}
+    });
+    sources.push_back({
+        "b=100;c=a;d=X",
+        "b=200;c=b;d=Y",
+        "b=300;c=c;d=X",
+        "b=400;c=a;d=Y",
+        "b=500;c=b;d=X",
+        "b=600;c=c;d=Y"
+    });
+
+    splits["//c"] = MakeSplit({
+        {"d", EValueType::String},
+        {"e", EValueType::Int64},
+    });
+    sources.push_back({
+        "d=X;e=1234",
+        "d=Y;e=5678"
+    });
+
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"c", EValueType::String},
+        {"b", EValueType::Int64},
+        {"d", EValueType::String},
+        {"e", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+         "a=2;c=b;b=200;d=Y;e=5678",
+         "a=2;c=b;b=500;d=X;e=1234",
+         "a=3;c=c;b=300;d=X;e=1234",
+         "a=3;c=c;b=600;d=Y;e=5678",
+         "a=4;c=a;b=100;d=X;e=1234",
+         "a=4;c=a;b=400;d=Y;e=5678"
+    }, resultSplit);
+
+    Evaluate("a, c, b, d, e from [//a] join [//b] using c join [//c] using d order by a, b limit 100", splits, sources, result);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestJoin)
 {
     std::map<Stroka, TDataSplit> splits;
@@ -3389,6 +3592,78 @@ TEST_F(TQueryEvaluateTest, TestJoin)
 
     SUCCEED();
 }
+
+
+TEST_F(TQueryEvaluateTest, TestJoinMany)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    splits["//primary"] = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+    sources.push_back({
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    });
+
+    splits["//secondary"] = MakeSplit({
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64}
+    });
+    sources.push_back({
+        "c=1;b=10",
+        "c=2;b=20",
+        "c=3;b=30",
+        "c=4;b=40",
+        "c=5;b=50",
+        "c=6;b=60",
+        "c=7;b=70",
+        "c=8;b=80",
+        "c=9;b=90"
+    });
+
+    splits["//tertiary"] = MakeSplit({
+        {"c", EValueType::Int64},
+        {"d", EValueType::Int64}
+    });
+    sources.push_back({
+        "c=1;d=10",
+        "c=2;d=20",
+        "c=3;d=30",
+        "c=4;d=40",
+        "c=5;d=50",
+        "c=6;d=60",
+        "c=7;d=70",
+        "c=8;d=80",
+        "c=9;d=90"
+    });
+
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"y", EValueType::Int64},
+        {"z", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=25;y=250;z=1",
+        "x=20;y=200;z=0",
+    }, resultSplit);
+
+    Evaluate("sum(a) as x, sum(d) as y, z FROM [//primary] join [//secondary] using b join [//tertiary] using c group by c % 2 as z", splits, sources, result);
+
+    SUCCEED();
+}
+
 
 TEST_F(TQueryEvaluateTest, TestOrderBy)
 {
@@ -3732,6 +4007,52 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=2;b=2",
+        "a=3;b=3",
+        "a=10"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=10",
+        "x=4",
+        "x=27",
+        ""
+    }, resultSplit);
+
+    auto testUdfSharedObjectImpl = TSharedRef(
+        test_udfs_so_so,
+        test_udfs_so_so_len,
+        nullptr);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    auto expUdf = New<TUserDefinedFunction>(
+        "exp_udf",
+        std::vector<TType>{
+            EValueType::Int64,
+            EValueType::Int64},
+        EValueType::Int64,
+        testUdfSharedObjectImpl,
+        ECallingConvention::Simple);
+    registry->WithFunction(expUdf);
+
+    Evaluate("exp_udf(b, a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
 {
     auto split = MakeSplit({
@@ -3813,6 +4134,281 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
     Evaluate("farm_hash(a, b, c) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestAverageAgg)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3",
+        "a=53",
+        "a=8",
+        "a=24",
+        "a=33"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Double}
+    });
+
+    auto result = BuildRows({
+        "x=24.2",
+    }, resultSplit);
+
+    Evaluate("avg(a) as x from [//t] group by 1", split, source, result);
+}
+
+TEST_F(TQueryEvaluateTest, TestAverageAgg2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3;b=3;c=1",
+        "a=53;b=2;c=3",
+        "a=8;b=5;c=32",
+        "a=24;b=7;c=4",
+        "a=33;b=4;c=9",
+        "a=33;b=3;c=43",
+        "a=23;b=0;c=0",
+        "a=33;b=8;c=2"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"r1", EValueType::Double},
+        {"x", EValueType::Int64},
+        {"r2", EValueType::Int64},
+        {"r3", EValueType::Double},
+        {"r4", EValueType::Int64},
+    });
+
+    auto result = BuildRows({
+        "r1=17.0;x=1;r2=43;r3=20.0;r4=3",
+        "r1=35.5;x=0;r2=9;r3=3.5;r4=23"
+    }, resultSplit);
+
+    Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, result);
+}
+
+TEST_F(TQueryEvaluateTest, TestAverageAgg3)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3;b=1",
+        "b=1",
+        "b=0",
+        "a=7;b=1",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"b", EValueType::Int64},
+        {"x", EValueType::Double}
+    });
+
+    auto result = BuildRows({
+        "b=1;x=5.0",
+        "b=0"
+    }, resultSplit);
+
+    Evaluate("b, avg(a) as x from [//t] group by b", split, source, result);
+}
+
+TEST_F(TQueryEvaluateTest, TestStringAgg)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"one\"",
+        "a=\"two\"",
+        "a=\"three\"",
+        "a=\"four\"",
+        "a=\"fo\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"b", EValueType::String},
+    });
+
+    auto result = BuildRows({
+        "b=\"fo\";c=\"two\"",
+    }, resultSplit);
+
+    Evaluate("min(a) as b, max(a) as c from [//t] group by 1", split, source, result);
+}
+
+TEST_F(TQueryEvaluateTest, WronglyTypedAggregate)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"\""
+    };
+
+    EvaluateExpectingError("avg(a) from [//t] group by 1", split, source);
+}
+
+TEST_F(TQueryEvaluateTest, CardinalityAggregate)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 2000; j++) {
+            source.push_back("a=" + ToString(j));
+        }
+    }
+
+    auto resultSplit = MakeSplit({
+        {"upper", EValueType::Boolean},
+        {"lower", EValueType::Boolean},
+    });
+
+    auto result = BuildRows({
+        "upper=%true;lower=%true"
+    }, resultSplit);
+
+    Evaluate("cardinality(a) < 2020u as upper, cardinality(a) > 1980u as lower from [//t] group by 1", split, source, result);
+}
+
+TEST_F(TQueryEvaluateTest, TestSharedObjectUdaf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Uint64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3u",
+        "a=53u",
+        "a=8u",
+        "a=24u",
+        "a=33u",
+        "a=333u",
+        "a=23u",
+        "a=33u"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"r", EValueType::Uint64},
+    });
+
+    auto result = BuildRows({
+        "r=333u"
+    }, resultSplit);
+
+    auto testUdfSharedObjectImpl = TSharedRef(
+        test_udfs_so_so,
+        test_udfs_so_so_len,
+        nullptr);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(New<TUserDefinedAggregateFunction>(
+        "max_udaf",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        EValueType::Uint64,
+        EValueType::Uint64,
+        EValueType::Uint64,
+        testUdfSharedObjectImpl,
+        ECallingConvention::Simple));
+
+    Evaluate("max_udaf(a) as r from [//t] group by 1", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestLinkingError1)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3",
+    };
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(AbsUdf_);
+    registry->WithFunction(ExpUdf_);
+
+    EvaluateExpectingError("exp_udf(abs_udf(a), 3) from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("abs_udf(exp_udf(a, 3)) from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestLinkingError2)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3"
+    };
+
+    auto testUdfSharedObjectImpl = TSharedRef(
+        test_udfs_so_so,
+        test_udfs_so_so_len,
+        nullptr);
+    auto absUdfSo = New<TUserDefinedFunction>(
+        "abs_udf",
+        std::vector<TType>{EValueType::Int64},
+        EValueType::Int64,
+        testUdfSharedObjectImpl,
+        ECallingConvention::Simple);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(absUdfSo);
+    registry->WithFunction(SumUdf_);
+
+    EvaluateExpectingError("sum_udf(abs_udf(a), 3) as r from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("abs_udf(sum_udf(a, 3)) as r from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
+TEST_F(TQueryEvaluateTest, TestLinkingError3)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3"
+    };
+
+    auto testUdfSharedObjectImpl = TSharedRef(
+        test_udfs_so_so,
+        test_udfs_so_so_len,
+        nullptr);
+    auto absUdfSo = New<TUserDefinedFunction>(
+        "abs_udf",
+        std::vector<TType>{EValueType::Int64},
+        EValueType::Int64,
+        testUdfSharedObjectImpl,
+        ECallingConvention::Simple);
+    auto expUdfSo = New<TUserDefinedFunction>(
+        "exp_udf",
+        std::vector<TType>{EValueType::Int64, EValueType::Int64},
+        EValueType::Int64,
+        testUdfSharedObjectImpl,
+        ECallingConvention::Simple);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(absUdfSo);
+    registry->WithFunction(expUdfSo);
+
+    EvaluateExpectingError("abs_udf(exp_udf(a, 3)) as r from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("exp_udf(abs_udf(a), 3) as r from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3939,17 +4535,18 @@ protected:
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
 
-        TDataSources foreignSplits{{planFragment->ForeignDataId, {
+        const auto& query = planFragment->Query;
+
+        TDataSources foreignSplits{{query->JoinClauses[0]->ForeignDataId, {
                 planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
                 planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())}
             }};
 
-        const auto& query = planFragment->Query;
         auto rowBuffer = New<TRowBuffer>();
         auto prunedSplits = GetPrunedRanges(
             query->WhereClause,
-            query->JoinClause->ForeignTableSchema,
-            query->JoinClause->ForeignKeyColumns,
+            query->JoinClauses[0]->ForeignTableSchema,
+            query->JoinClauses[0]->ForeignKeyColumns,
             foreignSplits,
             rowBuffer,
             ColumnEvaluatorCache_,
@@ -4794,8 +5391,6 @@ INSTANTIATE_TEST_CASE_P(
             "2;2;2",
             "3;3;3"}
 ));
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

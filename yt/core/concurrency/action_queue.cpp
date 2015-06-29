@@ -166,7 +166,7 @@ public:
         Shutdown();
     }
 
-    void Shutdown()
+    virtual void Shutdown() override
     {
         for (auto& bucket : Buckets_) {
             bucket.Queue->Shutdown();

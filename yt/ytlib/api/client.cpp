@@ -500,7 +500,6 @@ private:
             [&] (TConstQueryPtr subquery, int index) {
                 auto subfragment = New<TPlanFragment>(fragment->Source);
                 subfragment->Timestamp = fragment->Timestamp;
-                subfragment->ForeignDataId = fragment->ForeignDataId;
                 subfragment->Query = subquery;
                 subfragment->RangeExpansionLimit = fragment->RangeExpansionLimit,
                 subfragment->VerboseLogging = fragment->VerboseLogging;
@@ -519,7 +518,8 @@ private:
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
                 return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
-            });
+            },
+            FunctionRegistry_);
     }
 
     TQueryStatistics DoExecute(
@@ -2168,7 +2168,8 @@ private:
             const std::vector<TUnversionedRow>& rows,
             EWireProtocolCommand command,
             int columnCount,
-            TRowValidator validateRow)
+            TRowValidator validateRow,
+            int lockMode = 0)
         {
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             int keyColumnCount = TableInfo_->KeyColumns.size();
@@ -2176,7 +2177,7 @@ private:
             auto writeRequest = [&] (const TUnversionedRow row) {
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
-                session->SubmitRow(command, row, &idMapping);
+                session->SubmitRow(command, row, &idMapping, lockMode);
             };
 
             if (TableInfo_->NeedKeyEvaluation) {
@@ -2224,7 +2225,8 @@ private:
                 Rows_,
                 EWireProtocolCommand::WriteRow,
                 TableInfo_->Schema.Columns().size(),
-                ValidateClientDataRow);
+                ValidateClientDataRow,
+                static_cast<int>(Options_.LockMode));
         }
     };
 
@@ -2298,12 +2300,14 @@ private:
         void SubmitRow(
             EWireProtocolCommand command,
             TUnversionedRow row,
-            const TNameTableToSchemaIdMapping* idMapping)
+            const TNameTableToSchemaIdMapping* idMapping,
+            int lockMode)
         {
             SubmittedRows_.push_back(TSubmittedRow{
                 command,
                 row,
                 idMapping,
+                lockMode,
                 static_cast<int>(SubmittedRows_.size())});
         }
 
@@ -2402,6 +2406,7 @@ private:
             EWireProtocolCommand Command;
             TUnversionedRow Row;
             const TNameTableToSchemaIdMapping* IdMapping;
+            int LockMode;
             int SequentialId;
         };
 

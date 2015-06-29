@@ -227,6 +227,7 @@ void TSelectRowsCommand::DoExecute()
     options.OutputRowLimit = Request_->OutputRowLimit;
     options.RangeExpansionLimit = Request_->RangeExpansionLimit;
     options.VerboseLogging = Request_->VerboseLogging;
+    options.MaxSubqueries = Request_->MaxSubqueries;
 
     auto format = Context_->GetOutputFormat();
     auto output = Context_->Request().OutputStream;

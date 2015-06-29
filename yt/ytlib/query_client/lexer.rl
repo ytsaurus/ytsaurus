@@ -24,6 +24,7 @@ typedef TParser::token_type TToken;
 
     kw_from = 'from'i;
     kw_where = 'where'i;
+    kw_having = 'having'i;
     kw_limit = 'limit'i;
     kw_join = 'join'i;
     kw_using = 'using'i;
@@ -38,7 +39,10 @@ typedef TParser::token_type TToken;
     kw_false = 'false'i;
     kw_true = 'true'i;
 
-    keyword = kw_from | kw_where | kw_limit | kw_join | kw_using |kw_group_by | kw_order_by | kw_as | kw_and | kw_or | kw_not | kw_between | kw_in |  kw_false | kw_true;
+    keyword =
+        kw_from | kw_where | kw_having |kw_limit | kw_join | kw_using |
+        kw_group_by | kw_order_by | kw_as | kw_and | kw_or | kw_not | kw_between |
+        kw_in | kw_false | kw_true;
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
 
     fltexp = [Ee] [+\-]? digit+;
@@ -73,6 +77,7 @@ typedef TParser::token_type TToken;
 
         kw_from => { type = TToken::KwFrom; fbreak; };
         kw_where => { type = TToken::KwWhere; fbreak; };
+        kw_having => { type = TToken::KwHaving; fbreak; };
         kw_limit => { type = TToken::KwLimit; fbreak; };
         kw_join => { type = TToken::KwJoin; fbreak; };
         kw_using => { type = TToken::KwUsing; fbreak; };
@@ -96,7 +101,7 @@ typedef TParser::token_type TToken;
             type = TToken::Int64Literal;
             value->build(FromString<ui64>(ts, te - ts));
             fbreak;
-        };        
+        };
         uint64_literal => {
             type = TToken::Uint64Literal;
             value->build(FromString<ui64>(ts, te - ts - 1));

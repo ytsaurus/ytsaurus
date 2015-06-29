@@ -2,13 +2,20 @@
 #include "preprocess.h"
 #include "operation_tracker.h"
 
-#include <server/job_proxy/config.h>
-#include <ytlib/driver/driver.h>
 #include <core/ytree/ypath_proxy.h>
+
+#include <core/logging/log_manager.h>
+
+#include <ytlib/driver/driver.h>
+
 #include <ytlib/scheduler/scheduler_service_proxy.h>
 #include <ytlib/scheduler/helpers.h>
-#include <core/logging/log_manager.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
+
+#include <ytlib/new_table_client/schema.h>
+
+#include <server/job_proxy/config.h>
 
 #include <util/stream/format.h>
 
@@ -20,6 +27,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NScheduler;
 using namespace NConcurrency;
+using namespace NVersionedTableClient;
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -71,11 +79,15 @@ TMapExecutor::TMapExecutor()
     , OutArg("", "out", "output table path", false, "YPATH")
     , CommandArg("", "command", "mapper shell command", true, "", "STRING")
     , FileArg("", "file", "additional file path", false, "YPATH")
+    , InputQueryArg("", "input_query", "optional input query", false, "", "STRING")
+    , InputSchemaArg("", "input_schema", "input table schema", false, "", "YSON")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
     CmdLine.add(CommandArg);
     CmdLine.add(FileArg);
+    CmdLine.add(InputQueryArg);
+    CmdLine.add(InputSchemaArg);
 }
 
 void TMapExecutor::BuildParameters(IYsonConsumer* consumer)
@@ -92,6 +104,13 @@ void TMapExecutor::BuildParameters(IYsonConsumer* consumer)
                 .Item("command").Value(CommandArg.getValue())
                 .Item("file_paths").Value(files)
             .EndMap()
+            .DoIf(!InputQueryArg.getValue().empty(), [=] (TFluentMap fluent) {
+                fluent.Item("input_query").Value(InputQueryArg.getValue());
+            })
+            .DoIf(!InputSchemaArg.getValue().empty(), [=] (TFluentMap fluent) {
+                fluent.Item("input_schema").Value(
+                    ConvertTo<TTableSchema>(TYsonString(InputSchemaArg.getValue(), EYsonType::Node)));
+            })
         .EndMap();
 
     TTransactedExecutor::BuildParameters(consumer);
@@ -290,6 +309,8 @@ TMapReduceExecutor::TMapReduceExecutor()
     , ReducerFileArg("", "reducer_file", "additional reducer file path", false, "YPATH")
     , SortByArg("", "sort_by", "columns to sort by", true, "", "YSON_LIST_FRAGMENT")
     , ReduceByArg("", "reduce_by", "columns to reduce by (if not specified then assumed to be equal to \"sort_by\")", false, "", "YSON_LIST_FRAGMENT")
+    , InputQueryArg("", "input_query", "optional input query", false, "", "STRING")
+    , InputSchemaArg("", "input_schema", "input table schema", false, "", "YSON")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
@@ -301,6 +322,8 @@ TMapReduceExecutor::TMapReduceExecutor()
     CmdLine.add(ReducerFileArg);
     CmdLine.add(SortByArg);
     CmdLine.add(ReduceByArg);
+    CmdLine.add(InputQueryArg);
+    CmdLine.add(InputSchemaArg);
 }
 
 void TMapReduceExecutor::BuildParameters(IYsonConsumer* consumer)
@@ -340,6 +363,13 @@ void TMapReduceExecutor::BuildParameters(IYsonConsumer* consumer)
                 .Item("command").Value(ReducerCommandArg.getValue())
                 .Item("file_paths").Value(reducerFiles)
             .EndMap()
+            .DoIf(!InputQueryArg.getValue().empty(), [=] (TFluentMap fluent) {
+                fluent.Item("input_query").Value(InputQueryArg.getValue());
+            })
+            .DoIf(!InputSchemaArg.getValue().empty(), [=] (TFluentMap fluent) {
+                fluent.Item("input_schema").Value(
+                    ConvertTo<TTableSchema>(TYsonString(InputSchemaArg.getValue(), EYsonType::Node)));
+            })
        .EndMap();
 
     TTransactedExecutor::BuildParameters(consumer);

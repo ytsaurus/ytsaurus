@@ -6,12 +6,13 @@
 #      where names of resulting files will be appended
 ################################################################################
 
-function(UDF udf output)
+function(UDF udf output type)
   get_filename_component( _realpath ${udf} REALPATH )
   get_filename_component( _filename ${_realpath} NAME_WE )
+  get_filename_component( _extension ${_realpath} EXT )
 
-  set(_bc_dirname ${CMAKE_BINARY_DIR}/bin/)
-  set(_bc_filename ${_filename}.bc)
+  set(_inter_dirname ${CMAKE_BINARY_DIR}/bin/)
+  set(_inter_filename ${_filename}.${type})
   set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
   set(_h_dirname ${CMAKE_BINARY_DIR}/include/udf)
   set(_h_file ${_h_dirname}/${_filename}.h)
@@ -23,28 +24,58 @@ function(UDF udf output)
     PATHS $ENV{LLVM_ROOT}/bin
   )
 
+  find_program(CLANGPP_EXECUTABLE
+    NAMES clang++-3.6 clang++
+    PATHS $ENV{LLVM_ROOT}/bin
+  )
+
+  if(${_extension} STREQUAL ".cpp") 
+    set(_compiler ${CLANGPP_EXECUTABLE} -std=c++1y)
+    set(_depends ${_include_dir}/yt_udf_cpp.h)
+  else()
+    set(_compiler ${CLANG_EXECUTABLE})
+    set(_depends ${_include_dir}/yt_udf.h)
+  endif()
+
+  if(${type} STREQUAL "so")
+    set(_options -fPIC)
+  else()
+    set(_options -emit-llvm)
+  endif()
+
   add_custom_command(
     OUTPUT
       ${_h_file}
     COMMAND
       ${CMAKE_COMMAND} -E make_directory ${_h_dirname}
     COMMAND
-      ${CLANG_EXECUTABLE} -c
+      ${_compiler} -c
+        ${_options}
         -I${_include_dir}
-        -emit-llvm
-        -o ${_bc_filename}
+        -I${CMAKE_SOURCE_DIR}/yt
+        -I${CMAKE_SOURCE_DIR}
+        -I${CMAKE_BINARY_DIR}/include
+        -o ${_inter_filename}
         ${_realpath}
     COMMAND
-      xxd -i ${_bc_filename} > ${_h_file}
+      xxd -i ${_inter_filename} > ${_h_file}
     MAIN_DEPENDENCY
       ${_realpath}
     DEPENDS
-      ${_include_dir}/yt_udf.h
+      ${_depends}
     WORKING_DIRECTORY
-      ${_bc_dirname}
-    COMMENT "Generating LLVM bitcode for ${_filename}..."
+      ${_inter_dirname}
+    COMMENT "Generating UDF header for ${_filename}..."
   )
 endfunction()
+
+macro(UDF_BC udf_impl output)
+    udf(${udf_impl} ${output} bc)
+endmacro()
+
+macro(UDF_SO udf_impl output)
+    udf(${udf_impl} ${output} so)
+endmacro()
 
 function(PROTOC proto output)
   get_filename_component( _proto_realpath ${proto} REALPATH )

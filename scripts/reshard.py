@@ -36,7 +36,6 @@ def make_pivot_keys(ty, expr, shards=1):
     print "Modulo: %s ; Shift: %s ; Span: %s" % (modulo, shift, span)
     return [[]] + [[cls(i * span / shards - shift)] for i in xrange(1, shards)]
 
-
 def reshard(table=None, shards=1, dump=False):
     pivot_schema = yt.get(table + "/@schema/0")
     pivot_keys = make_pivot_keys(pivot_schema.get("type", None), pivot_schema.get("expression", None), shards)

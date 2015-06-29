@@ -373,9 +373,27 @@ public:
 
 typedef std::function<Value* (TCGIRBuilder& builder)> TCodegenBlock;
 typedef std::function<TCGValue(TCGContext& builder, Value* row)> TCodegenExpression;
-typedef std::function<void(TCGContext& builder, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
+
+typedef std::function<TCGValue(TCGContext& builder, Value* aggState)> TCodegenAggregateInit;
+typedef std::function<TCGValue(TCGContext& builder, Value* aggState, Value* newValue)> TCodegenAggregateUpdate;
+typedef std::function<TCGValue(TCGContext& builder, Value* dstAggState, Value* aggState)> TCodegenAggregateMerge;
+typedef std::function<TCGValue(TCGContext& builder, Value* aggState)> TCodegenAggregateFinalize;
+
+struct TCodegenAggregate {
+    TCodegenAggregateInit Initialize;
+    TCodegenAggregateUpdate Update;
+    TCodegenAggregateMerge Merge;
+    TCodegenAggregateFinalize Finalize;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
+
+Value* CodegenLexicographicalCompare(
+    TCGContext& builder,
+    Value* lhsData,
+    Value* lhsLength,
+    Value* rhsData,
+    Value* rhsLength);
 
 TCodegenExpression MakeCodegenLiteralExpr(
     int index,
@@ -421,14 +439,45 @@ TCodegenSource MakeCodegenFilterOp(
     TCodegenSource codegenSource);
 
 TCodegenSource MakeCodegenJoinOp(
+    int index,
     std::vector<Stroka> joinColumns,
     TTableSchema sourceSchema,
     TCodegenSource codegenSource);
 
-TCodegenSource MakeCodegenGroupOp(
+std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
+    std::vector<TCodegenExpression> codegenGroupExprs);
+
+std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArgs(
     std::vector<TCodegenExpression> codegenGroupExprs,
-    std::vector<std::pair<TCodegenExpression, TCodegenAggregateUpdate>> codegenAggregates,
-    TCodegenSource codegenSource);
+    std::vector<TCodegenExpression> codegenAggregateExprs,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    bool isMerge,
+    TTableSchema inputSchema);
+
+std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateInitialize(
+    std::vector<TCodegenAggregate> codegenAggregates,
+    int keySize);
+
+std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpdate(
+    std::vector<TCodegenAggregate> codegenAggregates,
+    int keySize,
+    bool isMerge);
+
+std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinalize(
+    std::vector<TCodegenAggregate> codegenAggregates,
+    int keySize,
+    bool isFinal);
+
+TCodegenSource MakeCodegenGroupOp(
+    std::function<void(TCGContext&, Value*)> codegenInitialize,
+    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateGroups,
+    std::function<void(TCGContext&, Value*, Value*)> codegenEvaluateAggregateArgs,
+    std::function<void(TCGContext&, Value*, Value*)> codegenUpdate,
+    std::function<void(TCGContext&, Value*)> codegenFinalize,
+    TCodegenSource codegenSource,
+    int keySize,
+    int groupRowSize,
+    TTableSchema inputSchema);
 
 TCodegenSource MakeCodegenOrderOp(
     std::vector<Stroka> orderColumns,
@@ -463,6 +512,12 @@ void CodegenIf(
     Value* condition,
     const std::function<void(TBuilder& builder)>& thenCodegen,
     const std::function<void(TBuilder& builder)>& elseCodegen);
+
+template <class TBuilder>
+void CodegenIf(
+    TBuilder& builder,
+    Value* condition,
+    const std::function<void(TBuilder& builder)>& thenCodegen);
 
 TCGValue MakeBinaryFunctionCall(
     Stroka routineName,

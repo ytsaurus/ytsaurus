@@ -9,19 +9,16 @@
 
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
-#ifdef YT_USE_LLVM
+// TODO(sandello): Refine this dependencies.
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/folding_profiler.h>
-#endif
 
 namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NYTree;
 using namespace NYson;
-#ifdef YT_USE_LLVM
 using namespace NQueryClient;
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -348,7 +345,6 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
         const auto& columnSchema = schema.Columns()[index];
         if (columnSchema.Expression) {
             if (index < keyColumns.size()) {
-#ifdef YT_USE_LLVM
                 auto functionRegistry = CreateBuiltinFunctionRegistry();
                 auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, functionRegistry.Get());
                 if (expr->Type != columnSchema.Type) {
@@ -372,9 +368,6 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
                             ref);
                     }
                 }
-#else
-                THROW_ERROR_EXCEPTION("Computed columns require LLVM enabled in build");
-#endif
             } else {
                 THROW_ERROR_EXCEPTION("Computed column %Qv is not a key column", columnSchema.Name);
             }
