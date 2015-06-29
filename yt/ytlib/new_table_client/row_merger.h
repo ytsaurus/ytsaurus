@@ -94,6 +94,9 @@ public:
     TVersionedRow BuildMergedRow();
     void Reset();
 
+    TTimestamp GetCurrentTimestamp() const;
+    TTimestamp GetMajorTimestamp() const;
+
 private:
     TChunkedMemoryPool* Pool_;
     int KeyColumnCount_;
