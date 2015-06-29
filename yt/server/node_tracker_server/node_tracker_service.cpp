@@ -50,9 +50,10 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetRequestHeavy(true)
-            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Heartbeat)));
+            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::FullHeartbeat)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
-            .SetRequestHeavy(true));
+            .SetRequestHeavy(true)
+            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::IncrementalHeartbeat)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetRegisteredCells));
     }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/misc/public.h>
+#include <core/misc/enum.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -21,6 +22,16 @@ class TBootstrap;
 class TLoadContext;
 class TSaveContext;
 typedef TCustomPersistenceContext<TSaveContext, TLoadContext> TPersistenceContext;
+
+DEFINE_ENUM(EAutomatonThreadQueue,
+    (Default)
+    (Mutation)
+    (ChunkMaintenance)
+    (ChunkLocator)
+    (ChunkTraverser)
+    (FullHeartbeat)
+    (IncrementalHeartbeat)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

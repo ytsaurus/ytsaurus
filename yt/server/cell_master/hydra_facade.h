@@ -13,15 +13,6 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EAutomatonThreadQueue,
-    (Default)
-    (Mutation)
-    (ChunkMaintenance)
-    (ChunkLocator)
-    (ChunkTraverser)
-    (Heartbeat)
-);
-
 class TNotALeaderException
     : public TErrorException
 {
