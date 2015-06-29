@@ -41,7 +41,8 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
             .SetInvoker(bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator)));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AllocateWriteTargets));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AllocateWriteTargets)
+            .SetInvoker(bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator)));
     }
 
 private:
