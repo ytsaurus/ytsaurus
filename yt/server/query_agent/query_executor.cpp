@@ -209,7 +209,6 @@ private:
                     LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
                     auto planFragment = New<TPlanFragment>();
-                    planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                     planFragment->Timestamp = fragment->Timestamp;
                     planFragment->DataSources.push_back({
                         dataId,

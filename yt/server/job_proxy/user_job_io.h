@@ -23,8 +23,6 @@ struct IUserJobIO
 
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) = 0;
 
-    virtual bool IsKeySwitchEnabled() const = 0;
-
     virtual void CreateReader() = 0;
 
     virtual NVersionedTableClient::TSchemalessReaderFactory GetReaderFactory() = 0;

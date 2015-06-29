@@ -2168,8 +2168,7 @@ private:
             const std::vector<TUnversionedRow>& rows,
             EWireProtocolCommand command,
             int columnCount,
-            TRowValidator validateRow,
-            int lockMode = 0)
+            TRowValidator validateRow)
         {
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             int keyColumnCount = TableInfo_->KeyColumns.size();
@@ -2177,7 +2176,7 @@ private:
             auto writeRequest = [&] (const TUnversionedRow row) {
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
-                session->SubmitRow(command, row, &idMapping, lockMode);
+                session->SubmitRow(command, row, &idMapping);
             };
 
             if (TableInfo_->NeedKeyEvaluation) {
@@ -2225,8 +2224,7 @@ private:
                 Rows_,
                 EWireProtocolCommand::WriteRow,
                 TableInfo_->Schema.Columns().size(),
-                ValidateClientDataRow,
-                static_cast<int>(Options_.LockMode));
+                ValidateClientDataRow);
         }
     };
 
@@ -2300,14 +2298,12 @@ private:
         void SubmitRow(
             EWireProtocolCommand command,
             TUnversionedRow row,
-            const TNameTableToSchemaIdMapping* idMapping,
-            int lockMode)
+            const TNameTableToSchemaIdMapping* idMapping)
         {
             SubmittedRows_.push_back(TSubmittedRow{
                 command,
                 row,
                 idMapping,
-                lockMode,
                 static_cast<int>(SubmittedRows_.size())});
         }
 
@@ -2406,7 +2402,6 @@ private:
             EWireProtocolCommand Command;
             TUnversionedRow Row;
             const TNameTableToSchemaIdMapping* IdMapping;
-            int LockMode;
             int SequentialId;
         };
 

@@ -599,15 +599,12 @@ private:
         TAsyncWriterPtr asyncOutput)
     {
         auto writerFactory = [=] (TNameTablePtr nameTable) {
-            YCHECK(!JobIO_->IsKeySwitchEnabled());
-
             auto writer = CreateSchemalessWriterForFormat(
                 format,
                 nameTable,
                 CreateSyncAdapter(asyncOutput),
                 true,
-                Config_->JobIO->EnableInputTableIndex,
-                JobIO_->IsKeySwitchEnabled(),
+                false,
                 0);
 
             FormatWriters_.push_back(writer);

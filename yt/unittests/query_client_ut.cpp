@@ -2357,7 +2357,6 @@ protected:
             {
                 auto planFragment = New<TPlanFragment>();
 
-                planFragment->NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
                 planFragment->Timestamp = primaryFragment->Timestamp;
                 planFragment->DataSources.push_back({
                     foreignDataId,
