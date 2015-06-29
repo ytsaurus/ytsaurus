@@ -53,6 +53,12 @@ target_link_libraries ( ytcore
   farmhash
 )
 
+if (CMAKE_COMPILER_IS_CLANG AND NOT APPLE)
+  target_link_libraries ( ytcore
+    -latomic
+  )
+endif()
+
 if (YT_BUILD_ENABLE_LLVM)
   llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES mcjit ipo x86 mcdisassembler linker asmparser irreader)
   target_link_libraries( ytcore ${REQUIRED_LLVM_LIBRARIES} )
