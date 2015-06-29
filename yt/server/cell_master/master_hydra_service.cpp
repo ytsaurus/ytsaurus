@@ -25,6 +25,11 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
     YCHECK(Bootstrap_);
 }
 
+IInvokerPtr TMasterHydraServiceBase::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue)
+{
+    return Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(queue);
+}
+
 void TMasterHydraServiceBase::BeforeInvoke()
 {
     auto worldInitializer = Bootstrap_->GetWorldInitializer();
