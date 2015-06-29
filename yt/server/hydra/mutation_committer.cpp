@@ -68,7 +68,9 @@ public:
         : Owner_(owner)
         , StartVersion_(startVersion)
         , Logger(Owner_->Logger)
-    { }
+    {
+        Logger.AddTag("StartVersion: %v", StartVersion_);
+    }
 
     void AddMutation(
         const TMutationRequest& request,
@@ -82,7 +84,7 @@ public:
         BatchedRecordsData_.push_back(recordData);
         LocalFlushResult_ = std::move(localFlushResult);
 
-        LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, MutationType: %v)",
+        LOG_DEBUG("Mutation batched (Version: %v, MutationType: %v)",
             currentVersion,
             StartVersion_,
             request.Type);
@@ -98,7 +100,7 @@ public:
         int mutationCount = GetMutationCount();
         CommittedVersion_ = TVersion(StartVersion_.SegmentId, StartVersion_.RecordId + mutationCount);
 
-        LOG_DEBUG("Flushing batched mutations (StartVersion: %v, MutationCount: %v)",
+        LOG_DEBUG("Flushing batched mutations (MutationCount: %v)",
             StartVersion_,
             mutationCount);
 
@@ -125,7 +127,7 @@ public:
                 if (!channel)
                     continue;
 
-                LOG_DEBUG("Sending mutations to follower %v", followerId);
+                LOG_DEBUG("Sending mutations to follower (FollowerId: %v)", followerId);
 
                 THydraServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(Owner_->Config_->CommitRpcTimeout);
@@ -167,19 +169,19 @@ private:
             Owner_->CellManager_->GetPeerTags(followerId));
 
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error logging mutations at follower %v",
+            LOG_WARNING(rspOrError, "Error logging mutations at follower (FollowerId: %v)",
                 followerId);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
         if (rsp->logged()) {
-            LOG_DEBUG("Mutations are flushed by follower %v", followerId);
+            LOG_DEBUG("Mutations are flushed by follower (FollowerId: %v)", followerId);
 
             ++FlushCount_;
             CheckQuorum();
         } else {
-            LOG_DEBUG("Mutations are acknowledged by follower %v", followerId);
+            LOG_DEBUG("Mutations are acknowledged by follower (FollowerId: %v)", followerId);
         }
     }
 
