@@ -86,6 +86,11 @@ public:
         Thread_->Shutdown();
     }
 
+    bool IsRunning() const
+    {
+        return Queue_->IsRunning();
+    }
+
     IInvokerPtr GetInvoker()
     {
         return Queue_;
@@ -114,6 +119,11 @@ TActionQueue::~TActionQueue()
 void TActionQueue::Shutdown()
 {
     return Impl->Shutdown();
+}
+
+bool TActionQueue::IsRunning() const
+{
+    return Impl->IsRunning();
 }
 
 IInvokerPtr TActionQueue::GetInvoker()
