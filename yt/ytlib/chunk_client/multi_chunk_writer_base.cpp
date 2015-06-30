@@ -360,6 +360,8 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
         i64 expectedInputSize = static_cast<i64>(currentDataSize * std::max(0.0, 1.0 - Progress_));
 
         if (expectedInputSize > Config_->DesiredChunkSize ||
+            // On erasure chunks switch immediately, otherwise we can consume too much memory.
+            Options_->ErasureCodec != ECodec::None || 
             CurrentSession_.TemplateWriter->GetDataSize() > 2 * Config_->DesiredChunkSize)
         {
             LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, ExpectedInputSize: %" PRId64 ", DesiredChunkSize: %" PRId64 ")",
