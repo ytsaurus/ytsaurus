@@ -159,10 +159,7 @@ public:
         // Return true if current writer is ready for more data and
         // we didn't switch to the next chunk.
         bool readyForMore = CurrentWriter_->Write(std::forward<TWriteArgs>(args)...);
-        bool switched = false;
-        if (readyForMore) {
-            switched = TrySwitchSession();
-        }
+        bool switched = TrySwitchSession();
         return readyForMore && !switched;
     }
 
