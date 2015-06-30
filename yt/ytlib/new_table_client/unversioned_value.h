@@ -41,6 +41,13 @@ struct TUnversionedValue
     TUnversionedValueData Data;
 };
 
+static_assert(
+    sizeof(TUnversionedValue) == 16,
+    "TUnversionedValue has to be exactly 16 bytes.");
+static_assert(
+    std::is_pod<TUnversionedValue>::value,
+    "TUnversionedValue must be a POD type.");
+
 //! Computes hash for a given TUnversionedValue.
 ui64 GetHash(const TUnversionedValue& value);
 
