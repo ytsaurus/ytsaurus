@@ -298,7 +298,6 @@ class TInMemoryManagerConfig
 {
 public:
     int MaxConcurrentPreloads;
-    i64 WindowSize;
     TDuration InterceptedDataRetentionTime;
 
     TInMemoryManagerConfig()
@@ -306,9 +305,6 @@ public:
         RegisterParameter("max_concurrent_preloads", MaxConcurrentPreloads)
             .GreaterThan(0)
             .Default(1);
-        RegisterParameter("window_size", WindowSize)
-            .GreaterThan(0)
-            .Default((i64) 16 * 1024 * 1024);
         RegisterParameter("intercepted_data_retention_time", InterceptedDataRetentionTime)
             .Default(TDuration::Seconds(30));
     }
