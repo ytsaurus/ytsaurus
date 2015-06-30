@@ -100,12 +100,29 @@ udf_bc( ${BASE}/udf/malloc_udf.c SRCS )
 udf_bc(
   ${BASE}/udf/test_udfs.c
   SRCS
-  strtol_udf,exp_udf,tolower_udf,is_null_udf,abs_udf,sum_udf,avg_udaf_init,avg_udaf_update,avg_udaf_merge,avg_udaf_finalize
+  SYMBOLS
+    strtol_udf
+    exp_udf
+    tolower_udf
+    is_null_udf
+    abs_udf
+    sum_udf
+    avg_udaf_init
+    avg_udaf_update
+    avg_udaf_merge
+    avg_udaf_finalize
 )
 udf_so(
   ${BASE}/udf/test_udfs_so.c
   SRCS
-  abs_udf,abs_udf_so,exp_udf,max_udaf_init,max_udaf_update,max_update_merge,max_udaf_finalize
+  SYMBOLS
+    abs_udf
+    abs_udf_so
+    exp_udf
+    max_udaf_init
+    max_udaf_update
+    max_update_merge
+    max_udaf_finalize
 )
 
 add_msvc_precompiled_header(
