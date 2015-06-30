@@ -16,7 +16,28 @@ function(UDF udf output type)
   set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
   set(_h_dirname ${CMAKE_BINARY_DIR}/include/udf)
   set(_h_file ${_h_dirname}/${_filename}.h)
-  set(_extrasymbols ${ARGN})
+
+  set(_extraargs ${ARGN})
+  set(_list _extrasymbols_list)
+  foreach(_arg ${_extraargs})
+    if(${_arg} STREQUAL "SYMBOLS")
+      set(_list _extrasymbols_list)
+    elseif(${_arg} STREQUAL "FILES")
+      set(_list _extrafiles)
+    else()
+      set(${_list} ${${_list}} ${_arg})
+    endif()
+  endforeach()
+
+  foreach(_file ${_extrafiles})
+    get_filename_component( _extra_realpath ${_file} REALPATH )
+    get_filename_component( _extra_filename ${_extra_realpath} NAME_WE )
+    set(_extra_inter_filenames ${_extra_inter_filenames} ${_extra_filename}.bc)
+  endforeach()
+
+  foreach(_symbol ${_extrasymbols_list})
+    set(_extrasymbols ${_extrasymbols},${_symbol})
+  endforeach()
 
   set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
 
@@ -65,12 +86,21 @@ function(UDF udf output type)
     COMMAND
       ${CMAKE_COMMAND} -E make_directory ${_h_dirname}
     COMMAND
-      ${_compiler} -c
-        -DYT_COMPILING_UDF
-        ${_options}
-        ${_include_dirs}
-        -o ${_inter_filename}
-        ${_realpath}
+      for f in ${_realpath} ${_extrafiles}\; do
+        ${_compiler} -c
+          -DYT_COMPILING_UDF
+          ${_options}
+          ${_include_dirs}
+          $$f\;
+      done
+    COMMAND
+      test ${type} = "bc" 
+      && llvm-link-3.6
+        -o ${_inter_filename}.tmp
+        ${_inter_filename} ${_extra_inter_filenames}
+      || cp ${_inter_filename} ${_inter_filename}.tmp
+    COMMAND
+      mv ${_inter_filename}.tmp ${_inter_filename}
     COMMAND
       test ${type} = "bc" 
       && opt-3.6
@@ -78,7 +108,6 @@ function(UDF udf output type)
         -internalize-public-api-list=${_filename},${_filename}_init,${_filename}_update,${_filename}_merge,${_filename}_finalize,${_extrasymbols}
         -globalopt
         -globaldce
-        -prune-eh
         -o ${_inter_filename}.tmp
         ${_inter_filename}
       || cp ${_inter_filename} ${_inter_filename}.tmp
@@ -90,6 +119,7 @@ function(UDF udf output type)
       ${_realpath}
     DEPENDS
       ${_depends}
+      ${_extrafiles}
     IMPLICIT_DEPENDS
       ${_lang} ${_realpath}
     WORKING_DIRECTORY

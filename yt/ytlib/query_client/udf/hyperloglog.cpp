@@ -1,5 +1,4 @@
-#include <yt/ytlib/new_table_client/unversioned_value.cpp>
-#include <contrib/libs/farmhash/farmhash.cc>
+#include <yt/ytlib/new_table_client/unversioned_value.h>
 #include <core/misc/hyperloglog.h>
 #include <yt_udf_cpp.h>
 
