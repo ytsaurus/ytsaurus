@@ -1,6 +1,7 @@
 #include "artifact.h"
 
 #include <core/misc/hash.h>
+#include <core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -34,8 +35,7 @@ TArtifactKey::operator size_t() const
         result = HashCombine(result, format());
     }
 
-    auto hashReadLimit = [&] (const NChunkClient::NProto::TReadLimit& limit)
-    {
+    auto hashReadLimit = [&] (const NChunkClient::NProto::TReadLimit& limit) {
         if (limit.has_row_index()) {
             result = HashCombine(result, limit.row_index());
         }
@@ -48,8 +48,7 @@ TArtifactKey::operator size_t() const
     };
 
     for (const auto& spec : chunks()) {
-        TGuid id;
-        FromProto(&id, spec.chunk_id());
+        auto id = FromProto<TGuid>(spec.chunk_id());
         result = HashCombine(result, id);
 
         if (spec.has_lower_limit()) {
@@ -59,6 +58,7 @@ TArtifactKey::operator size_t() const
             hashReadLimit(spec.upper_limit());
         }
     }
+
     return result;
 }
 
@@ -101,13 +101,12 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
         return true;
     };
 
-    for (size_t index = 0; index < chunks_size(); ++index) {
+    for (int index = 0; index < chunks_size(); ++index) {
         const auto& lhs = chunks(index);
         const auto& rhs = other.chunks(index);
 
-        TGuid leftId, rightId;
-        FromProto(&leftId, lhs.chunk_id());
-        FromProto(&rightId, rhs.chunk_id());
+        auto leftId = FromProto<TGuid>(lhs.chunk_id());
+        auto rightId = FromProto<TGuid>(rhs.chunk_id());
 
         if (leftId != rightId)
             return false;
@@ -126,6 +125,11 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
     }
 
     return true;
+}
+
+Stroka ToString(const TArtifactKey& key)
+{
+    return key.DebugString();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
