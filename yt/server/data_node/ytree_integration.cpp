@@ -61,7 +61,7 @@ private:
                 .BeginMap()
                     .Item("disk_space").Value(chunk->GetInfo().disk_space())
                     .Item("location").Value(chunk->GetLocation()->GetPath())
-                    .Item("is_artifact").Value(IsArtifactChunkId(chunk->GetId()))
+                    .Item("artifact").Value(IsArtifactChunkId(chunk->GetId()))
                 .EndMap();
         }));
     }

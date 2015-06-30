@@ -56,7 +56,7 @@ public:
      */
     int GetChunkCount();
 
-    //! Downloads single- or multi-chunk artifact into the cache.
+    //! Downloads a single- or multi-chunk artifact into the cache.
     /*!
      *  The download process is asynchronous.
      *  If the chunk is already cached, it returns a pre-set result.

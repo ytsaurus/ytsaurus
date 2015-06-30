@@ -193,8 +193,7 @@ private:
     mutable NLogging::TLogger Logger;
 
     void CheckMinimumSpace();
-    void CheckErrorFile();
-    void CreateErrorFile(const TError& reason);
+    void CheckLockFile();
 
     std::vector<TChunkDescriptor> DoScan();
     TNullable<TChunkDescriptor> RepairBlobChunk(const TChunkId& chunkId);
