@@ -172,7 +172,7 @@ public:
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return Run<TGzipCodec>(Compressor_, false, blocks);
+        return Run<TGzipCodec>(Compressor_, true, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
