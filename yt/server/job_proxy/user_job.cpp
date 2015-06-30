@@ -598,6 +598,10 @@ private:
         const TFormat& format,
         TAsyncWriterPtr asyncOutput)
     {
+        if (Config_->JobIO->ControlAttributes->EnableKeySwitch) {
+            THROW_ERROR_EXCEPTION("enable_key_switch is not supported when query is set");
+        }
+
         auto writerFactory = [=] (TNameTablePtr nameTable) {
             auto writer = CreateSchemalessWriterForFormat(
                 format,
