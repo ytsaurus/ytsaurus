@@ -82,7 +82,7 @@ bool operator != (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 
 Stroka ToString(const TChunkIdWithIndex& id);
 
-//! Returns |true| iff this is an artifact chunk
+//! Returns |true| iff this is an artifact chunk.
 bool IsArtifactChunkId(const TChunkId& id);
 
 //! Returns |true| iff this is a erasure chunk.

@@ -116,9 +116,6 @@ bool TLocation::IsChunkTypeAccepted(EObjectType chunkType)
         case EObjectType::JournalChunk:
             return Config_->EnableJournals;
 
-        case EObjectType::Artifact:
-            return Config_->EnableArtifacts;
-
         default:
             YUNREACHABLE();
     }
@@ -331,7 +328,7 @@ void TLocation::CheckMinimumSpace()
     }
 }
 
-void TLocation::CheckErrorFile()
+void TLocation::CheckLockFile()
 {
     LOG_INFO("Checking lock file");
 
@@ -346,7 +343,12 @@ void TLocation::CheckErrorFile()
         TBufferedFileInput fileInput(file);
         auto errorData = fileInput.ReadAll();
         if (!errorData.Empty()) {
-            error = ConvertTo<TError>(TYsonString(errorData));
+            try {
+                error = ConvertTo<TError>(TYsonString(errorData));
+            } catch (const std::exception& ex) {
+                error = TError("Error parsing lock file contents")
+                    << ex;
+            }
         } else {
             error = TError("Empty lock file detected");
         }
@@ -357,18 +359,17 @@ void TLocation::CheckErrorFile()
         GetPath())
         << error);
 
-    error.ThrowOnError();
+    THROW_ERROR error;
 }
 
 void TLocation::Disable(const TError& reason)
 {
-    // save the reason in a file and exit
-    // location will be disabled during the scan in the restart process
+    // Save the reason in a file and exit.
+    // Location will be disabled during the scan in the restart process.
     if (Enabled_.exchange(false)) {
         auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
         try {
-            auto ysonError = ConvertToYsonString(reason, NYson::EYsonFormat::Text);
-            auto errorData = ysonError.Data();
+            auto errorData = ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).Data();
             TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
             TFileOutput fileOutput(file);
             fileOutput << errorData;
@@ -409,7 +410,7 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
 {
     CheckMinimumSpace();
 
-    CheckErrorFile();
+    CheckLockFile();
 
     LOG_INFO("Scanning storage location");
 

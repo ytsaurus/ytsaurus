@@ -68,9 +68,6 @@ public:
     //! Controls if new journal chunks are accepted by this location.
     bool EnableJournals;
 
-    //! Controls if artifacts are enabled for this location.
-    bool EnableArtifacts;
-
     TLocationConfig()
     {
         RegisterParameter("path", Path)
@@ -95,8 +92,6 @@ public:
         RegisterParameter("enable_blobs", EnableBlobs)
             .Default(true);
         RegisterParameter("enable_journals", EnableJournals)
-            .Default(true);
-        RegisterParameter("enable_artifacts", EnableArtifacts)
             .Default(true);
 
         RegisterValidator([&] () {
