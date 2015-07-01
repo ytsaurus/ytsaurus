@@ -486,7 +486,9 @@ private:
 
     void FinalizeJob()
     {
-        Slot->Release();
+        auto slotManager = Bootstrap->GetExecSlotManager();
+        slotManager->ReleaseSlot(Slot);
+
         auto resourceDelta = ZeroNodeResources() - ResourceUsage;
         {
             TGuard<TSpinLock> guard(SpinLock);

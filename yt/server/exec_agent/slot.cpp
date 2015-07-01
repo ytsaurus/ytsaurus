@@ -30,14 +30,12 @@ Stroka GetSlotProcessGroup(int slotId)
 
 TSlot::TSlot(
     TSlotManagerConfigPtr config,
-    const Stroka& path,
+    std::vector<Stroka> paths,
     const Stroka& nodeId,
     IInvokerPtr invoker,
     int slotIndex,
     TNullable<int> userId)
-    : IsFree_(true)
-    , IsClean_(true)
-    , Path_(path)
+    : Paths_(std::move(paths))
     , NodeId_(nodeId)
     , SlotIndex_(slotIndex)
     , UserId_(userId)
@@ -73,13 +71,18 @@ void TSlot::Initialize()
 
     DoResetProcessGroup();
 
+    Stroka currentPath;
     try {
-        NFS::ForcePath(Path_, 0755);
-        SandboxPath_ = NFS::CombinePaths(Path_, "sandbox");
-        DoCleanSandbox();
+        int pathIndex = 0;
+        for (const auto& path : Paths_) {
+            currentPath = path;
+            NFS::ForcePath(path, 0755);
+            SandboxPaths_.push_back(NFS::CombinePaths(path, "sandbox"));
+            DoCleanSandbox(pathIndex++);
+        }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to create slot directory %v",
-            Path_) << ex;
+            currentPath) << ex;
     }
 
     try {
@@ -90,14 +93,17 @@ void TSlot::Initialize()
     }
 }
 
-void TSlot::Acquire()
+void TSlot::Acquire(int pathIndex)
 {
-    IsFree_ = false;
+    YCHECK(pathIndex >= 0 && pathIndex < Paths_.size());
+
+    PathIndex_ = pathIndex;
+    IsFree_.store(false);
 }
 
 bool TSlot::IsFree() const
 {
-    return IsFree_;
+    return IsFree_.load();
 }
 
 TNullable<int> TSlot::GetUserId() const
@@ -125,6 +131,11 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
     return result;
 }
 
+int TSlot::GetPathIndex() const
+{
+    return PathIndex_;
+}
+
 TTcpBusServerConfigPtr TSlot::GetRpcServerConfig() const
 {
     auto unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
@@ -137,21 +148,21 @@ TTcpBusClientConfigPtr TSlot::GetRpcClientConfig() const
     return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
 }
 
-void TSlot::DoCleanSandbox()
+void TSlot::DoCleanSandbox(int pathIndex)
 {
+    const auto& sandboxPath = SandboxPaths_[pathIndex];
     try {
-        if (NFS::Exists(SandboxPath_)) {
+        if (NFS::Exists(sandboxPath)) {
             if (UserId_) {
-                LOG_DEBUG("Clean sandbox %v", SandboxPath_);
-                RunTool<TRemoveDirAsRootTool>(SandboxPath_);
+                LOG_DEBUG("Clean sandbox %v", sandboxPath);
+                RunTool<TRemoveDirAsRootTool>(sandboxPath);
             } else {
-                NFS::RemoveRecursive(SandboxPath_);
+                NFS::RemoveRecursive(sandboxPath);
             }
         }
-        IsClean_ = true;
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Failed to clean sandbox directory %v",
-            SandboxPath_)
+            sandboxPath)
             << ex;
         LOG_ERROR(wrappedError);
         THROW_ERROR wrappedError;
@@ -182,10 +193,12 @@ void TSlot::DoResetProcessGroup()
 
 void TSlot::Clean()
 {
+    YCHECK(!IsFree());
     try {
         LOG_INFO("Cleaning slot");
         DoCleanProcessGroups();
-        DoCleanSandbox();
+        DoCleanSandbox(PathIndex_);
+        IsClean_ = true;
     } catch (const std::exception& ex) {
         LOG_FATAL("%v", ex.what());
     }
@@ -197,20 +210,24 @@ void TSlot::Release()
 
     DoResetProcessGroup();
 
-    IsFree_ = true;
+    IsFree_.store(true);
+    PathIndex_ = -1;
 }
 
 void TSlot::InitSandbox()
 {
-    YCHECK(!IsFree_);
+    YCHECK(!IsFree());
 
+    const auto& sandboxPath = SandboxPaths_[PathIndex_];
     try {
-        NFS::ForcePath(SandboxPath_, 0777);
+        NFS::ForcePath(sandboxPath, 0777);
     } catch (const std::exception& ex) {
-        LogErrorAndExit(TError("Failed to create sandbox directory %Qv", SandboxPath_) << ex);
+        LogErrorAndExit(TError("Failed to create sandbox directory %Qv",
+            sandboxPath)
+            << ex);
     }
 
-    LOG_INFO("Created slot sandbox directory %Qv", SandboxPath_);
+    LOG_INFO("Created slot sandbox directory %Qv", sandboxPath);
 
     IsClean_ = false;
 }
@@ -220,7 +237,10 @@ void TSlot::MakeLink(
     const Stroka& linkName,
     bool isExecutable) noexcept
 {
-    auto linkPath = NFS::CombinePaths(SandboxPath_, linkName);
+    YCHECK(!IsFree());
+
+    const auto& sandboxPath = SandboxPaths_[PathIndex_];
+    auto linkPath = NFS::CombinePaths(sandboxPath, linkName);
     try {
         {
             // Take exclusive lock in blocking fashion to ensure that no
@@ -235,7 +255,7 @@ void TSlot::MakeLink(
         // Occured IO error in the slot, restart node immediately.
         LogErrorAndExit(TError(
             "Failed to create a symlink in the slot %Qv (LinkPath: %Qv, TargetPath: %Qv, IsExecutable: %lv)",
-            SandboxPath_,
+            sandboxPath,
             linkPath,
             targetPath,
             isExecutable)
@@ -252,7 +272,8 @@ void TSlot::LogErrorAndExit(const TError& error)
 
 const Stroka& TSlot::GetWorkingDirectory() const
 {
-    return Path_;
+    YCHECK(!IsFree());
+    return Paths_[PathIndex_];
 }
 
 IInvokerPtr TSlot::GetInvoker()
