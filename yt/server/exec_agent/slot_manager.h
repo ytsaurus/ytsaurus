@@ -28,17 +28,21 @@ public:
     //! Acquires and returns a free slot. Fails if there's none.
     TSlotPtr AcquireSlot();
 
+    //! Releases the slot.
+    void ReleaseSlot(TSlotPtr slot);
+
     int GetSlotCount() const;
 
 private:
-    TSlotManagerConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    TSlotManagerConfigPtr Config_;
+    NCellNode::TBootstrap* Bootstrap_;
 
-    std::vector<TSlotPtr> Slots;
+    std::vector<TSlotPtr> Slots_;
+    std::vector<int> SlotPathCounters_;
 
-    NConcurrency::TActionQueuePtr ActionQueue;
+    NConcurrency::TActionQueuePtr ActionQueue_;
 
-    bool IsEnabled;
+    bool IsEnabled_;
 
 };
 
