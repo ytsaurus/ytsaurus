@@ -83,6 +83,10 @@ StaticMethodType = type(staticmethod(_method))
 ClassMethodType = type(classmethod(_method))
 PropertyType = property()
 
+from weakref import ref
+_instance = _class()
+ReferenceType = type(ref(_instance))
+
 def islambda(func):
     return getattr(func,'func_name') == '<lambda>'
 
@@ -516,12 +520,12 @@ class CloudPickler(pickle.Pickler):
                     raise
 
         except (ImportError, KeyError, AttributeError):
-            if typ == types.TypeType or typ == types.ClassType:
+            if issubclass(typ, types.TypeType) or typ == types.ClassType:
                 sendRef = False
             else: #we can't deal with this
                 raise
         else:
-            if klass is not obj and (typ == types.TypeType or typ == types.ClassType):
+            if klass is not obj and (issubclass(typ, types.TypeType) or typ == types.ClassType):
                 sendRef = False
         if not sendRef:
             self.save_class_obj(obj, name, pack)
@@ -606,6 +610,11 @@ class CloudPickler(pickle.Pickler):
         else:
             self.save_inst_logic(obj)
     dispatch[types.InstanceType] = save_inst
+
+    def save_weakref(self, obj):
+        refobj = obj()
+        self.save_reduce(_create_weakref, (refobj,), obj=obj)
+    dispatch[ReferenceType] = save_weakref
 
     def save_staticmethod(self, obj):
         self.save_reduce(staticmethod, (obj.__func__,), obj=obj)
@@ -912,6 +921,17 @@ def env_vars_load(env_dct):
     for var, value in env_dct.items():
         os.environ[var] = value
     error_msg('Loaded Environment variables %s' % env_dct.keys(), logging.DEBUG)
+
+# Implementation was taken from dill
+def _create_weakref(obj, *args):
+    from weakref import ref
+    if obj is None: # it's dead
+        if PY3:
+            from collections import UserDict
+        else:
+            from UserDict import UserDict
+        return ref(UserDict(), *args)
+    return ref(obj, *args)
 
 # restores function attributes
 def _restore_attr(obj, attr):

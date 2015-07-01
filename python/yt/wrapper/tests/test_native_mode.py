@@ -366,6 +366,10 @@ class NativeModeTester(YtTestBase, YTEnv):
             yt.run_map(ChangeX__(mode), table, table)
             self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
 
+        yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.run_map(TMapperWithMetaclass().map, table, table)
+        self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
+
         yt.write_table(table, ["x=2\n", "x=2\ty=2\n"])
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(sum_y, table, table, reduce_by=["x"])
@@ -1034,6 +1038,34 @@ class ChangeX__(object):
     @classmethod
     def _change_x_classmethod(cls, rec):
         _change_x(rec)
+
+# Map method to test metaclass pickling
+from abc import ABCMeta, abstractmethod
+
+class TAbstractClass(object):
+  __metaclass__ = ABCMeta
+
+  @abstractmethod
+  def __init__(self):
+    pass
+
+
+class TDoSomething(TAbstractClass):
+    def __init__(self):
+        pass
+
+    def do_something(self, rec):
+        _change_x(rec)
+        return rec
+
+
+class TMapperWithMetaclass(object):
+  def __init__(self):
+    self.some_external_code = TDoSomething()
+
+  def map(self, rec):
+    yield self.some_external_code.do_something(rec)
+
 
 class TestNativeModeV2(NativeModeTester):
     @classmethod
