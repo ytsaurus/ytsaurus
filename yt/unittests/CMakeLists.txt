@@ -121,7 +121,7 @@ udf_o(
     exp_udf
     max_udaf_init
     max_udaf_update
-    max_update_merge
+    max_udaf_merge
     max_udaf_finalize
 )
 
