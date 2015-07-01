@@ -381,7 +381,7 @@ class YTEnv(object):
                 'high_watermark' : 0
             })
             config['exec_agent']['slot_manager']['start_uid'] = current_user
-            config['exec_agent']['slot_manager']['path'] = os.path.join(current, 'slots')
+            config['exec_agent']['slot_manager']['paths'].append(os.path.join(current, 'slots'))
 
             current_user += config['exec_agent']['job_controller']['resource_limits']['user_slots'] + 1
 
