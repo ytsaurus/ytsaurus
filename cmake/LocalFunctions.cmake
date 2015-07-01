@@ -38,10 +38,11 @@ function(UDF udf output type)
 
   set(_inter_dirname ${CMAKE_BINARY_DIR}/bin/)
   set(_inter_filename ${_filename}.${type})
+  set(_bc_filename ${_filename}.bc)
   foreach(_file ${_extrafiles})
     get_filename_component( _extra_realpath ${_file} REALPATH )
     get_filename_component( _extra_filename ${_extra_realpath} NAME_WE )
-    set(_extra_inter_filenames ${_extra_inter_filenames} ${_extra_filename}.${type})
+    set(_extra_bc_filenames ${_extra_bc_filenames} ${_extra_filename}.bc)
   endforeach()
 
   foreach(_symbol ${_extrasymbols_list})
@@ -80,12 +81,6 @@ function(UDF udf output type)
     set(_lang "C")
   endif()
 
-  if(${type} STREQUAL "o")
-    set(_options ${_options} -fPIC)
-  else()
-    set(_options ${_options} -emit-llvm)
-  endif()
-
   add_custom_command(
     OUTPUT
       ${_h_file}
@@ -94,31 +89,33 @@ function(UDF udf output type)
     COMMAND
       for f in ${_realpath} ${_extrafiles}\; do
         ${_compiler} -c
+          -emit-llvm
           -DYT_COMPILING_UDF
           ${_options}
           ${_include_dirs}
           $$f\;
       done
     COMMAND
-      test ${type} = "bc" 
-      && llvm-link-3.6
-        -o ${_inter_filename}.tmp
-        ${_inter_filename} ${_extra_inter_filenames}
-      || cp ${_inter_filename} ${_inter_filename}.tmp
+      llvm-link-3.6
+        -o ${_bc_filename}.tmp
+        ${_bc_filename} ${_extra_bc_filenames}
     COMMAND
-      mv ${_inter_filename}.tmp ${_inter_filename}
+      mv ${_bc_filename}.tmp ${_bc_filename}
     COMMAND
-      test ${type} = "bc" 
-      && opt-3.6
+      opt-3.6
         -internalize
         -internalize-public-api-list=${_filename},${_filename}_init,${_filename}_update,${_filename}_merge,${_filename}_finalize,${_extrasymbols}
         -globalopt
         -globaldce
-        -o ${_inter_filename}.tmp
-        ${_inter_filename}
-      || cp ${_inter_filename} ${_inter_filename}.tmp
+        -o ${_bc_filename}.tmp
+        ${_bc_filename}
     COMMAND
-      mv ${_inter_filename}.tmp ${_inter_filename}
+      mv ${_bc_filename}.tmp ${_bc_filename}
+    COMMAND
+      test ${type} = "o"
+        && ${CLANG_EXECUTABLE} -c -fPIC -o ${_inter_filename} ${_bc_filename}
+        && rm ${_bc_filename}
+        || touch ${_bc_filename}
     COMMAND
       xxd -i ${_inter_filename} > ${_h_file}
     MAIN_DEPENDENCY
