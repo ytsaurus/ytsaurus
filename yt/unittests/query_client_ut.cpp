@@ -4410,6 +4410,39 @@ TEST_F(TQueryEvaluateTest, TestLinkingError3)
     EvaluateExpectingError("exp_udf(abs_udf(a), 3) as r from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
 
+TEST_F(TQueryEvaluateTest, TestCasts)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Uint64},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Double}
+    });
+
+    std::vector<Stroka> source = {
+        "a=3u;b=34",
+        "c=1.23",
+        "a=12u",
+        "b=0;c=1.0",
+        "a=5u",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"r1", EValueType::Int64},
+        {"r2", EValueType::Double},
+        {"r3", EValueType::Uint64},
+    });
+
+    auto result = BuildRows({
+        "r1=3;r2=34.0",
+        "r3=1u",
+        "r1=12",
+        "r2=0.0;r3=1u",
+        "r1=5",
+    }, resultSplit);
+
+    Evaluate("int64(a) as r1, double(b) as r2, uint64(c) as r3 from [//t]", split, source, result);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEvaluateExpressionTest
