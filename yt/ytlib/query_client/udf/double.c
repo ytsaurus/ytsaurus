@@ -12,5 +12,7 @@ void double_cast(
         result->Data.Double = (double)value->Data.Uint64;
     } else if (value->Type == Double) {
         result->Data.Double = value->Data.Double;
+    } else if (value->Type == Null) {
+        result->Type = Null;
     }
 }
