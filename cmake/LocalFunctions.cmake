@@ -115,7 +115,7 @@ function(UDF udf output type)
       test ${type} = "o"
         && ${CLANG_EXECUTABLE} -c -fPIC -o ${_inter_filename} ${_bc_filename}
         && rm ${_bc_filename}
-        || touch ${_bc_filename}
+        || true
     COMMAND
       xxd -i ${_inter_filename} > ${_h_file}
     MAIN_DEPENDENCY
