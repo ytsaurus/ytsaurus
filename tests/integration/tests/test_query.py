@@ -556,7 +556,7 @@ class TestQuery(YTEnvSetup):
         assert actual[1]["b"] > .95 * 10000
         assert actual[1]["b"] < 1.05 * 10000
 
-    def test_shared_object_udf(self):
+    def test_object_udf(self):
         registry_path =  "//tmp/udfs"
         create("map_node", registry_path)
 
@@ -572,7 +572,7 @@ class TestQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "simple"}})
 
-        local_bitcode_path = find_executable("test_udfs_so.so")
+        local_bitcode_path = find_executable("test_udfs_o.o")
         upload_file(abs_path, local_bitcode_path)
 
         self._sample_data(path="//tmp/sou")

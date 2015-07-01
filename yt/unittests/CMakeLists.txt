@@ -112,12 +112,12 @@ udf_bc(
     avg_udaf_merge
     avg_udaf_finalize
 )
-udf_so(
-  ${BASE}/udf/test_udfs_so.c
+udf_o(
+  ${BASE}/udf/test_udfs_o.c
   SRCS
   SYMBOLS
     abs_udf
-    abs_udf_so
+    abs_udf_o
     exp_udf
     max_udaf_init
     max_udaf_update

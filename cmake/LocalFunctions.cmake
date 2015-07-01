@@ -6,16 +6,23 @@
 #      where names of resulting files will be appended
 ################################################################################
 
+# Can be called with extra arguments to specify which symbols to export and
+# which files to link in. If no symbols are specified, it is assumed that the
+# filename is the name of the UD(A)F being defined (e.g. is_null.c defines
+# is_null).
+#
+# udf(udf output type
+#     [[SYMBOLS] symbols...]
+#     [FILES files...])
+#
 function(UDF udf output type)
   get_filename_component( _realpath ${udf} REALPATH )
   get_filename_component( _filename ${_realpath} NAME_WE )
   get_filename_component( _extension ${_realpath} EXT )
 
-  set(_inter_dirname ${CMAKE_BINARY_DIR}/bin/)
-  set(_inter_filename ${_filename}.${type})
-  set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
   set(_h_dirname ${CMAKE_BINARY_DIR}/include/udf)
   set(_h_file ${_h_dirname}/${_filename}.h)
+  set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
 
   set(_extraargs ${ARGN})
   set(_list _extrasymbols_list)
@@ -29,17 +36,17 @@ function(UDF udf output type)
     endif()
   endforeach()
 
+  set(_inter_dirname ${CMAKE_BINARY_DIR}/bin/)
+  set(_inter_filename ${_filename}.${type})
   foreach(_file ${_extrafiles})
     get_filename_component( _extra_realpath ${_file} REALPATH )
     get_filename_component( _extra_filename ${_extra_realpath} NAME_WE )
-    set(_extra_inter_filenames ${_extra_inter_filenames} ${_extra_filename}.bc)
+    set(_extra_inter_filenames ${_extra_inter_filenames} ${_extra_filename}.${type})
   endforeach()
 
   foreach(_symbol ${_extrasymbols_list})
     set(_extrasymbols ${_extrasymbols},${_symbol})
   endforeach()
-
-  set(${output} ${${output}} ${_h_file} PARENT_SCOPE)
 
   get_property( _dirs
     DIRECTORY
@@ -47,17 +54,16 @@ function(UDF udf output type)
     PROPERTY
       INCLUDE_DIRECTORIES
   )
-
   foreach( _dir ${_dirs})
     set(_include_dirs ${_include_dirs} -I${_dir})
   endforeach()
+  set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
   set(_include_dirs ${_include_dirs} -I${_include_dir})
 
   find_program(CLANG_EXECUTABLE
     NAMES clang-3.6 clang
     PATHS $ENV{LLVM_ROOT}/bin
   )
-
   find_program(CLANGPP_EXECUTABLE
     NAMES clang++-3.6 clang++
     PATHS $ENV{LLVM_ROOT}/bin
@@ -74,7 +80,7 @@ function(UDF udf output type)
     set(_lang "C")
   endif()
 
-  if(${type} STREQUAL "so")
+  if(${type} STREQUAL "o")
     set(_options ${_options} -fPIC)
   else()
     set(_options ${_options} -emit-llvm)
@@ -121,7 +127,7 @@ function(UDF udf output type)
       ${_depends}
       ${_extrafiles}
     IMPLICIT_DEPENDS
-      ${_lang} ${_realpath}
+      ${_lang} ${_realpath} ${_extrafiles}
     WORKING_DIRECTORY
       ${_inter_dirname}
     COMMENT "Generating UDF header for ${_filename}..."
@@ -132,8 +138,8 @@ macro(UDF_BC udf_impl output)
     udf(${udf_impl} ${output} bc ${ARGN})
 endmacro()
 
-macro(UDF_SO udf_impl output)
-    udf(${udf_impl} ${output} so ${ARGN})
+macro(UDF_O udf_impl output)
+    udf(${udf_impl} ${output} o ${ARGN})
 endmacro()
 
 function(PROTOC proto output)
