@@ -12,5 +12,7 @@ void int64(
         result->Data.Int64 = (int64_t)value->Data.Uint64;
     } else if (value->Type == Double) {
         result->Data.Int64 = (int64_t)value->Data.Double;
+    } else if (value->Type == Null) {
+        result->Type = Null;
     }
 }
