@@ -34,6 +34,10 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::IMapNodePtr specNode);
 
 ////////////////////////////////////////////////////////////////////
 
+EAbortReason GetAbortReason(const TRefCountedJobResultPtr& result);
+
+////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT
 

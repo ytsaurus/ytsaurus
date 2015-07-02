@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "config.h"
 #include "fair_share_strategy.h"
+#include "public.h"
 #include "scheduler_strategy.h"
 #include "master_connector.h"
 #include "job_resources.h"
@@ -913,8 +914,8 @@ public:
         auto operationLimits = ResourceLimits() - ResourceUsage();
         jobLimits = Min(jobLimits, operationLimits);
 
-        auto job = controller->ScheduleJob(context, jobLimits);
-        if (job) {
+        auto jobId = controller->ScheduleJob(context, jobLimits);
+        if (jobId != NJobTrackerClient::NullJobId) {
             return true;
         } else {
             Attributes_.Active = false;

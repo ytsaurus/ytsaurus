@@ -2,6 +2,7 @@
 
 #include <core/misc/enum.h>
 #include <core/misc/error.h>
+#include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/scheduler/public.h>
 
@@ -91,6 +92,9 @@ struct IOperationController;
 typedef TIntrusivePtr<IOperationController> IOperationControllerPtr;
 
 class TMasterConnector;
+
+using TRefCountedJobResult = TRefCountedProto<NJobTrackerClient::NProto::TJobResult>;
+typedef TIntrusivePtr<TRefCountedJobResult> TRefCountedJobResultPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

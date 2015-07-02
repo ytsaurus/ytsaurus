@@ -1488,14 +1488,21 @@ private:
             return;
 
         job->SetState(EJobState::Aborted);
-        ToProto(job->Result().mutable_error(), error);
-        ToProto(job->Result().mutable_statistics(), SerializedEmptyStatistics.Data());
+        {
+            TJobResult jobResult;
+            ToProto(jobResult.mutable_error(), error);
+            ToProto(jobResult.mutable_statistics(), SerializedEmptyStatistics.Data());
+            job->SetResult(std::move(jobResult));
+        }
 
         OnJobFinished(job);
 
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
-            operation->GetController()->OnJobAborted(job);
+            LogFinishedJobFluently(ELogEventType::JobAborted, job)
+                .Item("reason").Value(GetAbortReason(job->Result()));
+            operation->UpdateJobStatistics(job);
+            operation->GetController()->OnJobAborted(TAbortedJobSummary(job));
         }
     }
 
@@ -1519,7 +1526,7 @@ private:
     {
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
-            operation->GetController()->OnJobRunning(job, status);
+            operation->GetController()->OnJobRunning(job->GetId(), status);
         }
     }
 
@@ -1534,13 +1541,15 @@ private:
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Completed);
-            job->SetResult(*result);
+            job->SetResult(std::move(*result));
 
             OnJobFinished(job);
 
             auto operation = job->GetOperation();
             if (operation->GetState() == EOperationState::Running) {
-                operation->GetController()->OnJobCompleted(job);
+                LogFinishedJobFluently(ELogEventType::JobCompleted, job);
+                operation->UpdateJobStatistics(job);
+                operation->GetController()->OnJobCompleted(TCompletedJobSummary(job));
             }
 
             ProcessFinishedJobResult(job);
@@ -1549,19 +1558,36 @@ private:
         UnregisterJob(job);
     }
 
+    TFluentLogEvent LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
+    {
+        return LogEventFluently(eventType)
+            .Item("job_id").Value(job->GetId())
+            .Item("operation_id").Value(job->GetOperation()->GetId())
+            .Item("start_time").Value(job->GetStartTime())
+            .Item("finish_time").Value(job->GetFinishTime())
+            .Item("resource_limits").Value(job->ResourceLimits())
+            .Item("statistics").Value(job->Statistics())
+            .Item("node_address").Value(job->GetNode()->GetDefaultAddress())
+            .Item("job_type").Value(job->GetType());
+    }
+
     void OnJobFailed(TJobPtr job, TJobResult* result)
     {
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Failed);
-            job->SetResult(*result);
+            job->SetResult(std::move(*result));
 
             OnJobFinished(job);
 
             auto operation = job->GetOperation();
             if (operation->GetState() == EOperationState::Running) {
-                operation->GetController()->OnJobFailed(job);
+                auto error = FromProto<TError>(job->Result()->error());
+                LogFinishedJobFluently(ELogEventType::JobFailed, job)
+                    .Item("error").Value(error);
+                operation->UpdateJobStatistics(job);
+                operation->GetController()->OnJobFailed(TFailedJobSummary(job));
             }
 
             ProcessFinishedJobResult(job);
@@ -1580,13 +1606,16 @@ private:
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Aborted);
-            job->SetResult(*result);
+            job->SetResult(std::move(*result));
 
             OnJobFinished(job);
 
             auto operation = job->GetOperation();
             if (operation->GetState() == EOperationState::Running) {
-                operation->GetController()->OnJobAborted(job);
+                LogFinishedJobFluently(ELogEventType::JobAborted, job)
+                    .Item("reason").Value(GetAbortReason(job->Result()));
+                operation->UpdateJobStatistics(job);
+                operation->GetController()->OnJobAborted(TAbortedJobSummary(job));
             }
         }
 
@@ -1616,7 +1645,7 @@ private:
     void ProcessFinishedJobResult(TJobPtr job)
     {
         auto jobFailed = job->GetState() == EJobState::Failed;
-        const auto& schedulerResultExt = job->Result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        const auto& schedulerResultExt = job->Result()->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id() 
             ? FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id())
@@ -2112,6 +2141,7 @@ class TScheduler::TSchedulingContext
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, DefaultAddress);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, PreemptedJobs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, RunningJobs);
@@ -2122,6 +2152,7 @@ public:
         TExecNodePtr node,
         const std::vector<TJobPtr>& runningJobs)
         : Node_(node)
+        , DefaultAddress_(Node_->GetDefaultAddress())
         , RunningJobs_(runningJobs)
         , Owner_(owner)
     { }
@@ -2141,7 +2172,7 @@ public:
         return true;
     }
 
-    virtual TJobPtr StartJob(
+    virtual TJobId StartJob(
         TOperationPtr operation,
         EJobType type,
         const TNodeResources& resourceLimits,
@@ -2161,7 +2192,7 @@ public:
             specBuilder);
         StartedJobs_.push_back(job);
         Owner_->RegisterJob(job);
-        return job;
+        return id;
     }
 
     virtual void PreemptJob(TJobPtr job) override
