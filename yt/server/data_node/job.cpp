@@ -402,7 +402,7 @@ private:
         auto blockCache = Bootstrap_->GetBlockCache();
 
         while (currentBlockIndex < blockCount) {
-            auto asyncReadBlocks = blockStore->ReadBlocks(
+            auto asyncReadBlocks = blockStore->ReadBlockRange(
                 ChunkId_,
                 currentBlockIndex,
                 blockCount - currentBlockIndex,
