@@ -1890,7 +1890,7 @@ TEST_P(TCompareWithNullTest, Simple)
     auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
     executionContext.LiteralRows = &variables.LiteralRows;
     callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
-    EXPECT_EQ(expected, result)
+    EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(rowString) << std::endl
         << "expr: " << ::testing::PrintToString(exprString) << std::endl;
 }
