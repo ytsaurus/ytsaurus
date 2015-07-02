@@ -13,10 +13,6 @@ uint64_t SimpleHash(
     const TUnversionedValue* begin,
     const TUnversionedValue* end);
 
-uint64_t FarmHash(
-    const TUnversionedValue* begin,
-    const TUnversionedValue* end);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 int8_t is_substr(
@@ -60,16 +56,6 @@ void simple_hash(
     int args_len)
 {
     result->Data.Uint64 = SimpleHash(args, args + args_len);;
-    result->Type = Uint64;
-}
-
-void farm_hash(
-    TExecutionContext* context,
-    TUnversionedValue* result,
-    TUnversionedValue* args,
-    int args_len)
-{
-    result->Data.Uint64 = FarmHash(args, args + args_len);
     result->Type = Uint64;
 }
 
