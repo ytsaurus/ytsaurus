@@ -69,6 +69,14 @@ function(UDF udf output type)
     NAMES clang++-3.6 clang++
     PATHS $ENV{LLVM_ROOT}/bin
   )
+  find_program(LINK_EXECUTABLE
+    NAMES llvm-link-3.6 llvm-link
+    PATHS $ENV{LLVM_ROOT}/bin
+  )
+  find_program(OPT_EXECUTABLE
+    NAMES opt-3.6 opt
+    PATHS $ENV{LLVM_ROOT}/bin
+  )
 
   if(${_extension} STREQUAL ".cpp") 
     set(_compiler ${CLANGPP_EXECUTABLE})
@@ -96,13 +104,13 @@ function(UDF udf output type)
           $$f\;
       done
     COMMAND
-      llvm-link-3.6
+      ${LINK_EXECUTABLE}
         -o ${_bc_filename}.tmp
         ${_bc_filename} ${_extra_bc_filenames}
     COMMAND
       mv ${_bc_filename}.tmp ${_bc_filename}
     COMMAND
-      opt-3.6
+      ${OPT_EXECUTABLE}
         -internalize
         -internalize-public-api-list=${_filename},${_filename}_init,${_filename}_update,${_filename}_merge,${_filename}_finalize,${_extrasymbols}
         -globalopt
