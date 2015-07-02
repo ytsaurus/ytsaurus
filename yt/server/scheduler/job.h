@@ -50,9 +50,9 @@ public:
     TDuration GetDuration() const;
 
     //! Job result returned by node.
-    DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::NProto::TJobResult, Result);
+    DEFINE_BYREF_RO_PROPERTY(TRefCountedJobResultPtr, Result);
 
-    void SetResult(const NJobTrackerClient::NProto::TJobResult& result);
+    void SetResult(NJobTrackerClient::NProto::TJobResult&& result);
 
     // Custom and builtin job statistics.
     DEFINE_BYREF_RO_PROPERTY(TStatistics, Statistics);
@@ -91,6 +91,36 @@ public:
         bool restarted,
         TJobSpecBuilder specBuilder);
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCompletedJobSummary
+{
+    explicit TCompletedJobSummary(TJobPtr job);
+
+    const TRefCountedJobResultPtr Result;
+    const TJobId Id;
+    const TStatistics Statistics;
+};
+
+struct TFailedJobSummary
+{
+    explicit TFailedJobSummary(TJobPtr job);
+
+    const TRefCountedJobResultPtr Result;
+    const TJobId Id;
+};
+
+struct TAbortedJobSummary
+{
+    explicit TAbortedJobSummary(TJobPtr job);
+
+    TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
+
+    const TRefCountedJobResultPtr Result;
+    const TJobId Id;
+    const EAbortReason AbortReason;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

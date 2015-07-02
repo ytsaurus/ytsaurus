@@ -192,16 +192,16 @@ private:
                 Controller->GetMemoryReserve(joblet->MemoryReserveEnabled, Controller->Spec->Mapper));
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet) override
+        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
         {
-            TTask::OnJobCompleted(joblet);
+            TTask::OnJobCompleted(joblet, jobSummary);
 
-            RegisterOutput(joblet, joblet->JobIndex);
+            RegisterOutput(joblet, joblet->JobIndex, jobSummary);
         }
 
-        virtual void OnJobAborted(TJobletPtr joblet) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            TTask::OnJobAborted(joblet);
+            TTask::OnJobAborted(joblet, jobSummary);
             Controller->UpdateAllTasksIfNeeded(Controller->JobCounter);
         }
 

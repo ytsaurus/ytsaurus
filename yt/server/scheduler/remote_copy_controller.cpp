@@ -227,15 +227,15 @@ private:
             AddFinalOutputSpecs(jobSpec, joblet);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet) override
+        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
         {
-            TTask::OnJobCompleted(joblet);
-            RegisterOutput(joblet, Index_);
+            TTask::OnJobCompleted(joblet, jobSummary);
+            RegisterOutput(joblet, Index_, jobSummary);
         }
 
-        virtual void OnJobAborted(TJobletPtr joblet) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            TTask::OnJobAborted(joblet);
+            TTask::OnJobAborted(joblet, jobSummary);
             Controller_->UpdateAllTasksIfNeeded(Controller_->JobCounter);
         }
 

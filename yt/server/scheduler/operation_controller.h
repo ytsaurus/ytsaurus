@@ -113,6 +113,7 @@ struct ISchedulingContext
 
 
     virtual TExecNodePtr GetNode() const = 0;
+    virtual Stroka GetDefaultAddress() const = 0;
 
     virtual const std::vector<TJobPtr>& StartedJobs() const = 0;
     virtual const std::vector<TJobPtr>& PreemptedJobs() const = 0;
@@ -120,7 +121,7 @@ struct ISchedulingContext
 
     virtual bool CanStartMoreJobs() const = 0;
 
-    virtual TJobPtr StartJob(
+    virtual TJobId StartJob(
         TOperationPtr operation,
         EJobType type,
         const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
@@ -196,22 +197,22 @@ struct IOperationController
 
 
     //! Called during heartbeat processing to notify the controller that a job is running.
-    virtual void OnJobRunning(TJobPtr job, const NJobTrackerClient::NProto::TJobStatus& status) = 0;
+    virtual void OnJobRunning(const TJobId& jobId, const NJobTrackerClient::NProto::TJobStatus& status) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job has completed.
-    virtual void OnJobCompleted(TJobPtr job) = 0;
+    virtual void OnJobCompleted(const TCompletedJobSummary& jobSummary) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job has failed.
-    virtual void OnJobFailed(TJobPtr job) = 0;
+    virtual void OnJobFailed(const TFailedJobSummary& jobSummary) = 0;
 
     //! Called during preemption to notify the controller that a job has been aborted.
-    virtual void OnJobAborted(TJobPtr job) = 0;
+    virtual void OnJobAborted(const TAbortedJobSummary& jobSummary) = 0;
 
     //! Called during heartbeat to abort operation if it has reached it's time limit.
     virtual void CheckTimeLimit() = 0;
 
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TJobPtr ScheduleJob(
+    virtual TJobId ScheduleJob(
         ISchedulingContext* context,
         const NNodeTrackerClient::NProto::TNodeResources& jobLimits) = 0;
 
