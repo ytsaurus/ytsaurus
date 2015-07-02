@@ -487,13 +487,6 @@ ui64 SimpleHash(const TUnversionedValue* begin, const TUnversionedValue* end)
     return result;
 }
 
-ui64 FarmHash(
-    const TUnversionedValue* begin,
-    const TUnversionedValue* end)
-{
-    return GetFarmFingerprint(begin, end);
-}
-
 ui64 FarmHashUint64(ui64 value)
 {
     return FarmFingerprint(value);
@@ -530,7 +523,6 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(IsSubstr);
     REGISTER_ROUTINE(IsRowInArray);
     REGISTER_ROUTINE(SimpleHash);
-    REGISTER_ROUTINE(FarmHash);
     REGISTER_ROUTINE(FarmHashUint64);
     REGISTER_ROUTINE(AddRow);
     REGISTER_ROUTINE(OrderOpHelper);

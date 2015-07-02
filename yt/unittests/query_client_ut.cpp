@@ -3,7 +3,7 @@
 #include "versioned_table_client_ut.h"
 
 #include "udf/test_udfs.h"
-#include "udf/test_udfs_so.h"
+#include "udf/test_udfs_o.h"
 #include "udf/malloc_udf.h"
 #include "udf/invalid_ir.h"
 
@@ -4006,7 +4006,7 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
+TEST_F(TQueryEvaluateTest, TestObjectUdf)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
@@ -4031,9 +4031,9 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
         ""
     }, resultSplit);
 
-    auto testUdfSharedObjectImpl = TSharedRef(
-        test_udfs_so_so,
-        test_udfs_so_so_len,
+    auto testUdfObjectImpl = TSharedRef(
+        test_udfs_o_o,
+        test_udfs_o_o_len,
         nullptr);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
@@ -4043,7 +4043,7 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdf)
             EValueType::Int64,
             EValueType::Int64},
         EValueType::Int64,
-        testUdfSharedObjectImpl,
+        testUdfObjectImpl,
         ECallingConvention::Simple);
     registry->WithFunction(expUdf);
 
@@ -4285,7 +4285,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
     Evaluate("cardinality(a) < 2020u as upper, cardinality(a) > 1980u as lower from [//t] group by 1", split, source, result);
 }
 
-TEST_F(TQueryEvaluateTest, TestSharedObjectUdaf)
+TEST_F(TQueryEvaluateTest, TestObjectUdaf)
 {
     auto split = MakeSplit({
         {"a", EValueType::Uint64}
@@ -4310,9 +4310,9 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdaf)
         "r=333u"
     }, resultSplit);
 
-    auto testUdfSharedObjectImpl = TSharedRef(
-        test_udfs_so_so,
-        test_udfs_so_so_len,
+    auto testUdfObjectImpl = TSharedRef(
+        test_udfs_o_o,
+        test_udfs_o_o_len,
         nullptr);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
@@ -4322,7 +4322,7 @@ TEST_F(TQueryEvaluateTest, TestSharedObjectUdaf)
         EValueType::Uint64,
         EValueType::Uint64,
         EValueType::Uint64,
-        testUdfSharedObjectImpl,
+        testUdfObjectImpl,
         ECallingConvention::Simple));
 
     Evaluate("max_udaf(a) as r from [//t] group by 1", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
@@ -4356,15 +4356,15 @@ TEST_F(TQueryEvaluateTest, TestLinkingError2)
         "a=3"
     };
 
-    auto testUdfSharedObjectImpl = TSharedRef(
-        test_udfs_so_so,
-        test_udfs_so_so_len,
+    auto testUdfObjectImpl = TSharedRef(
+        test_udfs_o_o,
+        test_udfs_o_o_len,
         nullptr);
     auto absUdfSo = New<TUserDefinedFunction>(
         "abs_udf",
         std::vector<TType>{EValueType::Int64},
         EValueType::Int64,
-        testUdfSharedObjectImpl,
+        testUdfObjectImpl,
         ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
@@ -4385,21 +4385,21 @@ TEST_F(TQueryEvaluateTest, TestLinkingError3)
         "a=3"
     };
 
-    auto testUdfSharedObjectImpl = TSharedRef(
-        test_udfs_so_so,
-        test_udfs_so_so_len,
+    auto testUdfObjectImpl = TSharedRef(
+        test_udfs_o_o,
+        test_udfs_o_o_len,
         nullptr);
     auto absUdfSo = New<TUserDefinedFunction>(
         "abs_udf",
         std::vector<TType>{EValueType::Int64},
         EValueType::Int64,
-        testUdfSharedObjectImpl,
+        testUdfObjectImpl,
         ECallingConvention::Simple);
     auto expUdfSo = New<TUserDefinedFunction>(
         "exp_udf",
         std::vector<TType>{EValueType::Int64, EValueType::Int64},
         EValueType::Int64,
-        testUdfSharedObjectImpl,
+        testUdfObjectImpl,
         ECallingConvention::Simple);
 
     auto registry = New<StrictMock<TFunctionRegistryMock>>();

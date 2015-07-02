@@ -86,7 +86,7 @@ private:
         MangleSymbol("tolower"),
         MangleSymbol("toupper"),
         MangleSymbol("log"),
-        MangleSymbol("memset"),
+        MangleSymbol("memset")
     };
 };
 

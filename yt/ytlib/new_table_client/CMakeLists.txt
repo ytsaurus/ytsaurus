@@ -39,6 +39,7 @@ set( SRCS
   ${BASE}/schemaless_sorting_reader.cpp
   ${BASE}/table_consumer.cpp
   ${BASE}/unordered_schemaful_reader.cpp
+  ${BASE}/unversioned_value.cpp
   ${BASE}/unversioned_row.cpp
   ${BASE}/versioned_block_reader.cpp
   ${BASE}/versioned_block_writer.cpp
@@ -96,6 +97,7 @@ set( HDRS
   ${BASE}/table_consumer.h
   ${BASE}/table_ypath_proxy.h
   ${BASE}/unordered_schemaful_reader.h
+  ${BASE}/unversioned_value.h
   ${BASE}/unversioned_row.h
   ${BASE}/unversioned_writer.h
   ${BASE}/versioned_block_reader.h

@@ -4,7 +4,7 @@
 #include "user_defined_functions.h"
 
 #include "udf/hyperloglog.h"
-#include "udf/double.h"
+#include "udf/double_cast.h"
 #include "udf/farm_hash.h"
 #include "udf/int64.h"
 #include "udf/is_null.h"
@@ -209,8 +209,8 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
         EValueType::Null,
         EValueType::Double,
         TSharedRef(
-            double_bc,
-            double_bc_len,
+            double_cast_bc,
+            double_cast_bc_len,
             nullptr)));
 
     registry->RegisterFunction(New<TIfFunction>());
