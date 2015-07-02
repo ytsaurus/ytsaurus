@@ -1811,7 +1811,7 @@ TEST_P(TArithmeticTest, Evaluate)
 
     callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
 
-    EXPECT_EQ(expected, result)
+    EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
 }
 
@@ -4492,7 +4492,7 @@ TEST_P(TEvaluateExpressionTest, Basic)
 
     callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
 
-    EXPECT_EQ(expected, result);
+    EXPECT_EQ(result, expected);
 }
 
 INSTANTIATE_TEST_CASE_P(
