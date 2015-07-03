@@ -224,49 +224,73 @@ void TBlobChunkBase::DoReadBlocks(
     TPendingReadSizeGuard pendingReadSizeGuard,
     TPromise<std::vector<TSharedRef>> promise)
 {
-    auto blockStore = Bootstrap_->GetBlockStore();
-    auto readerCache = Bootstrap_->GetBlobReaderCache();
-
     try {
+        auto& locationProfiler = Location_->GetProfiler();
+
+        auto blockStore = Bootstrap_->GetBlockStore();
+
+        auto readerCache = Bootstrap_->GetBlobReaderCache();
         auto reader = readerCache->GetReader(this);
 
-        LOG_DEBUG("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
-            Id_,
-            firstBlockIndex,
-            firstBlockIndex + blockCount - 1,
-            Location_->GetId());
-            
-        NProfiling::TScopedTimer timer;
+        auto config = Bootstrap_->GetConfig()->DataNode;
 
-        // NB: The reader is synchronous.
-        auto blocksOrError = reader->ReadBlocks(firstBlockIndex, blockCount).Get();
+        std::vector<TSharedRef> allBlocks;
 
-        auto readTime = timer.GetElapsed();
+        int currentBlockIndex = firstBlockIndex;
+        while (currentBlockIndex < firstBlockIndex + blockCount) {
+            if (currentBlockIndex > firstBlockIndex) {
+                Yield();
+            }
 
-        LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
-            Id_,
-            firstBlockIndex,
-            firstBlockIndex + blockCount - 1,
-            Location_->GetId());
+            int blocksToRead = 0;
+            i64 bytesToRead = 0;
+            while (
+                blocksToRead < config->MaxBlocksPerRead &&
+                bytesToRead < config->MaxBytesPerRead &&
+                currentBlockIndex + blocksToRead < firstBlockIndex + blockCount)
+            {
+                bytesToRead += CachedBlocksExt_.blocks(currentBlockIndex + blocksToRead).size();
+                blocksToRead += 1;
+            }
 
-        if (!blocksOrError.IsOK()) {
-            auto error = TError(
-                NChunkClient::EErrorCode::IOError,
-                "Error reading blob chunk %v",
-                Id_)
-                << TError(blocksOrError);
-            Location_->Disable(error);
-            THROW_ERROR error;
+            LOG_DEBUG("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+                Id_,
+                currentBlockIndex,
+                currentBlockIndex + blocksToRead - 1,
+                Location_->GetId());
+
+            NProfiling::TScopedTimer timer;
+            auto blocksOrError = WaitFor(reader->ReadBlocks(currentBlockIndex, blocksToRead));
+            auto readTime = timer.GetElapsed();
+
+            LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
+                Id_,
+                currentBlockIndex,
+                currentBlockIndex + blocksToRead - 1,
+                Location_->GetId());
+
+            if (!blocksOrError.IsOK()) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::IOError,
+                    "Error reading blob chunk %v",
+                    Id_)
+                    << TError(blocksOrError);
+                Location_->Disable(error);
+                THROW_ERROR error;
+            }
+
+            const auto& blocks = blocksOrError.Value();
+            allBlocks.insert(allBlocks.end(), blocks.begin(), blocks.end());
+
+            locationProfiler.Enqueue("/blob_block_read_size", bytesToRead);
+            locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds());
+            locationProfiler.Enqueue("/blob_block_read_throughput", bytesToRead * 1000000 / (1 + readTime.MicroSeconds()));
+            DataNodeProfiler.Increment(DiskBlobReadByteCounter, bytesToRead);
+
+            currentBlockIndex += blocksToRead;
         }
 
-        auto& locationProfiler = Location_->GetProfiler();
-        i64 pendingSize = pendingReadSizeGuard.GetSize();
-        locationProfiler.Enqueue("/blob_block_read_size", pendingSize);
-        locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds());
-        locationProfiler.Enqueue("/blob_block_read_throughput", pendingSize * 1000000 / (1 + readTime.MicroSeconds()));
-        DataNodeProfiler.Increment(DiskBlobReadByteCounter, pendingSize);
-
-        promise.Set(blocksOrError.Value());
+        promise.Set(allBlocks);
     } catch (const std::exception& ex) {
         promise.Set(TError(ex));
     }
