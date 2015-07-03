@@ -48,14 +48,20 @@ target_link_libraries( yt-yson-python
   ${PYTHON_LIBRARY}
 )
 
+set( PYTHON_LINK_FLAGS "-static-libstdc++" )
+
+if (NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
+  set( PYTHON_LINK_FLAGS "${PYTHON_LINK_FLAGS} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map" )
+endif()
+
 set_target_properties( yt-driver-python 
   PROPERTIES
-  LINK_FLAGS "-static-libstdc++ -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map"
+  LINK_FLAGS ${PYTHON_LINK_FLAGS}
 )
 
 set_target_properties( yt-yson-python 
   PROPERTIES
-  LINK_FLAGS "-static-libstdc++ -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map"
+  LINK_FLAGS ${PYTHON_LINK_FLAGS}
 )
 
 exec_program(
