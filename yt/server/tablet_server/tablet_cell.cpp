@@ -160,17 +160,6 @@ void TTabletCell::UpdatePeerSeenTime(TPeerId peerId, TInstant when)
     peer.LastSeenTime = when;
 }
 
-int TTabletCell::GetOnlinePeerCount() const
-{
-    int result = 0;
-    for (const auto& peer : Peers_) {
-        if (peer.Descriptor && peer.Node) {
-            ++result;
-        }
-    }
-    return result;
-}
-
 ETabletCellHealth TTabletCell::GetHealth() const
 {
     int leaderCount = 0;
