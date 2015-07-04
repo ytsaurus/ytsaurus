@@ -97,7 +97,9 @@ public:
             InvalidNodeId,
             Bootstrap->GetMasterConnector()->GetLocalDescriptor());
 
-        Logger.AddTag("JobId: %v", jobId);
+        Logger.AddTag("JobId: %v, JobType: %v",
+            GetId(),
+            GetType());
     }
 
     virtual void Start() override
@@ -146,6 +148,11 @@ public:
     virtual const TJobId& GetId() const override
     {
         return JobId;
+    }
+
+    virtual EJobType GetType() const override
+    {
+        return EJobType(JobSpec.type());
     }
 
     virtual const TJobSpec& GetSpec() const override

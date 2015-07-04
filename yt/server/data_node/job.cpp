@@ -88,7 +88,9 @@ public:
         , Config_(config)
         , Bootstrap_(bootstrap)
     {
-        Logger.AddTag("JobId: %v", jobId);
+        Logger.AddTag("JobId: %v, JobType: %v",
+            GetId(),
+            GetType());
     }
 
     virtual void Start() override
@@ -128,6 +130,11 @@ public:
     virtual const TJobId& GetId() const override
     {
         return JobId_;
+    }
+
+    virtual EJobType GetType() const override
+    {
+        return EJobType(JobSpec_.type());
     }
 
     virtual const TJobSpec& GetSpec() const override

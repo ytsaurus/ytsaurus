@@ -30,6 +30,8 @@ struct IJob
 
     virtual const TJobId& GetId() const = 0;
 
+    virtual EJobType GetType() const = 0;
+
     virtual const NJobTrackerClient::NProto::TJobSpec& GetSpec() const = 0;
 
     virtual EJobState GetState() const = 0;
