@@ -1515,7 +1515,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
     switch (kind) {
         case EExpressionKind::Literal: {
             auto typedResult = New<TLiteralExpression>(type);
-            auto data = serialized.GetExtension(NProto::TLiteralExpression::literal_expression);
+            const auto& data = serialized.GetExtension(NProto::TLiteralExpression::literal_expression);
 
             switch (type) {
                 case EValueType::Int64: {
@@ -1552,14 +1552,14 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
 
         case EExpressionKind::Reference: {
             auto typedResult = New<TReferenceExpression>(type);
-            auto data = serialized.GetExtension(NProto::TReferenceExpression::reference_expression);
+            const auto& data = serialized.GetExtension(NProto::TReferenceExpression::reference_expression);
             typedResult->ColumnName = data.column_name();
             return typedResult;
         }
 
         case EExpressionKind::Function: {
             auto typedResult = New<TFunctionExpression>(type);
-            auto data = serialized.GetExtension(NProto::TFunctionExpression::function_expression);
+            const auto& data = serialized.GetExtension(NProto::TFunctionExpression::function_expression);
             typedResult->FunctionName = data.function_name();
             typedResult->Arguments.reserve(data.arguments_size());
             for (int i = 0; i < data.arguments_size(); ++i) {
@@ -1570,7 +1570,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
 
         case EExpressionKind::UnaryOp: {
             auto typedResult = New<TUnaryOpExpression>(type);
-            auto data = serialized.GetExtension(NProto::TUnaryOpExpression::unary_op_expression);
+            const auto& data = serialized.GetExtension(NProto::TUnaryOpExpression::unary_op_expression);
             typedResult->Opcode = EUnaryOp(data.opcode());
             typedResult->Operand = FromProto(data.operand());
             return typedResult;
@@ -1578,7 +1578,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
 
         case EExpressionKind::BinaryOp: {
             auto typedResult = New<TBinaryOpExpression>(type);
-            auto data = serialized.GetExtension(NProto::TBinaryOpExpression::binary_op_expression);
+            const auto& data = serialized.GetExtension(NProto::TBinaryOpExpression::binary_op_expression);
             typedResult->Opcode = EBinaryOp(data.opcode());
             typedResult->Lhs = FromProto(data.lhs());
             typedResult->Rhs = FromProto(data.rhs());
@@ -1587,7 +1587,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
 
         case EExpressionKind::InOp: {
             auto typedResult = New<TInOpExpression>(type);
-            auto data = serialized.GetExtension(NProto::TInOpExpression::in_op_expression);
+            const auto& data = serialized.GetExtension(NProto::TInOpExpression::in_op_expression);
             typedResult->Arguments.reserve(data.arguments_size());
             for (int i = 0; i < data.arguments_size(); ++i) {
                 typedResult->Arguments.push_back(FromProto(data.arguments(i)));

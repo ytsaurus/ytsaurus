@@ -237,7 +237,7 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
 
     auto objectManager = Bootstrap_->GetObjectManager();
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
-        auto prerequiesitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        const auto& prerequiesitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
         objectManager->ValidatePrerequisites(prerequiesitesExt);
     }
 

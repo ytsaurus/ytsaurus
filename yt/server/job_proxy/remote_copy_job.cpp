@@ -81,7 +81,7 @@ public:
                 SchedulerJobSpecExt_.output_specs(0).chunk_list_id());
 
         {
-            auto remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
+            const auto& remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
             RemoteConnectionConfig_ = ConvertTo<TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
             RemoteConnection_ = CreateConnection(RemoteConnectionConfig_);
             TClientOptions clientOptions;
