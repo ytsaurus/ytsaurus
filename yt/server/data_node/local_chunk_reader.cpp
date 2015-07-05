@@ -48,7 +48,7 @@ public:
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
     {
         auto blockStore = Bootstrap_->GetBlockStore();
-        auto asyncResult = blockStore->ReadBlocks(
+        auto asyncResult = blockStore->ReadBlockSet(
             Chunk_->GetId(),
             blockIndexes,
             ReadPriority,
@@ -60,7 +60,7 @@ public:
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
     {
         auto blockStore = Bootstrap_->GetBlockStore();
-        auto asyncResult = blockStore->ReadBlocks(
+        auto asyncResult = blockStore->ReadBlockRange(
             Chunk_->GetId(),
             firstBlockIndex,
             blockCount,

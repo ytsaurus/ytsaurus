@@ -44,7 +44,12 @@ public:
         AddPeers(Config_->Addresses);
     }
 
-    virtual TYsonString GetEndpointDescription() const override
+    virtual Stroka GetEndpointTextDescription() const override
+    {
+        return "[" + JoinToString(GetAllAddresses()) + "]";
+    }
+
+    virtual TYsonString GetEndpointYsonDescription() const override
     {
         return ConvertToYsonString(GetAllAddresses());
     }
@@ -111,7 +116,7 @@ private:
                 if (auto* error = pickResult.TryAs<TError>()) {
                     Promise_.TrySet(
                         *error
-                        << TErrorAttribute("endpoint", Owner_->GetEndpointDescription()));
+                        << TErrorAttribute("endpoint", Owner_->GetEndpointYsonDescription()));
                     return;
                 }
 

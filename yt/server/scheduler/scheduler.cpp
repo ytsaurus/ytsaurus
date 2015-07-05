@@ -502,82 +502,82 @@ public:
                 PROFILE_TIMING ("/analysis_time") {
                     auto missingJobs = node->Jobs();
 
-                for (auto& jobStatus : *request->mutable_jobs()) {
-                    auto jobType = EJobType(jobStatus.job_type());
-                    // Skip jobs that are not issued by the scheduler.
-                    if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
-                        continue;
+                    for (auto& jobStatus : *request->mutable_jobs()) {
+                        auto jobType = EJobType(jobStatus.job_type());
+                        // Skip jobs that are not issued by the scheduler.
+                        if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
+                            continue;
 
-                        auto job = ProcessJobHeartbeat(
-                            node,
-                            request,
-                            response,
-                            &jobStatus);
-                        if (job) {
-                            YCHECK(missingJobs.erase(job) == 1);
-                            switch (job->GetState()) {
-                            case EJobState::Completed:
-                            case EJobState::Failed:
-                            case EJobState::Aborted:
-                                operationsToLog.insert(job->GetOperation());
-                                break;
-                            case EJobState::Running:
-                                runningJobs.push_back(job);
-                                break;
-                            case EJobState::Waiting:
-                                hasWaitingJobs = true;
-                                break;
-                            default:
-                                break;
+                            auto job = ProcessJobHeartbeat(
+                                node,
+                                request,
+                                response,
+                                &jobStatus);
+                            if (job) {
+                                YCHECK(missingJobs.erase(job) == 1);
+                                switch (job->GetState()) {
+                                case EJobState::Completed:
+                                case EJobState::Failed:
+                                case EJobState::Aborted:
+                                    operationsToLog.insert(job->GetOperation());
+                                    break;
+                                case EJobState::Running:
+                                    runningJobs.push_back(job);
+                                    break;
+                                case EJobState::Waiting:
+                                    hasWaitingJobs = true;
+                                    break;
+                                default:
+                                    break;
+                                }
                             }
                         }
+
+                    // Check for missing jobs.
+                    for (auto job : missingJobs) {
+                        LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
+                            node->GetDefaultAddress(),
+                            job->GetId(),
+                            job->GetOperation()->GetId());
+                        AbortJob(job, TError("Job vanished"));
+                        UnregisterJob(job);
                     }
-
-                // Check for missing jobs.
-                for (auto job : missingJobs) {
-                    LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
-                        node->GetDefaultAddress(),
-                        job->GetId(),
-                        job->GetOperation()->GetId());
-                    AbortJob(job, TError("Job vanished"));
-                    UnregisterJob(job);
                 }
-            }
 
-            for (auto operation : GetOperations()) {
-                operation->GetController()->CheckTimeLimit();
-            }
-
-            auto schedulingContext = CreateSchedulingContext(node, runningJobs);
-
-            if (hasWaitingJobs) {
-                LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
-            } else {
-                PROFILE_TIMING ("/schedule_time") {
-                    Strategy_->ScheduleJobs(schedulingContext.get());
+                for (auto operation : GetOperations()) {
+                    operation->GetController()->CheckTimeLimit();
                 }
-            }
 
-            for (auto job : schedulingContext->PreemptedJobs()) {
-                ToProto(response->add_jobs_to_abort(), job->GetId());
-            }
+                auto schedulingContext = CreateSchedulingContext(node, runningJobs);
 
-            std::vector<TFuture<void>> asyncResults;
-            auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
-            for (auto job : schedulingContext->StartedJobs()) {
-                auto* startInfo = response->add_jobs_to_start();
-                ToProto(startInfo->mutable_job_id(), job->GetId());
-                *startInfo->mutable_resource_limits() = job->ResourceUsage();
+                if (hasWaitingJobs) {
+                    LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
+                } else {
+                    PROFILE_TIMING ("/schedule_time") {
+                        Strategy_->ScheduleJobs(schedulingContext.get());
+                    }
+                }
 
-                // Build spec asynchronously.
-                asyncResults.push_back(
-                    BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                        .AsyncVia(specBuilderInvoker)
-                        .Run());
+                for (auto job : schedulingContext->PreemptedJobs()) {
+                    ToProto(response->add_jobs_to_abort(), job->GetId());
+                }
 
-                    // Release to avoid circular references.
-                    job->SetSpecBuilder(TJobSpecBuilder());
-                    operationsToLog.insert(job->GetOperation());
+                std::vector<TFuture<void>> asyncResults;
+                auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
+                for (auto job : schedulingContext->StartedJobs()) {
+                    auto* startInfo = response->add_jobs_to_start();
+                    ToProto(startInfo->mutable_job_id(), job->GetId());
+                    *startInfo->mutable_resource_limits() = job->ResourceUsage();
+
+                    // Build spec asynchronously.
+                    asyncResults.push_back(
+                        BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
+                            .AsyncVia(specBuilderInvoker)
+                            .Run());
+
+                        // Release to avoid circular references.
+                        job->SetSpecBuilder(TJobSpecBuilder());
+                        operationsToLog.insert(job->GetOperation());
                 }
 
                 context->ReplyFrom(Combine(asyncResults));

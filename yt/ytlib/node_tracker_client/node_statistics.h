@@ -12,7 +12,6 @@ struct TTotalNodeStatistics
     i64 AvailableSpace = 0;
     i64 UsedSpace = 0;
     int ChunkCount = 0;
-    int SessionCount = 0;
     int OnlineNodeCount = 0;
 };
 

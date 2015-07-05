@@ -47,6 +47,7 @@ public:
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton)
         : TServiceBase(
+            // Ignored, method handlers use TimestampInvoker_.
             GetSyncInvoker(),
             TTimestampServiceProxy::GetServiceName(),
             TransactionServerLogger)
@@ -82,7 +83,8 @@ public:
             "TimestampManager",
             BIND(&TImpl::Save, Unretained(this)));
 
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTimestamp, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(
+            BIND(&TImpl::HydraCommitTimestamp, Unretained(this)));
     }
 
     IServicePtr GetRpcService()
@@ -214,7 +216,7 @@ private:
                 .Via(TimestampInvoker_));
     }
 
-    void OnTimestampCommitted(TTimestamp timestamp, TErrorOr<TMutationResponse> result)
+    void OnTimestampCommitted(TTimestamp timestamp, const TErrorOr<TMutationResponse>& result)
     {
         VERIFY_THREAD_AFFINITY(TimestampThread);
 

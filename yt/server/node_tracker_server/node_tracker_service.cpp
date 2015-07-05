@@ -46,15 +46,16 @@ public:
             NodeTrackerServerLogger,
             TNodeTrackerServiceProxy::GetProtocolVersion())
         , Config_(config)
-        {
-            RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
-            RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
-                .SetRequestHeavy(true)
-                .SetInvoker(bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Heartbeat)));
-            RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
-                .SetRequestHeavy(true));
-            RegisterMethod(RPC_SERVICE_METHOD_DESC(GetRegisteredCells));
-        }
+    {
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
+            .SetRequestHeavy(true)
+            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::FullHeartbeat)));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
+            .SetRequestHeavy(true)
+            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::IncrementalHeartbeat)));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetRegisteredCells));
+    }
 
 private:
     const TNodeTrackerConfigPtr Config_;

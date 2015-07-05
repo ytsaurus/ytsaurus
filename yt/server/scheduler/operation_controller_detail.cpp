@@ -498,14 +498,13 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
     // Async part.
     auto controller = MakeStrong(Controller); // hold the controller
-    auto operation = MakeStrong(Controller->Operation); // hold the operation
     auto jobSpecBuilder = BIND([=, this_ = MakeStrong(this)] (TJobSpec* jobSpec) {
         BuildJobSpec(joblet, jobSpec);
-        Controller->CustomizeJobSpec(joblet, jobSpec);
+        controller->CustomizeJobSpec(joblet, jobSpec);
 
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_enable_job_proxy_memory_control(Controller->Spec->EnableJobProxyMemoryControl);
-        schedulerJobSpecExt->set_enable_sort_verification(Controller->Spec->EnableSortVerification);
+        schedulerJobSpecExt->set_enable_job_proxy_memory_control(controller->Spec->EnableJobProxyMemoryControl);
+        schedulerJobSpecExt->set_enable_sort_verification(controller->Spec->EnableSortVerification);
 
         // Adjust sizes if approximation flag is set.
         if (joblet->InputStripeList->IsApproximate) {
@@ -3172,7 +3171,7 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
     return result;
 }
 
-std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxSliceDataSize, int jobCount)
+std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxSliceDataSize, int* jobCount)
 {
     std::vector<TChunkStripePtr> result;
     auto appendStripes = [&] (std::vector<TChunkSlicePtr> slices) {
@@ -3182,7 +3181,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
     };
 
     // TODO(ignat): we slice on two parts even if TotalEstimatedInputDataSize very small.
-    i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplier * TotalEstimatedInputDataSize / jobCount, 1.0));
+    i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplier * TotalEstimatedInputDataSize / *jobCount, 1.0));
 
     for (const auto& chunkSpec : CollectInputChunks()) {
         int oldSize = result.size();
@@ -3206,6 +3205,12 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
             FromProto<TChunkId>(chunkSpec->chunk_id()),
             result.size() - oldSize);
     }
+
+    *jobCount = std::min(*jobCount, static_cast<int>(result.size()));
+    if (!result.empty()) {
+        *jobCount = std::max(*jobCount, 1 + (static_cast<int>(result.size()) - 1) / Config->MaxChunkStripesPerJob);
+    }
+
     return result;
 }
 

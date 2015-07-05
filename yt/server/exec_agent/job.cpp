@@ -97,7 +97,9 @@ public:
             InvalidNodeId,
             Bootstrap->GetMasterConnector()->GetLocalDescriptor());
 
-        Logger.AddTag("JobId: %v", jobId);
+        Logger.AddTag("JobId: %v, JobType: %v",
+            GetId(),
+            GetType());
     }
 
     virtual void Start() override
@@ -146,6 +148,11 @@ public:
     virtual const TJobId& GetId() const override
     {
         return JobId;
+    }
+
+    virtual EJobType GetType() const override
+    {
+        return EJobType(JobSpec.type());
     }
 
     virtual const TJobSpec& GetSpec() const override
@@ -691,7 +698,7 @@ private:
 
         auto chunks = PatchCachedChunkReplicas(descriptor.chunks());
 
-        auto config = New<TMultiChunkReaderConfig>();
+        auto config = New<TTableReaderConfig>();
         auto options = New<TMultiChunkReaderOptions>();
         auto nameTable = New<TNameTable>();
         auto reader = CreateSchemalessSequentialMultiChunkReader(
@@ -739,6 +746,7 @@ private:
 
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
+            resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
             resultError.FindMatching(EErrorCode::ConfigCreationFailed) ||
             resultError.FindMatching(static_cast<int>(EExitStatus::ExitCodeBase) + static_cast<int>(EJobProxyExitCode::HeartbeatFailed)))
         {

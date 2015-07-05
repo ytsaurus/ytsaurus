@@ -92,6 +92,11 @@ YtError.prototype.checkFor = function(code) {
     return checkForErrorCode(this, code);
 };
 
+YtError.prototype.withNested = function(err) {
+    this.inner_errors.push(YtError.ensureWrapped(err));
+    return this;
+};
+
 // Setters.
 
 YtError.prototype.withCode = function(code) {

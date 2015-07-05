@@ -351,10 +351,18 @@ Function* CodegenGroupHasherFunction(
         Value* thenResult;
 
         switch (value.GetStaticType()) {
+            case EValueType::Boolean:
             case EValueType::Int64:
             case EValueType::Uint64:
+                thenResult = builder.CreateCall(
+                    module.GetRoutine("FarmHashUint64"),
+                    value.Cast(builder, EValueType::Uint64).GetData());
+                break;
+
             case EValueType::Double:
-                thenResult = value.Cast(builder, EValueType::Uint64, true).GetData();
+                thenResult = builder.CreateCall(
+                    module.GetRoutine("FarmHashUint64"),
+                    value.Cast(builder, EValueType::Uint64, true).GetData());
                 break;
 
             case EValueType::String:
@@ -397,12 +405,10 @@ Function* CodegenGroupHasherFunction(
     };
 
     YCHECK(!types.empty());
-    auto result = codegenHashOp(0, builder);
-
-    for (size_t index = 1; index < types.size(); ++index) {
+    Value* result = builder.getInt64(0);
+    for (size_t index = 0; index < types.size(); ++index) {
         result = codegenHashCombine(builder, result, codegenHashOp(index, builder));
     }
-
     builder.CreateRet(result);
 
     return function;

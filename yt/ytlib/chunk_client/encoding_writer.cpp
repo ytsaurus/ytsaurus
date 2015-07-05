@@ -43,9 +43,6 @@ TEncodingWriter::TEncodingWriter(
     Logger.AddTag("ChunkId: %v", ChunkWriter_->GetChunkId());
 }
 
-TEncodingWriter::~TEncodingWriter()
-{ }
-
 void TEncodingWriter::WriteBlock(TSharedRef block)
 {
     UncompressedSize_ += block.Size();

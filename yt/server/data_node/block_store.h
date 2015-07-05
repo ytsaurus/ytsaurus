@@ -76,7 +76,7 @@ public:
      *  Note that blob chunks will indicate an error if an attempt is made to read a non-existing block.
      *  Journal chunks, however, will silently ignore it.
      */
-    TFuture<std::vector<TSharedRef>> ReadBlocks(
+    TFuture<std::vector<TSharedRef>> ReadBlockRange(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
@@ -88,7 +88,7 @@ public:
     /*!
      *  Tries to group block reads into contiguous ranges.
      */
-    TFuture<std::vector<TSharedRef>> ReadBlocks(
+    TFuture<std::vector<TSharedRef>> ReadBlockSet(
         const TChunkId& chunkId,
         const std::vector<int>& blockIndexes,
         i64 priority,

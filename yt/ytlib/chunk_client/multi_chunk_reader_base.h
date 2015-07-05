@@ -107,7 +107,8 @@ protected:
     int PrefetchIndex_ = 0;
     i64 FreeBufferSize_;
 
-    NConcurrency::TParallelAwaiterPtr FetchingCompletedAwaiter_;
+    std::vector<TFuture<void>> FetchingCompletedEvents_;
+    TPromise<void> FetchingCompleted_ = NewPromise<void>();
 
     TSpinLock FailedChunksLock_;
     std::vector<TChunkId> FailedChunks_;

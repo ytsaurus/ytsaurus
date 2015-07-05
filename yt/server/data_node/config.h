@@ -62,10 +62,10 @@ public:
     //! starting from the eldest ones.
     i64 TrashCleanupWatermark;
 
-    //! Controls if blob chunks are enabled for this location.
+    //! Controls if new blob chunks are accpeted by this location.
     bool EnableBlobs;
 
-    //! Controls if journal chunks are enabled for this location.
+    //! Controls if new journal chunks are accepted by this location.
     bool EnableJournals;
 
     TLocationConfig()
@@ -162,6 +162,9 @@ public:
     //! Maximum number of clean multiplexed changelogs to keep.
     int MaxCleanChangelogsToKeep;
 
+    //! Time to wait before marking a multiplexed changelog as clean.
+    TDuration CleanDelay;
+
     TMultiplexedChangelogConfig()
     {
         RegisterParameter("max_record_count", MaxRecordCount)
@@ -178,6 +181,8 @@ public:
         RegisterParameter("max_clean_changelogs_to_keep", MaxCleanChangelogsToKeep)
             .GreaterThanOrEqual(0)
             .Default(3);
+        RegisterParameter("clean_delay", CleanDelay)
+            .Default(TDuration::Minutes(1));
     }
 };
 

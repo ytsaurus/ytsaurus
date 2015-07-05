@@ -76,6 +76,7 @@ private:
         attributes->push_back(TAttributeInfo("tablet_ids", true, true));
         attributes->push_back("tablet_count");
         attributes->push_back("config_version");
+        attributes->push_back("total_statistics");
         attributes->push_back(TAttributeInfo("prerequisite_transaction_id", cell->GetPrerequisiteTransaction() != nullptr));
 
         TBase::ListSystemAttributes(attributes);

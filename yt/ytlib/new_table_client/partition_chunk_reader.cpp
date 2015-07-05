@@ -27,7 +27,7 @@ using NChunkClient::TReadLimit;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPartitionChunkReader::TPartitionChunkReader(
-    TChunkReaderConfigPtr config,
+    TSequentialReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     IBlockCachePtr blockCache,
@@ -152,7 +152,7 @@ IChunkReaderBasePtr TPartitionMultiChunkReader::CreateTemplateReader(
     YCHECK(!chunkSpec.has_upper_limit());
     YCHECK(chunkSpec.has_partition_tag());
 
-    TChunkReaderConfigPtr config = Config_;
+    TSequentialReaderConfigPtr config = Config_;
 
     return New<TPartitionChunkReader>(
         config,

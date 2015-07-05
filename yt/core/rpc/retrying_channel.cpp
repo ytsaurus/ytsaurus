@@ -163,7 +163,7 @@ private:
         void ReportError(const TError& error)
         {
             auto detailedError = error
-                << TErrorAttribute("endpoint", UnderlyingChannel_->GetEndpointDescription())
+                << TErrorAttribute("endpoint", UnderlyingChannel_->GetEndpointYsonDescription())
                 << InnerErrors_;
             ResponseHandler_->HandleError(detailedError);
         }

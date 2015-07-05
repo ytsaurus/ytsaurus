@@ -25,6 +25,8 @@ public:
 
     virtual void Shutdown() override;
 
+    bool IsRunning() const;
+
     IInvokerPtr GetInvoker();
 
     static TCallback<TActionQueuePtr()> CreateFactory(

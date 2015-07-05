@@ -123,8 +123,37 @@ DEFINE_REFCOUNTED_TYPE(TBufferedTableWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkReaderConfig
+    : public virtual NChunkClient::TSequentialReaderConfig
+{
+public:
+    i64 MaxDataSizePerRead;
+
+    TNullable<double> SamplingRate;
+    TNullable<ui64> SamplingSeed;
+
+    TChunkReaderConfig()
+    {
+        RegisterParameter("max_data_size_per_read", MaxDataSizePerRead)
+            .GreaterThan((i64) 1024 * 1024)
+            .Default((i64) 16 * 1024 * 1024);
+
+        RegisterParameter("sampling_rate", SamplingRate)
+            .Default()
+            .InRange(0, 1);
+
+        RegisterParameter("sampling_seed", SamplingSeed)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTableReaderConfig
     : public NChunkClient::TMultiChunkReaderConfig
+    , public TChunkReaderConfig
 {
 public:
      bool SuppressAccessTracking;

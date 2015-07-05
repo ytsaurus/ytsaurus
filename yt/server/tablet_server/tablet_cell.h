@@ -77,8 +77,6 @@ public:
     void DetachPeer(NNodeTrackerServer::TNode* node);
     void UpdatePeerSeenTime(TPeerId peerId, TInstant when);
 
-    int GetOnlinePeerCount() const;
-
     ETabletCellHealth GetHealth() const;
 
     NHive::TCellDescriptor GetDescriptor() const;

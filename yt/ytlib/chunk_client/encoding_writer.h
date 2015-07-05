@@ -33,8 +33,6 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache);
 
-    ~TEncodingWriter();
-
     bool IsReady() const;
     TFuture<void> GetReadyEvent();
 
