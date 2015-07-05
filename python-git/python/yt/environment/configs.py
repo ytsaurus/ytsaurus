@@ -44,13 +44,9 @@ def get_master_config():
     enable_provision_lock = false;
 
     master = {
-        addresses = [ ];
-        cell_tag = 0;
-        cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
     };
 
     timestamp_provider = {
-        addresses = [ ];
         soft_backoff_time = 100;
         hard_backoff_time = 100;
     };
@@ -122,14 +118,10 @@ def get_scheduler_config():
         enable_read_from_followers = true;
 
         master = {
-            addresses = [ ];
-            cell_tag = 0;
-            cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
             rpc_timeout = 5000;
         };
 
         timestamp_provider = {
-            addresses = [ ];
             soft_backoff_time = 100;
             hard_backoff_time = 100;
         };
@@ -176,23 +168,16 @@ def get_node_config():
         enable_read_from_followers = true;
 
         master = {
-            addresses = [ ];
-            cell_tag = 0;
-            cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
             rpc_timeout = 5000;
         };
 
         master_cache = {
-            addresses = [ ];
-            cell_tag = 0;
-            cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
             soft_backoff_time = 100;
             hard_backoff_time = 100;
             rpc_timeout = 5000;
         };
 
         timestamp_provider = {
-            addresses = [ ];
             soft_backoff_time = 100;
             hard_backoff_time = 100;
         };
@@ -318,14 +303,10 @@ def get_driver_config():
     enable_read_from_followers = true;
 
     master = {
-        addresses = [ ];
-        cell_tag = 0;
-        cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
         rpc_timeout = 5000;
     };
 
     timestamp_provider = {
-        addresses = [ ];
         soft_backoff_time = 100;
         hard_backoff_time = 100;
     };
