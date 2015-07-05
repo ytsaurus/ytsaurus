@@ -57,8 +57,7 @@ class Master(WinNode, Server):
         config = Template({
                 'master' : {
                     'addresses' : MasterAddresses,
-                    'cell_tag' : 0,
-                    'cell_id' : 'ffffffff-ffffffff-ffffffff-ffffffff'
+                    'cell_id' : 'ffffffff-ffffffff-259-ffffffff'
                 },
                 'timestamp_provider' : {
                     'addresses' : MasterAddresses
@@ -103,8 +102,7 @@ class Holder(WinNode, Server):
             'cluster_connection' : {
                 'master' : {
                     'addresses' : MasterAddresses,
-                    'cell_tag' : 0,
-                    'cell_id' : 'ffffffff-ffffffff-ffffffff-ffffffff'
+                    'cell_id' : 'ffffffff-ffffffff-259-ffffffff'
                 },
                 'timestamp_provider' : {
                     'addresses' : MasterAddresses

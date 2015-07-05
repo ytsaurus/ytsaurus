@@ -33,6 +33,8 @@
 
 #include <ytlib/election/cell_manager.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/transaction_client/timestamp_provider.h>
 #include <ytlib/transaction_client/remote_timestamp_provider.h>
 
@@ -101,6 +103,7 @@ using namespace NTransactionServer;
 using namespace NChunkServer;
 using namespace NJournalServer;
 using namespace NObjectServer;
+using namespace NObjectClient;
 using namespace NCypressServer;
 using namespace NMonitoring;
 using namespace NOrchid;
@@ -138,7 +141,7 @@ const TCellId& TBootstrap::GetCellId() const
 
 TCellTag TBootstrap::GetCellTag() const
 {
-    return Config_->Master->CellTag;
+    return CellTagFromId(Config_->Master->CellId);
 }
 
 TCellMasterConfigPtr TBootstrap::GetConfig() const
