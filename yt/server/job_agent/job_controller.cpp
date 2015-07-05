@@ -138,7 +138,7 @@ void TJobController::StartWaitingJobs()
             continue;
         }
 
-        if (jobResources.memory()) {
+        if (jobResources.memory() > 0) {
             auto error = tracker->TryAcquire(EMemoryCategory::Jobs, jobResources.memory());
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
