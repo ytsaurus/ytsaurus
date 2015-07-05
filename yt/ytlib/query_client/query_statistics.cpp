@@ -28,11 +28,11 @@ void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& query
 {
     serialized->set_rows_read(queryResult.RowsRead);
     serialized->set_rows_written(queryResult.RowsWritten);
-    serialized->set_sync_time(queryResult.SyncTime.GetValue());
-    serialized->set_async_time(queryResult.AsyncTime.GetValue());
-    serialized->set_execute_time(queryResult.ExecuteTime.GetValue());
-    serialized->set_read_time(queryResult.ReadTime.GetValue());
-    serialized->set_write_time(queryResult.WriteTime.GetValue());
+    serialized->set_sync_time(queryResult.SyncTime.MicroSeconds());
+    serialized->set_async_time(queryResult.AsyncTime.MicroSeconds());
+    serialized->set_execute_time(queryResult.ExecuteTime.MicroSeconds());
+    serialized->set_read_time(queryResult.ReadTime.MicroSeconds());
+    serialized->set_write_time(queryResult.WriteTime.MicroSeconds());
     serialized->set_incomplete_input(queryResult.IncompleteInput);
     serialized->set_incomplete_output(queryResult.IncompleteOutput);
 }
@@ -40,29 +40,33 @@ void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& query
 TQueryStatistics FromProto(const NProto::TQueryStatistics& serialized)
 {
     TQueryStatistics result;
-
     result.RowsRead = serialized.rows_read();
     result.RowsWritten = serialized.rows_written();
-    result.SyncTime = TDuration(serialized.sync_time());
-    result.AsyncTime = TDuration(serialized.async_time());
-    result.ExecuteTime = TDuration(serialized.execute_time());
-    result.ReadTime = TDuration(serialized.read_time());
-    result.WriteTime = TDuration(serialized.write_time());
+    result.SyncTime = TDuration::MicroSeconds(serialized.sync_time());
+    result.AsyncTime = TDuration::MicroSeconds(serialized.async_time());
+    result.ExecuteTime = TDuration::MicroSeconds(serialized.execute_time());
+    result.ReadTime = TDuration::MicroSeconds(serialized.read_time());
+    result.WriteTime = TDuration::MicroSeconds(serialized.write_time());
     result.IncompleteInput = serialized.incomplete_input();
     result.IncompleteOutput = serialized.incomplete_output();
-
     return result;
 }
 
-Stroka ToString(const TQueryStatistics& stat)
+Stroka ToString(const TQueryStatistics& stats)
 {
     return Format(
         "RowsRead: %v, RowsWritten: %v, "
         "SyncTime: %v, AsyncTime: %v, ExecuteTime: %v, ReadTime: %v, WriteTime: %v, "
         "IncompleteInput: %v, IncompleteOutput: %v", 
-        stat.RowsRead, stat.RowsWritten,
-        stat.SyncTime, stat.AsyncTime, stat.ExecuteTime, stat.ReadTime, stat.WriteTime,
-        stat.IncompleteInput, stat.IncompleteInput);
+        stats.RowsRead,
+        stats.RowsWritten,
+        stats.SyncTime,
+        stats.AsyncTime,
+        stats.ExecuteTime,
+        stats.ReadTime,
+        stats.WriteTime,
+        stats.IncompleteInput,
+        stats.IncompleteInput);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

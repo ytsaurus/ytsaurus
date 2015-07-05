@@ -332,6 +332,11 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
+        if (Spec->InputQuery) {
+            ToProto(schedulerJobSpecExt->mutable_input_query(), Spec->InputQuery.Get());
+            ToProto(schedulerJobSpecExt->mutable_input_schema(), Spec->InputSchema.Get());
+        }
+
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Mapper,

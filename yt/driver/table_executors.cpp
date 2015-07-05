@@ -230,6 +230,7 @@ TSelectRowsExecutor::TSelectRowsExecutor()
     , OutputRowLimitArg("", "output_row_limit", "output rows limit", false, std::numeric_limits<int>::max(), "INTEGER")
     , RangeExpansionLimitArg("", "range_expansion_limit", "range expansion limit", false, 1000, "INTEGER")
     , VerboseLoggingArg("", "verbose_logging", "verbose logging", false)
+    , MaxSubqueriesArg("", "max_subqueries", "max subqueries", false, 0, "INTEGER")
 {
     CmdLine.add(QueryArg);
     CmdLine.add(TimestampArg);
@@ -237,6 +238,7 @@ TSelectRowsExecutor::TSelectRowsExecutor()
     CmdLine.add(OutputRowLimitArg);
     CmdLine.add(RangeExpansionLimitArg);
     CmdLine.add(VerboseLoggingArg);
+    CmdLine.add(MaxSubqueriesArg);
 }
 
 void TSelectRowsExecutor::BuildParameters(IYsonConsumer* consumer)
@@ -255,7 +257,10 @@ void TSelectRowsExecutor::BuildParameters(IYsonConsumer* consumer)
         .DoIf(RangeExpansionLimitArg.isSet(), [&] (TFluentMap fluent) {
             fluent.Item("range_expansion_limit").Value(RangeExpansionLimitArg.getValue());
         })
-        .Item("verbose_logging").Value(VerboseLoggingArg.getValue());
+        .Item("verbose_logging").Value(VerboseLoggingArg.getValue())
+        .DoIf(MaxSubqueriesArg.isSet(), [&] (TFluentMap fluent) {
+            fluent.Item("max_subqueries").Value(MaxSubqueriesArg.getValue());
+        });
 }
 
 Stroka TSelectRowsExecutor::GetCommandName() const

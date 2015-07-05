@@ -8,6 +8,7 @@ import os
 import logging
 import uuid
 
+from time import sleep
 from functools import wraps
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
@@ -21,6 +22,10 @@ def resolve_test_paths(name):
 def _working_dir(test_name):
     path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
     return os.path.join(path_to_test, "run")
+
+def _wait(predicate):
+    while not predicate():
+        sleep(1)
 
 class YTEnvSetup(YTEnv):
     @classmethod
@@ -71,6 +76,30 @@ class YTEnvSetup(YTEnv):
             self._remove_racks()
 
             yt_commands.gc_collect()
+
+    def _sync_create_cells(self, size, count):
+        ids = []
+        for _ in xrange(count):
+            ids.append(yt_commands.create_tablet_cell(size))
+
+        print "Waiting for tablet cells to become healthy..."
+        _wait(lambda: all(yt_commands.get("//sys/tablet_cells/" + id + "/@health") == "good" for id in ids))
+
+    def _wait_for_tablet_state(self, path, states):
+        print "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
+        _wait(lambda: all(any(x["state"] == state for state in states) for x in yt_commands.get(path + "/@tablets")))
+
+    def _sync_mount_table(self, path):
+        yt_commands.mount_table(path)
+
+        print "Waiting for tablets to become mounted..."
+        _wait(lambda: all(x["state"] == "mounted" for x in yt_commands.get(path + "/@tablets")))
+
+    def _sync_unmount_table(self, path):
+        yt_commands.unmount_table(path)
+
+        print "Waiting for tablets to become unmounted..."
+        _wait(lambda: all(x["state"] == "unmounted" for x in yt_commands.get(path + "/@tablets")))
 
     def _abort_transactions(self, txs):
         for tx in txs:

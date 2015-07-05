@@ -3,6 +3,8 @@
 #include "schema.h"
 #include "unversioned_row.h"
 
+#include <core/actions/future.h>
+
 #include <core/misc/nullable.h>
 
 namespace NYT {
