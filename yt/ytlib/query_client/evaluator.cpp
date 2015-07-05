@@ -7,10 +7,8 @@
 #include "query_statistics.h"
 #include "config.h"
 
-#ifdef YT_USE_LLVM
 #include "evaluation_helpers.h"
 #include "folding_profiler.h"
-#endif
 
 #include <ytlib/new_table_client/schemaful_writer.h>
 
@@ -18,14 +16,10 @@
 
 #include <core/misc/sync_cache.h>
 
-#ifdef YT_USE_LLVM
-
 #include <llvm/ADT/FoldingSet.h>
 
 #include <llvm/Support/Threading.h>
 #include <llvm/Support/TargetSelect.h>
-
-#endif
 
 namespace NYT {
 namespace NQueryClient {
@@ -33,8 +27,6 @@ namespace NQueryClient {
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifdef YT_USE_LLVM
 
 class TCachedCGQuery
     : public TSyncCacheValueBase<
@@ -70,13 +62,17 @@ public:
         TConstQueryPtr query,
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
-        TExecuteQuery executeCallback,
+        const TExecuteQuery& executeCallback,
         const IFunctionRegistryPtr functionRegistry)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
             TRACE_ANNOTATION("fragment_id", query->Id);
+            auto queryFingerprint = InferName(query, true);
+            TRACE_ANNOTATION("query_fingerprint", queryFingerprint);
 
             auto Logger = BuildLogger(query);
+
+            LOG_DEBUG("Executing query (%v)", queryFingerprint);
 
             TQueryStatistics statistics;
             TDuration wallTime;
@@ -120,14 +116,12 @@ public:
                 executionContext.JoinRowLimit = query->OutputRowLimit;
                 executionContext.Limit = query->Limit;
 
-                if (query->JoinClause) {
-                    auto joinClause = query->JoinClause.Get();
+                // Used in joins
+                executionContext.JoinEvaluators = fragmentParams.JoinEvaluators;
+                executionContext.ExecuteCallback = executeCallback;
+
+                if (!query->JoinClauses.empty()) {
                     YCHECK(executeCallback);
-                    executionContext.JoinEvaluator = GetJoinEvaluator(
-                        *joinClause,
-                        query->WhereClause,
-                        query->TableSchema,
-                        executeCallback);
                 }
 
                 LOG_DEBUG("Evaluating query");
@@ -163,13 +157,14 @@ public:
                     outputBuffer->GetCapacity(),
                     intermediateBuffer->GetCapacity());
 
-                LOG_DEBUG("Query statistics (%v)", statistics);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
             }
 
             statistics.SyncTime = wallTime - statistics.AsyncTime;
             statistics.ExecuteTime = statistics.SyncTime - statistics.ReadTime - statistics.WriteTime;
+
+            LOG_DEBUG("Query statistics (%v)", statistics);
 
             TRACE_ANNOTATION("rows_read", statistics.RowsRead);
             TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
@@ -237,14 +232,10 @@ private:
 
 };
 
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TEvaluator::TEvaluator(TExecutorConfigPtr config)
-#ifdef YT_USE_LLVM
     : Impl_(New<TImpl>(std::move(config)))
-#endif
 { }
 
 TEvaluator::~TEvaluator()
@@ -257,11 +248,7 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     TExecuteQuery executeCallback,
     const IFunctionRegistryPtr functionRegistry)
 {
-#ifdef YT_USE_LLVM
     return Impl_->Run(query, std::move(reader), std::move(writer), executeCallback, functionRegistry);
-#else
-    THROW_ERROR_EXCEPTION("Query evaluation is not supported in this build");
-#endif
 }
 
 TQueryStatistics TEvaluator::Run(

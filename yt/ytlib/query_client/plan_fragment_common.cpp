@@ -9,11 +9,11 @@ namespace NQueryClient {
 const char* GetUnaryOpcodeLexeme(EUnaryOp opcode)
 {
     switch (opcode) {
-        case EUnaryOp::Plus:           return "+";
-        case EUnaryOp::Minus:          return "-";
-        case EUnaryOp::Not:            return "NOT";
+        case EUnaryOp::Plus:  return "+";
+        case EUnaryOp::Minus: return "-";
+        case EUnaryOp::Not:   return "NOT";
+        default:              YUNREACHABLE();
     }
-    YUNREACHABLE();
 }
 
 const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
@@ -32,8 +32,8 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
         case EBinaryOp::LessOrEqual:    return "<=";
         case EBinaryOp::Greater:        return ">";
         case EBinaryOp::GreaterOrEqual: return ">=";
+        default:                        YUNREACHABLE();
     }
-    YUNREACHABLE();
 }
 
 EBinaryOp GetReversedBinaryOpcode(EBinaryOp opcode)
@@ -60,24 +60,52 @@ EBinaryOp GetInversedBinaryOpcode(EBinaryOp opcode)
     }
 }
 
-bool IsBinaryOpCompare(EBinaryOp opcode)
+bool IsArithmeticalBinaryOp(EBinaryOp opcode)
 {
     switch (opcode) {
-        case EBinaryOp::Plus:           return false;
-        case EBinaryOp::Minus:          return false;
-        case EBinaryOp::Multiply:       return false;
-        case EBinaryOp::Divide:         return false;
-        case EBinaryOp::Modulo:         return false;
-        case EBinaryOp::And:            return false;
-        case EBinaryOp::Or:             return false;
-        case EBinaryOp::Equal:          return true;
-        case EBinaryOp::NotEqual:       return true;
-        case EBinaryOp::Less:           return true;
-        case EBinaryOp::LessOrEqual:    return true;
-        case EBinaryOp::Greater:        return true;
-        case EBinaryOp::GreaterOrEqual: return true;
+        case EBinaryOp::Plus:
+        case EBinaryOp::Minus:
+        case EBinaryOp::Multiply:
+        case EBinaryOp::Divide:
+            return true;
         default:
-            YUNREACHABLE();
+            return false;
+    }
+}
+
+bool IsIntegralBinaryOp(EBinaryOp opcode)
+{
+    switch (opcode) {
+        case EBinaryOp::Modulo:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool IsLogicalBinaryOp(EBinaryOp opcode)
+{
+    switch (opcode) {
+        case EBinaryOp::And:
+        case EBinaryOp::Or:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool IsRelationalBinaryOp(EBinaryOp opcode)
+{
+    switch (opcode) {
+        case EBinaryOp::Equal:
+        case EBinaryOp::NotEqual:
+        case EBinaryOp::Less:
+        case EBinaryOp::LessOrEqual:
+        case EBinaryOp::Greater:
+        case EBinaryOp::GreaterOrEqual:
+            return true;
+        default:
+            return false;
     }
 }
 

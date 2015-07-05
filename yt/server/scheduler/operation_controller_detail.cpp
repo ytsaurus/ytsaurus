@@ -15,6 +15,7 @@
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
+#include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>

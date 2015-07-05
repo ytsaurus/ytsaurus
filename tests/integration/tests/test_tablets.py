@@ -5,7 +5,6 @@ from yt_commands import *
 
 from time import sleep
 
-
 ##################################################################
 
 class TestTablets(YTEnvSetup):
@@ -69,18 +68,6 @@ class TestTablets(YTEnvSetup):
                 if tablet_id in tablets:
                     return tablets[tablet_id]
         return None
-
-    def _sync_mount_table(self, path):
-        mount_table(path)
-
-        print "Waiting for tablets to become mounted..."
-        self._wait(lambda: all(x["state"] == "mounted" for x in get(path + "/@tablets")))
-                
-    def _sync_unmount_table(self, path):
-        unmount_table(path)
-
-        print "Waiting for tablets to become unmounted..."
-        self._wait(lambda: all(x["state"] == "unmounted" for x in get(path + "/@tablets")))
  
     def _get_pivot_keys(self, path):
         tablets = get(path + "/@tablets")

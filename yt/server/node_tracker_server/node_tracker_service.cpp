@@ -148,7 +148,7 @@ private:
         if (node->GetState() != ENodeState::Online) {
             context->Reply(TError(
                 NNodeTrackerClient::EErrorCode::InvalidState,
-                "Cannot process an incremental heartbeat in %v state",
+                "Cannot process an incremental heartbeat in %Qlv state",
                 node->GetState()));
             return;
         }

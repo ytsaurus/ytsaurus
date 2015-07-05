@@ -72,7 +72,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationSpecBase
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Account holding intermediate data produces by the operation.
@@ -250,8 +250,33 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TInputlyQueryableSpec
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TNullable<Stroka> InputQuery;
+    TNullable<NVersionedTableClient::TTableSchema> InputSchema;
+
+    TInputlyQueryableSpec()
+    {
+        RegisterParameter("input_query", InputQuery)
+            .Default();
+        RegisterParameter("input_schema", InputSchema)
+            .Default();
+
+        RegisterValidator([&] () {
+            if (InputQuery && !InputSchema) {
+                THROW_ERROR_EXCEPTION("Expected to see \"input_schema\" in operation spec");
+            }
+        });
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMapOperationSpec
     : public TOperationSpecBase
+    , public TInputlyQueryableSpec
 {
 public:
     TUserJobSpecPtr Mapper;
@@ -375,10 +400,12 @@ public:
 
 class TUnorderedMergeOperationSpec
     : public TMergeOperationSpec
+    , public TInputlyQueryableSpec
 { };
 
 class TOrderedMergeOperationSpec
     : public TMergeOperationSpec
+    , public TInputlyQueryableSpec
 { };
 
 class TSortedMergeOperationSpec
@@ -591,6 +618,7 @@ public:
 
 class TMapReduceOperationSpec
     : public TSortOperationSpecBase
+    , public TInputlyQueryableSpec
 {
 public:
     std::vector<NYPath::TRichYPath> OutputTablePaths;

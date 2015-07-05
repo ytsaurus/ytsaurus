@@ -184,6 +184,7 @@ void SaveJoinRow(
 
 void JoinOpHelper(
     TExecutionContext* context,
+    int index,
     ui64 (*groupHasher)(TRow),
     char (*groupComparer)(TRow, TRow),
     void** collectRowsClosure,
@@ -212,7 +213,7 @@ void JoinOpHelper(
         allRows.size());
 
     std::vector<TRow> joinedRows;
-    context->JoinEvaluator(
+    context->JoinEvaluators[index](
         context,
         groupHasher,
         groupComparer,
@@ -289,10 +290,9 @@ const TRow* InsertGroupRow(
             context->PermanentBuffer->Capture(&row[index]);
         }
         AllocatePermanentRow(context, valueCount, rowPtr);
-        return nullptr;
-    } else {
-        return &*inserted.first;
     }
+
+    return &*inserted.first;
 }
 
 void AllocateRow(TExpressionContext* context, int valueCount, TRow* row)
@@ -336,12 +336,22 @@ void OrderOpHelper(
     consumeRows(consumeRowsClosure, &rows, &context->StopFlag);
 }
 
-char* AllocateBytes(TExpressionContext* context, size_t byteCount)
+char* AllocateBytes(TExecutionContext* context, size_t byteCount)
 {
     CHECK_STACK();
 
     return context
         ->IntermediateBuffer
+        ->GetPool()
+        ->AllocateUnaligned(byteCount);
+}
+
+char* AllocatePermanentBytes(TExecutionContext* context, size_t byteCount)
+{
+    CHECK_STACK();
+
+    return context
+        ->PermanentBuffer
         ->GetPool()
         ->AllocateUnaligned(byteCount);
 }
@@ -477,13 +487,6 @@ ui64 SimpleHash(const TUnversionedValue* begin, const TUnversionedValue* end)
     return result;
 }
 
-ui64 FarmHash(
-    const TUnversionedValue* begin,
-    const TUnversionedValue* end)
-{
-    return GetFarmFingerprint(begin, end);
-}
-
 ui64 FarmHashUint64(ui64 value)
 {
     return FarmFingerprint(value);
@@ -512,6 +515,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(SaveJoinRow);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateRow);
+    REGISTER_ROUTINE(AllocatePermanentBytes);
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);
@@ -519,7 +523,6 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(IsSubstr);
     REGISTER_ROUTINE(IsRowInArray);
     REGISTER_ROUTINE(SimpleHash);
-    REGISTER_ROUTINE(FarmHash);
     REGISTER_ROUTINE(FarmHashUint64);
     REGISTER_ROUTINE(AddRow);
     REGISTER_ROUTINE(OrderOpHelper);

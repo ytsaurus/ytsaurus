@@ -56,40 +56,61 @@ public:
 
         TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
 
-        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+        NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
         auto readerFactory = parallelReader
             ? CreateSchemalessParallelMultiChunkReader
             : CreateSchemalessSequentialMultiChunkReader;
 
-        Reader_ = readerFactory(
-            config->JobIO->TableReader,
-            New<TMultiChunkReaderOptions>(),
-            host->GetMasterChannel(),
-            host->GetBlockCache(),
-            host->GetNodeDirectory(),
-            std::move(chunkSpecs),
-            nameTable,
-            TKeyColumns(),
-            NConcurrency::GetUnlimitedThrottler());
+        ReaderFactory_ = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
+            YCHECK(!Reader_);
+            Reader_ = readerFactory(
+                config->JobIO->TableReader,
+                New<TMultiChunkReaderOptions>(),
+                host->GetMasterChannel(),
+                host->GetBlockCache(),
+                host->GetNodeDirectory(),
+                std::move(chunkSpecs),
+                nameTable,
+                columnFilter,
+                TKeyColumns(),
+                NConcurrency::GetUnlimitedThrottler());
+            return Reader_;
+        };
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
 
-        Writer_ = CreateSchemalessMultiChunkWriter(
-            config->JobIO->TableWriter,
-            options,
-            nameTable,
-            keyColumns,
-            TOwningKey(),
-            host->GetMasterChannel(),
-            transactionId,
-            chunkListId,
-            true); // Allow value reordering if key columns are present.
+        WriterFactory_ = [=] (TNameTablePtr nameTable) {
+            YCHECK(!Writer_);
+            Writer_ = CreateSchemalessMultiChunkWriter(
+                config->JobIO->TableWriter,
+                options,
+                nameTable,
+                keyColumns,
+                TOwningKey(),
+                host->GetMasterChannel(),
+                transactionId,
+                chunkListId,
+                true); // Allow value reordering if key columns are present.
+            return Writer_;
+        };
     }
 
+private:
+    TNameTablePtr NameTable_;
+
+    virtual void CreateReader() override
+    {
+        ReaderFactory_(NameTable_, TColumnFilter());
+    }
+
+    virtual void CreateWriter() override
+    {
+        WriterFactory_(NameTable_);
+    }
 };
 
 IJobPtr CreateOrderedMergeJob(IJobHost* host)

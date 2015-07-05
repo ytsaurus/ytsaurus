@@ -27,6 +27,7 @@ set( SRCS
   ${BASE}/schemaful_chunk_reader.cpp
   ${BASE}/schemaful_chunk_writer.cpp
   ${BASE}/schemaful_reader_adapter.cpp
+  ${BASE}/schemaful_writer_adapter.cpp
   ${BASE}/schemaless_block_reader.cpp
   ${BASE}/schemaless_block_writer.cpp
   ${BASE}/schemaless_buffered_table_writer.cpp
@@ -38,6 +39,7 @@ set( SRCS
   ${BASE}/schemaless_sorting_reader.cpp
   ${BASE}/table_consumer.cpp
   ${BASE}/unordered_schemaful_reader.cpp
+  ${BASE}/unversioned_value.cpp
   ${BASE}/unversioned_row.cpp
   ${BASE}/versioned_block_reader.cpp
   ${BASE}/versioned_block_writer.cpp
@@ -79,6 +81,7 @@ set( HDRS
   ${BASE}/schemaful_chunk_writer.h
   ${BASE}/schemaful_reader.h
   ${BASE}/schemaful_reader_adapter.h
+  ${BASE}/schemaful_writer_adapter.h
   ${BASE}/schemaful_writer.h
   ${BASE}/schemaless_block_reader.h
   ${BASE}/schemaless_block_writer.h
@@ -94,6 +97,7 @@ set( HDRS
   ${BASE}/table_consumer.h
   ${BASE}/table_ypath_proxy.h
   ${BASE}/unordered_schemaful_reader.h
+  ${BASE}/unversioned_value.h
   ${BASE}/unversioned_row.h
   ${BASE}/unversioned_writer.h
   ${BASE}/versioned_block_reader.h
