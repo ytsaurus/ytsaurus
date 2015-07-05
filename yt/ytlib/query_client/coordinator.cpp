@@ -41,9 +41,11 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         ? 0
         : 2 * std::min(query->InputRowLimit, std::numeric_limits<i64>::max() / 2) / refiners.size();
 
+    auto subqueryOutputRowLimit = query->OutputRowLimit;
+
     auto subqueryPattern = New<TQuery>(
         subqueryInputRowLimit,
-        query->OutputRowLimit);
+        subqueryOutputRowLimit);
 
     subqueryPattern->TableSchema = query->TableSchema;
     subqueryPattern->KeyColumns = query->KeyColumns;
@@ -99,12 +101,13 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     }
 
     topQuery->TableSchema = subqueryPattern->GetTableSchema();
-    
+
     std::vector<TConstQueryPtr> subqueries;
 
     for (const auto& refiner : refiners) {
         // Set initial schema and key columns
         auto subquery = New<TQuery>(*subqueryPattern);
+        subquery->Id = TGuid::Create();
 
         if (query->WhereClause) {
             subquery->WhereClause = refiner(query->WhereClause, subquery->TableSchema, subquery->KeyColumns);

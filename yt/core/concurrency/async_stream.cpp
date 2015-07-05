@@ -79,7 +79,7 @@ public:
     {
         YCHECK(UnderlyingStream_);
     }
-    
+
     virtual TFuture<size_t> Read(const TSharedMutableRef& buffer) override
     {
         if (Failed_) {
@@ -377,7 +377,6 @@ private:
                     BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
                 break;
             }
-
             pendingBlock = NotifyAndFetchNext(TError());
         }
     }

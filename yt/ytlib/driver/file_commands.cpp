@@ -87,6 +87,7 @@ void TWriteFileCommand::DoExecute()
     }
 
     struct TWriteBufferTag { };
+
     auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(Context_->GetConfig()->WriteBufferSize, false);
 
     auto input = Context_->Request().InputStream;
