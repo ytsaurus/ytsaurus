@@ -153,11 +153,11 @@ class YTEnv(object):
         try:
             logging.info("Configuring...")
             self._run_masters(masters_count, master_name, cell_tag)
-            self._run_schedulers(schedulers_count, scheduler_name)
-            self._run_nodes(nodes_count, node_name)
-            self._prepare_driver(driver_name)
+            self._run_schedulers(schedulers_count, scheduler_name, cell_tag)
+            self._run_nodes(nodes_count, node_name, cell_tag)
+            self._prepare_driver(driver_name, cell_tag)
             self._prepare_console_driver(console_driver_name, self.configs[driver_name])
-            self._run_proxy(has_proxy, proxy_name)
+            self._run_proxy(has_proxy, proxy_name, cell_tag)
         except:
             self.clear_environment()
             raise
@@ -299,7 +299,7 @@ class YTEnv(object):
             config['rpc_port'] = self._ports[master_name][2 * i]
             config['monitoring_port'] = self._ports[master_name][2 * i + 1]
 
-            config["master"]["cell_tag"] = cell_tag
+            config["master"]["cell_id"] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
             config['master']['addresses'] = self._master_addresses[master_name]
             config['timestamp_provider']['addresses'] = self._master_addresses[master_name]
             config['changelogs']['path'] = os.path.join(current, 'changelogs')
@@ -343,7 +343,7 @@ class YTEnv(object):
         self._prepare_masters(masters_count, master_name, cell_tag)
         self.start_masters(master_name)
 
-    def _prepare_nodes(self, nodes_count, node_name):
+    def _prepare_nodes(self, nodes_count, node_name, cell_tag):
         if nodes_count == 0:
             return
 
@@ -368,7 +368,9 @@ class YTEnv(object):
             config['monitoring_port'] = self._ports[node_name][2 * i + 1]
 
             config['cluster_connection']['master']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
+            config['cluster_connection']['master']['cell_id'] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
             config['cluster_connection']['master_cache']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
+            config['cluster_connection']['master_cache']['cell_id'] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
             config['cluster_connection']['timestamp_provider']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
 
             config['data_node']['multiplexed_changelog']['path'] = os.path.join(current, 'multiplexed')
@@ -438,8 +440,8 @@ class YTEnv(object):
         self._wait_for(all_nodes_ready, name=node_name,
                        max_wait_time=max(nodes_count * 6.0, 20))
 
-    def _run_nodes(self, nodes_count, node_name):
-        self._prepare_nodes(nodes_count, node_name)
+    def _run_nodes(self, nodes_count, node_name, cell_tag):
+        self._prepare_nodes(nodes_count, node_name, cell_tag)
         self.start_nodes(node_name)
 
     def _get_cache_addresses(self, instance_id):
@@ -448,7 +450,7 @@ class YTEnv(object):
         else:
             return self._master_addresses["master" + instance_id]
 
-    def _prepare_schedulers(self, schedulers_count, scheduler_name):
+    def _prepare_schedulers(self, schedulers_count, scheduler_name, cell_tag):
         if schedulers_count == 0:
             return
 
@@ -460,6 +462,7 @@ class YTEnv(object):
 
             config = configs.get_scheduler_config()
             config['cluster_connection']['master']['addresses'] = self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
+            config['cluster_connection']['master']['cell_id'] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
             config['cluster_connection']['timestamp_provider']['addresses'] = self._get_cache_addresses(scheduler_name.replace("scheduler", "", 1))
 
             config['rpc_port'] = self._ports[scheduler_name][2 * i]
@@ -496,14 +499,15 @@ class YTEnv(object):
 
         self._wait_for(scheduler_ready, name=scheduler_name)
 
-    def _run_schedulers(self, schedulers_count, scheduler_name):
-        self._prepare_schedulers(schedulers_count, scheduler_name)
+    def _run_schedulers(self, schedulers_count, scheduler_name, cell_tag):
+        self._prepare_schedulers(schedulers_count, scheduler_name, cell_tag)
         self.start_schedulers(scheduler_name)
 
 
-    def _prepare_driver(self, driver_name):
+    def _prepare_driver(self, driver_name, cell_tag):
         config = configs.get_driver_config()
         config['master']['addresses'] = self._master_addresses[driver_name.replace("driver", "master", 1)]
+        config['master']['cell_id'] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
         config['timestamp_provider']['addresses'] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
 
         self.configs[driver_name] = config
@@ -523,7 +527,7 @@ class YTEnv(object):
         self.log_paths[console_driver_name].append(config['logging']['writers']['debug']['file_name'])
 
 
-    def _prepare_proxy(self, has_proxy, proxy_name):
+    def _prepare_proxy(self, has_proxy, proxy_name, cell_tag):
         if not has_proxy: return
 
         current = os.path.join(self.path_to_run, proxy_name)
@@ -531,6 +535,7 @@ class YTEnv(object):
 
         driver_config = configs.get_driver_config()
         driver_config['master']['addresses'] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
+        driver_config['master']['cell_id'] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
         driver_config['timestamp_provider']['addresses'] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
 
         proxy_config = configs.get_proxy_config()
@@ -568,8 +573,8 @@ class YTEnv(object):
 
         self._wait_for(started, name="proxy", max_wait_time=20)
 
-    def _run_proxy(self, has_proxy, proxy_name):
-        self._prepare_proxy(has_proxy, proxy_name)
+    def _run_proxy(self, has_proxy, proxy_name, cell_tag):
+        self._prepare_proxy(has_proxy, proxy_name, cell_tag)
         if has_proxy:
             self.start_proxy(proxy_name)
 
