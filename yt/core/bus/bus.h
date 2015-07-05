@@ -25,9 +25,13 @@ DEFINE_ENUM(EDeliveryTrackingLevel,
 struct IBus
     : public virtual TRefCounted
 {
-    //! Returns a textual representation of bus' endpoint.
-    //! For informative uses only.
-    virtual NYTree::TYsonString GetEndpointDescription() const = 0;
+    //! Returns a textual representation of the bus' endpoint.
+    //! Typically used for logging
+    virtual Stroka GetEndpointTextDescription() const = 0;
+
+    //! Returns a YSON representation of the bus' endpoint.
+    //! Typically used for constructing error attributes.
+    virtual NYTree::TYsonString GetEndpointYsonDescription() const = 0;
 
     //! Asynchronously sends a message via the bus.
     /*!

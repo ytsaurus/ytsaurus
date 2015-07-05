@@ -33,7 +33,7 @@ class TPartitionChunkReader
 {
 public:
     TPartitionChunkReader(
-        TChunkReaderConfigPtr config,
+        NChunkClient::TSequentialReaderConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
         NChunkClient::IBlockCachePtr blockCache,

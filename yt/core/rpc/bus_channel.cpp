@@ -60,9 +60,14 @@ public:
         DefaultTimeout_ = timeout;
     }
 
-    virtual TYsonString GetEndpointDescription() const override
+    virtual Stroka GetEndpointTextDescription() const override
     {
-        return Client_->GetEndpointDescription();
+        return Client_->GetEndpointTextDescription();
+    }
+
+    virtual TYsonString GetEndpointYsonDescription() const override
+    {
+        return Client_->GetEndpointYsonDescription();
     }
 
     virtual IClientRequestControlPtr Send(
@@ -552,7 +557,7 @@ private:
                 request->GetMethod(),
                 timeout,
                 level,
-                ConvertToYsonString(bus->GetEndpointDescription(), NYson::EYsonFormat::Text).Data());
+                bus->GetEndpointTextDescription());
         }
 
         void OnAcknowledgement(const TRequestId& requestId, const TError& error)
@@ -616,7 +621,7 @@ private:
                 << TErrorAttribute("request_id", request->GetRequestId())
                 << TErrorAttribute("service", request->GetService())
                 << TErrorAttribute("method", request->GetMethod())
-                << TErrorAttribute("endpoint", Bus_->GetEndpointDescription());
+                << TErrorAttribute("endpoint", Bus_->GetEndpointYsonDescription());
 
             auto timeout = requestControl->GetTimeout();
             if (timeout) {

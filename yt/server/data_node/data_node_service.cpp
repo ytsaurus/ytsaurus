@@ -372,7 +372,7 @@ private:
             }
         } else {
             auto blockCache = Bootstrap_->GetBlockCache();
-            auto asyncBlocks = blockStore->ReadBlocks(
+            auto asyncBlocks = blockStore->ReadBlockSet(
                 chunkId,
                 blockIndexes,
                 context->GetPriority(),
@@ -439,7 +439,7 @@ private:
         if (!IsOutThrottling()) {
             auto blockStore = Bootstrap_->GetBlockStore();
             auto blockCache = Bootstrap_->GetBlockCache();
-            auto asyncBlocks = blockStore->ReadBlocks(
+            auto asyncBlocks = blockStore->ReadBlockRange(
                 chunkId,
                 firstBlockIndex,
                 blockCount,

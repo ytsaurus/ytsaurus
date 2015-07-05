@@ -45,6 +45,9 @@ bool TryDeserializeFromProto(google::protobuf::MessageLite* message, const TRef&
         data.Size() + 1,
         data.Size() + 1);
 
+    // Raise recursion limit.
+    codedInputStream.SetRecursionLimit(1024);
+
     return message->ParsePartialFromCodedStream(&codedInputStream);
 }
 

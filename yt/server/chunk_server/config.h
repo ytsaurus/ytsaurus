@@ -88,6 +88,10 @@ public:
     //! Maximum number of cached replicas to be returned on fetch request.
     int MaxCachedReplicasPerFetch;
 
+    //! Provides an additional bound for the number of replicas per rack for every chunk.
+    //! Currently used to simulate DC awareness.
+    int MaxReplicasPerRack;
+
     TChunkManagerConfig()
     {
         RegisterParameter("disable_chunk_replicator", DisableChunkReplicator)
@@ -149,10 +153,13 @@ public:
         RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
             .GreaterThan(0)
             .Default(1000000);
-
         RegisterParameter("max_cached_replicas_per_fetch", MaxCachedReplicasPerFetch)
             .GreaterThanOrEqual(0)
             .Default(20);
+
+        RegisterParameter("max_replicas_per_rack", MaxReplicasPerRack)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<int>::max());
     }
 };
 

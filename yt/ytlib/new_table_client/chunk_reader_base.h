@@ -20,7 +20,7 @@ class TChunkReaderBase
 {
 public:
     TChunkReaderBase(
-        TChunkReaderConfigPtr config,
+        NChunkClient::TSequentialReaderConfigPtr config,
         const NChunkClient::TReadLimit& lowerLimit,
         const NChunkClient::TReadLimit& upperLimit,
         NChunkClient::IChunkReaderPtr underlyingReader,
@@ -36,7 +36,7 @@ public:
     virtual TFuture<void> GetFetchingCompletedEvent();
 
 protected:
-    const TChunkReaderConfigPtr Config_;
+    const NChunkClient::TSequentialReaderConfigPtr Config_;
     const NChunkClient::TReadLimit LowerLimit_;
     const NChunkClient::TReadLimit UpperLimit_;
     const NChunkClient::IBlockCachePtr BlockCache_;

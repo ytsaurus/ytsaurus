@@ -214,25 +214,22 @@ private:
         auto codecId = NCompression::ECodec(miscExt.compression_codec());
         auto* codec = NCompression::GetCodec(codecId);
 
-        int firstBlockIndex = 0;
-        while (firstBlockIndex < blocksExt.blocks_size()) {
-            i64 size = 0;
-            int lastBlockIndex = firstBlockIndex;
-            while (lastBlockIndex < blocksExt.blocks_size() && size <= Config_->WindowSize) {
-                size += blocksExt.blocks(lastBlockIndex).size();
-                ++lastBlockIndex;
-            }
+        int startBlockIndex = 0;
+        int totalBlockCount = blocksExt.blocks_size();
+        while (startBlockIndex < totalBlockCount) {
+            LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
+                startBlockIndex);
 
-            LOG_DEBUG("Reading chunk blocks (Blocks: %v-%v)",
-                firstBlockIndex,
-                lastBlockIndex - 1);
-
-            auto asyncResult = reader->ReadBlocks(firstBlockIndex, lastBlockIndex - firstBlockIndex);
+            auto asyncResult = reader->ReadBlocks(startBlockIndex, totalBlockCount - startBlockIndex);
             auto compressedBlocks = WaitFor(asyncResult)
                 .ValueOrThrow();
 
-            std::vector<TSharedRef> cachedBlocks;
+            int readBlockCount = compressedBlocks.size();
+            LOG_DEBUG("Finished reading chunk blocks (Blocks: %v-%v)",
+                startBlockIndex,
+                startBlockIndex + readBlockCount - 1);
 
+            std::vector<TSharedRef> cachedBlocks;
             switch (mode) {
                 case EInMemoryMode::Compressed:
                     cachedBlocks = std::move(compressedBlocks);
@@ -240,8 +237,8 @@ private:
 
                 case EInMemoryMode::Uncompressed: {
                     LOG_DEBUG("Decompressing chunk blocks (Blocks: %v-%v)",
-                        firstBlockIndex,
-                        lastBlockIndex - 1);
+                        startBlockIndex,
+                        startBlockIndex + readBlockCount - 1);
 
                     std::vector<TFuture<TSharedRef>> asyncUncompressedBlocks;
                     for (const auto& compressedBlock : compressedBlocks) {
@@ -260,12 +257,12 @@ private:
                     YUNREACHABLE();
             }
 
-            for (int blockIndex = firstBlockIndex; blockIndex < lastBlockIndex; ++blockIndex) {
-                auto blockId = TBlockId(reader->GetChunkId(), blockIndex);
-                blockCache->Put(blockId, blockType, cachedBlocks[blockIndex - firstBlockIndex], Null);
+            for (int index = 0; index < readBlockCount; ++index) {
+                auto blockId = TBlockId(reader->GetChunkId(), startBlockIndex + index);
+                blockCache->Put(blockId, blockType, cachedBlocks[index], Null);
             }
 
-            firstBlockIndex = lastBlockIndex;
+            startBlockIndex += readBlockCount;
         }
 
         LOG_INFO("Store preload completed");

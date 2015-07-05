@@ -81,6 +81,7 @@ include(PCFromUcontext)
 configure_file(
   ${CMAKE_SOURCE_DIR}/yt/config.h.in
   ${CMAKE_BINARY_DIR}/yt/config.h
+  @ONLY
 )
 
 # Discover Python world.
@@ -144,13 +145,7 @@ if(YT_BUILD_HAVE_BISON)
   message(STATUS "Found Bison: ${BISON_EXECUTABLE}")
 endif()
 
-# TODO(sandello): Check whether these two directories differ.
-exec_program(
-  ${CMAKE_COMMAND} ARGS -E copy_directory
-  ${CMAKE_SOURCE_DIR}/debian
-  ${CMAKE_BINARY_DIR}/debian
-)
-
+add_subdirectory(debian)
 add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-farmhash)
 add_subdirectory(cmake/deps-arcadia-util)
@@ -249,6 +244,13 @@ add_custom_target( install-debian-yandex-yt-perl
     -DCOMPONENT=perl
     -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
   COMMENT "Installing for package 'yandex-yt-perl'..."
+)
+
+add_custom_target( install-debian-yandex-yt-perl-${YT_ABI_VERSION}
+  ${CMAKE_COMMAND}
+    -DCOMPONENT=perl-abi
+    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+  COMMENT "Installing for package 'yandex-yt-perl-${YT_ABI_VERSION}'..."
 )
 
 if(YT_USE_FOLDERS)

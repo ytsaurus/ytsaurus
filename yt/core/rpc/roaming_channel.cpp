@@ -34,14 +34,25 @@ public:
         DefaultTimeout_ = timeout;
     }
 
-    virtual TYsonString GetEndpointDescription() const override
+    virtual Stroka GetEndpointTextDescription() const override
     {
         TGuard<TSpinLock> guard(SpinLock);
 
         if (ChannelPromise_ && ChannelPromise_.IsSet() && ChannelPromise_.Get().IsOK()) {
-            return ChannelPromise_.Get().Value()->GetEndpointDescription();
+            return ChannelPromise_.Get().Value()->GetEndpointTextDescription();
         } else {
-            return Provider_->GetEndpointDescription();
+            return Provider_->GetEndpointTextDescription();
+        }
+    }
+
+    virtual TYsonString GetEndpointYsonDescription() const override
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+
+        if (ChannelPromise_ && ChannelPromise_.IsSet() && ChannelPromise_.Get().IsOK()) {
+            return ChannelPromise_.Get().Value()->GetEndpointYsonDescription();
+        } else {
+            return Provider_->GetEndpointYsonDescription();
         }
     }
 

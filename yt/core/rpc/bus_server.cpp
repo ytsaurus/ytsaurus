@@ -101,7 +101,7 @@ private:
         }
 
         LOG_DEBUG("Request received (Method: %v:%v, RealmId: %v, RequestId: %v, User: %v, OneWay: %v, "
-            "Timeout: %v, RequestStartTime: %v, RetryStartTime: %v, Retry: %v)",
+            "Timeout: %v, Endpoint: %v, RequestStartTime: %v, RetryStartTime: %v, Retry: %v)",
             serviceName,
             methodName,
             realmId,
@@ -109,6 +109,7 @@ private:
             header->has_user() ? header->user() : RootUserName,
             isOneWay,
             timeout,
+            replyBus->GetEndpointTextDescription(),
             requestStartTime,
             retryStartTime,
             isRetry);

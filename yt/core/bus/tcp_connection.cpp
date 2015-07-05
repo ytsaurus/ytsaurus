@@ -432,7 +432,12 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     }
 }
 
-TYsonString TTcpConnection::GetEndpointDescription() const
+Stroka TTcpConnection::GetEndpointTextDescription() const
+{
+    return Address_;
+}
+
+TYsonString TTcpConnection::GetEndpointYsonDescription() const
 {
     return ConvertToYsonString(Address_);
 }

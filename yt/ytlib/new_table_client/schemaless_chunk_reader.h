@@ -77,7 +77,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
-    NChunkClient::TMultiChunkReaderConfigPtr config,
+    TTableReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
@@ -90,7 +90,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
-    NChunkClient::TMultiChunkReaderConfigPtr config,
+    TTableReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,

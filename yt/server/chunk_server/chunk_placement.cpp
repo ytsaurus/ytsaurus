@@ -36,9 +36,9 @@ class TChunkPlacement::TTargetCollector
 public:
     TTargetCollector(
         const TChunk* chunk,
-        TNullable<int> replicationFactorOverride,
+        int maxReplicasPerRack,
         const TNodeList* forbiddenNodes)
-        : MaxReplicasPerRack_(chunk->GetMaxReplicasPerRack(replicationFactorOverride))
+        : MaxReplicasPerRack_(maxReplicasPerRack)
     {
         if (forbiddenNodes) {
             ForbiddenNodes_ = *forbiddenNodes;
@@ -276,7 +276,8 @@ TNodeList TChunkPlacement::GetWriteTargets(
     const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
 {
-    TTargetCollector collector(chunk, replicationFactorOverride, forbiddenNodes);
+    int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, replicationFactorOverride);
+    TTargetCollector collector(chunk, maxReplicasPerRack, forbiddenNodes);
 
     auto tryAdd = [&] (TNode* node, bool enableRackAwareness) {
         if (IsValidWriteTarget(node, chunk->GetType(), &collector, enableRackAwareness)) {
@@ -364,7 +365,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
 TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex)
 {
     auto* chunk = chunkWithIndex.GetPtr();
-    int maxReplicasPerRack = chunk->GetMaxReplicasPerRack();
+    int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, Null);
 
     std::array<i8, MaxRackCount> perRackCounters{};
     for (auto replica : chunk->StoredReplicas()) {
@@ -433,7 +434,8 @@ TNode* TChunkPlacement::GetBalancingTarget(
     TChunk* chunk,
     double maxFillFactor)
 {
-    TTargetCollector collector(chunk, Null, nullptr);
+    int maxReplicasPerRack = GetMaxReplicasPerRack(chunk, Null);
+    TTargetCollector collector(chunk, maxReplicasPerRack, nullptr);
 
     for (const auto& pair : FillFactorToNode_) {
         auto* node = pair.second;
@@ -582,6 +584,13 @@ void TChunkPlacement::AddSessionHint(TNode* node, EWriteSessionType sessionType)
     if (node->GetSessionCount(EWriteSessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
         RemoveFromFillFactorMap(node);
     }
+}
+
+int TChunkPlacement::GetMaxReplicasPerRack(TChunk* chunk, TNullable<int> replicationFactorOverride)
+{
+    return std::min(
+        Config_->MaxReplicasPerRack,
+        chunk->GetMaxReplicasPerRack(replicationFactorOverride));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

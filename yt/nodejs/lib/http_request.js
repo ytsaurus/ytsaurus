@@ -142,12 +142,10 @@ YtHttpRequest.prototype.withHeader = function(header, value)
 YtHttpRequest.prototype.fire = function()
 {
     var self = this;
-    function impl(addr) {
-        addr = addr[0];
 
+    function impl(addr, resolve, reject) {
         __DBG("Firing: " + self.toString() + " via " + addr.toString());
 
-        var deferred = Q.defer();
         var proto = self.secure ? https : http;
         var req = proto.request({
             method: self.verb,
@@ -159,12 +157,10 @@ YtHttpRequest.prototype.fire = function()
 
         req.setNoDelay(self.nodelay);
         req.setTimeout(self.timeout, function() {
-            deferred.reject(new YtError(
-                self.toString() + " has timed out"));
+            reject(new YtError(self.toString() + " has timed out"));
         });
         req.once("error", function(err) {
-            deferred.reject(new YtError(
-                self.toString() + " has failed", err));
+            reject(new YtError(self.toString() + " has failed", err));
         });
         req.once("response", function(rsp) {
             var code = rsp.statusCode;
@@ -172,8 +168,7 @@ YtHttpRequest.prototype.fire = function()
                 (self.failOn4xx && code >= 400 && code < 500) ||
                 (self.failOn5xx && code >= 500 && code < 600))
             {
-                deferred.reject(new YtError(
-                    self.toString() + " has responded with " + rsp.statusCode));
+                reject(new YtError(self.toString() + " has responded with " + rsp.statusCode));
                 return;
             }
 
@@ -185,31 +180,55 @@ YtHttpRequest.prototype.fire = function()
             rsp.on("end", function() {
                 result = buffertools.concat.apply(undefined, chunks);
                 if (!self.json) {
-                    deferred.resolve(result);
+                    resolve(result);
                 } else {
                     try {
-                        deferred.resolve(JSON.parse(result));
+                        resolve(JSON.parse(result));
                     } catch (err) {
-                        deferred.reject(new YtError(
-                            self.toString() + " has responded with invalid JSON",
-                            err));
+                        reject(new YtError(self.toString() + " has responded with invalid JSON", err));
                     }
                 }
             });
         });
         req.end(self.body);
-
-        return deferred.promise;
     }
 
-    var addr;
-    if (self.noresolve) {
-        addr = Q.resolve([self.host]);
-    } else {
-        addr = _resolveIPv6(self.host).catch(function() { return _resolveIPv4(self.host); });
-    }
+    var promise = new Q(function(resolve, reject) {
+        if (self.noresolve) {
+            return impl(self.host, resolve, reject);
+        } else {
+            return _resolveIPv6(self.host).then(
+                function(addrs) {
+                    if (addrs.length === 0) {
+                        throw new YtError(self.toString() + " has resolved " + self.host + " to empty host set");
+                    } else {
+                        return impl(addrs[0], resolve, reject);
+                    }
+                },
+                function(err6) {
+                    return _resolveIPv4(self.host).then(
+                        function(addrs) {
+                            if (addrs.length === 0) {
+                                throw new YtError(self.toString() + " has resolved " + self.host + " to empty host set");
+                            } else {
+                                return impl(addrs[0], resolve, reject);
+                            }
+                        },
+                        function(err4) {
+                            var error = new YtError(self.toString() + " has failed to resolve " + self.host);
+                            if (err6) {
+                                error.withNested(err6);
+                            }
+                            if (err4) {
+                                error.withNested(err4);
+                            }
+                            throw error;
+                        });
+                });
+        }
+    });
 
-    return addr.then(impl);
+    return promise.timeout(self.timeout * 1.05, self.toString() + " has timed out (hardly)");
 };
 
 YtHttpRequest.prototype.toString = function()

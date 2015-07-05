@@ -33,9 +33,14 @@ public:
         , MasterChannel_(std::move(masterChannel))
     { }
 
-    virtual TYsonString GetEndpointDescription() const override
+    virtual Stroka GetEndpointTextDescription() const override
     {
-        return ConvertToYsonString(Stroka("<scheduler>"));
+        return "<scheduler>";
+    }
+
+    virtual TYsonString GetEndpointYsonDescription() const override
+    {
+        return ConvertToYsonString(GetEndpointTextDescription());
     }
 
     virtual TFuture<IChannelPtr> DiscoverChannel(IClientRequestPtr request) override

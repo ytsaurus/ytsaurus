@@ -123,6 +123,10 @@ private:
         TNode* node,
         NChunkClient::EWriteSessionType sessionType);
 
+    int GetMaxReplicasPerRack(
+        TChunk* chunk,
+        TNullable<int> replicationFactorOverride);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPlacement)

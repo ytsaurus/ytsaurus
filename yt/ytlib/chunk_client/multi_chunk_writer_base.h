@@ -88,7 +88,7 @@ private:
     const IBlockCachePtr BlockCache_;
 
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-    const NConcurrency::TParallelAwaiterPtr CloseChunksAwaiter_;
+    std::vector<TFuture<void>> CloseChunkEvents_;
 
     volatile double Progress_ = 0.0;
 
@@ -159,10 +159,7 @@ public:
         // Return true if current writer is ready for more data and
         // we didn't switch to the next chunk.
         bool readyForMore = CurrentWriter_->Write(std::forward<TWriteArgs>(args)...);
-        bool switched = false;
-        if (readyForMore) {
-            switched = TrySwitchSession();
-        }
+        bool switched = TrySwitchSession();
         return readyForMore && !switched;
     }
 
