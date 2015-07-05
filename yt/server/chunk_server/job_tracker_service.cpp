@@ -70,7 +70,7 @@ private:
         if (node->GetState() != ENodeState::Online) {
             THROW_ERROR_EXCEPTION(
                 NNodeTrackerClient::EErrorCode::InvalidState,
-                "Cannot process a heartbeat in %v state",
+                "Cannot process a heartbeat in %Qlv state",
                 node->GetState());
         }
 
