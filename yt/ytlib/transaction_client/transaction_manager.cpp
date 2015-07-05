@@ -48,7 +48,6 @@ class TTransactionManager::TImpl
 public:
     TImpl(
         TTransactionManagerConfigPtr config,
-        TCellTag cellTag,
         const TCellId& cellId,
         IChannelPtr channel,
         ITimestampProviderPtr timestampProvider,
@@ -69,7 +68,6 @@ private:
 
     TTransactionManagerConfigPtr Config_;
     IChannelPtr MasterChannel_;
-    TCellTag CellTag_;
     TCellId CellId_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
@@ -528,7 +526,7 @@ private:
     {
         Id_ = MakeId(
             EObjectType::TabletTransaction,
-            Owner_->CellTag_,
+            CellTagFromId(Owner_->CellId_),
             static_cast<ui64>(StartTimestamp_),
             TabletTransactionCounter++);
 
@@ -771,14 +769,12 @@ private:
 
 TTransactionManager::TImpl::TImpl(
     TTransactionManagerConfigPtr config,
-    TCellTag cellTag,
     const TCellId& cellId,
     IChannelPtr masterChannel,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
     : Config_(config)
     , MasterChannel_(masterChannel)
-    , CellTag_(cellTag)
     , CellId_(cellId)
     , TimestampProvider_(timestampProvider)
     , CellDirectory_(cellDirectory)
@@ -892,14 +888,12 @@ DELEGATE_SIGNAL(TTransaction, void(), Aborted, *Impl_);
 
 TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
-    TCellTag cellTag,
     const TCellId& cellId,
     IChannelPtr masterChannel,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
     : Impl_(New<TImpl>(
         config,
-        cellTag,
         cellId,
         masterChannel,
         timestampProvider,

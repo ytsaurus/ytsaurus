@@ -146,7 +146,6 @@ public:
      */
     TTransactionManager(
         TTransactionManagerConfigPtr config,
-        NObjectClient::TCellTag cellTag,
         const NHive::TCellId& cellId,
         NRpc::IChannelPtr masterChannel,
         ITimestampProviderPtr timestampProvider,

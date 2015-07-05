@@ -119,6 +119,7 @@ DEFINE_ENUM(EObjectType,
     // Global stuff
     // A mysterious creature representing the master as a whole.
     ((Master)                     (600))
+    ((Cell)                       (601))
 
     // Tablet Manager stuff
     ((TabletCell)                 (700))

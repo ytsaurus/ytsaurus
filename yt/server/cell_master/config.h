@@ -35,20 +35,6 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterCellConfig
-    : public NElection::TCellConfig
-{
-public:
-    NObjectClient::TCellTag CellTag = 0;
-
-    TMasterCellConfig()
-    {
-        RegisterParameter("cell_tag", CellTag);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TMasterCellConfig)
-
 class TMasterHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
 {
@@ -74,7 +60,7 @@ class TCellMasterConfig
     : public TServerConfig
 {
 public:
-    TMasterCellConfigPtr Master;
+    NElection::TCellConfigPtr Master;
 
     NHydra::TFileChangelogStoreConfigPtr Changelogs;
     NHydra::TLocalSnapshotStoreConfigPtr Snapshots;

@@ -695,7 +695,6 @@ public:
 
         TransactionManager_ = New<TTransactionManager>(
             Connection_->GetConfig()->TransactionManager,
-            Connection_->GetConfig()->Master->CellTag,
             Connection_->GetConfig()->Master->CellId,
             GetMasterChannel(EMasterChannelKind::Leader),
             Connection_->GetTimestampProvider(),
