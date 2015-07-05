@@ -89,7 +89,6 @@ public:
         : JobId(jobId)
         , Bootstrap(bootstrap)
         , ResourceUsage(resourceUsage)
-        , Statistics(SerializedEmptyStatistics)
     {
         JobSpec.Swap(&jobSpec);
 
@@ -97,7 +96,9 @@ public:
             InvalidNodeId,
             Bootstrap->GetMasterConnector()->GetLocalDescriptor());
 
-        Logger.AddTag("JobId: %v", jobId);
+        Logger.AddTag("JobId: %v, JobType: %v",
+            GetId(),
+            GetType());
     }
 
     virtual void Start() override
@@ -146,6 +147,11 @@ public:
     virtual const TJobId& GetId() const override
     {
         return JobId;
+    }
+
+    virtual EJobType GetType() const override
+    {
+        return EJobType(JobSpec.type());
     }
 
     virtual const TJobSpec& GetSpec() const override
@@ -257,9 +263,9 @@ public:
 
 private:
     const TJobId JobId;
-    TJobSpec JobSpec;
+    NCellNode::TBootstrap* const Bootstrap;
 
-    const NCellNode::TBootstrap* Bootstrap;
+    TJobSpec JobSpec;
 
     TSpinLock SpinLock;
     TNodeResources ResourceUsage;
@@ -270,7 +276,7 @@ private:
     TCancelableContextPtr CancelableContext = New<TCancelableContext>();
 
     double Progress_ = 0.0;
-    TYsonString Statistics;
+    TYsonString Statistics = SerializedEmptyStatistics;
 
     TNullable<TJobResult> JobResult;
 
@@ -387,19 +393,19 @@ private:
     {
         INodePtr ioConfigNode;
         try {
-            auto* schedulerJobSpecExt = JobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            ioConfigNode = ConvertToNode(TYsonString(schedulerJobSpecExt->io_config()));
+            auto schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            ioConfigNode = ConvertToNode(TYsonString(schedulerJobSpecExt.io_config()));
         } catch (const std::exception& ex) {
-            auto error = TError("Error deserializing job IO configuration") << ex;
-            THROW_ERROR error;
+            THROW_ERROR_EXCEPTION("Error deserializing job IO configuration")
+                << ex;
         }
 
         auto ioConfig = New<TJobIOConfig>();
         try {
             ioConfig->Load(ioConfigNode);
         } catch (const std::exception& ex) {
-            auto error = TError("Error validating job IO configuration") << ex;
-            THROW_ERROR error;
+            THROW_ERROR_EXCEPTION("Error validating job IO configuration")
+                << ex;
         }
 
         auto proxyConfig = CloneYsonSerializable(Bootstrap->GetJobProxyConfig());
@@ -418,7 +424,8 @@ private:
             TYsonWriter writer(&output, EYsonFormat::Pretty);
             proxyConfig->Save(&writer);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error saving job proxy config (Path: %Qv)", proxyConfigPath);
+            LOG_ERROR(ex, "Error saving job proxy config (Path: %v)",
+                proxyConfigPath);
             NLogging::TLogManager::Get()->Shutdown();
             _exit(1);
         }
@@ -438,8 +445,7 @@ private:
                 *Slot,
                 Slot->GetWorkingDirectory());
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to create proxy controller for environment %Qv",
+            THROW_ERROR_EXCEPTION("Failed to create proxy controller for environment %Qv",
                 environmentType)
                 << ex;
         }

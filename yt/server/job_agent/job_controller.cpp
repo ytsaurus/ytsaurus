@@ -131,7 +131,7 @@ void TJobController::StartWaitingJobs()
         auto jobResources = job->GetResourceUsage();
 
         if (!DominatesNonnegative(spareResources, jobResources)) {
-            LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, SpareResources: %v, JobResources: %v)",
+            LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, SpareResources: {%v}, JobResources: {%v})",
                 job->GetId(),
                 FormatResources(spareResources),
                 FormatResources(jobResources));
@@ -179,7 +179,7 @@ IJobPtr TJobController::CreateJob(
         resourceLimits,
         std::move(jobSpec));
 
-    LOG_INFO("Job created (JobId: %v, Type: %v)",
+    LOG_INFO("Job created (JobId: %v, JobType: %v)",
         jobId,
         type);
 

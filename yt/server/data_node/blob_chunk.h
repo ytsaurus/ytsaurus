@@ -46,28 +46,21 @@ private:
     NChunkClient::NProto::TChunkInfo Info_;
 
     NConcurrency::TReaderWriterSpinLock CachedMetaLock_;
+    TPromise<void> CachedMetaPromise_;
     TRefCountedChunkMetaPtr CachedMeta_;
     NChunkClient::NProto::TBlocksExt CachedBlocksExt_;
 
 
-    void DoReadMeta(
-        TChunkReadGuard readGuard,
-        TPromise<TRefCountedChunkMetaPtr> promise);
-
-    TRefCountedChunkMetaPtr GetCachedMeta();
-    TRefCountedChunkMetaPtr SetCachedMeta(const NChunkClient::NProto::TChunkMeta& meta);
-
-    void AdjustReadRange(
-        int firstBlockIndex,
-        int* blockCount, // inout
-        i64* dataSize);  // out
+    TFuture<void> GetMeta(i64 priority);
+    void SetMetaLoadSuccess(const NChunkClient::NProto::TChunkMeta& meta);
+    void SetMetaLoadError(const TError& error);
+    void DoReadMeta(TChunkReadGuard readGuard);
 
     void DoReadBlocks(
         int firstBlockIndex,
         int blockCount,
         TPendingReadSizeGuard pendingReadSizeGuard,
         TPromise<std::vector<TSharedRef>> promise);
-
 
 };
 
