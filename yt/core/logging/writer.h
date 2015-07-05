@@ -29,6 +29,7 @@ struct ILogWriter
     virtual void CheckSpace(i64 minSpace) = 0;
 };
 
+DECLARE_REFCOUNTED_STRUCT(ILogWriter)
 DEFINE_REFCOUNTED_TYPE(ILogWriter)
 
 ////////////////////////////////////////////////////////////////////////////////

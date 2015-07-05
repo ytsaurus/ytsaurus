@@ -4,9 +4,6 @@
 
 #include "plan_fragment_common.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/row_buffer.h>
-
 #include <core/misc/variant.h>
 
 namespace NYT {
@@ -15,8 +12,9 @@ namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::vector<TValue> TValueList;
-typedef std::vector<std::vector<TValue>> TValueTupleList;
+typedef TVariant<i64, ui64, double, bool, Stroka> TLiteralValue;
+typedef std::vector<TLiteralValue> TLiteralValueList;
+typedef std::vector<std::vector<TLiteralValue>> TLiteralValueTupleList;
 
 struct TExpression
     : public TIntrinsicRefCounted
@@ -40,7 +38,6 @@ struct TExpression
     TStringBuf GetSource(const TStringBuf& source) const;
 
     TSourceLocation SourceLocation;
-
 };
 
 DECLARE_REFCOUNTED_STRUCT(TExpression)
@@ -53,13 +50,12 @@ struct TLiteralExpression
 {
     TLiteralExpression(
         const TSourceLocation& sourceLocation,
-        TValue value)
+        TLiteralValue value)
         : TExpression(sourceLocation)
-        , Value(value)
+        , Value(std::move(value))
     { }
 
-    TValue Value;
-
+    TLiteralValue Value;
 };
 
 struct TReferenceExpression
@@ -73,7 +69,6 @@ struct TReferenceExpression
     { }
 
     Stroka ColumnName;
-
 };
 
 struct TCommaExpression
@@ -84,8 +79,8 @@ struct TCommaExpression
         TExpressionPtr lhs,
         TExpressionPtr rhs)
         : TExpression(sourceLocation)
-        , Lhs(lhs)
-        , Rhs(rhs)
+        , Lhs(std::move(lhs))
+        , Rhs(std::move(rhs))
     { }
 
     TExpressionPtr Lhs;
@@ -101,12 +96,11 @@ struct TFunctionExpression
         TExpressionPtr arguments)
         : TExpression(sourceLocation)
         , FunctionName(functionName)
-        , Arguments(arguments)
+        , Arguments(std::move(arguments))
     { }
 
     Stroka FunctionName;
     TExpressionPtr Arguments;
-
 };
 
 struct TUnaryOpExpression
@@ -118,12 +112,11 @@ struct TUnaryOpExpression
         TExpressionPtr operand)
         : TExpression(sourceLocation)
         , Opcode(opcode)
-        , Operand(operand)
+        , Operand(std::move(operand))
     { }
 
     EUnaryOp Opcode;
     TExpressionPtr Operand;
-
 };
 
 struct TBinaryOpExpression
@@ -136,14 +129,13 @@ struct TBinaryOpExpression
         TExpressionPtr rhs)
         : TExpression(sourceLocation)
         , Opcode(opcode)
-        , Lhs(lhs)
-        , Rhs(rhs)
+        , Lhs(std::move(lhs))
+        , Rhs(std::move(rhs))
     { }
 
     EBinaryOp Opcode;
     TExpressionPtr Lhs;
     TExpressionPtr Rhs;
-
 };
 
 struct TInExpression
@@ -152,16 +144,14 @@ struct TInExpression
     TInExpression(
         const TSourceLocation& sourceLocation,
         TExpressionPtr expression,
-        const TValueTupleList& values)
+        const TLiteralValueTupleList& values)
         : TExpression(sourceLocation)
-        , Expr(expression)
+        , Expr(std::move(expression))
         , Values(values)
     { }
 
     TExpressionPtr Expr;
-    // TODO(babenko): TSharedRange here?
-    TValueTupleList Values;
-
+    TLiteralValueTupleList Values;
 };
 
 Stroka InferName(const TExpression* expr);
@@ -175,61 +165,46 @@ typedef TNullable<TNamedExpressionList> TNullableNamedExpressionList;
 typedef std::vector<Stroka> TIdentifierList;
 typedef TNullable<TIdentifierList> TNullableIdentifierList;
 
-struct TSource
-    : public TIntrinsicRefCounted
+struct TTableDescriptor
 {
-    template <class TDerived>
-    const TDerived* As() const
-    {
-        return dynamic_cast<const TDerived*>(this);
-    }
+    TTableDescriptor()
+    { }
 
-    template <class TDerived>
-    TDerived* As()
-    {
-        return dynamic_cast<TDerived*>(this);
-    }
-
-};
-
-DECLARE_REFCOUNTED_STRUCT(TSource)
-DEFINE_REFCOUNTED_TYPE(TSource)
-
-struct TSimpleSource
-    : public TSource
-{
-    explicit TSimpleSource(const Stroka& path)
+    TTableDescriptor(
+        const Stroka& path,
+        const Stroka& alias)
         : Path(path)
+        , Alias(alias)
     { }
 
     Stroka Path;
-
-};
-
-struct TJoinSource
-    : public TSource
-{
-    TJoinSource(
-        const Stroka& leftPath,
-        const Stroka& rightPath,
-        const TIdentifierList& fields)
-        : LeftPath(leftPath)
-        , RightPath(rightPath)
-        , Fields(fields)
-    { }
-
-    Stroka LeftPath;
-    Stroka RightPath;
-    TIdentifierList Fields;
-
+    Stroka Alias;
 };
 
 struct TQuery
 {
-    TSourcePtr Source;
+    TTableDescriptor Table;
+
+    struct TJoin
+    {
+        TJoin(
+            const TTableDescriptor& table,
+            const TIdentifierList& fields)
+            : Table(table)
+            , Fields(fields)
+        { }
+
+        TTableDescriptor Table;
+        TIdentifierList Fields;
+
+    };
+
+    std::vector<TJoin> Joins;
+
     TNullableNamedExpressionList SelectExprs;
     TExpressionPtr WherePredicate;
     TNullableNamedExpressionList GroupExprs;
+    TExpressionPtr HavingPredicate;
     TNullableIdentifierList OrderFields;
     i64 Limit = 0;
 };

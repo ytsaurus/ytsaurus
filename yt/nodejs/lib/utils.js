@@ -231,7 +231,7 @@ exports.numerify = function(obj)
  * Recursively merge properties of two objects.
  * Preference is given to right-hand side.
  */
-exports.merge = function (lhs, rhs)
+exports.merge = function(lhs, rhs)
 {
     for (var p in rhs) {
         try {
@@ -247,6 +247,20 @@ exports.merge = function (lhs, rhs)
         }
     }
     return lhs;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+exports.pick = function(object, keys)
+{
+    var result = { };
+    for (var i = 0, length = keys.length; i < length; ++i) {
+        var key = keys[i];
+        if (key in object) {
+            result[key] = object[key];
+        }
+    }
+    return result;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

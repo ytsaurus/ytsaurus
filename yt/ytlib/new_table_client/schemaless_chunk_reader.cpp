@@ -476,6 +476,7 @@ public:
         TNodeDirectoryPtr nodeDirectory,
         const std::vector<TChunkSpec>& chunkSpecs,
         TNameTablePtr nameTable,
+        TColumnFilter columnFilter,
         const TKeyColumns& keyColumns,
         IThroughputThrottlerPtr throttler);
 
@@ -498,6 +499,7 @@ public:
 private:
     const TTableReaderConfigPtr Config_;
     const TNameTablePtr NameTable_;
+    const TColumnFilter ColumnFilter_;
     const TKeyColumns KeyColumns_;
     const IBlockCachePtr BlockCache_;
 
@@ -525,6 +527,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
+    TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
     IThroughputThrottlerPtr throttler)
     : TBase(
@@ -537,6 +540,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
         throttler)
     , Config_(config)
     , NameTable_(nameTable)
+    , ColumnFilter_(std::move(columnFilter))
     , KeyColumns_(keyColumns)
     , BlockCache_(blockCache)
     , RowCount_(GetCumulativeRowCount(chunkSpecs))
@@ -588,7 +592,7 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
         chunkSpec.chunk_meta(),
         chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
         chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit(),
-        CreateColumnFilter(channel, NameTable_),
+        ColumnFilter_.All ? CreateColumnFilter(channel, NameTable_) : ColumnFilter_,
         chunkSpec.table_row_index(),
         chunkSpec.range_index(),
         chunkSpec.has_partition_tag() ? MakeNullable(chunkSpec.partition_tag()) : Null);
@@ -653,6 +657,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
+    TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
     IThroughputThrottlerPtr throttler)
 {
@@ -664,6 +669,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
         nodeDirectory,
         chunkSpecs,
         nameTable,
+        columnFilter,
         keyColumns,
         throttler);
 }
@@ -678,6 +684,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
+    TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
     IThroughputThrottlerPtr throttler)
 {
@@ -689,6 +696,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
         nodeDirectory,
         chunkSpecs,
         nameTable,
+        columnFilter,
         keyColumns,
         throttler);
 }
@@ -868,6 +876,7 @@ void TSchemalessTableReader::DoOpen()
             nodeDirectory,
             chunkSpecs,
             NameTable_,
+            TColumnFilter(),
             TKeyColumns(),
             Throttler_);
 

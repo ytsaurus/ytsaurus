@@ -11,45 +11,6 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTypedFunction::TTypedFunction(
-    const Stroka& functionName,
-    std::vector<TType> argumentTypes,
-    TType repeatedArgumentType,
-    TType resultType)
-    : FunctionName_(functionName)
-    , ArgumentTypes_(argumentTypes)
-    , RepeatedArgumentType_(repeatedArgumentType)
-    , ResultType_(resultType)
-{ }
-
-TTypedFunction::TTypedFunction(
-    const Stroka& functionName,
-    std::vector<TType> argumentTypes,
-    TType resultType)
-    : FunctionName_(functionName)
-    , ArgumentTypes_(argumentTypes)
-    , RepeatedArgumentType_(EValueType::Null)
-    , ResultType_(resultType)
-{ }
-
-Stroka TTypedFunction::GetName() const
-{
-    return FunctionName_;
-}
-
-EValueType TTypedFunction::InferResultType(
-    const std::vector<EValueType>& argumentTypes,
-    const TStringBuf& source) const
-{
-    return TypingFunction(
-        ArgumentTypes_,
-        RepeatedArgumentType_,
-        ResultType_,
-        GetName(),
-        argumentTypes,
-        source);
-}
-
 Stroka TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> genericAssignments)
 {
     if (auto genericId = tp.TryAs<TTypeArgument>()) {
@@ -68,24 +29,28 @@ Stroka TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> gene
     }
 }
 
-EValueType TTypedFunction::TypingFunction(
+EValueType TypingFunction(
+    const std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
     const std::vector<TType>& expectedArgTypes,
     TType repeatedArgType,
     TType resultType,
     const Stroka& functionName,
     const std::vector<EValueType>& argTypes,
-    const TStringBuf& source) const
+    const TStringBuf& source)
 {
     std::unordered_map<TTypeArgument, EValueType> genericAssignments;
+
+    auto typeInUnion = [&] (TUnionType unionType, EValueType type) {
+        return std::find(
+            unionType.begin(),
+            unionType.end(),
+            type) != unionType.end();
+    };
 
     auto isSubtype = [&] (EValueType type1, TType type2) {
         YCHECK(!type2.TryAs<TTypeArgument>());
         if (auto* unionType = type2.TryAs<TUnionType>()) {
-            auto exists = std::find(
-                unionType->begin(),
-                unionType->end(),
-                type1);
-            return exists != unionType->end();
+            return typeInUnion(*unionType, type1);
         } else if (auto* concreteType = type2.TryAs<EValueType>()) {
             return type1 == *concreteType;
         }
@@ -148,6 +113,22 @@ EValueType TTypedFunction::TypingFunction(
         }
     }
 
+    for (auto constraint : typeArgumentConstraints) {
+        auto typeArg = constraint.first;
+        auto allowedTypes = constraint.second;
+        if (genericAssignments.count(typeArg)
+            && !typeInUnion(allowedTypes, genericAssignments[typeArg]))
+        {
+            THROW_ERROR_EXCEPTION(
+                "Invalid type inferred for type argument %v to function %Qv: expected %Qv, got %Qv",
+                typeArg,
+                functionName,
+                TypeToString(allowedTypes, genericAssignments),
+                TypeToString(typeArg, genericAssignments))
+                << TErrorAttribute("expression", source);
+        }
+    }
+
     if (auto* genericResult = resultType.TryAs<TTypeArgument>()) {
         if (!genericAssignments.count(*genericResult)) {
             THROW_ERROR_EXCEPTION(
@@ -170,6 +151,52 @@ EValueType TTypedFunction::TypingFunction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTypedFunction::TTypedFunction(
+    const Stroka& functionName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+    std::vector<TType> argumentTypes,
+    TType repeatedArgumentType,
+    TType resultType)
+    : FunctionName_(functionName)
+    , TypeArgumentConstraints_(typeArgumentConstraints)
+    , ArgumentTypes_(argumentTypes)
+    , RepeatedArgumentType_(repeatedArgumentType)
+    , ResultType_(resultType)
+{ }
+
+TTypedFunction::TTypedFunction(
+    const Stroka& functionName,
+    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+    std::vector<TType> argumentTypes,
+    TType resultType)
+    : FunctionName_(functionName)
+    , TypeArgumentConstraints_(typeArgumentConstraints)
+    , ArgumentTypes_(argumentTypes)
+    , RepeatedArgumentType_(EValueType::Null)
+    , ResultType_(resultType)
+{ }
+
+Stroka TTypedFunction::GetName() const
+{
+    return FunctionName_;
+}
+
+EValueType TTypedFunction::InferResultType(
+    const std::vector<EValueType>& argumentTypes,
+    const TStringBuf& source) const
+{
+    return TypingFunction(
+        TypeArgumentConstraints_,
+        ArgumentTypes_,
+        RepeatedArgumentType_,
+        ResultType_,
+        GetName(),
+        argumentTypes,
+        source);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TKeyTriePtr TUniversalRangeFunction::ExtractKeyRange(
     const TIntrusivePtr<const TFunctionExpression>& expr,
     const TKeyColumns& keyColumns,
@@ -182,6 +209,7 @@ TKeyTriePtr TUniversalRangeFunction::ExtractKeyRange(
 
 TCodegenExpression TCodegenFunction::MakeCodegenExpr(
     std::vector<TCodegenExpression> codegenArgs,
+    std::vector<EValueType> argumentTypes,
     EValueType type,
     const Stroka& name) const
 {
@@ -204,6 +232,7 @@ TCodegenExpression TCodegenFunction::MakeCodegenExpr(
 
 TIfFunction::TIfFunction() : TTypedFunction(
     "if",
+    std::unordered_map<TTypeArgument, TUnionType>(),
     std::vector<TType>{ EValueType::Boolean, 0, 0 },
     0)
 { }
@@ -247,9 +276,10 @@ TCGValue TIfFunction::CodegenValue(
 
 TIsPrefixFunction::TIsPrefixFunction()
     : TTypedFunction(
-      "is_prefix",
-      std::vector<TType>{ EValueType::String, EValueType::String },
-      EValueType::Boolean)
+        "is_prefix",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{ EValueType::String, EValueType::String },
+        EValueType::Boolean)
 { }
 
 TCGValue TIsPrefixFunction::CodegenValue(
@@ -304,160 +334,6 @@ TKeyTriePtr TIsPrefixFunction::ExtractKeyRange(
     }
 
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCastFunction::TCastFunction(
-    EValueType resultType,
-    const Stroka& functionName)
-    : TTypedFunction(
-        functionName,
-        std::vector<TType>{ CastTypes_ },
-        resultType)
-{ }
-
-const TUnionType TCastFunction::CastTypes_ = TUnionType{
-    EValueType::Int64,
-    EValueType::Uint64,
-    EValueType::Double};
-
-TCGValue TCastFunction::CodegenValue(
-    std::vector<TCodegenExpression> codegenArgs,
-    EValueType type,
-    const Stroka& name,
-    TCGContext& builder,
-    Value* row) const
-{
-    YCHECK(codegenArgs.size() == 1);
-    return codegenArgs[0](builder, row).Cast(builder, type);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TAggregateFunction::TAggregateFunction(
-    Stroka name)
-    : Name_(name)
-{ }
-
-Stroka TAggregateFunction::GetName() const
-{
-    return Name_;
-}
-
-TCodegenAggregateUpdate TAggregateFunction::MakeCodegenAggregate(
-    EValueType type,
-    const Stroka& nameStroka) const
-{
-    auto aggregateFunction = Name_;
-    return [
-            aggregateFunction,
-            type,
-            MOVE(nameStroka)
-        ] (TCGContext& builder, Value* aggregateStatePtr, Value* newValuePtr) {
-            Twine name = nameStroka.c_str();
-
-            auto aggregateValue = TCGValue::CreateFromLlvmValue(
-                builder,
-                aggregateStatePtr,
-                type,
-                name + ".aggregate");
-            auto newValue = TCGValue::CreateFromLlvmValue(
-                builder,
-                newValuePtr,
-                type);
-
-            CodegenIf<TCGContext>(
-                builder,
-                newValue.IsNull(),
-                [&] (TCGContext& builder) { },
-                [&] (TCGContext& builder) {
-
-                    CodegenIf<TCGContext>(
-                        builder,
-                        aggregateValue.IsNull(),
-                        [&] (TCGContext& builder) {
-                            newValue.StoreToValue(builder, aggregateStatePtr);
-                        },
-                        [&] (TCGContext& builder) {
-                            Value* newData = newValue.GetData();
-                            Value* aggregateData = aggregateValue.GetData();
-                            Value* resultData = nullptr;
-
-                            // TODO(lukyan): support other types
-
-                            if (aggregateFunction == "sum") {
-                                switch (type) {
-                                    case EValueType::Int64:
-                                    case EValueType::Uint64:
-                                        resultData = builder.CreateAdd(
-                                            aggregateData,
-                                            newData);
-                                        break;
-                                    case EValueType::Double:
-                                        resultData = builder.CreateFAdd(
-                                            aggregateData,
-                                            newData);
-                                        break;
-                                    default:
-                                        YUNIMPLEMENTED();
-                                }
-                            } else if (aggregateFunction == "min") {
-                                Value* compareResult = nullptr;
-                                switch (type) {
-                                    case EValueType::Int64:
-                                        compareResult = builder.CreateICmpSLE(aggregateData, newData);
-                                        break;
-                                    case EValueType::Uint64:
-                                        compareResult = builder.CreateICmpULE(aggregateData, newData);
-                                        break;
-                                    case EValueType::Double:
-                                        compareResult = builder.CreateFCmpULE(aggregateData, newData);
-                                        break;
-                                    default:
-                                        YUNIMPLEMENTED();
-                                }
-
-                                resultData = builder.CreateSelect(
-                                    compareResult,
-                                    aggregateData,
-                                    newData);
-                            } else if (aggregateFunction == "max") {
-                                Value* compareResult = nullptr;
-                                switch (type) {
-                                    case EValueType::Int64:
-                                        compareResult = builder.CreateICmpSGE(aggregateData, newData);
-                                        break;
-                                    case EValueType::Uint64:
-                                        compareResult = builder.CreateICmpUGE(aggregateData, newData);
-                                        break;
-                                    case EValueType::Double:
-                                        compareResult = builder.CreateFCmpUGE(aggregateData, newData);
-                                        break;
-                                    default:
-                                        YUNIMPLEMENTED();
-                                }
-
-                                resultData = builder.CreateSelect(
-                                    compareResult,
-                                    aggregateData,
-                                    newData);
-                            } else {
-                                YUNIMPLEMENTED();
-                            }
-
-                            auto result = TCGValue::CreateFromValue(
-                                builder,
-                                nullptr,
-                                nullptr,
-                                resultData,
-                                type,
-                                "result");
-                            result.StoreToValue(builder, aggregateStatePtr);
-                        });
-
-                });
-        };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

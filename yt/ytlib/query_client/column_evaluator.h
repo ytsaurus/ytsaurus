@@ -2,9 +2,7 @@
 
 #include "public.h"
 
-#ifdef YT_USE_LLVM
 #include "evaluation_helpers.h"
-#endif
 
 #include <ytlib/new_table_client/unversioned_row.h>
 
@@ -48,12 +46,10 @@ private:
     const int KeySize_;
     const IFunctionRegistryPtr FunctionRegistry_;
 
-#ifdef YT_USE_LLVM
     std::vector<TCGExpressionCallback> Evaluators_;
     std::vector<TCGVariables> Variables_;
     std::vector<std::vector<int>> ReferenceIds_;
     std::vector<TConstExpressionPtr> Expressions_;
-#endif
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnEvaluator);
@@ -76,9 +72,7 @@ private:
 
     DECLARE_NEW_FRIEND();
 
-#ifdef YT_USE_LLVM
     const TIntrusivePtr<TImpl> Impl_;
-#endif
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCache);

@@ -3,6 +3,7 @@
 #include "public.h"
 #include "row_base.h"
 #include "schema.h"
+#include "unversioned_value.h"
 
 #include <core/misc/chunked_memory_pool.h>
 #include <core/misc/serialize.h>
@@ -21,50 +22,19 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: Wire protocol readers/writer rely on this fixed layout.
-union TUnversionedValueData
-{
-    //! |Int64| value.
-    i64 Int64;
-    //! |Uint64| value.
-    ui64 Uint64;
-    //! |Double| value.
-    double Double;
-    //! |Boolean| value.
-    bool Boolean;
-    //! String value for |String| type or YSON-encoded value for |Any| type.
-    const char* String;
-};
-
-static_assert(
-    sizeof(TUnversionedValueData) == 8,
-    "TUnversionedValueData has to be exactly 8 bytes.");
-
-// NB: Wire protocol readers/writer rely on this fixed layout.
-struct TUnversionedValue
-{
-    //! Column id obtained from a name table.
-    ui16 Id;
-    //! Column type.
-    EValueType Type;
-    //! Length of a variable-sized value (only meaningful for |String| and |Any| types).
-    ui32 Length;
-
-    TUnversionedValueData Data;
-};
-
 class TUnversionedOwningValue
 {
 public:
-    TUnversionedOwningValue()
+    TUnversionedOwningValue() = default;
+
+    TUnversionedOwningValue(TUnversionedOwningValue&& other)
     {
-        Value_.Type = EValueType::TheBottom;
-        Value_.Length = 0;
+        std::swap(Value_, other.Value_);
     }
 
     TUnversionedOwningValue(const TUnversionedOwningValue& other)
     {
-        Assign(other);
+        Assign(other.Value_);
     }
 
     TUnversionedOwningValue(const TUnversionedValue& other)
@@ -72,19 +42,30 @@ public:
         Assign(other);
     }
 
+    ~TUnversionedOwningValue()
+    {
+        Clear();
+    }
+
     operator TUnversionedValue() const
     {
         return Value_;
     }
 
-    TUnversionedOwningValue& operator = (const TUnversionedValue& other)
+    TUnversionedOwningValue& operator = (TUnversionedOwningValue&& other)
     {
-        Clear();
-        Assign(other);
+        std::swap(Value_, other.Value_);
         return *this;
     }
 
     TUnversionedOwningValue& operator = (const TUnversionedOwningValue& other)
+    {
+        Clear();
+        Assign(other.Value_);
+        return *this;
+    }
+
+    TUnversionedOwningValue& operator = (const TUnversionedValue& other)
     {
         Clear();
         Assign(other);
@@ -100,13 +81,8 @@ public:
         Value_.Length = 0;
     }
 
-    ~TUnversionedOwningValue()
-    {
-        Clear();
-    }
-
 private:
-    TUnversionedValue Value_;
+    TUnversionedValue Value_ = {0, EValueType::TheBottom, 0, {0}};
 
     void Assign(const TUnversionedValue& other)
     {
@@ -117,15 +93,9 @@ private:
             Value_.Data.String = newString;                
         }
     }
-    
+
 };
 
-static_assert(
-    sizeof(TUnversionedValue) == 16,
-    "TUnversionedValue has to be exactly 16 bytes.");
-static_assert(
-    std::is_pod<TUnversionedValue>::value,
-    "TUnversionedValue must be a POD type.");
 static_assert(
     EValueType::Int64 < EValueType::Uint64 &&
     EValueType::Uint64 < EValueType::Double,
@@ -286,17 +256,8 @@ bool operator >  (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow&
 //! Sets all value types of |row| to |EValueType::Null|. Ids are not changed.
 void ResetRowValues(TUnversionedRow* row);
 
-//! Computes hash for a given TUnversionedValue.
-ui64 GetHash(const TUnversionedValue& value);
-
 //! Computes hash for a given TUnversionedRow.
 ui64 GetHash(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
-
-//! Computes FarmHash forever-fixed fingerprint for a given TUnversionedValue.
-TFingerprint GetFarmFingerprint(const TUnversionedValue& value);
-
-//! Computes FarmHash forever-fixed fingerprint for a given set of values.
-TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end);
 
 //! Computes FarmHash forever-fixed fingerprint for a given TUnversionedRow.
 TFingerprint GetFarmFingerprint(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
@@ -748,4 +709,3 @@ struct hash<NYT::NVersionedTableClient::TUnversionedValue>
         return GetHash(value);
     }
 };
-

@@ -14,7 +14,6 @@
 
 %parse-param {TLexer& lexer}
 %parse-param {TAstHead* head}
-%parse-param {TRowBufferPtr rowBuffer}
 %parse-param {const Stroka& source}
 
 %code requires {
@@ -30,7 +29,6 @@
 
 %code {
     #include <ytlib/query_client/lexer.h>
-    #include <ytlib/new_table_client/row_buffer.h>
 
     #define yt_ql_yylex lexer.GetNextToken
 
@@ -65,6 +63,7 @@
 
 %token KwFrom "keyword `FROM`"
 %token KwWhere "keyword `WHERE`"
+%token KwHaving "keyword `HAVING`"
 %token KwLimit "keyword `LIMIT`"
 %token KwJoin "keyword `JOIN`"
 %token KwUsing "keyword `USING`"
@@ -106,11 +105,7 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
-%type <TNullableNamedExpressionList> select-clause-impl
-%type <TExpressionPtr> where-clause-impl
-%type <TNamedExpressionList> group-by-clause-impl
-%type <TIdentifierList> order-by-clause-impl
-%type <i64> limit-clause-impl
+%type <TTableDescriptor> table-descriptor
 
 %type <TIdentifierList> identifier-list
 %type <TNamedExpressionList> named-expression-list
@@ -126,10 +121,10 @@
 %type <TExpressionPtr> unary-expr
 %type <TExpressionPtr> atomic-expr
 %type <TExpressionPtr> comma-expr
-%type <TUnversionedValue> literal-expr
-%type <TValueList> literal-list
-%type <TValueList> literal-tuple
-%type <TValueTupleList> literal-tuple-list
+%type <TNullable<TLiteralValue>> literal-value
+%type <TLiteralValueList> literal-list
+%type <TLiteralValueList> literal-tuple
+%type <TLiteralValueTupleList> literal-tuple-list
 
 %type <EUnaryOp> unary-op
 
@@ -148,7 +143,7 @@ head
 ;
 
 parse-query
-    : select-clause from-clause where-clause group-by-clause order-by-clause limit-clause
+    : select-clause from-clause where-clause group-by-clause having-clause order-by-clause limit-clause
 ;
 
 parse-job-query
@@ -163,92 +158,80 @@ parse-expression
 ;
 
 select-clause
-    : select-clause-impl[select]
+    : named-expression-list[projections]
         {
-            head->As<TQuery>().SelectExprs = $select;
+            head->As<TQuery>().SelectExprs = $projections;
+        }
+    | Asterisk
+        {
+            head->As<TQuery>().SelectExprs = TNullableNamedExpressionList();
+        }
+;
+
+table-descriptor
+    : Identifier[path] Identifier[alias]
+        {
+            $$ = TTableDescriptor(Stroka($path), Stroka($alias));
+        }
+    |   Identifier[path]
+        {
+            $$ = TTableDescriptor(Stroka($path), Stroka());
         }
 ;
 
 from-clause
-    : KwFrom Identifier[path]
+    : KwFrom table-descriptor[table] join-clause
         {
-            head->As<TQuery>().Source = New<TSimpleSource>(Stroka($path));
-        }
-    | KwFrom Identifier[left_path] KwJoin Identifier[right_path] KwUsing identifier-list[fields]
-        {
-            head->As<TQuery>().Source = New<TJoinSource>(Stroka($left_path), Stroka($right_path), $fields);
+            head->As<TQuery>().Table = $table;
         }
 ;
 
-where-clause
-    : where-clause-impl[where]
+join-clause
+    : join-clause KwJoin table-descriptor[table] KwUsing identifier-list[fields]
         {
-            head->As<TQuery>().WherePredicate = $where;
+            head->As<TQuery>().Joins.emplace_back($table, $fields);
+        }
+    |
+;
+
+where-clause
+    : KwWhere or-op-expr[predicate]
+        {
+            head->As<TQuery>().WherePredicate = $predicate;
         }
     |
 ;
 
 group-by-clause
-    : group-by-clause-impl[group]
+    : KwGroupBy named-expression-list[exprs]
         {
-            head->As<TQuery>().GroupExprs = $group;
+            head->As<TQuery>().GroupExprs = $exprs;
+        }
+    |
+;
+
+having-clause
+    : KwHaving or-op-expr[predicate]
+        {
+            head->As<TQuery>().HavingPredicate = $predicate;
         }
     |
 ;
 
 order-by-clause
-    : order-by-clause-impl[order]
+    : KwOrderBy identifier-list[fields]
         {
-            head->As<TQuery>().OrderFields = $order;
+            head->As<TQuery>().OrderFields = $fields;
         }
     |
 ;
 
 limit-clause
-    : limit-clause-impl[limit]
+    : KwLimit Int64Literal[limit]
         {
             head->As<TQuery>().Limit = $limit;
         }
     |
-;
-
-select-clause-impl
-    : named-expression-list[projections]
-        {
-            $$ = $projections;
-        }
-    | Asterisk
-        {
-            $$ = TNullableNamedExpressionList();
-        }
-;
-
-where-clause-impl
-    : KwWhere or-op-expr[predicate]
-        {
-            $$ = $predicate;
-        }
-;
-
-group-by-clause-impl
-    : KwGroupBy named-expression-list[exprs]
-        {
-            $$ = $exprs;
-        }
-;
-
-order-by-clause-impl
-    : KwOrderBy identifier-list[fields]
-        {
-            $$ = $fields;
-        }
-;
-
-limit-clause-impl
-    : KwLimit Int64Literal[limit]
-        {
-            $$ = $limit;
-        }
 ;
 
 identifier-list
@@ -425,43 +408,43 @@ atomic-expr
         {
             $$ = $expr;
         }
-    | literal-expr[value]
+    | literal-value[value]
         {
-            $$ = New<TLiteralExpression>(@$, $value);
+            $$ = New<TLiteralExpression>(@$, *$value);
         }
 ;
 
-literal-expr
+literal-value
     : Int64Literal
-        { $$ = MakeUnversionedInt64Value($1); }
+        { $$ = $1; }
     | Uint64Literal
-        { $$ = MakeUnversionedUint64Value($1); }
+        { $$ = $1; }
     | DoubleLiteral
-        { $$ = MakeUnversionedDoubleValue($1); }
+        { $$ = $1; }
     | StringLiteral
-        { $$ = rowBuffer->Capture(MakeUnversionedStringValue($1)); }
+        { $$ = $1; }
     | KwFalse
-        { $$ = MakeUnversionedBooleanValue(false); }
+        { $$ = false; }
     | KwTrue
-        { $$ = MakeUnversionedBooleanValue(true); }
+        { $$ = true; }
 ;
 
 literal-list
-    : literal-list[as] Comma literal-expr[a]
+    : literal-list[as] Comma literal-value[a]
         {
             $$.swap($as);
-            $$.push_back($a);
+            $$.push_back(*$a);
         }
-    | literal-expr[a]
+    | literal-value[a]
         {
-            $$.push_back($a);
+            $$.push_back(*$a);
         }
 ;
 
 literal-tuple
-    : literal-expr[a]
+    : literal-value[a]
         {
-            $$.push_back($a);
+            $$.push_back(*$a);
         }
     | LeftParenthesis literal-list[a] RightParenthesis
         {
