@@ -69,7 +69,7 @@ bool THydraServiceBase::IsUp(TCtxDiscoverPtr context) const
     const auto& request = context->Request();
     EPeerKind kind;
     if (request.HasExtension(NProto::TPeerKindExt::peer_kind_ext)) {
-        auto ext = request.GetExtension(NProto::TPeerKindExt::peer_kind_ext);
+        const auto& ext = request.GetExtension(NProto::TPeerKindExt::peer_kind_ext);
         kind = EPeerKind(ext.peer_kind());
     } else {
         kind = EPeerKind::Leader;

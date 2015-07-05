@@ -393,7 +393,7 @@ private:
     {
         INodePtr ioConfigNode;
         try {
-            auto schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             ioConfigNode = ConvertToNode(TYsonString(schedulerJobSpecExt.io_config()));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error deserializing job IO configuration")
