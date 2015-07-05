@@ -104,7 +104,7 @@ public:
         }
     }
 
-    TFuture<std::vector<TSharedRef>> ReadBlocks(
+    TFuture<std::vector<TSharedRef>> ReadBlockRange(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
@@ -123,7 +123,7 @@ public:
             for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
                 blockIndexes.push_back(blockIndex);
             }
-            return ReadBlocks(
+            return ReadBlockSet(
                 chunkId,
                 blockIndexes,
                 priority,
@@ -132,7 +132,7 @@ public:
         }
     }
 
-    TFuture<std::vector<TSharedRef>> ReadBlocks(
+    TFuture<std::vector<TSharedRef>> ReadBlockSet(
         const TChunkId& chunkId,
         const std::vector<int>& blockIndexes,
         i64 priority,
@@ -366,7 +366,7 @@ void TBlockStore::PutCachedBlock(
     Impl_->PutCachedBlock(blockId, data, source);
 }
 
-TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlocks(
+TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockRange(
     const TChunkId& chunkId,
     int firstBlockIndex,
     int blockCount,
@@ -374,7 +374,7 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlocks(
     IBlockCachePtr blockCache,
     bool populateCache)
 {
-    return Impl_->ReadBlocks(
+    return Impl_->ReadBlockRange(
         chunkId,
         firstBlockIndex,
         blockCount,
@@ -383,14 +383,14 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlocks(
         populateCache);
 }
 
-TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlocks(
+TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockSet(
     const TChunkId& chunkId,
     const std::vector<int>& blockIndexes,
     i64 priority,
     IBlockCachePtr blockCache,
     bool populateCache)
 {
-    return Impl_->ReadBlocks(
+    return Impl_->ReadBlockSet(
         chunkId,
         blockIndexes,
         priority,
