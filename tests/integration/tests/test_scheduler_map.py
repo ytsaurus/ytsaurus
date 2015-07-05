@@ -1005,3 +1005,36 @@ print row + table_index
         actual_rate = len(new_data_t2) * 1.0 / len(original_data)
         variation = sampling_rate * (1 - sampling_rate)
         assert sampling_rate - variation <= actual_rate <= sampling_rate + variation
+
+    @only_linux
+    def test_query_simple(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write("//tmp/t1", {"a": "b"})
+
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
+
+        assert read("//tmp/t2") == [{"a": "b"}]
+
+    @only_linux
+    def test_query_reader_projection(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write("//tmp/t1", {"a": "b", "c": "d"})
+
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
+
+        assert read("//tmp/t2") == [{"a": "b"}]
+
+    @only_linux
+    def test_query_with_condition(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write("//tmp/t1", [{"a": i} for i in xrange(2)])
+
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={"input_query": "a where a > 0", "input_schema": [{"name":"a", "type": "int64"}]})
+
+        assert read("//tmp/t2") == [{"a": 1}]

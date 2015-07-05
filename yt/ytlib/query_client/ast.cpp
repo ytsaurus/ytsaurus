@@ -8,6 +8,24 @@ namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka LiteralValueToString(const TLiteralValue& literalValue)
+{
+    switch (literalValue.Tag()) {
+        case NAst::TLiteralValue::TagOf<i64>():
+            return ToString(literalValue.As<i64>());
+        case NAst::TLiteralValue::TagOf<ui64>():
+            return ToString(literalValue.As<ui64>());
+        case NAst::TLiteralValue::TagOf<double>():
+            return ToString(literalValue.As<double>());
+        case NAst::TLiteralValue::TagOf<bool>():
+            return ToString(literalValue.As<bool>());
+        case NAst::TLiteralValue::TagOf<Stroka>():
+            return literalValue.As<Stroka>().Quote();
+        default:
+            YUNREACHABLE();
+    }
+}
+
 TStringBuf TExpression::GetSource(const TStringBuf& source) const
 {
     auto begin = SourceLocation.first;
@@ -28,7 +46,7 @@ Stroka InferName(const TExpression* expr)
     if (auto commaExpr = expr->As<TCommaExpression>()) {
         return InferName(commaExpr->Lhs.Get()) + ", " + InferName(commaExpr->Rhs.Get());
     } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        return ToString(literalExpr->Value);
+        return LiteralValueToString(literalExpr->Value);
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         return referenceExpr->ColumnName;
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
@@ -72,7 +90,7 @@ Stroka InferName(const TExpression* expr)
                 if (j) {
                     result += ", ";
                 }
-                result += ToString(inExpr->Values[i][j]);
+                result += LiteralValueToString(inExpr->Values[i][j]);
             }
 
             if (inExpr->Values[i].size() > 1) {

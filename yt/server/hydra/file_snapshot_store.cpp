@@ -276,7 +276,7 @@ public:
         }
     }
 
-    virtual TFuture<void> Open()
+    virtual TFuture<void> Open() override
     {
         return BIND(&TFileSnapshotWriter::DoOpen, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())

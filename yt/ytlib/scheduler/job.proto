@@ -141,6 +141,12 @@ message TSchedulerJobSpecExt
     optional bool enable_sort_verification = 11 [default = true];
 
     optional TUserJobSpec user_job_spec = 12;
+
+    // Query to execute.
+    optional string input_query = 13;
+
+    // Schema for the query.
+    optional NYT.NVersionedTableClient.NProto.TTableSchemaExt input_schema = 14;
 }
 
 message TSchedulerJobResultExt
