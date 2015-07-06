@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/cell_master )
 set( SRCS
   ${BASE}/automaton.cpp
   ${BASE}/bootstrap.cpp
+  ${BASE}/config.cpp
   ${BASE}/hydra_facade.cpp
   ${BASE}/master_hydra_service.cpp
   ${BASE}/private.cpp
