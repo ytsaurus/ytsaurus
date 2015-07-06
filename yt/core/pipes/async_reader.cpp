@@ -169,7 +169,6 @@ private:
             Close();
 
             State_ = EReaderState::Failed;
-            YCHECK(TryClose(FD_));
             FDWatcher_.stop();
             ReadResultPromise_.Set(error);
             return;
@@ -179,7 +178,6 @@ private:
 
         if (size == 0) {
             State_ = EReaderState::EndOfStream;
-            YCHECK(TryClose(FD_));
             FDWatcher_.stop();
             Close();
             ReadResultPromise_.Set(Position_);
