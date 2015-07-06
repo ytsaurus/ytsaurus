@@ -31,6 +31,13 @@ public:
             // Query all peers in parallel.
             MaxConcurrentDiscoverRequests = std::numeric_limits<int>::max();
         });
+
+        RegisterValidator([&] () {
+           if (CellId == NullCellId) {
+               THROW_ERROR_EXCEPTION("\"cell_id\" cannot be equal to %v",
+                   NullCellId);
+           }
+        });
     }
 };
 
