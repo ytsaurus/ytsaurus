@@ -472,8 +472,8 @@ class TestQuery(YTEnvSetup):
 
         local_bitcode_path = find_executable("test_udfs.bc")
         local_bitcode_path2 = find_executable("sum_udf2.bc")
-        read_file(abs_path, local_bitcode_path)
-        read_file(sum_path, local_bitcode_path2)
+        write_local_file(abs_path, local_bitcode_path)
+        write_local_file(sum_path, local_bitcode_path2)
 
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
@@ -500,7 +500,7 @@ class TestQuery(YTEnvSetup):
                 "calling_convention": "unversioned_value"}})
 
         local_implementation_path = find_executable("test_udfs.bc")
-        read_file(avg_path, local_implementation_path)
+        write_local_file(avg_path, local_implementation_path)
 
         self._sample_data(path="//tmp/ua")
         expected = [{"x": 5.0}]
@@ -572,7 +572,7 @@ class TestQuery(YTEnvSetup):
                 "calling_convention": "simple"}})
 
         local_bitcode_path = find_executable("test_udfs_o.o")
-        read_file(abs_path, local_bitcode_path)
+        write_local_file(abs_path, local_bitcode_path)
 
         self._sample_data(path="//tmp/sou")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
