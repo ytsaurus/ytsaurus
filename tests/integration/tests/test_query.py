@@ -470,16 +470,10 @@ class TestQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "unversioned_value"}})
 
-<<<<<<< HEAD
-        local_implementation_path = find_executable("test_udfs.bc")
-        write_local_file(abs_path, local_implementation_path)
-        write_local_file(sum_path, local_implementation_path)
-=======
         local_bitcode_path = find_executable("test_udfs.bc")
         local_bitcode_path2 = find_executable("sum_udf2.bc")
         upload_file(abs_path, local_bitcode_path)
         upload_file(sum_path, local_bitcode_path2)
->>>>>>> prestable/0.17
 
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
