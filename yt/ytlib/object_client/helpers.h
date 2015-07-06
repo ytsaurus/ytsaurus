@@ -12,7 +12,7 @@ namespace NObjectClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! |#|-prefix.
-extern TStringBuf ObjectIdPathPrefix;
+extern const TStringBuf ObjectIdPathPrefix;
 
 //! Creates the YPath pointing to an object with a given #id.
 NYPath::TYPath FromObjectId(const TObjectId& id);
