@@ -32,8 +32,8 @@ public:
     { }
 
 private:
-    TBootstrap* Bootstrap_;
-    EObjectType Type_;
+    TBootstrap* const Bootstrap_;
+    const EObjectType Type_;
 
 
     const yhash_set<TChunk*>& GetFilteredChunks() const
