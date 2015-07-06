@@ -9,6 +9,8 @@
 
 #include <core/ytree/public.h>
 
+#include <ytlib/hydra/version.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -40,6 +42,12 @@ struct IHydraManager
      *  \note Thread affinity: AutomatonThread
      */
     virtual EPeerState GetAutomatonState() const = 0;
+
+    //! Returns the current committed version.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual TVersion GetCommittedVersion() const = 0;
 
     //! Returns a wrapper invoker used for accessing the automaton.
     /*!

@@ -696,7 +696,7 @@ void TDecoratedAutomaton::Clear()
 
     Automaton_->Clear();
     Reset();
-    AutomatonVersion_ = TVersion();
+    CommittedVersion_ = TVersion();
 }
 
 TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
@@ -734,7 +734,7 @@ void TDecoratedAutomaton::LoadSnapshot(TVersion version, IAsyncZeroCopyInputStre
 
     LOG_INFO("Finished loading snapshot");
 
-    AutomatonVersion_ = version;
+    CommittedVersion_ = version;
 }
 
 void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordData)
@@ -751,7 +751,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
     TMutationRequest request(header.mutation_type(), requestData);
 
     TMutationContext context(
-        AutomatonVersion_,
+        CommittedVersion_,
         request,
         TInstant(header.timestamp()),
         header.random_seed());
@@ -901,7 +901,7 @@ void TDecoratedAutomaton::CommitMutations(TVersion version)
             RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 
             TMutationContext context(
-                AutomatonVersion_,
+                CommittedVersion_,
                 pendingMutation.Request,
                 pendingMutation.Timestamp,
                 pendingMutation.RandomSeed);
@@ -921,7 +921,7 @@ void TDecoratedAutomaton::CommitMutations(TVersion version)
 
 void TDecoratedAutomaton::RotateAutomatonVersionIfNeeded(TVersion mutationVersion)
 {
-    auto automatonVersion = GetAutomatonVersion();
+    auto automatonVersion = GetCommittedVersion();
     if (mutationVersion.SegmentId == automatonVersion.SegmentId) {
         YCHECK(mutationVersion.RecordId == automatonVersion.RecordId);
     } else {
@@ -936,7 +936,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context, bool recove
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     const auto& request = context->Request();
-    auto automatonVersion = GetAutomatonVersion();
+    auto automatonVersion = GetCommittedVersion();
 
     LOG_DEBUG_UNLESS(recovery, "Applying mutation (Version: %v, MutationType: %v)",
         automatonVersion,
@@ -950,7 +950,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context, bool recove
         Automaton_->ApplyMutation(context);
     }
 
-    AutomatonVersion_ = automatonVersion.Advance();
+    CommittedVersion_ = automatonVersion.Advance();
 }
 
 TVersion TDecoratedAutomaton::GetLoggedVersion() const
@@ -988,21 +988,21 @@ TInstant TDecoratedAutomaton::GetLastSnapshotTime() const
     return LastSnapshotTime_;
 }
 
-TVersion TDecoratedAutomaton::GetAutomatonVersion() const
+TVersion TDecoratedAutomaton::GetCommittedVersion() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return AutomatonVersion_;
+    return CommittedVersion_;
 }
 
 void TDecoratedAutomaton::RotateAutomatonVersion(int segmentId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto automatonVersion = GetAutomatonVersion();
+    auto automatonVersion = GetCommittedVersion();
     YCHECK(automatonVersion.SegmentId < segmentId);
     automatonVersion = TVersion(segmentId, 0);
-    AutomatonVersion_ = automatonVersion;
+    CommittedVersion_ = automatonVersion;
 
     LOG_INFO("Automaton version is rotated to %v",
         automatonVersion);
@@ -1056,7 +1056,7 @@ void TDecoratedAutomaton::Reset()
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 {
-    if (GetAutomatonVersion() != SnapshotVersion_)
+    if (GetCommittedVersion() != SnapshotVersion_)
         return;
 
     auto builder = Options_.UseFork
