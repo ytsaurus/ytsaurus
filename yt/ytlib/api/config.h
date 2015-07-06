@@ -52,7 +52,9 @@ class TConnectionConfig
 {
 public:
     Stroka NetworkName;
+    // TODO(babenko): consider renaming to PrimaryMaster
     TMasterConnectionConfigPtr Master;
+    std::vector<TMasterConnectionConfigPtr> SecondaryMasters;
     TMasterConnectionConfigPtr MasterCache;
     // TODO(babenko): remove once RFF is stable
     bool EnableReadFromFollowers;

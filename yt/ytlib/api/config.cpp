@@ -31,6 +31,8 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("network_name", NetworkName)
         .Default(NNodeTrackerClient::InterconnectNetworkName);
     RegisterParameter("master", Master);
+    RegisterParameter("secondary_masters", SecondaryMasters)
+        .Default();
     RegisterParameter("master_cache", MasterCache)
         .Default();
     RegisterParameter("enable_read_from_followers", EnableReadFromFollowers)
