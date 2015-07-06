@@ -1015,8 +1015,6 @@ public:
         Self_->Finish();
         Foreign_->Finish();
 
-        auto tableSchema = GetTableSchema();
-
         for (const auto& column : Self_->GetTableSchema()->Columns()) {
             GetColumnPtr(column.Name);
         }
