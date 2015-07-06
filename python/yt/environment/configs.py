@@ -199,9 +199,6 @@ def get_node_config():
             path = "";
         };
         store_locations = [];
-        multiplexed_changelog = {
-            path = "";
-        };
         incremental_heartbeat_period = 100;
     };
 
