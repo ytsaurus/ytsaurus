@@ -275,7 +275,7 @@ print "x={0}\ty={1}".format(x, y)
     def test_query_simple(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write("//tmp/t1", {"a": "b"})
+        write_table("//tmp/t1", {"a": "b"})
 
         map_reduce(in_="//tmp/t1", out="//tmp/t2", mapper_command="cat", reducer_command="cat", sort_by=["a"],
             spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
@@ -286,7 +286,7 @@ print "x={0}\ty={1}".format(x, y)
     def test_query_reader_projection(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write("//tmp/t1", {"a": "b", "c": "d"})
+        write_table("//tmp/t1", {"a": "b", "c": "d"})
 
         map_reduce(in_="//tmp/t1", out="//tmp/t2", mapper_command="cat", reducer_command="cat", sort_by=["a"],
             spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
@@ -297,7 +297,7 @@ print "x={0}\ty={1}".format(x, y)
     def test_query_with_condition(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write("//tmp/t1", [{"a": i} for i in xrange(2)])
+        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
         map_reduce(in_="//tmp/t1", out="//tmp/t2", mapper_command="cat", reducer_command="cat", sort_by=["a"],
             spec={"input_query": "a where a > 0", "input_schema": [{"name":"a", "type": "int64"}]})
