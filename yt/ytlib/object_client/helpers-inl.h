@@ -148,6 +148,19 @@ inline bool IsWellKnownId(const TObjectId& id)
     return CounterFromId(id) & WellKnownCounterMask;
 }
 
+inline TObjectId MakeRegularId(
+    EObjectType type,
+    TCellTag cellTag,
+    ui64 random,
+    NHydra::TVersion version)
+{
+    return TObjectId(
+        random,
+        (cellTag << 16) + static_cast<int>(type),
+        version.RecordId,
+        version.SegmentId);
+}
+
 inline TObjectId MakeWellKnownId(
     EObjectType type,
     TCellTag cellTag,

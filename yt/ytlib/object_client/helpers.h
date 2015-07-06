@@ -6,6 +6,8 @@
 
 #include <ytlib/ypath/public.h>
 
+#include <ytlib/hydra/version.h>
+
 namespace NYT {
 namespace NObjectClient {
 
@@ -59,6 +61,13 @@ TObjectId MakeId(
  *  This method checks the highest bit of counter part.
  */
 bool IsWellKnownId(const TObjectId& id);
+
+//! Constructs the id for a regular object.
+TObjectId MakeRegularId(
+    EObjectType type,
+    TCellTag cellTag,
+    ui64 random,
+    NHydra::TVersion version);
 
 //! Constructs the id corresponding to well-known (usually singleton) entities.
 /*

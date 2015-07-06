@@ -358,7 +358,8 @@ TObjectManager::TObjectManager(
     RegisterMethod(BIND(&TObjectManager::HydraExecuteFollower, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
 
-    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetCellTag());
+    auto hydraFacade = Bootstrap_->GetHydraFacade();
+    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, hydraFacade->GetPrimaryCellTag());
 }
 
 void TObjectManager::Initialize()
@@ -428,13 +429,18 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     auto& entry = TypeToEntry_[type];
     entry.Handler = handler;
     entry.TagId = NProfiling::TProfileManager::Get()->RegisterTag("type", type);
+
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
         auto& schemaEntry = TypeToEntry_[schemaType];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap_, type);
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        auto schemaObjectId = MakeSchemaObjectId(type, hydraFacade->GetPrimaryCellTag());
+
         LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
             type,
-            MakeSchemaObjectId(type, Bootstrap_->GetCellTag()));
+            schemaObjectId);
     } else {
         LOG_INFO("Type registered (Type: %v)",
             type);
@@ -483,11 +489,10 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     auto version = mutationContext->GetVersion();
     auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
-    TObjectId id(
-        random,
-        (Bootstrap_->GetCellTag() << 16) + static_cast<int>(type),
-        version.RecordId,
-        version.SegmentId);
+    auto hydraFacade = Bootstrap_->GetHydraFacade();
+    auto cellTag = hydraFacade->GetCellTag();
+
+    auto id = MakeRegularId(type, cellTag, random, version);
 
     ++CreatedObjectCount_;
 
@@ -690,10 +695,12 @@ void TObjectManager::DoClear()
     LockedObjectCount_ = 0;
 
     SchemaMap_.Clear();
+
+    auto hydraFacade = Bootstrap_->GetHydraFacade();
     for (auto type : RegisteredTypes_) {
         auto& entry = TypeToEntry_[type];
         if (HasSchema(type)) {
-            auto id = MakeSchemaObjectId(type, Bootstrap_->GetCellTag());
+            auto id = MakeSchemaObjectId(type, hydraFacade->GetPrimaryCellTag());
             auto schemaObjectHolder = std::make_unique<TSchemaObject>(id);
             entry.SchemaObject = SchemaMap_.Insert(id, std::move(schemaObjectHolder));
             entry.SchemaObject->RefObject();

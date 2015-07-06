@@ -89,6 +89,13 @@ public:
         YCHECK(Config_);
         YCHECK(Bootstrap_);
 
+        CellId_ = Config_->Master->CellId;
+        CellTag_ = CellTagFromId(CellId_);
+
+        auto primaryMasterConfig = Config_->PrimaryMaster ? Config_->PrimaryMaster : Config_->Master;
+        PrimaryCellId_ = primaryMasterConfig->CellId;
+        PrimaryCellTag_ = CellTagFromId(PrimaryCellId_);
+
         AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", TEnumTraits<EAutomatonThreadQueue>::GetDomainNames());
         Automaton_ = New<TMasterAutomaton>(Bootstrap_);
 
@@ -125,6 +132,17 @@ public:
 
     void Start()
     {
+        if (IsPrimaryMaster()) {
+            LOG_INFO("Running as primary master (CellId: %v, CellTag: %v)",
+                CellId_,
+                CellTag_);
+        } else {
+            LOG_INFO("Running as secondary master (CellId: %v, CellTag: %v, PrimaryCellTag: %v)",
+                CellId_,
+                CellTag_,
+                PrimaryCellTag_);
+        }
+
         HydraManager_->Initialize();
 
         SnapshotCleanupExecutor_ = New<TPeriodicExecutor>(
@@ -144,6 +162,7 @@ public:
         Automaton_->LoadSnapshot(reader);
     }
 
+
     TMasterAutomatonPtr GetAutomaton() const
     {
         return Automaton_;
@@ -158,6 +177,7 @@ public:
     {
         return ResponseKeeper_;
     }
+
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
@@ -174,9 +194,46 @@ public:
         return GuardedInvokers_[queue];
     }
 
+
+    bool IsPrimaryMaster() const
+    {
+        return CellTag_ == PrimaryCellTag_;
+    }
+
+    bool IsSecondaryMaster() const
+    {
+        return CellTag_ != PrimaryCellTag_;
+    }
+
+
+    const TCellId& GetCellId() const
+    {
+        return CellId_;
+    }
+
+    TCellTag GetCellTag() const
+    {
+        return CellTag_;
+    }
+
+    const TCellId& GetPrimaryCellId() const
+    {
+        return PrimaryCellId_;
+    }
+
+    TCellTag GetPrimaryCellTag() const
+    {
+        return PrimaryCellTag_;
+    }
+
 private:
     const TCellMasterConfigPtr Config_;
     TBootstrap* const Bootstrap_;
+
+    TCellId CellId_;
+    TCellTag CellTag_;
+    TCellId PrimaryCellId_;
+    TCellTag PrimaryCellTag_;
 
     TFairShareActionQueuePtr AutomatonQueue_;
     TMasterAutomatonPtr Automaton_;
@@ -336,6 +393,36 @@ IInvokerPtr THydraFacade::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) 
 IInvokerPtr THydraFacade::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
     return Impl_->GetGuardedAutomatonInvoker(queue);
+}
+
+bool THydraFacade::IsPrimaryMaster() const
+{
+    return Impl_->IsPrimaryMaster();
+}
+
+bool THydraFacade::IsSecondaryMaster() const
+{
+    return Impl_->IsSecondaryMaster();
+}
+
+const TCellId& THydraFacade::GetCellId() const
+{
+    return Impl_->GetCellId();
+}
+
+TCellTag THydraFacade::GetCellTag() const
+{
+    return Impl_->GetCellTag();
+}
+
+const TCellId& THydraFacade::GetPrimaryCellId() const
+{
+    return Impl_->GetPrimaryCellId();
+}
+
+TCellTag THydraFacade::GetPrimaryCellTag() const
+{
+    return Impl_->GetPrimaryCellTag();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

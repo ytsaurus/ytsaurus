@@ -135,16 +135,6 @@ TBootstrap::TBootstrap(
 TBootstrap::~TBootstrap()
 { }
 
-const TCellId& TBootstrap::GetCellId() const
-{
-    return Config_->Master->CellId;
-}
-
-TCellTag TBootstrap::GetCellTag() const
-{
-    return CellTagFromId(Config_->Master->CellId);
-}
-
 TCellMasterConfigPtr TBootstrap::GetConfig() const
 {
     return Config_;
@@ -270,10 +260,6 @@ void TBootstrap::DumpSnapshot(const Stroka& fileName)
 
 void TBootstrap::DoInitialize()
 {
-    LOG_INFO("Initializing cell master (CellId: %v, CellTag: %v)",
-        GetCellId(),
-        GetCellTag());
-
     Config_->Master->ValidateAllPeersPresent();
 
     HttpServer_.reset(new NHttp::TServer(Config_->MonitoringPort));
@@ -324,11 +310,17 @@ void TBootstrap::DoInitialize()
         GetBusChannelFactory(),
         NNodeTrackerClient::InterconnectNetworkName);
     CellDirectory_->ReconfigureCell(Config_->Master);
+    if (Config_->PrimaryMaster) {
+        CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
+    }
+    for (const auto& secondaryMaster : Config_->SecondaryMasters) {
+        CellDirectory_->ReconfigureCell(secondaryMaster);
+    }
 
     HiveManager_ = New<THiveManager>(
         Config_->HiveManager,
         CellDirectory_,
-        GetCellId(),
+        HydraFacade_->GetCellId(),
         HydraFacade_->GetAutomatonInvoker(),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton());
@@ -407,7 +399,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
     RpcServer_->RegisterService(HiveManager_->GetRpcService()); // cell realm
     RpcServer_->RegisterService(TransactionSupervisor_->GetRpcService()); // cell realm
-    RpcServer_->RegisterService(New<TLocalSnapshotService>(GetCellId(), fileSnapshotStore)); // cell realm
+    RpcServer_->RegisterService(New<TLocalSnapshotService>(HydraFacade_->GetCellId(), fileSnapshotStore)); // cell realm
     RpcServer_->RegisterService(CreateNodeTrackerService(Config_->NodeTracker, this)); // master hydra service
     RpcServer_->RegisterService(CreateObjectService(this)); // master hydra service
     RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service

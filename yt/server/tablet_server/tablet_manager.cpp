@@ -1151,10 +1151,11 @@ private:
                YCHECK(missingCells.insert(pair.second).second);
             }
         }
-            
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
         for (const auto& cellInfo : request.hive_cells()) {
             auto cellId = FromProto<TCellId>(cellInfo.cell_id());
-            if (cellId == Bootstrap_->GetCellId())
+            if (cellId == hydraFacade->GetPrimaryCellId())
                 continue;
 
             auto* cell = FindTabletCell(cellId);

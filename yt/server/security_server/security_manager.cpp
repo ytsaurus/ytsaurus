@@ -235,7 +235,8 @@ public:
             "SecurityManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        auto cellTag = Bootstrap_->GetCellTag();
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        auto cellTag = hydraFacade->GetPrimaryCellTag();
 
         SysAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xffffffffffffffff);
         TmpAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffe);
