@@ -48,7 +48,8 @@ inline bool IsVersionedType(EObjectType type)
         type == EObjectType::Document ||
         type == EObjectType::LockMap ||
         type == EObjectType::TabletMap ||
-        type == EObjectType::TabletCellNode;
+        type == EObjectType::TabletCellNode ||
+        type == EObjectType::SysNode;
 }
 
 inline bool IsUserType(EObjectType type)
@@ -77,7 +78,8 @@ inline bool IsMapLikeType(EObjectType type)
         type == EObjectType::MapNode ||
         type == EObjectType::CellNode ||
         type == EObjectType::CellNodeMap ||
-        type == EObjectType::TabletCellNode;
+        type == EObjectType::TabletCellNode ||
+        type == EObjectType::SysNode;
 }
 
 inline bool IsListLikeType(EObjectType type)
