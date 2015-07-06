@@ -197,7 +197,7 @@ private:
                 "Error creating chunk");
 
             const auto& rsp = rspOrError.Value();
-            FromProto(&outputChunkId, rsp->object_ids(0));
+            FromProto(&outputChunkId, rsp->object_id());
         }
 
         // Copy chunk.

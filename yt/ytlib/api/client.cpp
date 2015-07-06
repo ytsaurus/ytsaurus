@@ -1699,7 +1699,7 @@ private:
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
-        auto req = TMasterYPathProxy::CreateObjects();
+        auto req = TMasterYPathProxy::CreateObject();
         GenerateMutationId(req, options);
         if (options.TransactionId != NullTransactionId) {
             ToProto(req->mutable_transaction_id(), options.TransactionId);
@@ -1712,9 +1712,9 @@ private:
 
         auto batchRsp = WaitFor(batchReq->Invoke())
             .ValueOrThrow();
-        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>(0)
+        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>(0)
             .ValueOrThrow();
-        return FromProto<TObjectId>(rsp->object_ids(0));
+        return FromProto<TObjectId>(rsp->object_id());
     }
 
 

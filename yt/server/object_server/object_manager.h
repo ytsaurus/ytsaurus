@@ -166,8 +166,8 @@ public:
         NSecurityServer::TAccount* account,
         EObjectType type,
         NYTree::IAttributeDictionary* attributes,
-        IObjectTypeHandler::TReqCreateObjects* request,
-        IObjectTypeHandler::TRspCreateObjects* response);
+        IObjectTypeHandler::TReqCreateObject* request,
+        IObjectTypeHandler::TRspCreateObject* response);
 
     IObjectResolver* GetObjectResolver();
 

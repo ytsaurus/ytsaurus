@@ -64,6 +64,10 @@ using namespace NConcurrency;
 static const auto& Logger = ObjectServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 
+//! A sentinel instance of IAttributeDictionary for IObjectTypeHandler::CreateObject.
+//! Note that |EmptyAttributes()| cannot be used here due to const-ness.
+static const std::unique_ptr<IAttributeDictionary> MutableEmptyAttributes = CreateEphemeralAttributes();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectManager::TRootService
@@ -874,8 +878,8 @@ TObjectBase* TObjectManager::CreateObject(
     TAccount* account,
     EObjectType type,
     IAttributeDictionary* attributes,
-    IObjectTypeHandler::TReqCreateObjects* request,
-    IObjectTypeHandler::TRspCreateObjects* response)
+    IObjectTypeHandler::TReqCreateObject* request,
+    IObjectTypeHandler::TRspCreateObject* response)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -946,11 +950,13 @@ TObjectBase* TObjectManager::CreateObject(
     auto* object = handler->CreateObject(
         transaction,
         account,
-        attributes,
+        attributes ? attributes : MutableEmptyAttributes.get(),
         request,
         response);
 
-    FillAttributes(object, *attributes);
+    if (attributes) {
+        FillAttributes(object, *attributes);
+    }
 
     auto* stagingTransaction = handler->GetStagingTransaction(object);
     if (stagingTransaction) {

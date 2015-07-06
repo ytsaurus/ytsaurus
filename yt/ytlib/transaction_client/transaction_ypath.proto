@@ -7,7 +7,7 @@ import "yt/ytlib/hive/transaction_supervisor_service.proto";
 
 message TReqStartTransactionExt
 {
-    extend NYT.NObjectClient.NProto.TReqCreateObjects
+    extend NYT.NObjectClient.NProto.TReqCreateObject
     {
         optional TReqStartTransactionExt create_transaction_ext = 101;
     }

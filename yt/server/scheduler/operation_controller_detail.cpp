@@ -1177,7 +1177,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
     auto batchReq = proxy.ExecuteBatch();
 
     {
-        auto req = TMasterYPathProxy::CreateObjects();
+        auto req = TMasterYPathProxy::CreateObject();
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
@@ -1203,8 +1203,8 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
 
     {
         const auto& batchRsp = batchRspOrError.Value();
-        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_async_tx").Value();
-        auto transactionId = FromProto<TObjectId>(rsp->object_ids(0));
+        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_async_tx").Value();
+        auto transactionId = FromProto<TObjectId>(rsp->object_id());
         auto transactionManager = AuthenticatedMasterClient->GetTransactionManager();
         Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(transactionId));
     }
@@ -1228,7 +1228,7 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
 
     {
         auto userTransaction = Operation->GetUserTransaction();
-        auto req = TMasterYPathProxy::CreateObjects();
+        auto req = TMasterYPathProxy::CreateObject();
         if (userTransaction) {
             ToProto(req->mutable_transaction_id(), userTransaction->GetId());
         }
@@ -1254,8 +1254,8 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
         throw TFiberCanceledException();
 
     {
-        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_sync_tx").Value();
-        auto transactionId = FromProto<TObjectId>(rsp->object_ids(0));
+        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_sync_tx").Value();
+        auto transactionId = FromProto<TObjectId>(rsp->object_id());
         auto transactionManager = Host->GetMasterClient()->GetTransactionManager();
         Operation->SetSyncSchedulerTransaction(transactionManager->Attach(transactionId));
     }
@@ -1277,7 +1277,7 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
     auto batchReq = proxy.ExecuteBatch();
 
     {
-        auto req = TMasterYPathProxy::CreateObjects();
+        auto req = TMasterYPathProxy::CreateObject();
         ToProto(req->mutable_transaction_id(), parentTransactionId);
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
@@ -1301,10 +1301,10 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         throw TFiberCanceledException();
 
     {
-        auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_in_tx");
+        auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_in_tx");
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting input transaction");
         const auto& rsp = rspOrError.Value();
-        auto id = FromProto<TTransactionId>(rsp->object_ids(0));
+        auto id = FromProto<TTransactionId>(rsp->object_id());
         auto transactionManager = AuthenticatedInputMasterClient->GetTransactionManager();
         Operation->SetInputTransaction(transactionManager->Attach(id));
     }
@@ -1322,7 +1322,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
     auto batchReq = proxy.ExecuteBatch();
 
     {
-        auto req = TMasterYPathProxy::CreateObjects();
+        auto req = TMasterYPathProxy::CreateObject();
         ToProto(req->mutable_transaction_id(), parentTransactionId);
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
@@ -1347,10 +1347,10 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
 
     {
         const auto& batchRsp = batchRspOrError.Value();
-        auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_out_tx");
+        auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_out_tx");
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting output transaction");
         const auto& rsp = rspOrError.Value();
-        auto id = FromProto<TTransactionId>(rsp->object_ids(0));
+        auto id = FromProto<TTransactionId>(rsp->object_id());
         auto transactionManager = AuthenticatedOutputMasterClient->GetTransactionManager();
         Operation->SetOutputTransaction(transactionManager->Attach(id));
     }

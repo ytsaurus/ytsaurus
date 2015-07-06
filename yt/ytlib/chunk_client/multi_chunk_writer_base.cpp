@@ -41,6 +41,9 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTransactionClient;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
@@ -148,7 +151,7 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
     try {
         TObjectServiceProxy objectProxy(MasterChannel_);
 
-        auto req = TMasterYPathProxy::CreateObjects();
+        auto req = TMasterYPathProxy::CreateObject();
         ToProto(req->mutable_transaction_id(), TransactionId_);
 
         auto type = Options_->ErasureCodec == ECodec::None
@@ -173,7 +176,7 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
             "Error creating chunk");
         const auto& rsp = rspOrError.Value();
 
-        NextSession_.ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
+        NextSession_.ChunkId = FromProto<TChunkId>(rsp->object_id());
 
         LOG_DEBUG("Chunk created (ChunkId: %v)", NextSession_.ChunkId);
 
