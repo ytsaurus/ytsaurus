@@ -45,27 +45,42 @@ private:
     void ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("cell_tag");
+        attributes->push_back("primary_cell_tag");
         attributes->push_back("cell_id");
+        attributes->push_back("primary_cell_id");
         attributes->push_back("last_committed_revision");
         TBase::ListSystemAttributes(attributes);
     }
 
     bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
     {
-        if (key == "cell_tag") {
-            BuildYsonFluently(consumer)
-                .Value(Bootstrap_->GetCellTag());
-            return true;
-        }
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
 
         if (key == "cell_tag") {
             BuildYsonFluently(consumer)
-                .Value(Bootstrap_->GetCellId());
+                .Value(hydraFacade->GetCellTag());
+            return true;
+        }
+
+        if (key == "primary_cell_tag") {
+            BuildYsonFluently(consumer)
+                .Value(hydraFacade->GetPrimaryCellTag());
+            return true;
+        }
+
+        if (key == "cell_id") {
+            BuildYsonFluently(consumer)
+                .Value(hydraFacade->GetCellId());
+            return true;
+        }
+
+        if (key == "primary_cell_id") {
+            BuildYsonFluently(consumer)
+                .Value(hydraFacade->GetPrimaryCellId());
             return true;
         }
 
         if (key == "last_committed_revision") {
-            auto hydraFacade = Bootstrap_->GetHydraFacade();
             auto hydraManager = hydraFacade->GetHydraManager();
             BuildYsonFluently(consumer)
                 .Value(hydraManager->GetCommittedVersion().ToRevision());

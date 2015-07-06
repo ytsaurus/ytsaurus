@@ -6,6 +6,8 @@
 
 #include <ytlib/election/public.h>
 
+#include <ytlib/object_client/public.h>
+
 #include <server/hydra/mutation.h>
 
 namespace NYT {
@@ -38,9 +40,18 @@ public:
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
+    bool IsPrimaryMaster() const;
+    bool IsSecondaryMaster() const;
+
+    const NElection::TCellId& GetCellId() const;
+    NObjectClient::TCellTag GetCellTag() const;
+
+    const NElection::TCellId& GetPrimaryCellId() const;
+    NObjectClient::TCellTag GetPrimaryCellTag() const;
+
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 
