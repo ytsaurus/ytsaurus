@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/mailbox.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
+  ${BASE}/helpers.cpp
   ${BASE}/transaction_supervisor.cpp
 )
 set( HDRS
@@ -16,6 +17,7 @@ set( HDRS
   ${BASE}/mailbox.h
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/helpers.h
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_supervisor.h
 )

@@ -20,12 +20,18 @@ public:
         return "HiveService";
     }
 
+    static int GetProtocolVersion()
+    {
+        return 1;
+    }
+
     explicit THiveServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
+        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
     { }
 
     DEFINE_RPC_PROXY_METHOD(NProto, Ping);
     DEFINE_RPC_PROXY_METHOD(NProto, PostMessages);
+    DEFINE_RPC_PROXY_METHOD(NProto, SendMessages);
 
 };
 
