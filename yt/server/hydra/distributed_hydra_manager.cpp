@@ -248,6 +248,13 @@ public:
         return DecoratedAutomaton_->GetState();
     }
 
+    virtual TVersion GetCommittedVersion() const override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return DecoratedAutomaton_->GetCommittedVersion();
+    }
+
     virtual IInvokerPtr CreateGuardedAutomatonInvoker(IInvokerPtr underlyingInvoker) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -343,7 +350,7 @@ public:
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("state").Value(ControlState_)
-                    .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
+                    .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetCommittedVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
                     .Item("elections").Do(ElectionManager_->GetMonitoringProducer())
                     .Item("active_leader").Value(IsActiveLeader())
@@ -797,7 +804,7 @@ private:
         // Validate epoch id.
         GetEpochContext(epochId);
 
-        auto version = DecoratedAutomaton_->GetAutomatonVersion();
+        auto version = DecoratedAutomaton_->GetCommittedVersion();
 
         context->SetResponseInfo("CommittedVersion: %s",
             version);
@@ -834,7 +841,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto version = ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::Following
-            ? DecoratedAutomaton_->GetAutomatonVersion()
+            ? DecoratedAutomaton_->GetCommittedVersion()
             : ReachableVersion_;
 
         return version.ToRevision();
@@ -1396,7 +1403,7 @@ private:
             return;
 
         auto neededCommittedVersion = *epochContext->ActiveLeaderSyncVersion;
-        auto actualCommittedVersion = DecoratedAutomaton_->GetAutomatonVersion();
+        auto actualCommittedVersion = DecoratedAutomaton_->GetCommittedVersion();
         if (neededCommittedVersion > actualCommittedVersion)
             return;
 
