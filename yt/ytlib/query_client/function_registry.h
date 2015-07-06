@@ -33,17 +33,18 @@ class TFunctionRegistry
     : public IFunctionRegistry
 {
 public:
-    void RegisterFunction(IFunctionDescriptorPtr descriptor);
+    IFunctionDescriptorPtr RegisterFunction(IFunctionDescriptorPtr descriptor);
 
     virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) override;
 
-    void RegisterAggregateFunction(IAggregateFunctionDescriptorPtr descriptor);
+    IAggregateFunctionDescriptorPtr RegisterAggregateFunction(IAggregateFunctionDescriptorPtr descriptor);
 
     virtual IAggregateFunctionDescriptorPtr FindAggregateFunction(const Stroka& aggregateName) override;
 
 private:
     std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
     std::unordered_map<Stroka, IAggregateFunctionDescriptorPtr> RegisteredAggregateFunctions_;
+    TSpinLock Lock_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFunctionRegistry)
@@ -69,8 +70,8 @@ private:
     const TFunctionRegistryPtr BuiltinRegistry_;
     const TFunctionRegistryPtr UdfRegistry_;
 
-    void LookupAndRegisterFunction(const Stroka& functionName);
-    void LookupAndRegisterAggregate(const Stroka& aggregateName);
+    IFunctionDescriptorPtr LookupFunction(const Stroka& functionName);
+    IAggregateFunctionDescriptorPtr LookupAggregate(const Stroka& aggregateName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

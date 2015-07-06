@@ -66,38 +66,34 @@ IAggregateFunctionDescriptorPtr IFunctionRegistry::GetAggregateFunction(const St
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFunctionRegistry::RegisterFunction(IFunctionDescriptorPtr descriptor)
+IFunctionDescriptorPtr TFunctionRegistry::RegisterFunction(IFunctionDescriptorPtr descriptor)
 {
     auto functionName = to_lower(descriptor->GetName());
-    YCHECK(!FindAggregateFunction(functionName));
-    YCHECK(RegisteredFunctions_.insert(std::make_pair(functionName, std::move(descriptor))).second);
+    TGuard<TSpinLock> guard(Lock_);
+    return RegisteredFunctions_.emplace(functionName, std::move(descriptor)).first->second;
 }
 
 IFunctionDescriptorPtr TFunctionRegistry::FindFunction(const Stroka& functionName)
 {
     auto name = to_lower(functionName);
-    if (RegisteredFunctions_.count(name) == 0) {
-        return nullptr;
-    } else {
-        return RegisteredFunctions_.at(name);
-    }
+    TGuard<TSpinLock> guard(Lock_);
+    auto found = RegisteredFunctions_.find(name);
+    return found != RegisteredFunctions_.end() ? found->second : nullptr;
 }
 
-void TFunctionRegistry::RegisterAggregateFunction(IAggregateFunctionDescriptorPtr descriptor)
+IAggregateFunctionDescriptorPtr TFunctionRegistry::RegisterAggregateFunction(IAggregateFunctionDescriptorPtr descriptor)
 {
     auto aggregateName = to_lower(descriptor->GetName());
-    YCHECK(!FindFunction(aggregateName));
-    YCHECK(RegisteredAggregateFunctions_.insert(std::make_pair(aggregateName, std::move(descriptor))).second);
+    TGuard<TSpinLock> guard(Lock_);
+    return RegisteredAggregateFunctions_.emplace(aggregateName, std::move(descriptor)).first->second;
 }
 
 IAggregateFunctionDescriptorPtr TFunctionRegistry::FindAggregateFunction(const Stroka& aggregateName)
 {
     auto name = to_lower(aggregateName);
-    if (RegisteredAggregateFunctions_.count(name) == 0) {
-        return nullptr;
-    } else {
-        return RegisteredAggregateFunctions_.at(name);
-    }
+    TGuard<TSpinLock> guard(Lock_);
+    auto found = RegisteredAggregateFunctions_.find(name);
+    return found != RegisteredAggregateFunctions_.end() ? found->second : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -471,8 +467,11 @@ IFunctionDescriptorPtr TCypressFunctionRegistry::FindFunction(const Stroka& func
         LOG_DEBUG("Found a cached implementation of function %Qv", functionName);
         return function;
     } else {
-        LookupAndRegisterFunction(functionName);
-        return UdfRegistry_->FindFunction(functionName);
+        auto udf = LookupFunction(functionName);
+        if (udf) {
+            udf = UdfRegistry_->RegisterFunction(udf);
+        }
+        return udf;
     }
 }
 
@@ -518,7 +517,7 @@ TDescriptor LookupDescriptor(
     return cypressDescriptor;
 }
 
-void TCypressFunctionRegistry::LookupAndRegisterFunction(const Stroka& functionName)
+IFunctionDescriptorPtr TCypressFunctionRegistry::LookupFunction(const Stroka& functionName)
 {
     const auto descriptorAttribute = "function_descriptor";
 
@@ -531,7 +530,7 @@ void TCypressFunctionRegistry::LookupAndRegisterFunction(const Stroka& functionN
         Client_);
 
     if (!cypressDescriptor) {
-        return;
+        return nullptr;
     }
 
     if (cypressDescriptor->CallingConvention == ECallingConvention::Simple &&
@@ -544,22 +543,20 @@ void TCypressFunctionRegistry::LookupAndRegisterFunction(const Stroka& functionN
         functionPath,
         Client_);
 
-    if (!cypressDescriptor->RepeatedArgumentType) {
-        UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
-            cypressDescriptor->Name,
-            cypressDescriptor->GetArgumentsTypes(),
-            cypressDescriptor->ResultType.Type,
-            implementationFile,
-            cypressDescriptor->CallingConvention));
-    } else {
-        UdfRegistry_->RegisterFunction(New<TUserDefinedFunction>(
+    return cypressDescriptor->RepeatedArgumentType
+        ? New<TUserDefinedFunction>(
             cypressDescriptor->Name,
             std::unordered_map<TTypeArgument, TUnionType>(),
             cypressDescriptor->GetArgumentsTypes(),
             cypressDescriptor->RepeatedArgumentType->Type,
             cypressDescriptor->ResultType.Type,
-            implementationFile));
-    }
+            implementationFile)
+        : New<TUserDefinedFunction>(
+            cypressDescriptor->Name,
+            cypressDescriptor->GetArgumentsTypes(),
+            cypressDescriptor->ResultType.Type,
+            implementationFile,
+            cypressDescriptor->CallingConvention);
 }
 
 IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::FindAggregateFunction(const Stroka& aggregateName)
@@ -570,12 +567,15 @@ IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::FindAggregateFunction(
         LOG_DEBUG("Found a cached implementation of function %Qv", aggregateName);
         return aggregate;
     } else {
-        LookupAndRegisterAggregate(aggregateName);
-        return UdfRegistry_->FindAggregateFunction(aggregateName);
+        auto udf = LookupAggregate(aggregateName);
+        if (udf) {
+            udf = UdfRegistry_->RegisterAggregateFunction(udf);
+        }
+        return udf;
     }
 }
 
-void TCypressFunctionRegistry::LookupAndRegisterAggregate(const Stroka& aggregateName)
+IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::LookupAggregate(const Stroka& aggregateName)
 {
     const auto descriptorAttribute = "aggregate_descriptor";
 
@@ -588,21 +588,21 @@ void TCypressFunctionRegistry::LookupAndRegisterAggregate(const Stroka& aggregat
         Client_);
 
     if (!cypressDescriptor) {
-        return;
+        return nullptr;
     }
 
     auto implementationFile = ReadFile(
         aggregatePath,
         Client_);
 
-    UdfRegistry_->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+    return New<TUserDefinedAggregateFunction>(
         aggregateName,
         std::unordered_map<TTypeArgument, TUnionType>(),
         cypressDescriptor->ArgumentType.Type,
         cypressDescriptor->ResultType.Type,
         cypressDescriptor->StateType.Type,
         implementationFile,
-        cypressDescriptor->CallingConvention));
+        cypressDescriptor->CallingConvention);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
