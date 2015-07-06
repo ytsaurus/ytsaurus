@@ -280,7 +280,7 @@ print "x={0}\ty={1}".format(x, y)
         map_reduce(in_="//tmp/t1", out="//tmp/t2", mapper_command="cat", reducer_command="cat", sort_by=["a"],
             spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
 
-        assert read("//tmp/t2") == [{"a": "b"}]
+        assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @only_linux
     def test_query_reader_projection(self):
@@ -291,7 +291,7 @@ print "x={0}\ty={1}".format(x, y)
         map_reduce(in_="//tmp/t1", out="//tmp/t2", mapper_command="cat", reducer_command="cat", sort_by=["a"],
             spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
 
-        assert read("//tmp/t2") == [{"a": "b"}]
+        assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @only_linux
     def test_query_with_condition(self):
@@ -302,4 +302,4 @@ print "x={0}\ty={1}".format(x, y)
         map_reduce(in_="//tmp/t1", out="//tmp/t2", mapper_command="cat", reducer_command="cat", sort_by=["a"],
             spec={"input_query": "a where a > 0", "input_schema": [{"name":"a", "type": "int64"}]})
 
-        assert read("//tmp/t2") == [{"a": 1}]
+        assert read_table("//tmp/t2") == [{"a": 1}]
