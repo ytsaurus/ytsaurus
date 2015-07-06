@@ -436,7 +436,7 @@ private:
             LOG_INFO("Creating chunk");
 
             {
-                auto req = TMasterYPathProxy::CreateObjects();
+                auto req = TMasterYPathProxy::CreateObject();
                 req->set_type(static_cast<int>(EObjectType::JournalChunk));
                 req->set_account(Account_);
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
@@ -453,7 +453,7 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error creating chunk");
                 const auto& rsp = rspOrError.Value();
 
-                CurrentSession_->ChunkId = FromProto<TChunkId>(rsp->object_ids(0));
+                CurrentSession_->ChunkId = FromProto<TChunkId>(rsp->object_id());
             }
 
             LOG_INFO("Chunk created (ChunkId: %v)",

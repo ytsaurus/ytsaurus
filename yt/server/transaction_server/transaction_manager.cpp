@@ -224,8 +224,8 @@ public:
         TTransaction* parent,
         TAccount* /*account*/,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        TReqCreateObject* request,
+        TRspCreateObject* response) override;
 
 private:
     TImpl* Owner_;
@@ -776,8 +776,8 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObj
     TTransaction* parent,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* request,
-    TRspCreateObjects* /*response*/)
+    TReqCreateObject* request,
+    TRspCreateObject* /*response*/)
 {
     const auto& requestExt = request->GetExtension(TReqStartTransactionExt::create_transaction_ext);
     auto timeout = TDuration::MilliSeconds(requestExt.timeout());

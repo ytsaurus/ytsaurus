@@ -9,9 +9,8 @@ message TReqCreateObjects
 {
     optional NYT.NProto.TGuid transaction_id = 1;
     required int32 type = 2;
-    optional NYT.NYTree.NProto.TAttributes object_attributes = 3;
-    optional string account = 4;
-    optional int32 object_count = 5 [default = 1];
+    optional string account = 3;
+    optional int32 object_count = 4;
 
     extensions 100 to max;
 }
@@ -19,6 +18,25 @@ message TReqCreateObjects
 message TRspCreateObjects
 {
     repeated NYT.NProto.TGuid object_ids = 1;
+
+    extensions 100 to max;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateObject
+{
+    optional NYT.NProto.TGuid transaction_id = 1;
+    required int32 type = 2;
+    optional NYT.NYTree.NProto.TAttributes object_attributes = 3;
+    optional string account = 4;
+
+    extensions 100 to max;
+}
+
+message TRspCreateObject
+{
+    required NYT.NProto.TGuid object_id = 1;
 
     extensions 100 to max;
 }

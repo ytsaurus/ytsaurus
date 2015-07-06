@@ -163,8 +163,8 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        TReqCreateObject* request,
+        TRspCreateObject* response) override;
 
 
     virtual void ResetAllObjects() override
@@ -291,8 +291,8 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        TReqCreateObject* request,
+        TRspCreateObject* response) override;
 
 private:
     TImpl* const Owner_;
@@ -1545,8 +1545,8 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
-    TReqCreateObjects* request,
-    TRspCreateObjects* /*response*/)
+    TReqCreateObject* request,
+    TRspCreateObject* /*response*/)
 {
     YCHECK(transaction);
     YCHECK(account);
@@ -1622,8 +1622,8 @@ TObjectBase* TChunkManager::TChunkListTypeHandler::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
-    TReqCreateObjects* /*request*/,
-    TRspCreateObjects* /*response*/)
+    TReqCreateObject* /*request*/,
+    TRspCreateObject* /*response*/)
 {
     auto* chunkList = Owner_->CreateChunkList();
     chunkList->SetStagingTransaction(transaction);

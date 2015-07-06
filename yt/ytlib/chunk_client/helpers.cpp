@@ -18,7 +18,7 @@ static const auto& Logger = ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
+TFuture<TMasterYPathProxy::TRspCreateObjectPtr> CreateChunk(
     NRpc::IChannelPtr masterChannel,
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
@@ -32,7 +32,7 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
 
     TObjectServiceProxy objectProxy(masterChannel);
 
-    auto req = TMasterYPathProxy::CreateObjects();
+    auto req = TMasterYPathProxy::CreateObject();
     ToProto(req->mutable_transaction_id(), transactionId);
     GenerateMutationId(req);
     req->set_type(static_cast<int>(chunkType));

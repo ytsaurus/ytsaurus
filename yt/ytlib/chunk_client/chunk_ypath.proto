@@ -32,7 +32,7 @@ message TRspSeal
 
 message TReqCreateChunkExt
 {
-    extend NObjectClient.NProto.TReqCreateObjects
+    extend NObjectClient.NProto.TReqCreateObject
     {
         optional TReqCreateChunkExt create_chunk_ext = 100;
     }

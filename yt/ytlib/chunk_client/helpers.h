@@ -11,7 +11,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
+TFuture<NObjectClient::TMasterYPathProxy::TRspCreateObjectPtr> CreateChunk(
     NRpc::IChannelPtr masterChannel,
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,

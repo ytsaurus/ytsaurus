@@ -65,7 +65,8 @@ void TFileChunkOutput::Open()
         Options->ReplicationFactor,
         Config->UploadReplicationFactor);
     
-    auto rspOrError = CreateChunk(MasterChannel, Config, Options, EObjectType::Chunk, TransactionId).Get();
+    auto rspOrError = CreateChunk(MasterChannel, Config, Options, EObjectType::Chunk, TransactionId)
+        .Get();
     if (!rspOrError.IsOK()) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MasterCommunicationFailed,
@@ -74,7 +75,7 @@ void TFileChunkOutput::Open()
     }
 
     const auto& rsp = rspOrError.Value();
-    ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
+    ChunkId = NYT::FromProto<TChunkId>(rsp->object_id());
 
     Logger.AddTag("ChunkId: %v", ChunkId);
 

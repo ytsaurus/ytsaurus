@@ -471,7 +471,7 @@ private:
     TFuture<void> StartMasterTransaction(const TTransactionStartOptions& options)
     {
         TObjectServiceProxy proxy(Owner_->MasterChannel_);
-        auto req = TMasterYPathProxy::CreateObjects();
+        auto req = TMasterYPathProxy::CreateObject();
         req->set_type(static_cast<int>(EObjectType::Transaction));
         if (options.Attributes) {
             ToProto(req->mutable_object_attributes(), *options.Attributes);
@@ -493,7 +493,7 @@ private:
             BIND(&TImpl::OnMasterTransactionStarted, MakeStrong(this)));
     }
 
-    void OnMasterTransactionStarted(const TMasterYPathProxy::TErrorOrRspCreateObjectsPtr& rspOrError)
+    void OnMasterTransactionStarted(const TMasterYPathProxy::TErrorOrRspCreateObjectPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             State_ = ETransactionState::Aborted;
@@ -503,8 +503,7 @@ private:
         State_ = ETransactionState::Active;
 
         const auto& rsp = rspOrError.Value();
-        YCHECK(rsp->object_ids_size() == 1);
-        Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
+        Id_ = FromProto<TTransactionId>(rsp->object_id());
         
         YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(
             Owner_->CellId_,

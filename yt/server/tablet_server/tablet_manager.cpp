@@ -122,8 +122,8 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        TReqCreateObject* request,
+        TRspCreateObject* response) override;
 
 private:
     TImpl* Owner_;
@@ -1906,8 +1906,8 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* request,
-    TRspCreateObjects* response)
+    TReqCreateObject* request,
+    TRspCreateObject* response)
 {
     // TODO(babenko): support arbitrary size
     auto* cell = Owner_->CreateCell(1, attributes);

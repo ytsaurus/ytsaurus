@@ -454,7 +454,7 @@ private:
     TTransactionId StartTransaction()
     {
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
-        auto req = TMasterYPathProxy::CreateObjects();
+        auto req = TMasterYPathProxy::CreateObject();
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* requestExt = req->MutableExtension(TReqStartTransactionExt::create_transaction_ext);
@@ -466,7 +466,7 @@ private:
 
         auto rsp = WaitFor(ExecuteVerb(service, req))
             .ValueOrThrow();
-        return FromProto<TTransactionId>(rsp->object_ids(0));
+        return FromProto<TTransactionId>(rsp->object_id());
     }
 
     void CommitTransaction(const TTransactionId& transactionId)

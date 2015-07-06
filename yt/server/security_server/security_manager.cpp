@@ -97,8 +97,8 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        TReqCreateObject* request,
+        TRspCreateObject* response) override;
 
     virtual EPermissionSet GetSupportedPermissions() const override
     {
@@ -148,8 +148,8 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        TReqCreateObject* request,
+        TRspCreateObject* response) override;
 
 private:
     TImpl* Owner_;
@@ -189,8 +189,8 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        TReqCreateObject* request,
+        TRspCreateObject* response) override;
 
 private:
     TImpl* Owner_;
@@ -1488,8 +1488,8 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* /*request*/,
-    TRspCreateObjects* /*response*/)
+    TReqCreateObject* /*request*/,
+    TRspCreateObject* /*response*/)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
@@ -1521,8 +1521,8 @@ TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* /*request*/,
-    TRspCreateObjects* /*response*/)
+    TReqCreateObject* /*request*/,
+    TRspCreateObject* /*response*/)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
@@ -1554,8 +1554,8 @@ TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* /*request*/,
-    TRspCreateObjects* /*response*/)
+    TReqCreateObject* /*request*/,
+    TRspCreateObject* /*response*/)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");

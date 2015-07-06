@@ -86,8 +86,8 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        TReqCreateObject* request,
+        TRspCreateObject* response) override;
 
 private:
     TImpl* const Owner_;
@@ -1305,8 +1305,8 @@ TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* /*request*/,
-    TRspCreateObjects* /*response*/)
+    TReqCreateObject* /*request*/,
+    TRspCreateObject* /*response*/)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
