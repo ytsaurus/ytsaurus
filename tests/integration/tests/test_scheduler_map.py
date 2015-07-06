@@ -1007,7 +1007,7 @@ print row + table_index
     def test_query_simple(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write("//tmp/t1", {"a": "b"})
+        write_table("//tmp/t1", {"a": "b"})
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
             spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
@@ -1018,7 +1018,7 @@ print row + table_index
     def test_query_reader_projection(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write("//tmp/t1", {"a": "b", "c": "d"})
+        write_table("//tmp/t1", {"a": "b", "c": "d"})
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
             spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
@@ -1029,7 +1029,7 @@ print row + table_index
     def test_query_with_condition(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write("//tmp/t1", [{"a": i} for i in xrange(2)])
+        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
             spec={"input_query": "a where a > 0", "input_schema": [{"name":"a", "type": "int64"}]})
