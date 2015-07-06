@@ -146,14 +146,12 @@ private:
             CreateNode(
                 "//sys",
                 transactionId,
-                EObjectType::MapNode,
+                EObjectType::SysNode,
                 BuildYsonStringFluently()
                     .BeginMap()
                         .DoIf(Config_->EnableProvisionLock, [&] (TFluentMap fluent) {
                             fluent.Item("provision_lock").Value(true);
                         })
-                        .Item("cell_tag").Value(Bootstrap_->GetCellTag())
-                        .Item("cell_id").Value(Bootstrap_->GetCellId())
                     .EndMap());
 
             CreateNode(

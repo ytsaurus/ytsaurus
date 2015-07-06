@@ -55,6 +55,7 @@
 
 #include <server/object_server/object_manager.h>
 #include <server/object_server/object_service.h>
+#include <server/object_server/sys_node.h>
 
 #include <server/transaction_server/transaction_manager.h>
 #include <server/transaction_server/cypress_integration.h>
@@ -412,6 +413,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateChunkService(this)); // master hydra service
 
+    CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostVitalChunkMap));
