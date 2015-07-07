@@ -574,6 +574,7 @@ Examples:
         yt.run_reduce(op, args.src, dst, files=reduce_files, file_paths=args.ytfile,
                       input_format=inputformat, output_format=outputformat,
                       reduce_by=args.reduceby,
+                      sort_by=args.sortby,
                       replication_factor=replication_factor,
                       compression_codec=args.codec,
                       job_count=args.jobcount,
