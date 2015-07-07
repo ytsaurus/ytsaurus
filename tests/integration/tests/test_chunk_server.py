@@ -53,14 +53,14 @@ class TestChunkServer(YTEnvSetup):
         assert len(nodes) == replica_count
 
         node_to_decommission = nodes[0]
-        assert get("//sys/nodes/%s/@stored_replica_count" % node_to_decommission) == 1
+        assert get("//sys/nodes/%s/@statistics/total_stored_chunk_count" % node_to_decommission) == 1
 
         print "Decommissioning node", node_to_decommission
         set("//sys/nodes/%s/@decommissioned" % node_to_decommission, True)
 
         sleep(2) # wait for background replication
 
-        assert get("//sys/nodes/%s/@stored_replica_count" % node_to_decommission) == 0
+        assert get("//sys/nodes/%s/@statistics/total_stored_chunk_count" % node_to_decommission) == 0
         assert len(get("#%s/@stored_replicas" % chunk_id)) == replica_count
 
     def test_decommission_regular(self):

@@ -427,7 +427,7 @@ public:
             const auto& statistics = node->Statistics();
             result.AvailableSpace += statistics.total_available_space();
             result.UsedSpace += statistics.total_used_space();
-            result.ChunkCount += statistics.total_chunk_count();
+            result.ChunkCount += statistics.total_stored_chunk_count();
             result.OnlineNodeCount++;
         }
         return result;
