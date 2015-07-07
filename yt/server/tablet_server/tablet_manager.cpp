@@ -106,6 +106,11 @@ class TTabletManager::TTabletCellTypeHandler
 public:
     explicit TTabletCellTypeHandler(TImpl* owner);
 
+    virtual bool IsReplicated() const override
+    {
+        return true;
+    }
+
     virtual EObjectType GetType() const override
     {
         return EObjectType::TabletCell;
@@ -115,8 +120,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden,
-            true);
+            EObjectAccountMode::Forbidden);
     }
 
     virtual TObjectBase* CreateObject(
@@ -1428,9 +1432,6 @@ private:
         TMasterAutomatonPart::OnLeaderActive();
 
         TabletTracker_->Start();
-
-        auto cellDirectory = Bootstrap_->GetCellDirectory();
-        cellDirectory->Clear();
 
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;

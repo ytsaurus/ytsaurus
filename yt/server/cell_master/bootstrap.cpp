@@ -309,12 +309,12 @@ void TBootstrap::DoInitialize()
         Config_->CellDirectory,
         GetBusChannelFactory(),
         NNodeTrackerClient::InterconnectNetworkName);
-    CellDirectory_->ReconfigureCell(Config_->Master);
+    YCHECK(CellDirectory_->ReconfigureCell(Config_->Master));
     if (Config_->PrimaryMaster) {
-        CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
+        YCHECK(CellDirectory_->ReconfigureCell(Config_->PrimaryMaster));
     }
     for (const auto& secondaryMaster : Config_->SecondaryMasters) {
-        CellDirectory_->ReconfigureCell(secondaryMaster);
+        YCHECK(CellDirectory_->ReconfigureCell(secondaryMaster));
     }
 
     HiveManager_ = New<THiveManager>(

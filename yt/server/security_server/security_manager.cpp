@@ -81,6 +81,11 @@ class TSecurityManager::TAccountTypeHandler
 public:
     explicit TAccountTypeHandler(TImpl* owner);
 
+    virtual bool IsReplicated() const override
+    {
+        return true;
+    }
+
     virtual EObjectType GetType() const override
     {
         return EObjectType::Account;
@@ -90,8 +95,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden,
-            true);
+            EObjectAccountMode::Forbidden);
     }
 
     virtual TObjectBase* CreateObject(
@@ -134,6 +138,11 @@ class TSecurityManager::TUserTypeHandler
 public:
     explicit TUserTypeHandler(TImpl* owner);
 
+    virtual bool IsReplicated() const override
+    {
+        return true;
+    }
+
     virtual EObjectType GetType() const override
     {
         return EObjectType::User;
@@ -143,8 +152,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden,
-            true);
+            EObjectAccountMode::Forbidden);
     }
 
     virtual TObjectBase* CreateObject(
@@ -177,6 +185,11 @@ class TSecurityManager::TGroupTypeHandler
 public:
     explicit TGroupTypeHandler(TImpl* owner);
 
+    virtual bool IsReplicated() const override
+    {
+        return true;
+    }
+
     virtual EObjectType GetType() const override
     {
         return EObjectType::Group;
@@ -186,8 +199,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden,
-            true);
+            EObjectAccountMode::Forbidden);
     }
 
     virtual TObjectBase* CreateObject(

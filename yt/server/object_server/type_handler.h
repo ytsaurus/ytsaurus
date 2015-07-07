@@ -38,13 +38,10 @@ struct TTypeCreationOptions
 
     TTypeCreationOptions(
         EObjectTransactionMode transactionMode,
-        EObjectAccountMode accountMode,
-        bool supportsForeign);
+        EObjectAccountMode accountMode);
 
     EObjectTransactionMode TransactionMode = EObjectTransactionMode::Forbidden;
     EObjectAccountMode AccountMode = EObjectAccountMode::Forbidden;
-    bool SupportsForeign = false;
-
 };
 
 // WinAPI is great.
@@ -54,6 +51,9 @@ struct TTypeCreationOptions
 struct IObjectTypeHandler
     : public virtual TRefCounted
 {
+    //! Returns |true| if the objects of this type are replicated to all secondaries.
+    virtual bool IsReplicated() const = 0;
+
     //! Returns the object type managed by the handler.
     virtual EObjectType GetType() const = 0;
 

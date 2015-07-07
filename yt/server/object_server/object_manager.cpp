@@ -17,6 +17,7 @@
 
 #include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
+#include <ytlib/object_client/master_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
@@ -39,6 +40,7 @@
 
 #include <server/security_server/user.h>
 #include <server/security_server/group.h>
+#include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
 
 namespace NYT {
@@ -51,6 +53,7 @@ using namespace NRpc;
 using namespace NBus;
 using namespace NCypressServer;
 using namespace NCypressClient;
+using namespace NObjectClient;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NChunkServer;
@@ -293,7 +296,7 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
 
     IObjectProxyPtr DoResolvePath(
@@ -539,6 +542,12 @@ void TObjectManager::UnrefObject(TObjectBase* object)
         const auto& handler = GetHandler(object);
         handler->ZombifyObject(object);
         GarbageCollector_->RegisterZombie(object);
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        if (handler->IsReplicated() && hydraFacade->IsPrimaryMaster()) {
+            auto req = TObjectYPathProxy::Remove(FromObjectId(object->GetId()));
+            hydraFacade->PostToSecondaryMasters(req);
+        }
     }
 }
 
@@ -956,10 +965,14 @@ TObjectBase* TObjectManager::CreateObject(
             YUNREACHABLE();
     }
 
-    if (!options->SupportsForeign && hintId != NullObjectId) {
+    auto typeIsReplicated = handler->IsReplicated();
+    if (!typeIsReplicated && hintId != NullObjectId) {
         THROW_ERROR_EXCEPTION("Cannot create an instance of %Qlv with a hinted id",
             type);
     }
+
+    auto hydraFacade = Bootstrap_->GetHydraFacade();
+    bool replicationNeeded = typeIsReplicated && hydraFacade->IsPrimaryMaster();
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
@@ -967,6 +980,12 @@ TObjectBase* TObjectManager::CreateObject(
     auto* schema = FindSchema(type);
     if (schema) {
         securityManager->ValidatePermission(schema, user, EPermission::Create);
+    }
+
+    // ITypeHandler::CreateObject will modify the attributes.
+    std::unique_ptr<IAttributeDictionary> replicatedAttributes;
+    if (replicationNeeded && attributes) {
+        replicatedAttributes = attributes->Clone();
     }
 
     auto* object = handler->CreateObject(
@@ -993,6 +1012,22 @@ TObjectBase* TObjectManager::CreateObject(
     auto* acd = securityManager->FindAcd(object);
     if (acd) {
         acd->SetOwner(user);
+    }
+
+    if (replicationNeeded) {
+        auto req = TMasterYPathProxy::CreateObject();
+        if (transaction) {
+            ToProto(req->mutable_transaction_id(), transaction->GetId());
+        }
+        req->set_type(static_cast<int>(type));
+        if (replicatedAttributes) {
+            ToProto(req->mutable_object_attributes(), *replicatedAttributes);
+        }
+        if (account) {
+            req->set_account(account->GetName());
+        }
+        ToProto(req->mutable_object_id(), object->GetId());
+        hydraFacade->PostToSecondaryMasters(req);
     }
 
     return object;

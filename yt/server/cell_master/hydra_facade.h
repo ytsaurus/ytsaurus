@@ -4,11 +4,14 @@
 
 #include <core/rpc/public.h>
 
+#include <core/ytree/public.h>
+
 #include <ytlib/election/public.h>
 
 #include <ytlib/object_client/public.h>
 
 #include <server/hydra/mutation.h>
+#include <core/rpc/client.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -48,6 +51,10 @@ public:
 
     const NElection::TCellId& GetPrimaryCellId() const;
     NObjectClient::TCellTag GetPrimaryCellTag() const;
+
+    void PostToSecondaryMasters(NRpc::IClientRequestPtr request);
+    void PostToSecondaryMasters(const NObjectClient::TObjectId& objectId, NRpc::IServiceContextPtr context);
+    void PostToSecondaryMasters(TSharedRefArray requestMessage);
 
 private:
     class TImpl;

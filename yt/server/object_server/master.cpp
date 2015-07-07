@@ -111,6 +111,7 @@ private:
         auto type = EObjectType(request->type());
 
         context->SetRequestInfo("ObjectId: %v, TransactionId: %v, Type: %v, Account: %v",
+            objectId,
             transactionId,
             type,
             request->has_account() ? MakeNullable(request->account()) : Null);
