@@ -147,7 +147,7 @@ public:
     virtual void DestroyObject(TObjectBase* object) throw() override
     {
         this->DoDestroyObject(static_cast<TObject*>(object));
-    	// Remove the object from the map but keep it alive.
+        // Remove the object from the map but keep it alive.
         Map_->Release(object->GetId()).release();
     }
 
@@ -165,6 +165,10 @@ public:
     }
 
 protected:
+    // We store map by a raw pointer. In most cases this should be OK.
+    TMap* const Map_;
+
+
     virtual void DoDestroyObject(TObject* object)
     {
         // Clear ACD, if any.
@@ -178,10 +182,6 @@ protected:
     {
         object->ResetWeakRefCounter();
     }
-
-private:
-    // We store map by a raw pointer. In most cases this should be OK.
-    TMap* const Map_;
 
 };
 
