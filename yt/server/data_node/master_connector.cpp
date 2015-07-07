@@ -256,7 +256,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     i64 totalAvailableSpace = 0;
     i64 totalLowWatermarkSpace = 0;
     i64 totalUsedSpace = 0;
-    int totalChunkCount = 0;
+    int totalStoredChunkCount = 0;
     int totalSessionCount = 0;
     bool full = true;
 
@@ -279,7 +279,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
         }
 
         totalUsedSpace += location->GetUsedSpace();
-        totalChunkCount += location->GetChunkCount();
+        totalStoredChunkCount += location->GetChunkCount();
         totalSessionCount += location->GetSessionCount();
 
         for (auto type : {EObjectType::Chunk, EObjectType::ErasureChunk, EObjectType::JournalChunk}) {
@@ -289,6 +289,9 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
         }
     }
 
+    auto chunkCache = Bootstrap_->GetChunkCache();
+    int totalCachedChunkCount = chunkCache->GetChunkCount();
+
     for (auto type : acceptedChunkTypes) {
         result.add_accepted_chunk_types(static_cast<int>(type));
     }
@@ -296,7 +299,8 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     result.set_total_available_space(totalAvailableSpace);
     result.set_total_low_watermark_space(totalLowWatermarkSpace);
     result.set_total_used_space(totalUsedSpace);
-    result.set_total_chunk_count(totalChunkCount);
+    result.set_total_stored_chunk_count(totalStoredChunkCount);
+    result.set_total_cached_chunk_count(totalCachedChunkCount);
     result.set_full(full);
 
     auto sessionManager = Bootstrap_->GetSessionManager();

@@ -95,8 +95,6 @@ private:
         attributes->push_back(TAttributeInfo("statistics", node));
         attributes->push_back(TAttributeInfo("addresses", node));
         attributes->push_back(TAttributeInfo("alerts", node));
-        attributes->push_back(TAttributeInfo("stored_replica_count", node));
-        attributes->push_back(TAttributeInfo("cached_replica_count", node));
         attributes->push_back(TAttributeInfo("tablet_slots", node));
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
@@ -131,7 +129,8 @@ private:
                     .BeginMap()
                         .Item("total_available_space").Value(statistics.total_available_space())
                         .Item("total_used_space").Value(statistics.total_used_space())
-                        .Item("total_chunk_count").Value(statistics.total_chunk_count())
+                        .Item("total_stored_chunk_count").Value(statistics.total_stored_chunk_count())
+                        .Item("total_cached_chunk_count").Value(statistics.total_cached_chunk_count())
                         .Item("total_session_count").Value(node->GetTotalSessionCount())
                         .Item("full").Value(statistics.full())
                         .Item("accepted_chunk_types").Value(FromProto<EObjectType, std::vector<EObjectType>>(statistics.accepted_chunk_types()))
@@ -177,12 +176,14 @@ private:
                 return true;
             }
 
+            // XXX(babenko): multicell?
             if (key == "stored_replica_count") {
                 BuildYsonFluently(consumer)
                     .Value(node->StoredReplicas().size());
                 return true;
             }
 
+            // XXX(babenko): multicell?
             if (key == "cached_replica_count") {
                 BuildYsonFluently(consumer)
                     .Value(node->CachedReplicas().size());
