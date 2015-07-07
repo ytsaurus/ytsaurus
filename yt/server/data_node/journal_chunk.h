@@ -16,8 +16,10 @@ class TJournalChunk
 public:
     TJournalChunk(
         NCellNode::TBootstrap* bootstrap,
-        TLocationPtr location,
+        TStoreLocationPtr location,
         const TChunkDescriptor& descriptor);
+
+    TStoreLocationPtr GetStoreLocation() const;
 
     virtual void SyncRemove(bool force) override;
 
@@ -55,11 +57,13 @@ public:
     bool IsSealed() const;
 
 private:
+    const TStoreLocationPtr StoreLocation_;
+
     const TRefCountedChunkMetaPtr Meta_ = New<TRefCountedChunkMeta>();
 
     bool Active_ = false;
     NHydra::IChangelogPtr Changelog_;
-    
+
     mutable i64 CachedRowCount_ = 0;
     mutable i64 CachedDataSize_ = 0;
 

@@ -52,8 +52,7 @@ void TChunkStore::Initialize()
     for (int i = 0; i < Config_->StoreLocations.size(); ++i) {
         auto locationConfig = Config_->StoreLocations[i];
 
-        auto location = New<TLocation>(
-            ELocationType::Store,
+        auto location = New<TStoreLocation>(
             "store" + ToString(i),
             locationConfig,
             Bootstrap_);
@@ -343,11 +342,11 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
             .Via(Bootstrap_->GetControlInvoker()));
 }
 
-TLocationPtr TChunkStore::GetNewChunkLocation(EObjectType chunkType)
+TStoreLocationPtr TChunkStore::GetNewChunkLocation(EObjectType chunkType)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    std::vector<TLocationPtr> candidates;
+    std::vector<TStoreLocationPtr> candidates;
     int minCount = std::numeric_limits<int>::max();
     for (const auto& location : Locations_) {
         if (location->IsFull() || !location->IsEnabled() || !location->IsChunkTypeAccepted(chunkType)) {
@@ -373,7 +372,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation(EObjectType chunkType)
 }
 
 IChunkPtr TChunkStore::CreateFromDescriptor(
-    TLocationPtr location,
+    TStoreLocationPtr location,
     const TChunkDescriptor& descriptor)
 {
     auto chunkType = TypeFromId(DecodeChunkId(descriptor.Id).Id);
