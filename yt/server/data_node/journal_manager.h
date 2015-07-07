@@ -22,7 +22,7 @@ class TJournalManager
 public:
     TJournalManager(
         TDataNodeConfigPtr config,
-        TLocation* location,
+        TStoreLocation* location,
         NCellNode::TBootstrap* bootstrap);
     ~TJournalManager();
 

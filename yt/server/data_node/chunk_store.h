@@ -29,7 +29,7 @@ class TChunkStore
 {
 public:
     typedef std::vector<IChunkPtr> TChunks;
-    typedef std::vector<TLocationPtr> TLocations;
+    typedef std::vector<TStoreLocationPtr> TLocations;
 
     TChunkStore(
         TDataNodeConfigPtr config,
@@ -96,7 +96,7 @@ public:
      *
      *  Throws exception if no suitable location could be found.
      */
-    TLocationPtr GetNewChunkLocation(NObjectClient::EObjectType chunkType);
+    TStoreLocationPtr GetNewChunkLocation(NObjectClient::EObjectType chunkType);
 
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
@@ -124,7 +124,7 @@ private:
     void DoRegisterChunk(const TChunkEntry& entry);
 
     static TChunkEntry BuildEntry(IChunkPtr chunk);
-    IChunkPtr CreateFromDescriptor(TLocationPtr location, const TChunkDescriptor& descriptor);
+    IChunkPtr CreateFromDescriptor(TStoreLocationPtr location, const TChunkDescriptor& descriptor);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
