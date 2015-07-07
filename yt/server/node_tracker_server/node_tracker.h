@@ -59,7 +59,7 @@ public:
     void RefreshNodeConfig(TNode* node);
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, TNodeId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, NObjectClient::TObjectId);
     DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack, TRackId);
 
 
@@ -90,6 +90,15 @@ public:
         PopulateCellDescriptors);
 
 
+    //! Returns a node with a given id (|nullptr| if none).
+    TNode* FindNode(TNodeId id);
+
+    //! Returns a node with a given id (fails if none).
+    TNode* GetNode(TNodeId id);
+
+    //! Returns a node with a given id (throws if none).
+    TNode* GetNodeOrThrow(TNodeId id);
+
     //! Returns a node registered at the given address (|nullptr| if none).
     TNode* FindNodeByAddress(const Stroka& address);
 
@@ -98,9 +107,6 @@ public:
 
     //! Returns an arbitrary node registered at the host (|nullptr| if none).
     TNode* FindNodeByHostName(const Stroka& hostName);
-
-    //! Returns a node with a given id (throws if none).
-    TNode* GetNodeOrThrow(TNodeId id);
 
     //! Returns the list of (default) addresses of nodes belonging to a given rack.
     /*!

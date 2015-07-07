@@ -6,6 +6,8 @@
 
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/node_tracker_client/helpers.h>
+
 #include <server/chunk_server/job.h>
 #include <server/chunk_server/chunk.h>
 
@@ -23,9 +25,11 @@ namespace NYT {
 namespace NNodeTrackerServer {
 
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NTabletServer;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,11 +44,11 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TNode::TNode(
-    TNodeId id,
+    const TObjectId& objectId,
     const TAddressMap& addresses,
     TNodeConfigPtr config,
     TInstant registerTime)
-    : Id_(id)
+    : TObjectBase(objectId)
     , RegisterTime_(registerTime)
     , Addresses_(addresses)
     , Config_(config)
@@ -52,8 +56,8 @@ TNode::TNode(
     Init();
 }
 
-TNode::TNode(TNodeId id)
-    : Id_(id)
+TNode::TNode(const TObjectId& objectId)
+    : TObjectBase(objectId)
     , Config_(New<TNodeConfig>())
 {
     Init();
@@ -81,6 +85,11 @@ const Stroka& TNode::GetDefaultAddress() const
     return NNodeTrackerClient::GetDefaultAddress(Addresses_);
 }
 
+TNodeId TNode::GetId() const
+{
+    return NodeIdFromObjectId(Id_);
+}
+
 TNodeDescriptor TNode::GetDescriptor() const
 {
     return TNodeDescriptor(
@@ -95,6 +104,8 @@ const TNodeConfigPtr& TNode::GetConfig() const
 
 void TNode::Save(NCellMaster::TSaveContext& context) const
 {
+    TObjectBase::Save(context);
+
     using NYT::Save;
     Save(context, Addresses_);
     Save(context, State_);
@@ -111,6 +122,8 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
 
 void TNode::Load(NCellMaster::TLoadContext& context)
 {
+    TObjectBase::Load(context);
+
     using NYT::Load;
     Load(context, Addresses_);
     Load(context, State_);

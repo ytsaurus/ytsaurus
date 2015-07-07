@@ -21,6 +21,8 @@
 
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/node_tracker_client/helpers.h>
+
 #include <server/chunk_server/job.h>
 
 #include <server/node_tracker_server/node_tracker.pb.h>
@@ -230,7 +232,7 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, TNodeId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, TObjectId);
     DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack, TRackId);
 
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
@@ -241,6 +243,28 @@ public:
     DEFINE_SIGNAL(void(TNode* node, const TReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
     DEFINE_SIGNAL(void(std::vector<TCellDescriptor>*), PopulateCellDescriptors);
 
+
+    TNode* FindNode(TNodeId id)
+    {
+        return FindNode(ObjectIdFromNodeId(id));
+    }
+
+    TNode* GetNode(TNodeId id)
+    {
+        return GetNode(ObjectIdFromNodeId(id));
+    }
+
+    TNode* GetNodeOrThrow(TNodeId id)
+    {
+        auto* node = FindNode(id);
+        if (!node) {
+            THROW_ERROR_EXCEPTION(
+                NNodeTrackerClient::EErrorCode::NoSuchNode,
+                "Invalid or expired node id %v",
+                id);
+        }
+        return node;
+    }
 
     TNode* FindNodeByAddress(const Stroka& address)
     {
@@ -259,18 +283,6 @@ public:
     {
         auto it = HostNameToNodeMap_.find(hostName);
         return it == HostNameToNodeMap_.end() ? nullptr : it->second;
-    }
-
-    TNode* GetNodeOrThrow(TNodeId id)
-    {
-        auto* node = FindNode(id);
-        if (!node) {
-            THROW_ERROR_EXCEPTION(
-                NNodeTrackerClient::EErrorCode::NoSuchNode,
-                "Invalid or expired node id %v",
-                id);
-        }
-        return node;
     }
 
     std::vector<Stroka> GetNodeAddressesByRack(const TRack* rack)
@@ -459,7 +471,7 @@ private:
     NProfiling::TProfiler Profiler = NodeTrackerServerProfiler;
 
     TIdGenerator NodeIdGenerator_;
-    NHydra::TEntityMap<TNodeId, TNode> NodeMap_;
+    NHydra::TEntityMap<TObjectId, TNode> NodeMap_;
     NHydra::TEntityMap<TRackId, TRack> RackMap_;
 
     int OnlineNodeCount_ = 0;
@@ -496,6 +508,10 @@ private:
         return id;
     }
 
+    TObjectId ObjectIdFromNodeId(TNodeId nodeId)
+    {
+        return NNodeTrackerClient::ObjectIdFromNodeId(nodeId, Bootstrap_->GetHydraFacade()->GetPrimaryCellTag());
+    }
 
 
     static TYPath GetNodePath(const Stroka& address)
@@ -892,11 +908,13 @@ private:
             const auto* mutationContext = GetCurrentMutationContext();
 
             auto nodeHolder = std::make_unique<TNode>(
-                nodeId,
+                ObjectIdFromNodeId(nodeId),
                 addresses,
                 config,
                 mutationContext->GetTimestamp());
-            auto* node = NodeMap_.Insert(nodeId, std::move(nodeHolder));
+            auto* node = NodeMap_.Insert(
+                ObjectIdFromNodeId(nodeId),
+                std::move(nodeHolder));
 
             node->SetState(ENodeState::Registered);
             node->Statistics() = statistics;
@@ -1027,7 +1045,7 @@ private:
 
             NodeRemoved_.Fire(node);
 
-            NodeMap_.Remove(nodeId);
+            NodeMap_.Remove(ObjectIdFromNodeId(nodeId));
 
             LOG_INFO_UNLESS(IsRecovery(), "Node removed (NodeId: %v, Address: %v)",
                 nodeId,
@@ -1156,7 +1174,7 @@ private:
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TNodeId, NodeMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TObjectId, NodeMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Rack, TRack, TRackId, RackMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1175,6 +1193,21 @@ void TNodeTracker::Initialize()
 TNodeTracker::~TNodeTracker()
 { }
 
+TNode* TNodeTracker::FindNode(TNodeId id)
+{
+    return Impl_->FindNode(id);
+}
+
+TNode* TNodeTracker::GetNode(TNodeId id)
+{
+    return Impl_->GetNode(id);
+}
+
+TNode* TNodeTracker::GetNodeOrThrow(TNodeId id)
+{
+    return Impl_->GetNodeOrThrow(id);
+}
+
 TNode* TNodeTracker::FindNodeByAddress(const Stroka& address)
 {
     return Impl_->FindNodeByAddress(address);
@@ -1188,11 +1221,6 @@ TNode* TNodeTracker::GetNodeByAddress(const Stroka& address)
 TNode* TNodeTracker::FindNodeByHostName(const Stroka& hostName)
 {
     return Impl_->FindNodeByHostName(hostName);
-}
-
-TNode* TNodeTracker::GetNodeOrThrow(TNodeId id)
-{
-    return Impl_->GetNodeOrThrow(id);
 }
 
 std::vector<Stroka> TNodeTracker::GetNodeAddressesByRack(const TRack* rack)
@@ -1289,7 +1317,7 @@ std::vector<NHive::TCellDescriptor> TNodeTracker::GetCellDescriptors()
     return Impl_->GetCellDescriptors();
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, TNodeId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, TObjectId, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, TRackId, *Impl_)
 
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl_);
