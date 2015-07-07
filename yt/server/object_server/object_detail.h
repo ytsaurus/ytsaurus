@@ -70,6 +70,16 @@ protected:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     // NYTree::TSupportsAttributes members
+    virtual void SetAttribute(
+        const NYTree::TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        TCtxSetPtr context) override;
+    virtual void RemoveAttribute(
+        const NYTree::TYPath& path,
+        TReqRemove* request,
+        TRspRemove* response,
+        TCtxRemovePtr context) override;
     virtual NYTree::IAttributeDictionary* GetCustomAttributes() override;
     virtual NYTree::ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
