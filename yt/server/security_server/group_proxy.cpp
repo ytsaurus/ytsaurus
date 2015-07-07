@@ -87,13 +87,14 @@ private:
 
         DeclareMutating();
 
-        context->SetResponseInfo("Name: %v",
-            ~request->name());
+        const auto& name = request->name();
+
+        context->SetRequestInfo("Name: %v", name);
+
+        auto* member = GetSubject(name);
+        auto* group = GetThisTypedImpl();
 
         auto securityManager = Bootstrap_->GetSecurityManager();
-
-        auto* member = GetSubject(request->name());
-        auto* group = GetThisTypedImpl();
         securityManager->AddMember(group, member);
 
         context->Reply();
@@ -105,13 +106,14 @@ private:
 
         DeclareMutating();
 
-        context->SetResponseInfo("Name: %v",
-            ~request->name());
+        const auto& name = request->name();
+
+        context->SetRequestInfo("Name: %v", name);
+
+        auto* member = GetSubject(name);
+        auto* group = GetThisTypedImpl();
 
         auto securityManager = Bootstrap_->GetSecurityManager();
-
-        auto* member = GetSubject(request->name());
-        auto* group = GetThisTypedImpl();
         securityManager->RemoveMember(group, member);
 
         context->Reply();
