@@ -26,6 +26,11 @@ public:
         YCHECK(bootstrap);
     }
 
+    virtual bool IsReplicated() const override
+    {
+        return false;
+    }
+
     virtual Stroka GetName(TObjectBase* object) override
     {
         return DoGetName(static_cast<TObject*>(object));

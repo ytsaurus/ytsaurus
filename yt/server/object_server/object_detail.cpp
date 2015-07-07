@@ -809,9 +809,25 @@ bool TObjectProxyBase::IsFollower() const
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsFollower();
 }
 
+bool TObjectProxyBase::IsPrimaryMaster() const
+{
+    return Bootstrap_->GetHydraFacade()->IsPrimaryMaster();
+}
+
+bool TObjectProxyBase::IsSecondaryMaster() const
+{
+    return Bootstrap_->GetHydraFacade()->IsSecondaryMaster();
+}
+
 bool TObjectProxyBase::IsLeaderReadRequired() const
 {
     return false;
+}
+
+void TObjectProxyBase::PostToSecondaryMasters(NRpc::IServiceContextPtr context)
+{
+    auto hydraFacade = Bootstrap_->GetHydraFacade();
+    hydraFacade->PostToSecondaryMasters(Object_->GetId(), std::move(context));
 }
 
 bool TObjectProxyBase::IsLoggingEnabled() const

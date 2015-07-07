@@ -208,6 +208,11 @@ class TTransactionManager::TTransactionTypeHandler
 public:
     explicit TTransactionTypeHandler(TImpl* owner);
 
+    virtual bool IsReplicated() const override
+    {
+        return false;
+    }
+
     virtual EObjectType GetType() const override
     {
         return EObjectType::Transaction;
@@ -217,8 +222,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Optional,
-            EObjectAccountMode::Forbidden,
-            true);
+            EObjectAccountMode::Forbidden);
     }
 
     virtual TNonversionedObjectBase* CreateObject(

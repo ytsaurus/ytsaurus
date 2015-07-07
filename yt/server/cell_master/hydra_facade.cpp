@@ -14,6 +14,7 @@
 #include <core/rpc/bus_channel.h>
 #include <core/rpc/server.h>
 #include <core/rpc/response_keeper.h>
+#include <core/rpc/message.h>
 
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/periodic_executor.h>
@@ -39,6 +40,8 @@
 #include <server/hydra/private.h>
 
 #include <server/hive/transaction_supervisor.h>
+#include <server/hive/hive_manager.h>
+#include <server/hive/mailbox.h>
 
 #include <server/cell_master/bootstrap.h>
 
@@ -47,9 +50,11 @@
 
 #include <server/security_server/security_manager.h>
 #include <server/security_server/acl.h>
+#include <server/security_server/user.h>
 #include <server/security_server/group.h>
 
 #include <server/object_server/private.h>
+#include <server/object_server/object_manager.pb.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -60,6 +65,7 @@ using namespace NElection;
 using namespace NHydra;
 using namespace NYTree;
 using namespace NYPath;
+using namespace NRpc;
 using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NTransactionClient;
@@ -95,6 +101,8 @@ public:
         auto primaryMasterConfig = Config_->PrimaryMaster ? Config_->PrimaryMaster : Config_->Master;
         PrimaryCellId_ = primaryMasterConfig->CellId;
         PrimaryCellTag_ = CellTagFromId(PrimaryCellId_);
+
+        Multicell_ = !Config_->SecondaryMasters.empty();
 
         AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", TEnumTraits<EAutomatonThreadQueue>::GetDomainNames());
         Automaton_ = New<TMasterAutomaton>(Bootstrap_);
@@ -226,6 +234,59 @@ public:
         return PrimaryCellTag_;
     }
 
+
+    void PostToSecondaryMasters(IClientRequestPtr request)
+    {
+        YCHECK(IsPrimaryMaster());
+
+        if (!Multicell_)
+            return;
+
+        PostToSecondaryMasters(request->Serialize());
+    }
+
+    void PostToSecondaryMasters(const TObjectId& objectId, IServiceContextPtr context)
+    {
+        YCHECK(IsPrimaryMaster());
+
+        if (!Multicell_)
+            return;
+
+        auto requestMessage = context->GetRequestMessage();
+        NRpc::NProto::TRequestHeader requestHeader;
+        ParseRequestHeader(requestMessage, &requestHeader);
+
+        auto updatedYPath = FromObjectId(objectId) + GetRequestYPath(context);
+        SetRequestYPath(&requestHeader, updatedYPath);
+        auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
+
+        PostToSecondaryMasters(std::move(updatedRequestMessage));
+    }
+
+    void PostToSecondaryMasters(TSharedRefArray requestMessage)
+    {
+        YCHECK(IsPrimaryMaster());
+
+        if (!Multicell_)
+            return;
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+
+        NObjectServer::NProto::TReqExecute hydraReq;
+        ToProto(hydraReq.mutable_user_id(), user->GetId());
+        for (const auto& part : requestMessage) {
+            hydraReq.add_request_parts(part.Begin(), part.Size());
+        }
+
+        InitializeMailboxes();
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        for (auto* mailbox : SecondaryMasterMailboxes_) {
+            hiveManager->PostMessage(mailbox, hydraReq);
+        }
+    }
+
 private:
     const TCellMasterConfigPtr Config_;
     TBootstrap* const Bootstrap_;
@@ -234,6 +295,11 @@ private:
     TCellTag CellTag_;
     TCellId PrimaryCellId_;
     TCellTag PrimaryCellTag_;
+
+    bool Multicell_ = false;
+    bool MailboxesInitialized_ = false;
+    std::vector<TMailbox*> SecondaryMasterMailboxes_;
+    TMailbox* PrimaryMasterMailbox_ = nullptr;
 
     TFairShareActionQueuePtr AutomatonQueue_;
     TMasterAutomatonPtr Automaton_;
@@ -342,6 +408,24 @@ private:
         }
     }
 
+    void InitializeMailboxes()
+    {
+        if (MailboxesInitialized_)
+            return;
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        if (IsPrimaryMaster()) {
+            for (const auto& secondaryMaster : Config_->SecondaryMasters) {
+                auto* mailbox = hiveManager->GetOrCreateMailbox(secondaryMaster->CellId);
+                SecondaryMasterMailboxes_.push_back(mailbox);
+            }
+        } else {
+            PrimaryMasterMailbox_ = hiveManager->GetOrCreateMailbox(Config_->PrimaryMaster->CellId);
+        }
+
+        MailboxesInitialized_ = true;
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -423,6 +507,21 @@ const TCellId& THydraFacade::GetPrimaryCellId() const
 TCellTag THydraFacade::GetPrimaryCellTag() const
 {
     return Impl_->GetPrimaryCellTag();
+}
+
+void THydraFacade::PostToSecondaryMasters(IClientRequestPtr request)
+{
+    Impl_->PostToSecondaryMasters(std::move(request));
+}
+
+void THydraFacade::PostToSecondaryMasters(const TObjectId& objectId, IServiceContextPtr context)
+{
+    Impl_->PostToSecondaryMasters(objectId, std::move(context));
+}
+
+void THydraFacade::PostToSecondaryMasters(TSharedRefArray requestMessage)
+{
+    Impl_->PostToSecondaryMasters(std::move(requestMessage));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

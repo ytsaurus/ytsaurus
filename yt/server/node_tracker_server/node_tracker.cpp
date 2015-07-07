@@ -70,6 +70,11 @@ class TNodeTracker::TRackTypeHandler
 public:
     explicit TRackTypeHandler(TImpl* owner);
 
+    virtual bool IsReplicated() const override
+    {
+        return true;
+    }
+
     virtual EObjectType GetType() const override
     {
         return EObjectType::Rack;
@@ -79,8 +84,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden,
-            true);
+            EObjectAccountMode::Forbidden);
     }
 
     virtual TObjectBase* CreateObject(

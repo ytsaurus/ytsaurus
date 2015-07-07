@@ -104,6 +104,9 @@ protected:
     bool IsLeader() const;
     bool IsFollower() const;
 
+    bool IsPrimaryMaster() const;
+    bool IsSecondaryMaster() const;
+
     //! Returns |true| if reads for this node can only be served at leaders.
     /*!
      *  This flag is checked during YPath resolution so the fallback happens
@@ -111,6 +114,9 @@ protected:
      *  this node.
      */
     virtual bool IsLeaderReadRequired() const;
+
+    //! Posts the request to all secondary masters.
+    void PostToSecondaryMasters(NRpc::IServiceContextPtr context);
 
     virtual bool IsLoggingEnabled() const override;
     virtual NLogging::TLogger CreateLogger() const override;

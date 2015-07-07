@@ -8,11 +8,9 @@ namespace NObjectServer {
 
 TTypeCreationOptions::TTypeCreationOptions(
     EObjectTransactionMode transactionMode,
-    EObjectAccountMode accountMode,
-    bool supportsForeign)
+    EObjectAccountMode accountMode)
     : TransactionMode(transactionMode)
     , AccountMode(accountMode)
-    , SupportsForeign(supportsForeign)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
