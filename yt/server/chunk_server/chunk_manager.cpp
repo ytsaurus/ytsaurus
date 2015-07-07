@@ -156,10 +156,12 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Required,
-            EObjectAccountMode::Required);
+            EObjectAccountMode::Required,
+            false);
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -284,10 +286,12 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Required,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            false);
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -408,7 +412,7 @@ public:
     TChunk* CreateChunk(EObjectType type)
     {
         Profiler.Increment(AddedChunkCounter_);
-        auto id = Bootstrap_->GetObjectManager()->GenerateId(type);
+        auto id = Bootstrap_->GetObjectManager()->GenerateId(type, NullObjectId);
         auto chunkHolder = std::make_unique<TChunk>(id);
         return ChunkMap_.Insert(id, std::move(chunkHolder));
     }
@@ -416,7 +420,7 @@ public:
     TChunkList* CreateChunkList()
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::ChunkList);
+        auto id = objectManager->GenerateId(EObjectType::ChunkList, NullObjectId);
         auto chunkListHolder = std::make_unique<TChunkList>(id);
         return ChunkListMap_.Insert(id, std::move(chunkListHolder));
     }
@@ -1542,6 +1546,7 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
 }
 
 TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
+    const TObjectId& /*hintId*/,
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
@@ -1619,6 +1624,7 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
 }
 
 TObjectBase* TChunkManager::TChunkListTypeHandler::CreateObject(
+    const TObjectId& /*hintId*/,
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,

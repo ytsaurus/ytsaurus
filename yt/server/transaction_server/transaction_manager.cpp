@@ -217,10 +217,12 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Optional,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            true);
     }
 
     virtual TNonversionedObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* parent,
         TAccount* /*account*/,
         IAttributeDictionary* attributes,
@@ -299,7 +301,10 @@ public:
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this));
     }
 
-    TTransaction* StartTransaction(TTransaction* parent, TNullable<TDuration> timeout)
+    TTransaction* StartTransaction(
+        TTransaction* parent,
+        TNullable<TDuration> timeout,
+        const TObjectId& hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -308,7 +313,7 @@ public:
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Transaction);
+        auto id = objectManager->GenerateId(EObjectType::Transaction, hintId);
 
         auto transactionHolder = std::make_unique<TTransaction>(id);
         auto* transaction = TransactionMap_.Insert(id, std::move(transactionHolder));
@@ -773,15 +778,16 @@ TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(TImpl* own
 { }
 
 TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObject(
+    const TObjectId& hintId,
     TTransaction* parent,
     TAccount* /*account*/,
-    IAttributeDictionary* attributes,
+    IAttributeDictionary* /*attributes*/,
     TReqCreateObject* request,
     TRspCreateObject* /*response*/)
 {
     const auto& requestExt = request->GetExtension(TReqStartTransactionExt::create_transaction_ext);
     auto timeout = TDuration::MilliSeconds(requestExt.timeout());
-    auto* transaction = Owner_->StartTransaction(parent, timeout);
+    auto* transaction = Owner_->StartTransaction(parent, timeout, hintId);
     transaction->SetUncommittedAccountingEnabled(requestExt.enable_uncommitted_accounting());
     transaction->SetStagedAccountingEnabled(requestExt.enable_staged_accounting());
     return transaction;
@@ -802,7 +808,7 @@ void TTransactionManager::Initialize()
 
 TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNullable<TDuration> timeout)
 {
-    return Impl_->StartTransaction(parent, timeout);
+    return Impl_->StartTransaction(parent, timeout, NullObjectId);
 }
 
 void TTransactionManager::CommitTransaction(TTransaction* transaction)

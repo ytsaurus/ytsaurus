@@ -122,7 +122,7 @@ TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
 {
     auto type = GetObjectType();
     auto objectManager = Bootstrap_->GetObjectManager();
-    auto clonedId = objectManager->GenerateId(type);
+    auto clonedId = objectManager->GenerateId(type, NullObjectId);
     return factory->CreateNode(clonedId);
 }
 

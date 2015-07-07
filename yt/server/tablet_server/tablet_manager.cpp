@@ -115,10 +115,12 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            true);
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -126,7 +128,7 @@ public:
         TRspCreateObject* response) override;
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
     virtual Stroka DoGetName(TTabletCell* object) override
     {
@@ -156,7 +158,7 @@ public:
     }
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
     virtual Stroka DoGetName(TTablet* object) override
     {
@@ -228,12 +230,12 @@ public:
     }
 
 
-    TTabletCell* CreateCell(int size, IAttributeDictionary* attributes)
+    TTabletCell* CreateCell(int size, IAttributeDictionary* attributes, const TObjectId& hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::TabletCell);
+        auto id = objectManager->GenerateId(EObjectType::TabletCell, hintId);
         auto cellHolder = std::make_unique<TTabletCell>(id);
 
         cellHolder->SetSize(size);
@@ -331,7 +333,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Tablet);
+        auto id = objectManager->GenerateId(EObjectType::Tablet, NullObjectId);
         auto tabletHolder = std::make_unique<TTablet>(id);
         tabletHolder->SetTable(table);
 
@@ -801,9 +803,9 @@ private:
     friend class TTabletCellTypeHandler;
     friend class TTabletTypeHandler;
 
-    TTabletManagerConfigPtr Config_;
+    const TTabletManagerConfigPtr Config_;
 
-    TTabletTrackerPtr TabletTracker_;
+    const TTabletTrackerPtr TabletTracker_;
 
     TEntityMap<TTabletCellId, TTabletCell> TabletCellMap_;
     TEntityMap<TTabletId, TTablet> TabletMap_;
@@ -1904,6 +1906,7 @@ TTabletManager::TTabletCellTypeHandler::TTabletCellTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
+    const TObjectId& hintId,
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
@@ -1911,8 +1914,7 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
     TRspCreateObject* response)
 {
     // TODO(babenko): support arbitrary size
-    auto* cell = Owner_->CreateCell(1, attributes);
-    return cell;
+    return Owner_->CreateCell(1, attributes, hintId);
 }
 
 void TTabletManager::TTabletCellTypeHandler::DoZombifyObject(TTabletCell* cell)

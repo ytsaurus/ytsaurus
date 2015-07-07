@@ -90,10 +90,12 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            true);
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -106,7 +108,7 @@ public:
     }
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
     virtual Stroka DoGetName(TAccount* object) override
     {
@@ -141,10 +143,12 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            true);
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -152,7 +156,7 @@ public:
         TRspCreateObject* response) override;
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
     virtual Stroka DoGetName(TUser* user) override
     {
@@ -182,10 +186,12 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            true);
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -193,7 +199,7 @@ public:
         TRspCreateObject* response) override;
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
     virtual Stroka DoGetName(TGroup* group) override
     {
@@ -268,7 +274,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup, TGroupId);
 
 
-    TAccount* CreateAccount(const Stroka& name)
+    TAccount* CreateAccount(const Stroka& name, const TObjectId& hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Account name cannot be empty");
@@ -282,7 +288,7 @@ public:
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Account);
+        auto id = objectManager->GenerateId(EObjectType::Account, hintId);
         return DoCreateAccount(id, name);
     }
 
@@ -435,7 +441,7 @@ public:
     }
 
 
-    TUser* CreateUser(const Stroka& name)
+    TUser* CreateUser(const Stroka& name, const TObjectId& hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("User name cannot be empty");
@@ -456,7 +462,7 @@ public:
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::User);
+        auto id = objectManager->GenerateId(EObjectType::User, hintId);
         return DoCreateUser(id, name);
     }
 
@@ -509,7 +515,7 @@ public:
     }
 
 
-    TGroup* CreateGroup(const Stroka& name)
+    TGroup* CreateGroup(const Stroka& name, const TObjectId& hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Group name cannot be empty");
@@ -530,7 +536,7 @@ public:
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Group);
+        auto id = objectManager->GenerateId(EObjectType::Group, hintId);
         return DoCreateGroup(id, name);
     }
 
@@ -1486,6 +1492,7 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
+    const TObjectId& hintId,
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
@@ -1495,7 +1502,7 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    return Owner_->CreateAccount(name);
+    return Owner_->CreateAccount(name, hintId);
 }
 
 IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(
@@ -1519,6 +1526,7 @@ TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
+    const TObjectId& hintId,
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
@@ -1528,7 +1536,7 @@ TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    return Owner_->CreateUser(name);
+    return Owner_->CreateUser(name, hintId);
 }
 
 IObjectProxyPtr TSecurityManager::TUserTypeHandler::DoGetProxy(
@@ -1552,6 +1560,7 @@ TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
+    const TObjectId& hintId,
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
@@ -1561,7 +1570,7 @@ TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    return Owner_->CreateGroup(name);
+    return Owner_->CreateGroup(name, hintId);
 }
 
 IObjectProxyPtr TSecurityManager::TGroupTypeHandler::DoGetProxy(

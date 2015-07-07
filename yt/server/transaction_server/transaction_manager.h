@@ -58,7 +58,7 @@ public:
     void StageObject(TTransaction* transaction, NObjectServer::TObjectBase* object);
 
     //! Unregisters the object from its staging transaction,
-    //! calls IObjectTypeHandler::Unstage and
+    //! calls IObjectTypeHandler::UnstageObject and
     //! unreferences the object. Throws on failure.
     /*!
      *  If #recursive is |true| then all child objects are also released.

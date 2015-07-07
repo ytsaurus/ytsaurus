@@ -481,7 +481,7 @@ const std::set<EObjectType>& TObjectManager::GetRegisteredTypes() const
     return RegisteredTypes_;
 }
 
-TObjectId TObjectManager::GenerateId(EObjectType type)
+TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -492,7 +492,10 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     auto hydraFacade = Bootstrap_->GetHydraFacade();
     auto cellTag = hydraFacade->GetCellTag();
 
-    auto id = MakeRegularId(type, cellTag, random, version);
+    auto id = hintId == NullObjectId
+        ? MakeRegularId(type, cellTag, random, version)
+        : hintId;
+    YASSERT(TypeFromId(id) == type);
 
     ++CreatedObjectCount_;
 
@@ -887,6 +890,7 @@ TFuture<void> TObjectManager::GCCollect()
 }
 
 TObjectBase* TObjectManager::CreateObject(
+    const TObjectId& hintId,
     TTransaction* transaction,
     TAccount* account,
     EObjectType type,
@@ -952,6 +956,11 @@ TObjectBase* TObjectManager::CreateObject(
             YUNREACHABLE();
     }
 
+    if (!options->SupportsForeign && hintId != NullObjectId) {
+        THROW_ERROR_EXCEPTION("Cannot create an instance of %Qlv with a hinted id",
+            type);
+    }
+
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
@@ -961,6 +970,7 @@ TObjectBase* TObjectManager::CreateObject(
     }
 
     auto* object = handler->CreateObject(
+        hintId,
         transaction,
         account,
         attributes ? attributes : MutableEmptyAttributes.get(),
