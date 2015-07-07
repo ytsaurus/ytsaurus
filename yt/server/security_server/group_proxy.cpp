@@ -98,6 +98,10 @@ private:
         securityManager->AddMember(group, member);
 
         context->Reply();
+
+        if (IsPrimaryMaster()) {
+            PostToSecondaryMasters(context);
+        }
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NSecurityClient::NProto, RemoveMember)
@@ -117,6 +121,10 @@ private:
         securityManager->RemoveMember(group, member);
 
         context->Reply();
+
+        if (IsPrimaryMaster()) {
+            PostToSecondaryMasters(context);
+        }
     }
 };
 
