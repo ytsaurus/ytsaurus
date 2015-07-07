@@ -34,7 +34,7 @@ public:
         NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
         const TSessionOptions& options,
-        TLocationPtr location,
+        TStoreLocationPtr location,
         TLease lease);
 
     NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;

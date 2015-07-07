@@ -38,12 +38,13 @@ static NProfiling::TSimpleCounter DiskJournalReadByteCounter("/disk_journal_read
 
 TJournalChunk::TJournalChunk(
     TBootstrap* bootstrap,
-    TLocationPtr location,
+    TStoreLocationPtr location,
     const TChunkDescriptor& descriptor)
     : TChunkBase(
         bootstrap,
         location,
         descriptor.Id)
+    , StoreLocation_(location)
 {
     CachedRowCount_ = descriptor.RowCount;
     CachedDataSize_ = descriptor.DiskSpace;
@@ -51,6 +52,11 @@ TJournalChunk::TJournalChunk(
 
     Meta_->set_type(static_cast<int>(EChunkType::Journal));
     Meta_->set_version(0);
+}
+
+TStoreLocationPtr TJournalChunk::GetStoreLocation() const
+{
+    return StoreLocation_;
 }
 
 void TJournalChunk::SetActive(bool value)
@@ -159,7 +165,7 @@ void TJournalChunk::DoReadBlockRange(
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
-        auto changelog = WaitFor(dispatcher->OpenChangelog(Location_, Id_))
+        auto changelog = WaitFor(dispatcher->OpenChangelog(StoreLocation_, Id_))
             .ValueOrThrow();
 
         LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
@@ -234,11 +240,7 @@ void TJournalChunk::SyncRemove(bool force)
         }
     }
 
-    if (force) {
-        Location_->RemoveChunkFiles(Id_);
-    } else {
-        Location_->MoveChunkFilesToTrash(Id_);
-    }
+    Location_->RemoveChunkFiles(Id_, force);
 }
 
 TFuture<void> TJournalChunk::AsyncRemove()

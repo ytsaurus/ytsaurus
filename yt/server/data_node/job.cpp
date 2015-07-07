@@ -628,7 +628,7 @@ private:
         }
 
         auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
-        auto location = journalChunk->GetLocation();
+        auto location = journalChunk->GetStoreLocation();
         auto changelog = WaitFor(journalDispatcher->OpenChangelog(location, ChunkId_))
             .ValueOrThrow();
 
