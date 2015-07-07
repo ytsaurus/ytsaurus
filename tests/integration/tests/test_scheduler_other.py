@@ -181,23 +181,49 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
     }
 
     def test_operations_pool_limit(self):
+        create("map_node", "//sys/pools/test_pool_1")
+        create("map_node", "//sys/pools/test_pool_2")
+
         create("table", "//tmp/in")
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
+        create("table", "//tmp/out3")
         write("//tmp/in", [{"foo": i} for i in xrange(5)])
 
-        op1 = map(dont_track=True, command="sleep 1.7; cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
-        op2 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out2")
+        op1 = map(
+            dont_track=True,
+            command="sleep 1.7; cat >/dev/null",
+            in_=["//tmp/in"],
+            out="//tmp/out1",
+            spec={"pool": "test_pool_1"})
+
+        op2 = map(
+            dont_track=True,
+            command="cat >/dev/null",
+            in_=["//tmp/in"],
+            out="//tmp/out2",
+            spec={"pool": "test_pool_1"})
+
+        op3 = map(
+            dont_track=True,
+            command="sleep 1.7; cat >/dev/null",
+            in_=["//tmp/in"],
+            out="//tmp/out3",
+            spec={"pool": "test_pool_2"})
+
 
         time.sleep(1.5)
         assert get("//sys/operations/{0}/@state".format(op1)) == "running"
         assert get("//sys/operations/{0}/@state".format(op2)) == "pending"
+        assert get("//sys/operations/{0}/@state".format(op3)) == "running"
 
         track_op(op1)
         track_op(op2)
+        track_op(op3)
 
         assert read("//tmp/out1") == []
         assert read("//tmp/out2") == []
+        assert read("//tmp/out3") == []
 
     def test_pending_operations_after_revive(self):
         create("table", "//tmp/in")
