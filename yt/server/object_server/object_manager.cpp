@@ -503,6 +503,12 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     return id;
 }
 
+bool TObjectManager::IsForeign(TObjectBase* object)
+{
+    auto hydraFacade = Bootstrap_->GetHydraFacade();
+    return CellTagFromId(object->GetId()) != hydraFacade->GetCellTag();
+}
+
 void TObjectManager::RefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);

@@ -87,6 +87,9 @@ public:
     //! Creates a new unique object id.
     TObjectId GenerateId(EObjectType type);
 
+    //! Returns |true| if the object was replicated here from another cell.
+    bool IsForeign(TObjectBase* object);
+
     //! Adds a reference.
     void RefObject(TObjectBase* object);
 

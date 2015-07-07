@@ -599,6 +599,8 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attribu
     attributes->push_back("builtin");
     attributes->push_back("ref_counter");
     attributes->push_back("weak_ref_counter");
+    attributes->push_back("foreign");
+    attributes->push_back("remote");
     attributes->push_back(TAttributeInfo("supported_permissions", true, true));
     attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, false, false, EPermission::Administer));
     attributes->push_back(TAttributeInfo("acl", hasAcd, true, false, EPermission::Administer));
@@ -638,6 +640,19 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
     if (key == "weak_ref_counter") {
         BuildYsonFluently(consumer)
             .Value(Object_->GetObjectWeakRefCounter());
+        return true;
+    }
+
+    if (key == "foreign") {
+        BuildYsonFluently(consumer)
+            .Value(objectManager->IsForeign(Object_));
+        return true;
+    }
+
+    if (key == "remote") {
+        // XXX(babenko)
+        BuildYsonFluently(consumer)
+            .Value(false);
         return true;
     }
 
