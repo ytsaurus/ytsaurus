@@ -6,14 +6,13 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTypeCreationOptions::TTypeCreationOptions()
-{ }
-
 TTypeCreationOptions::TTypeCreationOptions(
     EObjectTransactionMode transactionMode,
-    EObjectAccountMode accountMode)
+    EObjectAccountMode accountMode,
+    bool supportsForeign)
     : TransactionMode(transactionMode)
     , AccountMode(accountMode)
+    , SupportsForeign(supportsForeign)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

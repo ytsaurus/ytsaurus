@@ -79,10 +79,12 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            true);
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -294,7 +296,7 @@ public:
     }
 
 
-    TRack* CreateRack(const Stroka& name)
+    TRack* CreateRack(const Stroka& name, const TObjectId& hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Rack name cannot be empty");
@@ -313,7 +315,7 @@ public:
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Rack);
+        auto id = objectManager->GenerateId(EObjectType::Rack, hintId);
 
         auto rackHolder = std::make_unique<TRack>(id);
         rackHolder->SetName(name);
@@ -1206,7 +1208,7 @@ TNodeConfigPtr TNodeTracker::GetNodeConfigByAddress(const Stroka& address)
 
 TRack* TNodeTracker::CreateRack(const Stroka& name)
 {
-    return Impl_->CreateRack(name);
+    return Impl_->CreateRack(name, NullObjectId);
 }
 
 void TNodeTracker::DestroyRack(TRack* rack)
@@ -1302,6 +1304,7 @@ TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
+    const TObjectId& hintId,
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
@@ -1311,7 +1314,7 @@ TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    return Owner_->CreateRack(name);
+    return Owner_->CreateRack(name, hintId);
 }
 
 IObjectProxyPtr TNodeTracker::TRackTypeHandler::DoGetProxy(

@@ -296,7 +296,8 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Optional,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            false);
     }
 
     virtual void ResetAllObjects() override
@@ -978,7 +979,7 @@ TLock* TCypressManager::DoCreateLock(
     const TLockRequest& request)
 {
     auto objectManager = Bootstrap_->GetObjectManager();
-    auto id = objectManager->GenerateId(EObjectType::Lock);
+    auto id = objectManager->GenerateId(EObjectType::Lock, NullObjectId);
     auto lockHolder = std::make_unique<TLock>(id);
     lockHolder->SetState(ELockState::Pending);
     lockHolder->SetTrunkNode(trunkNode);

@@ -34,14 +34,16 @@ DEFINE_ENUM(EObjectAccountMode,
 
 struct TTypeCreationOptions
 {
-    TTypeCreationOptions();
+    TTypeCreationOptions() = default;
 
     TTypeCreationOptions(
         EObjectTransactionMode transactionMode,
-        EObjectAccountMode accountMode);
+        EObjectAccountMode accountMode,
+        bool supportsForeign);
 
-    EObjectTransactionMode TransactionMode;
-    EObjectAccountMode AccountMode;
+    EObjectTransactionMode TransactionMode = EObjectTransactionMode::Forbidden;
+    EObjectAccountMode AccountMode = EObjectAccountMode::Forbidden;
+    bool SupportsForeign = false;
 
 };
 
@@ -79,16 +81,17 @@ struct IObjectTypeHandler
     typedef NRpc::TTypedServiceResponse<NObjectClient::NProto::TRspCreateObject> TRspCreateObject;
     //! Creates a new object instance.
     /*!
+     *  \param hintId Id for the new object, if |NullObjectId| then a new id is generated.
      *  \param transaction Transaction that becomes the owner of the newly created object.
-     *  May be |nullptr| if #IsTransactionRequired returns False.
      *  \param request Creation request (possibly containing additional parameters).
      *  \param response Creation response (which may also hold some additional result).
-     *  \returns the id of the newly created object.
+     *  \returns the newly created object.
      *
      *  Once #Create is completed, all request attributes are copied to object attributes.
      *  The handler may alter the request appropriately to control this process.
      */
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,

@@ -90,9 +90,9 @@ public:
         TRspCreate* response) override
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = TVersionedNodeId(objectManager->GenerateId(GetObjectType()));
+        auto id = objectManager->GenerateId(GetObjectType(), NObjectClient::NullObjectId);
 
-        auto node = DoCreate(id, request, response);
+        auto node = DoCreate(TVersionedNodeId(id), request, response);
         node->SetTrunkNode(node.get());
 
         return std::move(node);

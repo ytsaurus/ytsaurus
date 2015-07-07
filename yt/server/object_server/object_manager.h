@@ -84,8 +84,9 @@ public:
     //! Returns the set of registered object types, excluding schemas.
     const std::set<EObjectType>& GetRegisteredTypes() const;
 
-    //! Creates a new unique object id.
-    TObjectId GenerateId(EObjectType type);
+    //! If |hintId| is |NullObjectId| then creates a new unique object id.
+    //! Otherwise returns |hintId| (but checks its type).
+    TObjectId GenerateId(EObjectType type, const TObjectId& hintId);
 
     //! Returns |true| if the object was replicated here from another cell.
     bool IsForeign(TObjectBase* object);
@@ -165,6 +166,7 @@ public:
     TFuture<void> GCCollect();
 
     TObjectBase* CreateObject(
+        const TObjectId& hintId,
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         EObjectType type,

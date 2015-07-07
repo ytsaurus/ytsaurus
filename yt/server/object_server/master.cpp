@@ -84,6 +84,7 @@ private:
 
         for (int index = 0; index < request->object_count(); ++index) {
             auto* object = objectManager->CreateObject(
+                NullObjectId,
                 transaction,
                 account,
                 type,
@@ -101,12 +102,15 @@ private:
     {
         DeclareMutating();
 
+        auto objectId = request->has_object_id()
+            ? FromProto<TTransactionId>(request->object_id())
+            : NullObjectId;
         auto transactionId = request->has_transaction_id()
             ? FromProto<TTransactionId>(request->transaction_id())
             : NullTransactionId;
         auto type = EObjectType(request->type());
 
-        context->SetRequestInfo("TransactionId: %v, Type: %v, Account: %v",
+        context->SetRequestInfo("ObjectId: %v, TransactionId: %v, Type: %v, Account: %v",
             transactionId,
             type,
             request->has_account() ? MakeNullable(request->account()) : Null);
@@ -127,6 +131,7 @@ private:
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->CreateObject(
+            objectId,
             transaction,
             account,
             type,
@@ -134,10 +139,10 @@ private:
             request,
             response);
 
-        const auto& objectId = object->GetId();
-        ToProto(response->mutable_object_id(), objectId);
+        const auto& actualObjectId = object->GetId();
+        ToProto(response->mutable_object_id(), actualObjectId);
 
-        context->SetResponseInfo("ObjectId: %v", objectId);
+        context->SetResponseInfo("ObjectId: %v", actualObjectId);
         context->Reply();
     }
 
