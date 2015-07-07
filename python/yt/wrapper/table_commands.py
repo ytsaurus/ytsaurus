@@ -1418,14 +1418,14 @@ def run_remote_copy(source_table, destination_table, cluster_name,
 
         remote_proxy = get("//sys/clusters/{0}/proxy".format(cluster_name), client=client)
         current_proxy = get_config(client)["proxy"]["url"]
-        current_token = get_config(client)["proxy"]["token"]
+        current_token = get_config(client)["token"]
 
         get_config(client)["proxy"]["url"] = remote_proxy
-        get_config(client)["proxy"]["token"] = get_value(remote_cluster_token, get_config(client)["proxy"]["token"])
+        get_config(client)["token"] = get_value(remote_cluster_token, get_config(client)["token"])
         src_attributes = get(source_table[0] + "/@")
 
         get_config(client)["proxy"]["url"] = current_proxy
-        get_config(client)["proxy"]["token"] = current_token
+        get_config(client)["token"] = current_token
         attributes = src_attributes.get("user_attribute_keys", []) + \
                      ["compression_codec", "erasure_codec", "replication_factor"]
         for attribute in attributes:
