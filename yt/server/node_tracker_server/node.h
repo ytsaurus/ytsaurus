@@ -4,11 +4,14 @@
 
 #include <core/misc/property.h>
 #include <core/misc/nullable.h>
+#include <core/misc/ref_tracked.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 #include <server/hydra/entity_map.h>
+
+#include <server/object_server/object_detail.h>
 
 #include <server/chunk_server/public.h>
 #include <server/chunk_server/chunk_replica.h>
@@ -36,7 +39,8 @@ DEFINE_ENUM(ENodeState,
 );
 
 class TNode
-    : public NHydra::TEntityBase
+    : public NObjectServer::TObjectBase
+    , public TRefTracked<TNode>
 {
 public:
     // Import third-party types into the scope.
@@ -49,7 +53,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ui64, VisitMark);
     DEFINE_BYVAL_RW_PROPERTY(int, LoadRank);
 
-    DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, RegisterTime);
 
@@ -104,12 +107,13 @@ public:
 
 public:
     TNode(
-        TNodeId id,
+        const NObjectServer::TObjectId& objectId,
         const TAddressMap& addresses,
         TNodeConfigPtr config,
         TInstant registerTime);
-    explicit TNode(TNodeId id);
+    explicit TNode(const NObjectServer::TObjectId& objectId);
 
+    TNodeId GetId() const;
     TNodeDescriptor GetDescriptor() const;
     const TAddressMap& GetAddresses() const;
     const Stroka& GetDefaultAddress() const;

@@ -131,6 +131,7 @@ DEFINE_ENUM(EObjectType,
     ((TabletPartition)            (705))
     
     // Node Tracker stuff
+    ((ClusterNode)                (802))
     ((CellNodeMap)                (408))
     ((CellNode)                   (410))
     ((Rack)                       (800))
