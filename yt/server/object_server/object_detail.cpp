@@ -570,6 +570,32 @@ bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
     return TYPathServiceBase::DoInvoke(context);
 }
 
+void TObjectProxyBase::SetAttribute(
+    const NYTree::TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    TCtxSetPtr context)
+{
+    TSupportsAttributes::SetAttribute(path, request, response, context);
+
+    if (IsPrimaryMaster()) {
+        PostToSecondaryMasters(context);
+    }
+}
+
+void TObjectProxyBase::RemoveAttribute(
+    const NYTree::TYPath& path,
+    TReqRemove* request,
+    TRspRemove* response,
+    TCtxRemovePtr context)
+{
+    TSupportsAttributes::RemoveAttribute(path, request, response, context);
+
+    if (IsPrimaryMaster()) {
+        PostToSecondaryMasters(context);
+    }
+}
+
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
 {
     if (!CustomAttributes_) {
