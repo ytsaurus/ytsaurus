@@ -119,10 +119,11 @@ public:
         TAsyncSlruCacheBase::Config_->Capacity =
             unlimited ? std::numeric_limits<i64>::max() : capacity;
 
-        for (const auto& locationConfig : Config_->CacheLocations) {
-            auto location = New<TLocation>(
-                ELocationType::Cache,
-                "cache",
+        for (int i = 0; i < Config_->CacheLocations.size(); ++i) {
+            auto locationConfig = Config_->CacheLocations[i];
+
+            auto location = New<TCacheLocation>(
+                "cache" + ToString(i),
                 locationConfig,
                 Bootstrap_);
 
@@ -266,7 +267,7 @@ private:
         const TChunkDescriptor& descriptor)
     {
         location->GetWritePoolInvoker()->Invoke(BIND(
-            &TLocation::RemoveChunkFiles,
+            &TLocation::RemoveChunkFilesPermanently,
             location,
             descriptor.Id));
 

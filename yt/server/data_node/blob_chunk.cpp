@@ -378,11 +378,7 @@ void TBlobChunkBase::SyncRemove(bool force)
     auto readerCache = Bootstrap_->GetBlobReaderCache();
     readerCache->EvictReader(this);
 
-    if (force) {
-        Location_->RemoveChunkFiles(Id_);
-    } else {
-        Location_->MoveChunkFilesToTrash(Id_);
-    }
+    Location_->RemoveChunkFiles(Id_, force);
 }
 
 TFuture<void> TBlobChunkBase::AsyncRemove()

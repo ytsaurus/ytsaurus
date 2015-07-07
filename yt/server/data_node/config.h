@@ -34,7 +34,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TPeerBlockTableConfig)
 
-class TLocationConfig
+class TLocationConfigBase
     : public NYTree::TYsonSerializable
 {
 public:
@@ -48,6 +48,25 @@ public:
     //! Minimum size the disk partition must have to make this location usable.
     TNullable<i64> MinDiskSpace;
 
+    TLocationConfigBase()
+    {
+        RegisterParameter("path", Path)
+            .NonEmpty();
+        RegisterParameter("quota", Quota)
+            .GreaterThanOrEqual(0)
+            .Default(TNullable<i64>());
+        RegisterParameter("min_disk_space", MinDiskSpace)
+            .GreaterThanOrEqual(0)
+            .Default(TNullable<i64>());
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TLocationConfigBase);
+
+class TStoreLocationConfig
+    : public TLocationConfigBase
+{
+public:
     //! The location is considered to be full when available space becomes less than #LowWatermark.
     i64 LowWatermark;
 
@@ -68,16 +87,8 @@ public:
     //! Controls if new journal chunks are accepted by this location.
     bool EnableJournals;
 
-    TLocationConfig()
+    TStoreLocationConfig()
     {
-        RegisterParameter("path", Path)
-            .NonEmpty();
-        RegisterParameter("quota", Quota)
-            .GreaterThanOrEqual(0)
-            .Default(TNullable<i64>());
-        RegisterParameter("min_disk_space", MinDiskSpace)
-            .GreaterThanOrEqual(0)
-            .Default(TNullable<i64>());
         RegisterParameter("low_watermark", LowWatermark)
             .GreaterThanOrEqual(0)
             .Default((i64) 20 * 1024 * 1024 * 1024); // 20 Gb
@@ -105,7 +116,13 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TLocationConfig)
+DEFINE_REFCOUNTED_TYPE(TStoreLocationConfig);
+
+class TCacheLocationConfig
+    : public TLocationConfigBase
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig);
 
 class TDiskHealthCheckerConfig
     : public NYTree::TYsonSerializable
@@ -247,10 +264,10 @@ public:
     i64 BusInThrottlingLimit;
 
     //! Regular storage locations.
-    std::vector<TLocationConfigPtr> StoreLocations;
+    std::vector<TStoreLocationConfigPtr> StoreLocations;
 
     //! Cached chunks location.
-    std::vector<TLocationConfigPtr> CacheLocations;
+    std::vector<TCacheLocationConfigPtr> CacheLocations;
 
     //! Remote reader configuration used to download chunks into cache.
     NChunkClient::TReplicationReaderConfigPtr CacheRemoteReader;
