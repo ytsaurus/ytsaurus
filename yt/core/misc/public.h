@@ -67,6 +67,9 @@ using TFingerprint = ui64;
 template <class T, unsigned size>
 class SmallVector;
 
+template <class TProto>
+class TRefCountedProto;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,

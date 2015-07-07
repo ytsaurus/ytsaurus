@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <core/misc/protobuf_helpers.h>
 #include <core/misc/ref.h>
 
 #include <core/actions/future.h>
@@ -13,20 +14,6 @@ namespace NYT {
 namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TRefCountedChunkMeta
-    : public TIntrinsicRefCounted
-    , public NChunkClient::NProto::TChunkMeta
-{
-public:
-    TRefCountedChunkMeta();
-    TRefCountedChunkMeta(const TRefCountedChunkMeta& other);
-    TRefCountedChunkMeta(TRefCountedChunkMeta&& other);
-
-    explicit TRefCountedChunkMeta(const NChunkClient::NProto::TChunkMeta& other);
-    explicit TRefCountedChunkMeta(NChunkClient::NProto::TChunkMeta&& other);
-
-};
 
 DEFINE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 

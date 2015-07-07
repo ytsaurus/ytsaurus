@@ -335,6 +335,38 @@ void FilterProtoExtensions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Wrapper that makes proto message refcounted.
+template <class TProto>
+class TRefCountedProto
+    : public TIntrinsicRefCounted
+    , public TProto
+{
+public:
+    TRefCountedProto() = default;
+
+    TRefCountedProto(const TRefCountedProto<TProto>& other)
+    {
+        TProto::CopyFrom(other);
+    }
+
+    TRefCountedProto(TRefCountedProto<TProto>&& other)
+    {
+        TProto::Swap(&other);
+    }
+
+    explicit TRefCountedProto(const TProto& other)
+    {
+        TProto::CopyFrom(other);
+    }
+
+    explicit TRefCountedProto(TProto&& other)
+    {
+        TProto::Swap(&other);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define PROTOBUF_HELPERS_INL_H_
