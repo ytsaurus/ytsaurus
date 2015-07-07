@@ -121,3 +121,18 @@ class TestErasure(YTEnvSetup):
         assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
+
+    def test_part_ids(self):
+        create("table", "//tmp/t")
+        set("//tmp/t/@erasure_codec", "lrc_12_2_2")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        parts = chunk_id.split("-")
+        for x in xrange(103, 119):
+            part_id = "%s-%s-%s%x-%s" % (parts[0], parts[1], parts[2][:-2], x, parts[3])
+            assert get("#" + part_id + "/@id") == chunk_id
+            
+
+        

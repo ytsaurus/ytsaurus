@@ -134,7 +134,7 @@ public:
 private:
     class TImpl;
     class TChunkTypeHandlerBase;
-    class TChunkTypeHandler;
+    class TRegularChunkTypeHandler;
     class TErasureChunkTypeHandler;
     class TJournalChunkTypeHandler;
     class TChunkListTypeHandler;

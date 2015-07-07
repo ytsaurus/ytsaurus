@@ -152,13 +152,6 @@ class TChunkManager::TChunkTypeHandlerBase
 public:
     explicit TChunkTypeHandlerBase(TImpl* owner);
 
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        return TTypeCreationOptions(
-            EObjectTransactionMode::Required,
-            EObjectAccountMode::Required);
-    }
-
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
         TTransaction* transaction,
@@ -167,7 +160,6 @@ public:
         TReqCreateObject* request,
         TRspCreateObject* response) override;
 
-
     virtual void ResetAllObjects() override
     {
         // NB: All chunk type handlers share the same map.
@@ -175,6 +167,11 @@ public:
         if (GetType() == EObjectType::Chunk) {
             TObjectTypeHandlerWithMapBase::ResetAllObjects();
         }
+    }
+
+    virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override
+    {
+        return Map_->Find(DecodeChunkId(id).Id);
     }
 
 protected:
@@ -201,13 +198,20 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkManager::TChunkTypeHandler
+class TChunkManager::TRegularChunkTypeHandler
     : public TChunkTypeHandlerBase
 {
 public:
-    explicit TChunkTypeHandler(TImpl* owner)
+    explicit TRegularChunkTypeHandler(TImpl* owner)
         : TChunkTypeHandlerBase(owner)
     { }
+
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    {
+        return TTypeCreationOptions(
+            EObjectTransactionMode::Required,
+            EObjectAccountMode::Required);
+    }
 
     virtual EObjectType GetType() const override
     {
@@ -228,16 +232,30 @@ class TChunkManager::TErasureChunkTypeHandler
     : public TChunkTypeHandlerBase
 {
 public:
-    explicit TErasureChunkTypeHandler(TImpl* owner)
+    TErasureChunkTypeHandler(TImpl* owner, EObjectType type)
         : TChunkTypeHandlerBase(owner)
+        , Type_(type)
     { }
+
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    {
+        if (Type_ == EObjectType::ErasureChunk) {
+            return TTypeCreationOptions(
+                EObjectTransactionMode::Required,
+                EObjectAccountMode::Required);
+        } else {
+            return Null;
+        }
+    }
 
     virtual EObjectType GetType() const override
     {
-        return EObjectType::ErasureChunk;
+        return Type_;
     }
 
 private:
+    const EObjectType Type_;
+
     virtual Stroka DoGetName(TChunk* chunk) override
     {
         return Format("erasure chunk %v", chunk->GetId());
@@ -357,8 +375,14 @@ public:
     void Initialize()
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RegisterHandler(New<TChunkTypeHandler>(this));
-        objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this));
+        objectManager->RegisterHandler(New<TRegularChunkTypeHandler>(this));
+        objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this, EObjectType::ErasureChunk));
+        for (auto type = MinErasureChunkPartType;
+             type <= MaxErasureChunkPartType;
+             type = static_cast<EObjectType>(static_cast<int>(type) + 1))
+        {
+            objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this, type));
+        }
         objectManager->RegisterHandler(New<TJournalChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
 
@@ -875,7 +899,7 @@ public:
 
 private:
     friend class TChunkTypeHandlerBase;
-    friend class TChunkTypeHandler;
+    friend class TRegularChunkTypeHandler;
     friend class TErasureChunkTypeHandler;
     friend class TChunkListTypeHandler;
 

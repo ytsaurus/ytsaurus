@@ -146,6 +146,10 @@ const EObjectType MaxObjectType = EObjectType(
     static_cast<int>(TEnumTraits<EObjectType>::GetMaxValue()) +
     SchemaObjectTypeMask);
 
+// The range of erasure chunk part types.
+const EObjectType MinErasureChunkPartType = EObjectType::ErasureChunkPart_0;
+const EObjectType MaxErasureChunkPartType = EObjectType::ErasureChunkPart_15;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef TObjectId TTransactionId;
