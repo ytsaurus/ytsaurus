@@ -1102,6 +1102,9 @@ class Finalizer(object):
                     remove_with_empty_dirs(table, client=self.client)
 
     def check_for_merge(self, table):
+        if get_config(self.client)["auto_merge_output"]["action"] == "none":
+            return
+
         chunk_count = int(get_attribute(table, "chunk_count", client=self.client))
         if  chunk_count < get_config(self.client)["auto_merge_output"]["min_chunk_count"]:
             return
@@ -1116,7 +1119,7 @@ class Finalizer(object):
 
         mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
 
-        if get_config(self.client)["auto_merge_output"]["enable"]:
+        if get_config(self.client)["auto_merge_output"]["action"] == "merge":
             table = TablePath(table, append=False)
             run_merge(source_table=table, destination_table=table, mode=mode,
                       spec={"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job},
