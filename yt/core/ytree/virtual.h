@@ -32,6 +32,7 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
 
 };
 

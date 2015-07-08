@@ -600,6 +600,10 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                     }
                     GuardedSetBuiltinAttribute(key, newAttributeYson.Get());
                     YCHECK(newAttributes->Remove(key));
+                } else {
+                    if (attribute.IsPresent && attribute.IsRemovable) {
+                        GuardedRemoveBuiltinAttribute(key);
+                    }
                 }
             }
         }
@@ -711,6 +715,19 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
     NYPath::TTokenizer tokenizer(path);
     switch (tokenizer.Advance()) {
         case NYPath::ETokenType::Asterisk: {
+            if (builtinAttributeProvider) {
+                std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
+                builtinAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
+
+                for (const auto& attribute : builtinAttributes) {
+                    if (attribute.IsPresent && attribute.IsRemovable) {
+                        permissionValidator.Validate(attribute.WritePermission);
+                        Stroka key(attribute.Key);
+                        GuardedRemoveBuiltinAttribute(key);
+                    }
+                }
+            }
+
             if (customAttributes) {
                 auto customKeys = customAttributes->List();
                 std::sort(customKeys.begin(), customKeys.end());
@@ -726,21 +743,22 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
             auto key = tokenizer.GetLiteralValue();
             auto customYson = customAttributes ? customAttributes->FindYson(key) : TNullable<TYsonString>(Null);
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-                if (!customYson) {
-                    if (builtinAttributeProvider) {
-                        auto attributeInfo = builtinAttributeProvider->FindBuiltinAttributeInfo(key);
-                        if (attributeInfo) {
-                            ThrowCannotRemoveAttribute(key);
-                        } else {
-                            ThrowNoSuchCustomAttribute(key);
-                        }
-                    } else {
+                if (customYson) {
+                    permissionValidator.Validate(EPermission::Write);
+                    YCHECK(customAttributes->Remove(key));
+                } else {
+                    if (!builtinAttributeProvider) {
                         ThrowNoSuchCustomAttribute(key);
                     }
-                }
 
-                permissionValidator.Validate(EPermission::Write);
-                YCHECK(customAttributes->Remove(key));
+                    auto attributeInfo = builtinAttributeProvider->FindBuiltinAttributeInfo(key);
+                    if (!attributeInfo || !attributeInfo->IsPresent) {
+                        ThrowNoSuchCustomAttribute(key);
+                    }
+
+                    permissionValidator.Validate(attributeInfo->WritePermission);
+                    GuardedRemoveBuiltinAttribute(key);
+                }
             } else {
                 if (customYson) {
                     permissionValidator.Validate(EPermission::Write);
@@ -828,6 +846,22 @@ void TSupportsAttributes::GuardedSetBuiltinAttribute(const Stroka& key, const TY
 
     if (!result) {
         ThrowCannotSetBuiltinAttribute(key);
+    }
+}
+
+void TSupportsAttributes::GuardedRemoveBuiltinAttribute(const Stroka& key)
+{
+    bool result;
+    try {
+        result = GetBuiltinAttributeProvider()->RemoveBuiltinAttribute(key);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error removing builtin attribute %Qv",
+            ToYPathLiteral(key))
+            << ex;
+    }
+
+    if (!result) {
+        ThrowCannotRemoveAttribute(key);
     }
 }
 

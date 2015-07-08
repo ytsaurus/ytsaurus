@@ -160,10 +160,13 @@ ISystemAttributeProvider* TVirtualMapBase::GetBuiltinAttributeProvider()
     return this;
 }
 
-bool TVirtualMapBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
+bool TVirtualMapBase::SetBuiltinAttribute(const Stroka& /*key*/, const TYsonString& /*value*/)
 {
-    UNUSED(key);
-    UNUSED(value);
+    return false;
+}
+
+bool TVirtualMapBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
+{
     return false;
 }
 

@@ -27,6 +27,7 @@ struct ISystemAttributeProvider
         bool IsPresent;
         bool IsOpaque;
         bool IsCustom;
+        bool IsRemovable;
         NYTree::EPermissionSet WritePermission;
 
         TAttributeInfo(
@@ -34,11 +35,13 @@ struct ISystemAttributeProvider
             bool isPresent = true,
             bool isOpaque = false,
             bool isCustom = false,
+            bool isRemovable = false,
             EPermission writePermission = EPermission::Write)
             : Key(key)
             , IsPresent(isPresent)
             , IsOpaque(isOpaque)
             , IsCustom(isCustom)
+            , IsRemovable(isRemovable)
             , WritePermission(writePermission)
         { }
     };
@@ -70,6 +73,12 @@ struct ISystemAttributeProvider
      *  \returns |false| if there is no writable builtin attribute with the given key.
      */
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) = 0;
+
+    //! Removes value of a builtin attribute.
+    /*!
+     *  \returns |false| if there is no removalbe builtin attribute with the given key.
+     */
+    virtual bool RemoveBuiltinAttribute(const Stroka& key) = 0;
 
 
     // Extension methods.

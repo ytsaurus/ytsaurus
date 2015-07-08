@@ -326,7 +326,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back("revision");
     attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
-    attributes->push_back(TAttributeInfo("account", true, false, false, EPermission::Administer));
+    attributes->push_back(TAttributeInfo("account", true, false, false, false, EPermission::Administer));
     attributes->push_back("user_attribute_keys");
     TObjectProxyBase::ListSystemAttributes(attributes);
 }
