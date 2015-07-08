@@ -17,7 +17,7 @@ TCellConfig::TCellConfig()
 
     RegisterValidator([&] () {
         if (TypeFromId(CellId) != EObjectType::Cell) {
-            THROW_ERROR_EXCEPTION("\"cell_id\" must be a proper id of %Qvl type",
+            THROW_ERROR_EXCEPTION("\"cell_id\" must be a proper id of %Qlv type",
                 EObjectType::Cell);
         }
     });
