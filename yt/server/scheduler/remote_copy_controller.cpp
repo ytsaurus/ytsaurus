@@ -205,7 +205,6 @@ private:
         {
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
 
-            auto* remoteCopyJobSpecExt = jobSpec->MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
             auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             NNodeTrackerClient::TNodeDirectoryBuilder directoryBuilder(
                 Controller_->NodeDirectory,
