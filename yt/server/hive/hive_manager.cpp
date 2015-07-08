@@ -46,6 +46,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NTracing;
 
+using NYT::ToProto;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,6 +83,7 @@ public:
         , CellDirectory_(cellDirectory)
     {
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping));
+        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncCells));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PostMessages));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SendMessages));
 
@@ -272,6 +274,67 @@ private:
 
         context->SetResponseInfo("LastIncomingMessageId: %v",
             lastIncomingMessageId);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, SyncCells)
+    {
+        context->SetRequestInfo();
+
+        auto registeredCellList = CellDirectory_->GetRegisteredCells();
+        yhash_map<TCellId, NHive::TCellInfo> registeredCellMap;
+        for (const auto& cellInfo : registeredCellList) {
+            YCHECK(registeredCellMap.insert(std::make_pair(cellInfo.CellId, cellInfo)).second);
+        }
+
+        yhash_set<TCellId> missingCellIds;
+        for (const auto& cellInfo : registeredCellList) {
+            YCHECK(missingCellIds.insert(cellInfo.CellId).second);
+        }
+
+        auto requestReconfigure = [&] (const NHive::TCellDescriptor& cellDescriptor, int oldVersion) {
+            LOG_DEBUG("Requesting cell reconfiguration (CellId: %v, ConfigVersion: %v->%v)",
+                cellDescriptor.CellId,
+                oldVersion,
+                cellDescriptor.ConfigVersion);
+            auto* protoInfo = response->add_cells_to_reconfigure();
+            ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
+        };
+
+        auto requestUnregister = [&] (const TCellId& cellId) {
+            LOG_DEBUG("Requesting cell unregistration (CellId: %v)",
+                cellId);
+            auto* unregisterInfo = response->add_cells_to_unregister();
+            ToProto(unregisterInfo->mutable_cell_id(), cellId);
+        };
+
+        for (const auto& protoCellInfo : request->known_cells()) {
+            auto cellId = FromProto<TCellId>(protoCellInfo.cell_id());
+            auto it = registeredCellMap.find(cellId);
+            if (it == registeredCellMap.end()) {
+                requestUnregister(cellId);
+            } else {
+                YCHECK(missingCellIds.erase(cellId) == 1);
+                const auto& cellInfo = it->second;
+                if (protoCellInfo.config_version() < cellInfo.ConfigVersion) {
+                    auto cellDescriptor = CellDirectory_->FindDescriptor(cellId);
+                    // If cell descriptor is already missing then just skip this cell and
+                    // postpone it for another heartbeat.
+                    if (cellDescriptor) {
+                        requestReconfigure(*cellDescriptor, protoCellInfo.config_version());
+                    }
+                }
+            }
+        }
+
+        for (const auto& cellId : missingCellIds) {
+            auto cellDescriptor = CellDirectory_->FindDescriptor(cellId);
+            // See above.
+            if (cellDescriptor) {
+                requestReconfigure(*cellDescriptor, -1);
+            }
+        }
 
         context->Reply();
     }
@@ -505,7 +568,7 @@ private:
 
         auto proxy = BuildMailboxProxy(mailbox);
         if (!proxy) {
-            // Let's register a dummy descriptor so as to make a master request at the next heartbeat.
+            // Let's register a dummy descriptor so as to ask about it during the next sync.
             NHive::TCellDescriptor descriptor;
             descriptor.CellId = cellId;
             CellDirectory_->ReconfigureCell(descriptor);
@@ -519,6 +582,7 @@ private:
 
         auto req = proxy->Ping();
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
+
         req->Invoke().Subscribe(
             BIND(&TImpl::OnPingResponse, MakeStrong(this), mailbox->GetCellId())
                 .Via(EpochAutomatonInvoker_));

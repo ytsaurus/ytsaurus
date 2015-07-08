@@ -1122,62 +1122,6 @@ private:
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;
         }
-
-        // Request to remove orphaned Hive cells.
-        // Reconfigure missing and outdated ones.
-        auto requestReconfigureCell = [&] (TTabletCell* cell) {
-            if (!response)
-                return;
-
-            LOG_DEBUG("Requesting Hive cell reconfiguration (Address: %v, CellId: %v, ConfigVersion: %v)",
-                node->GetDefaultAddress(),
-                cell->GetId(),
-                cell->GetConfigVersion());
-
-            auto* protoInfo = response->add_hive_cells_to_reconfigure();
-            ToProto(protoInfo->mutable_cell_descriptor(), cell->GetDescriptor());
-        };
-
-        auto requestUnregisterCell = [&] (const TTabletCellId& cellId) {
-            if (!response)
-                return;
-
-            LOG_DEBUG("Requesting Hive cell unregistration (Address: %v, CellId: %v)",
-                node->GetDefaultAddress(),
-                cellId);
-
-            auto* unregisterInfo = response->add_hive_cells_to_unregister();
-            ToProto(unregisterInfo->mutable_cell_id(), cellId);
-        };
-
-        yhash_set<TTabletCell*> missingCells;
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (IsObjectAlive(cell)) {
-               YCHECK(missingCells.insert(pair.second).second);
-            }
-        }
-
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        for (const auto& cellInfo : request.hive_cells()) {
-            auto cellId = FromProto<TCellId>(cellInfo.cell_id());
-            if (cellId == hydraFacade->GetPrimaryCellId())
-                continue;
-
-            auto* cell = FindTabletCell(cellId);
-            if (IsObjectAlive(cell)) {
-                YCHECK(missingCells.erase(cell) == 1);
-                if (cellInfo.config_version() < cell->GetConfigVersion()) {
-                    requestReconfigureCell(cell);
-                }
-            } else {
-                requestUnregisterCell(cellId);
-            }
-        }
-
-        for (auto* cell : missingCells) {
-            requestReconfigureCell(cell);
-        }
     }
 
     void OnPopulateCellDescriptors(std::vector<TCellDescriptor>* descriptors)

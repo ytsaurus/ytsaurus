@@ -33,6 +33,8 @@
 
 #include <server/tablet_node/public.h>
 
+#include <server/hive/public.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -99,7 +101,9 @@ private:
     IInvokerPtr BoundedConcurrencyReadPoolInvoker;
 
     NBus::IBusServerPtr BusServer;
+    NApi::IConnectionPtr MasterConnection;
     NApi::IClientPtr MasterClient;
+    NHive::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
     std::unique_ptr<NHttp::TServer> HttpServer;
     NRpc::IChannelFactoryPtr TabletChannelFactory;

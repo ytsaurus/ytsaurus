@@ -425,6 +425,7 @@ private:
         }
 
         auto cellDirectory = Connection_->GetCellDirectory();
+        const auto& networkName = Connection_->GetConfig()->NetworkName;
 
         std::vector<std::pair<TDataSource, Stroka>> subsources;
         for (const auto& range : ranges) {
@@ -461,14 +462,21 @@ private:
                 subsource.Range.first = rowBuffer->Capture(std::max(lowerBound, pivotKey.Get()));
                 subsource.Range.second = rowBuffer->Capture(std::min(upperBound, nextPivotKey.Get()));
 
-                auto addresses = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
-                if (addresses.empty()) {
+                auto descriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
+                std::vector<NNodeTrackerClient::TNodeDescriptor> peers;
+                for (const auto& peer : descriptor.Peers) {
+                    if (!peer.IsNull()) {
+                        peers.push_back(peer);
+                    }
+                }
+
+                if (peers.empty()) {
                     THROW_ERROR_EXCEPTION("No alive replicas for tablet %v",
                         tabletInfo->TabletId);
                 }
 
-                const auto& address = addresses[RandomNumber(addresses.size())];
-                subsources.emplace_back(std::move(subsource), address);
+                const auto& peer = peers[RandomNumber(peers.size())];
+                subsources.emplace_back(std::move(subsource), peer.GetAddress(networkName));
             }
         }
 

@@ -21,6 +21,11 @@ static const Stroka NullAddress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNodeDescriptor::TNodeDescriptor(const Stroka& defaultAddress)
+{
+    YCHECK(Addresses_.insert(std::make_pair(DefaultNetworkName, defaultAddress)).second);
+}
+
 TNodeDescriptor::TNodeDescriptor(
     const TAddressMap& addresses,
     const TNullable<Stroka>& rack)

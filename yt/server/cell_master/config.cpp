@@ -23,6 +23,8 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("cell_directory", CellDirectory)
         .DefaultNew();
+    RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
+        .DefaultNew();
     RegisterParameter("hive_manager", HiveManager)
         .DefaultNew();
     RegisterParameter("node_tracker", NodeTracker)

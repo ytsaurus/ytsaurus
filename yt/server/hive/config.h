@@ -13,7 +13,7 @@ class THiveManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Interval period consequent Ping requests to remote Hive instances.
+    //! Interval between consequent Ping requests to remote Hive instances.
     TDuration PingPeriod;
 
     //! Timeout for all RPC requests exchanged by cells.
@@ -29,6 +29,27 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(THiveManagerConfig)
+
+class TCellDirectorySynchronizerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Interval between consequent SyncCells request to the primary Hive instance.
+    TDuration SyncPeriod;
+
+    //! Timeout for all RPC requests.
+    TDuration RpcTimeout;
+
+    TCellDirectorySynchronizerConfig()
+    {
+        RegisterParameter("sync_period", SyncPeriod)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(5));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)
 
 class TTransactionSupervisorConfig
     : public NYTree::TYsonSerializable

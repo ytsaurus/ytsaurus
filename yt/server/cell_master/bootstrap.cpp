@@ -50,6 +50,7 @@
 #include <server/hive/hive_manager.h>
 #include <server/hive/transaction_manager.h>
 #include <server/hive/transaction_supervisor.h>
+#include <server/hive/cell_directory_synchronizer.h>
 
 #include <server/node_tracker_server/node_tracker.h>
 
@@ -310,6 +311,13 @@ void TBootstrap::DoInitialize()
         GetBusChannelFactory(),
         NNodeTrackerClient::InterconnectNetworkName);
 
+    if (HydraFacade_->IsSecondaryMaster()) {
+        CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
+            Config_->CellDirectorySynchronizer,
+            CellDirectory_,
+            HydraFacade_->GetPrimaryCellId());
+    }
+
     HiveManager_ = New<THiveManager>(
         Config_->HiveManager,
         CellDirectory_,
@@ -362,6 +370,9 @@ void TBootstrap::DoInitialize()
     CypressManager_->Initialize();
     ChunkManager_->Initialize();
     TabletManager_->Initialize();
+    if (CellDirectorySynchronizer_) {
+        CellDirectorySynchronizer_->Start();
+    }
 
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
