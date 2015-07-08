@@ -172,13 +172,13 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
 
     SmallSet<Stroka, TypicalCellSize> forbiddenAddresses;
     for (const auto& peer : peers) {
-        if (peer.Descriptor) {
-            forbiddenAddresses.insert(peer.Descriptor->GetDefaultAddress());
+        if (!peer.Descriptor.IsNull()) {
+            forbiddenAddresses.insert(peer.Descriptor.GetDefaultAddress());
         }
     }
 
     for (TPeerId peerId = 0; peerId < static_cast<int>(peers.size()); ++peerId) {
-        if (peers[peerId].Descriptor)
+        if (!peers[peerId].Descriptor.IsNull())
             continue;
 
         auto* node = pool->TryAllocate(cell, forbiddenAddresses);
@@ -237,7 +237,7 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
 bool TTabletTracker::IsFailoverNeeded(TTabletCell* cell, TPeerId peerId)
 {
     const auto& peer = cell->Peers()[peerId];
-    if (!peer.Descriptor) {
+    if (peer.Descriptor.IsNull()) {
         return false;
     }
 
@@ -246,7 +246,7 @@ bool TTabletTracker::IsFailoverNeeded(TTabletCell* cell, TPeerId peerId)
     }
 
     auto nodeTracker = Bootstrap_->GetNodeTracker();
-    auto config = nodeTracker->FindNodeConfigByAddress(peer.Descriptor->GetDefaultAddress());
+    auto config = nodeTracker->FindNodeConfigByAddress(peer.Descriptor.GetDefaultAddress());
     if (config && (config->Banned || config->Decommissioned)) {
         return true;
     }

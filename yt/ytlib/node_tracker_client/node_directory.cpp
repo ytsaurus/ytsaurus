@@ -17,6 +17,10 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const Stroka NullAddress;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNodeDescriptor::TNodeDescriptor(
     const TAddressMap& addresses,
     const TNullable<Stroka>& rack)
@@ -24,14 +28,19 @@ TNodeDescriptor::TNodeDescriptor(
     , Rack_(rack)
 { }
 
+bool TNodeDescriptor::IsNull() const
+{
+    return Addresses_.empty();
+}
+
 const Stroka& TNodeDescriptor::GetDefaultAddress() const
 {
-    return NNodeTrackerClient::GetDefaultAddress(Addresses_);
+    return IsNull() ? NullAddress : NNodeTrackerClient::GetDefaultAddress(Addresses_);
 }
 
 const Stroka& TNodeDescriptor::GetInterconnectAddress() const
 {
-    return NNodeTrackerClient::GetInterconnectAddress(Addresses_);
+    return IsNull() ? NullAddress : NNodeTrackerClient::GetInterconnectAddress(Addresses_);
 }
 
 const Stroka& TNodeDescriptor::GetAddressOrThrow(const Stroka& name) const
@@ -89,10 +98,14 @@ void TNodeDescriptor::Persist(TStreamPersistenceContext& context)
 Stroka ToString(const TNodeDescriptor& descriptor)
 {
     TStringBuilder builder;
-    builder.AppendString(descriptor.GetDefaultAddress());
-    if (descriptor.GetRack()) {
-        builder.AppendChar('@');
-        builder.AppendString(*descriptor.GetRack());
+    if (descriptor.IsNull()) {
+        builder.AppendString("<Null>");
+    } else {
+        builder.AppendString(descriptor.GetDefaultAddress());
+        if (descriptor.GetRack()) {
+            builder.AppendChar('@');
+            builder.AppendString(*descriptor.GetRack());
+        }
     }
     return builder.Flush();
 }
