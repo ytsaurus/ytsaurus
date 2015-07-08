@@ -323,8 +323,8 @@ public:
             if (peer.Node) {
                 peer.Node->DetachTabletCell(cell);
             }
-            if (peer.Descriptor) {
-                RemoveFromAddressToCellMap(*peer.Descriptor, cell);
+            if (!peer.Descriptor.IsNull()) {
+                RemoveFromAddressToCellMap(peer.Descriptor, cell);
             }
         }
 
@@ -869,8 +869,8 @@ private:
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             for (const auto& peer : cell->Peers()) {
-                if (peer.Descriptor) {
-                    AddToAddressToCellMap(*peer.Descriptor, cell);
+                if (!peer.Descriptor.IsNull()) {
+                    AddToAddressToCellMap(peer.Descriptor, cell);
                 }
             }
             auto* transaction = cell->GetPrerequisiteTransaction();
@@ -1226,7 +1226,7 @@ private:
             auto descriptor = FromProto<TNodeDescriptor>(peerInfo.node_descriptor());
 
             auto& peer = cell->Peers()[peerId];
-            if (peer.Descriptor)
+            if (!peer.Descriptor.IsNull())
                 continue;
 
             AddToAddressToCellMap(descriptor, cell);
@@ -1468,10 +1468,10 @@ private:
         config->Addresses.clear();
         for (const auto& peer : cell->Peers()) {
             auto nodeTracker = Bootstrap_->GetNodeTracker();
-            if (peer.Descriptor) {
-                config->Addresses.push_back(peer.Descriptor->GetInterconnectAddress());
-            } else {
+            if (peer.Descriptor.IsNull()) {
                 config->Addresses.push_back(Null);
+            } else {
+                config->Addresses.push_back(peer.Descriptor.GetInterconnectAddress());
             }
         }
 
@@ -1650,10 +1650,10 @@ private:
     void DoRevokePeer(TTabletCell* cell, TPeerId peerId)
     {
         const auto& peer = cell->Peers()[peerId];
-        if (!peer.Descriptor)
+        const auto& descriptor = peer.Descriptor;
+        if (descriptor.IsNull())
             return;
 
-        const auto& descriptor = *peer.Descriptor;
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
             cell->GetId(),
             descriptor.GetDefaultAddress(),

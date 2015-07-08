@@ -28,6 +28,8 @@ public:
         const TAddressMap& addresses,
         const TNullable<Stroka>& rack = Null);
 
+    bool IsNull() const;
+
     const Stroka& GetDefaultAddress() const;
     const Stroka& GetInterconnectAddress() const;
     const Stroka& GetAddressOrThrow(const Stroka& name) const;
