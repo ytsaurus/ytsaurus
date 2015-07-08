@@ -725,14 +725,14 @@ class TestCypressNodeChildrenLimit(YTEnvSetup):
 
     DELTA_MASTER_CONFIG = {
         "cypress_manager": {
-            "max_node_child_count" : 50
+            "max_node_child_count" : 100
         }
     }
 
     def test_map_node_children_limit(self):
         create("map_node", "//tmp/test_node")
-        for i in xrange(50):
+        for i in xrange(100):
             create("map_node", "//tmp/test_node/" + str(i))
 
         with pytest.raises(YtError):
-            create("map_node", "//tmp/test_node/50")
+            create("map_node", "//tmp/test_node/100")
