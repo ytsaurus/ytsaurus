@@ -1020,6 +1020,27 @@ class NativeModeTester(YtTestBase, YTEnv):
         # Reset spec options
         yt.config["spec_defaults"] = {}
 
+        # Special shortcuts (manually backported)
+        # MERGE_INSTEAD_WARNING
+        yt.config.MERGE_INSTEAD_WARNING = True
+        yt.config["auto_merge_output"]["action"] = "none"
+        assert not yt.config.MERGE_INSTEAD_WARNING
+        yt.config.MERGE_INSTEAD_WARNING = True
+        assert yt.config["auto_merge_output"]["action"] == "merge"
+        yt.config["auto_merge_output"]["action"] = "log"
+        assert not yt.config.MERGE_INSTEAD_WARNING
+
+        env_merge_option = os.environ.get("YT_MERGE_INSTEAD_WARNING", None)
+        os.environ["YT_MERGE_INSTEAD_WARNING"] = "1"
+        yt.config._update_from_env()
+        assert yt.config["auto_merge_output"]["action"] == "merge"
+        os.environ["YT_MERGE_INSTEAD_WARNING"] = "0"
+        yt.config._update_from_env()
+        assert yt.config["auto_merge_output"]["action"] == "log"
+        if env_merge_option is not None:
+            os.environ["YT_MERGE_INSTEAD_WARNING"] = env_merge_option
+            yt.config._update_from_env()
+
     def test_config(self):
         yt.write_table("//tmp/in", ["a=b\n"])
 
