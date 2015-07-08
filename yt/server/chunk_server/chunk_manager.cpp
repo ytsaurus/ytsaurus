@@ -273,6 +273,13 @@ public:
         : TChunkTypeHandlerBase(owner)
     { }
 
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    {
+        return TTypeCreationOptions(
+            EObjectTransactionMode::Required,
+            EObjectAccountMode::Required);
+    }
+
     virtual EObjectType GetType() const override
     {
         return EObjectType::JournalChunk;
