@@ -16,9 +16,10 @@ TCellConfig::TCellConfig()
     RegisterParameter("addresses", Addresses);
 
     RegisterValidator([&] () {
-        if (TypeFromId(CellId) != EObjectType::Cell) {
-            THROW_ERROR_EXCEPTION("\"cell_id\" must be a proper id of %Qlv type",
-                EObjectType::Cell);
+        auto type = TypeFromId(CellId);
+        if (type != EObjectType::ClusterCell && type != EObjectType::TabletCell) {
+            THROW_ERROR_EXCEPTION("\"cell_id\" has invalid type %Qlv",
+                type);
         }
     });
 }
