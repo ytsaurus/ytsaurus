@@ -91,8 +91,8 @@ class TTabletCellNodeTypeHandler
     : public TMapNodeTypeHandler
 {
 public:
-    explicit TTabletCellNodeTypeHandler(TBootstrap* Bootstrap_)
-        : TMapNodeTypeHandler(Bootstrap_)
+    explicit TTabletCellNodeTypeHandler(TBootstrap* bootstrap)
+        : TMapNodeTypeHandler(bootstrap)
     { }
 
     virtual EObjectType GetObjectType() override
@@ -114,22 +114,22 @@ private:
 
 };
 
-INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(TBootstrap* Bootstrap_)
+INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(TBootstrap* bootstrap)
 {
-    return New<TTabletCellNodeTypeHandler>(Bootstrap_);
+    return New<TTabletCellNodeTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* Bootstrap_)
+INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* bootstrap)
 {
-    YCHECK(Bootstrap_);
+    YCHECK(bootstrap);
 
     auto service = CreateVirtualObjectMap(
-        Bootstrap_,
-        Bootstrap_->GetTabletManager()->Tablets());
+        bootstrap,
+        bootstrap->GetTabletManager()->Tablets());
     return CreateVirtualTypeHandler(
-        Bootstrap_,
+        bootstrap,
         EObjectType::TabletMap,
         service,
         EVirtualNodeOptions::RedirectSelf);
