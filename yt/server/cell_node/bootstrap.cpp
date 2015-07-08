@@ -92,6 +92,8 @@
 
 #include <server/object_server/master_cache_service.h>
 
+#include <server/hive/cell_directory_synchronizer.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -116,6 +118,7 @@ using namespace NTabletNode;
 using namespace NQueryAgent;
 using namespace NApi;
 using namespace NTransactionServer;
+using namespace NHive;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,8 +175,13 @@ void TBootstrap::DoRun()
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving footprint memory");
     }
 
-    auto clusterConnection = CreateConnection(Config->ClusterConnection);
-    MasterClient = clusterConnection->CreateClient(GetRootClientOptions());
+    MasterConnection = CreateConnection(Config->ClusterConnection);
+    MasterClient = MasterConnection->CreateClient(GetRootClientOptions());
+
+    CellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
+        Config->CellDirectorySynchronizer,
+        MasterConnection->GetCellDirectory(),
+        Config->ClusterConnection->Master->CellId);
 
     QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
@@ -351,12 +359,14 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateQueryService(Config->QueryAgent, this));
 
     RpcServer->RegisterService(CreateTimestampProxyService(
-        clusterConnection->GetTimestampProvider()));
+        MasterConnection->GetTimestampProvider()));
 
     RpcServer->RegisterService(CreateMasterCacheService(
         Config->MasterCacheService,
         directMasterChannel,
         GetCellId()));
+
+    CellDirectorySynchronizer->Start();
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(

@@ -334,9 +334,10 @@ public:
                 }
             }
 
+            auto masterConnection = Bootstrap_->GetMasterClient()->GetConnection();
             HiveManager_ = New<THiveManager>(
                 Config_->HiveManager,
-                Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory(),
+                masterConnection->GetCellDirectory(),
                 cellId,
                 GetAutomatonInvoker(),
                 HydraManager_,

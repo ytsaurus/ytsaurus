@@ -90,6 +90,7 @@ private:
     NTabletServer::TTabletManagerPtr TabletManager_;
     NHive::THiveManagerPtr HiveManager_;
     NHive::TCellDirectoryPtr CellDirectory_;
+    NHive::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
 
 

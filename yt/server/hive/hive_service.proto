@@ -1,6 +1,7 @@
 package NYT.NHive.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/ytlib/hive/cell_directory.proto";
 import "yt/server/hive/hive_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,6 +14,29 @@ message TReqPing
 message TRspPing
 {
     required int32 last_incoming_message_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSyncCells
+{
+    repeated NHive.NProto.TCellInfo known_cells = 2;
+}
+
+message TUnregisterCellInfo
+{
+    required NYT.NProto.TGuid cell_id = 1;
+}
+
+message TReconfigureCellInfo
+{
+    required NYT.NHive.NProto.TCellDescriptor cell_descriptor = 1;
+}
+
+message TRspSyncCells
+{
+    repeated TUnregisterCellInfo cells_to_unregister = 4;
+    repeated TReconfigureCellInfo cells_to_reconfigure = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

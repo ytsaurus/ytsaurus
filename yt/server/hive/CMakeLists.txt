@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/public.cpp
   ${BASE}/helpers.cpp
   ${BASE}/transaction_supervisor.cpp
+  ${BASE}/cell_directory_synchronizer.cpp
 )
 set( HDRS
   ${BASE}/commit.h
@@ -20,6 +21,7 @@ set( HDRS
   ${BASE}/helpers.h
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_supervisor.h
+  ${BASE}/cell_directory_synchronizer.h
 )
 
 list(APPEND YT_SOURCE_FILES

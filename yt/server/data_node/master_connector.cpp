@@ -20,8 +20,6 @@
 
 #include <ytlib/hydra/peer_channel.h>
 
-#include <ytlib/hive/cell_directory.h>
-
 #include <ytlib/election/config.h>
 
 #include <ytlib/node_tracker_client/node_statistics.h>
@@ -447,9 +445,6 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         protoPerformanceCounters->set_merged_row_read_count(performanceCounters->MergedRowReadCount);
     }
 
-    auto cellDirectory = Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory();
-    ToProto(request->mutable_hive_cells(), cellDirectory->GetRegisteredCells());
-
     request->Invoke().Subscribe(
         BIND(&TMasterConnector::OnIncrementalNodeHeartbeatResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
@@ -598,26 +593,6 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
             continue;
         }
         slotManager->ConfigureSlot(slot, info);
-    }
-
-    auto cellDirectory = Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory();
-
-    for (const auto& info : rsp->hive_cells_to_unregister()) {
-        auto cellId = FromProto<TCellId>(info.cell_id());
-        YCHECK(cellId != NullCellId);
-        if (cellDirectory->UnregisterCell(cellId)) {
-            LOG_DEBUG("Hive cell unregistered (CellId: %v)",
-                cellId);
-        }
-    }
-
-    for (const auto& info : rsp->hive_cells_to_reconfigure()) {
-        auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
-        if (cellDirectory->ReconfigureCell(descriptor)) {
-            LOG_DEBUG("Hive cell reconfigured (CellId: %v, ConfigVersion: %v)",
-                descriptor.CellId,
-                descriptor.ConfigVersion);
-        }
     }
 
     ScheduleNodeHeartbeat();

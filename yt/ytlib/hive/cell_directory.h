@@ -35,7 +35,7 @@ struct TCellDescriptor
 {
     TCellId CellId;
     int ConfigVersion = -1;
-    std::vector<TNullable<NNodeTrackerClient::TNodeDescriptor>> Peers;
+    std::vector<NNodeTrackerClient::TNodeDescriptor> Peers;
 
     NElection::TCellConfigPtr ToConfig(const Stroka& networkName) const;
     TCellInfo ToInfo() const;
@@ -74,11 +74,11 @@ public:
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
 
-    //! Returns the list of peer addresses for a given cell id (|Null| if the cell is not known).
-    TNullable<std::vector<Stroka>> FindAddresses(const TCellId& cellId);
+    //! Returns the descriptor for a given cell id (|Null| if the cell is not known).
+    TNullable<TCellDescriptor> FindDescriptor(const TCellId& cellId);
 
-    //! Similar to #FindAddresses but throws an exception if the cell is not known.
-    std::vector<Stroka> GetAddressesOrThrow(const TCellId& cellId);
+    //! Returns the descriptor for a given cell id (throws if the cell is not known).
+    TCellDescriptor GetDescriptorOrThrow(const TCellId& cellId);
 
 
     //! Returns the list of all registered cells, their versions, and configurations.
@@ -106,7 +106,7 @@ public:
      */
     bool UnregisterCell(const TCellId& cellId);
 
-    //! Drops all known cells.
+    //! Clears the state; i.e. drops all known registered and unregistered cells.
     void Clear();
 
 

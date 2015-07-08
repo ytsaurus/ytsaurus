@@ -30,6 +30,7 @@ public:
     { }
 
     DEFINE_RPC_PROXY_METHOD(NProto, Ping);
+    DEFINE_RPC_PROXY_METHOD(NProto, SyncCells);
     DEFINE_RPC_PROXY_METHOD(NProto, PostMessages);
     DEFINE_RPC_PROXY_METHOD(NProto, SendMessages);
 
