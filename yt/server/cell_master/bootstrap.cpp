@@ -284,15 +284,14 @@ void TBootstrap::DoInitialize()
         Config_->RpcPort);
 
     const auto& addresses = Config_->Master->Addresses;
-
-    auto selfId = std::distance(
-        addresses.begin(),
-        std::find(addresses.begin(), addresses.end(), selfAddress));
-
-    if (selfId == addresses.size()) {
+    auto selfIt = std::find_if(addresses.begin(), addresses.end(), [&] (const TNullable<Stroka>& x) {
+        return x && to_lower(*x) == to_lower(selfAddress);
+    });
+    if (selfIt == addresses.end()) {
         THROW_ERROR_EXCEPTION("Missing self address %Qv is the peer list",
             selfAddress);
     }
+    auto selfId = std::distance(addresses.begin(), selfIt);
 
     CellManager_ = New<TCellManager>(
         Config_->Master,
