@@ -252,6 +252,7 @@ private:
     void DoRemoveAttribute(const TYPath& path);
 
     void GuardedSetBuiltinAttribute(const Stroka& key, const TYsonString& value);
+    void GuardedRemoveBuiltinAttribute(const Stroka& key);
 
 };
 

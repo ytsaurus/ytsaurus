@@ -628,8 +628,8 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attribu
     attributes->push_back("foreign");
     attributes->push_back("remote");
     attributes->push_back(TAttributeInfo("supported_permissions", true, true));
-    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, false, false, EPermission::Administer));
-    attributes->push_back(TAttributeInfo("acl", hasAcd, true, false, EPermission::Administer));
+    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, false, false, false, EPermission::Administer));
+    attributes->push_back(TAttributeInfo("acl", hasAcd, true, false, false, EPermission::Administer));
     attributes->push_back(TAttributeInfo("owner", hasOwner, false));
     attributes->push_back(TAttributeInfo("effective_acl", true, true));
 }
@@ -770,6 +770,11 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
             return true;
         }
     }
+    return false;
+}
+
+bool TObjectProxyBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
+{
     return false;
 }
 
