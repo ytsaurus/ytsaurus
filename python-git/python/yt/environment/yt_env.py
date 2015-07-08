@@ -194,15 +194,17 @@ class YTEnv(object):
 
         ok = True
         message = ""
+        remaining_processes = []
         for p in self._process_to_kill[name]:
             p_message, p_ok = self.kill_process(p, name)
             if not p_ok:
                 ok = False
-            del self._all_processes[p.pid]
+                remaining_processes.append(p)
+            else:
+                del self._all_processes[p.pid]
             message += p_message
 
-        if ok:
-            self._process_to_kill[name] = []
+        self._process_to_kill[name] = remaining_processes
         
         return ok, message
 
