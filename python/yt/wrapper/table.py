@@ -120,7 +120,7 @@ class TablePath(object):
 
     def has_delimiters(self):
         """Check attributes for delimiters (channel, lower or upper limits)"""
-        return any(key in self.name.attributes for key in ["columns", "lower_limit", "upper_limit"])
+        return any(key in self.name.attributes for key in ["columns", "lower_limit", "upper_limit", "ranges"])
 
     def to_yson_type(self):
         """Return YSON representation of path"""
