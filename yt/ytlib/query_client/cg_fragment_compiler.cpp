@@ -1557,18 +1557,18 @@ TCodegenSource MakeCodegenGroupOp(
                     executionContextPtrRef,
                     lookupRef,
                     groupedRowsRef,
-                    newRowPtrRef,
-                    builder.getInt32(groupRowSize));
+                    newRowRef,
+                    builder.getInt32(keySize));
 
                 CodegenIf<TCGContext>(
                     builder,
                     builder.CreateIsNotNull(groupRowPtr),
                     [&] (TCGContext& builder) {
                         auto groupRow = builder.CreateLoad(groupRowPtr);
-                        auto newRow = builder.CreateLoad(newRowPtrRef);
-                        auto inserted = builder.CreateICmpNE(
+
+                        auto inserted = builder.CreateICmpEQ(
                             builder.CreateExtractValue(
-                                newRow,
+                                groupRow,
                                 TypeBuilder<TRow, false>::Fields::Header),
                             builder.CreateExtractValue(
                                 newRowRef,
@@ -1579,7 +1579,17 @@ TCodegenSource MakeCodegenGroupOp(
                             inserted,
                             [&] (TCGContext& builder) {
                                 codegenInitialize(builder, groupRow);
+
+                                builder.CreateCall3(
+                                    builder.Module->GetRoutine("AllocatePermanentRow"),
+                                    builder.GetExecutionContextPtr(),
+                                    builder.getInt32(groupRowSize),
+                                    newRowPtrRef);
                             });
+
+                        // Here *newRowPtrRef != groupRow
+
+                        auto newRow = builder.CreateLoad(newRowPtrRef);
 
                         codegenEvaluateAggregateArgs(builder, row, newRow);
                         codegenUpdate(builder, newRow, groupRow);
