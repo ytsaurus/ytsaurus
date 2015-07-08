@@ -61,8 +61,6 @@ class Config(types.ModuleType):
             "LOCAL_TMP_DIR": "local_temp_directory",
             "REMOVE_TEMP_FILES": "clear_local_temp_files",
 
-
-            "MERGE_INSTEAD_WARNING": "auto_merge_output/enable",
             "MIN_CHUNK_COUNT_FOR_MERGE_WARNING": "auto_merge_output/min_chunk_count",
             "MAX_CHUNK_SIZE_FOR_MERGE_WARNING": "auto_merge_output/max_chunk_size",
 
@@ -92,6 +90,9 @@ class Config(types.ModuleType):
             "format.TABULAR_DATA_FORMAT": "tabular_data_format"
         }
 
+        # Some shortcuts can't be backported one-to-one so they are processed manually
+        self.special_shortcuts = {"MERGE_INSTEAD_WARNING": int}
+
         super(Config, self).__init__(__name__)
 
         self.cls = Config
@@ -115,7 +116,9 @@ class Config(types.ModuleType):
                 obj = getattr(obj, part)
             setattr(cls, parts[-1],
                 property(lambda obj_self, key=key: self._get(self.shortcuts[key]))
-                    .setter(lambda ojb_self, value, key=key: self._set(self.shortcuts[key], value)))
+                    .setter(lambda obj_self, value, key=key: self._set(self.shortcuts[key], value)))
+        # MERGE_INSTEAD_WARNING shortcut is processed manually
+        self._process_merge_instead_warning_shortcut()
 
         self.default_config_module = default_config
         self.common_module = common
@@ -182,6 +185,8 @@ class Config(types.ModuleType):
             elif key in self._env_configurable_options:
                 var_type = get_var_type(self.__dict__[key])
                 self.__dict__[key] = var_type(value)
+            elif key in self.special_shortcuts:
+                setattr(self, key, self.special_shortcuts[key](value))
 
 
     # NB: Method required for compatibility
@@ -259,6 +264,12 @@ class Config(types.ModuleType):
         for k in parts[:-1]:
             d = d[k]
         d[parts[-1]] = value
+
+    def _process_merge_instead_warning_shortcut(self):
+        modern_path = "auto_merge_output/action"
+        getter = lambda obj_self: self._get(modern_path) == "merge"
+        setter = lambda obj_self, value: self._set(modern_path, "merge" if value else "log")
+        setattr(self.cls, "MERGE_INSTEAD_WARNING", property(getter, setter))
 
 # Process reload correctly
 special_module_name = "_yt_config_" + __name__

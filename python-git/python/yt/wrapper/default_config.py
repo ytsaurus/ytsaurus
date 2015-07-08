@@ -146,7 +146,11 @@ default_config = {
     },
 
     "auto_merge_output": {
-        "enable": False,
+        # Action can be:
+        # "none" - do nothing
+        # "merge" - check output and merge chunks if necessary
+        # "log" - check output and log result, do not merge
+        "action": "log",
         "min_chunk_count": 1000,
         "max_chunk_size": 32 * common.MB
     }
