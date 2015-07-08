@@ -30,6 +30,8 @@
 
 #include <ytlib/election/cell_manager.h>
 
+#include <ytlib/hive/cell_directory.h>
+
 #include <server/election/election_manager.h>
 
 #include <server/hydra/composite_automaton.h>
@@ -127,6 +129,7 @@ public:
             hydraManagerOptions);
 
         HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeLeaderActive(BIND(&TImpl::OnLeaderActive, MakeWeak(this)));
         HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
         HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
@@ -319,6 +322,21 @@ private:
         for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
             auto unguardedInvoker = GetAutomatonInvoker(queue);
             EpochInvokers_[queue] = cancelableContext->CreateInvoker(unguardedInvoker);
+        }
+
+        auto cellDirectory = Bootstrap_->GetCellDirectory();
+        cellDirectory->Clear();
+    }
+
+    void OnLeaderActive()
+    {
+        auto cellDirectory = Bootstrap_->GetCellDirectory();
+        YCHECK(cellDirectory->ReconfigureCell(Config_->Master));
+        if (Config_->PrimaryMaster) {
+            YCHECK(cellDirectory->ReconfigureCell(Config_->PrimaryMaster));
+        }
+        for (const auto& secondaryMaster : Config_->SecondaryMasters) {
+            YCHECK(cellDirectory->ReconfigureCell(secondaryMaster));
         }
     }
 
