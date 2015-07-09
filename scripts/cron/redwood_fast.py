@@ -21,7 +21,7 @@ def process_logs(import_list, remove_list, destination_dir, source_pattern, dest
     if destination_pattern is None:
         destination_pattern = source_pattern
 
-    for i in xrange(5 * hours):
+    for i in xrange(hours + 24 * 30):
         for minutes in xrange(0, 60, 30):
             now = datetime.utcnow()
             rounded_now = datetime(now.year, now.month, now.day, now.hour) - timedelta(hours=i, minutes=minutes)
