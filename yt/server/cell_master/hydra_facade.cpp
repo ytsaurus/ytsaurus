@@ -104,6 +104,10 @@ public:
         PrimaryCellId_ = primaryMasterConfig->CellId;
         PrimaryCellTag_ = CellTagFromId(PrimaryCellId_);
 
+        for (const auto& secondaryMaster : Config_->SecondaryMasters) {
+            SecondaryCellTags_.push_back(CellTagFromId(secondaryMaster->CellId));
+        }
+
         Multicell_ = !Config_->SecondaryMasters.empty();
 
         AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", TEnumTraits<EAutomatonThreadQueue>::GetDomainNames());
@@ -237,18 +241,40 @@ public:
         return PrimaryCellTag_;
     }
 
+    const std::vector<TCellTag>& GetSecondaryCellTags() const
+    {
+        return SecondaryCellTags_;
+    }
 
-    void PostToSecondaryMasters(IClientRequestPtr request)
+
+    void PostToPrimaryMaster(
+        const ::google::protobuf::MessageLite& requestMessage,
+        bool reliable)
+    {
+        YCHECK(IsSecondaryMaster());
+
+        InitializeMailboxes();
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        hiveManager->PostMessage(PrimaryMasterMailbox_, requestMessage, reliable);
+    }
+
+    void PostToSecondaryMasters(
+        IClientRequestPtr request,
+        bool reliable)
     {
         YCHECK(IsPrimaryMaster());
 
         if (!Multicell_)
             return;
 
-        PostToSecondaryMasters(request->Serialize());
+        PostToSecondaryMasters(request->Serialize(), reliable);
     }
 
-    void PostToSecondaryMasters(const TObjectId& objectId, IServiceContextPtr context)
+    void PostToSecondaryMasters(
+        const TObjectId& objectId,
+        IServiceContextPtr context,
+        bool reliable)
     {
         YCHECK(IsPrimaryMaster());
 
@@ -263,10 +289,12 @@ public:
         SetRequestYPath(&requestHeader, updatedYPath);
         auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
-        PostToSecondaryMasters(std::move(updatedRequestMessage));
+        PostToSecondaryMasters(std::move(updatedRequestMessage), reliable);
     }
 
-    void PostToSecondaryMasters(TSharedRefArray requestMessage)
+    void PostToSecondaryMasters(
+        TSharedRefArray requestMessage,
+        bool reliable)
     {
         YCHECK(IsPrimaryMaster());
 
@@ -286,7 +314,24 @@ public:
 
         auto hiveManager = Bootstrap_->GetHiveManager();
         for (auto* mailbox : SecondaryMasterMailboxes_) {
-            hiveManager->PostMessage(mailbox, hydraReq);
+            hiveManager->PostMessage(mailbox, hydraReq, reliable);
+        }
+    }
+
+    void PostToSecondaryMasters(
+        const ::google::protobuf::MessageLite& requestMessage,
+        bool reliable)
+    {
+        YCHECK(IsPrimaryMaster());
+
+        if (!Multicell_)
+            return;
+
+        InitializeMailboxes();
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        for (auto* mailbox : SecondaryMasterMailboxes_) {
+            hiveManager->PostMessage(mailbox, requestMessage, reliable);
         }
     }
 
@@ -298,6 +343,7 @@ private:
     TCellTag CellTag_;
     TCellId PrimaryCellId_;
     TCellTag PrimaryCellTag_;
+    std::vector<TCellTag> SecondaryCellTags_;
 
     bool Multicell_ = false;
     bool MailboxesInitialized_ = false;
@@ -426,6 +472,7 @@ private:
         }
     }
 
+
     void InitializeMailboxes()
     {
         if (MailboxesInitialized_)
@@ -527,19 +574,45 @@ TCellTag THydraFacade::GetPrimaryCellTag() const
     return Impl_->GetPrimaryCellTag();
 }
 
-void THydraFacade::PostToSecondaryMasters(IClientRequestPtr request)
+const std::vector<NObjectClient::TCellTag>& THydraFacade::GetSecondaryCellTags() const
 {
-    Impl_->PostToSecondaryMasters(std::move(request));
+    return Impl_->GetSecondaryCellTags();
 }
 
-void THydraFacade::PostToSecondaryMasters(const TObjectId& objectId, IServiceContextPtr context)
+void THydraFacade::PostToPrimaryMaster(
+    const ::google::protobuf::MessageLite& requestMessage,
+    bool reliable)
 {
-    Impl_->PostToSecondaryMasters(objectId, std::move(context));
+    Impl_->PostToPrimaryMaster(requestMessage, reliable);
 }
 
-void THydraFacade::PostToSecondaryMasters(TSharedRefArray requestMessage)
+void THydraFacade::PostToSecondaryMasters(
+    IClientRequestPtr request,
+    bool reliable)
 {
-    Impl_->PostToSecondaryMasters(std::move(requestMessage));
+    Impl_->PostToSecondaryMasters(std::move(request), reliable);
+}
+
+void THydraFacade::PostToSecondaryMasters(
+    const TObjectId& objectId,
+    IServiceContextPtr context,
+    bool reliable)
+{
+    Impl_->PostToSecondaryMasters(objectId, std::move(context), reliable);
+}
+
+void THydraFacade::PostToSecondaryMasters(
+    TSharedRefArray requestMessage,
+    bool reliable)
+{
+    Impl_->PostToSecondaryMasters(std::move(requestMessage), reliable);
+}
+
+void THydraFacade::PostToSecondaryMasters(
+    const ::google::protobuf::MessageLite& requestMessage,
+    bool reliable)
+{
+    Impl_->PostToSecondaryMasters(requestMessage, reliable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

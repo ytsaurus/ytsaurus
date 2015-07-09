@@ -50,6 +50,7 @@ private:
         attributes->push_back("name");
         attributes->push_back("resource_usage");
         attributes->push_back("committed_resource_usage");
+        attributes->push_back(TAttributeInfo("multicell_statistics", true, true));
         attributes->push_back("resource_limits");
         attributes->push_back("violated_resource_limits");
         TBase::ListSystemAttributes(attributes);
@@ -67,19 +68,27 @@ private:
 
         if (key == "resource_usage") {
             BuildYsonFluently(consumer)
-                .Value(account->ResourceUsage());
+                .Value(account->ClusterStatistics().ResourceUsage);
             return true;
         }
 
         if (key == "committed_resource_usage") {
             BuildYsonFluently(consumer)
-                .Value(account->CommittedResourceUsage());
+                .Value(account->ClusterStatistics().CommittedResourceUsage);
+            return true;
+        }
+
+        if (key == "multicell_statistics") {
+            BuildYsonFluently(consumer)
+                .DoMapFor(account->MulticellStatistics(), [] (TFluentMap fluent, const std::pair<TCellTag, const TAccountStatistics&>& pair) {
+                    fluent.Item(ToString(pair.first)).Value(pair.second);
+                });
             return true;
         }
 
         if (key == "resource_limits") {
             BuildYsonFluently(consumer)
-                .Value(account->ResourceLimits());
+                .Value(account->ClusterResourceLimits());
             return true;
         }
 
@@ -102,7 +111,7 @@ private:
         auto securityManager = Bootstrap_->GetSecurityManager();
 
         if (key == "resource_limits") {
-            account->ResourceLimits() = ConvertTo<TClusterResources>(value);
+            account->ClusterResourceLimits() = ConvertTo<TClusterResources>(value);
             return true;
         }
 

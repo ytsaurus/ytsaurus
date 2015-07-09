@@ -11,7 +11,7 @@
 #include "request_tracker.h"
 #include "config.h"
 
-#include <core/ypath/token.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/profiling/profile_manager.h>
 
@@ -19,6 +19,8 @@
 
 #include <server/hydra/entity_map.h>
 #include <server/hydra/composite_automaton.h>
+
+#include <server/hive/hive_manager.h>
 
 #include <server/object_server/type_handler_detail.h>
 
@@ -32,13 +34,10 @@
 
 #include <server/cypress_server/node.h>
 
-// COMPAT(babenko)
-#include <server/cypress_server/cypress_manager.h>
-#include <server/transaction_server/transaction_manager.h>
-
 namespace NYT {
 namespace NSecurityServer {
 
+using namespace NConcurrency;
 using namespace NHydra;
 using namespace NCellMaster;
 using namespace NObjectClient;
@@ -49,6 +48,9 @@ using namespace NYPath;
 using namespace NCypressServer;
 using namespace NSecurityClient;
 using namespace NObjectServer;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -270,6 +272,7 @@ public:
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
 
         RegisterMethod(BIND(&TImpl::HydraUpdateRequestStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetAccountStatistics, Unretained(this)));
     }
 
     void Initialize()
@@ -433,7 +436,8 @@ public:
         if (!IsStagedAccountingEnabled(transaction))
             return;
 
-        account->ResourceUsage() += delta;
+        account->ClusterStatistics().ResourceUsage += delta;
+        account->GetLocalStatistics()->ResourceUsage += delta;
 
         auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
         *transactionUsage += delta;
@@ -918,11 +922,12 @@ private:
 
 
     const TSecurityManagerConfigPtr Config_;
+
     const TRequestTrackerPtr RequestTracker_;
 
-    bool RecomputeResources_ = false;
-    bool SetInitialChunkCountLimits_ = false;
-    bool SetInitialNodeCountLimits_ = false;
+    TPeriodicExecutorPtr AccountStatiticsGossipExecutor_;
+
+    bool InitMulticell_ = false;
 
     NHydra::TEntityMap<TAccountId, TAccount> AccountMap_;
     yhash_map<Stroka, TAccount*> AccountNameMap_;
@@ -981,9 +986,11 @@ private:
     {
         auto resourceUsage = node->CachedResourceUsage() * delta;
 
-        account->ResourceUsage() += resourceUsage;
+        account->ClusterStatistics().ResourceUsage += resourceUsage;
+        account->GetLocalStatistics()->ResourceUsage += resourceUsage;
         if (node->IsTrunk()) {
-            account->CommittedResourceUsage() += resourceUsage;
+            account->ClusterStatistics().CommittedResourceUsage += resourceUsage;
+            account->GetLocalStatistics()->CommittedResourceUsage += resourceUsage;
         }
 
         auto* transactionUsage = FindTransactionAccountUsage(node);
@@ -1021,12 +1028,14 @@ private:
         auto accountHolder = std::make_unique<TAccount>(id);
         accountHolder->SetName(name);
         // Give some reasonable initial resource limits.
-        accountHolder->ResourceLimits().DiskSpace = (i64) 1024 * 1024 * 1024; // 1 GB
-        accountHolder->ResourceLimits().NodeCount = 1000;
-        accountHolder->ResourceLimits().ChunkCount = 100000;
+        accountHolder->ClusterResourceLimits().DiskSpace = (i64) 1024 * 1024 * 1024; // 1 GB
+        accountHolder->ClusterResourceLimits().NodeCount = 1000;
+        accountHolder->ClusterResourceLimits().ChunkCount = 100000;
 
         auto* account = AccountMap_.Insert(id, std::move(accountHolder));
         YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+
+        InitializeAccountStatistics(account);
 
         // Make the fake reference.
         YCHECK(account->RefObject() == 1);
@@ -1178,10 +1187,6 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
         DoClear();
-
-        RecomputeResources_ = false;
-        SetInitialChunkCountLimits_ = false;
-        SetInitialNodeCountLimits_ = false;
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -1193,15 +1198,6 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        // COMPAT(babenko)
-        if (context.GetVersion() < 101) {
-            RecomputeResources_ = true;
-        }
-        // COMPAT(babenko)
-        if (context.GetVersion() < 104) {
-            SetInitialChunkCountLimits_ = true;
-            SetInitialNodeCountLimits_ = true;
-        }
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
@@ -1211,76 +1207,36 @@ private:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        // Reconstruct account name map.
         AccountNameMap_.clear();
         for (const auto& pair : AccountMap_) {
             auto* account = pair.second;
+
+            // Reconstruct account name map.
             YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+
+            // Initialize statistics for this cell.
+            // NB: This also provides the neccessary data migration for pre-0.18 versions.
+            InitializeAccountStatistics(account);
         }
 
-        // Reconstruct user name map.
         UserNameMap_.clear();
         for (const auto& pair : UserMap_) {
             auto* user = pair.second;
+
+            // Reconstruct user name map.
             YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
         }
 
-        // Reconstruct group name map.
         GroupNameMap_.clear();
         for (const auto& pair : GroupMap_) {
             auto* group = pair.second;
+
+            // Reconstruct group name map.
             YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
         }
 
         InitBuiltins();
         ResetAuthenticatedUser();
-
-        // COMPAT(babenko)
-        if (RecomputeResources_) {
-            LOG_INFO("Recomputing resource usage");
-
-            YCHECK(Bootstrap_->GetTransactionManager()->Transactions().GetSize() == 0);
-
-            for (const auto& pair : AccountMap_) {
-                auto* account = pair.second;
-                account->ResourceUsage() = ZeroClusterResources();
-                account->CommittedResourceUsage() = ZeroClusterResources();
-            }
-
-            auto cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
-                auto resourceUsage = node->GetResourceUsage();
-                auto* account = node->GetAccount();
-                if (account) {
-                    if (IsUncommittedAccountingEnabled(node)) {
-                        account->ResourceUsage() += resourceUsage;
-                        if (node->IsTrunk()) {
-                            account->CommittedResourceUsage() += resourceUsage;
-                        }
-                    }
-                    node->CachedResourceUsage() = resourceUsage;
-                } else {
-                    node->CachedResourceUsage() = ZeroClusterResources();
-                }
-            }
-        }
-
-        // COMPAT(babenko)
-        if (SetInitialChunkCountLimits_) {
-            for (const auto& pair : AccountMap_) {
-                auto* account = pair.second;
-                account->ResourceLimits().ChunkCount = 1000000000;
-            }
-        }
-
-        // COMPAT(babenko)
-        if (SetInitialNodeCountLimits_) {
-            for (const auto& pair : AccountMap_) {
-                auto* account = pair.second;
-                account->ResourceLimits().NodeCount = 1000000;
-            }
-        }
     }
 
 
@@ -1396,7 +1352,7 @@ private:
         if (!SysAccount_) {
             // sys, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: root
             SysAccount_ = DoCreateAccount(SysAccountId_, SysAccountName);
-            SysAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
+            SysAccount_->ClusterResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
@@ -1407,7 +1363,7 @@ private:
         if (!TmpAccount_) {
             // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
             TmpAccount_ = DoCreateAccount(TmpAccountId_, TmpAccountName);
-            TmpAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
+            TmpAccount_->ClusterResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -1418,7 +1374,7 @@ private:
         if (!IntermediateAccount_) {
             // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
             IntermediateAccount_ = DoCreateAccount(IntermediateAccountId_, IntermediateAccountName);
-            IntermediateAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
+            IntermediateAccount_->ClusterResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -1435,11 +1391,27 @@ protected:
         RequestTracker_->Start();
     }
 
+    virtual void OnLeaderActive() override
+    {
+        TMasterAutomatonPart::OnLeaderActive();
+
+        AccountStatiticsGossipExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+            BIND(&TImpl::OnAccountStatisticsGossip, MakeWeak(this)),
+            Config_->AccountStatisticsGossipPeriod);
+        AccountStatiticsGossipExecutor_->Start();
+    }
+
     virtual void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
 
         RequestTracker_->Stop();
+
+        if (AccountStatiticsGossipExecutor_) {
+            AccountStatiticsGossipExecutor_->Stop();
+            AccountStatiticsGossipExecutor_.Reset();
+        }
     }
 
     virtual void OnStopFollowing() override
@@ -1487,6 +1459,83 @@ protected:
                 user->SetCheckpointTime(now);
                 user->SetCheckpointRequestCounter(requestCounter);
             }
+        }
+    }
+
+    void HydraSetAccountStatistics(const NProto::TReqSetAccountStatistics& request)
+    {
+        auto cellTag = request.cell_tag();
+        LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
+            cellTag);
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        YCHECK(hydraFacade->IsPrimaryMaster() || cellTag == hydraFacade->GetPrimaryCellTag());
+
+        for (const auto& entry : request.entries()) {
+            auto accountId = FromProto<TAccountId>(entry.account_id());
+            auto* account = FindAccount(accountId);
+            if (!IsObjectAlive(account))
+                continue;
+
+            auto newStatistics = FromProto<TAccountStatistics>(entry.statistics());
+            if (hydraFacade->IsPrimaryMaster()) {
+                *account->GetCellStatistics(cellTag) = newStatistics;
+                account->ClusterStatistics() = ZeroAccountStatistics();
+                for (const auto& pair : account->MulticellStatistics()) {
+                    account->ClusterStatistics() += pair.second;
+                }
+            } else {
+                account->ClusterStatistics() = newStatistics;
+            }
+        }
+    }
+
+
+    void InitializeAccountStatistics(TAccount* account)
+    {
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        auto cellTag = hydraFacade->GetCellTag();
+        const auto& secondaryCellTags = hydraFacade->GetSecondaryCellTags();
+
+        auto& multicellStatistics = account->MulticellStatistics();
+        if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
+            account->MulticellStatistics()[cellTag] = account->ClusterStatistics();
+        }
+
+        for (auto secondaryCellTag : secondaryCellTags) {
+            account->MulticellStatistics()[secondaryCellTag];
+        }
+
+        account->SetLocalStatistics(&multicellStatistics[cellTag]);
+    }
+
+    void OnAccountStatisticsGossip()
+    {
+        LOG_INFO("Sending account statistics gossip message");
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+
+        NProto::TReqSetAccountStatistics request;
+        request.set_cell_tag(hydraFacade->GetCellTag());
+        for (const auto& pair : AccountMap_) {
+            auto* account = pair.second;
+            if (!IsObjectAlive(account))
+                continue;
+
+            auto* entry = request.add_entries();
+            ToProto(entry->mutable_account_id(), account->GetId());
+            if (hydraFacade->IsPrimaryMaster()) {
+                ToProto(entry->mutable_statistics(), account->ClusterStatistics());
+            } else {
+                ToProto(entry->mutable_statistics(), *account->GetLocalStatistics());
+            }
+        }
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        if (hydraFacade->IsPrimaryMaster()) {
+            hydraFacade->PostToSecondaryMasters(request, false);
+        } else {
+            hydraFacade->PostToPrimaryMaster(request, false);
         }
     }
 
