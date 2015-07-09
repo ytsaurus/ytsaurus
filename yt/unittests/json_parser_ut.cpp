@@ -489,6 +489,7 @@ TEST(TJsonParserTest, MemoryLimit4)
 
     auto config = New<TJsonFormatConfig>();
     config->MemoryLimit = 200000;
+    config->BufferSize = 512;
 
     int rowCount = 1000;
     int keyCount = 100;
