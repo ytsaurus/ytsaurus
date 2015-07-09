@@ -32,6 +32,8 @@ class TCypressNodeBase
     , public TRefTracked<TCypressNodeBase>
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, CellTag);
+
     typedef yhash_map<NTransactionServer::TTransaction*, TTransactionLockState> TLockStateMap;
     DEFINE_BYREF_RW_PROPERTY(TLockStateMap, LockStateMap);
 

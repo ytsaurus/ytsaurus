@@ -22,6 +22,7 @@
 #include <core/ypath/tokenizer.h>
 
 #include <server/cell_master/config.h>
+#include <server/cell_master/hydra_facade.h>
 
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
@@ -315,6 +316,8 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     const auto* node = GetThisImpl();
     bool hasKey = NodeHasKey(Bootstrap_, node);
     attributes->push_back(TAttributeInfo("parent_id", node->GetParent()));
+    attributes->push_back("cell_tag");
+    attributes->push_back("remote");
     attributes->push_back("locks");
     attributes->push_back("lock_mode");
     attributes->push_back(TAttributeInfo("path", true, true));
@@ -342,6 +345,18 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     if (key == "parent_id" && node->GetParent()) {
         BuildYsonFluently(consumer)
             .Value(node->GetParent()->GetId());
+        return true;
+    }
+
+    if (key == "cell_tag") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetCellTag());
+        return true;
+    }
+
+    if (key == "remote") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetCellTag() != Bootstrap_->GetHydraFacade()->GetCellTag());
         return true;
     }
 
