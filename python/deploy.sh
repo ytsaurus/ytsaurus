@@ -27,6 +27,9 @@ case $PACKAGE in
     yandex-yt-python)
         REPOS="common yt-common"
         ;;
+    yandex-yt-python-tools)
+        REPOS="common"
+        ;;
     yandex-yt-transfer-manager|yandex-yt-python-fennel)
         REPOS="yt-common"
         ;;
