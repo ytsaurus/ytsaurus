@@ -66,11 +66,11 @@ public:
 private:
     friend class TTransaction;
 
-    TTransactionManagerConfigPtr Config_;
-    IChannelPtr MasterChannel_;
-    TCellId CellId_;
-    ITimestampProviderPtr TimestampProvider_;
-    TCellDirectoryPtr CellDirectory_;
+    const TTransactionManagerConfigPtr Config_;
+    const IChannelPtr MasterChannel_;
+    const TCellId CellId_;
+    const ITimestampProviderPtr TimestampProvider_;
+    const TCellDirectoryPtr CellDirectory_;
 
     TSpinLock SpinLock_;
     yhash_set<TTransaction::TImpl*> AliveTransactions_;
