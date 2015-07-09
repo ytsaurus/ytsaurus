@@ -161,67 +161,20 @@ public:
             cellId);
     }
 
-    void PostMessage(TMailbox* mailbox, TEncapsulatedMessage message)
+    void PostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message, bool reliable)
     {
-        // A typical mistake is to try sending a Hive message outside of a mutation.
-        YCHECK(HasMutationContext());
-
-        int messageId =
-            mailbox->GetFirstOutcomingMessageId() +
-            static_cast<int>(mailbox->OutcomingMessages().size());
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Reliable outcoming message added (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
-            SelfCellId_,
-            mailbox->GetCellId(),
-            messageId,
-            message.type());
-
-        AnnotateWithTraceContext(&message);
-        mailbox->OutcomingMessages().push_back(std::move(message));
-
-        MaybePostOutcomingMessages(mailbox);
-    }
-
-    void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message)
-    {
-        PostMessage(mailbox, SerializeMessage(message));
-    }
-
-    void SendMessage(TMailbox* mailbox, TEncapsulatedMessage message)
-    {
-        if (!mailbox->GetConnected()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unreliable outcoming message dropped since mailbox is not connected (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
-                SelfCellId_,
-                mailbox->GetCellId(),
-                message.type());
+        if (reliable) {
+            ReliablePostMessage(mailbox, message);
+        } else {
+            UnreliablePostMessage(mailbox, message);
         }
-
-        auto proxy = FindHiveProxy(mailbox);
-        if (!proxy) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unreliable outcoming message dropped since no channel exists (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
-                SelfCellId_,
-                mailbox->GetCellId(),
-                message.type());
-        }
-
-        auto req = proxy->SendMessages();
-        ToProto(req->mutable_src_cell_id(), SelfCellId_);
-        *req->add_messages() = message;
-
-        LOG_DEBUG("Sending unreliable outcoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
-            SelfCellId_,
-            mailbox->GetCellId(),
-            message.mutable_type());
-
-        req->Invoke().Subscribe(
-            BIND(&TImpl::OnSendMessagesResponse, MakeStrong(this), mailbox->GetCellId())
-                .Via(EpochAutomatonInvoker_));
     }
 
-    void SendMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message)
+    void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)
     {
-        SendMessage(mailbox, SerializeMessage(message));
+        PostMessage(mailbox, SerializeMessage(message), reliable);
     }
+
 
     void BuildOrchidYson(IYsonConsumer* consumer)
     {
@@ -495,6 +448,61 @@ private:
         auto proxy = std::make_unique<THiveServiceProxy>(channel);
         proxy->SetDefaultTimeout(Config_->RpcTimeout);
         return proxy;
+    }
+
+
+    void ReliablePostMessage(TMailbox* mailbox, TEncapsulatedMessage message)
+    {
+        // A typical mistake is to try sending a Hive message outside of a mutation.
+        YCHECK(HasMutationContext());
+
+        int messageId =
+            mailbox->GetFirstOutcomingMessageId() +
+            static_cast<int>(mailbox->OutcomingMessages().size());
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Reliable outcoming message added (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
+            SelfCellId_,
+            mailbox->GetCellId(),
+            messageId,
+            message.type());
+
+        AnnotateWithTraceContext(&message);
+        mailbox->OutcomingMessages().push_back(std::move(message));
+
+        MaybePostOutcomingMessages(mailbox);
+    }
+
+    void UnreliablePostMessage(TMailbox* mailbox, TEncapsulatedMessage message)
+    {
+        if (!mailbox->GetConnected()) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unreliable outcoming message dropped since mailbox is not connected (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
+                SelfCellId_,
+                mailbox->GetCellId(),
+                message.type());
+        }
+
+        auto proxy = FindHiveProxy(mailbox);
+        if (!proxy) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unreliable outcoming message dropped since no channel exists (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
+                SelfCellId_,
+                mailbox->GetCellId(),
+                message.type());
+        }
+
+        AnnotateWithTraceContext(&message);
+
+        auto req = proxy->SendMessages();
+        ToProto(req->mutable_src_cell_id(), SelfCellId_);
+        *req->add_messages() = message;
+
+        LOG_DEBUG("Sending unreliable outcoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
+            SelfCellId_,
+            mailbox->GetCellId(),
+            message.type());
+
+        req->Invoke().Subscribe(
+            BIND(&TImpl::OnSendMessagesResponse, MakeStrong(this), mailbox->GetCellId())
+                .Via(EpochAutomatonInvoker_));
     }
 
 
@@ -995,25 +1003,16 @@ void THiveManager::RemoveMailbox(const TCellId& cellId)
     Impl_->RemoveMailbox(cellId);
 }
 
-void THiveManager::PostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message)
+void THiveManager::PostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message, bool reliable)
 {
-    Impl_->PostMessage(mailbox, message);
+    Impl_->PostMessage(mailbox, message, reliable);
 }
 
-void THiveManager::PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message)
+void THiveManager::PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message, bool reliable)
 {
-    Impl_->PostMessage(mailbox, message);
+    Impl_->PostMessage(mailbox, message, reliable);
 }
 
-void THiveManager::SendMessage(TMailbox* mailbox, const NProto::TEncapsulatedMessage& message)
-{
-    Impl_->SendMessage(mailbox, message);
-}
-
-void THiveManager::SendMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message)
-{
-    Impl_->SendMessage(mailbox, message);
-}
 
 void THiveManager::BuildOrchidYson(IYsonConsumer* consumer)
 {
