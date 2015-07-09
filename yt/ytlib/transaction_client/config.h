@@ -15,6 +15,9 @@ class TTransactionManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! Timeout for all RPC requests to participants.
+    TDuration RpcTimeout;
+
     //! Internal between consecutive transaction pings.
     TDuration PingPeriod;
 
@@ -24,6 +27,8 @@ public:
 
     TTransactionManagerConfig()
     {
+        RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(5));
         RegisterParameter("ping_period", PingPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)

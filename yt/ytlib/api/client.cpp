@@ -979,7 +979,7 @@ public:
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
-    IChannelPtr GetTabletChannel(const TTabletCellId& cellId)
+    IChannelPtr GetTabletChannelOrThrow(const TTabletCellId& cellId)
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
@@ -1325,7 +1325,7 @@ private:
         for (const auto& pair : tabletToSession) {
             const auto& tabletInfo = pair.first;
             const auto& session = pair.second;
-            auto channel = GetTabletChannel(tabletInfo->CellId);
+            auto channel = GetTabletChannelOrThrow(tabletInfo->CellId);
             asyncResults.push_back(session->Invoke(std::move(channel)));
         }
 
@@ -2550,7 +2550,7 @@ private:
             for (const auto& pair : TabletToSession_) {
                 const auto& tabletInfo = pair.first;
                 const auto& session = pair.second;
-                auto channel = Client_->GetTabletChannel(tabletInfo->CellId);
+                auto channel = Client_->GetTabletChannelOrThrow(tabletInfo->CellId);
                 asyncResults.push_back(session->Invoke(std::move(channel)));
             }
 

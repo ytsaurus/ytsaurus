@@ -64,6 +64,9 @@ public:
 
 
     //! Returns a peer channel of a given kind for a given cell id (|nullptr| if none is known).
+    /*!
+     *  No user or timeout is configured for the returned channel.
+     */
     NRpc::IChannelPtr FindChannel(
         const TCellId& cellId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
