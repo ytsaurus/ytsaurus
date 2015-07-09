@@ -730,26 +730,6 @@ private:
     }
 
 
-    TNullable<TCellId> GetCoordinatorCellId()
-    {
-        switch (Type_) {
-            case ETransactionType::Master:
-                return Owner_->CellId_;
-            
-            case ETransactionType::Tablet: {
-                auto ids = GetParticipantIds();
-                if (ids.empty()) {
-                    // NB: NullCellId is still a valid cell id.
-                    return Null;
-                }
-                return ids[0];
-            }
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
     std::vector<TCellId> GetParticipantIds()
     {
         TGuard<TSpinLock> guard(SpinLock_);
