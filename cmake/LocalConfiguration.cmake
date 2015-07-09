@@ -94,6 +94,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-unused-local-typedef")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-unused-private-field")
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-unknown-warning-option")
+    set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-reserved-user-defined-literal")
 
     if (CMAKE_COLOR_MAKEFILE OR NOT DEFINED CMAKE_COLOR_MAKEFILE)
       set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -fcolor-diagnostics")
