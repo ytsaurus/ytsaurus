@@ -75,6 +75,21 @@ private:
     TSpinLock SpinLock_;
     yhash_set<TTransaction::TImpl*> AliveTransactions_;
 
+
+    std::unique_ptr<TTransactionSupervisorServiceProxy> MakeSupervisorProxy(IChannelPtr channel)
+    {
+        auto proxy = std::make_unique<TTransactionSupervisorServiceProxy>(channel);
+        proxy->SetDefaultTimeout(Config_->RpcTimeout);
+        return proxy;
+    }
+
+    std::unique_ptr<TTabletServiceProxy> MakeTabletProxy(IChannelPtr channel)
+    {
+        auto proxy = std::make_unique<TTabletServiceProxy>(channel);
+        proxy->SetDefaultTimeout(Config_->RpcTimeout);
+        return proxy;
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -213,9 +228,9 @@ public:
             coordinatorCellId);
 
         auto channel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
-        TTransactionSupervisorServiceProxy proxy(channel);
+        auto proxy = Owner_->MakeSupervisorProxy(channel);
 
-        auto req = proxy.CommitTransaction();
+        auto req = proxy->CommitTransaction();
         ToProto(req->mutable_transaction_id(), Id_);
         for (const auto& cellId : participantGuids) {
             if (cellId != coordinatorCellId) {
@@ -335,11 +350,10 @@ public:
             cellId);
 
         auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellId);
-        TTabletServiceProxy proxy(channel);
+        auto proxy = Owner_->MakeTabletProxy(channel);
 
-        auto req = proxy.StartTransaction();
+        auto req = proxy->StartTransaction();
         ToProto(req->mutable_transaction_id(), Id_);
-        req->set_start_timestamp(StartTimestamp_);
         req->set_start_timestamp(StartTimestamp_);
         req->set_timeout(Timeout_.Get(Owner_->Config_->DefaultTransactionTimeout).MilliSeconds());
 
@@ -602,9 +616,9 @@ private:
                 cellId);
 
             auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellId);
-            TTransactionSupervisorServiceProxy proxy(channel);
+            auto proxy = Owner_->MakeSupervisorProxy(channel);
 
-            auto req = proxy.PingTransaction();
+            auto req = proxy->PingTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
 
             if (cellId == Owner_->CellId_) {
@@ -673,9 +687,9 @@ private:
             auto channel = Owner_->CellDirectory_->FindChannel(cellId);
             if (!channel)
                 continue; // better skip
-            TTransactionSupervisorServiceProxy proxy(channel);
+            auto proxy = Owner_->MakeSupervisorProxy(channel);
 
-            auto req = proxy.AbortTransaction();
+            auto req = proxy->AbortTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
             req->set_force(options.Force);
             SetMutationId(req, options.MutationId, options.Retry);

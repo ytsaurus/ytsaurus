@@ -232,9 +232,7 @@ private:
         peerConfig->HardBackoffTime = Config_->HardBackoffTime;
 
         for (auto kind : TEnumTraits<EPeerKind>::GetDomainValues()) {
-            auto channel = CreatePeerChannel(peerConfig, ChannelFactory_, kind);
-            channel->SetDefaultTimeout(Config_->RpcTimeout);
-            entry->Channels[kind] = channel;
+            entry->Channels[kind] = CreatePeerChannel(peerConfig, ChannelFactory_, kind);
         }
     }
     
