@@ -211,7 +211,6 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
             out="//tmp/out3",
             spec={"pool": "test_pool_2"})
 
-
         time.sleep(1.5)
         assert get("//sys/operations/{0}/@state".format(op1)) == "running"
         assert get("//sys/operations/{0}/@state".format(op2)) == "pending"
