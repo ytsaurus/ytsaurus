@@ -18,8 +18,13 @@ TCellConfig::TCellConfig()
     RegisterValidator([&] () {
         auto type = TypeFromId(CellId);
         if (type != EObjectType::ClusterCell && type != EObjectType::TabletCell) {
-            THROW_ERROR_EXCEPTION("\"cell_id\" has invalid type %Qlv",
+            THROW_ERROR_EXCEPTION("Cell id %v has invalid type %Qlv",
+                CellId,
                 type);
+        }
+        if (CellTagFromId(CellId) == InvalidCellTag) {
+            THROW_ERROR_EXCEPTION("Cell id %v has invalid cell tag",
+                CellId);
         }
     });
 }

@@ -37,6 +37,9 @@ const ui64 WellKnownCounterMask = 0x1000000000000000;
 //! Must be unique to prevent object ids from colliding.
 typedef ui16 TCellTag;
 
+//! A special sentinel value that must not be used.
+const TCellTag InvalidCellTag = 0xffff;
+
 //! Describes the runtime type of an object.
 DEFINE_ENUM(EObjectType,
     // Does not represent any actual type.
