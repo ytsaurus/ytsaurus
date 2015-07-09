@@ -236,7 +236,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             if row_count != result_row_count:
                 error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
                 logger.error(error)
-                raise yt.IncorrectRowCount(error)
+                raise IncorrectRowCount(error)
 
             if sorted_by:
                 logger.info("Sorting '%s'", dst)
@@ -328,7 +328,7 @@ done"""
             if result_record_count != record_count:
                 error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
                 logger.error(error)
-                raise yt.IncorrectRowCount(error)
+                raise IncorrectRowCount(error)
 
             if sorted or force_sort:
                 logger.info("Sorting '%s'", dst)
@@ -398,7 +398,7 @@ while True:
                 yamr_client.drop(dst)
                 error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
                 logger.error(error)
-                raise yt.IncorrectRowCount(error)
+                raise IncorrectRowCount(error)
     finally:
         shutil.rmtree(tmp_dir)
 
@@ -432,7 +432,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_templa
         yamr_client.drop(dst)
         error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
         logger.error(error)
-        raise yt.IncorrectRowCount(error)
+        raise IncorrectRowCount(error)
 
 def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None, spec_template=None, write_to_table=False, protobin=True, kwworm_options=None, message_queue=None):
     extract_value_script_to_table = """\
