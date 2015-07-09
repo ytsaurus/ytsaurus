@@ -482,7 +482,8 @@ def write_table(table, input_stream, format=None, table_writer=None,
                          compression_codec=compression_codec, client=client)
 
     can_split_input = isinstance(input_stream, types.ListType) or format.is_raw_load_supported()
-    if get_config(client)["write_retries"]["enable"] and can_split_input:
+    enable_retries = get_config(client)["write_retries"]["enable"] and can_split_input and "sorted_by" not in table.attributes
+    if enable_retries:
         input_stream = chunk_iter_lines(_split_rows(input_stream, format, raw), get_config(client)["write_retries"]["chunk_size"])
     elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
         input_stream = chunk_iter_stream(input_stream, MB)
@@ -496,7 +497,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
         table,
         params,
         prepare_table,
-        get_config(client)["write_retries"]["enable"] and can_split_input,
+        use_retries=enable_retries,
         client=client)
 
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and is_empty(table, client=client):
