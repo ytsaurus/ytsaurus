@@ -196,7 +196,7 @@ public:
                 message.type());
         }
 
-        auto proxy = BuildMailboxProxy(mailbox);
+        auto proxy = FindHiveProxy(mailbox);
         if (!proxy) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Unreliable outcoming message dropped since no channel exists (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
                 SelfCellId_,
@@ -485,7 +485,7 @@ private:
     }
 
 
-    std::unique_ptr<THiveServiceProxy> BuildMailboxProxy(TMailbox* mailbox)
+    std::unique_ptr<THiveServiceProxy> FindHiveProxy(TMailbox* mailbox)
     {
         auto channel = CellDirectory_->FindChannel(mailbox->GetCellId());
         if (!channel) {
@@ -566,7 +566,7 @@ private:
             return;
         }
 
-        auto proxy = BuildMailboxProxy(mailbox);
+        auto proxy = FindHiveProxy(mailbox);
         if (!proxy) {
             // Let's register a dummy descriptor so as to ask about it during the next sync.
             NHive::TCellDescriptor descriptor;
@@ -630,7 +630,7 @@ private:
         if (mailbox->OutcomingMessages().empty())
             return;
 
-        auto proxy = BuildMailboxProxy(mailbox);
+        auto proxy = FindHiveProxy(mailbox);
         if (!proxy)
             return;
 
