@@ -45,14 +45,15 @@ public:
     TMailbox* GetMailboxOrThrow(const TCellId& cellId);
     void RemoveMailbox(const TCellId& cellId);
 
-    //! Posts a message for reliable delivery.
-    void PostMessage(TMailbox* mailbox, const NProto::TEncapsulatedMessage& message);
-    void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message);
-
-    //! Sends a message to the cell. No delivery or serialization is guaranteed.
-    void SendMessage(TMailbox* mailbox, const NProto::TEncapsulatedMessage& message);
-    //! Sends a message to the cell. No delivery or serialization is guaranteed.
-    void SendMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message);
+    //! Posts a message for delivery (either reliable or not).
+    void PostMessage(
+        TMailbox* mailbox,
+        const NProto::TEncapsulatedMessage& message,
+        bool reliable = true);
+    void PostMessage(
+        TMailbox* mailbox,
+        const ::google::protobuf::MessageLite& message,
+        bool reliable = true);
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer);
 
