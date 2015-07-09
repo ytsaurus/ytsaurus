@@ -470,7 +470,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         for _ in xrange(5):
             yt.config.RETRY = True
             assert result == run_command()
-            yt.config.RETRY = False
+            yt.config.RETRY = None
             if check_action is not None:
                 assert check_action()
 

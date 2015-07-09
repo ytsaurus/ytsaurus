@@ -114,6 +114,15 @@ def get_master_config():
 }
 """)
 
+
+# NB: config for test retries
+#hydra_manager={
+#    response_keeper = {
+#        expiration_time = 7000;
+#        warmup_time = 8000;
+#    }
+#}
+
 def get_scheduler_config():
     return yson.loads(
 """
@@ -163,8 +172,15 @@ def get_scheduler_config():
     logging = { };
 
     tracing = { };
+
 }
 """)
+
+#NB: Config for test retries.
+#response_keeper = {
+#    expiration_time = 7000;
+#    warmup_time = 8000;
+#}
 
 def get_node_config():
     return yson.loads(
