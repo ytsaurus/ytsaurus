@@ -35,7 +35,7 @@ case $PACKAGE in
         ;;
 esac
 
-for REPO in "$REPOS"; do
+for REPO in $REPOS; do
     VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
     dupload "../${PACKAGE}_${VERSION}_amd64.changes" --to $REPO
 done
