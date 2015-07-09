@@ -176,6 +176,7 @@ private:
 
     bool RecomputeKeyColumns = false;
     bool RecomputeTabletOwners = false;
+    bool InitializeCellTags = false;
     
     
     TCypressNodeBase* RegisterNode(std::unique_ptr<TCypressNodeBase> nodeHolder);

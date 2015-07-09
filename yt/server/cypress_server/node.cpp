@@ -10,6 +10,7 @@
 namespace NYT {
 namespace NCypressServer {
 
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTransactionServer;
@@ -19,6 +20,7 @@ using namespace NCellMaster;
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     : TObjectBase(id.ObjectId)
+    , CellTag_(InvalidCellTag)
     , LockMode_(ELockMode::None)
     , TrunkNode_(nullptr)
     , Transaction_(nullptr)
@@ -87,6 +89,7 @@ void TCypressNodeBase::Save(TSaveContext& context) const
     TObjectBase::Save(context);
 
     using NYT::Save;
+    Save(context, CellTag_);
     Save(context, LockStateMap_);
     Save(context, AcquiredLocks_);
     Save(context, PendingLocks_);
@@ -107,6 +110,10 @@ void TCypressNodeBase::Load(TLoadContext& context)
     TObjectBase::Load(context);
 
     using NYT::Load;
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 200) {
+        Load(context, CellTag_);
+    }
     Load(context, LockStateMap_);
     Load(context, AcquiredLocks_);
     Load(context, PendingLocks_);

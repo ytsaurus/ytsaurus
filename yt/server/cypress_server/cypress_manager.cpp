@@ -1375,6 +1375,8 @@ void TCypressManager::LoadValues(NCellMaster::TLoadContext& context)
     RecomputeKeyColumns = (context.GetVersion() < 100);
     // COMPAT(babenko)
     RecomputeTabletOwners = (context.GetVersion() < 115);
+    // COMPAT(babenko)
+    InitializeCellTags = (context.GetVersion() < 200);
 }
 
 void TCypressManager::OnAfterSnapshotLoaded()
@@ -1383,29 +1385,28 @@ void TCypressManager::OnAfterSnapshotLoaded()
 
     TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-    // Reconstruct immediate ancestor sets.
+    // COMPAT(babenko)
+    auto cellTag = Bootstrap_->GetHydraFacade()->GetCellTag();
+
     for (const auto& pair : NodeMap) {
         auto* node = pair.second;
+
+        // Reconstruct immediate ancestor sets.
         auto* parent = node->GetParent();
         if (parent) {
             YCHECK(parent->ImmediateDescendants().insert(node).second);
         }
-    }
 
-    // Compute originators.
-    for (const auto& pair : NodeMap) {
-        auto* node = pair.second;
+        // Compute originators.
         if (!node->IsTrunk()) {
             auto* parentTransaction = node->GetTransaction()->GetParent();
             auto* originator = GetVersionedNode(node->GetTrunkNode(), parentTransaction);
             node->SetOriginator(originator);
         }
-    }
 
-    // COMPAT(babenko): Reconstruct KeyColumns and Sorted flags for tables
-    if (RecomputeKeyColumns) {
-        for (const auto& pair : NodeMap) {
-            if (TypeFromId(pair.first.ObjectId) == EObjectType::Table) {
+        // COMPAT(babenko): Reconstruct KeyColumns and Sorted flags for tables
+        if (RecomputeKeyColumns) {
+            if (node->GetType() == EObjectType::Table) {
                 auto* tableNode = dynamic_cast<NTableServer::TTableNode*>(pair.second);
                 auto* chunkList = tableNode->GetChunkList();
                 tableNode->SetSorted(!chunkList->LegacySortedBy().empty());
@@ -1413,16 +1414,21 @@ void TCypressManager::OnAfterSnapshotLoaded()
                 chunkList->LegacySortedBy().clear();
             }
         }
-    }
 
-    // COMPAT(babenko)
-    if (RecomputeTabletOwners) {
-        for (const auto& pair : NodeMap) {
-            if (TypeFromId(pair.first.ObjectId) == EObjectType::Table) {
+        // COMPAT(babenko)
+        if (RecomputeTabletOwners) {
+            if (node->GetType() == EObjectType::Table) {
                 auto* table = dynamic_cast<NTableServer::TTableNode*>(pair.second);
                 for (auto* tablet : table->Tablets()) {
                     tablet->SetTable(table);
                 }
+            }
+        }
+
+        // COMPAT(babenko)
+        if (InitializeCellTags) {
+            if (node->GetCellTag() == InvalidCellTag) {
+                node->SetCellTag(cellTag);
             }
         }
     }
