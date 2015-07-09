@@ -441,11 +441,13 @@ public:
         for (auto* group  : subject->MemberOf()) {
             YCHECK(group->Members().erase(subject) == 1);
         }
+        subject->MemberOf().clear();
 
         for (const auto& pair : subject->LinkedObjects()) {
             auto* acd = GetAcd(pair.first);
             acd->OnSubjectDestroyed(subject, GuestUser_);
         }
+        subject->LinkedObjects().clear();
     }
 
 
@@ -555,6 +557,7 @@ public:
         for (auto* subject : group->Members()) {
             YCHECK(subject->MemberOf().erase(group) == 1);
         }
+        group->Members().clear();
 
         DestroySubject(group);
 
