@@ -52,9 +52,25 @@ public:
     const NElection::TCellId& GetPrimaryCellId() const;
     NObjectClient::TCellTag GetPrimaryCellTag() const;
 
-    void PostToSecondaryMasters(NRpc::IClientRequestPtr request);
-    void PostToSecondaryMasters(const NObjectClient::TObjectId& objectId, NRpc::IServiceContextPtr context);
-    void PostToSecondaryMasters(TSharedRefArray requestMessage);
+    const std::vector<NObjectClient::TCellTag>& GetSecondaryCellTags() const;
+
+    void PostToPrimaryMaster(
+        const ::google::protobuf::MessageLite& requestMessage,
+        bool reliable = true);
+
+    void PostToSecondaryMasters(
+        NRpc::IClientRequestPtr request,
+        bool reliable = true);
+    void PostToSecondaryMasters(
+        const NObjectClient::TObjectId& objectId,
+        NRpc::IServiceContextPtr context,
+        bool reliable = true);
+    void PostToSecondaryMasters(
+        TSharedRefArray requestMessage,
+        bool reliable = true);
+    void PostToSecondaryMasters(
+        const ::google::protobuf::MessageLite& requestMessage,
+        bool reliable = true);
 
 private:
     class TImpl;

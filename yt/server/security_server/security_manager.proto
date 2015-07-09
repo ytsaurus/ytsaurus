@@ -4,6 +4,23 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TClusterResources
+{
+    required int64 disk_space = 1;
+    required int32 chunk_count = 2;
+    required int32 node_count = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TAccountStatistics
+{
+    required TClusterResources resource_usage = 1;
+    required TClusterResources committed_resource_usage = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TRequestStatisticsUpdate
 {
     required NYT.NProto.TGuid user_id = 1;
@@ -14,6 +31,20 @@ message TRequestStatisticsUpdate
 message TReqUpdateRequestStatistics
 {
     repeated TRequestStatisticsUpdate updates = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSetAccountStatistics
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid account_id = 1;
+        required TAccountStatistics statistics = 2;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TEntry entries = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

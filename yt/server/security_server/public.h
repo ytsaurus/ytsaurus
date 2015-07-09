@@ -13,6 +13,8 @@ namespace NSecurityServer {
 
 namespace NProto {
 
+class TClusterResources;
+class TAccountStatistics;
 class TRequestStatisticsUpdate;
 
 } // namespace NProto

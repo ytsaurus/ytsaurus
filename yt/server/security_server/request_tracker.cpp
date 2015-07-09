@@ -39,7 +39,7 @@ void TRequestTracker::Start()
     FlushExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TRequestTracker::OnFlush, MakeWeak(this)),
-        Config_->StatisticsFlushPeriod,
+        Config_->UserStatisticsFlushPeriod,
         EPeriodicExecutorMode::Manual);
     FlushExecutor_->Start();
 }
