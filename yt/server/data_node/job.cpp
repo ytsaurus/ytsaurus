@@ -694,13 +694,13 @@ private:
                 currentRowCount += blockCount;
             }
 
+            WaitFor(changelog->Flush())
+                .ThrowOnError();
+        
             LOG_INFO("Finished downloading missing journal chunk rows");
         }
 
         LOG_INFO("Started sealing journal chunk");
-
-        WaitFor(changelog->Truncate(sealRowCount))
-            .ThrowOnError();
 
         WaitFor(journalChunk->Seal())
             .ThrowOnError();
