@@ -255,9 +255,14 @@ protected:
 
     struct TUserFileBase
     {
+        TUserFileBase()
+            : ChunkCount(0)
+        { }
+
         NYPath::TRichYPath Path;
         EOperationStage Stage;
         Stroka FileName;
+        int ChunkCount;
 
         void Persist(TPersistenceContext& context);
 

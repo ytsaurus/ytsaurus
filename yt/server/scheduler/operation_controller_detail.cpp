@@ -1094,6 +1094,20 @@ void TOperationControllerBase::DoPrepare()
         return;
     }
 
+    // Check for multiple chunk files.
+    if (JobCounter.GetTotal() >= 1000 && Spec->CheckMultichunkFiles) {
+        for (const auto& file : RegularFiles) {
+            if (file.ChunkCount > 1) {
+                OnOperationFailed(TError("Input file %v consists of more than one chunk", file.Path.GetPath()));
+            }
+        }
+        for (const auto& file : TableFiles) {
+            if (file.ChunkCount > 1) {
+                OnOperationFailed(TError("Input file %v consists of more than one chunk", file.Path.GetPath()));
+            }
+        }
+    }
+
     SuspendUnavailableInputStripes();
 
     AddAllTaskPendingHints();
@@ -2913,7 +2927,7 @@ void TOperationControllerBase::RequestFileObjects()
         }
         {
             auto req = TYPathProxy::Get(path);
-            SetTransactionId(req, Operation->GetOutputTransaction());
+            SetTransactionId(req, Operation->GetInputTransaction());
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("executable");
             attributeFilter.Keys.push_back("file_name");
@@ -2940,11 +2954,11 @@ void TOperationControllerBase::RequestFileObjects()
         }
         {
             auto req = TYPathProxy::Get(path);
+            SetTransactionId(req, Operation->GetInputTransaction());
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("chunk_count");
             attributeFilter.Keys.push_back("uncompressed_data_size");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
-            SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "get_table_file_attributes");
         }
     }
@@ -3005,6 +3019,7 @@ void TOperationControllerBase::RequestFileObjects()
 
                 file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
                 file.Executable = attributes.Get<bool>("executable", false);
+                file.ChunkCount = attributes.Get<int>("chunk_count");
 
                 i64 fileSize = attributes.Get<i64>("uncompressed_data_size");
                 if (fileSize > Config->MaxFileSize) {
@@ -3083,6 +3098,7 @@ void TOperationControllerBase::RequestFileObjects()
                         chunkCount,
                         Config->MaxChunkCountPerFetch);
                 }
+                file.ChunkCount = chunkCount;
 
                 LOG_INFO("Table file attributes received (Path: %v, FileName: %v, Format: %v, Size: %v)",
                     path,
