@@ -102,13 +102,13 @@ default_config = {
     "remote_temp_tables_directory": "//tmp/yt_wrapper/table_storage",
 
     "operation_tracker": {
-        # How often check operation state.
+        # Operation state check interval.
         "poll_period": 5000,
-        # What level use to log stderrs.
+        # Log level used for print stderr messages.
         "stderr_logging_level": "INFO",
-        # Turn on to ignore stderr if download failed.
+        # Ignore failures during stderr downloads.
         "ignore_stderr_if_download_failed": False,
-        # Abort operation if sigint happened while waiting operation to finish.
+        # Abort operation when SIGINT is received while waiting for the operation to finish.
         "abort_on_sigint": True
     },
 
