@@ -461,6 +461,9 @@ class Application(object):
 
         self._pending_tasks.sort(key=lambda id: self._tasks[id].creation_time)
 
+        # Abort tasks operations (TM can fail but operations will go on)
+        self._abort_failed_transfer_manager_operations()
+
         logger.info("Tasks load")
 
     def _append_pending_task(self, task):
@@ -897,6 +900,23 @@ class Application(object):
                 if self._tasks[id].get_queue_id() == task.get_queue_id():
                     queue_index += 1
         return task_description
+
+    def _abort_failed_transfer_manager_operations(self):
+        for task_id, task in self._tasks.iteritems():
+            for operation in task.progress["operations"]:
+                cluster_name, operation_id = operation["cluster_name"], operation["id"]
+                if self._clusters[cluster_name]._type != "yt":
+                    logger.warning("Transfer manager does not support progress for non-YT cluster, "
+                                   "but it unexpectedly found for %s cluster." % self._clusters[cluster_name]._type)
+                    continue
+                try:
+                    if not self._yt.exists("//sys/operations/%s" % operation_id) or \
+                           self._yt.get_operation_state(operation_id).is_finished():
+                        continue
+                    self._clusters[cluster_name].abort_operation(operation_id)
+                    logger.info("Aborted outdated operation {} of task {}".format(operation_id, task_id))
+                except yt.YtError:
+                    logger.exception("Failed abort operation {} of task {}".format(operation_id, task_id))
 
     # Public interface
     def run(self, *args, **kwargs):
