@@ -1,9 +1,12 @@
+import common
+import default_config
+
+import yt.yson as yson
+import yt.packages.simplejson as json
+
 import os
 import sys
 import types
-
-import common
-import default_config
 
 # NB: Magic!
 # To support backward compatibility we must translate uppercase fields as config values.
@@ -90,7 +93,10 @@ class Config(types.ModuleType):
 
             "DETACHED": "detached",
 
-            "format.TABULAR_DATA_FORMAT": "tabular_data_format"
+            "format.TABULAR_DATA_FORMAT": "tabular_data_format",
+
+            "CONFIG_PATH": "config_path",
+            "CONFIG_FORMAT": "config_format"
         }
 
         # Some shortcuts can't be backported one-to-one so they are processed manually
@@ -125,6 +131,8 @@ class Config(types.ModuleType):
 
         self.default_config_module = default_config
         self.common_module = common
+        self.json_module = json
+        self.yson_module = yson
 
         self._init()
         self._update_from_env()
@@ -169,6 +177,25 @@ class Config(types.ModuleType):
             if isinstance(None, var_type):
                 var_type = str
             return var_type
+
+        # These options should be processed before reading config fil
+        for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT"]:
+            if opt_name in os.environ:
+                self.config[self.shortcuts[opt_name]] = os.environ[opt_name]
+
+        config_path = self.config["config_path"]
+        if config_path is None:
+            config_path = os.path.join(os.path.expanduser("~"), ".yt/config")
+        if os.path.isfile(config_path):
+            load_func = None
+            format = self.config["config_format"]
+            if format == "yson":
+                load_func = self.yson_module.load
+            elif format == "json":
+                load_func = self.json_module.load
+            else:
+                raise self.common_module.YtError("Incorrect config_format '%s'" % format)
+            self.update_config(load_func(open(config_path)))
 
         old_options = sorted(list(self.shortcuts))
         old_options_short = [value.split(".")[-1] for value in old_options]
