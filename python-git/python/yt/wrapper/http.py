@@ -9,6 +9,7 @@ import yt.yson as yson
 import yt.packages.simplejson as json
 
 import os
+import random
 import string
 import time
 import types
@@ -116,6 +117,8 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
         headers = kwargs.get("headers", {})
         try:
             try:
+                if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
+                    raise YtIncorrectResponse()
                 response = create_response(get_session().request(method, url, timeout=timeout, **kwargs), headers, client)
             except ConnectionError as error:
                 if hasattr(error, "response"):
