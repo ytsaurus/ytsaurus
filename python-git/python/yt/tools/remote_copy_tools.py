@@ -230,7 +230,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 files=files,
                 spec=spec,
                 input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
-                output_format=yt.YsonFormat())
+                output_format=yt.JsonFormat())
 
             result_row_count = destination_client.records_count(dst)
             if row_count != result_row_count:
