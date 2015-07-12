@@ -133,6 +133,8 @@ class Config(types.ModuleType):
         self.SPEC = None
         self.TRANSACTION = "0-0-0-0"
         self.PING_ANCESTOR_TRANSACTIONS = False
+        self._ENABLE_READ_TABLE_CHAOS_MONKEY = False
+        self._ENABLE_HTTP_CHAOS_MONKEY = False
 
         self._env_configurable_options = ["TRACE", "TRANSACTION", "PING_ANCESTOR_TRANSACTIONS", "SPEC"]
 

@@ -396,11 +396,11 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         @yt.raw
         def input_(rec):
-            x = input()
+            input()
 
         @yt.raw
         def read(rec):
-            x = sys.stdin.read()
+            sys.stdin.read()
 
         @yt.raw
         def close(rec):
@@ -640,6 +640,7 @@ class NativeModeTester(YtTestBase, YTEnv):
     def test_read_with_retries(self):
         old_value = yt.config.RETRY_READ
         yt.config.RETRY_READ = True
+        yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
         try:
             table = TEST_DIR + "/table"
 
@@ -665,7 +666,25 @@ class NativeModeTester(YtTestBase, YTEnv):
             rsp.close()
 
         finally:
+            yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
             yt.config.RETRY_READ = old_value
+
+    def test_http_retries(self):
+        old_request_retry_timeout = yt.config.http.REQUEST_RETRY_TIMEOUT
+        yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
+        yt.config.http.REQUEST_RETRY_TIMEOUT = 1000
+        try:
+            yt.get("/")
+            yt.list("/")
+            yt.exists("/")
+            yt.exists(TEST_DIR)
+            yt.exists(TEST_DIR + "/some_node")
+            yt.set(TEST_DIR + "/some_node", {})
+            yt.exists(TEST_DIR + "/some_node")
+            yt.list(TEST_DIR)
+        finally:
+            yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
+            yt.config.http.REQUEST_RETRY_TIMEOUT = old_request_retry_timeout
 
     def test_reduce_combiner(self):
         table = TEST_DIR + "/table"

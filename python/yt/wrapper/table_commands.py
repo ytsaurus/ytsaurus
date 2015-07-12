@@ -74,6 +74,7 @@ import yt.packages.simplejson as json
 import os
 import sys
 import types
+import random
 import exceptions
 import tempfile
 import socket
@@ -580,6 +581,8 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 for attempt in xrange(retry_count):
                     try:
                         for elem in iter():
+                            if get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
+                                raise YtIncorrectResponse()
                             yield elem
                         break
                     except RETRIABLE_ERRORS as err:
@@ -620,7 +623,6 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                         raise YtError("Read table with multiple tanges using retries is not supported")
                     table.name.attributes["ranges"][0]["lower_limit"] = {"row_index": self.index}
                 params["path"] = table.to_yson_type()
-                print >>sys.stderr, table, table.attributes
                 self.response = _make_transactional_request(
                     command_name,
                     params,
