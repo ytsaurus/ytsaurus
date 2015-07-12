@@ -64,6 +64,10 @@ default_config = {
     "driver_config_path": None,
     "driver_config": None,
 
+    # Path to file with additional configuration.
+    "config_path": None,
+    "config_format": "yson",
+
     "pickling": {
         # Extensions to consider while looking files to archive.
         "search_extensions": None,
