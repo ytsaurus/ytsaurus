@@ -320,20 +320,23 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // literal-value
       char dummy10[sizeof(TNullable<TLiteralValue>)];
 
+      // qualified-identifier
+      char dummy11[sizeof(TReferenceExpressionPtr)];
+
       // "identifier"
-      char dummy11[sizeof(TStringBuf)];
+      char dummy12[sizeof(TStringBuf)];
 
       // table-descriptor
-      char dummy12[sizeof(TTableDescriptor)];
+      char dummy13[sizeof(TTableDescriptor)];
 
       // "double literal"
-      char dummy13[sizeof(double)];
+      char dummy14[sizeof(double)];
 
       // "int64 literal"
-      char dummy14[sizeof(i64)];
+      char dummy15[sizeof(i64)];
 
       // "uint64 literal"
-      char dummy15[sizeof(ui64)];
+      char dummy16[sizeof(ui64)];
 };
 
     /// Symbol semantic values.
@@ -370,18 +373,19 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         KwGroupBy = 1008,
         KwOrderBy = 1009,
         KwAs = 1010,
-        KwAnd = 1011,
-        KwOr = 1012,
-        KwNot = 1013,
-        KwBetween = 1014,
-        KwIn = 1015,
-        KwFalse = 1016,
-        KwTrue = 1017,
-        Identifier = 1018,
-        Int64Literal = 1019,
-        Uint64Literal = 1020,
-        DoubleLiteral = 1021,
-        StringLiteral = 1022,
+        KwOn = 1011,
+        KwAnd = 1012,
+        KwOr = 1013,
+        KwNot = 1014,
+        KwBetween = 1015,
+        KwIn = 1016,
+        KwFalse = 1017,
+        KwTrue = 1018,
+        Identifier = 1019,
+        Int64Literal = 1020,
+        Uint64Literal = 1021,
+        DoubleLiteral = 1022,
+        StringLiteral = 1023,
         OpModulo = 37,
         LeftParenthesis = 40,
         RightParenthesis = 41,
@@ -389,13 +393,14 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         OpPlus = 43,
         Comma = 44,
         OpMinus = 45,
+        Dot = 46,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1023,
+        OpLessOrEqual = 1024,
         OpEqual = 61,
-        OpNotEqual = 1024,
+        OpNotEqual = 1025,
         OpGreater = 62,
-        OpGreaterOrEqual = 1025
+        OpGreaterOrEqual = 1026
       };
     };
 
@@ -449,6 +454,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   basic_symbol (typename Base::kind_type t, const TNamedExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TReferenceExpressionPtr v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
 
@@ -576,6 +583,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
     static inline
     symbol_type
+    make_KwOn (const location_type& l);
+
+    static inline
+    symbol_type
     make_KwAnd (const location_type& l);
 
     static inline
@@ -649,6 +660,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     static inline
     symbol_type
     make_OpMinus (const location_type& l);
+
+    static inline
+    symbol_type
+    make_Dot (const location_type& l);
 
     static inline
     symbol_type
@@ -753,7 +768,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   static const unsigned char yydefact_[];
 
   // YYPGOTO[NTERM-NUM].
-  static const signed char yypgoto_[];
+  static const short int yypgoto_[];
 
   // YYDEFGOTO[NTERM-NUM].
   static const signed char yydefgoto_[];
@@ -763,7 +778,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const unsigned char yytable_[];
 
-  static const unsigned char yycheck_[];
+  static const signed char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -878,13 +893,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 129,     ///< Last index in yytable_.
-      yynnts_ = 35,  ///< Number of nonterminal symbols.
+      yylast_ = 145,     ///< Last index in yytable_.
+      yynnts_ = 36,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 36, ///< Termination state number.
+      yyfinal_ = 37, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 42  ///< Number of tokens.
+      yyntokens_ = 44  ///< Number of tokens.
     };
 
 

@@ -74,7 +74,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         subqueryOutputRowLimit);
 
     subqueryPattern->TableSchema = query->TableSchema;
-    subqueryPattern->KeyColumns = query->KeyColumns;
+    subqueryPattern->KeyColumnsCount = query->KeyColumnsCount;
+    subqueryPattern->RenamedTableSchema = query->RenamedTableSchema;
     subqueryPattern->JoinClauses = query->JoinClauses;
 
     auto topQuery = New<TQuery>(
@@ -148,7 +149,8 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     }
 
     topQuery->TableSchema = subqueryPattern->GetTableSchema();
-
+    topQuery->RenamedTableSchema = topQuery->TableSchema;
+    
     std::vector<TConstQueryPtr> subqueries;
 
     for (const auto& refiner : refiners) {
@@ -157,7 +159,12 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         subquery->Id = TGuid::Create();
 
         if (query->WhereClause) {
-            subquery->WhereClause = refiner(query->WhereClause, subquery->TableSchema, subquery->KeyColumns);
+            subquery->WhereClause = refiner(
+                query->WhereClause,
+                subquery->TableSchema,
+                TableSchemaToKeyColumns(
+                    subquery->RenamedTableSchema,
+                    subquery->KeyColumnsCount));
         }
 
         subqueries.push_back(subquery);
@@ -227,7 +234,7 @@ TGroupedRanges GetPrunedRanges(
     return GetPrunedRanges(
         query->WhereClause,
         query->TableSchema,
-        query->KeyColumns,
+        TableSchemaToKeyColumns(query->RenamedTableSchema, query->KeyColumnsCount),
         sources,
         rowBuffer,
         evaluatorCache,

@@ -284,24 +284,27 @@ tr53:
 	{{p = ((te))-1;} type = TToken::KwAs; {p++; cs = 12; goto _out;} }
 	break;
 	case 13:
+	{{p = ((te))-1;} type = TToken::KwOn; {p++; cs = 12; goto _out;} }
+	break;
+	case 14:
 	{{p = ((te))-1;} type = TToken::KwAnd; {p++; cs = 12; goto _out;} }
 	break;
-	case 15:
+	case 16:
 	{{p = ((te))-1;} type = TToken::KwNot; {p++; cs = 12; goto _out;} }
 	break;
-	case 16:
+	case 17:
 	{{p = ((te))-1;} type = TToken::KwBetween; {p++; cs = 12; goto _out;} }
 	break;
-	case 17:
+	case 18:
 	{{p = ((te))-1;} type = TToken::KwIn; {p++; cs = 12; goto _out;} }
 	break;
-	case 18:
+	case 19:
 	{{p = ((te))-1;} type = TToken::KwFalse; {p++; cs = 12; goto _out;} }
 	break;
-	case 19:
+	case 20:
 	{{p = ((te))-1;} type = TToken::KwTrue; {p++; cs = 12; goto _out;} }
 	break;
-	case 20:
+	case 21:
 	{{p = ((te))-1;}
             type = TToken::Identifier;
             value->build(TStringBuf(ts, te));
@@ -311,7 +314,7 @@ tr53:
 	}
 	}
 	goto st12;
-tr88:
+tr89:
 	{te = p;p--;{ type = TToken::KwOr; {p++; cs = 12; goto _out;} }}
 	goto st12;
 st12:
@@ -516,7 +519,7 @@ case 20:
 	goto tr50;
 tr27:
 	{te = p+1;}
-	{act = 20;}
+	{act = 21;}
 	goto st21;
 tr52:
 	{te = p+1;}
@@ -524,15 +527,15 @@ tr52:
 	goto st21;
 tr54:
 	{te = p+1;}
-	{act = 13;}
+	{act = 14;}
 	goto st21;
 tr60:
 	{te = p+1;}
-	{act = 16;}
+	{act = 17;}
 	goto st21;
 tr65:
 	{te = p+1;}
-	{act = 18;}
+	{act = 19;}
 	goto st21;
 tr67:
 	{te = p+1;}
@@ -544,7 +547,7 @@ tr76:
 	goto st21;
 tr77:
 	{te = p+1;}
-	{act = 17;}
+	{act = 18;}
 	goto st21;
 tr80:
 	{te = p+1;}
@@ -556,17 +559,21 @@ tr84:
 	goto st21;
 tr86:
 	{te = p+1;}
-	{act = 15;}
+	{act = 16;}
 	goto st21;
-tr94:
+tr87:
 	{te = p+1;}
-	{act = 19;}
+	{act = 13;}
 	goto st21;
-tr98:
+tr95:
+	{te = p+1;}
+	{act = 20;}
+	goto st21;
+tr99:
 	{te = p+1;}
 	{act = 9;}
 	goto st21;
-tr102:
+tr103:
 	{te = p+1;}
 	{act = 5;}
 	goto st21;
@@ -1212,8 +1219,10 @@ st55:
 		goto _test_eof55;
 case 55:
 	switch( (*p) ) {
+		case 78: goto tr87;
 		case 82: goto st56;
 		case 95: goto tr27;
+		case 110: goto tr87;
 		case 114: goto st56;
 	}
 	if ( (*p) < 65 ) {
@@ -1242,7 +1251,7 @@ case 56:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr88;
+	goto tr89;
 st57:
 	if ( ++p == pe )
 		goto _test_eof57;
@@ -1266,9 +1275,9 @@ st58:
 		goto _test_eof58;
 case 58:
 	switch( (*p) ) {
-		case 82: goto tr91;
+		case 82: goto tr92;
 		case 95: goto tr27;
-		case 114: goto tr91;
+		case 114: goto tr92;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1279,7 +1288,7 @@ case 58:
 	} else
 		goto tr27;
 	goto tr50;
-tr91:
+tr92:
 	{te = p+1;}
 	goto st59;
 st59:
@@ -1364,9 +1373,9 @@ st62:
 		goto _test_eof62;
 case 62:
 	switch( (*p) ) {
-		case 69: goto tr94;
+		case 69: goto tr95;
 		case 95: goto tr27;
-		case 101: goto tr94;
+		case 101: goto tr95;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1436,9 +1445,9 @@ st66:
 		goto _test_eof66;
 case 66:
 	switch( (*p) ) {
-		case 71: goto tr98;
+		case 71: goto tr99;
 		case 95: goto tr27;
-		case 103: goto tr98;
+		case 103: goto tr99;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1508,9 +1517,9 @@ st70:
 		goto _test_eof70;
 case 70:
 	switch( (*p) ) {
-		case 69: goto tr102;
+		case 69: goto tr103;
 		case 95: goto tr27;
-		case 101: goto tr102;
+		case 101: goto tr103;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1521,17 +1530,17 @@ case 70:
 	} else
 		goto tr27;
 	goto tr50;
-tr103:
+tr104:
 	{te = p+1;}
 	goto st71;
-tr104:
+tr105:
 	{te = p+1;{
             if (++rd == 1) {
                 rs = p + 1;
             }
         }}
 	goto st71;
-tr105:
+tr106:
 	cs = 71;
 	{te = p+1;{
             if (--rd == 0) {
@@ -1551,10 +1560,10 @@ case 71:
 	{ts = p;}
 	switch( (*p) ) {
 		case 0: goto st0;
-		case 91: goto tr104;
-		case 93: goto tr105;
+		case 91: goto tr105;
+		case 93: goto tr106;
 	}
-	goto tr103;
+	goto tr104;
 	}
 	_test_eof12: cs = 12; goto _test_eof; 
 	_test_eof13: cs = 13; goto _test_eof; 
@@ -1679,7 +1688,7 @@ case 71:
 	case 53: goto tr50;
 	case 54: goto tr50;
 	case 55: goto tr50;
-	case 56: goto tr88;
+	case 56: goto tr89;
 	case 57: goto tr50;
 	case 58: goto tr50;
 	case 59: goto tr50;
@@ -1704,7 +1713,9 @@ case 71:
 
     location->second = p - s;
 
-    if (cs == 0) {
+    if (cs == 
+0
+) {
         // TODO(sandello): Handle lexer failures.
         return TToken::Failure;
     } else {

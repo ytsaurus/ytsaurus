@@ -278,7 +278,7 @@ private:
             auto lowerBound = source.Range.first;
             auto upperBound = source.Range.second;
 
-            auto keySize = fragment->Query->KeyColumns.size();
+            auto keySize = fragment->Query->KeyColumnsCount;
 
             if (keySize == lowerBound.GetCount()  &&
                 keySize + 1 == upperBound.GetCount() &&
@@ -324,7 +324,7 @@ private:
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             fragment->Query->TableSchema,
-            fragment->Query->KeyColumns.size());
+            fragment->Query->KeyColumnsCount);
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -400,7 +400,7 @@ private:
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             fragment->Query->TableSchema,
-            fragment->Query->KeyColumns.size());
+            fragment->Query->KeyColumnsCount);
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;

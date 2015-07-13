@@ -1127,13 +1127,13 @@ void CodegenScanOp(
 
 TCodegenSource MakeCodegenJoinOp(
     int index,
-    std::vector<Stroka> joinColumns,
+    std::vector<TCodegenExpression> equations,
     TTableSchema sourceSchema,
     TCodegenSource codegenSource)
 {
     return [
         index,
-        MOVE(joinColumns),
+        MOVE(equations),
         MOVE(sourceSchema),
         codegenSource = std::move(codegenSource)
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
@@ -1158,15 +1158,25 @@ TCodegenSource MakeCodegenJoinOp(
             &builder,
             closure);
 
-        int joinKeySize = joinColumns.size();
+        int joinKeySize = equations.size();
 
-        Value* newRowPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-
+        Value* keyPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
         collectBuilder.CreateCall3(
             builder.Module->GetRoutine("AllocatePermanentRow"),
             collectBuilder.GetExecutionContextPtr(),
             builder.getInt32(joinKeySize),
-            newRowPtr);
+            keyPtr);
+
+        Value* rowWithKeyPtr = collectBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+        collectBuilder.CreateCall3(
+            builder.Module->GetRoutine("AllocatePermanentRow"),
+            collectBuilder.GetExecutionContextPtr(),
+            builder.getInt32(joinKeySize + sourceSchema.Columns().size()),
+            rowWithKeyPtr);
+
+        Value* rowWithKey = collectBuilder.CreateLoad(rowWithKeyPtr);
+
+        std::vector<EValueType> keyTypes;
 
         codegenSource(
             collectBuilder,
@@ -1175,39 +1185,43 @@ TCodegenSource MakeCodegenJoinOp(
                 Value* keysRef = builder.ViaClosure(keys);
                 Value* allRowsRef = builder.ViaClosure(allRows);
                 Value* keysLookupRef = builder.ViaClosure(keysLookup);
-                Value* newRowPtrRef = builder.ViaClosure(newRowPtr);
-                Value* newRowRef = builder.CreateLoad(newRowPtrRef);
+                Value* keyPtrRef = builder.ViaClosure(keyPtr);
+                Value* keyRef = builder.CreateLoad(keyPtrRef);
+                Value* rowWithKeyRef = builder.ViaClosure(rowWithKey);
+
+                for (int index = 0; index < joinKeySize; ++index) {
+                    auto id = index;
+
+                    auto joinKeyValue = equations[index](builder, row);
+                    keyTypes.push_back(joinKeyValue.GetStaticType());
+                    joinKeyValue.StoreToRow(builder, rowWithKeyRef, index, id);
+                    joinKeyValue.StoreToRow(builder, keyRef, index, id);
+                }
+
+                for (int index = 0; index < sourceSchema.Columns().size(); ++index) {
+                    auto column = sourceSchema.Columns()[index];
+                    TCGValue::CreateFromRow(
+                        builder,
+                        row,
+                        index,
+                        column.Type,
+                        "reference." + Twine(column.Name.c_str()))
+                        .StoreToRow(builder, rowWithKeyRef, joinKeySize + index, joinKeySize + index);
+                }
 
                 builder.CreateCall3(
                     builder.Module->GetRoutine("SaveJoinRow"),
                     executionContextPtrRef,
                     allRowsRef,
-                    row);
-
-                for (int index = 0; index < joinKeySize; ++index) {
-                    auto id = index;
-
-                    auto columnName = joinColumns[index];
-                    auto columnIndex = sourceSchema.GetColumnIndexOrThrow(columnName);
-                    auto column = sourceSchema.Columns()[columnIndex];
-                    
-                    TCGValue::CreateFromRow(
-                        builder,
-                        row,
-                        columnIndex,
-                        column.Type,
-                        "reference." + Twine(columnName.c_str()))
-                        .StoreToRow(builder, newRowRef, index, id);                
-                }
+                    rowWithKeyRef);
 
                 // Add row to rows and lookup;
-
                 builder.CreateCall5(
                     builder.Module->GetRoutine("InsertJoinRow"),
                     executionContextPtrRef,
                     keysLookupRef,
                     keysRef,
-                    newRowPtrRef,
+                    keyPtrRef,
                     builder.getInt32(joinKeySize));
 
             });
@@ -1240,11 +1254,6 @@ TCodegenSource MakeCodegenJoinOp(
             codegenConsumer);
 
         consumeBuilder.CreateRetVoid();
- 
-        std::vector<EValueType> keyTypes;
-        for (int index = 0; index < joinColumns.size(); ++index) {
-            keyTypes.push_back(sourceSchema.FindColumn(joinColumns[index])->Type);
-        }
 
         builder.CreateCallWithArgs(
             builder.Module->GetRoutine("JoinOpHelper"),
@@ -1548,18 +1557,18 @@ TCodegenSource MakeCodegenGroupOp(
                     executionContextPtrRef,
                     lookupRef,
                     groupedRowsRef,
-                    newRowPtrRef,
-                    builder.getInt32(groupRowSize));
+                    newRowRef,
+                    builder.getInt32(keySize));
 
                 CodegenIf<TCGContext>(
                     builder,
                     builder.CreateIsNotNull(groupRowPtr),
                     [&] (TCGContext& builder) {
                         auto groupRow = builder.CreateLoad(groupRowPtr);
-                        auto newRow = builder.CreateLoad(newRowPtrRef);
-                        auto inserted = builder.CreateICmpNE(
+
+                        auto inserted = builder.CreateICmpEQ(
                             builder.CreateExtractValue(
-                                newRow,
+                                groupRow,
                                 TypeBuilder<TRow, false>::Fields::Header),
                             builder.CreateExtractValue(
                                 newRowRef,
@@ -1570,7 +1579,17 @@ TCodegenSource MakeCodegenGroupOp(
                             inserted,
                             [&] (TCGContext& builder) {
                                 codegenInitialize(builder, groupRow);
+
+                                builder.CreateCall3(
+                                    builder.Module->GetRoutine("AllocatePermanentRow"),
+                                    builder.GetExecutionContextPtr(),
+                                    builder.getInt32(groupRowSize),
+                                    newRowPtrRef);
                             });
+
+                        // Here *newRowPtrRef != groupRow
+
+                        auto newRow = builder.CreateLoad(newRowPtrRef);
 
                         codegenEvaluateAggregateArgs(builder, row, newRow);
                         codegenUpdate(builder, newRow, groupRow);

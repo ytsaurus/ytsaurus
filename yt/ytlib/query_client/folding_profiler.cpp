@@ -92,19 +92,21 @@ TFoldingProfiler& TFoldingProfiler::Set(yhash_set<Stroka>* references)
 TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 {
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
-    Profile(query->TableSchema);
+    Profile(query->RenamedTableSchema);
     TCodegenSource codegenSource = &CodegenScanOp;
 
-    TTableSchema schema = query->TableSchema;
+    TTableSchema schema = query->RenamedTableSchema;
 
     for (const auto& joinClause : query->JoinClauses) {
         Fold(static_cast<int>(EFoldingObjectType::JoinOp));
 
         Profile(schema);
-        Profile(joinClause->ForeignTableSchema);
+        Profile(joinClause->RenamedTableSchema);
 
-        for (const auto& column : joinClause->JoinColumns) {
-            Fold(column.c_str());
+        std::vector<TCodegenExpression> selfKeys;
+        for (const auto& column : joinClause->Equations) {
+            selfKeys.push_back(Profile(column.first, schema));
+            Profile(column.second, joinClause->RenamedTableSchema);
         }
 
         if (auto selfFilter = ExtractPredicateForColumnSubset(query->WhereClause, schema)) {
@@ -113,7 +115,7 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 
         codegenSource = MakeCodegenJoinOp(
             Variables_->JoinEvaluators.size(),
-            joinClause->JoinColumns,
+            selfKeys,
             schema,
             std::move(codegenSource));
 
