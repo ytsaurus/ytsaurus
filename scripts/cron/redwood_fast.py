@@ -36,7 +36,7 @@ def process_logs(import_list, remove_list, destination_dir, source_pattern, dest
             else: # Import case
                 if dst in map(get_dst, import_list):
                     continue
-                if not yt.exists(dst):
+                if not yt.exists(dst) or yt.get(dst + "/@row_count") == 0:
                     import_list.append({"src": src, "dst": dst,
                                         "mr_user": "userdata",
                                         "erasure_codec": "none",
