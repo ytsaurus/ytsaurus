@@ -199,7 +199,12 @@ class Config(types.ModuleType):
         config = self.get_config(client)
         backend = config["backend"]
         if backend is None:
-            backend = "http" if config["proxy"]["url"] is not None else "native"
+            if config["proxy"]["url"] is not None:
+                backend = "http"
+            elif config["driver_config_path"] is not None or config["driver_config_path"] is not None:
+                backend = "native"
+            else:
+                raise self.common_module.YtError("Cannot determine backend type: either driver config or proxy url should be specified.")
         return backend
 
     def get_single_request_timeout(self, client):

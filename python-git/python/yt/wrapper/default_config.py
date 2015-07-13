@@ -61,7 +61,7 @@ default_config = {
     "api_version": "v2",
 
     # Native driver config usually read from file.
-    "driver_config_path": "/etc/ytdriver.conf",
+    "driver_config_path": None,
     "driver_config": None,
 
     "pickling": {
