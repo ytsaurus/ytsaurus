@@ -124,3 +124,30 @@ wait_task $id
 check \
     "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)" \
     "$(yt2 read //tmp/test_table_from_plato --proxy smith.yt.yandex.net --format yamr)"
+
+# Attributes copying test
+echo "Importing from Smith to Plato (attributes copying test)"
+
+set_attribute() {
+    yt2 set //tmp/test_table/@$1 "$2" --proxy smith.yt.yandex.net
+}
+
+set_attribute "test_key" "test_value"
+set_attribute "erasure_codec" "lrc_12_2_2"
+set_attribute "replication_factor" "4"
+set_attribute "compression_codec" "gzip_best_compression"
+
+id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "plato"}')
+wait_task $id
+
+check_attribute() {
+    check \
+        "$(yt2 get //tmp/test_table_from_smith/@$1 --proxy plato.yt.yandex.net)" \
+        "$(yt2 get //tmp/test_table/@$1 --proxy smith.yt.yandex.net)"
+}
+
+for attribute in "test_key" "erasure_codec" "replication_factor" "compression_codec"; do
+    check_attribute $attribute
+done
+
+yt2 remove //tmp/test_table_from_smith --proxy plato.yt.yandex.net --force

@@ -168,6 +168,23 @@ def run_operation_and_notify(message_queue, run_operation, *args, **kwargs):
                             }})
     operation.wait()
 
+def copy_replication_factor_and_user_attributes(source_client, destination_client, source_table, destination_table):
+    source_attributes = source_client.get(source_table + "/@")
+
+    replication_factor = source_attributes.get("replication_factor")
+    if replication_factor is not None:
+        destination_client.set_attribute(destination_table, "replication_factor", replication_factor)
+
+    for attribute in source_attributes.get("user_attribute_keys", []):
+        destination_client.set_attribute(destination_table, attribute, source_attributes[attribute])
+
+def run_erasure_merge(source_client, destination_client, source_table, destination_table):
+    compression_codec = source_client.get_attribute(source_table, "compression_codec")
+    erasure_codec = source_client.get_attribute(source_table, "erasure_codec")
+
+    convert_to_erasure(destination_table, yt_client=destination_client, erasure_codec=erasure_codec,
+                       compression_codec=compression_codec)
+
 def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spec_template=None, message_queue=None):
     if spec_template is None:
         spec_template = {}
@@ -197,6 +214,9 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spe
             spec=spec_template,
             remote_cluster_token=source_client.config["token"])
 
+    run_erasure_merge(source_client, destination_client, src, dst)
+    copy_replication_factor_and_user_attributes(source_client, destination_client, src, dst)
+
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, spec_template=None, message_queue=None):
     if spec_template is None:
         spec_template = {}
@@ -211,8 +231,6 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             if source_client.exists(src + "/@sorted_by"):
                 sorted_by = source_client.get(src + "/@sorted_by")
             row_count = source_client.get(src + "/@row_count")
-            compression_codec = source_client.get(src + "/@compression_codec")
-            erasure_codec = source_client.get(src + "/@erasure_codec")
 
             ranges = _split_rows_yt(source_client, src, 1024 * yt.common.MB)
             temp_table = destination_client.create_temp_table(prefix=os.path.basename(src))
@@ -248,7 +266,8 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                     dst,
                     sort_by=sorted_by)
 
-            convert_to_erasure(dst, yt_client=destination_client, erasure_codec=erasure_codec, compression_codec=compression_codec)
+            run_erasure_merge(source_client, destination_client, src, dst)
+            copy_replication_factor_and_user_attributes(source_client, destination_client, src, dst)
 
     finally:
         shutil.rmtree(tmp_dir)
