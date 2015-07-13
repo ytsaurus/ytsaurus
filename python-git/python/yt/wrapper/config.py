@@ -201,7 +201,7 @@ class Config(types.ModuleType):
         if backend is None:
             if config["proxy"]["url"] is not None:
                 backend = "http"
-            elif config["driver_config_path"] is not None or config["driver_config_path"] is not None:
+            elif config["driver_config"] is not None or config["driver_config_path"] is not None:
                 backend = "native"
             else:
                 raise self.common_module.YtError("Cannot determine backend type: either driver config or proxy url should be specified.")
