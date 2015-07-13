@@ -94,6 +94,11 @@ class TablePath(object):
         if end_index is not None and upper_key is not None:
             raise YtError("You could not specify upper key bound and end index simultaneously")
 
+        # NB(ignat): for bakcward compatibility with 0.16
+        if "columns" in attributes:
+            attributes["channel"] = attributes["columns"]
+            del attributes["columns"]
+
         if lower_key is not None:
             attributes["lower_limit"] = {"key": flatten(lower_key)}
         if upper_key is not None:
