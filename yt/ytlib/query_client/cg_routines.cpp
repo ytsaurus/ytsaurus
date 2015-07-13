@@ -271,12 +271,11 @@ const TRow* InsertGroupRow(
     TExecutionContext* context,
     TLookupRows* lookupRows,
     std::vector<TRow>* groupedRows,
-    TRow* rowPtr,
-    int valueCount)
+    TRow row,
+    int keySize)
 {
     CHECK_STACK();
 
-    TRow row = *rowPtr;
     auto inserted = lookupRows->insert(row);
 
     if (inserted.second) {
@@ -286,10 +285,10 @@ const TRow* InsertGroupRow(
         }
 
         groupedRows->push_back(row);
-        for (int index = 0; index < valueCount; ++index) {
+        for (int index = 0; index < keySize; ++index) {
             context->PermanentBuffer->Capture(&row[index]);
         }
-        AllocatePermanentRow(context, valueCount, rowPtr);
+        //AllocatePermanentRow(context, valueCount, rowPtr);
     }
 
     return &*inserted.first;

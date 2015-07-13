@@ -1300,8 +1300,8 @@ public:
 
         RootElement->EndHeartbeat();
 
-        LOG_DEBUG("Heartbeat info: Started jobs: %v, Preempted jobs: %v, "
-            "Scheduled during preemption: %v, Preemptable jobs: %v, Preemptable resources: %v",
+        LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
+            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: {%v})",
             context->StartedJobs().size(),
             context->PreemptedJobs().size(),
             scheduledDuringPreemption,
@@ -1510,8 +1510,7 @@ private:
         pool->IncreaseUsage(operationElement->ResourceUsage());
         operationElement->SetPool(pool.Get());
 
-        auto operationCount = OperationToElement.size();
-        if (CanAddOperationToPool(pool.Get()) && operationCount < Config->MaxRunningOperations) {
+        if (CanAddOperationToPool(pool.Get()) && RunningOperationCount[RootPoolName] < Config->MaxRunningOperations) {
             ActivateOperation(operation);
         } else {
             OperationQueue.push_back(operation);
@@ -1526,7 +1525,7 @@ private:
         pool->EnableChild(operationElement);
 
         TCompositeSchedulerElement* element = pool;
-        while (element && !element->IsRoot()) {
+        while (element) {
             RunningOperationCount[element->GetId()] += 1;
             element = element->GetParent();
         }
@@ -1564,14 +1563,14 @@ private:
 
         if (!IsPending) {
             TCompositeSchedulerElement* element = pool;
-            while (element && !element->IsRoot()) {
+            while (element) {
                 RunningOperationCount[element->GetId()] -= 1;
                 element = element->GetParent();
             }
 
             // Try to run operations from queue.
             auto it = OperationQueue.begin();
-            while (it != OperationQueue.end() && OperationToElement.size() < Config->MaxRunningOperations) {
+            while (it != OperationQueue.end() && RunningOperationCount[RootPoolName] < Config->MaxRunningOperations) {
                 auto operation = *it;
                 if (CanAddOperationToPool(GetOperationElement(operation)->GetPool())) {
                     ActivateOperation(operation);
