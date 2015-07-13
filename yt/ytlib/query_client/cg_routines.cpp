@@ -89,7 +89,6 @@ void WriteRow(TRow row, TExecutionContext* context)
 
 void ScanOpHelper(
     TExecutionContext* context,
-    int dataSplitsIndex,
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRow* rows, int size, char* stopFlag))
 {
