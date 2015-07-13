@@ -773,6 +773,7 @@ private:
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
+            error.FindMatching(NSecurityClient::EErrorCode::NoSuchAccount) ||
             error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||
             error.FindMatching(NVersionedTableClient::EErrorCode::InvalidDoubleValue);
     }
