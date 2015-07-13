@@ -72,6 +72,11 @@ def create_response(response, request_headers, client):
                         .format(
                             response.headers.get("X-YT-Request-ID", "missing"),
                             url_base))
+
+                try:
+                    response.json()
+                except json.JSONDecodeError:
+                    raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)")
             return response.json()
         else:
             error = parse_error_from_headers(response.headers)
