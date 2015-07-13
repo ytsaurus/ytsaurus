@@ -1587,8 +1587,7 @@ TCodegenSource MakeCodegenGroupOp(
                                     newRowPtrRef);
                             });
 
-                        // Here *newRowPtrRef != groupRow
-
+                        // Here *newRowPtrRef != groupRow.
                         auto newRow = builder.CreateLoad(newRowPtrRef);
 
                         codegenEvaluateAggregateArgs(builder, row, newRow);
