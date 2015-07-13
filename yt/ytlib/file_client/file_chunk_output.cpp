@@ -68,7 +68,7 @@ void TFileChunkOutput::Open()
     auto rspOrError = CreateChunk(MasterChannel, Config, Options, EObjectType::Chunk, TransactionId).Get();
     if (!rspOrError.IsOK()) {
         THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            NChunkClient::EErrorCode::ChunkCreationFailed,
             "Error creating chunk")
             << rspOrError;
     }
