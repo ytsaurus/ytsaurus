@@ -288,7 +288,6 @@ const TRow* InsertGroupRow(
         for (int index = 0; index < keySize; ++index) {
             context->PermanentBuffer->Capture(&row[index]);
         }
-        //AllocatePermanentRow(context, valueCount, rowPtr);
     }
 
     return &*inserted.first;
