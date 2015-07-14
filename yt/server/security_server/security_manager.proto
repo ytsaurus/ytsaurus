@@ -11,7 +11,11 @@ message TClusterResources
     required int32 node_count = 3;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+message TUserStatistics
+{
+    required int64 request_counter = 1;
+    required int64 access_time = 2;
+}
 
 message TAccountStatistics
 {
@@ -21,16 +25,15 @@ message TAccountStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TRequestStatisticsUpdate
+message TReqIncreaseUserStatistics
 {
-    required NYT.NProto.TGuid user_id = 1;
-    required int64 access_time = 2;
-    required int64 request_counter_delta = 3;    
-}
+    message TEntry
+    {
+        required NYT.NProto.TGuid user_id = 1;
+        required TUserStatistics statistics = 2;
+    }
 
-message TReqUpdateRequestStatistics
-{
-    repeated TRequestStatisticsUpdate updates = 1;
+    repeated TEntry entries = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +44,20 @@ message TReqSetAccountStatistics
     {
         required NYT.NProto.TGuid account_id = 1;
         required TAccountStatistics statistics = 2;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TEntry entries = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSetUserStatistics
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid user_id = 1;
+        required TUserStatistics statistics = 2;
     }
 
     required int32 cell_tag = 1;

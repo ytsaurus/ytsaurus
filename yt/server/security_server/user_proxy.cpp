@@ -42,6 +42,7 @@ private:
         attributes->push_back("request_rate_limit");
         attributes->push_back("access_time");
         attributes->push_back("request_counter");
+        attributes->push_back(TAttributeInfo("multicell_statistics", true, true));
         attributes->push_back("request_rate");
         TBase::ListSystemAttributes(attributes);
     }
@@ -65,13 +66,21 @@ private:
 
         if (key == "access_time") {
             BuildYsonFluently(consumer)
-                .Value(user->GetAccessTime());
+                .Value(user->ClusterStatistics().AccessTime);
             return true;
         }
 
         if (key == "request_counter") {
             BuildYsonFluently(consumer)
-                .Value(user->GetRequestCounter());
+                .Value(user->ClusterStatistics().RequestCounter);
+            return true;
+        }
+
+        if (key == "multicell_statistics") {
+            BuildYsonFluently(consumer)
+                .DoMapFor(user->MulticellStatistics(), [] (TFluentMap fluent, const std::pair<TCellTag, const TUserStatistics&>& pair) {
+                    fluent.Item(ToString(pair.first)).Value(pair.second);
+                });
             return true;
         }
 
