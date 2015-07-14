@@ -174,7 +174,6 @@ private:
     bool Completed_ = false;
     TSingleShotCallbackList<void()> Canceled_;
     bool Finalized_ = false;
-    TClosure Canceler_;
     NProfiling::TCpuInstant ArrivalTime_;
     NProfiling::TCpuInstant StartTime_ = -1;
 
