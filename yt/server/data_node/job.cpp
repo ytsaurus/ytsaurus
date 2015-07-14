@@ -701,7 +701,8 @@ private:
             LOG_INFO("Finished downloading missing journal chunk rows");
         }
 
-        LOG_INFO("Started sealing journal chunk");
+        LOG_INFO("Started sealing journal chunk (RowCount: %v)",
+            sealRowCount);
 
         WaitFor(journalChunk->Seal())
             .ThrowOnError();

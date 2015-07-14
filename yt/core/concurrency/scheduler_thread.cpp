@@ -262,8 +262,12 @@ bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)
     }
 
     if (result == EBeginExecuteResult::QueueEmpty) {
-        CallbackEventCount->Wait(cookie);
-        return true;
+        if (RunQueue.empty()) {
+            CallbackEventCount->Wait(cookie);
+            return true;
+        } else {
+            return false;
+        }
     }
 
     if (result == EBeginExecuteResult::Terminated) {
