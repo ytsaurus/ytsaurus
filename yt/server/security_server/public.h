@@ -16,6 +16,7 @@ namespace NProto {
 class TClusterResources;
 class TAccountStatistics;
 class TRequestStatisticsUpdate;
+class TUserStatistics;
 
 } // namespace NProto
 

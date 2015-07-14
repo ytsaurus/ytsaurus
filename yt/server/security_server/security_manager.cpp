@@ -271,7 +271,8 @@ public:
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
 
-        RegisterMethod(BIND(&TImpl::HydraUpdateRequestStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraIncreaseUserStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetUserStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetAccountStatistics, Unretained(this)));
     }
 
@@ -926,6 +927,7 @@ private:
     const TRequestTrackerPtr RequestTracker_;
 
     TPeriodicExecutorPtr AccountStatiticsGossipExecutor_;
+    TPeriodicExecutorPtr UserStatiticsGossipExecutor_;
 
     bool InitMulticell_ = false;
 
@@ -1065,6 +1067,8 @@ private:
 
         auto* user = UserMap_.Insert(id, std::move(userHolder));
         YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+
+        InitializeUserStatistics(user);
 
         YCHECK(user->RefObject() == 1);
         DoAddMember(GetBuiltinGroupForUser(user), user);
@@ -1215,7 +1219,7 @@ private:
             YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
 
             // Initialize statistics for this cell.
-            // NB: This also provides the neccessary data migration for pre-0.18 versions.
+            // NB: This also provides the necessary data migration for pre-0.18 versions.
             InitializeAccountStatistics(account);
         }
 
@@ -1225,6 +1229,10 @@ private:
 
             // Reconstruct user name map.
             YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+
+            // Initialize statistics for this cell.
+            // NB: This also provides the necessary data migration for pre-0.18 versions.
+            InitializeUserStatistics(user);
         }
 
         GroupNameMap_.clear();
@@ -1382,7 +1390,6 @@ private:
         }
     }
 
-
 protected:
     virtual void OnRecoveryComplete() override
     {
@@ -1400,6 +1407,12 @@ protected:
             BIND(&TImpl::OnAccountStatisticsGossip, MakeWeak(this)),
             Config_->AccountStatisticsGossipPeriod);
         AccountStatiticsGossipExecutor_->Start();
+
+        UserStatiticsGossipExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+            BIND(&TImpl::OnUserStatisticsGossip, MakeWeak(this)),
+            Config_->UserStatisticsGossipPeriod);
+        UserStatiticsGossipExecutor_->Start();
     }
 
     virtual void OnStopLeading() override
@@ -1412,6 +1425,11 @@ protected:
             AccountStatiticsGossipExecutor_->Stop();
             AccountStatiticsGossipExecutor_.Reset();
         }
+
+        if (UserStatiticsGossipExecutor_) {
+            UserStatiticsGossipExecutor_->Stop();
+            UserStatiticsGossipExecutor_.Reset();
+        }
     }
 
     virtual void OnStopFollowing() override
@@ -1419,75 +1437,6 @@ protected:
         TMasterAutomatonPart::OnStopFollowing();
 
         RequestTracker_->Stop();
-    }
-
-
-    void HydraUpdateRequestStatistics(const NProto::TReqUpdateRequestStatistics& request)
-    {
-        auto* profilingManager = NProfiling::TProfileManager::Get();
-        auto now = TInstant::Now();
-        for (const auto& update : request.updates()) {
-            auto userId = FromProto<TUserId>(update.user_id());
-            auto* user = FindUser(userId);
-            if (!IsObjectAlive(user))
-                continue;
-
-            // Update access time.
-            auto accessTime = TInstant(update.access_time());
-            if (accessTime > user->GetAccessTime()) {
-                user->SetAccessTime(accessTime);
-            }
-
-            // Update request counter.
-            i64 requestCounter = user->GetRequestCounter() + update.request_counter_delta();
-            user->SetRequestCounter(requestCounter);
-
-            NProfiling::TTagIdList tags;
-            tags.push_back(profilingManager->RegisterTag("user", user->GetName()));
-
-            Profiler.Enqueue("/user_request_counter", requestCounter, tags);
-
-            // Recompute request rate.
-            if (now > user->GetCheckpointTime() + Config_->RequestRateSmoothingPeriod) {
-                if (user->GetCheckpointTime() != TInstant::Zero()) {
-                    double requestRate =
-                        static_cast<double>(requestCounter - user->GetCheckpointRequestCounter()) /
-                        (now - user->GetCheckpointTime()).SecondsFloat();
-                    user->SetRequestRate(requestRate);
-                    Profiler.Enqueue("/user_request_rate", static_cast<int>(requestRate), tags);
-                }
-                user->SetCheckpointTime(now);
-                user->SetCheckpointRequestCounter(requestCounter);
-            }
-        }
-    }
-
-    void HydraSetAccountStatistics(const NProto::TReqSetAccountStatistics& request)
-    {
-        auto cellTag = request.cell_tag();
-        LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
-            cellTag);
-
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        YCHECK(hydraFacade->IsPrimaryMaster() || cellTag == hydraFacade->GetPrimaryCellTag());
-
-        for (const auto& entry : request.entries()) {
-            auto accountId = FromProto<TAccountId>(entry.account_id());
-            auto* account = FindAccount(accountId);
-            if (!IsObjectAlive(account))
-                continue;
-
-            auto newStatistics = FromProto<TAccountStatistics>(entry.statistics());
-            if (hydraFacade->IsPrimaryMaster()) {
-                *account->GetCellStatistics(cellTag) = newStatistics;
-                account->ClusterStatistics() = ZeroAccountStatistics();
-                for (const auto& pair : account->MulticellStatistics()) {
-                    account->ClusterStatistics() += pair.second;
-                }
-            } else {
-                account->ClusterStatistics() = newStatistics;
-            }
-        }
     }
 
 
@@ -1539,6 +1488,146 @@ protected:
         }
     }
 
+    void HydraSetAccountStatistics(const NProto::TReqSetAccountStatistics& request)
+    {
+        auto cellTag = request.cell_tag();
+        LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
+            cellTag);
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        YCHECK(hydraFacade->IsPrimaryMaster() || cellTag == hydraFacade->GetPrimaryCellTag());
+
+        for (const auto& entry : request.entries()) {
+            auto accountId = FromProto<TAccountId>(entry.account_id());
+            auto* account = FindAccount(accountId);
+            if (!IsObjectAlive(account))
+                continue;
+
+            auto newStatistics = FromProto<TAccountStatistics>(entry.statistics());
+            if (hydraFacade->IsPrimaryMaster()) {
+                *account->GetCellStatistics(cellTag) = newStatistics;
+                account->ClusterStatistics() = TAccountStatistics();
+                for (const auto& pair : account->MulticellStatistics()) {
+                    account->ClusterStatistics() += pair.second;
+                }
+            } else {
+                account->ClusterStatistics() = newStatistics;
+            }
+        }
+    }
+
+
+    void InitializeUserStatistics(TUser* user)
+    {
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        auto cellTag = hydraFacade->GetCellTag();
+        const auto& secondaryCellTags = hydraFacade->GetSecondaryCellTags();
+
+        auto& multicellStatistics = user->MulticellStatistics();
+        if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
+            user->MulticellStatistics()[cellTag] = user->ClusterStatistics();
+        }
+
+        for (auto secondaryCellTag : secondaryCellTags) {
+            user->MulticellStatistics()[secondaryCellTag];
+        }
+
+        user->SetLocalStatistics(&multicellStatistics[cellTag]);
+    }
+
+    void OnUserStatisticsGossip()
+    {
+        LOG_INFO("Sending user statistics gossip message");
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+
+        NProto::TReqSetUserStatistics request;
+        request.set_cell_tag(hydraFacade->GetCellTag());
+        for (const auto& pair : UserMap_) {
+            auto* user = pair.second;
+            if (!IsObjectAlive(user))
+                continue;
+
+            auto* entry = request.add_entries();
+            ToProto(entry->mutable_user_id(), user->GetId());
+            if (hydraFacade->IsPrimaryMaster()) {
+                ToProto(entry->mutable_statistics(), user->ClusterStatistics());
+            } else {
+                ToProto(entry->mutable_statistics(), *user->GetLocalStatistics());
+            }
+        }
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        if (hydraFacade->IsPrimaryMaster()) {
+            hydraFacade->PostToSecondaryMasters(request, false);
+        } else {
+            hydraFacade->PostToPrimaryMaster(request, false);
+        }
+    }
+
+    void HydraIncreaseUserStatistics(const NProto::TReqIncreaseUserStatistics& request)
+    {
+        auto* profilingManager = NProfiling::TProfileManager::Get();
+        auto now = TInstant::Now();
+        for (const auto& entry : request.entries()) {
+            auto userId = FromProto<TUserId>(entry.user_id());
+            auto* user = FindUser(userId);
+            if (!IsObjectAlive(user))
+                continue;
+
+            // Update access time.
+            auto statistics = FromProto<TUserStatistics>(entry.statistics());
+            *user->GetLocalStatistics() += statistics;
+            user->ClusterStatistics() += statistics;
+
+            NProfiling::TTagIdList tags;
+            tags.push_back(profilingManager->RegisterTag("user", user->GetName()));
+
+            i64 localRequestCounter = user->GetLocalStatistics()->RequestCounter;
+            Profiler.Enqueue("/user_request_counter", localRequestCounter, tags);
+
+            // Recompute request rate.
+            if (now > user->GetCheckpointTime() + Config_->RequestRateSmoothingPeriod) {
+                if (user->GetCheckpointTime() != TInstant::Zero()) {
+                    double requestRate =
+                        static_cast<double>(localRequestCounter - user->GetCheckpointRequestCounter()) /
+                        (now - user->GetCheckpointTime()).SecondsFloat();
+                    user->SetRequestRate(requestRate);
+                    Profiler.Enqueue("/user_request_rate", static_cast<int>(requestRate), tags);
+                }
+                user->SetCheckpointTime(now);
+                user->SetCheckpointRequestCounter(localRequestCounter);
+            }
+        }
+    }
+
+    void HydraSetUserStatistics(const NProto::TReqSetUserStatistics& request)
+    {
+        auto cellTag = request.cell_tag();
+        LOG_INFO_UNLESS(IsRecovery(), "Received user statistics gossip message (CellTag: %v)",
+            cellTag);
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        YCHECK(hydraFacade->IsPrimaryMaster() || cellTag == hydraFacade->GetPrimaryCellTag());
+
+        for (const auto& entry : request.entries()) {
+            auto userId = FromProto<TAccountId>(entry.user_id());
+            auto* user = FindUser(userId);
+            if (!IsObjectAlive(user))
+                continue;
+
+            auto newStatistics = FromProto<TUserStatistics>(entry.statistics());
+            if (hydraFacade->IsPrimaryMaster()) {
+                *user->GetCellStatistics(cellTag) = newStatistics;
+                user->ClusterStatistics() = TUserStatistics();
+                for (const auto& pair : user->MulticellStatistics()) {
+                    user->ClusterStatistics() += pair.second;
+                }
+            } else {
+                user->ClusterStatistics() = newStatistics;
+            }
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, TAccountId, AccountMap_)

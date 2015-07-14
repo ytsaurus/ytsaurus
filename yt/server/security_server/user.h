@@ -5,12 +5,32 @@
 
 #include <core/misc/property.h>
 
+#include <core/yson/consumer.h>
+
 #include <server/object_server/object.h>
 
 #include <server/cell_master/public.h>
 
 namespace NYT {
 namespace NSecurityServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TUserStatistics
+{
+    i64 RequestCounter = 0;
+    TInstant AccessTime;
+
+    void Persist(NCellMaster::TPersistenceContext& context);
+};
+
+void ToProto(NProto::TUserStatistics* protoStatistics, const TUserStatistics& statistics);
+void FromProto(TUserStatistics* statistics, const NProto::TUserStatistics& protoStatistics);
+
+void Serialize(const TUserStatistics& statistics, NYson::IYsonConsumer* consumer);
+
+TUserStatistics& operator += (TUserStatistics& lhs, const TUserStatistics& rhs);
+TUserStatistics  operator +  (const TUserStatistics& lhs, const TUserStatistics& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,9 +42,11 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
     DEFINE_BYVAL_RW_PROPERTY(double, RequestRateLimit);
 
-    // Request counters.
-    DEFINE_BYVAL_RW_PROPERTY(i64, RequestCounter);
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
+    // Statistics
+    using TMulticellStatistics = yhash_map<NObjectClient::TCellTag, TUserStatistics>;
+    DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(TUserStatistics*, LocalStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TUserStatistics, ClusterStatistics);
     DEFINE_BYVAL_RW_PROPERTY(int, RequestStatisticsUpdateIndex);
     
     // Request rate management.
@@ -39,6 +61,8 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 
     void ResetRequestRate();
+
+    TUserStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);
 
 };
 
