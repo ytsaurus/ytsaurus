@@ -753,7 +753,7 @@ TServiceBase::TServiceContextPtr TServiceBase::FindCancelableRequest(const TRequ
 {
     TGuard<TSpinLock> guard(CancelableRequestLock_);
     auto it = IdToContext_.find(requestId);
-    return it == IdToContext_.end()  ? nullptr : TServiceContext::DangerousGetPtr(it->second);
+    return it == IdToContext_.end() ? nullptr : TServiceContext::DangerousGetPtr(it->second);
 }
 
 TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanceCounters(
