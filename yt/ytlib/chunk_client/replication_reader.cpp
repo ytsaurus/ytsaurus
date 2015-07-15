@@ -223,8 +223,6 @@ private:
         NodeDirectory_->MergeFrom(rsp->node_directory());
         auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
 
-        std::random_shuffle(seedReplicas.begin(), seedReplicas.end());
-
         LOG_DEBUG("Chunk seeds received (SeedReplicas: [%v])",
             JoinToString(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
 
@@ -233,6 +231,14 @@ private:
     }
 
 };
+
+///////////////////////////////////////////////////////////////////////////////
+
+//! Please keep the items in this particular order: the further the better.
+DEFINE_ENUM(EPeerType,
+    (Peer)
+    (Seed)
+);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -264,17 +270,15 @@ protected:
     //! Set of peer addresses banned for the current retry.
     yhash_set<Stroka> BannedPeers_;
 
-    //! List of candidates addresses to try.
-    std::vector<Stroka> PeerList_;
+    //! List of candidates addresses to try, prioritized by type (seeds before peers), locality and random number.
+    typedef std::priority_queue<std::tuple<EPeerType, EAddressLocality, ui32, Stroka>> TPeerQueue;
+    TPeerQueue PeerQueue_;
 
-    //! Set of addresses corresponding to PeerList_.
+    //! Set of addresses corresponding to PeerQueue_.
     yhash_set<Stroka> PeerSet_;
 
-    //! Maps addresses of peers (see PeerList_) to descriptors.
+    //! Maps addresses of peers (see PeerQueue_) to descriptors.
     yhash_map<Stroka, TNodeDescriptor> AddressToDescriptor_;
-
-    //! Current index in #PeerList.
-    int PeerIndex_ = 0;
 
     //! The instant this session has started.
     TInstant StartTime_;
@@ -293,10 +297,20 @@ protected:
             reader->ChunkId_);
     }
 
-    void AddPeer(const Stroka& address, const TNodeDescriptor& descriptor)
+    void AddPeer(const Stroka& address, const TNodeDescriptor& descriptor, EPeerType type)
     {
+        auto reader = Reader_.Lock();
+        if (!reader) {
+            return;
+        }
+
         if (PeerSet_.insert(address).second) {
-            PeerList_.push_back(address);
+            EAddressLocality locality = EAddressLocality::None;
+            if (reader->LocalDescriptor_) {
+                const auto& localDescriptor = *reader->LocalDescriptor_;
+                locality = ComputeAddressLocality(descriptor, localDescriptor);
+            }
+            PeerQueue_.emplace(type, locality, RandomNumber<ui32>(), address);
             YCHECK(AddressToDescriptor_.insert(std::make_pair(address, descriptor)).second);
         }
     }
@@ -310,9 +324,8 @@ protected:
 
     void ClearPeers()
     {
-        PeerList_.clear();
+        PeerQueue_ = TPeerQueue{};
         PeerSet_.clear();
-        PeerIndex_ = 0;
         AddressToDescriptor_.clear();
     }
 
@@ -336,18 +349,15 @@ protected:
 
     bool HasMorePeers()
     {
-        return PeerIndex_ < PeerList_.size();
+        return !PeerQueue_.empty();
     }
 
     Stroka PickNextPeer()
     {
-        // When the time comes to fetch from a non-seeding node, pick a random one.
-        if (PeerIndex_ >= SeedReplicas_.size()) {
-            size_t count = PeerList_.size() - PeerIndex_;
-            size_t randomIndex = PeerIndex_ + RandomNumber(count);
-            std::swap(PeerList_[PeerIndex_], PeerList_[randomIndex]);
-        }
-        return PeerList_[PeerIndex_++];
+        YCHECK(!PeerQueue_.empty());
+        auto address = std::get<3>(PeerQueue_.top());
+        PeerQueue_.pop();
+        return address;
     }
 
     virtual void NextRetry()
@@ -418,11 +428,11 @@ protected:
             const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
             auto address = descriptor.FindAddress(NetworkName_);
             if (address && !IsPeerBanned(*address)) {
-                AddPeer(*address, descriptor);
+                AddPeer(*address, descriptor, EPeerType::Seed);
             }
         }
 
-        if (PeerList_.empty()) {
+        if (PeerQueue_.empty()) {
             LOG_DEBUG("No feasible seeds to start a pass");
             OnRetryFailed();
             return false;
@@ -484,10 +494,6 @@ private:
 
     void OnGotSeeds(const TErrorOr<TChunkReplicaList>& result)
     {
-        auto reader = Reader_.Lock();
-        if (!reader)
-            return;
-
         if (!result.IsOK()) {
             RegisterError(TError(
                 NChunkClient::EErrorCode::MasterCommunicationFailed,
@@ -518,21 +524,6 @@ private:
                     descriptor.GetDefaultAddress()));
                 OnSessionFailed();
             }
-        }
-
-        if (reader->LocalDescriptor_) {
-            // Sort by descreasing locality.
-            const auto& localDescriptor = *reader->LocalDescriptor_;
-            std::sort(
-                SeedReplicas_.begin(),
-                SeedReplicas_.end(),
-                [&] (TChunkReplica lhsReplica, TChunkReplica rhsReplica) {
-                    const auto& lhsDescriptor = reader->NodeDirectory_->GetDescriptor(lhsReplica);
-                    const auto& rhsDescriptor = reader->NodeDirectory_->GetDescriptor(rhsReplica);
-                    auto lhsLocality = ComputeAddressLocality(lhsDescriptor, localDescriptor);
-                    auto rhsLocality = ComputeAddressLocality(rhsDescriptor, localDescriptor);
-                    return lhsLocality > rhsLocality;
-                });
         }
 
         NextPass();
@@ -594,7 +585,7 @@ private:
 
         PeerBlocksMap_.clear();
         auto blockIndexes = GetUnfetchedBlockIndexes();
-        for (const auto& address : PeerList_) {
+        for (const auto& address : PeerSet_) {
             PeerBlocksMap_[address] = yhash_set<int>(blockIndexes.begin(), blockIndexes.end());
         }
 
@@ -784,7 +775,7 @@ private:
                     auto suggestedDescriptor = FromProto<TNodeDescriptor>(protoPeerDescriptor);
                     auto suggestedAddress = suggestedDescriptor.FindAddress(NetworkName_);
                     if (suggestedAddress) {
-                        AddPeer(*suggestedAddress, suggestedDescriptor);
+                        AddPeer(*suggestedAddress, suggestedDescriptor, EPeerType::Peer);
                         PeerBlocksMap_[*suggestedAddress].insert(blockIndex);
                         LOG_DEBUG("Peer suggestion received (Block: %v, SuggestorAddress: %v, SuggestedAddress: %v)",
                             blockIndex,
