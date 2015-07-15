@@ -67,6 +67,8 @@ using TFingerprint = ui64;
 template <class T, unsigned size>
 class SmallVector;
 
+const i64 DefaultEnvelopePartSize = 1LL << 28;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
