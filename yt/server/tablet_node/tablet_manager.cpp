@@ -534,6 +534,10 @@ private:
             LOG_DEBUG_IF(rowCount > 0, "Transaction write log applied (TransactionId: %v, RowCount: %v)",
                 transaction->GetId(),
                 rowCount);
+
+            if (transaction->GetState() == ETransactionState::PersistentCommitPrepared) {
+                OnTransactionPrepared(transaction);
+            }
         }
     }
 
