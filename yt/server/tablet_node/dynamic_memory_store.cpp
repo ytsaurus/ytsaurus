@@ -815,9 +815,17 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
             auto* migratedLock = migratedLocks;
             for (int index = 0; index < ColumnLockCount_; ++index, ++lock, ++migratedLock) {
                 if (lock->Transaction == transaction) {
-                    YASSERT(lock->PrepareTimestamp != NotPreparedTimestamp);
+                    // Validate the original lock's sanity.
+                    // NB: For simple transaction transacton may not go through preparation stage
+                    // during recovery.
+                    YASSERT(
+                        transaction->GetPrepareTimestamp() == NullTimestamp ||
+                        lock->PrepareTimestamp == transaction->GetPrepareTimestamp());
+
+                    // Validate the mirgated lock's sanity.
                     YASSERT(!migratedLock->Transaction);
                     YASSERT(migratedLock->PrepareTimestamp == NotPreparedTimestamp);
+
                     migratedLock->Transaction = lock->Transaction;
                     migratedLock->PrepareTimestamp = lock->PrepareTimestamp;
                     migratedLock->LastCommitTimestamp = std::max(migratedLock->LastCommitTimestamp, lock->LastCommitTimestamp);
