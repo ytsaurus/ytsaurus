@@ -55,7 +55,8 @@ def suggest_pivot_keys(tablet_id, desired_tablet_size, number_of_key_columns):
     for i in range(1, n):
         k = i * len(info["partitions"]) / n
         p = info["partitions"][k]["next_pivot_key"][0:number_of_key_columns]
-        keys.append(p)
+        if p != keys[-1]:
+            keys.append(p)
     return keys
 
 
@@ -75,7 +76,8 @@ def rebalance(table, key_columns, threshold, yes=False):
     for unbalanced_tablet_index in reversed(unbalanced_tablet_indexes):
         tablet_id = tablets[unbalanced_tablet_index][1]
         pivot_keys = suggest_pivot_keys(tablet_id, threshold, key_columns)
-        logging.info("Gathered %s splits from partition information for tablet %s", len(pivot_keys), tablet_id)
+        logging.info("Gathered %s splits from partition information for tablet %s: %s",
+                     len(pivot_keys), unbalanced_tablet_index, pivot_keys)
         operations.append((unbalanced_tablet_index, pivot_keys))
 
     if not yes:
@@ -123,4 +125,5 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.ERROR)
     else:
         logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+
     rebalance(args.table, args.key_columns, args.threshold, args.yes)
