@@ -272,7 +272,7 @@ private:
             CreateNode(
                 "//sys/nodes",
                 transactionId,
-                EObjectType::CellNodeMap,
+                EObjectType::ClusterNodeMap,
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)

@@ -134,11 +134,11 @@ DEFINE_ENUM(EObjectType,
     ((TabletPartition)            (705))
     
     // Node Tracker stuff
-    ((ClusterNode)                (802))
-    ((CellNodeMap)                (408))
-    ((CellNode)                   (410))
     ((Rack)                       (800))
     ((RackMap)                    (801))
+    ((ClusterNode)                (802))
+    ((ClusterNodeNode)            (803))
+    ((ClusterNodeMap)             (804))
 );
 
 //! A bit mask marking schema types.

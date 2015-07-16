@@ -34,7 +34,7 @@ DEFINE_ENUM(ENodeState,
     (Registered)
     // Registered and reported the first heartbeat.
     (Online)
-    // Known but unregistered, placed into removal queue.
+    // Unregistered and placed into disposal queue.
     (Unregistered)
 );
 
@@ -68,7 +68,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
 
     // Chunk Manager stuff.
-    DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned); // kept in sync with |GetConfig()->Decommissioned|.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TFillFactorToNodeIterator>, FillFactorIterator);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
@@ -109,7 +110,6 @@ public:
     TNode(
         const NObjectServer::TObjectId& objectId,
         const TAddressMap& addresses,
-        TNodeConfigPtr config,
         TInstant registerTime);
     explicit TNode(const NObjectServer::TObjectId& objectId);
 
@@ -117,8 +117,6 @@ public:
     TNodeDescriptor GetDescriptor() const;
     const TAddressMap& GetAddresses() const;
     const Stroka& GetDefaultAddress() const;
-
-    const TNodeConfigPtr& GetConfig() const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -165,7 +163,6 @@ public:
 
 private:
     TAddressMap Addresses_;
-    const TNodeConfigPtr Config_;
 
     int HintedUserSessionCount_;
     int HintedReplicationSessionCount_;

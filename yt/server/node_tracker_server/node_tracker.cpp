@@ -2,9 +2,11 @@
 #include "node_tracker.h"
 #include "config.h"
 #include "node.h"
+#include "node_proxy.h"
 #include "rack.h"
 #include "rack_proxy.h"
 #include "private.h"
+#include "cypress_integration.h"
 
 #include <core/misc/id_generator.h>
 #include <core/misc/address.h>
@@ -54,6 +56,7 @@ using namespace NHydra;
 using namespace NHive;
 using namespace NObjectClient;
 using namespace NCypressClient;
+using namespace NCypressServer;
 using namespace NNodeTrackerServer::NProto;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
@@ -63,6 +66,43 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = NodeTrackerServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNodeTracker::TClusterNodeTypeHandler
+    : public TObjectTypeHandlerWithMapBase<TNode>
+{
+public:
+    explicit TClusterNodeTypeHandler(TImpl* owner);
+
+    virtual bool IsReplicated() const override
+    {
+        return false;
+    }
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::ClusterNode;
+    }
+
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    {
+        return Null;
+    }
+
+private:
+    TImpl* const Owner_;
+
+    virtual Stroka DoGetName(TNode* node) override
+    {
+        return Format("node %v", node->GetDefaultAddress());
+    }
+
+    virtual IObjectProxyPtr DoGetProxy(TNode* node, TTransaction* transaction) override;
+
+    virtual void DoZombifyObject(TNode* node) override;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,7 +165,7 @@ public:
     {
         RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRemoveNode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraDisposeNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this), nullptr));
         RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this), nullptr, nullptr));
 
@@ -144,8 +184,6 @@ public:
             ESyncSerializationPriority::Values,
             "NodeTracker.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
-
-        SubscribeNodeConfigUpdated(BIND(&TImpl::OnNodeConfigUpdated, Unretained(this)));
     }
 
     void Initialize()
@@ -155,6 +193,7 @@ public:
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
 
         auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RegisterHandler(New<TClusterNodeTypeHandler>(this));
         objectManager->RegisterHandler(New<TRackTypeHandler>(this));
     }
 
@@ -183,8 +222,8 @@ public:
             request);
     }
 
-    TMutationPtr CreateRemoveNodeMutation(
-        const TReqRemoveNode& request)
+    TMutationPtr CreateDisposeNodeMutation(
+        const TReqDisposeNode& request)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -217,32 +256,44 @@ public:
     }
 
 
-    void RefreshNodeConfig(TNode* node)
-    {
-        auto attributes = FindNodeAttributes(node->GetDefaultAddress());
-        if (!attributes)
-            return;
-
-        if (!ReconfigureYsonSerializable(node->GetConfig(), attributes))
-            return;
-
-        LOG_INFO_UNLESS(IsRecovery(), "Node configuration updated (Address: %v)", node->GetDefaultAddress());
-
-        NodeConfigUpdated_.Fire(node);
-    }
-
-
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, TObjectId);
     DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack, TRackId);
 
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
     DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
-    DEFINE_SIGNAL(void(TNode* node), NodeRemoved);
-    DEFINE_SIGNAL(void(TNode* node), NodeConfigUpdated);
+    DEFINE_SIGNAL(void(TNode* node), NodeDisposed);
+    DEFINE_SIGNAL(void(TNode* node), NodeBanChanged);
+    DEFINE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
+    DEFINE_SIGNAL(void(TNode* node), NodeRackChanged);
     DEFINE_SIGNAL(void(TNode* node, const TReqFullHeartbeat& request), FullHeartbeat);
     DEFINE_SIGNAL(void(TNode* node, const TReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
     DEFINE_SIGNAL(void(std::vector<TCellDescriptor>*), PopulateCellDescriptors);
 
+
+    void DestroyNode(TNode* node)
+    {
+        auto nodeMapProxy = GetNodeMap();
+        auto nodeNodeProxy = nodeMapProxy->FindChild(ToString(node->GetDefaultAddress()));
+        auto cypressNodeNodeProxy = dynamic_cast<ICypressNodeProxy*>(nodeNodeProxy.Get());
+
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto locks = cypressManager->ListSubtreeLocks(cypressNodeNodeProxy->GetTrunkNode(), nullptr, true);
+
+        // NB: std::set ensures stable order.
+        std::set<TTransaction*> transactions;
+        for (const auto* lock : locks) {
+            transactions.insert(lock->GetTransaction());
+        }
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        for (auto* transaction : transactions) {
+            transactionManager->AbortTransaction(transaction, true);
+        }
+
+        nodeMapProxy->RemoveChild(nodeNodeProxy);
+
+        RemoveFromAddressMaps(node);
+    }
 
     TNode* FindNode(TNodeId id)
     {
@@ -279,36 +330,83 @@ public:
         return node;
     }
 
+    TNode* GetNodeByAddressOrThrow(const Stroka& address)
+    {
+        auto* node = FindNodeByAddress(address);
+        if (!node) {
+            THROW_ERROR_EXCEPTION("No such cluster node %v", address);
+        }
+        return node;
+    }
+
     TNode* FindNodeByHostName(const Stroka& hostName)
     {
         auto it = HostNameToNodeMap_.find(hostName);
         return it == HostNameToNodeMap_.end() ? nullptr : it->second;
     }
 
-    std::vector<Stroka> GetNodeAddressesByRack(const TRack* rack)
+    std::vector<TNode*> GetRackNodes(const TRack* rack)
     {
-        auto nodesMap = FindNodesMap();
-        if (!nodesMap) {
-            return std::vector<Stroka>();
-        }
-
-        auto allAddresses = nodesMap->GetKeys();
-        // Just in case, to make the behavior fully deterministic.
-        std::sort(allAddresses.begin(), allAddresses.end());
-
-        std::vector<Stroka> matchingAddresses;
-        for (const auto& address : allAddresses) {
-            auto nodeNode = nodesMap->GetChild(address);
-            auto* nodeAttributes = nodeNode->MutableAttributes();
-            auto nodeRack = nodeAttributes->Find<Stroka>("rack");
-            if (nodeRack && rack && *nodeRack == rack->GetName() ||
-                !nodeRack && !rack)
-            {
-                matchingAddresses.push_back(address);
+        std::vector<TNode*> result;
+        for (const auto& pair : NodeMap_) {
+            auto* node = pair.second;
+            if (!IsObjectAlive(node))
+                continue;
+            if (node->GetRack() == rack) {
+                result.push_back(node);
             }
         }
+        return result;
+    }
 
-        return matchingAddresses;
+
+    void SetNodeBanned(TNode* node, bool value)
+    {
+        if (node->GetBanned() != value) {
+            node->SetBanned(value);
+            if (value) {
+                LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+                if (node->GetState() == ENodeState::Online || node->GetState() == ENodeState::Registered) {
+                    UnregisterNode(node, true);
+                }
+            } else {
+                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer banned (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            }
+            NodeBanChanged_.Fire(node);
+        }
+    }
+
+    void SetNodeDecommissioned(TNode* node, bool value)
+    {
+        if (node->GetDecommissioned() != value) {
+            node->SetDecommissioned(value);
+            if (value) {
+                LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            } else {
+                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            }
+            NodeDecommissionChanged_.Fire(node);
+        }
+    }
+
+    void SetNodeRack(TNode* node, TRack* rack)
+    {
+        if (node->GetRack() != rack) {
+            node->SetRack(rack);
+            LOG_INFO_UNLESS(IsRecovery(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
+                node->GetId(),
+                node->GetDefaultAddress(),
+                rack ? MakeNullable(rack->GetName()) : Null);
+            NodeRackChanged_.Fire(node);
+        }
     }
 
 
@@ -349,20 +447,13 @@ public:
     void DestroyRack(TRack* rack)
     {
         // Unbind nodes from this rack.
-        auto addresses = GetNodeAddressesByRack(rack);
-        AssignNodesToRack(addresses, nullptr);
+        for (auto* node : GetRackNodes(rack)) {
+            SetNodeRack(node, nullptr);
+        }
 
         // Remove rack from maps.
         YCHECK(NameToRackMap_.erase(rack->GetName()) == 1);
         FreeRackIndex(rack->GetIndex());
-
-        // Notify the subscribers about the node changes.
-        for (const auto& address : addresses) {
-            auto* node = FindNodeByAddress(address);
-            if (node) {
-                RefreshNodeConfig(node);
-            }
-        }
     }
 
     void RenameRack(TRack* rack, const Stroka& newName)
@@ -377,17 +468,10 @@ public:
                 newName);
         }
 
-        // Temporarily unbind nodes from this rack.
-        auto addresses = GetNodeAddressesByRack(rack);
-        AssignNodesToRack(addresses, nullptr);
-
         // Update name.
         YCHECK(NameToRackMap_.erase(rack->GetName()) == 1);
         YCHECK(NameToRackMap_.insert(std::make_pair(newName, rack)).second);
         rack->SetName(newName);
-
-        // Rebind nodes back.
-        AssignNodesToRack(addresses, rack);
     }
 
     TRack* FindRackByName(const Stroka& name)
@@ -409,28 +493,6 @@ public:
     }
 
 
-    TNodeConfigPtr FindNodeConfigByAddress(const Stroka& address)
-    {
-        auto attributes = FindNodeAttributes(address);
-        if (!attributes) {
-            return nullptr;
-        }
-
-        try {
-            return ConvertTo<TNodeConfigPtr>(attributes);
-        } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error parsing configuration of node %v, defaults will be used", address);
-            return nullptr;
-        }
-    }
-
-    TNodeConfigPtr GetNodeConfigByAddress(const Stroka& address)
-    {
-        auto config = FindNodeConfigByAddress(address);
-        return config ? config : New<TNodeConfig>();
-    }
-
-    
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
         TTotalNodeStatistics result;
@@ -464,6 +526,7 @@ public:
     }
 
 private:
+    friend class TClusterNodeTypeHandler;
     friend class TRackTypeHandler;
 
     const TNodeTrackerConfigPtr Config_;
@@ -487,8 +550,8 @@ private:
 
     int PendingRegisterNodeMutationCount_ = 0;
 
-    std::deque<TNode*> NodeRemovalQueue_;
-    int PendingRemoveNodeMutationCount_ = 0;
+    std::deque<TNode*> NodeDisposalQueue_;
+    int PendingDisposeNodeMutationCount_ = 0;
 
 
     TNodeId GenerateNodeId()
@@ -524,29 +587,12 @@ private:
         return GetNodePath(node->GetDefaultAddress());
     }
 
-
-    IMapNodePtr FindNodesMap()
+    IMapNodePtr GetNodeMap()
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
         auto node = resolver->ResolvePath("//sys/nodes");
-        return node ? node->AsMap() : nullptr;
-    }
-
-    IMapNodePtr FindNodeNode(const Stroka& address)
-    {
-        auto nodesMap = FindNodesMap();
-        if (!nodesMap) {
-            return nullptr;
-        }
-        auto nodeNode = nodesMap->FindChild(address);
-        return nodeNode ? nodeNode->AsMap() : nullptr;
-    }
-
-    IMapNodePtr FindNodeAttributes(const Stroka& address)
-    {
-        auto nodeNode = FindNodeNode(address);
-        return nodeNode ? nodeNode->Attributes().ToMap() : nullptr;
+        return node->AsMap();
     }
 
 
@@ -557,25 +603,41 @@ private:
         const auto& statistics = request.statistics();
 
         // Kick-out any previous incarnation.
-        {
-            auto* existingNode = FindNodeByAddress(address);
-            if (existingNode) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingId: %v)",
-                    address,
-                    existingNode->GetId());
-                DoUnregisterNode(existingNode, false);
-                DoRemoveNode(existingNode);
+        auto* existingNode = FindNodeByAddress(address);
+        if (existingNode) {
+            if (existingNode->GetBanned()) {
+                THROW_ERROR_EXCEPTION("Node %v is banned", address);
             }
+            LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingNodeId: %v)",
+                address,
+                existingNode->GetId());
+            UnregisterNode(existingNode, false);
+            DisposeNode(existingNode);
+            RemoveFromAddressMaps(existingNode);
         }
 
         if (IsLeader()) {
             YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
         }
 
-        auto* node = DoRegisterNode(addresses, statistics);
+        auto* newNode = RegisterNode(addresses, statistics);
+
+        if (existingNode) {
+            SetNodeBanned(newNode, existingNode->GetBanned());
+            SetNodeDecommissioned(newNode, existingNode->GetDecommissioned());
+            const auto* newAttributes = newNode->GetAttributes();
+            auto* existingAttributes = existingNode->GetMutableAttributes();
+            if (newAttributes) {
+                existingAttributes->Attributes() = newAttributes->Attributes();
+            } else {
+                existingAttributes->Attributes().clear();
+            }
+
+            NodeMap_.Remove(ObjectIdFromNodeId(existingNode->GetId()));
+        }
 
         TRspRegisterNode response;
-        response.set_node_id(node->GetId());
+        response.set_node_id(newNode->GetId());
         return response;
     }
 
@@ -589,10 +651,10 @@ private:
         if (node->GetState() != ENodeState::Registered && node->GetState() != ENodeState::Online)
             return;
 
-        DoUnregisterNode(node, true);
+        UnregisterNode(node, true);
     }
 
-    void HydraRemoveNode(const TReqRemoveNode& request)
+    void HydraDisposeNode(const TReqDisposeNode& request)
     {
         auto nodeId = request.node_id();
 
@@ -603,10 +665,10 @@ private:
             return;
 
         if (IsLeader()) {
-            YCHECK(--PendingRemoveNodeMutationCount_ >= 0);
+            YCHECK(--PendingDisposeNodeMutationCount_ >= 0);
         }
 
-        DoRemoveNode(node);
+        DisposeNode(node);
     }
 
     void HydraFullHeartbeat(
@@ -743,17 +805,14 @@ private:
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
-            const auto& address = node->GetDefaultAddress();
 
-            YCHECK(AddressToNodeMap_.insert(std::make_pair(address, node)).second);
-            HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
-
+            InsertToAddressMaps(node);
             UpdateNodeCounters(node, +1);
 
             if (node->GetTransaction()) {
                 RegisterLeaseTransaction(node);
             } else {
-                DoUnregisterNode(node, true);
+                UnregisterNode(node, true);
             }
         }
 
@@ -798,18 +857,17 @@ private:
 
         PendingRegisterNodeMutationCount_ = 0;
 
-        NodeRemovalQueue_.clear();
-        PendingRemoveNodeMutationCount_ = 0;
+        NodeDisposalQueue_.clear();
+        PendingDisposeNodeMutationCount_ = 0;
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
-            RefreshNodeConfig(node);
             if (node->GetState() == ENodeState::Unregistered) {
-                NodeRemovalQueue_.push_back(node);
+                NodeDisposalQueue_.push_back(node);
             }
         }
 
-        MaybePostRemoveNodeMutations();
+        MaybePostDisposeNodeMutations();
     }
 
 
@@ -894,35 +952,34 @@ private:
             node->GetId(),
             node->GetDefaultAddress());
 
-        DoUnregisterNode(node, true);
+        UnregisterNode(node, true);
     }
 
 
-    TNode* DoRegisterNode(const TAddressMap& addresses, const TNodeStatistics& statistics)
+    TNode* RegisterNode(
+        const TAddressMap& addresses,
+        const TNodeStatistics& statistics)
     {
         PROFILE_TIMING ("/node_register_time") {
             const auto& address = GetDefaultAddress(addresses);
-            auto config = GetNodeConfigByAddress(address);
-            auto nodeId = GenerateNodeId();
+            auto objectId = ObjectIdFromNodeId(GenerateNodeId());
 
             const auto* mutationContext = GetCurrentMutationContext();
 
             auto nodeHolder = std::make_unique<TNode>(
-                ObjectIdFromNodeId(nodeId),
+                objectId,
                 addresses,
-                config,
                 mutationContext->GetTimestamp());
-            auto* node = NodeMap_.Insert(
-                ObjectIdFromNodeId(nodeId),
-                std::move(nodeHolder));
+
+            auto* node = NodeMap_.Insert(objectId, std::move(nodeHolder));
+
+            // Make the fake reference.
+            YCHECK(node->RefObject() == 1);
 
             node->SetState(ENodeState::Registered);
             node->Statistics() = statistics;
-            node->SetRack(config->Rack ? FindRackByName(*config->Rack) : nullptr);
 
-            AddressToNodeMap_.insert(std::make_pair(address, node));
-            HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
-            
+            InsertToAddressMaps(node);
             UpdateNodeCounters(node, +1);
 
             auto transactionManager = Bootstrap_->GetTransactionManager();
@@ -950,11 +1007,8 @@ private:
                 // Create Cypress node.
                 {
                     auto req = TCypressYPathProxy::Create(nodePath);
-                    req->set_type(static_cast<int>(EObjectType::CellNode));
+                    req->set_type(static_cast<int>(EObjectType::ClusterNodeNode));
                     req->set_ignore_existing(true);
-
-                    auto defaultAttributes = ConvertToAttributes(New<TNodeConfig>());
-                    ToProto(req->mutable_node_attributes(), *defaultAttributes);
 
                     SyncExecuteVerb(rootService, req);
                 }
@@ -971,15 +1025,6 @@ private:
 
                     SyncExecuteVerb(rootService, req);
                 }
-
-                // Lock Cypress node.
-                {
-                    auto req = TCypressYPathProxy::Lock(nodePath);
-                    req->set_mode(static_cast<int>(ELockMode::Shared));
-                    SetTransactionId(req, transaction->GetId());
-
-                    SyncExecuteVerb(rootService, req);
-                }
             } catch (const std::exception& ex) {
                 LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering node in Cypress");
             }
@@ -988,7 +1033,7 @@ private:
             RenewNodeLease(node);
 
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
-                nodeId,
+                node->GetId(),
                 address,
                 statistics);
 
@@ -998,7 +1043,7 @@ private:
         }
     }
 
-    void DoUnregisterNode(TNode* node, bool scheduleRemoval)
+    void UnregisterNode(TNode* node, bool scheduleDisposal)
     {
         PROFILE_TIMING ("/node_unregister_time") {
             auto* transaction = UnregisterLeaseTransaction(node);
@@ -1009,25 +1054,13 @@ private:
                 transactionManager->AbortTransaction(transaction, false);
             }
 
-            const auto& address = node->GetDefaultAddress();
-            YCHECK(AddressToNodeMap_.erase(address) == 1);
-            {
-                auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(address)));
-                for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
-                    if (it->second == node) {
-                        HostNameToNodeMap_.erase(it);
-                        break;
-                    }
-                }
-            }
-
             UpdateNodeCounters(node, -1);
             node->SetState(ENodeState::Unregistered);
             NodeUnregistered_.Fire(node);
 
-            if (scheduleRemoval && IsLeader()) {
-                NodeRemovalQueue_.push_back(node);
-                MaybePostRemoveNodeMutations();
+            if (scheduleDisposal && IsLeader()) {
+                NodeDisposalQueue_.push_back(node);
+                MaybePostDisposeNodeMutations();
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
@@ -1036,25 +1069,44 @@ private:
         }
     }
 
-    void DoRemoveNode(TNode* node)
+    void DisposeNode(TNode* node)
     {
-        PROFILE_TIMING ("/node_remove_time") {
-            // Make copies, node will die soon.
-            auto nodeId = node->GetId();
-            auto address = node->GetDefaultAddress();
+        PROFILE_TIMING ("/node_dispose_time") {
+            node->SetState(ENodeState::Offline);
+            NodeDisposed_.Fire(node);
 
-            NodeRemoved_.Fire(node);
-
-            NodeMap_.Remove(ObjectIdFromNodeId(nodeId));
-
-            LOG_INFO_UNLESS(IsRecovery(), "Node removed (NodeId: %v, Address: %v)",
-                nodeId,
-                address);
+            LOG_INFO_UNLESS(IsRecovery(), "Node offline (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
 
             if (IsLeader()) {
-                MaybePostRemoveNodeMutations();
+                MaybePostDisposeNodeMutations();
             }
         }
+    }
+
+
+    void InsertToAddressMaps(TNode* node)
+    {
+        const auto& address = node->GetDefaultAddress();
+        AddressToNodeMap_.insert(std::make_pair(address, node));
+        HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
+    }
+
+    void RemoveFromAddressMaps(TNode* node)
+    {
+        const auto& address = node->GetDefaultAddress();
+        YCHECK(AddressToNodeMap_.erase(address) == 1);
+        {
+            auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(address)));
+            for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
+                if (it->second == node) {
+                    HostNameToNodeMap_.erase(it);
+                    break;
+                }
+            }
+        }
+
     }
 
 
@@ -1074,66 +1126,29 @@ private:
             }));
     }
 
-    void MaybePostRemoveNodeMutations()
+    void MaybePostDisposeNodeMutations()
     {
         while (
-            !NodeRemovalQueue_.empty() &&
-            PendingRemoveNodeMutationCount_ < Config_->MaxConcurrentNodeUnregistrations)
+            !NodeDisposalQueue_.empty() &&
+            PendingDisposeNodeMutationCount_ < Config_->MaxConcurrentNodeUnregistrations)
         {
-            const auto* node = NodeRemovalQueue_.front();
-            NodeRemovalQueue_.pop_front();
+            const auto* node = NodeDisposalQueue_.front();
+            NodeDisposalQueue_.pop_front();
 
-            TReqRemoveNode request;
+            TReqDisposeNode request;
             request.set_node_id(node->GetId());
 
-            ++PendingRemoveNodeMutationCount_;
+            ++PendingDisposeNodeMutationCount_;
 
-            auto mutation = CreateRemoveNodeMutation(request);
+            auto mutation = CreateDisposeNodeMutation(request);
             BIND(&TMutation::Commit, mutation)
                 .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker())
                 .Run()
                 .Subscribe(BIND([] (const TErrorOr<TMutationResponse>& error) {
                     if (!error.IsOK()) {
-                        LOG_ERROR(error, "Error committing node removal mutation");
+                        LOG_ERROR(error, "Error committing node disposal mutation");
                     }
                 }));
-        }
-    }
-
-
-    void OnNodeConfigUpdated(TNode* node)
-    {
-        auto config = node->GetConfig();
-
-        if (config->Banned) {
-            LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
-            if (IsLeader()) {
-                PostUnregisterNodeMutation(node);
-            }
-        }
-
-        if (config->Rack) {
-            auto* rack = FindRackByName(*config->Rack);
-            if (rack) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node rack set (NodeId: %v, Address: %v, Rack: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress(),
-                    *config->Rack);
-            } else {
-                // This should not happen. But let's issue an error instead of crashing.
-                LOG_ERROR_UNLESS(IsRecovery(), "Unknown rack set to node (NodeId: %v, Address: %v, Rack: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress(),
-                    *config->Rack);
-            }
-            node->SetRack(rack);
-        } else {
-            LOG_INFO_UNLESS(IsRecovery(), "Node rack reset (NodeId: %v, Address: %)",
-                node->GetId(),
-                node->GetDefaultAddress());
-            node->SetRack(nullptr);
         }
     }
 
@@ -1157,19 +1172,6 @@ private:
         auto mask = 1ULL << index;
         YCHECK(UsedRackIndexes_ & mask);
         UsedRackIndexes_ &= ~mask;
-    }
-
-    void AssignNodesToRack(const std::vector<Stroka>& addresses, TRack* rack)
-    {
-        for (const auto& address : addresses) {
-            auto node = FindNodeNode(address);
-            YCHECK(node);
-            if (rack) {
-                node->MutableAttributes()->Set("rack", rack->GetName());
-            } else {
-                node->MutableAttributes()->Remove("rack");
-            }
-        }
     }
 
 };
@@ -1218,24 +1220,34 @@ TNode* TNodeTracker::GetNodeByAddress(const Stroka& address)
     return Impl_->GetNodeByAddress(address);
 }
 
+TNode* TNodeTracker::GetNodeByAddressOrThrow(const Stroka& address)
+{
+    return Impl_->GetNodeByAddressOrThrow(address);
+}
+
 TNode* TNodeTracker::FindNodeByHostName(const Stroka& hostName)
 {
     return Impl_->FindNodeByHostName(hostName);
 }
 
-std::vector<Stroka> TNodeTracker::GetNodeAddressesByRack(const TRack* rack)
+std::vector<TNode*> TNodeTracker::GetRackNodes(const TRack* rack)
 {
-    return Impl_->GetNodeAddressesByRack(rack);
+    return Impl_->GetRackNodes(rack);
 }
 
-TNodeConfigPtr TNodeTracker::FindNodeConfigByAddress(const Stroka& address)
+void TNodeTracker::SetNodeBanned(TNode* node, bool value)
 {
-    return Impl_->FindNodeConfigByAddress(address);
+    Impl_->SetNodeBanned(node, value);
 }
 
-TNodeConfigPtr TNodeTracker::GetNodeConfigByAddress(const Stroka& address)
+void TNodeTracker::SetNodeDecommissioned(TNode* node, bool value)
 {
-    return Impl_->GetNodeConfigByAddress(address);
+    Impl_->SetNodeDecommissioned(node, value);
+}
+
+void TNodeTracker::SetNodeRack(TNode* node, TRack* rack)
+{
+    Impl_->SetNodeRack(node, rack);
 }
 
 TRack* TNodeTracker::CreateRack(const Stroka& name)
@@ -1292,11 +1304,6 @@ TMutationPtr TNodeTracker::CreateIncrementalHeartbeatMutation(
     return Impl_->CreateIncrementalHeartbeatMutation(context);
 }
 
-void TNodeTracker::RefreshNodeConfig(TNode* node)
-{
-    return Impl_->RefreshNodeConfig(node);
-}
-
 TTotalNodeStatistics TNodeTracker::GetTotalNodeStatistics()
 {
     return Impl_->GetTotalNodeStatistics();
@@ -1322,11 +1329,35 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, TRackId, *Impl_)
 
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRemoved, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeConfigUpdated, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDisposed, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeBanChanged, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDecommissionChanged, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRackChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqFullHeartbeat&), FullHeartbeat, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqIncrementalHeartbeat&, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(std::vector<TCellDescriptor>*), PopulateCellDescriptors, *Impl_);
+
+///////////////////////////////////////////////////////////////////////////////
+
+TNodeTracker::TClusterNodeTypeHandler::TClusterNodeTypeHandler(TImpl* owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->NodeMap_)
+    , Owner_(owner)
+{ }
+
+IObjectProxyPtr TNodeTracker::TClusterNodeTypeHandler::DoGetProxy(
+    TNode* node,
+    TTransaction* /*transaction*/)
+{
+    return CreateClusterNodeProxy(Owner_->Bootstrap_, node);
+}
+
+void TNodeTracker::TClusterNodeTypeHandler::DoZombifyObject(TNode* node)
+{
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(node);
+    // NB: Destroy the cell right away and do not wait for GC to prevent
+    // dangling links from occuring in //sys/tablet_cells.
+    Owner_->DestroyNode(node);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 

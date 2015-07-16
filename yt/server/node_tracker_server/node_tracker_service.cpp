@@ -83,11 +83,6 @@ private:
             statistics);
 
         auto nodeTracker = Bootstrap_->GetNodeTracker();
-        auto config = nodeTracker->FindNodeConfigByAddress(address);
-        if (config && config->Banned) {
-            THROW_ERROR_EXCEPTION("Node %v is banned", address);
-        }
-
         if (!nodeTracker->TryAcquireNodeRegistrationSemaphore()) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
