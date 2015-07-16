@@ -37,6 +37,8 @@
 #include <server/security_server/acl.h>
 #include <server/security_server/group.h>
 
+#include <server/transaction_server/transaction_manager.h>
+
 namespace NYT {
 namespace NCellMaster {
 

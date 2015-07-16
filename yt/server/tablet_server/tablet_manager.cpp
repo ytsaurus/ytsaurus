@@ -48,10 +48,13 @@
 #include <server/chunk_server/chunk_tree_traversing.h>
 
 #include <server/cypress_server/cypress_manager.h>
+#include <server/cypress_server/node_proxy.h>
 
 #include <server/security_server/security_manager.h>
 
 #include <server/object_server/object_manager.h>
+
+#include <server/transaction_server/transaction_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>

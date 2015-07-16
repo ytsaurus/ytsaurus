@@ -9,6 +9,15 @@ namespace NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TReqCreate;
+class TRspCreate;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NObjectClient::TObjectId;
 using NObjectClient::TTransactionId;
 using NObjectClient::NullObjectId;

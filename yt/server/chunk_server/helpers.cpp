@@ -10,6 +10,9 @@
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <server/cypress_server/cypress_manager.h>
+#include <server/cypress_server/node_proxy.h>
+
+#include <server/transaction_server/transaction.h>
 
 namespace NYT {
 namespace NChunkServer {
