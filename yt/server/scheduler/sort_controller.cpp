@@ -788,7 +788,7 @@ protected:
         {
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
-            const auto& address = joblet->DefaultAddress;
+            const auto& address = joblet->Address;
             Partition->AddressToLocality[address] += joblet->InputStripeList->TotalDataSize;
 
             // Don't rely on static assignment anymore.

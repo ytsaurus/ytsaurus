@@ -295,7 +295,7 @@ protected:
 
         TJobId JobId;
         EJobType JobType;
-        Stroka DefaultAddress;
+        Stroka Address;
         NNodeTrackerClient::NProto::TNodeResources ResourceLimits;
         TChunkStripeListPtr InputStripeList;
         IChunkPoolOutput::TCookie OutputCookie;
