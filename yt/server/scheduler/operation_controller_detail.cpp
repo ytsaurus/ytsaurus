@@ -604,15 +604,11 @@ void TOperationControllerBase::TTask::Persist(TPersistenceContext& context)
     Persist(context, LostJobCookieMap);
 }
 
-void TOperationControllerBase::TTask::PrepareJoblet(TJobletPtr joblet)
-{
-    UNUSED(joblet);
-}
+void TOperationControllerBase::TTask::PrepareJoblet(TJobletPtr /* joblet */)
+{ }
 
-void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr joblet)
-{
-    UNUSED(joblet);
-}
+void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr /* joblet */)
+{ }
 
 void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary)
 {
@@ -662,15 +658,13 @@ void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinst
     AddPendingHint();
 }
 
-void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
+void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& /* jobSummary */)
 {
-    UNUSED(jobSummary);
     ReinstallJob(joblet, EJobReinstallReason::Failed);
 }
 
-void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
+void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& /* jobSummary */)
 {
-    UNUSED(jobSummary);
     ReinstallJob(joblet, EJobReinstallReason::Aborted);
 }
 
@@ -864,9 +858,8 @@ const TNodeResources& TOperationControllerBase::TTask::GetMinNeededResources() c
     return *CachedMinNeededResources;
 }
 
-TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr joblet) const
+TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr /* joblet */) const
 {
-    UNUSED(joblet);
     return GetMinNeededResources();
 }
 
@@ -1534,11 +1527,9 @@ void TOperationControllerBase::CommitResults()
     LOG_INFO("Results committed");
 }
 
-void TOperationControllerBase::OnJobRunning(const TJobId& jobId, const TJobStatus& status)
+void TOperationControllerBase::OnJobRunning(const TJobId& /* jobId */, const TJobStatus& /* status */)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    UNUSED(jobId);
-    UNUSED(status);
 }
 
 void TOperationControllerBase::OnJobStarted(const TJobId& jobId)
@@ -1831,16 +1822,11 @@ TJobId TOperationControllerBase::ScheduleJob(
     return jobId;
 }
 
-void TOperationControllerBase::CustomizeJoblet(TJobletPtr joblet)
-{
-    UNUSED(joblet);
-}
+void TOperationControllerBase::CustomizeJoblet(TJobletPtr /* joblet */)
+{ }
 
-void TOperationControllerBase::CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
-{
-    UNUSED(joblet);
-    UNUSED(jobSpec);
-}
+void TOperationControllerBase::CustomizeJobSpec(TJobletPtr /* joblet */, TJobSpec* /* jobSpec */)
+{ }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
 {
@@ -3569,10 +3555,8 @@ void TOperationControllerBase::ValidateKey(const TOwningKey& key)
     }
 }
 
-void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)
-{
-    UNUSED(config);
-}
+void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr /* config */)
+{ }
 
 TFluentLogEvent TOperationControllerBase::LogEventFluently(ELogEventType eventType)
 {
