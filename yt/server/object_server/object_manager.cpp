@@ -32,6 +32,7 @@
 #include <server/transaction_server/transaction.h>
 
 #include <server/cypress_server/cypress_manager.h>
+#include <server/cypress_server/node_proxy.h>
 
 #include <server/chunk_server/chunk_list.h>
 

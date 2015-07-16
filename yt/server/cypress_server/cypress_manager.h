@@ -1,33 +1,20 @@
 #pragma once
 
 #include "public.h"
-#include "node.h"
-#include "type_handler.h"
-#include "node_proxy.h"
-#include "lock.h"
 
 #include <core/misc/small_vector.h>
-#include <core/misc/id_generator.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <core/rpc/service_detail.h>
 
-#include <core/ytree/ypath_service.h>
-#include <core/ytree/tree_builder.h>
+#include <ytlib/cypress_client/public.h>
 
-#include <server/hydra/composite_automaton.h>
-#include <server/hydra/entity_map.h>
-#include <server/hydra/mutation.h>
-
-#include <server/object_server/object_manager.h>
-
-#include <server/cell_master/automaton.h>
-
-#include <server/transaction_server/transaction.h>
-#include <server/transaction_server/transaction_manager.h>
+#include <server/transaction_server/public.h>
 
 #include <server/security_server/public.h>
 
-#include <server/cypress_server/cypress_manager.pb.h>
+#include <server/hydra/entity_map.h>
+
+#include <server/cell_master/public.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -35,12 +22,13 @@ namespace NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressManager
-    : public NCellMaster::TMasterAutomatonPart
+    : public TRefCounted
 {
 public:
     TCypressManager(
         TCypressManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
+    ~TCypressManager();
 
     void Initialize();
 
@@ -150,115 +138,8 @@ private:
     class TLockTypeHandler;
     class TYPathResolver;
 
-    class TNodeMapTraits
-    {
-    public:
-        explicit TNodeMapTraits(TCypressManager* cypressManager);
-
-        std::unique_ptr<TCypressNodeBase> Create(const TVersionedNodeId& id) const;
-
-    private:
-        TCypressManager* const CypressManager;
-
-    };
-
-    TCypressManagerConfigPtr Config;
-
-    NHydra::TEntityMap<TVersionedNodeId, TCypressNodeBase, TNodeMapTraits> NodeMap;
-    NHydra::TEntityMap<TLockId, TLock> LockMap;
-
-    TEnumIndexedVector<INodeTypeHandlerPtr, NObjectClient::EObjectType> TypeToHandler;
-
-    TNodeId RootNodeId;
-    TCypressNodeBase* RootNode = nullptr;
-
-    TAccessTrackerPtr AccessTracker;
-
-    bool RecomputeKeyColumns = false;
-    bool RecomputeTabletOwners = false;
-    bool InitializeCellTags = false;
-    
-    
-    TCypressNodeBase* RegisterNode(std::unique_ptr<TCypressNodeBase> nodeHolder);
-
-    void DestroyNode(TCypressNodeBase* trunkNode);
-
-    // TAutomatonPart overrides.
-    virtual void OnRecoveryComplete() override;
-    virtual void OnStopLeading() override;
-    virtual void OnStopFollowing() override;
-
-    void DoClear();
-    virtual void Clear() override;
-
-    void SaveKeys(NCellMaster::TSaveContext& context) const;
-    void SaveValues(NCellMaster::TSaveContext& context) const;
-    
-    virtual void OnBeforeSnapshotLoaded() override;
-    void LoadKeys(NCellMaster::TLoadContext& context);
-    void LoadValues(NCellMaster::TLoadContext& context);
-    virtual void OnAfterSnapshotLoaded() override;
-
-    void InitBuiltin();
-
-    void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
-    void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
-
-    void ReleaseLocks(NTransactionServer::TTransaction* transaction);
-    void MergeNodes(NTransactionServer::TTransaction* transaction);
-    void MergeNode(
-        NTransactionServer::TTransaction* transaction,
-        TCypressNodeBase* branchedNode);
-    void RemoveBranchedNodes(NTransactionServer::TTransaction* transaction);
-    void RemoveBranchedNode(TCypressNodeBase* branchedNode);
-
-    TError CheckLock(
-        TCypressNodeBase* trunkNode,
-        NTransactionServer::TTransaction* transaction,
-        const TLockRequest& request,
-        bool checkPending,
-        bool* isMandatory);
-    bool IsRedundantLockRequest(
-        const TTransactionLockState& state,
-        const TLockRequest& request);
-
-    static bool IsParentTransaction(
-        NTransactionServer::TTransaction* transaction,
-        NTransactionServer::TTransaction* parent);
-    static bool IsConcurrentTransaction(
-        NTransactionServer::TTransaction* requestingTransaction,
-        NTransactionServer::TTransaction* existingTransaction);
-
-    TCypressNodeBase* DoAcquireLock(TLock* lock);
-    void UpdateNodeLockState(
-        TCypressNodeBase* trunkNode,
-        NTransactionServer::TTransaction* transaction,
-        const TLockRequest& request);
-    TLock* DoCreateLock(
-        TCypressNodeBase* trunkNode,
-        NTransactionServer::TTransaction* transaction,
-        const TLockRequest& request);
-    void CheckPendingLocks(TCypressNodeBase* trunkNode);
-
-    void ListSubtreeNodes(
-        TCypressNodeBase* trunkNode,
-        NTransactionServer::TTransaction* transaction,
-        bool includeRoot,
-        TSubtreeNodes* subtreeNodes);
-
-    TCypressNodeBase* BranchNode(
-       TCypressNodeBase* originatingNode,
-       NTransactionServer::TTransaction* transaction,
-       ELockMode mode);
-
-    NYPath::TYPath GetNodePath(
-       TCypressNodeBase* trunkNode,
-       NTransactionServer::TTransaction* transaction);
-
-    void HydraUpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request);
-
-
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+    class TImpl;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

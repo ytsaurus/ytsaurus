@@ -3,6 +3,7 @@
 #include "node.h"
 #include "cypress_manager.h"
 #include "helpers.h"
+#include "type_handler.h"
 
 #include <core/misc/serialize.h>
 
@@ -17,6 +18,8 @@
 
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
+
+#include <server/transaction_server/transaction.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/serialize.h>
