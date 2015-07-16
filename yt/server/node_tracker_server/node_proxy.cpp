@@ -44,6 +44,7 @@ private:
         attributes->push_back(TAttributeInfo("rack", node->GetRack(), false, false, true));
         attributes->push_back("state");
         bool isGood = node->GetState() == ENodeState::Registered || node->GetState() == ENodeState::Online;
+        attributes->push_back(TAttributeInfo("last_seen_time"));
         attributes->push_back(TAttributeInfo("register_time", isGood));
         attributes->push_back(TAttributeInfo("transaction_id", isGood && node->GetTransaction()));
         attributes->push_back(TAttributeInfo("statistics", isGood));
@@ -79,6 +80,12 @@ private:
         if (key == "state") {
             BuildYsonFluently(consumer)
                 .Value(node->GetState());
+            return true;
+        }
+
+        if (key == "last_seen_time") {
+            BuildYsonFluently(consumer)
+                .Value(node->GetLastSeenTime());
             return true;
         }
 

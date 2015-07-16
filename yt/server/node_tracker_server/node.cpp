@@ -49,6 +49,7 @@ TNode::TNode(
     TInstant registerTime)
     : TObjectBase(objectId)
     , RegisterTime_(registerTime)
+    , LastSeenTime_(registerTime)
     , Addresses_(addresses)
 {
     Init();
@@ -105,6 +106,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Addresses_);
     Save(context, State_);
     Save(context, RegisterTime_);
+    Save(context, LastSeenTime_);
     Save(context, Statistics_);
     Save(context, Alerts_);
     Save(context, Rack_);
@@ -125,6 +127,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Addresses_);
     Load(context, State_);
     Load(context, RegisterTime_);
+    Load(context, LastSeenTime_);
     Load(context, Statistics_);
     Load(context, Alerts_);
     Load(context, Rack_);

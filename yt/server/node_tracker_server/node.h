@@ -55,6 +55,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, RegisterTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TError>, Alerts);
