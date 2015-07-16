@@ -23,7 +23,7 @@ struct TSchemafulPipe::TData
     const TRowBufferPtr RowBuffer = New<TRowBuffer>();
     TRingQueue<TUnversionedRow> RowQueue;
 
-    TPromise<void> ReaderReadyEvent = NewPromise<void>();
+    TPromise<void> ReaderReadyEvent;
     TPromise<void> WriterReadyEvent = NewPromise<void>();
 
     int RowsWritten = 0;
@@ -31,6 +31,41 @@ struct TSchemafulPipe::TData
     bool ReaderOpened = false;
     bool WriterClosed = false;
     bool Failed = false;
+
+    TData()
+    {
+        ResetReaderReadyEvent();
+    }
+
+    void ResetReaderReadyEvent()
+    {
+        ReaderReadyEvent = NewPromise<void>();
+        ReaderReadyEvent.OnCanceled(BIND([=, this_ = MakeStrong(this)] () mutable {
+            Fail(TError(NYT::EErrorCode::Canceled, "Reader canceled"));
+        }));
+    }
+
+    void Fail(const TError& error)
+    {
+        YCHECK(!error.IsOK());
+
+        TPromise<void> readerReadyEvent;
+        TPromise<void> writerReadyEvent;
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (WriterClosed || Failed)
+                return;
+
+            Failed = true;
+            readerReadyEvent = ReaderReadyEvent;
+            writerReadyEvent = WriterReadyEvent;
+        }
+
+        WriterOpened.TrySet(error);
+        readerReadyEvent.Set(error);
+        writerReadyEvent.Set(error);
+    }
 
 };
 
@@ -93,7 +128,6 @@ private:
 
     TFuture<void> ReadyEvent_ = VoidFuture;
 
-
     void OnOpened(const TTableSchema& readerSchema)
     {
         {
@@ -150,7 +184,7 @@ public:
             writerReadyEvent = Data_->WriterReadyEvent;
         }
 
-        readerReadyEvent.Set(TError());
+        readerReadyEvent.TrySet(TError());
         if (doClose) {
             writerReadyEvent.Set(TError());
         }
@@ -182,11 +216,11 @@ public:
             }
 
             readerReadyEvent = std::move(Data_->ReaderReadyEvent);
-            Data_->ReaderReadyEvent = NewPromise<void>();
+            Data_->ResetReaderReadyEvent();
         }
 
         // Signal readers.
-        readerReadyEvent.Set(TError());
+        readerReadyEvent.TrySet(TError());
 
         return true;
     }
@@ -228,24 +262,7 @@ public:
 
     void Fail(const TError& error)
     {
-        YCHECK(!error.IsOK());
-
-        TPromise<void> readerReadyEvent;
-        TPromise<void> writerReadyEvent;
-
-        {
-            TGuard<TSpinLock> guard(Data_->SpinLock);
-            if (Data_->WriterClosed || Data_->Failed)
-                return;
-
-            Data_->Failed = true;
-            readerReadyEvent = Data_->ReaderReadyEvent;
-            writerReadyEvent = Data_->WriterReadyEvent;
-        }
-
-        Data_->WriterOpened.TrySet(error);
-        readerReadyEvent.Set(error);
-        writerReadyEvent.Set(error);
+        Data_->Fail(error);
     }
 
 private:
