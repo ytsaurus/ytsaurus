@@ -313,6 +313,11 @@ public:
         return Run<TZstdCodec>(NCompression::ZstdDecompress, false, block);
     }
 
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TZstdCodec>(NCompression::ZstdDecompress, false, blocks);
+    }
+
     virtual ECodec GetId() const override
     {
         return ECodec::Zstd;
