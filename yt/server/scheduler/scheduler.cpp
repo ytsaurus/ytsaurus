@@ -2141,7 +2141,7 @@ class TScheduler::TSchedulingContext
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, DefaultAddress);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, PreemptedJobs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, RunningJobs);
@@ -2152,7 +2152,7 @@ public:
         TExecNodePtr node,
         const std::vector<TJobPtr>& runningJobs)
         : Node_(node)
-        , DefaultAddress_(Node_->GetDefaultAddress())
+        , Address_(Node_->GetDefaultAddress())
         , RunningJobs_(runningJobs)
         , Owner_(owner)
     { }

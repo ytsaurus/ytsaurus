@@ -451,8 +451,9 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
     int jobIndex = Controller->JobIndexGenerator.Next();
     auto joblet = New<TJoblet>(this, jobIndex);
 
+    // TODO(acid): Eliminate or guard this access to node.
     auto node = context->GetNode();
-    const auto& address = node->GetDefaultAddress();
+    const auto& address = context->GetAddress();
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
@@ -516,7 +517,7 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
         jobSpecBuilder);
 
     joblet->JobType = jobType;
-    joblet->DefaultAddress = context->GetDefaultAddress();
+    joblet->Address = context->GetAddress();
 
     LOG_INFO(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
@@ -524,7 +525,7 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
         joblet->JobId,
         Controller->OperationId,
         jobType,
-        joblet->DefaultAddress,
+        joblet->Address,
         jobIndex,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
@@ -905,7 +906,7 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
         joblet->OutputCookie,
         destinationPool,
         inputCookie,
-        joblet->DefaultAddress);
+        joblet->Address);
 
     Controller->RegisterIntermediate(
         joblet,
@@ -1545,7 +1546,7 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto joblet = GetJoblet(jobId);
-    auto address = joblet->DefaultAddress;
+    auto address = joblet->Address;
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(joblet->JobId)
         .Item("operation_id").Value(OperationId)
@@ -1993,8 +1994,9 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
     const TNodeResources& jobLimits)
 {
+    // TODO(acid): Eliminate or guard this access to node.
     auto node = context->GetNode();
-    const auto& address = node->GetDefaultAddress();
+    const auto& address = context->GetAddress();
 
     for (auto group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
@@ -2072,8 +2074,9 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
     const TNodeResources& jobLimits)
 {
     auto now = TInstant::Now();
+    // TODO(acid): Eliminate or guard this access to node.
     const auto& node = context->GetNode();
-    const auto& address = node->GetDefaultAddress();
+    const auto& address = context->GetAddress();
 
     for (auto group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {

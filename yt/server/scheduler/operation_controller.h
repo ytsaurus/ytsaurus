@@ -113,7 +113,7 @@ struct ISchedulingContext
 
 
     virtual TExecNodePtr GetNode() const = 0;
-    virtual Stroka GetDefaultAddress() const = 0;
+    virtual Stroka GetAddress() const = 0;
 
     virtual const std::vector<TJobPtr>& StartedJobs() const = 0;
     virtual const std::vector<TJobPtr>& PreemptedJobs() const = 0;
