@@ -104,7 +104,7 @@ void TFileChunkOutput::Open()
 
 TFileChunkOutput::~TFileChunkOutput() throw()
 {
-    LOG_DEBUG_IF(IsOpen, "Writer cancelled");
+    LOG_DEBUG_IF(IsOpen, "Writer canceled");
 }
 
 void TFileChunkOutput::DoWrite(const void* buf, size_t len)
