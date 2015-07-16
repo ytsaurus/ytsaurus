@@ -902,16 +902,8 @@ private:
         auto timeout = GetNodeLeaseTimeout(node);
         transaction->SetTimeout(timeout);
 
-        try {
-            auto objectManager = Bootstrap_->GetObjectManager();
-            auto rootService = objectManager->GetRootService();
-            auto nodePath = GetNodePath(node);
-            const auto* mutationContext = GetCurrentMutationContext();
-            auto mutationTimestamp = mutationContext->GetTimestamp();
-            SyncYPathSet(rootService, nodePath + "/@last_seen_time", ConvertToYsonString(mutationTimestamp));
-        } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating node properties in Cypress");
-        }
+        const auto* mutationContext = GetCurrentMutationContext();
+        node->SetLastSeenTime(mutationContext->GetTimestamp());
 
         if (IsLeader()) {
             auto transactionManager = Bootstrap_->GetTransactionManager();
@@ -1019,7 +1011,7 @@ private:
                 LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering node in Cypress");
             }
 
-            // Make the initial lease renewal (and also set "last_seen_time" attribute).
+            // Perform the initial lease renewal.
             RenewNodeLease(node);
 
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
