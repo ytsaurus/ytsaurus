@@ -83,9 +83,9 @@ class TSecurityManager::TAccountTypeHandler
 public:
     explicit TAccountTypeHandler(TImpl* owner);
 
-    virtual bool IsReplicated() const override
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
-        return true;
+        return EObjectReplicationFlags::All;
     }
 
     virtual EObjectType GetType() const override
@@ -140,9 +140,9 @@ class TSecurityManager::TUserTypeHandler
 public:
     explicit TUserTypeHandler(TImpl* owner);
 
-    virtual bool IsReplicated() const override
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
-        return true;
+        return EObjectReplicationFlags::All;
     }
 
     virtual EObjectType GetType() const override
@@ -187,9 +187,9 @@ class TSecurityManager::TGroupTypeHandler
 public:
     explicit TGroupTypeHandler(TImpl* owner);
 
-    virtual bool IsReplicated() const override
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
-        return true;
+        return EObjectReplicationFlags::All;
     }
 
     virtual EObjectType GetType() const override

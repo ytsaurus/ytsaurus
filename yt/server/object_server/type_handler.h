@@ -32,6 +32,14 @@ DEFINE_ENUM(EObjectAccountMode,
     (Optional)
 );
 
+DEFINE_BIT_ENUM(EObjectReplicationFlags,
+    ((None)        (0x0000))
+    ((Create)      (0x0001)) // replicate object creation
+    ((Destroy)     (0x0002)) // replicate object destruction
+    ((Attributes)  (0x0004)) // replicate object attribute changes
+    ((All)         (0xffff)) // replicate all possible actions
+);
+
 struct TTypeCreationOptions
 {
     TTypeCreationOptions() = default;
@@ -51,8 +59,8 @@ struct TTypeCreationOptions
 struct IObjectTypeHandler
     : public virtual TRefCounted
 {
-    //! Returns |true| if the objects of this type are replicated to all secondaries.
-    virtual bool IsReplicated() const = 0;
+    //! Returns a bunch of flags that control object replication.
+    virtual EObjectReplicationFlags GetReplicationFlags() const = 0;
 
     //! Returns the object type managed by the handler.
     virtual EObjectType GetType() const = 0;

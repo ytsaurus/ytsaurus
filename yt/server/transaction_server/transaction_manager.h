@@ -45,14 +45,14 @@ public:
     void Initialize();
 
     TTransaction* StartTransaction(TTransaction* parent, TNullable<TDuration> timeout);
-    void CommitTransaction(TTransaction* transaction);
+    void CommitTransaction(TTransaction* transaction, TTimestamp commitTimestamp);
     void AbortTransaction(TTransaction* transaction, bool force);
     void PingTransaction(TTransaction* transaction, bool pingAncestors = false);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
     //! Finds transaction by id, throws if nothing is found.
-    TTransaction* GetTransactionOrThrow(const TTransactionId& id);
+    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId);
 
     //! Registers and references the object with the transaction.
     void StageObject(TTransaction* transaction, NObjectServer::TObjectBase* object);

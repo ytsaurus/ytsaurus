@@ -106,9 +106,9 @@ class TTabletManager::TTabletCellTypeHandler
 public:
     explicit TTabletCellTypeHandler(TImpl* owner);
 
-    virtual bool IsReplicated() const override
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
-        return true;
+        return EObjectReplicationFlags::All;
     }
 
     virtual EObjectType GetType() const override
