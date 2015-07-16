@@ -46,19 +46,16 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 TNode::TNode(
     const TObjectId& objectId,
     const TAddressMap& addresses,
-    TNodeConfigPtr config,
     TInstant registerTime)
     : TObjectBase(objectId)
     , RegisterTime_(registerTime)
     , Addresses_(addresses)
-    , Config_(config)
 {
     Init();
 }
 
 TNode::TNode(const TObjectId& objectId)
     : TObjectBase(objectId)
-    , Config_(New<TNodeConfig>())
 {
     Init();
 }
@@ -67,9 +64,10 @@ void TNode::Init()
 {
     VisitMark_ = 0;
     LoadRank_ = -1;
+    Banned_ = false;
+    Decommissioned_ = false;
     Rack_ = nullptr;
     Transaction_ = nullptr;
-    Decommissioned_ = Config_->Decommissioned;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     RandomReplicaIt_ = StoredReplicas_.end();
     ResetSessionHints();
@@ -97,16 +95,13 @@ TNodeDescriptor TNode::GetDescriptor() const
         Rack_ ? MakeNullable(Rack_->GetName()) : Null);
 }
 
-const TNodeConfigPtr& TNode::GetConfig() const
-{
-    return Config_;
-}
-
 void TNode::Save(NCellMaster::TSaveContext& context) const
 {
     TObjectBase::Save(context);
 
     using NYT::Save;
+    Save(context, Banned_);
+    Save(context, Decommissioned_);
     Save(context, Addresses_);
     Save(context, State_);
     Save(context, RegisterTime_);
@@ -125,23 +120,14 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     TObjectBase::Load(context);
 
     using NYT::Load;
+    Load(context, Banned_);
+    Load(context, Decommissioned_);
     Load(context, Addresses_);
     Load(context, State_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 102) {
-        Load(context, RegisterTime_);
-    }
+    Load(context, RegisterTime_);
     Load(context, Statistics_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 118) {
-        Load(context, Alerts_);
-    } else {
-        YCHECK(TSizeSerializer::Load(context) == 0);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 106) {
-        Load(context, Rack_);
-    }
+    Load(context, Alerts_);
+    Load(context, Rack_);
     Load(context, Transaction_);
     Load(context, StoredReplicas_);
     Load(context, CachedReplicas_);

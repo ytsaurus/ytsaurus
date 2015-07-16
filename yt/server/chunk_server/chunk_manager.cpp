@@ -396,8 +396,8 @@ public:
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeRemoved(BIND(&TImpl::OnNodeRemoved, MakeWeak(this)));
-        nodeTracker->SubscribeNodeConfigUpdated(BIND(&TImpl::OnNodeConfigUpdated, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDisposed(BIND(&TImpl::OnNodeDisposed, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRackChanged(BIND(&TImpl::OnNodeRackChanged, MakeWeak(this)));
         nodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullHeartbeat, MakeWeak(this)));
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
 
@@ -983,9 +983,6 @@ private:
 
     void OnNodeRegistered(TNode* node)
     {
-        const auto& config = node->GetConfig();
-        node->SetDecommissioned(config->Decommissioned);
-
         if (ChunkPlacement_) {
             ChunkPlacement_->OnNodeRegistered(node);
         }
@@ -1006,7 +1003,7 @@ private:
         }
     }
 
-    void OnNodeRemoved(TNode* node)
+    void OnNodeDisposed(TNode* node)
     {
         for (auto replica : node->StoredReplicas()) {
             RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::NodeRemoved);
@@ -1025,23 +1022,9 @@ private:
         }
     }
 
-    void OnNodeConfigUpdated(TNode* node)
+    void OnNodeRackChanged(TNode* node)
     {
-        const auto& config = node->GetConfig();
-        if (config->Decommissioned != node->GetDecommissioned()) {
-            if (config->Decommissioned) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress());
-            } else {
-                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress());
-            }
-            node->SetDecommissioned(config->Decommissioned);
-        }
-
-        if (ChunkReplicator_) {
+        if (ChunkReplicator_ && node->GetState() == ENodeState::Online) {
             ChunkReplicator_->ScheduleNodeRefresh(node);
         }
     }

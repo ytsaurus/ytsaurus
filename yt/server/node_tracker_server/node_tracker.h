@@ -56,9 +56,6 @@ public:
         TCtxIncrementalHeartbeatPtr context);
 
 
-    void RefreshNodeConfig(TNode* node);
-
-
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, NObjectClient::TObjectId);
     DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack, TRackId);
 
@@ -69,11 +66,17 @@ public:
     //! Fired when a node gets unregistered.
     DECLARE_SIGNAL(void(TNode* node), NodeUnregistered);
 
-    //! Fired when a node gets removed.
-    DECLARE_SIGNAL(void(TNode* node), NodeRemoved);
+    //! Fired when a node gets disposed (after being unregistered).
+    DECLARE_SIGNAL(void(TNode* node), NodeDisposed);
 
-    //! Fired when node configuration changes.
-    DECLARE_SIGNAL(void(TNode* node), NodeConfigUpdated);
+    //! Fired when node "banned" flag changes.
+    DECLARE_SIGNAL(void(TNode* node), NodeBanChanged);
+
+    //! Fired when node "decommissioned" flag changes.
+    DECLARE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
+
+    //! Fired when node rack changes.
+    DECLARE_SIGNAL(void(TNode* node), NodeRackChanged);
 
     //! Fired when a full heartbeat is received from a node.
     DECLARE_SIGNAL(void(TNode* node, const NProto::TReqFullHeartbeat& request), FullHeartbeat);
@@ -105,21 +108,27 @@ public:
     //! Returns a node registered at the given address (fails if none).
     TNode* GetNodeByAddress(const Stroka& address);
 
+    //! Returns a node registered at the given address (throws if none).
+    TNode* GetNodeByAddressOrThrow(const Stroka& address);
+
     //! Returns an arbitrary node registered at the host (|nullptr| if none).
     TNode* FindNodeByHostName(const Stroka& hostName);
 
-    //! Returns the list of (default) addresses of nodes belonging to a given rack.
+    //! Returns the list of all nodes belonging to a given rack.
     /*!
      *  #rack can be |nullptr|.
      */
-    std::vector<Stroka> GetNodeAddressesByRack(const TRack* rack);
+    std::vector<TNode*> GetRackNodes(const TRack* rack);
 
 
-    //! Returns node configuration (extracted from //sys/nodes) or |nullptr| is there's none.
-    TNodeConfigPtr FindNodeConfigByAddress(const Stroka& address);
+    //! Sets the "banned" flag and notifies the subscribers.
+    void SetNodeBanned(TNode* node, bool value);
 
-    //! Similar to #FindNodeConfigByAddress but returns a default instance instead of |nullptr|.
-    TNodeConfigPtr GetNodeConfigByAddress(const Stroka& address);
+    //! Sets the "decommissioned" flag and notifies the subscribers.
+    void SetNodeDecommissioned(TNode* node, bool value);
+
+    //! Sets the rack and notifies the subscribers.
+    void SetNodeRack(TNode* node, TRack* rack);
 
 
     //! Creates a new rack with a given name. Throws on name conflict.
@@ -153,6 +162,7 @@ public:
 
 private:
     class TImpl;
+    class TClusterNodeTypeHandler;
     class TRackTypeHandler;
 
     const TIntrusivePtr<TImpl> Impl_;

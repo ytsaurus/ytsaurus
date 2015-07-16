@@ -17,7 +17,6 @@ protected:
     virtual size_t GetSize() const = 0;
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const = 0;
 
-private:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, NRpc::IServiceContextPtr context) override;

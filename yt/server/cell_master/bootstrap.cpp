@@ -424,8 +424,8 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateTopmostTransactionMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateLockMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateOrchidTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateCellNodeTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateCellNodeMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateClusterNodeNodeTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateClusterNodeMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateRackMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateFileTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTableTypeHandler(this));

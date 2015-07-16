@@ -37,8 +37,8 @@ inline bool IsVersionedType(EObjectType type)
         type == EObjectType::ChunkListMap ||
         type == EObjectType::TransactionMap ||
         type == EObjectType::TopmostTransactionMap ||
-        type == EObjectType::CellNodeMap ||
-        type == EObjectType::CellNode ||
+        type == EObjectType::ClusterNodeNode ||
+        type == EObjectType::ClusterNodeMap ||
         type == EObjectType::Orchid ||
         type == EObjectType::LostVitalChunkMap ||
         type == EObjectType::AccountMap ||
@@ -76,8 +76,8 @@ inline bool IsMapLikeType(EObjectType type)
 {
     return
         type == EObjectType::MapNode ||
-        type == EObjectType::CellNode ||
-        type == EObjectType::CellNodeMap ||
+        type == EObjectType::ClusterNodeNode ||
+        type == EObjectType::ClusterNodeMap ||
         type == EObjectType::TabletCellNode ||
         type == EObjectType::SysNode;
 }

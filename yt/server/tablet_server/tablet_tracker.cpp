@@ -246,8 +246,8 @@ bool TTabletTracker::IsFailoverNeeded(TTabletCell* cell, TPeerId peerId)
     }
 
     auto nodeTracker = Bootstrap_->GetNodeTracker();
-    auto config = nodeTracker->FindNodeConfigByAddress(peer.Descriptor.GetDefaultAddress());
-    if (config && (config->Banned || config->Decommissioned)) {
+    const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
+    if (node && (node->GetBanned()|| node->GetDecommissioned())) {
         return true;
     }
 

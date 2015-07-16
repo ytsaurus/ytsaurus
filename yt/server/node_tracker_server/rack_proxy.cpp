@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "rack_proxy.h"
 #include "rack.h"
+#include "node.h"
 #include "node_tracker.h"
 
 #include <core/ytree/fluent.h>
@@ -57,8 +58,11 @@ private:
         }
 
         if (key == "nodes") {
+            auto nodes = nodeTracker->GetRackNodes(rack);
             BuildYsonFluently(consumer)
-                .Value(nodeTracker->GetNodeAddressesByRack(rack));
+                .DoListFor(nodes, [] (TFluentList fluent, const TNode* node) {
+                    fluent.Item().Value(node->GetDefaultAddress());
+                });
             return true;
         }
 
