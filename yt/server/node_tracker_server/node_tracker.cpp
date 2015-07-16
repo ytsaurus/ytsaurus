@@ -75,9 +75,9 @@ class TNodeTracker::TClusterNodeTypeHandler
 public:
     explicit TClusterNodeTypeHandler(TImpl* owner);
 
-    virtual bool IsReplicated() const override
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
-        return false;
+        return EObjectReplicationFlags::None;
     }
 
     virtual EObjectType GetType() const override
@@ -112,9 +112,9 @@ class TNodeTracker::TRackTypeHandler
 public:
     explicit TRackTypeHandler(TImpl* owner);
 
-    virtual bool IsReplicated() const override
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
-        return true;
+        return EObjectReplicationFlags::All;
     }
 
     virtual EObjectType GetType() const override

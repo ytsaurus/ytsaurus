@@ -26,9 +26,9 @@ public:
         YCHECK(bootstrap);
     }
 
-    virtual bool IsReplicated() const override
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
-        return false;
+        return EObjectReplicationFlags::None;
     }
 
     virtual Stroka GetName(TObjectBase* object) override

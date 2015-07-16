@@ -25,3 +25,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/timestamp_manager.proto YT_SOURCE_FILES )
+protoc( ${BASE}/transaction_manager.proto YT_SOURCE_FILES )

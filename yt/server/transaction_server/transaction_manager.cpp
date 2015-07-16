@@ -40,6 +40,8 @@
 
 #include <server/hive/transaction_supervisor.h>
 
+#include <server/transaction_server/transaction_manager.pb.h>
+
 namespace NYT {
 namespace NTransactionServer {
 
@@ -208,9 +210,11 @@ class TTransactionManager::TTransactionTypeHandler
 public:
     explicit TTransactionTypeHandler(TImpl* owner);
 
-    virtual bool IsReplicated() const override
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
-        return false;
+        return
+            EObjectReplicationFlags::Create |
+            EObjectReplicationFlags::Attributes;
     }
 
     virtual EObjectType GetType() const override
@@ -282,6 +286,10 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this)));
+
         RegisterLoader(
             "TransactionManager.Keys",
             BIND(&TImpl::LoadKeys, Unretained(this)));
@@ -317,13 +325,13 @@ public:
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Transaction, hintId);
+        auto transactionId = objectManager->GenerateId(EObjectType::Transaction, hintId);
 
-        auto transactionHolder = std::make_unique<TTransaction>(id);
-        auto* transaction = TransactionMap_.Insert(id, std::move(transactionHolder));
+        auto transactionHolder = std::make_unique<TTransaction>(transactionId);
+        auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
 
         // Every active transaction has a fake reference to itself.
-        objectManager->RefObject(transaction);
+        YCHECK(transaction->RefObject() == 1);
 
         if (parent) {
             transaction->SetParent(parent);
@@ -335,32 +343,36 @@ public:
 
         transaction->SetState(ETransactionState::Active);
 
-        auto actualTimeout = timeout
-            ? MakeNullable(std::min(*timeout, Config_->MaxTransactionTimeout))
-            : Null;
-        transaction->SetTimeout(actualTimeout);
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        if (hydraFacade->IsPrimaryMaster()) {
+            if (timeout) {
+                transaction->SetTimeout(std::min(*timeout, Config_->MaxTransactionTimeout));
+            }
+            if (IsLeader()) {
+                CreateLease(transaction);
+            }
+        }
 
+        // NB: This is not quite correct for replicated transactions but we don't care.
         const auto* mutationContext = GetCurrentMutationContext();
         transaction->SetStartTime(mutationContext->GetTimestamp());
 
         auto securityManager = Bootstrap_->GetSecurityManager();
         transaction->Acd().SetOwner(securityManager->GetRootUser());
 
-        if (IsLeader()) {
-            CreateLease(transaction);
-        }
-
         TransactionStarted_.Fire(transaction);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, Timeout: %v)",
-            id,
+            transactionId,
             GetObjectId(parent),
-            actualTimeout);
+            transaction->GetTimeout());
 
         return transaction;
     }
 
-    void CommitTransaction(TTransaction* transaction)
+    void CommitTransaction(
+        TTransaction* transaction,
+        TTimestamp commitTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -373,7 +385,7 @@ public:
         }
 
         // NB: Save it for logging.
-        auto id = transaction->GetId();
+        auto transactionId = transaction->GetId();
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -385,8 +397,17 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v)",
-            id);
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        if (hydraFacade->IsPrimaryMaster()) {
+            NProto::TReqCommitTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_commit_timestamp(commitTimestamp);
+            hydraFacade->PostToSecondaryMasters(request);
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %v)",
+            transactionId,
+            commitTimestamp);
     }
 
     void AbortTransaction(TTransaction* transaction, bool force)
@@ -401,7 +422,7 @@ public:
         auto securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(transaction, EPermission::Write);
 
-        auto id = transaction->GetId();
+        auto transactionId = transaction->GetId();
 
         auto nestedTransactions = transaction->NestedTransactions();
         for (auto* nestedTransaction : nestedTransactions) {
@@ -419,8 +440,16 @@ public:
 
         FinishTransaction(transaction);
 
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        if (hydraFacade->IsPrimaryMaster()) {
+            NProto::TReqAbortTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_force(force);
+            hydraFacade->PostToSecondaryMasters(request);
+        }
+
         LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
-            id,
+            transactionId,
             force);
     }
 
@@ -441,16 +470,16 @@ public:
         }
     }
 
-    TTransaction* GetTransactionOrThrow(const TTransactionId& id)
+    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = FindTransaction(id);
+        auto* transaction = FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
                 "No such transaction %v",
-                id);
+                transactionId);
         }
         return transaction;
     }
@@ -546,13 +575,13 @@ public:
 
     void CommitTransaction(
         const TTransactionId& transactionId,
-        TTimestamp /*commitTimestamp*/)
+        TTimestamp commitTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         // NB: Transaction must exist.
         auto* transaction = GetTransaction(transactionId);
-        CommitTransaction(transaction);
+        CommitTransaction(transaction, commitTimestamp);
     }
 
     void AbortTransaction(
@@ -587,6 +616,28 @@ private:
     yhash_map<TTransactionId, TLease> LeaseMap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    // Primary-secondary replication only.
+    void HydraPrepareTransactionCommit(const NProto::TReqPrepareTransactionCommit& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto prepareTimestamp = request.prepare_timestamp();
+        PrepareTransactionCommit(transactionId, true, prepareTimestamp);
+    }
+
+    void HydraCommitTransaction(const NProto::TReqCommitTransaction& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto commitTimestamp = request.commit_timestamp();
+        CommitTransaction(transactionId, commitTimestamp);
+    }
+
+    void HydraAbortTransaction(const NProto::TReqAbortTransaction& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        bool force = request.force();
+        AbortTransaction(transactionId, force);
+    }
 
 
     void FinishTransaction(TTransaction* transaction)
@@ -749,23 +800,23 @@ private:
         transaction->SetLease(NullLease);
     }
 
-    void OnTransactionExpired(const TTransactionId& id)
+    void OnTransactionExpired(const TTransactionId& transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = FindTransaction(id);
+        auto* transaction = FindTransaction(transactionId);
         if (!IsObjectAlive(transaction))
             return;
         if (transaction->GetState() != ETransactionState::Active)
             return;
 
-        LOG_DEBUG("Transaction lease expired (TransactionId: %v)", id);
+        LOG_DEBUG("Transaction lease expired (TransactionId: %v)", transactionId);
 
         auto transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
+        transactionSupervisor->AbortTransaction(transactionId).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
-                    id);
+                    transactionId);
             }
         }));
     }
@@ -810,42 +861,56 @@ void TTransactionManager::Initialize()
     Impl_->Initialize();
 }
 
-TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNullable<TDuration> timeout)
+TTransaction* TTransactionManager::StartTransaction(
+    TTransaction* parent,
+    TNullable<TDuration> timeout)
 {
     return Impl_->StartTransaction(parent, timeout, NullObjectId);
 }
 
-void TTransactionManager::CommitTransaction(TTransaction* transaction)
+void TTransactionManager::CommitTransaction(
+    TTransaction* transaction,
+    TTimestamp commitTimestamp)
 {
-    Impl_->CommitTransaction(transaction);
+    Impl_->CommitTransaction(transaction, commitTimestamp);
 }
 
-void TTransactionManager::AbortTransaction(TTransaction* transaction, bool force)
+void TTransactionManager::AbortTransaction(
+    TTransaction* transaction,
+    bool force)
 {
     Impl_->AbortTransaction(transaction, force);
 }
 
-void TTransactionManager::PingTransaction(TTransaction* transaction, bool pingAncestors)
+void TTransactionManager::PingTransaction(
+    TTransaction* transaction,
+    bool pingAncestors)
 {
     Impl_->PingTransaction(transaction, pingAncestors);
 }
 
-TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& id)
+TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& transactionId)
 {
-    return Impl_->GetTransactionOrThrow(id);
+    return Impl_->GetTransactionOrThrow(transactionId);
 }
 
-void TTransactionManager::StageObject(TTransaction* transaction, TObjectBase* object)
+void TTransactionManager::StageObject(
+    TTransaction* transaction,
+    TObjectBase* object)
 {
     Impl_->StageObject(transaction, object);
 }
 
-void TTransactionManager::UnstageObject(TObjectBase* object, bool recursive)
+void TTransactionManager::UnstageObject(
+    TObjectBase* object,
+    bool recursive)
 {
     Impl_->UnstageObject(object, recursive);
 }
 
-void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase* node)
+void TTransactionManager::StageNode(
+    TTransaction* transaction,
+    TCypressNodeBase* node)
 {
     Impl_->StageNode(transaction, node);
 }

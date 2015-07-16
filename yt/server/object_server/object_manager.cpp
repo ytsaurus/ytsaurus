@@ -544,7 +544,9 @@ void TObjectManager::UnrefObject(TObjectBase* object)
         GarbageCollector_->RegisterZombie(object);
 
         auto hydraFacade = Bootstrap_->GetHydraFacade();
-        if (handler->IsReplicated() && hydraFacade->IsPrimaryMaster()) {
+        if (Any(handler->GetReplicationFlags() & EObjectReplicationFlags::Destroy) &&
+            hydraFacade->IsPrimaryMaster())
+        {
             auto req = TObjectYPathProxy::Remove(FromObjectId(object->GetId()));
             hydraFacade->PostToSecondaryMasters(req);
         }
@@ -965,14 +967,14 @@ TObjectBase* TObjectManager::CreateObject(
             YUNREACHABLE();
     }
 
-    auto typeIsReplicated = handler->IsReplicated();
-    if (!typeIsReplicated && hintId != NullObjectId) {
+    auto replicationSupported = Any(handler->GetReplicationFlags() & EObjectReplicationFlags::Create);
+    if (!replicationSupported && hintId != NullObjectId) {
         THROW_ERROR_EXCEPTION("Cannot create an instance of %Qlv with a hinted id",
             type);
     }
 
     auto hydraFacade = Bootstrap_->GetHydraFacade();
-    bool replicationNeeded = typeIsReplicated && hydraFacade->IsPrimaryMaster();
+    bool replicationNeeded = replicationSupported && hydraFacade->IsPrimaryMaster();
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
