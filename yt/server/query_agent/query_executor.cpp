@@ -245,9 +245,9 @@ private:
                 return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
-                LOG_DEBUG("Evaluating topQuery (TopQueryId: %v)", topQuery->Id);
+                LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto result = Evaluator_->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
-                LOG_DEBUG("Finished evaluating topQuery (TopQueryId: %v)", topQuery->Id);
+                LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
             },
             FunctionRegistry_);
