@@ -243,7 +243,7 @@ private:
                     std::vector<TFuture<TSharedRef>> asyncUncompressedBlocks;
                     for (const auto& compressedBlock : compressedBlocks) {
                         asyncUncompressedBlocks.push_back(
-                            BIND(&NCompression::ICodec::Decompress, codec, compressedBlock)
+                            BIND([=] () { return codec->Decompress(compressedBlock); })
                                 .AsyncVia(NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker())
                                 .Run());
                     }
