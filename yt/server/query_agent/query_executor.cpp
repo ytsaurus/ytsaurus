@@ -245,15 +245,10 @@ private:
                 return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
-                LOG_DEBUG("Evaluating topQuery (TopQueryId: %v)", topQuery->Id);
-
-                auto asyncQueryStatisticsOrError = BIND(&TEvaluator::Run, Evaluator_)
-                    .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-                    .Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
-
-                auto result = WaitFor(asyncQueryStatisticsOrError);
-                LOG_DEBUG(result, "Finished evaluating topQuery (TopQueryId: %v)", topQuery->Id);
-                return result.ValueOrThrow();
+                LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
+                auto result = Evaluator_->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
+                LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
+                return result;
             },
             FunctionRegistry_);
     }

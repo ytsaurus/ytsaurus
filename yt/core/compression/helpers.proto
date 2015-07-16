@@ -5,6 +5,7 @@ package NYT.NCompression.NProto;
 message TCompressedEnvelope
 {
     optional int32 codec = 1 [default = 0];
+    optional int32 part_count = 2 [default = 1];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

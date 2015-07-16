@@ -121,6 +121,11 @@ public:
         return block;
     }
 
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return MergeRefs(blocks);
+    }
+
     virtual ECodec GetId() const override
     {
         return ECodec::None;
@@ -146,6 +151,11 @@ public:
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
         return Run<TSnappyCodec>(NCompression::SnappyDecompress, false, block);
+    }
+
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TSnappyCodec>(NCompression::SnappyDecompress, false, blocks);
     }
 
     virtual ECodec GetId() const override
@@ -178,6 +188,11 @@ public:
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
         return Run<TGzipCodec>(NCompression::ZlibDecompress, false, block);
+    }
+
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TGzipCodec>(NCompression::ZlibDecompress, false, blocks);
     }
 
     virtual ECodec GetId() const override
@@ -223,6 +238,11 @@ public:
         return Run<TLz4Codec>(NCompression::Lz4Decompress, false, block);
     }
 
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TLz4Codec>(NCompression::Lz4Decompress, false, blocks);
+    }
+
     virtual ECodec GetId() const override
     {
         return CodecId_;
@@ -256,6 +276,11 @@ public:
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
         return Run<TQuickLzCodec>(NCompression::QuickLzDecompress, false, block);
+    }
+
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TQuickLzCodec>(NCompression::QuickLzDecompress, false, blocks);
     }
 
     virtual ECodec GetId() const override
