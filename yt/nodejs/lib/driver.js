@@ -141,7 +141,7 @@ YtDriver.prototype.execute = function(
             self.__DBG("execute -> input_pipe_promise has been rejected");
             input_stream.destroy();
             wrapped_input_stream.destroy();
-            deferred.reject(new YtError("Input pipe has been cancelled", err));
+            deferred.reject(new YtError("Input pipe has been canceled", err));
         });
 
     var output_pipe_promise = promisinglyPipe(wrapped_output_stream, output_stream)
@@ -154,7 +154,7 @@ YtDriver.prototype.execute = function(
             self.__DBG("execute -> output_pipe_promise has been rejected");
             output_stream.destroy();
             wrapped_output_stream.destroy();
-            deferred.reject(new YtError("Output pipe has been cancelled", err));
+            deferred.reject(new YtError("Output pipe has been canceled", err));
         });
 
     var canceler = this._binding.Execute(name, user,
