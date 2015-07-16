@@ -404,7 +404,7 @@ protected:
 
         // First checks against a given node, then against all nodes if needed.
         void CheckResourceDemandSanity(
-            TExecNodePtr node,
+            const NNodeTrackerClient::NProto::TNodeResources& nodeResourceLimits,
             const NNodeTrackerClient::NProto::TNodeResources& neededResources);
 
         // Checks against all available nodes.
@@ -546,7 +546,10 @@ protected:
 
     void MoveTaskToCandidates(TTaskPtr task, std::multimap<i64, TTaskPtr>& candidateTasks);
 
-    bool CheckJobLimits(TExecNodePtr node, TTaskPtr task, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
+    bool CheckJobLimits(
+        TTaskPtr task,
+        const NNodeTrackerClient::NProto::TNodeResources& jobLimits,
+        const NNodeTrackerClient::NProto::TNodeResources& nodeResourceLimits);
 
     TJobId DoScheduleJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
     TJobId DoScheduleLocalJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);

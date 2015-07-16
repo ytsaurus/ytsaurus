@@ -451,8 +451,7 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
     int jobIndex = Controller->JobIndexGenerator.Next();
     auto joblet = New<TJoblet>(this, jobIndex);
 
-    // TODO(acid): Eliminate or guard this access to node.
-    auto node = context->GetNode();
+    const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetAddress();
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
@@ -471,7 +470,7 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
         LOG_DEBUG("Job actual resource demand is not met (Limits: {%v}, Demand: {%v})",
             FormatResources(jobLimits),
             FormatResources(neededResources));
-        CheckResourceDemandSanity(node, neededResources);
+        CheckResourceDemandSanity(nodeResourceLimits, neededResources);
         chunkPoolOutput->Aborted(joblet->OutputCookie);
         // Seems like cached min needed resources are too optimistic.
         ResetCachedMinNeededResources();
@@ -720,7 +719,7 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
 }
 
 void TOperationControllerBase::TTask::CheckResourceDemandSanity(
-    TExecNodePtr node,
+    const TNodeResources& nodeResourceLimits,
     const TNodeResources& neededResources)
 {
     // The task is requesting more than some node is willing to provide it.
@@ -729,7 +728,7 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
 
     // First check if this very node has enough resources (including those currently
     // allocated by other jobs).
-    if (Dominates(node->ResourceLimits(), neededResources))
+    if (Dominates(nodeResourceLimits, neededResources))
         return;
 
     CheckResourceDemandSanity(neededResources);
@@ -1949,13 +1948,16 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
     }
 }
 
-bool TOperationControllerBase::CheckJobLimits(TExecNodePtr node, TTaskPtr task, const TNodeResources& jobLimits)
+bool TOperationControllerBase::CheckJobLimits(
+    TTaskPtr task,
+    const TNodeResources& jobLimits,
+    const TNodeResources& nodeResourceLimits)
 {
     auto neededResources = task->GetMinNeededResources();
     if (Dominates(jobLimits, neededResources)) {
         return true;
     }
-    task->CheckResourceDemandSanity(node, neededResources);
+    task->CheckResourceDemandSanity(nodeResourceLimits, neededResources);
     return false;
 }
 
@@ -1980,8 +1982,7 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
     const TNodeResources& jobLimits)
 {
-    // TODO(acid): Eliminate or guard this access to node.
-    auto node = context->GetNode();
+    const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetAddress();
 
     for (auto group : TaskGroups) {
@@ -2023,7 +2024,7 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
                 continue;
             }
 
-            if (!CheckJobLimits(node, task, jobLimits)) {
+            if (!CheckJobLimits(task, jobLimits, nodeResourceLimits)) {
                 continue;
             }
 
@@ -2060,8 +2061,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
     const TNodeResources& jobLimits)
 {
     auto now = TInstant::Now();
-    // TODO(acid): Eliminate or guard this access to node.
-    const auto& node = context->GetNode();
+    const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetAddress();
 
     for (auto group : TaskGroups) {
@@ -2114,7 +2114,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
                     break;
                 }
 
-                if (!CheckJobLimits(node, task, jobLimits)) {
+                if (!CheckJobLimits(task, jobLimits, nodeResourceLimits)) {
                     ++it;
                     continue;
                 }
