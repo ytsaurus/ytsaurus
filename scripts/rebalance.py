@@ -61,6 +61,11 @@ def suggest_pivot_keys(tablet_id, desired_tablet_size, number_of_key_columns):
 
 
 def rebalance(table, key_columns, threshold, yes=False):
+    if not all(x["state"] == "mounted" for x in yt.get(table + "/@tablets")):
+        logging.error("Cannot extract partition information from unmounted table")
+        logging.error("Please, mount table aforehead")
+        return
+
     tablets = get_tablets(table)
 
     unbalanced_tablet_indexes = []
