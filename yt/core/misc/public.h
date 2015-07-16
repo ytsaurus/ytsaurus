@@ -70,6 +70,8 @@ class SmallVector;
 template <class TProto>
 class TRefCountedProto;
 
+const i64 DefaultEnvelopePartSize = 1LL << 28;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,

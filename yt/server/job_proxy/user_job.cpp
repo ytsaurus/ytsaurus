@@ -275,7 +275,7 @@ private:
         Process_.AddArguments({"--working-dir", Config_->SandboxName});
 
         if (UserJobSpec_.enable_core_dump()) {
-            Process_.AddArgument("--enable-core-dumps");
+            Process_.AddArgument("--enable-core-dump");
         }
 
         if (Config_->UserId) {
