@@ -24,6 +24,9 @@ struct ICodec
     //! Decompress a given block.
     virtual TSharedRef Decompress(const TSharedRef& block) = 0;
 
+    //! Decompress a vector of blocks.
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) = 0;
+
     //! Returns codec id
     virtual ECodec GetId() const = 0;
 };
