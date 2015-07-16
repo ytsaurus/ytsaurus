@@ -269,11 +269,17 @@ TQueryStatistics CoordinateAndExecute(
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
     for (int index = 0; index < subqueryHolders.size(); ++index) {
-        auto subfragmentStatistics = WaitFor(subqueryHolders[index].Get()).ValueOrThrow();
-        LOG_DEBUG("Subfragment statistics (Statistics: {%v}, SubfragmentId: %v)",
-            subfragmentStatistics,
-            subqueries[index]->Id);
-        queryStatistics += subfragmentStatistics;
+        auto subQueryStatisticsOrError = WaitFor(subqueryHolders[index].Get());
+        if (subQueryStatisticsOrError.IsOK()) {
+            const auto& subQueryStatistics = subQueryStatisticsOrError.ValueOrThrow();
+            LOG_DEBUG("Subquery has finished (SubQueryId: %v, Statistics: {%v})",
+                subqueries[index]->Id,
+                subQueryStatistics);
+            queryStatistics += subQueryStatistics;
+        } else {
+            LOG_DEBUG(subQueryStatisticsOrError, "Subquery has failed (SubQueryId: %v)",
+                subqueries[index]->Id);
+        }
     }
 
     return queryStatistics;

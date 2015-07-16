@@ -381,3 +381,20 @@ class TestQuery(YTEnvSetup):
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
         actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u] where sum_udf(b, 1, 2) = sum_udf(3, b)")
         self.assertItemsEqual(actual, expected)
+
+    def test_YT_2375(self):
+        self._sync_create_cells(3, 3)
+        create(
+            "table", "//tmp/t",
+            attributes={
+                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "int64"}],
+                "key_columns": ["key"],
+            })
+        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 1000, 10)])
+        mount_table("//tmp/t")
+        self._wait_for_tablet_state("//tmp/t", ["mounted"])
+
+        insert_rows("//tmp/t", [{"key": i, "value": 10 * i} for i in xrange(0, 1000)])
+        # should not raise
+        select_rows("sleep(value) from [//tmp/t]", output_row_limit=1, fail_on_incomplete_result=False)
+
