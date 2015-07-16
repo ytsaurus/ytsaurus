@@ -184,6 +184,7 @@ struct TSelectRowsRequest
     TNullable<i64> InputRowLimit;
     TNullable<i64> OutputRowLimit;
     ui64 RangeExpansionLimit;
+    bool FailOnIncompleteResult;
     bool VerboseLogging;
 
     TSelectRowsRequest()
@@ -197,6 +198,8 @@ struct TSelectRowsRequest
             .Default();
         RegisterParameter("range_expansion_limit", RangeExpansionLimit)
             .Default(1000);
+        RegisterParameter("fail_on_incomplete_result", FailOnIncompleteResult)
+            .Default(true);
         RegisterParameter("verbose_logging", VerboseLogging)
             .Default(false);
     }
