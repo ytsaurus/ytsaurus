@@ -835,18 +835,27 @@ public:
         return result;
     }
 
-    std::vector<TLock*> ListSubtreeLocks(
+    void AbortSubtreeTransactions(
         TCypressNodeBase* trunkNode,
-        TTransaction * transaction,
-        bool includeRoot)
+        TTransaction* transaction)
     {
-        auto nodes = ListSubtreeNodes(trunkNode, transaction, includeRoot);
-        std::vector<TLock*> locks;
+        auto nodes = ListSubtreeNodes(trunkNode, transaction, true);
+
+        // NB: std::set ensures stable order.
+        std::set<TTransaction*> transactions;
         for (const auto* node : nodes) {
-            locks.insert(locks.end(), node->AcquiredLocks().begin(), node->AcquiredLocks().end());
-            locks.insert(locks.end(), node->PendingLocks().begin(), node->PendingLocks().end());
+            for (auto* lock : node->AcquiredLocks()) {
+                transactions.insert(lock->GetTransaction());
+            }
+            for (auto* lock : node->PendingLocks()) {
+                transactions.insert(lock->GetTransaction());
+            }
         }
-        return locks;
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        for (auto* transaction : transactions) {
+            transactionManager->AbortTransaction(transaction, true);
+        }
     }
 
 
@@ -2025,12 +2034,11 @@ TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
     return Impl_->ListSubtreeNodes(trunkNode, transaction, includeRoot);
 }
 
-std::vector<TLock*> TCypressManager::ListSubtreeLocks(
+void TCypressManager::AbortSubtreeTransactions(
     TCypressNodeBase* trunkNode,
-    TTransaction* transaction,
-    bool includeRoot)
+    TTransaction* transaction)
 {
-    return Impl_->ListSubtreeLocks(trunkNode, transaction, includeRoot);
+    Impl_->AbortSubtreeTransactions(trunkNode, transaction);
 }
 
 bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)

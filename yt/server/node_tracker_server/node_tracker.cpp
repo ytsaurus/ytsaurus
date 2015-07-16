@@ -278,18 +278,7 @@ public:
         auto cypressNodeNodeProxy = dynamic_cast<ICypressNodeProxy*>(nodeNodeProxy.Get());
 
         auto cypressManager = Bootstrap_->GetCypressManager();
-        auto locks = cypressManager->ListSubtreeLocks(cypressNodeNodeProxy->GetTrunkNode(), nullptr, true);
-
-        // NB: std::set ensures stable order.
-        std::set<TTransaction*> transactions;
-        for (const auto* lock : locks) {
-            transactions.insert(lock->GetTransaction());
-        }
-
-        auto transactionManager = Bootstrap_->GetTransactionManager();
-        for (auto* transaction : transactions) {
-            transactionManager->AbortTransaction(transaction, true);
-        }
+        cypressManager->AbortSubtreeTransactions(cypressNodeNodeProxy->GetTrunkNode(), nullptr);
 
         nodeMapProxy->RemoveChild(nodeNodeProxy);
 
