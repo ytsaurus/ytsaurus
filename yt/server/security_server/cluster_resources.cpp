@@ -73,7 +73,7 @@ struct TSerializableClusterAttributes
     : public TClusterResources
     , public TYsonSerializableLite
 {
-    TSerializableClusterAttributes(const TClusterResources& other = ZeroClusterResources())
+    TSerializableClusterAttributes(const TClusterResources& other = TClusterResources())
         : TClusterResources(other)
     {
         RegisterParameter("disk_space", DiskSpace)
@@ -101,12 +101,6 @@ void Deserialize(TClusterResources& value, INodePtr node)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-const TClusterResources& ZeroClusterResources()
-{
-    static TClusterResources zero;
-    return zero;
-}
 
 TClusterResources& operator += (TClusterResources& lhs, const TClusterResources& rhs)
 {
