@@ -101,11 +101,11 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     'placement_strategy':
 
     * "replace" or "ignore" -> destination path will be 'destination' \
-    or 'config.FILE_STORAGE/<basename>' if destination is not specified
+    or 'config["remote_temp_files_directory"]/<basename>' if destination is not specified
 
-    * "random" (only for None `destination` param) -> destination path will be 'config.FILE_STORAGE/<basename><random_suffix>'\
+    * "random" (only for None `destination` param) -> destination path will be 'config["remote_temp_files_directory"]/<basename><random_suffix>'\
 
-    * "hash" (only for None `destination` param) -> destination path will be 'config.FILE_STORAGE/hash/<md5sum_of_file>' \
+    * "hash" (only for None `destination` param) -> destination path will be 'config["remote_temp_files_directory"]/hash/<md5sum_of_file>' \
     or this path will be link to some random Cypress path
     """
 

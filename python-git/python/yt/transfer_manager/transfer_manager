@@ -47,7 +47,7 @@ from subprocess32 import TimeoutExpired
 from threading import RLock, Thread
 from multiprocessing import Process, Queue
 
-yt.config.RETRY_READ = True
+yt.config["read_retries"]["enable"] = True
 
 class RequestFailed(yt.YtError):
     pass
