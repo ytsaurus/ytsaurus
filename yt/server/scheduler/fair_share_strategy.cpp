@@ -905,11 +905,13 @@ public:
 
         // Compute job limits from node limits and pool limits.
         auto jobLimits = node->ResourceLimits() - node->ResourceUsage() + node->ResourceUsageDiscount();
-        TCompositeSchedulerElement* pool = Pool_;
-        while (pool) {
-            auto poolLimits = pool->ResourceLimits() - pool->ResourceUsage() + pool->ResourceUsageDiscount();
-            jobLimits = Min(jobLimits, poolLimits);
-            pool = pool->GetParent();
+        {
+            TCompositeSchedulerElement* pool = Pool_;
+            while (pool) {
+                auto poolLimits = pool->ResourceLimits() - pool->ResourceUsage() + pool->ResourceUsageDiscount();
+                jobLimits = Min(jobLimits, poolLimits);
+                pool = pool->GetParent();
+            }
         }
         auto operationLimits = ResourceLimits() - ResourceUsage();
         jobLimits = Min(jobLimits, operationLimits);
@@ -917,15 +919,18 @@ public:
         auto jobId = controller->ScheduleJob(context, jobLimits);
         if (jobId != NJobTrackerClient::NullJobId) {
             return true;
-        } else {
-            Attributes_.Active = false;
+        }
+
+        // Deactivate current operation node and update all parent nodes.
+        Attributes_.Active = false;
+        {
             TCompositeSchedulerElement* pool = Pool_;
             while (pool) {
                 pool->UpdateDynamicAttributes();
                 pool = pool->GetParent();
             }
-            return false;
         }
+        return false;
     }
 
     virtual TInstant GetStartTime() const override
