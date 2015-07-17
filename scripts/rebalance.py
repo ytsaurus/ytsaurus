@@ -80,6 +80,13 @@ def suggest_pivot_keys(tablet_info, number_of_key_columns, desired_tablet_size):
     # Adjust desired table size for smoother distribution.
     total_tablet_size = sum(uncompressed_data_size for _, _, uncompressed_data_size in distribution)
     desired_tablet_size = total_tablet_size / int(1 + total_tablet_size / desired_tablet_size)
+    # Perform sanity checks.
+    if tablet_info["eden"]["uncompressed_data_size"] > 1 * GB:
+        logging.warning("Eden is extermely large; likely data is not yet partitioned")
+        return None
+    if sum(map(lambda p: p[2], distribution)) < desired_tablet_size:
+        logging.warning("Scarce partition information prevents from choosing good pivot keys")
+        return None
     # Combine partitions with seemingly same pivot keys.
     distribution = combine_partitions(distribution, number_of_key_columns)
     # Split partitions according to desired size.
@@ -111,12 +118,18 @@ def rebalance(table, number_of_key_columns, desired_tablet_size, yes=False):
         tablet_id = tablets[unbalanced_tablet_index][1]
         tablet_info = get_tablet_info(tablet_id)
         pivot_keys = suggest_pivot_keys(tablet_info, number_of_key_columns, desired_tablet_size)
-        logging.info("Computed %s new pivot keys for tablet %s: %s",
-                     len(pivot_keys), unbalanced_tablet_index, pivot_keys)
-        if len(pivot_keys) == 1:
-            logging.error("Cannot split tablet %s due to enormous skew; consider increasing `--key-columns`",
-                          unbalanced_tablet_index)
+        if pivot_keys is None:
+            logging.error(
+                "Tablet %s (%s) could not be split yet",
+                unbalanced_tablet_index, tablet_id)
+        elif len(pivot_keys) <= 1:
+            logging.error(
+                "Cannot split tablet %s (%s) due to data skew; consider increasing `--key-columns`",
+                unbalanced_tablet_index, tablet_id)
         else:
+            logging.info(
+                "Computed %s new pivot keys for tablet %s: %s",
+                len(pivot_keys), unbalanced_tablet_index, pivot_keys)
             operations.append((unbalanced_tablet_index, pivot_keys))
 
     if len(operations) == 0:
