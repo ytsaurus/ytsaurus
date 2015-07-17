@@ -59,6 +59,16 @@ void TChunkBase::IncrementVersion()
     ++Version_;
 }
 
+bool TChunkBase::IsAlive() const
+{
+    return Alive_.load();
+}
+
+void TChunkBase::SetDead()
+{
+    Alive_ = false;
+}
+
 bool TChunkBase::TryAcquireReadLock()
 {
     VERIFY_THREAD_AFFINITY_ANY();
