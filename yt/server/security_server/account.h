@@ -30,8 +30,6 @@ void FromProto(TAccountStatistics* statistics, const NProto::TAccountStatistics&
 
 void Serialize(const TAccountStatistics& statistics, NYson::IYsonConsumer* consumer);
 
-const TAccountStatistics& ZeroAccountStatistics();
-
 TAccountStatistics& operator += (TAccountStatistics& lhs, const TAccountStatistics& rhs);
 TAccountStatistics  operator +  (const TAccountStatistics& lhs, const TAccountStatistics& rhs);
 

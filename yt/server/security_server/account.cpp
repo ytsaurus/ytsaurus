@@ -44,12 +44,6 @@ void Serialize(const TAccountStatistics& statistics, IYsonConsumer* consumer)
         .EndMap();
 }
 
-const TAccountStatistics& ZeroAccountStatistics()
-{
-    static TAccountStatistics zero;
-    return zero;
-}
-
 TAccountStatistics& operator += (TAccountStatistics& lhs, const TAccountStatistics& rhs)
 {
     lhs.ResourceUsage += rhs.ResourceUsage;

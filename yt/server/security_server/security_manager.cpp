@@ -390,7 +390,7 @@ public:
             UpdateResourceUsage(node, account, -1);
         }
 
-        node->CachedResourceUsage() = ZeroClusterResources();
+        node->CachedResourceUsage() = TClusterResources();
         node->SetAccount(nullptr);
 
         objectManager->UnrefObject(account);
@@ -1016,7 +1016,7 @@ private:
     {
         auto it = transaction->AccountResourceUsage().find(account);
         if (it == transaction->AccountResourceUsage().end()) {
-            auto pair = transaction->AccountResourceUsage().insert(std::make_pair(account, ZeroClusterResources()));
+            auto pair = transaction->AccountResourceUsage().insert(std::make_pair(account, TClusterResources()));
             YCHECK(pair.second);
             return &pair.first->second;
         } else {
