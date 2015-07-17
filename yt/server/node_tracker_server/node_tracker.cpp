@@ -78,7 +78,9 @@ public:
 
     virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
-        return EObjectReplicationFlags::None;
+        return
+            EObjectReplicationFlags::Destroy |
+            EObjectReplicationFlags::Attributes;
     }
 
     virtual EObjectType GetType() const override
@@ -588,6 +590,11 @@ private:
 
     TRspRegisterNode HydraRegisterNode(const TReqRegisterNode& request)
     {
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        if (hydraFacade->IsPrimaryMaster() &&IsLeader()) {
+            YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
+        }
+
         auto addresses = FromProto<TAddressMap>(request.addresses());
         const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request.statistics();
@@ -614,10 +621,6 @@ private:
             RemoveFromAddressMaps(existingNode);
         }
 
-        if (IsLeader()) {
-            YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
-        }
-
         auto* newNode = RegisterNode(addresses, statistics, leaseTransaction);
 
         if (existingNode) {
@@ -632,6 +635,10 @@ private:
             }
 
             NodeMap_.Remove(ObjectIdFromNodeId(existingNode->GetId()));
+        }
+
+        if (hydraFacade->IsPrimaryMaster()) {
+            hydraFacade->PostToSecondaryMasters(request);
         }
 
         TRspRegisterNode response;
@@ -650,6 +657,11 @@ private:
             return;
 
         UnregisterNode(node, true);
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        if (hydraFacade->IsPrimaryMaster()) {
+            hydraFacade->PostToSecondaryMasters(request);
+        }
     }
 
     void HydraDisposeNode(const TReqDisposeNode& request)
@@ -995,11 +1007,11 @@ private:
     {
         PROFILE_TIMING ("/node_unregister_time") {
             auto* transaction = UnregisterLeaseTransaction(node);
-            if (transaction && transaction->GetPersistentState() == ETransactionState::Active) {
+            if (IsObjectAlive(transaction)) {
                 auto transactionManager = Bootstrap_->GetTransactionManager();
                 // NB: This will trigger OnTransactionFinished, however we've already evicted the
                 // lease so the latter call is no-op.
-                transactionManager->AbortTransaction(transaction, false);
+                transactionManager->AbortTransaction(transaction, true);
             }
 
             UpdateNodeCounters(node, -1);
