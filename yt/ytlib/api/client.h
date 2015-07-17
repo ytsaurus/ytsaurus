@@ -144,6 +144,7 @@ struct TTransactionStartOptions
     TNullable<TDuration> Timeout;
     NTransactionClient::TTransactionId ParentId;
     bool AutoAbort = true;
+    TNullable<TDuration> PingPeriod;
     bool Ping = true;
     bool PingAncestors = true;
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;

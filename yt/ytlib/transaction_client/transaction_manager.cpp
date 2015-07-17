@@ -135,6 +135,7 @@ public:
 
         Type_ = type;
         AutoAbort_ = options.AutoAbort;
+        PingPeriod_ = options.PingPeriod;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
         Timeout_ = options.Timeout;
@@ -152,6 +153,7 @@ public:
         Type_ = ETransactionType::Master;
         Id_ = id;
         AutoAbort_ = options.AutoAbort;
+        PingPeriod_ = options.PingPeriod;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
         State_ = ETransactionState::Active;
@@ -388,6 +390,7 @@ private:
     TIntrusivePtr<TTransactionManager::TImpl> Owner_;
     ETransactionType Type_;
     bool AutoAbort_;
+    TNullable<TDuration> PingPeriod_;
     bool Ping_;
     bool PingAncestors_;
     TNullable<TDuration> Timeout_;
@@ -670,7 +673,7 @@ private:
 
             TDelayedExecutor::Submit(
                 BIND(IgnoreResult(&TImpl::RunPeriodicPings), MakeWeak(this)),
-                Owner_->Config_->PingPeriod);
+                PingPeriod_.Get(Owner_->Config_->DefaultPingPeriod));
         }));
     }
 
