@@ -416,6 +416,7 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::PersistentCommitPrepared && !force ||
+            state == ETransactionState::Committed ||
             state == ETransactionState::Aborted)
         {
             transaction->ThrowInvalidState();
