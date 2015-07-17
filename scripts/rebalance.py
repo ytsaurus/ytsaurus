@@ -64,7 +64,7 @@ def split_partitions(partitions, desired_tablet_size):
     def _impl():
         accumulated = 0
         for index, pivot_key, uncompressed_data_size in partitions:
-            if index == 0 or accumulated + uncompressed_data_size > desired_tablet_size:
+            if index > 0 and accumulated + uncompressed_data_size > desired_tablet_size:
                 yield pivot_key
                 accumulated = 0
             else:
@@ -84,7 +84,7 @@ def suggest_pivot_keys(tablet_info, number_of_key_columns, desired_tablet_size):
     distribution = combine_partitions(distribution, number_of_key_columns)
     # Split partitions according to desired size.
     distribution = split_partitions(distribution, desired_tablet_size)
-    return distribution
+    return [tablet_info["pivot_key"]] + distribution
 
 
 def rebalance(table, number_of_key_columns, desired_tablet_size, yes=False):
@@ -220,14 +220,14 @@ def test():
             actual = split_partitions([
                 (0, [1], 100),
             ], 10)
-            expected = [[1]]
+            expected = []
             self.assertItemsEqual(expected, actual)
 
         def test_split_partitions_1(self):
             actual = split_partitions([
                 (0, [1], 100),
             ], 1000)
-            expected = [[1]]
+            expected = []
             self.assertItemsEqual(expected, actual)
 
         def test_split_partitions_2(self):
@@ -236,7 +236,7 @@ def test():
                 (1, [2], 100),
                 (2, [3], 100),
             ], 50)
-            expected = [[1], [2], [3]]
+            expected = [[2], [3]]
             self.assertItemsEqual(expected, actual)
 
         def test_split_partitions_3(self):
@@ -245,7 +245,7 @@ def test():
                 (1, [2], 100),
                 (2, [3], 100),
             ], 150)
-            expected = [[1], [3]]
+            expected = [[2]]
             self.assertItemsEqual(expected, actual)
 
     suite = unittest.TestLoader().loadTestsFromTestCase(MyTestCase)
