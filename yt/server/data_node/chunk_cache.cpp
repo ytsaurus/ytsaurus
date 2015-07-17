@@ -227,7 +227,7 @@ private:
         masterConnector->RegisterAlert(TError("Chunk cache at %v is disabled",
             Location_->GetPath())
             << reason);
-        masterConnector->ForceRegister();
+        masterConnector->ForceRegisterAtMaster();
     }
 
 

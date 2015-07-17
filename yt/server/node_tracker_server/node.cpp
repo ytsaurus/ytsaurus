@@ -68,7 +68,7 @@ void TNode::Init()
     Banned_ = false;
     Decommissioned_ = false;
     Rack_ = nullptr;
-    Transaction_ = nullptr;
+    LeaseTransaction_ = nullptr;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     RandomReplicaIt_ = StoredReplicas_.end();
     ResetSessionHints();
@@ -110,7 +110,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Statistics_);
     Save(context, Alerts_);
     Save(context, Rack_);
-    Save(context, Transaction_);
+    Save(context, LeaseTransaction_);
     Save(context, StoredReplicas_);
     Save(context, CachedReplicas_);
     Save(context, UnapprovedReplicas_);
@@ -131,7 +131,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Statistics_);
     Load(context, Alerts_);
     Load(context, Rack_);
-    Load(context, Transaction_);
+    Load(context, LeaseTransaction_);
     Load(context, StoredReplicas_);
     Load(context, CachedReplicas_);
     Load(context, UnapprovedReplicas_);

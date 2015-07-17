@@ -418,7 +418,7 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location, const TError& reason
     masterConnector->RegisterAlert(TError("Chunk store at %v is disabled",
         location->GetPath())
         << reason);
-    masterConnector->ForceRegister();
+    masterConnector->ForceRegisterAtMaster();
 }
 
 IChunkPtr TChunkStore::CreateFromDescriptor(

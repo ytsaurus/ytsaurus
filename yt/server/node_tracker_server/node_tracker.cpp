@@ -591,6 +591,14 @@ private:
         auto addresses = FromProto<TAddressMap>(request.addresses());
         const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request.statistics();
+        auto leaseTransactionId = FromProto<TTransactionId>(request.lease_transaction_id());
+
+        // Check lease transaction.
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* leaseTransaction = transactionManager->GetTransactionOrThrow(leaseTransactionId);
+        if (leaseTransaction->GetState() != ETransactionState::Active) {
+            leaseTransaction->ThrowInvalidState();
+        }
 
         // Kick-out any previous incarnation.
         auto* existingNode = FindNodeByAddress(address);
@@ -610,7 +618,7 @@ private:
             YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
         }
 
-        auto* newNode = RegisterNode(addresses, statistics);
+        auto* newNode = RegisterNode(addresses, statistics, leaseTransaction);
 
         if (existingNode) {
             SetNodeBanned(newNode, existingNode->GetBanned());
@@ -687,7 +695,7 @@ private:
 
             node->Statistics() = statistics;
 
-            RenewNodeLease(node);
+            UpdateLastSeenTime(node);
 
             LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %v, Address: %v)",
                 nodeId,
@@ -721,7 +729,7 @@ private:
             node->Statistics() = statistics;
             node->Alerts() = FromProto<TError>(request.alerts());
 
-            RenewNodeLease(node);
+            UpdateLastSeenTime(node);
 
             if (response && node->GetRack()) {
                 response->set_rack(node->GetRack()->GetName());
@@ -799,10 +807,8 @@ private:
             InsertToAddressMaps(node);
             UpdateNodeCounters(node, +1);
 
-            if (node->GetTransaction()) {
+            if (node->GetLeaseTransaction()) {
                 RegisterLeaseTransaction(node);
-            } else {
-                UnregisterNode(node, true);
             }
         }
 
@@ -878,49 +884,25 @@ private:
 
     void RegisterLeaseTransaction(TNode* node)
     {
-        auto* transaction = node->GetTransaction();
+        auto* transaction = node->GetLeaseTransaction();
         YCHECK(transaction);
         YCHECK(TransactionToNodeMap_.insert(std::make_pair(transaction, node)).second);
     }
 
     TTransaction* UnregisterLeaseTransaction(TNode* node)
     {
-        auto* transaction = node->GetTransaction();
+        auto* transaction = node->GetLeaseTransaction();
         if (transaction) {
             YCHECK(TransactionToNodeMap_.erase(transaction) == 1);
         }
-        node->SetTransaction(nullptr);
+        node->SetLeaseTransaction(nullptr);
         return transaction;
     }
 
-    void RenewNodeLease(TNode* node)
+    void UpdateLastSeenTime(TNode* node)
     {
-        auto* transaction = node->GetTransaction();
-        if (!transaction)
-            return;
-
-        auto timeout = GetNodeLeaseTimeout(node);
-        transaction->SetTimeout(timeout);
-
         const auto* mutationContext = GetCurrentMutationContext();
         node->SetLastSeenTime(mutationContext->GetTimestamp());
-
-        if (IsLeader()) {
-            auto transactionManager = Bootstrap_->GetTransactionManager();
-            transactionManager->PingTransaction(transaction);
-        }
-    }
-
-    TDuration GetNodeLeaseTimeout(TNode* node)
-    {
-        switch (node->GetState()) {
-            case ENodeState::Registered:
-                return Config_->RegisteredNodeTimeout;
-            case ENodeState::Online:
-                return Config_->OnlineNodeTimeout;
-            default:
-                YUNREACHABLE();
-        }
     }
 
     void OnTransactionFinished(TTransaction* transaction)
@@ -930,7 +912,7 @@ private:
             return;
 
         auto* node = it->second;
-        LOG_INFO_UNLESS(IsRecovery(), "Node lease expired (NodeId: %v, Address: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Node lease transaction finished (NodeId: %v, Address: %v)",
             node->GetId(),
             node->GetDefaultAddress());
 
@@ -940,7 +922,8 @@ private:
 
     TNode* RegisterNode(
         const TAddressMap& addresses,
-        const TNodeStatistics& statistics)
+        const TNodeStatistics& statistics,
+        TTransaction* leaseTransaction)
     {
         PROFILE_TIMING ("/node_register_time") {
             const auto& address = GetDefaultAddress(addresses);
@@ -964,28 +947,14 @@ private:
             InsertToAddressMaps(node);
             UpdateNodeCounters(node, +1);
 
-            auto transactionManager = Bootstrap_->GetTransactionManager();
             auto objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
             auto nodePath = GetNodePath(node);
 
-            // Create lease transaction.
-            TTransaction* transaction;
-            {
-                auto timeout = GetNodeLeaseTimeout(node);
-                transaction = transactionManager->StartTransaction(nullptr, timeout);
-                node->SetTransaction(transaction);
-                RegisterLeaseTransaction(node);
-            }
+            node->SetLeaseTransaction(leaseTransaction);
+            RegisterLeaseTransaction(node);
 
             try {
-                // Set attributes.
-                {
-                    auto attributes = CreateEphemeralAttributes();
-                    attributes->Set("title", Format("Lease for node %v", node->GetDefaultAddress()));
-                    objectManager->FillAttributes(transaction, *attributes);
-                }
-
                 // Create Cypress node.
                 {
                     auto req = TCypressYPathProxy::Create(nodePath);
@@ -1010,9 +979,6 @@ private:
             } catch (const std::exception& ex) {
                 LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering node in Cypress");
             }
-
-            // Perform the initial lease renewal.
-            RenewNodeLease(node);
 
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
                 node->GetId(),
