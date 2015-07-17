@@ -82,7 +82,7 @@ public:
     int MaxRowsPerReadRequest;
 
     bool EnableUdf;
-    Stroka UdfRegistryPath;
+    NYPath::TYPath UdfRegistryPath;
 
     TConnectionConfig();
 
