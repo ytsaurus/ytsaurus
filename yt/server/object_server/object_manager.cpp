@@ -343,10 +343,6 @@ TObjectManager::TObjectManager(
     RegisterLoader(
         "ObjectManager.Values",
         BIND(&TObjectManager::LoadValues, Unretained(this)));
-    // COMPAT(babenko): This part exists only in 0.16.
-    RegisterLoader(
-        "ObjectManager.Schemas",
-        BIND(&TObjectManager::LoadSchemas, Unretained(this)));
 
     RegisterSaver(
         ESyncSerializationPriority::Keys,
@@ -599,107 +595,27 @@ void TObjectManager::OnBeforeSnapshotLoaded()
     DoClear();
 }
 
-void TObjectManager::OnAfterSnapshotLoaded()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    if (PatchSchemasWithRemovePermissions_) {
-        for (const auto& pair : SchemaMap_) {
-            // C.f. InitDefaultSchemasAcl
-            if (IsVersionedType(TypeFromId(pair.first))) {
-                continue;
-            }
-            auto& acd = pair.second->Acd();
-            auto aces = acd.Acl().Entries;
-            acd.ClearEntries();
-            for (auto& ace : aces) {
-                if ((ace.Permissions & EPermission::Write) != NonePermissions) {
-                    ace.Permissions |= EPermission::Remove;
-                }
-                acd.AddEntry(ace);
-            }
-        }
-    }
-}
-
 void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 109) {
-        SchemaMap_.LoadKeys(context);
-    }
-
-    // COMPAT(sandello)
-    if (context.GetVersion() < 113) {
-        PatchSchemasWithRemovePermissions_ = true;
-    }
-
-    // COMPAT(babenko)
-    if (context.GetVersion() < 117) {
-        int n = TSizeSerializer::Load(context);
-        LegacyAttributeIds_.clear();
-        for (int i = 0; i < n; ++i) {
-            LegacyAttributeIds_.push_back(Load<TVersionedObjectId>(context));
-            context.RegisterEntity(nullptr);
-        }
-    }
+    SchemaMap_.LoadKeys(context);
 }
 
 void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 109) {
-        SchemaMap_.LoadValues(context);
-        for (const auto& pair : SchemaMap_) {
-            auto type = TypeFromSchemaType(TypeFromId(pair.first));
-            YCHECK(RegisteredTypes_.find(type) != RegisteredTypes_.end());
-            auto& entry = TypeToEntry_[type];
-            entry.SchemaObject = pair.second;
-            entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
-        }
-    }
-
-    // COMPAT(sandello)
-    if (context.GetVersion() < 113) {
-        PatchSchemasWithRemovePermissions_ = true;
-    }
-
-    // COMPAT(babenko)
-    if (context.GetVersion() < 117) {
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        for (const auto& id : LegacyAttributeIds_) {
-            TObjectBase* object;
-            auto type = TypeFromId(id.ObjectId);
-            if (IsVersionedType(type)) {
-                object = cypressManager->GetNode(id);
-            } else {
-                object = GetObject(id.ObjectId);
-            }
-            NYT::Load(context, *object->GetMutableAttributes());
-        }
+    SchemaMap_.LoadValues(context);
+    for (const auto& pair : SchemaMap_) {
+        auto type = TypeFromSchemaType(TypeFromId(pair.first));
+        YCHECK(RegisteredTypes_.find(type) != RegisteredTypes_.end());
+        auto& entry = TypeToEntry_[type];
+        entry.SchemaObject = pair.second;
+        entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
     }
 
     GarbageCollector_->Load(context);
-}
-
-// COMPAT(babenko)
-void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    while (true) {
-        EObjectType type;
-        Load(context, type);
-        if (type == EObjectType::Null)
-            break;
-
-        const auto& entry = TypeToEntry_[type];
-        entry.SchemaObject->Load(context);
-    }
 }
 
 void TObjectManager::DoClear()

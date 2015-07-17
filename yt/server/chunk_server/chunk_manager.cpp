@@ -1133,10 +1133,6 @@ private:
     {
         ChunkMap_.LoadKeys(context);
         ChunkListMap_.LoadKeys(context);
-        // COMPAT(babenko): required to properly initialize partial sums for chunk lists.
-        if (context.GetVersion() < 100) {
-            ScheduleRecomputeStatistics();
-        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)

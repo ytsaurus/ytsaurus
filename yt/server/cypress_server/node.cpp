@@ -126,25 +126,6 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, Acd_);
     Load(context, AccessTime_);
     Load(context, AccessCounter_);
-
-    // Reconstruct TrunkNode and Transaction.
-    if (TransactionId_ == NullTransactionId) {
-        TrunkNode_ = this;
-        Transaction_ = nullptr;
-    } else {
-        TrunkNode_ = context.Get<TCypressNodeBase>(TVersionedNodeId(Id_));
-        Transaction_ = context.Get<TTransaction>(TransactionId_);
-    }
-
-    // Reconstruct iterators from locks to their positions in the lock list.
-    for (auto it = AcquiredLocks_.begin(); it != AcquiredLocks_.end(); ++it) {
-        auto* lock = *it;
-        lock->SetLockListIterator(it);
-    }
-    for (auto it = PendingLocks_.begin(); it != PendingLocks_.end(); ++it) {
-        auto* lock = *it;
-        lock->SetLockListIterator(it);
-    }
 }
 
 TClusterResources TCypressNodeBase::GetResourceUsage() const

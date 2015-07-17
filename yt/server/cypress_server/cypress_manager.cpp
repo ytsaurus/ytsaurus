@@ -51,11 +51,6 @@
 
 #include <server/cypress_server/cypress_manager.pb.h>
 
-// COMPAT(babenko): Reconstruct KeyColumns and Sorted flags for tables
-#include <server/table_server/table_node.h>
-#include <server/tablet_server/tablet.h>
-#include <server/chunk_server/chunk_list.h>
-
 namespace NYT {
 namespace NCypressServer {
 
@@ -459,14 +454,6 @@ public:
         RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TDocumentNodeTypeHandler>(Bootstrap_));
 
-        // COMPAT(babenko)
-        RegisterLoader(
-            "Cypress.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
-        // COMPAT(babenko)
-        RegisterLoader(
-            "Cypress.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
         RegisterLoader(
             "CypressManager.Keys",
             BIND(&TImpl::LoadKeys, Unretained(this)));
@@ -1005,8 +992,6 @@ private:
     TNodeId RootNodeId_;
     TCypressNodeBase* RootNode_ = nullptr;
 
-    bool RecomputeKeyColumns_ = false;
-    bool RecomputeTabletOwners_ = false;
     bool InitializeCellTags_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -1050,10 +1035,6 @@ private:
         LockMap_.LoadValues(context);
 
         // COMPAT(babenko)
-        RecomputeKeyColumns_ = (context.GetVersion() < 100);
-        // COMPAT(babenko)
-        RecomputeTabletOwners_ = (context.GetVersion() < 115);
-        // COMPAT(babenko)
         InitializeCellTags_ = (context.GetVersion() < 200);
     }
 
@@ -1062,6 +1043,8 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
 
         // COMPAT(babenko)
         auto cellTag = Bootstrap_->GetHydraFacade()->GetCellTag();
@@ -1082,25 +1065,22 @@ private:
                 node->SetOriginator(originator);
             }
 
-            // COMPAT(babenko): Reconstruct KeyColumns and Sorted flags for tables
-            if (RecomputeKeyColumns_) {
-                if (node->GetType() == EObjectType::Table) {
-                    auto* tableNode = dynamic_cast<NTableServer::TTableNode*>(pair.second);
-                    auto* chunkList = tableNode->GetChunkList();
-                    tableNode->SetSorted(!chunkList->LegacySortedBy().empty());
-                    tableNode->KeyColumns() = chunkList->LegacySortedBy();
-                    chunkList->LegacySortedBy().clear();
-                }
+
+            // Reconstruct TrunkNode and Transaction.
+            auto transactionId = node->GetVersionedId().TransactionId;
+            if (transactionId != NullTransactionId) {
+                node->SetTrunkNode(GetNode(TVersionedNodeId(node->GetId())));
+                node->SetTransaction(transactionManager->GetTransaction(transactionId));
             }
 
-            // COMPAT(babenko)
-            if (RecomputeTabletOwners_) {
-                if (node->GetType() == EObjectType::Table) {
-                    auto* table = dynamic_cast<NTableServer::TTableNode*>(pair.second);
-                    for (auto* tablet : table->Tablets()) {
-                        tablet->SetTable(table);
-                    }
-                }
+            // Reconstruct iterators from locks to their positions in the lock list.
+            for (auto it = node->AcquiredLocks().begin(); it != node->AcquiredLocks().end(); ++it) {
+                auto* lock = *it;
+                lock->SetLockListIterator(it);
+            }
+            for (auto it = node->PendingLocks().begin(); it != node->PendingLocks().end(); ++it) {
+                auto* lock = *it;
+                lock->SetLockListIterator(it);
             }
 
             // COMPAT(babenko)
