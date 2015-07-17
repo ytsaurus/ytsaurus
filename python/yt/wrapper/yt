@@ -787,9 +787,9 @@ def main():
         yt.config.TRANSACTION = config_args.tx
         yt.config.PING_ANCESTOR_TRANSACTIONS = config_args.ping_ancestor_txs
     if config_args.proxy is not None:
-        yt.config.set_proxy(config_args.proxy)
+        yt.config["proxy"]["url"] = config_args.proxy
     if config_args.prefix is not None:
-        yt.config.PREFIX = config_args.prefix
+        yt.config["prefix"] = config_args.prefix
     yt.config.TRACE = config_args.trace
     yt.config.update_config(config_args.config)
 
