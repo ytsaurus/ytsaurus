@@ -83,6 +83,7 @@ inline void Read(StreamSource* source, char* data, size_t len)
 
 inline void Read(StreamSource* source, TBlob& output)
 {
+    output.Reserve(source->Available());
     while (source->Available()) {
         size_t inputLen;
         const char* input = source->Peek(&inputLen);
