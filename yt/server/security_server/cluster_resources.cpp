@@ -44,10 +44,7 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, DiskSpace);
     Load(context, NodeCount);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 104) {
-        Load(context, ChunkCount);
-    }
+    Load(context, ChunkCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

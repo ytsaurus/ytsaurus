@@ -236,8 +236,6 @@ private:
     //! Stores schemas (for serialization mostly).
     NHydra::TEntityMap<TObjectId, TSchemaObject> SchemaMap_;
 
-    bool PatchSchemasWithRemovePermissions_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -245,14 +243,9 @@ private:
     void SaveValues(NCellMaster::TSaveContext& context) const;
 
     virtual void OnBeforeSnapshotLoaded() override;
-    virtual void OnAfterSnapshotLoaded() override;
 
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
-
-    // COMPAT(babenko)
-    void LoadSchemas(NCellMaster::TLoadContext& context);
-    std::vector<TVersionedObjectId> LegacyAttributeIds_;
 
     virtual void OnRecoveryStarted() override;
     virtual void OnRecoveryComplete() override;

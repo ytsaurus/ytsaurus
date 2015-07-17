@@ -768,20 +768,14 @@ private:
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
         NodeMap_.LoadKeys(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 103) {
-            RackMap_.LoadKeys(context);
-        }
+        RackMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         Load(context, NodeIdGenerator_);
         NodeMap_.LoadValues(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 103) {
-            RackMap_.LoadValues(context);
-        }
+        RackMap_.LoadValues(context);
     }
 
     virtual void Clear() override

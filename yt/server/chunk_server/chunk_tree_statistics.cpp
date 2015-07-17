@@ -54,10 +54,7 @@ void TChunkTreeStatistics::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkCount);
     Load(context, ChunkListCount);
     Load(context, Rank);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 100) {
-        Load(context, Sealed);
-    }
+    Load(context, Sealed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

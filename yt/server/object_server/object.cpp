@@ -69,12 +69,9 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     Load(context, RefCounter_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 117) {
-        if (Load<bool>(context)) {
-            Attributes_ = std::make_unique<TAttributeSet>();
-            Load(context, *Attributes_);
-        }
+    if (Load<bool>(context)) {
+        Attributes_ = std::make_unique<TAttributeSet>();
+        Load(context, *Attributes_);
     }
 }
 

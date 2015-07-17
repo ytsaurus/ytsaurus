@@ -61,12 +61,9 @@ void TTableNode::Load(TLoadContext& context)
     TChunkOwnerBase::Load(context);
 
     using NYT::Load;
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 100) {
-        Load(context, Sorted_);
-        Load(context, KeyColumns_);
-        Load(context, Tablets_);
-    }
+    Load(context, Sorted_);
+    Load(context, KeyColumns_);
+    Load(context, Tablets_);
 }
 
 std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(
