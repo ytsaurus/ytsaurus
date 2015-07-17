@@ -151,8 +151,11 @@ void ZstdDecompress(StreamSource* source, TBlob* output)
     output->Resize(outputSize);
     void* outputPtr = output->Begin();
 
-    size_t inputSize;
-    const void* inputPtr = source->Peek(&inputSize);
+    //TODO: don't copy into blob if StreamSource has only one partition.
+    TBlob input;
+    Read(source, input);
+    const void* inputPtr = input.Begin();
+    size_t inputSize = input.Size();
 
     size_t decompressedSize = ZSTD_decompress(outputPtr, outputSize, inputPtr, inputSize);
 
