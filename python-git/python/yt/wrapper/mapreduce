@@ -54,16 +54,16 @@ def calculate_if_function(obj):
         return obj
 
 def remove_prefix(table):
-    if table.startswith(config.PREFIX):
-        return table[len(config.PREFIX):]
+    if table.startswith(config["prefix"]):
+        return table[len(config["prefix"]):]
     return table
 
 def list_all_entities(type):
-    if config.PREFIX is None:
+    if config["prefix"] is None:
         die("You should specify PREFIX for list command")
-    check_prefix(config.PREFIX)
-    tables = yt.search(config.PREFIX[:-1], type,
-                       path_filter=lambda path: path.startswith(config.PREFIX))
+    check_prefix(config["prefix"])
+    tables = yt.search(config["prefix"][:-1], type,
+                       path_filter=lambda path: path.startswith(config["prefix"]))
     return sorted(map(remove_prefix, tables))
 
 def add_eoln(str):
@@ -399,15 +399,15 @@ Examples:
         die("Version: YT wrapper " + get_version(), 0)
 
     if args.failonemptysrctable:
-        config.TREAT_UNEXISTING_AS_EMPTY = False
+        config["yamr_mode"]["treat_unexisting_as_empty"] = False
     if args.chunksize is not None:
-        config.CHUNK_SIZE = args.chunksize
+        config["write_retries"]["chunk_size"] = args.chunksize
     if args.server is not None:
-        config.set_proxy(args.server)
+        config["proxy"]["url"] = args.server
     if args.prefix is not None:
-        config.PREFIX = args.prefix
+        config["prefix"] = args.prefix
     if args.timeout is not None:
-        config.TRANSACTION_TIMEOUT = int(args.timeout)
+        config["transaction_timeout"] = int(args.timeout)
 
     spec = {}
     if args.ytspec is not None:
@@ -452,7 +452,7 @@ Examples:
             die("Options subkey and lenval are mutually exclusive with dsv option")
         args.dsv = yt.DsvFormat()
         # Try it if occur problem with reduce_by and sort_by
-        #config.USE_YAMR_SORT_REDUCE_COLUMNS = False
+        #config["yamr_mode"]["use_yamr_sort_reduce_columns"] = False
 
     commands_that_use_format = ["get", "set", "read", "write", "writesorted", "map", "reduce", "reducews"]
     if sum([vars(args)[arg] is not None for arg in commands_that_use_format]) == 0 \
@@ -490,9 +490,9 @@ Examples:
     config.PING_ANCESTOR_TRANSACTIONS = args.pingtx
 
     if args.memlimit is not None:
-        config.MEMORY_LIMIT = int(args.memlimit) * MB
+        config["memory_limit"] = int(args.memlimit) * MB
 
-    config.DETACHED = (args.detached is None) or bool(args.detached)
+    config["detached"] = (args.detached is None) or bool(args.detached)
 
     attributes = {}
 
@@ -657,8 +657,8 @@ Examples:
         print yt.lock(args.ytlock, mode=args.mode, waitable=args.waitable, wait_for=args.waitfor)
 
     if args.track is not None:
-        config.DETACHED = True
-        config.KEYBOARD_ABORT = False
+        config["detached"] = True
+        config["operation_tracker"]["abort_on_sigint"] = False
         yt.WaitStrategy().process_operation("unknown", args.track)
 
 if __name__ == "__main__":

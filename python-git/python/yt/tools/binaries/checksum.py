@@ -164,7 +164,7 @@ def main():
 
     if args.table is not None:
         if args.proxy is not None:
-            yt.config.set_proxy(args.proxy)
+            yt.config["proxy"]["url"] = args.proxy
 
         script = os.path.realpath(__file__)
         cmd = "./{0} --input-type {1} {2}".format(os.path.basename(script), args.input_type, "--sorted" if args.sorted else "")
