@@ -397,14 +397,6 @@ public:
 
         FinishTransaction(transaction);
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        if (hydraFacade->IsPrimaryMaster()) {
-            NProto::TReqCommitTransaction request;
-            ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_commit_timestamp(commitTimestamp);
-            hydraFacade->PostToSecondaryMasters(request);
-        }
-
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %v)",
             transactionId,
             commitTimestamp);
@@ -442,14 +434,6 @@ public:
         TransactionAborted_.Fire(transaction);
 
         FinishTransaction(transaction);
-
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        if (hydraFacade->IsPrimaryMaster()) {
-            NProto::TReqAbortTransaction request;
-            ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_force(force);
-            hydraFacade->PostToSecondaryMasters(request);
-        }
 
         LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
             transactionId,
@@ -521,6 +505,8 @@ public:
         objectManager->RefObject(node);
     }
 
+
+    // ITransactionManager implementation.
     void PrepareTransactionCommit(
         const TTransactionId& transactionId,
         bool persistent,
@@ -556,6 +542,16 @@ public:
                 transactionId,
                 persistent);
         }
+
+        if (persistent) {
+            auto hydraFacade = Bootstrap_->GetHydraFacade();
+            if (hydraFacade->IsPrimaryMaster()) {
+                NProto::TReqPrepareTransactionCommit request;
+                ToProto(request.mutable_transaction_id(), transactionId);
+                request.set_prepare_timestamp(prepareTimestamp);
+                hydraFacade->PostToSecondaryMasters(request);
+            }
+        }
     }
 
     void PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
@@ -585,6 +581,14 @@ public:
         // NB: Transaction must exist.
         auto* transaction = GetTransaction(transactionId);
         CommitTransaction(transaction, commitTimestamp);
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        if (hydraFacade->IsPrimaryMaster()) {
+            NProto::TReqCommitTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_commit_timestamp(commitTimestamp);
+            hydraFacade->PostToSecondaryMasters(request);
+        }
     }
 
     void AbortTransaction(
@@ -596,6 +600,14 @@ public:
         auto* transaction = GetTransactionOrThrow(transactionId);
 
         AbortTransaction(transaction, force);
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        if (hydraFacade->IsPrimaryMaster()) {
+            NProto::TReqAbortTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_force(force);
+            hydraFacade->PostToSecondaryMasters(request);
+        }
     }
 
     void PingTransaction(
@@ -616,7 +628,6 @@ private:
     const TTransactionManagerConfigPtr Config_;
 
     NHydra::TEntityMap<TTransactionId, TTransaction> TransactionMap_;
-    yhash_map<TTransactionId, TLease> LeaseMap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
