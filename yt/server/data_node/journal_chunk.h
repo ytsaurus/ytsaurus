@@ -30,10 +30,18 @@ public:
         i64 priority,
         const TNullable<std::vector<int>>& extensionTags) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TSharedRef>> ReadBlockSet(
+        const std::vector<int>& blockIndexes,
+        i64 priority,
+        bool populateCache,
+        NChunkClient::IBlockCachePtr blockCache) override;
+
+    virtual TFuture<std::vector<TSharedRef>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        i64 priority) override;
+        i64 priority,
+        bool populateCache,
+        NChunkClient::IBlockCachePtr blockCache) override;
 
     void AttachChangelog(NHydra::IChangelogPtr changelog);
     void DetachChangelog();
@@ -64,7 +72,7 @@ private:
 
     virtual TFuture<void> AsyncRemove() override;
 
-    void DoReadBlocks(
+    void DoReadBlockRange(
         int firstBlockIndex,
         int blockCount,
         TPromise<std::vector<TSharedRef>> promise);

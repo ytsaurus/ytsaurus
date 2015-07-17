@@ -35,6 +35,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TCachedBlock)
 
+using TCachedBlockCookie = TAsyncSlruCacheBase<TBlockId, TCachedBlock>::TInsertCookie;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages chunk blocks stored at Data Node.
@@ -65,13 +67,19 @@ public:
         const TSharedRef& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
 
+    //! Starts an asynchronous block load.
+    /*!
+     *  See TAsyncCacheValueBase for more details.
+     */
+    TCachedBlockCookie BeginInsertCachedBlock(const TBlockId& blockId);
+
     //! Asynchronously reads a range of blocks from the store.
     /*!
      *  If some unrecoverable IO error happens during retrieval then the latter error is returned.
      *
      *  The resulting list may contain less blocks than requested.
-     *  If the whole chunk or some of its blocks does not exist then null TSharedRef element may be returned.
-     *  An empty list indicates that the requested blocks are all out of range.
+     *  All returned blocks, however, are not null.
+     *  The empty list indicates that the requested blocks are all out of range.
      *
      *  Note that blob chunks will indicate an error if an attempt is made to read a non-existing block.
      *  Journal chunks, however, will silently ignore it.
@@ -86,7 +94,10 @@ public:
 
     //! Asynchronously reads a set of blocks from the store.
     /*!
-     *  Tries to group block reads into contiguous ranges.
+     *  If some unrecoverable IO error happens during retrieval then the latter error is returned.
+     *
+     *  The resulting list may contain less blocks than requested.
+     *  If the whole chunk or some of its blocks does not exist then null block may be returned.
      */
     TFuture<std::vector<TSharedRef>> ReadBlockSet(
         const TChunkId& chunkId,
