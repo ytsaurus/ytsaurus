@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "chunk_detail.h"
+#include "block_store.h"
 
 #include <core/misc/async_cache.h>
 
@@ -25,10 +26,18 @@ public:
         i64 priority,
         const TNullable<std::vector<int>>& extensionTags) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TSharedRef>> ReadBlockSet(
+        const std::vector<int>& blockIndexes,
+        i64 priority,
+        bool populateCache,
+        NChunkClient::IBlockCachePtr blockCache) override;
+
+    virtual TFuture<std::vector<TSharedRef>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        i64 priority) override;
+        i64 priority,
+        bool populateCache,
+        NChunkClient::IBlockCachePtr blockCache) override;
 
     virtual void SyncRemove(bool force) override;
 
@@ -43,6 +52,25 @@ protected:
     virtual TFuture<void> AsyncRemove() override;
 
 private:
+    struct TReadBlockSetSession
+        : public TIntrinsicRefCounted
+    {
+        struct TBlockEntry
+        {
+            int BlockIndex = -1;
+            TSharedRef Data;
+            TCachedBlockCookie Cookie;
+            bool Cached = false;
+        };
+
+        std::vector<TBlockEntry> Entries;
+        std::vector<TFuture<void>> CacheResults;
+        TPromise<std::vector<TSharedRef>> Promise = NewPromise<std::vector<TSharedRef>>();
+    };
+
+    using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
+
+
     NChunkClient::NProto::TChunkInfo Info_;
 
     NConcurrency::TReaderWriterSpinLock CachedMetaLock_;
@@ -56,11 +84,9 @@ private:
     void SetMetaLoadError(const TError& error);
     void DoReadMeta(TChunkReadGuard readGuard);
 
-    void DoReadBlocks(
-        int firstBlockIndex,
-        int blockCount,
-        TPendingReadSizeGuard pendingReadSizeGuard,
-        TPromise<std::vector<TSharedRef>> promise);
+    void DoReadBlockSet(
+        TReadBlockSetSessionPtr session,
+        TPendingReadSizeGuard pendingReadSizeGuard);
 
 };
 
