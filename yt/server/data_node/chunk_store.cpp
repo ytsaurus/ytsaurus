@@ -275,6 +275,7 @@ void TChunkStore::UnregisterChunk(IChunkPtr chunk)
 
     {
         TWriterGuard guard(ChunkMapLock_);
+        chunk->SetDead();
         ChunkMap_.erase(it);
     }
 
@@ -387,6 +388,7 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location, const TError& reason
             auto jt = it++;
             auto chunk = jt->second.Chunk;
             if (chunk->GetLocation() == location) {
+                chunk->SetDead();
                 ChunkMap_.erase(jt);
                 ++count;
             }
