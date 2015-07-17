@@ -81,6 +81,16 @@ inline void Read(StreamSource* source, char* data, size_t len)
     } while (current < len);
 }
 
+inline void Read(StreamSource* source, TBlob& output)
+{
+    while (source->Available()) {
+        size_t inputLen;
+        const char* input = source->Peek(&inputLen);
+        output.Append(input, inputLen);
+        source->Skip(inputLen);
+    }
+}
+
 template <class T>
 void ReadPod(StreamSource* source, T& value)
 {
