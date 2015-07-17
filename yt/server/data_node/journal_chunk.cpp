@@ -98,10 +98,37 @@ TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const TNullable<std::vector<in
     return FilterMeta(Meta_, extensionTags);
 }
 
-TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
+TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockSet(
+    const std::vector<int>& blockIndexes,
+    i64 priority,
+    bool populateCache,
+    IBlockCachePtr blockCache)
+{
+    // Extract the initial contiguous segment of blocks.
+    if (blockIndexes.empty()) {
+        return MakeFuture(std::vector<TSharedRef>());
+    }
+
+    int firstBlockIndex = blockIndexes.front();
+    int blockCount = 0;
+    while (blockCount < blockIndexes.size() && blockIndexes[blockCount + 1] == blockIndexes[blockCount] + 1) {
+        ++blockCount;
+    }
+
+    return ReadBlockRange(
+        firstBlockIndex,
+        blockCount,
+        priority,
+        populateCache,
+        blockCache);
+}
+
+TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockRange(
     int firstBlockIndex,
     int blockCount,
-    i64 priority)
+    i64 priority,
+    bool /*populateCache*/,
+    IBlockCachePtr /*blockCache*/)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(firstBlockIndex >= 0);
@@ -110,7 +137,7 @@ TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
     auto promise = NewPromise<std::vector<TSharedRef>>();
 
     auto callback = BIND(
-        &TJournalChunk::DoReadBlocks,
+        &TJournalChunk::DoReadBlockRange,
         MakeStrong(this),
         firstBlockIndex,
         blockCount,
@@ -123,7 +150,7 @@ TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
     return promise;
 }
 
-void TJournalChunk::DoReadBlocks(
+void TJournalChunk::DoReadBlockRange(
     int firstBlockIndex,
     int blockCount,
     TPromise<std::vector<TSharedRef>> promise)
