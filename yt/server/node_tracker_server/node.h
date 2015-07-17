@@ -66,7 +66,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TRack*, Rack);
 
     // Lease tracking.
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, LeaseTransaction);
 
     // Chunk Manager stuff.
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);

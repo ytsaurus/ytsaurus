@@ -77,9 +77,11 @@ private:
         auto addresses = FromProto<TAddressMap>(request->addresses());
         const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request->statistics();
+        auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
 
-        context->SetRequestInfo("Address: %v, %v",
+        context->SetRequestInfo("Address: %v, LeaseTransactionId: %v, %v",
             address,
+            leaseTransactionId,
             statistics);
 
         auto nodeTracker = Bootstrap_->GetNodeTracker();

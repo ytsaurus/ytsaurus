@@ -15,6 +15,8 @@
 
 #include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
+#include <ytlib/transaction_client/public.h>
+
 #include <server/cell_node/public.h>
 
 namespace NYT {
@@ -63,7 +65,7 @@ public:
      *
      *  Typically called when a location goes down.
      */
-    void ForceRegister();
+    void ForceRegisterAtMaster();
 
     //! Returns |true| iff node is currently connected to master.
     bool IsConnected() const;
@@ -111,6 +113,9 @@ private:
     //! The current connection state.
     EState State_ = EState::Offline;
 
+    //! The lease transaction.
+    NTransactionClient::TTransactionPtr LeaseTransaction_;
+
     //! Node id assigned by master or |InvalidNodeId| is not registered.
     TNodeId NodeId_ = NNodeTrackerClient::InvalidNodeId;
 
@@ -148,8 +153,8 @@ private:
     //! Schedules a new job heartbeat via TDelayedExecutor.
     void ScheduleJobHeartbeat();
 
-    //! Calls #Reset and schedules a new registration request via TDelayedExecutor.
-    void ResetAndScheduleRegister();
+    //! Calls #Reset and schedules a new registration attempt.
+    void ResetAndScheduleRegisterAtMaster();
 
     //! Invoked when a node heartbeat must be sent.
     void OnNodeHeartbeat();
@@ -157,14 +162,15 @@ private:
     //! Invoked when a job heartbeat must be sent.
     void OnJobHeartbeat();
 
-    //! Sends out a registration request.
-    void SendRegister();
+    //! Starts a lease transaction.
+    //! Sends out a registration request to master.
+    void RegisterAtMaster();
+
+    //! Handles lease transaction abort.
+    void OnLeaseTransactionAborted();
 
     //! Computes the current node statistics.
     NNodeTrackerClient::NProto::TNodeStatistics ComputeStatistics();
-
-    //! Handles registration response.
-    void OnRegisterResponse(const NNodeTrackerClient::TNodeTrackerServiceProxy::TErrorOrRspRegisterNodePtr& rspOrError);
 
     //! Sends out a full heartbeat.
     void SendFullNodeHeartbeat();

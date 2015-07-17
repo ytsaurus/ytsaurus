@@ -9,12 +9,7 @@
 #include "chunk_cache.h"
 #include "session_manager.h"
 
-#include <core/rpc/client.h>
-
 #include <core/concurrency/delayed_executor.h>
-
-#include <core/misc/serialize.h>
-#include <core/misc/string.h>
 
 #include <core/ytree/convert.h>
 
@@ -27,6 +22,8 @@
 
 #include <ytlib/api/connection.h>
 #include <ytlib/api/client.h>
+
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <server/misc/memory_usage_tracker.h>
 
@@ -58,6 +55,8 @@ using namespace NTabletNode;
 using namespace NHydra;
 using namespace NHive;
 using namespace NObjectClient;
+using namespace NTransactionClient;
+using namespace NApi;
 using namespace NCellNode;
 
 using NNodeTrackerClient::TAddressMap;
@@ -86,7 +85,10 @@ TMasterConnector::TMasterConnector(
 
 void TMasterConnector::Start()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(!Started_);
+
+    Started_ = true;
 
     Bootstrap_->GetChunkStore()->SubscribeChunkAdded(
         BIND(&TMasterConnector::OnChunkAdded, MakeWeak(this))
@@ -106,20 +108,17 @@ void TMasterConnector::Start()
         BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this))
             .Via(ControlInvoker_),
         RandomDuration(Config_->IncrementalHeartbeatPeriod));
-
-    Started_ = true;
 }
 
-void TMasterConnector::ForceRegister()
+void TMasterConnector::ForceRegisterAtMaster()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (!Started_)
         return;
 
-    ControlInvoker_->Invoke(BIND(
-        &TMasterConnector::StartHeartbeats,
-        MakeStrong(this)));
+    ControlInvoker_->Invoke(
+        BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this)));
 }
 
 void TMasterConnector::StartHeartbeats()
@@ -127,7 +126,9 @@ void TMasterConnector::StartHeartbeats()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     Reset();
-    SendRegister();
+
+    HeartbeatInvoker_->Invoke(
+        BIND(&TMasterConnector::RegisterAtMaster, MakeStrong(this)));
 }
 
 bool TMasterConnector::IsConnected() const
@@ -157,6 +158,8 @@ void TMasterConnector::RegisterAlert(const TError& alert)
 
 std::vector<TError> TMasterConnector::GetAlerts()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     std::vector<TError> alerts;
     PopulateAlerts_.Fire(&alerts);
 
@@ -164,8 +167,10 @@ std::vector<TError> TMasterConnector::GetAlerts()
         LOG_WARNING(alert, "Dynamic alert registered");
     }
 
-    TGuard<TSpinLock> guard(AlertsLock_);
-    alerts.insert(alerts.end(), StaticAlerts_.begin(), StaticAlerts_.end());
+    {
+        TGuard<TSpinLock> guard(AlertsLock_);
+        alerts.insert(alerts.end(), StaticAlerts_.begin(), StaticAlerts_.end());
+    }
 
     return alerts;
 }
@@ -201,12 +206,12 @@ void TMasterConnector::ScheduleJobHeartbeat()
         Config_->IncrementalHeartbeatPeriod);
 }
 
-void TMasterConnector::ResetAndScheduleRegister()
+void TMasterConnector::ResetAndScheduleRegisterAtMaster()
 {
     Reset();
 
     TDelayedExecutor::Submit(
-        BIND(&TMasterConnector::SendRegister, MakeStrong(this))
+        BIND(&TMasterConnector::RegisterAtMaster, MakeStrong(this))
             .Via(HeartbeatInvoker_),
         Config_->IncrementalHeartbeatPeriod);
 }
@@ -227,24 +232,75 @@ void TMasterConnector::OnNodeHeartbeat()
     }
 }
 
-void TMasterConnector::SendRegister()
+void TMasterConnector::RegisterAtMaster()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
-    TNodeTrackerServiceProxy proxy(channel);
+    State_ = EState::Registering;
+
+    NTransactionClient::TTransactionStartOptions options;
+    options.PingPeriod = Config_->LeaseTransactionPingPeriod;
+    options.Timeout = Config_->LeaseTransactionTimeout;
+
+    auto attributes = CreateEphemeralAttributes();
+    attributes->Set("title", Format("Lease for node %v", GetDefaultAddress(LocalAddresses_)));
+    options.Attributes = std::move(attributes);
+
+    auto transactionManager = Bootstrap_->GetMasterClient()->GetTransactionManager();
+    auto asyncTransaction = transactionManager->Start(ETransactionType::Master, options);
+    auto transactionOrError = WaitFor(asyncTransaction);
+
+    YCHECK(State_ == EState::Registering);
+
+    if (!transactionOrError.IsOK()) {
+        LOG_ERROR(transactionOrError, "Error starting lease transaction at master");
+        ResetAndScheduleRegisterAtMaster();
+        return;
+    }
+
+    LeaseTransaction_ = transactionOrError.Value();
+    LeaseTransaction_->SubscribeAborted(
+        BIND(&TMasterConnector::OnLeaseTransactionAborted, MakeWeak(this))
+            .Via(HeartbeatInvoker_));
+
+    auto masterChannel = Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
+    TNodeTrackerServiceProxy proxy(masterChannel);
 
     auto req = proxy.RegisterNode();
     *req->mutable_statistics() = ComputeStatistics();
     ToProto(req->mutable_addresses(), LocalAddresses_);
-    req->Invoke().Subscribe(
-        BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
-            .Via(HeartbeatInvoker_));
-
-    State_ = EState::Registering;
+    ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
 
     LOG_INFO("Node register request sent to master (%v)",
         *req->mutable_statistics());
+
+    auto rspOrError = WaitFor(req->Invoke());
+
+    YCHECK(State_ == EState::Registering);
+
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Error registering node at master");
+        ResetAndScheduleRegisterAtMaster();
+        return;
+    }
+
+    const auto& rsp = rspOrError.Value();
+    NodeId_ = rsp->node_id();
+    State_ = EState::Registered;
+
+    LOG_INFO("Successfully registered at master (NodeId: %v)",
+        NodeId_);
+
+    SendFullNodeHeartbeat();
+}
+
+void TMasterConnector::OnLeaseTransactionAborted()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    LOG_WARNING("Master transaction lease aborted");
+
+    ResetAndScheduleRegisterAtMaster();
 }
 
 TNodeStatistics TMasterConnector::ComputeStatistics()
@@ -328,30 +384,9 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     return result;
 }
 
-void TMasterConnector::OnRegisterResponse(const TNodeTrackerServiceProxy::TErrorOrRspRegisterNodePtr& rspOrError)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    if (!rspOrError.IsOK()) {
-        LOG_WARNING(rspOrError, "Error registering node");
-        ResetAndScheduleRegister();
-        return;
-    }
-
-    const auto& rsp = rspOrError.Value();
-    NodeId_ = rsp->node_id();
-    YCHECK(State_ == EState::Registering);
-    State_ = EState::Registered;
-
-    LOG_INFO("Successfully registered node at master (NodeId: %v)",
-        NodeId_);
-
-    SendFullNodeHeartbeat();
-}
-
 void TMasterConnector::SendFullNodeHeartbeat()
 {
-    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
     TNodeTrackerServiceProxy proxy(channel);
 
     auto request = proxy.FullHeartbeat()
@@ -384,7 +419,7 @@ void TMasterConnector::SendFullNodeHeartbeat()
 
 void TMasterConnector::SendIncrementalNodeHeartbeat()
 {
-    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
     TNodeTrackerServiceProxy proxy(channel);
 
     auto request = proxy.IncrementalHeartbeat()
@@ -482,7 +517,7 @@ void TMasterConnector::OnFullNodeHeartbeatResponse(const TNodeTrackerServiceProx
         if (IsRetriableError(rspOrError)) {
             ScheduleNodeHeartbeat();
         } else {
-            ResetAndScheduleRegister();
+            ResetAndScheduleRegisterAtMaster();
         }
         return;
     }
@@ -512,7 +547,7 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
         if (IsRetriableError(rspOrError)) {
             ScheduleNodeHeartbeat();
         } else {
-            ResetAndScheduleRegister();
+            ResetAndScheduleRegisterAtMaster();
         }
         return;
     }
@@ -610,7 +645,7 @@ void TMasterConnector::SendJobHeartbeat()
     YCHECK(NodeId_ != InvalidNodeId);
     YCHECK(State_ == EState::Online);
 
-    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
     TJobTrackerServiceProxy proxy(channel);
 
     auto req = proxy.Heartbeat();
@@ -635,7 +670,7 @@ void TMasterConnector::OnJobHeartbeatResponse(const TJobTrackerServiceProxy::TEr
         if (IsRetriableError(rspOrError)) {
             ScheduleJobHeartbeat();
         } else {
-            ResetAndScheduleRegister();
+            ResetAndScheduleRegisterAtMaster();
         }
         return;
     }
@@ -660,6 +695,7 @@ void TMasterConnector::Reset()
 
     State_ = EState::Offline;
     NodeId_ = InvalidNodeId;
+    LeaseTransaction_.Reset();
 
     ReportedAdded_.clear();
     ReportedRemoved_.clear();

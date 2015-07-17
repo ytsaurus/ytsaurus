@@ -46,7 +46,7 @@ private:
         bool isGood = node->GetState() == ENodeState::Registered || node->GetState() == ENodeState::Online;
         attributes->push_back(TAttributeInfo("last_seen_time"));
         attributes->push_back(TAttributeInfo("register_time", isGood));
-        attributes->push_back(TAttributeInfo("transaction_id", isGood && node->GetTransaction()));
+        attributes->push_back(TAttributeInfo("lease_transaction_id", isGood && node->GetLeaseTransaction()));
         attributes->push_back(TAttributeInfo("statistics", isGood));
         attributes->push_back(TAttributeInfo("addresses", isGood));
         attributes->push_back(TAttributeInfo("alerts", isGood));
@@ -96,9 +96,9 @@ private:
                 return true;
             }
 
-            if (key == "transaction_id" && node->GetTransaction()) {
+            if (key == "lease_transaction_id" && node->GetLeaseTransaction()) {
                 BuildYsonFluently(consumer)
-                    .Value(node->GetTransaction()->GetId());
+                    .Value(node->GetLeaseTransaction()->GetId());
                 return true;
             }
 

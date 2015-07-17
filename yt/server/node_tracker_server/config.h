@@ -13,19 +13,11 @@ class TNodeTrackerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TDuration RegisteredNodeTimeout;
-    TDuration OnlineNodeTimeout;
-
     int MaxConcurrentNodeRegistrations;
     int MaxConcurrentNodeUnregistrations;
 
     TNodeTrackerConfig()
     {
-        RegisterParameter("registered_node_timeout", RegisteredNodeTimeout)
-            .Default(TDuration::Seconds(60));
-        RegisterParameter("online_node_timeout", OnlineNodeTimeout)
-            .Default(TDuration::Seconds(60));
-
         RegisterParameter("max_concurrent_node_registrations", MaxConcurrentNodeRegistrations)
             .Default(5)
             .GreaterThan(0);
