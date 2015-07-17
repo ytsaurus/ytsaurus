@@ -226,6 +226,7 @@ void TSelectRowsCommand::DoExecute()
     options.InputRowLimit = Request_->InputRowLimit;
     options.OutputRowLimit = Request_->OutputRowLimit;
     options.RangeExpansionLimit = Request_->RangeExpansionLimit;
+    options.FailOnIncompleteResult = Request_->FailOnIncompleteResult;
     options.VerboseLogging = Request_->VerboseLogging;
     options.MaxSubqueries = Request_->MaxSubqueries;
 

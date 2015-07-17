@@ -151,8 +151,15 @@ void ZstdDecompress(StreamSource* source, TBlob* output)
     output->Resize(outputSize);
     void* outputPtr = output->Begin();
 
+    TBlob input;
     size_t inputSize;
     const void* inputPtr = source->Peek(&inputSize);
+
+    if (source->Available() > inputSize) {
+        Read(source, input);
+        inputPtr = input.Begin();
+        inputSize = input.Size();
+    }
 
     size_t decompressedSize = ZSTD_decompress(outputPtr, outputSize, inputPtr, inputSize);
 
