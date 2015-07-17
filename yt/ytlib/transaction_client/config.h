@@ -18,8 +18,8 @@ public:
     //! Timeout for all RPC requests to participants.
     TDuration RpcTimeout;
 
-    //! Internal between consecutive transaction pings.
-    TDuration PingPeriod;
+    //! Default internal between consecutive transaction pings.
+    TDuration DefaultPingPeriod;
 
     //! Default transaction timeout to be used if not given explicitly on
     //! transaction start.
@@ -29,7 +29,7 @@ public:
     {
         RegisterParameter("rpc_timeout", RpcTimeout)
             .Default(TDuration::Seconds(5));
-        RegisterParameter("ping_period", PingPeriod)
+        RegisterParameter("default_ping_period", DefaultPingPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
             .Default(TDuration::Seconds(15));

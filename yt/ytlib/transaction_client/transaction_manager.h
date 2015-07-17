@@ -33,6 +33,7 @@ struct TTransactionStartOptions
 struct TTransactionAttachOptions
 {
     bool AutoAbort = false;
+    TNullable<TDuration> PingPeriod;
     bool Ping = true;
     bool PingAncestors = false;
 };
