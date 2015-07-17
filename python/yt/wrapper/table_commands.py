@@ -44,7 +44,7 @@ data of operation
 * **memory_limit** : (integer) memory limit in Mb in *scheduler* for every *job* (512Mb by default)
 
 
-Operation run under self-pinged transaction, if `yt.wrapper.get_config(client).DETACHED` is `False`.
+Operation run under self-pinged transaction, if `yt.wrapper.get_config(client)["detached"]` is `False`.
 """
 
 import config
@@ -407,7 +407,7 @@ def create_table(path, recursive=None, ignore_existing=False,
 
     Shortcut for `create("table", ...)`.
     :param path: (string or :py:class:`yt.wrapper.table.TablePath`) path to table
-    :param recursive: (bool) create the path automatically, `config.CREATE_RECURSIVE` by default
+    :param recursive: (bool) create the path automatically, `config["yamr_mode"]["create_recursive"]` by default
     :param ignore_existing: (bool) if it sets to `False` and table exists, \
                             Python Wrapper raises `YtResponseError`.
     :param replication_factor: (int) number of data replicas
@@ -426,7 +426,7 @@ def create_temp_table(path=None, prefix=None, client=None):
     """Create temporary table by given path with given prefix and return name.
 
     :param path: (string or :py:class:`yt.wrapper.table.TablePath`) existing path, \
-                 by default `client.TEMP_TABLES_STORAGE`
+                 by default `config["remote_temp_tables_directory"]`
     :param prefix: (string) prefix of table name
     :return: (string) name of result table
     """
@@ -453,14 +453,14 @@ def write_table(table, input_stream, format=None, table_writer=None,
                 `TablePath` attributes for append mode or something like this. Table can not exist.
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
     :param format: (string or subclass of `Format`) format of input data, \
-                    `yt.wrapper.config.format.TABULAR_DATA_FORMAT` by default.
+                    `yt.wrapper.config["tabular_data_format"]` by default.
     :param table_writer: (dict) spec of "write" operation
     :param replication_factor: (integer) number of data replicas
     :param compression_codec: (string) standard operation parameter
 
     Python Wrapper try to split input stream to portions of fixed size and write its with retries.
     If splitting fails, stream is written as is through HTTP.
-    Set `yt.wrapper.client.USE_RETRIES_DURING_WRITE` to ``False`` for writing \
+    Set `yt.wrapper.config["write_retries"]["enable"]` to ``False`` for writing \
     without splitting and retries.
 
     Writing is executed under self-pinged transaction.
@@ -515,7 +515,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     :return: if `raw` is specified -- string or :class:`yt.wrapper.driver.ResponseStream`,\
              else -- rows generator (python dict or :class:`yt.wrapper.yamr_record.Record`)
 
-    If :py:data:`yt.wrapper.config.RETRY_READ` is specified,
+    If :py:data:`yt.wrapper.config["read_retries"]["enable"]` is specified,
     command is executed under self-pinged transaction with retries and snapshot lock on the table.
     """
     if response_type is not None:
@@ -676,8 +676,8 @@ def copy_table(source_table, destination_table, replace=True, client=None):
     :param destination_table: string or `TablePath`
     :param replace: (bool) override `destination_table`
 
-    .. note:: param `replace` is overridden by setted \
-              `yt.wrapper.config.REPLACE_TABLES_WHILE_COPY_OR_MOVE`
+    .. note:: param `replace` is overridden by set \
+              `yt.wrapper.config["yamr_mode"]["replace_tables_on_copy_and_move"]`
     If `source_table` is a list of tables, tables would be merged.
     """
     if get_config(client)["yamr_mode"]["replace_tables_on_copy_and_move"]:
@@ -708,7 +708,7 @@ def move_table(source_table, destination_table, replace=True, client=None):
     :param destination_table: string or `TablePath`
     :param replace: (bool) override `destination_table`
 
-    .. note:: param `replace` is overridden by `yt.wrapper.config.REPLACE_TABLES_WHILE_COPY_OR_MOVE`
+    .. note:: param `replace` is overridden by `yt.wrapper.config["yamr_mode"]["replace_tables_on_copy_and_move"]`
 
     If `source_table` is a list of tables, tables would be merged.
     """
@@ -925,7 +925,7 @@ def insert_rows(table, input_stream, format=None, raw=False, client=None):
                 `TablePath` attributes for append mode or something like this. Table can not exist.
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
     :param format: (string or subclass of `Format`) format of input data, \
-                    `yt.wrapper.config.format.TABULAR_DATA_FORMAT` by default.
+                    `yt.wrapper.config["tabular_data_format"]` by default.
 
     """
     table = to_table(table, client=client)
@@ -954,7 +954,7 @@ def delete_rows(table, input_stream, format=None, raw=False, client=None):
                 `TablePath` attributes for append mode or something like this. Table can not exist.
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
     :param format: (string or subclass of `Format`) format of input data, \
-                    `yt.wrapper.config.format.TABULAR_DATA_FORMAT` by default.
+                    `yt.wrapper.config["tabular_data_format"]` by default.
 
     """
     table = to_table(table, client=client)

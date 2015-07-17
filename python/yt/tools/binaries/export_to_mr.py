@@ -73,7 +73,7 @@ def export_table_wrapper(object, args):
         return CANCEL
 
 def main():
-    yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED = True
+    yt.config["operation_tracker"]["ignore_stderr_if_download_failed"] = True
 
     parser = ArgumentParser()
     parser.add_argument("--tables-queue")
@@ -98,7 +98,7 @@ def main():
     parser.add_argument("--skip-empty-tables", action="store_true", default=False,
                         help="do not return empty source tables back to queue")
 
-    parser.add_argument("--yt-proxy", default=yt.config.http.PROXY)
+    parser.add_argument("--yt-proxy", default=yt.config["proxy"]["url"])
     parser.add_argument("--yt-token")
     parser.add_argument("--yt-pool", default="export_restricted")
 

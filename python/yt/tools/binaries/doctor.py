@@ -72,7 +72,7 @@ def main():
     args = parser.parse_args()
 
     if args.proxy is not None:
-        yt.config.set_proxy(args.proxy)
+        yt.config["proxy"]["url"] = args.proxy
 
     check_tokens_acl()
     check_schemas()
