@@ -438,7 +438,7 @@ public:
             return;
 
         account->ClusterStatistics().ResourceUsage += delta;
-        account->GetLocalStatistics()->ResourceUsage += delta;
+        account->LocalStatistics().ResourceUsage += delta;
 
         auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
         *transactionUsage += delta;
@@ -989,10 +989,10 @@ private:
         auto resourceUsage = node->CachedResourceUsage() * delta;
 
         account->ClusterStatistics().ResourceUsage += resourceUsage;
-        account->GetLocalStatistics()->ResourceUsage += resourceUsage;
+        account->LocalStatistics().ResourceUsage += resourceUsage;
         if (node->IsTrunk()) {
             account->ClusterStatistics().CommittedResourceUsage += resourceUsage;
-            account->GetLocalStatistics()->CommittedResourceUsage += resourceUsage;
+            account->LocalStatistics().CommittedResourceUsage += resourceUsage;
         }
 
         auto* transactionUsage = FindTransactionAccountUsage(node);
@@ -1448,14 +1448,14 @@ protected:
 
         auto& multicellStatistics = account->MulticellStatistics();
         if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
-            account->MulticellStatistics()[cellTag] = account->ClusterStatistics();
+            multicellStatistics[cellTag] = account->ClusterStatistics();
         }
 
         for (auto secondaryCellTag : secondaryCellTags) {
-            account->MulticellStatistics()[secondaryCellTag];
+            multicellStatistics[secondaryCellTag];
         }
 
-        account->SetLocalStatistics(&multicellStatistics[cellTag]);
+        account->SetLocalStatisticsPtr(&multicellStatistics[cellTag]);
     }
 
     void OnAccountStatisticsGossip()
@@ -1476,11 +1476,10 @@ protected:
             if (hydraFacade->IsPrimaryMaster()) {
                 ToProto(entry->mutable_statistics(), account->ClusterStatistics());
             } else {
-                ToProto(entry->mutable_statistics(), *account->GetLocalStatistics());
+                ToProto(entry->mutable_statistics(), account->LocalStatistics());
             }
         }
 
-        auto hiveManager = Bootstrap_->GetHiveManager();
         if (hydraFacade->IsPrimaryMaster()) {
             hydraFacade->PostToSecondaryMasters(request, false);
         } else {
@@ -1525,14 +1524,14 @@ protected:
 
         auto& multicellStatistics = user->MulticellStatistics();
         if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
-            user->MulticellStatistics()[cellTag] = user->ClusterStatistics();
+            multicellStatistics[cellTag] = user->ClusterStatistics();
         }
 
         for (auto secondaryCellTag : secondaryCellTags) {
-            user->MulticellStatistics()[secondaryCellTag];
+            multicellStatistics[secondaryCellTag];
         }
 
-        user->SetLocalStatistics(&multicellStatistics[cellTag]);
+        user->SetLocalStatisticsPtr(&multicellStatistics[cellTag]);
     }
 
     void OnUserStatisticsGossip()
@@ -1553,11 +1552,10 @@ protected:
             if (hydraFacade->IsPrimaryMaster()) {
                 ToProto(entry->mutable_statistics(), user->ClusterStatistics());
             } else {
-                ToProto(entry->mutable_statistics(), *user->GetLocalStatistics());
+                ToProto(entry->mutable_statistics(), user->LocalStatistics());
             }
         }
 
-        auto hiveManager = Bootstrap_->GetHiveManager();
         if (hydraFacade->IsPrimaryMaster()) {
             hydraFacade->PostToSecondaryMasters(request, false);
         } else {
@@ -1577,13 +1575,13 @@ protected:
 
             // Update access time.
             auto statistics = FromProto<TUserStatistics>(entry.statistics());
-            *user->GetLocalStatistics() += statistics;
+            user->LocalStatistics() += statistics;
             user->ClusterStatistics() += statistics;
 
             NProfiling::TTagIdList tags;
             tags.push_back(profilingManager->RegisterTag("user", user->GetName()));
 
-            i64 localRequestCounter = user->GetLocalStatistics()->RequestCounter;
+            i64 localRequestCounter = user->LocalStatistics().RequestCounter;
             Profiler.Enqueue("/user_request_counter", localRequestCounter, tags);
 
             // Recompute request rate.
@@ -1618,7 +1616,7 @@ protected:
 
             auto newStatistics = FromProto<TUserStatistics>(entry.statistics());
             if (hydraFacade->IsPrimaryMaster()) {
-                *user->GetCellStatistics(cellTag) = newStatistics;
+                user->CellStatistics(cellTag) = newStatistics;
                 user->ClusterStatistics() = TUserStatistics();
                 for (const auto& pair : user->MulticellStatistics()) {
                     user->ClusterStatistics() += pair.second;

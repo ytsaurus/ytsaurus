@@ -43,7 +43,7 @@ public:
 
     using TMulticellStatistics = yhash_map<NObjectClient::TCellTag, TAccountStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);
-    DEFINE_BYVAL_RW_PROPERTY(TAccountStatistics*, LocalStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(TAccountStatistics*, LocalStatisticsPtr);
     DEFINE_BYREF_RW_PROPERTY(TAccountStatistics, ClusterStatistics);
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, ClusterResourceLimits);
 
@@ -54,6 +54,9 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    //! Dereferences the local statistics pointer.
+    TAccountStatistics& LocalStatistics();
 
     //! Returns |true| if disk space limit is exceeded,
     //! i.e. no more disk space could be allocated.
