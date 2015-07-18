@@ -63,7 +63,7 @@ TUser::TUser(const TUserId& id)
     : TSubject(id)
     , Banned_(false)
     , RequestRateLimit_(100.0)
-    , LocalStatistics_(nullptr)
+    , LocalStatisticsPtr_(nullptr)
     , RequestStatisticsUpdateIndex_(-1)
 {
     ResetRequestRate();
@@ -101,11 +101,16 @@ void TUser::ResetRequestRate()
     RequestRate_ = 0;
 }
 
-TUserStatistics* TUser::GetCellStatistics(NObjectClient::TCellTag cellTag)
+TUserStatistics& TUser::CellStatistics(NObjectClient::TCellTag cellTag)
 {
     auto it = MulticellStatistics_.find(cellTag);
     YCHECK(it != MulticellStatistics_.end());
-    return &it->second;
+    return it->second;
+}
+
+TUserStatistics& TUser::LocalStatistics()
+{
+    return *LocalStatisticsPtr_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

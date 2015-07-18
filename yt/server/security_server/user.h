@@ -45,7 +45,7 @@ public:
     // Statistics
     using TMulticellStatistics = yhash_map<NObjectClient::TCellTag, TUserStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);
-    DEFINE_BYVAL_RW_PROPERTY(TUserStatistics*, LocalStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(TUserStatistics*, LocalStatisticsPtr);
     DEFINE_BYREF_RW_PROPERTY(TUserStatistics, ClusterStatistics);
     DEFINE_BYVAL_RW_PROPERTY(int, RequestStatisticsUpdateIndex);
     
@@ -62,7 +62,8 @@ public:
 
     void ResetRequestRate();
 
-    TUserStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);
+    TUserStatistics& CellStatistics(NObjectClient::TCellTag cellTag);
+    TUserStatistics& LocalStatistics();
 
 };
 

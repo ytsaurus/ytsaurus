@@ -62,7 +62,7 @@ TAccountStatistics operator + (const TAccountStatistics& lhs, const TAccountStat
 
 TAccount::TAccount(const TAccountId& id)
     : TNonversionedObjectBase(id)
-    , LocalStatistics_(nullptr)
+    , LocalStatisticsPtr_(nullptr)
     , Acd_(this)
 { }
 
@@ -91,6 +91,11 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, ClusterResourceLimits_);
     Load(context, Acd_);
+}
+
+TAccountStatistics& TAccount::LocalStatistics()
+{
+    return *LocalStatisticsPtr_;
 }
 
 bool TAccount::IsDiskSpaceLimitViolated() const
