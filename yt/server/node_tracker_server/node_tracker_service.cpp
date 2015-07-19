@@ -54,7 +54,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
             .SetRequestHeavy(true)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::IncrementalHeartbeat)));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetRegisteredCells));
     }
 
 private:
@@ -154,21 +153,6 @@ private:
             ->CreateIncrementalHeartbeatMutation(context)
             ->Commit()
             .Subscribe(CreateRpcResponseHandler(context));
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, GetRegisteredCells)
-    {
-        ValidatePeer(EPeerKind::Leader);
-
-        context->SetRequestInfo();
-
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
-        ToProto(response->mutable_cell_descriptors(), nodeTracker->GetCellDescriptors());
-
-        context->SetResponseInfo("DescriptorCount: %v",
-            response->cell_descriptors_size());
-
-        context->Reply();
     }
 
 };

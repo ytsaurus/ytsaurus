@@ -4,7 +4,7 @@
 
 #include <core/rpc/client.h>
 
-#include <server/hive/hive_service.pb.h>
+#include <ytlib/hive/hive_service.pb.h>
 
 namespace NYT {
 namespace NHive {

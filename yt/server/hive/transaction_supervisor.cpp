@@ -4,7 +4,6 @@
 #include "transaction_manager.h"
 #include "hive_manager.h"
 #include "commit.h"
-#include "private.h"
 
 #include <core/rpc/service_detail.h>
 #include <core/rpc/server.h>
@@ -16,6 +15,7 @@
 
 #include <core/concurrency/scheduler.h>
 
+#include <ytlib/hive/private.h>
 #include <ytlib/hive/transaction_supervisor_service_proxy.h>
 
 #include <ytlib/transaction_client/timestamp_provider.h>

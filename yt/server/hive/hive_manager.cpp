@@ -1,10 +1,8 @@
 #include "stdafx.h"
 #include "hive_manager.h"
 #include "config.h"
-#include "hive_service_proxy.h"
 #include "mailbox.h"
 #include "helpers.h"
-#include "private.h"
 
 #include <core/misc/address.h>
 
@@ -22,7 +20,9 @@
 #include <ytlib/hydra/peer_channel.h>
 #include <ytlib/hydra/config.h>
 
+#include <ytlib/hive/private.h>
 #include <ytlib/hive/cell_directory.h>
+#include <ytlib/hive/hive_service_proxy.h>
 
 #include <server/election/election_manager.h>
 

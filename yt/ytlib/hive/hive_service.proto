@@ -2,7 +2,18 @@ package NYT.NHive.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/hive/cell_directory.proto";
-import "yt/server/hive/hive_manager.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TEncapsulatedMessage
+{
+    required string type = 1;
+    required bytes data = 2;
+
+    optional fixed64 trace_id = 3;
+    optional fixed64 span_id = 4;
+    optional fixed64 parent_span_id = 5;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

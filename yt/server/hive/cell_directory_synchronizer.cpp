@@ -1,14 +1,13 @@
 #include "stdafx.h"
 #include "cell_directory_synchronizer.h"
-#include "hive_service_proxy.h"
 #include "config.h"
-#include "private.h"
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/scheduler.h>
 
 #include <core/rpc/dispatcher.h>
 
+#include <ytlib/hive/private.h>
 #include <ytlib/hive/cell_directory.h>
 
 namespace NYT {
@@ -66,42 +65,7 @@ private:
         if (!channel)
             return;
 
-        LOG_INFO("Requesting cells sync data");
-
-        THiveServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Config_->RpcTimeout);
-
-        auto req = proxy.SyncCells();
-        ToProto(req->mutable_known_cells(), CellDirectory_->GetRegisteredCells());
-
-        auto rspOrError = WaitFor(req->Invoke());
-
-        if (!rspOrError.IsOK()) {
-            LOG_INFO(rspOrError, "Error requesting cells sync data");
-            return;
-        }
-
-        const auto& rsp = rspOrError.Value();
-
-        LOG_INFO("Cells sync data received");
-
-        for (const auto& info : rsp->cells_to_unregister()) {
-            auto cellId = FromProto<TCellId>(info.cell_id());
-            YCHECK(cellId != NullCellId);
-            if (CellDirectory_->UnregisterCell(cellId)) {
-                LOG_DEBUG("Cell unregistered (CellId: %v)",
-                    cellId);
-            }
-        }
-
-        for (const auto& info : rsp->cells_to_reconfigure()) {
-            auto descriptor = FromProto<NHive::TCellDescriptor>(info.cell_descriptor());
-            if (CellDirectory_->ReconfigureCell(descriptor)) {
-                LOG_DEBUG("Cell reconfigured (CellId: %v, ConfigVersion: %v)",
-                    descriptor.CellId,
-                    descriptor.ConfigVersion);
-            }
-        }
+        auto result = WaitFor(CellDirectory_->Synchronize(channel));
     }
 
 };
