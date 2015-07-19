@@ -30,6 +30,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 
 #include <server/object_server/object_manager.h>
 #include <server/object_server/type_handler_detail.h>
@@ -439,10 +440,10 @@ public:
         , NodeMap_(TNodeMapTraits(this))
     {
         auto hydraFacade = Bootstrap_->GetHydraFacade();
-
         VERIFY_INVOKER_THREAD_AFFINITY(hydraFacade->GetAutomatonInvoker(), AutomatonThread);
 
-        RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, hydraFacade->GetCellTag());
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, multicellManager->GetCellTag());
 
         RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TInt64NodeTypeHandler>(Bootstrap_));
@@ -1047,7 +1048,7 @@ private:
         auto transactionManager = Bootstrap_->GetTransactionManager();
 
         // COMPAT(babenko)
-        auto cellTag = Bootstrap_->GetHydraFacade()->GetCellTag();
+        auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;

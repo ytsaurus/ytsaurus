@@ -285,31 +285,40 @@ private:
                 transactionId,
                 EObjectType::RackMap);
 
-            CreateNode(
-                "//sys/masters",
-                transactionId,
-                EObjectType::MapNode,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("opaque").Value(true)
-                    .EndMap());
-
-            for (const auto& address : Config_->Master->Addresses) {
-                auto addressPath = "/" + ToYPathLiteral(*address);
-
+            auto createMasters = [&] (const TYPath& rootPath, NElection::TCellConfigPtr cellConfig) {
                 CreateNode(
-                    "//sys/masters" + addressPath,
+                    rootPath,
                     transactionId,
-                    EObjectType::MapNode);
-
-                CreateNode(
-                    "//sys/masters" + addressPath + "/orchid",
-                    transactionId,
-                    EObjectType::Orchid,
+                    EObjectType::MapNode,
                     BuildYsonStringFluently()
                         .BeginMap()
-                            .Item("remote_address").Value(address)
+                            .Item("opaque").Value(true)
                         .EndMap());
+
+                for (const auto& address : cellConfig->Addresses) {
+                    auto addressPath = "/" + ToYPathLiteral(*address);
+
+                    CreateNode(
+                        rootPath + addressPath,
+                        transactionId,
+                        EObjectType::MapNode);
+
+                    CreateNode(
+                        rootPath + addressPath + "/orchid",
+                        transactionId,
+                        EObjectType::Orchid,
+                        BuildYsonStringFluently()
+                            .BeginMap()
+                                .Item("remote_address").Value(*address)
+                            .EndMap());
+                }
+            };
+
+            // XXX(babenko): masters -> primary_masters?
+            createMasters("//sys/masters", Config_->PrimaryMaster);
+            for (auto cellConfig : Config_->SecondaryMasters) {
+                auto cellTag = CellTagFromId(cellConfig->CellId);
+                createMasters("//sys/secondary_masters/" + ToYPathLiteral(cellTag), cellConfig);
             }
 
             CreateNode(
@@ -486,6 +495,7 @@ private:
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, transactionId);
         req->set_type(static_cast<int>(type));
+        req->set_recursive(true);
         ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
         WaitFor(ExecuteVerb(service, req))
             .ThrowOnError();

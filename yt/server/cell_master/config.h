@@ -60,7 +60,6 @@ class TCellMasterConfig
     : public TServerConfig
 {
 public:
-    NElection::TCellConfigPtr Master;
     NElection::TCellConfigPtr PrimaryMaster;
     std::vector<NElection::TCellConfigPtr> SecondaryMasters;
 

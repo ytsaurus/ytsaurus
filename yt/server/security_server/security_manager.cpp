@@ -28,6 +28,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 #include <server/cell_master/serialize.h>
 
 #include <server/transaction_server/transaction.h>
@@ -255,8 +256,8 @@ public:
             "SecurityManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        auto cellTag = hydraFacade->GetPrimaryCellTag();
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetPrimaryCellTag();
 
         SysAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xffffffffffffffff);
         TmpAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffe);
@@ -1442,9 +1443,9 @@ protected:
 
     void InitializeAccountStatistics(TAccount* account)
     {
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        auto cellTag = hydraFacade->GetCellTag();
-        const auto& secondaryCellTags = hydraFacade->GetSecondaryCellTags();
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+        const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
 
         auto& multicellStatistics = account->MulticellStatistics();
         if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
@@ -1462,10 +1463,10 @@ protected:
     {
         LOG_INFO("Sending account statistics gossip message");
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        auto multicellManager = Bootstrap_->GetMulticellManager();
 
         NProto::TReqSetAccountStatistics request;
-        request.set_cell_tag(hydraFacade->GetCellTag());
+        request.set_cell_tag(multicellManager->GetCellTag());
         for (const auto& pair : AccountMap_) {
             auto* account = pair.second;
             if (!IsObjectAlive(account))
@@ -1473,17 +1474,17 @@ protected:
 
             auto* entry = request.add_entries();
             ToProto(entry->mutable_account_id(), account->GetId());
-            if (hydraFacade->IsPrimaryMaster()) {
+            if (multicellManager->IsPrimaryMaster()) {
                 ToProto(entry->mutable_statistics(), account->ClusterStatistics());
             } else {
                 ToProto(entry->mutable_statistics(), account->LocalStatistics());
             }
         }
 
-        if (hydraFacade->IsPrimaryMaster()) {
-            hydraFacade->PostToSecondaryMasters(request, false);
+        if (multicellManager->IsPrimaryMaster()) {
+            multicellManager->PostToSecondaryMasters(request, false);
         } else {
-            hydraFacade->PostToPrimaryMaster(request, false);
+            multicellManager->PostToPrimaryMaster(request, false);
         }
     }
 
@@ -1493,8 +1494,8 @@ protected:
         LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
             cellTag);
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        YCHECK(hydraFacade->IsPrimaryMaster() || cellTag == hydraFacade->GetPrimaryCellTag());
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        YCHECK(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
 
         for (const auto& entry : request.entries()) {
             auto accountId = FromProto<TAccountId>(entry.account_id());
@@ -1503,7 +1504,7 @@ protected:
                 continue;
 
             auto newStatistics = FromProto<TAccountStatistics>(entry.statistics());
-            if (hydraFacade->IsPrimaryMaster()) {
+            if (multicellManager->IsPrimaryMaster()) {
                 *account->GetCellStatistics(cellTag) = newStatistics;
                 account->ClusterStatistics() = TAccountStatistics();
                 for (const auto& pair : account->MulticellStatistics()) {
@@ -1518,9 +1519,9 @@ protected:
 
     void InitializeUserStatistics(TUser* user)
     {
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        auto cellTag = hydraFacade->GetCellTag();
-        const auto& secondaryCellTags = hydraFacade->GetSecondaryCellTags();
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+        const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
 
         auto& multicellStatistics = user->MulticellStatistics();
         if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
@@ -1538,10 +1539,10 @@ protected:
     {
         LOG_INFO("Sending user statistics gossip message");
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        auto multicellManager = Bootstrap_->GetMulticellManager();
 
         NProto::TReqSetUserStatistics request;
-        request.set_cell_tag(hydraFacade->GetCellTag());
+        request.set_cell_tag(multicellManager->GetCellTag());
         for (const auto& pair : UserMap_) {
             auto* user = pair.second;
             if (!IsObjectAlive(user))
@@ -1549,17 +1550,17 @@ protected:
 
             auto* entry = request.add_entries();
             ToProto(entry->mutable_user_id(), user->GetId());
-            if (hydraFacade->IsPrimaryMaster()) {
+            if (multicellManager->IsPrimaryMaster()) {
                 ToProto(entry->mutable_statistics(), user->ClusterStatistics());
             } else {
                 ToProto(entry->mutable_statistics(), user->LocalStatistics());
             }
         }
 
-        if (hydraFacade->IsPrimaryMaster()) {
-            hydraFacade->PostToSecondaryMasters(request, false);
+        if (multicellManager->IsPrimaryMaster()) {
+            multicellManager->PostToSecondaryMasters(request, false);
         } else {
-            hydraFacade->PostToPrimaryMaster(request, false);
+            multicellManager->PostToPrimaryMaster(request, false);
         }
     }
 
@@ -1605,8 +1606,8 @@ protected:
         LOG_INFO_UNLESS(IsRecovery(), "Received user statistics gossip message (CellTag: %v)",
             cellTag);
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        YCHECK(hydraFacade->IsPrimaryMaster() || cellTag == hydraFacade->GetPrimaryCellTag());
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        YCHECK(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
 
         for (const auto& entry : request.entries()) {
             auto userId = FromProto<TAccountId>(entry.user_id());
@@ -1615,7 +1616,7 @@ protected:
                 continue;
 
             auto newStatistics = FromProto<TUserStatistics>(entry.statistics());
-            if (hydraFacade->IsPrimaryMaster()) {
+            if (multicellManager->IsPrimaryMaster()) {
                 user->CellStatistics(cellTag) = newStatistics;
                 user->ClusterStatistics() = TUserStatistics();
                 for (const auto& pair : user->MulticellStatistics()) {

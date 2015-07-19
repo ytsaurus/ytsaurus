@@ -23,7 +23,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/serialize.h>
-#include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -99,7 +99,7 @@ public:
         auto node = DoCreate(TVersionedNodeId(id), request, response);
         node->SetTrunkNode(node.get());
 
-        node->SetCellTag(Bootstrap_->GetHydraFacade()->GetCellTag());
+        node->SetCellTag(Bootstrap_->GetMulticellManager()->GetCellTag());
 
         return std::move(node);
     }

@@ -12,7 +12,6 @@ using namespace NObjectClient;
 
 TCellMasterConfig::TCellMasterConfig()
 {
-    RegisterParameter("master", Master);
     RegisterParameter("primary_master", PrimaryMaster)
         .Default();
     RegisterParameter("secondary_masters", SecondaryMasters)
@@ -54,20 +53,12 @@ TCellMasterConfig::TCellMasterConfig()
         .Default(true);
 
     RegisterValidator([&] () {
-        if (PrimaryMaster && !SecondaryMasters.empty()) {
-            THROW_ERROR_EXCEPTION("Cannot specify both \"primary_master\" and \"secondary_masters\"");
-        }
-
-        const auto& cellId = Master->CellId;
-        auto cellTag = CellTagFromId(Master->CellId);
-        if (PrimaryMaster && ReplaceCellTagInId(PrimaryMaster->CellId, cellTag) != cellId) {
-            THROW_ERROR_EXCEPTION("Invalid cell id %v specified for primary master",
-                PrimaryMaster->CellId);
-        }
-        for (const auto& secondaryMaster : SecondaryMasters) {
-            if (ReplaceCellTagInId(secondaryMaster->CellId, cellTag) != cellId) {
+        const auto& cellId = PrimaryMaster->CellId;
+        auto cellTag = CellTagFromId(PrimaryMaster->CellId);
+        for (const auto& cellConfig : SecondaryMasters) {
+            if (ReplaceCellTagInId(cellConfig->CellId, cellTag) != cellId) {
                 THROW_ERROR_EXCEPTION("Invalid cell id %v specified for secondary master",
-                    secondaryMaster->CellId);
+                    cellConfig->CellId);
             }
         }
     });

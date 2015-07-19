@@ -9,6 +9,7 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/serialize.cpp
   ${BASE}/world_initializer.cpp
+  ${BASE}/multicell_manager.cpp
 )
 set( HDRS
   ${BASE}/automaton.h
@@ -21,9 +22,12 @@ set( HDRS
   ${BASE}/serialize-inl.h
   ${BASE}/serialize.h
   ${BASE}/world_initializer.h
+  ${BASE}/multicell_manager.cpp
 )
 
 list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
 )
+
+protoc( ${BASE}/multicell_manager.proto YT_SOURCE_FILES )

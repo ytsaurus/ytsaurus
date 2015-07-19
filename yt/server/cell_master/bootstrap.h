@@ -46,6 +46,7 @@ public:
     ~TBootstrap();
 
     TCellMasterConfigPtr GetConfig() const;
+    TMulticellManagerPtr GetMulticellManager() const;
     NRpc::IServerPtr GetRpcServer() const;
     NElection::TCellManagerPtr GetCellManager() const;
     NHydra::IChangelogStorePtr GetChangelogStore() const;
@@ -72,6 +73,7 @@ private:
     const Stroka ConfigFileName_;
     const TCellMasterConfigPtr Config_;
 
+    TMulticellManagerPtr MulticellManager_;
     NRpc::IServerPtr RpcServer_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NHttp::TServer> HttpServer_;

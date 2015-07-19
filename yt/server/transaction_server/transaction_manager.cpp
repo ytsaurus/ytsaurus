@@ -33,6 +33,7 @@
 #include <server/cell_master/serialize.h>
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 
 #include <server/security_server/account.h>
 #include <server/security_server/user.h>
@@ -343,8 +344,8 @@ public:
 
         transaction->SetState(ETransactionState::Active);
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        if (hydraFacade->IsPrimaryMaster()) {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             if (timeout) {
                 transaction->SetTimeout(std::min(*timeout, Config_->MaxTransactionTimeout));
             }
@@ -544,12 +545,12 @@ public:
         }
 
         if (persistent) {
-            auto hydraFacade = Bootstrap_->GetHydraFacade();
-            if (hydraFacade->IsPrimaryMaster()) {
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            if (multicellManager->IsPrimaryMaster()) {
                 NProto::TReqPrepareTransactionCommit request;
                 ToProto(request.mutable_transaction_id(), transactionId);
                 request.set_prepare_timestamp(prepareTimestamp);
-                hydraFacade->PostToSecondaryMasters(request);
+                multicellManager->PostToSecondaryMasters(request);
             }
         }
     }
@@ -582,12 +583,12 @@ public:
         auto* transaction = GetTransaction(transactionId);
         CommitTransaction(transaction, commitTimestamp);
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        if (hydraFacade->IsPrimaryMaster()) {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(commitTimestamp);
-            hydraFacade->PostToSecondaryMasters(request);
+            multicellManager->PostToSecondaryMasters(request);
         }
     }
 
@@ -601,12 +602,12 @@ public:
 
         AbortTransaction(transaction, force);
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        if (hydraFacade->IsPrimaryMaster()) {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
             NProto::TReqAbortTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_force(force);
-            hydraFacade->PostToSecondaryMasters(request);
+            multicellManager->PostToSecondaryMasters(request);
         }
     }
 

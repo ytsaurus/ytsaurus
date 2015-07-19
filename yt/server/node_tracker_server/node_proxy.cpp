@@ -14,7 +14,7 @@
 #include <server/tablet_server/tablet_cell.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {
@@ -81,8 +81,8 @@ private:
         }
 
         if (key == "state") {
-            auto hydraFacade = Bootstrap_->GetHydraFacade();
-            auto state = hydraFacade->IsPrimaryMaster()
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            auto state = multicellManager->IsPrimaryMaster()
                 ? node->GetAggregatedState()
                 : node->GetLocalState();
             BuildYsonFluently(consumer)

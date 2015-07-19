@@ -1,6 +1,7 @@
 #include "stdafx.h"
-#include "hydra_facade.h"
 #include "master_hydra_service.h"
+#include "hydra_facade.h"
+#include "multicell_manager.h"
 #include "world_initializer.h"
 #include "bootstrap.h"
 
@@ -17,7 +18,7 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
     : NHydra::THydraServiceBase(
         bootstrap->GetHydraFacade()->GetHydraManager(),
         bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(),
-        NRpc::TServiceId(serviceName, bootstrap->GetHydraFacade()->GetCellId()),
+        NRpc::TServiceId(serviceName, bootstrap->GetMulticellManager()->GetCellId()),
         logger,
         protocolVersion)
     , Bootstrap_(bootstrap)
