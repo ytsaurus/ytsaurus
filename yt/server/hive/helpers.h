@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <server/hive/hive_manager.pb.h>
+#include <ytlib/hive/hive_service.pb.h>
 
 namespace NYT {
 namespace NHive {

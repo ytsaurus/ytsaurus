@@ -6,6 +6,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/actions/future.h>
+
 #include <ytlib/hydra/public.h>
 #include <ytlib/hydra/hydra_manager.pb.h>
 
@@ -62,7 +64,6 @@ public:
         const Stroka& networkName);
     ~TCellDirectory();
 
-
     //! Returns a peer channel of a given kind for a given cell id (|nullptr| if none is known).
     /*!
      *  No user or timeout is configured for the returned channel.
@@ -86,6 +87,9 @@ public:
 
     //! Returns the list of all registered cells, their versions, and configurations.
     std::vector<TCellInfo> GetRegisteredCells();
+
+    //! Populates the directory with the entries of the remote one via Hive RPC interface.
+    TFuture<void> Synchronize(NRpc::IChannelPtr channel);
 
     //! Returns |true| if the cell was unregistered by calling #UnregisterCell.
     bool IsCellUnregistered(const TCellId& cellId);
@@ -115,7 +119,7 @@ public:
 
 private:
     class TImpl;
-    const std::unique_ptr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

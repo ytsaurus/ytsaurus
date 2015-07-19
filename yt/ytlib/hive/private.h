@@ -1,13 +1,16 @@
-#include "stdafx.h"
-#include "private.h"
+#pragma once
+
+#include "public.h"
+
+#include <core/logging/log.h>
+#include <core/profiling/profiler.h>
 
 namespace NYT {
 namespace NHive {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger HiveLogger("Hive");
-const NProfiling::TProfiler HiveProfiler("/hive");
+extern const NLogging::TLogger HiveLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

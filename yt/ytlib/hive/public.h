@@ -15,6 +15,7 @@ namespace NProto {
 
 class TCellDescriptor;
 class TCellInfo;
+class TEncapsulatedMessage;
 
 } // namespace NProto
 

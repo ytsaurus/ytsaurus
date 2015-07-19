@@ -11,8 +11,6 @@
 #include <server/hydra/public.h>
 #include <server/hydra/entity_map.h>
 
-#include <server/hive/hive_manager.pb.h>
-
 namespace NYT {
 namespace NHive {
 
