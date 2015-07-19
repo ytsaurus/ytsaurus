@@ -29,6 +29,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 #include <server/cell_master/config.h>
 #include <server/cell_master/serialize.h>
 
@@ -834,12 +835,12 @@ bool TObjectProxyBase::IsFollower() const
 
 bool TObjectProxyBase::IsPrimaryMaster() const
 {
-    return Bootstrap_->GetHydraFacade()->IsPrimaryMaster();
+    return Bootstrap_->GetMulticellManager()->IsPrimaryMaster();
 }
 
 bool TObjectProxyBase::IsSecondaryMaster() const
 {
-    return Bootstrap_->GetHydraFacade()->IsSecondaryMaster();
+    return Bootstrap_->GetMulticellManager()->IsSecondaryMaster();
 }
 
 bool TObjectProxyBase::IsLeaderReadRequired() const
@@ -849,8 +850,8 @@ bool TObjectProxyBase::IsLeaderReadRequired() const
 
 void TObjectProxyBase::PostToSecondaryMasters(NRpc::IServiceContextPtr context)
 {
-    auto hydraFacade = Bootstrap_->GetHydraFacade();
-    hydraFacade->PostToSecondaryMasters(Object_->GetId(), std::move(context));
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToSecondaryMasters(Object_->GetId(), std::move(context));
 }
 
 bool TObjectProxyBase::IsLoggingEnabled() const

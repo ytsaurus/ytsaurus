@@ -15,12 +15,13 @@ DECLARE_REFCOUNTED_CLASS(TMasterAutomaton)
 DECLARE_REFCOUNTED_CLASS(TMasterAutomatonPart)
 DECLARE_REFCOUNTED_CLASS(THydraFacade)
 DECLARE_REFCOUNTED_CLASS(TWorldInitializer)
+DECLARE_REFCOUNTED_CLASS(TMulticellManager)
 
 class TBootstrap;
 
 class TLoadContext;
 class TSaveContext;
-typedef TCustomPersistenceContext<TSaveContext, TLoadContext> TPersistenceContext;
+using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext>;
 
 DEFINE_ENUM(EAutomatonThreadQueue,
     (Default)

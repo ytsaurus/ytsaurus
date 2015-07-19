@@ -4,14 +4,11 @@
 
 #include <core/rpc/public.h>
 
-#include <core/ytree/public.h>
-
-#include <ytlib/election/public.h>
+#include <core/actions/public.h>
 
 #include <ytlib/object_client/public.h>
 
-#include <server/hydra/mutation.h>
-#include <core/rpc/client.h>
+#include <server/hydra/public.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -32,7 +29,7 @@ public:
         TBootstrap* bootstrap);
     ~THydraFacade();
 
-    void Start();
+    void Initialize();
     void DumpSnapshot(NHydra::ISnapshotReaderPtr reader);
 
     TMasterAutomatonPtr GetAutomaton() const;
@@ -42,35 +39,6 @@ public:
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
-
-    bool IsPrimaryMaster() const;
-    bool IsSecondaryMaster() const;
-
-    const NElection::TCellId& GetCellId() const;
-    NObjectClient::TCellTag GetCellTag() const;
-
-    const NElection::TCellId& GetPrimaryCellId() const;
-    NObjectClient::TCellTag GetPrimaryCellTag() const;
-
-    const std::vector<NObjectClient::TCellTag>& GetSecondaryCellTags() const;
-
-    void PostToPrimaryMaster(
-        const ::google::protobuf::MessageLite& requestMessage,
-        bool reliable = true);
-
-    void PostToSecondaryMasters(
-        NRpc::IClientRequestPtr request,
-        bool reliable = true);
-    void PostToSecondaryMasters(
-        const NObjectClient::TObjectId& objectId,
-        NRpc::IServiceContextPtr context,
-        bool reliable = true);
-    void PostToSecondaryMasters(
-        TSharedRefArray requestMessage,
-        bool reliable = true);
-    void PostToSecondaryMasters(
-        const ::google::protobuf::MessageLite& requestMessage,
-        bool reliable = true);
 
 private:
     class TImpl;

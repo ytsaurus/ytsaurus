@@ -42,6 +42,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 #include <server/cell_master/serialize.h>
 
 #include <deque>
@@ -569,7 +570,9 @@ private:
 
     TObjectId ObjectIdFromNodeId(TNodeId nodeId)
     {
-        return NNodeTrackerClient::ObjectIdFromNodeId(nodeId, Bootstrap_->GetHydraFacade()->GetPrimaryCellTag());
+        return NNodeTrackerClient::ObjectIdFromNodeId(
+            nodeId,
+            Bootstrap_->GetMulticellManager()->GetPrimaryCellTag());
     }
 
 
@@ -594,8 +597,8 @@ private:
 
     TRspRegisterNode HydraRegisterNode(const TReqRegisterNode& request)
     {
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        if (hydraFacade->IsPrimaryMaster() &&IsLeader()) {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster() && IsLeader()) {
             YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
         }
 
@@ -641,8 +644,8 @@ private:
             NodeMap_.Remove(ObjectIdFromNodeId(existingNode->GetId()));
         }
 
-        if (hydraFacade->IsPrimaryMaster()) {
-            hydraFacade->PostToSecondaryMasters(request);
+        if (multicellManager->IsPrimaryMaster()) {
+            multicellManager->PostToSecondaryMasters(request);
         }
 
         TRspRegisterNode response;
@@ -664,9 +667,9 @@ private:
 
         UnregisterNode(node, true);
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        if (hydraFacade->IsPrimaryMaster()) {
-            hydraFacade->PostToSecondaryMasters(request);
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            multicellManager->PostToSecondaryMasters(request);
         }
     }
 
@@ -766,8 +769,8 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Received node states gossip message (CellTag: %v)",
             cellTag);
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        YCHECK(hydraFacade->IsPrimaryMaster());
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        YCHECK(multicellManager->IsPrimaryMaster());
 
         for (const auto& entry : request.entries()) {
             auto* node = FindNode(entry.node_id());
@@ -887,8 +890,8 @@ private:
         TMasterAutomatonPart::OnLeaderActive();
 
         // NB: Node states gossip is one way: secondary-to-primary.
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        if (hydraFacade->IsSecondaryMaster()) {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsSecondaryMaster()) {
             NodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
                 BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this)),
@@ -924,9 +927,9 @@ private:
 
     void InitializeNodeStates(TNode* node)
     {
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        auto cellTag = hydraFacade->GetCellTag();
-        const auto& secondaryCellTags = hydraFacade->GetSecondaryCellTags();
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+        const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
 
         auto& multicellStates = node->MulticellStates();
         if (multicellStates.find(cellTag) == multicellStates.end()) {
@@ -1138,10 +1141,10 @@ private:
     {
         LOG_INFO("Sending node states gossip message");
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        auto multicellManager = Bootstrap_->GetMulticellManager();
 
         TReqSetNodeStates request;
-        request.set_cell_tag(hydraFacade->GetCellTag());
+        request.set_cell_tag(multicellManager->GetCellTag());
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
             if (!IsObjectAlive(node))
@@ -1152,7 +1155,7 @@ private:
             entry->set_state(static_cast<int>(node->GetLocalState()));
         }
 
-        hydraFacade->PostToPrimaryMaster(request, false);
+        multicellManager->PostToPrimaryMaster(request, false);
     }
 
 

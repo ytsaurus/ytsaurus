@@ -2,6 +2,7 @@
 #include "bootstrap.h"
 #include "hydra_facade.h"
 #include "world_initializer.h"
+#include "multicell_manager.h"
 #include "config.h"
 #include "private.h"
 
@@ -141,6 +142,11 @@ TCellMasterConfigPtr TBootstrap::GetConfig() const
     return Config_;
 }
 
+TMulticellManagerPtr TBootstrap::GetMulticellManager() const
+{
+    return MulticellManager_;
+}
+
 IServerPtr TBootstrap::GetRpcServer() const
 {
     return RpcServer_;
@@ -261,7 +267,13 @@ void TBootstrap::DumpSnapshot(const Stroka& fileName)
 
 void TBootstrap::DoInitialize()
 {
-    Config_->Master->ValidateAllPeersPresent();
+    CellDirectory_ = New<TCellDirectory>(
+        Config_->CellDirectory,
+        GetBusChannelFactory(),
+        NNodeTrackerClient::InterconnectNetworkName);
+
+    MulticellManager_ = New<TMulticellManager>(this, Config_);
+    MulticellManager_->Initialize();
 
     HttpServer_.reset(new NHttp::TServer(Config_->MonitoringPort));
 
@@ -270,25 +282,10 @@ void TBootstrap::DoInitialize()
 
     RpcServer_ = CreateBusServer(busServer);
 
-    auto selfAddress = BuildServiceAddress(
-        TAddressResolver::Get()->GetLocalHostName(),
-        Config_->RpcPort);
-
-    const auto& addresses = Config_->Master->Addresses;
-
-    auto selfId = std::distance(
-        addresses.begin(),
-        std::find(addresses.begin(), addresses.end(), selfAddress));
-
-    if (selfId == addresses.size()) {
-        THROW_ERROR_EXCEPTION("Missing self address %Qv is the peer list",
-            selfAddress);
-    }
-
     CellManager_ = New<TCellManager>(
-        Config_->Master,
+        MulticellManager_->GetCellConfig(),
         GetBusChannelFactory(),
-        selfId);
+        MulticellManager_->GetPeerId());
 
     ChangelogStore_ = CreateLocalChangelogStore(
         "ChangelogFlush",
@@ -306,22 +303,17 @@ void TBootstrap::DoInitialize()
 
     WorldInitializer_ = New<TWorldInitializer>(Config_, this);
 
-    CellDirectory_ = New<TCellDirectory>(
-        Config_->CellDirectory,
-        GetBusChannelFactory(),
-        NNodeTrackerClient::InterconnectNetworkName);
-
-    if (HydraFacade_->IsSecondaryMaster()) {
+    if (MulticellManager_->IsSecondaryMaster()) {
         CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
             Config_->CellDirectorySynchronizer,
             CellDirectory_,
-            HydraFacade_->GetPrimaryCellId());
+            MulticellManager_->GetPrimaryCellId());
     }
 
     HiveManager_ = New<THiveManager>(
         Config_->HiveManager,
         CellDirectory_,
-        HydraFacade_->GetCellId(),
+        MulticellManager_->GetCellId(),
         HydraFacade_->GetAutomatonInvoker(),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton());
@@ -362,6 +354,7 @@ void TBootstrap::DoInitialize()
         TransactionManager_,
         timestampProvider);
 
+    MulticellManager_->Start();
     fileSnapshotStore->Initialize();
     ObjectManager_->Initialize();
     SecurityManager_->Initialize();
@@ -403,7 +396,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
     RpcServer_->RegisterService(HiveManager_->GetRpcService()); // cell realm
     RpcServer_->RegisterService(TransactionSupervisor_->GetRpcService()); // cell realm
-    RpcServer_->RegisterService(New<TLocalSnapshotService>(HydraFacade_->GetCellId(), fileSnapshotStore)); // cell realm
+    RpcServer_->RegisterService(New<TLocalSnapshotService>(MulticellManager_->GetCellId(), fileSnapshotStore)); // cell realm
     RpcServer_->RegisterService(CreateNodeTrackerService(Config_->NodeTracker, this)); // master hydra service
     RpcServer_->RegisterService(CreateObjectService(this)); // master hydra service
     RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service
@@ -445,7 +438,7 @@ void TBootstrap::DoInitialize()
 
 void TBootstrap::DoRun()
 {
-    HydraFacade_->Start();
+    HydraFacade_->Initialize();
 
     MonitoringManager_->Start();
 

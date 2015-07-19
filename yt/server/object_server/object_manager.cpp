@@ -38,6 +38,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 
 #include <server/security_server/user.h>
 #include <server/security_server/group.h>
@@ -358,8 +359,8 @@ TObjectManager::TObjectManager(
     RegisterMethod(BIND(&TObjectManager::HydraExecuteFollower, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
 
-    auto hydraFacade = Bootstrap_->GetHydraFacade();
-    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, hydraFacade->GetPrimaryCellTag());
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, multicellManager->GetPrimaryCellTag());
 }
 
 void TObjectManager::Initialize()
@@ -435,8 +436,8 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
         auto& schemaEntry = TypeToEntry_[schemaType];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap_, type);
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
-        auto schemaObjectId = MakeSchemaObjectId(type, hydraFacade->GetPrimaryCellTag());
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto schemaObjectId = MakeSchemaObjectId(type, multicellManager->GetPrimaryCellTag());
 
         LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
             type,
@@ -489,8 +490,8 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
     auto version = mutationContext->GetVersion();
     auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
-    auto hydraFacade = Bootstrap_->GetHydraFacade();
-    auto cellTag = hydraFacade->GetCellTag();
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    auto cellTag = multicellManager->GetCellTag();
 
     auto id = hintId == NullObjectId
         ? MakeRegularId(type, cellTag, random, version)
@@ -508,8 +509,8 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
 
 bool TObjectManager::IsForeign(TObjectBase* object)
 {
-    auto hydraFacade = Bootstrap_->GetHydraFacade();
-    return CellTagFromId(object->GetId()) != hydraFacade->GetCellTag();
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    return CellTagFromId(object->GetId()) != multicellManager->GetCellTag();
 }
 
 void TObjectManager::RefObject(TObjectBase* object)
@@ -540,12 +541,12 @@ void TObjectManager::UnrefObject(TObjectBase* object)
         handler->ZombifyObject(object);
         GarbageCollector_->RegisterZombie(object);
 
-        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        auto multicellManager = Bootstrap_->GetMulticellManager();
         if (Any(handler->GetReplicationFlags() & EObjectReplicationFlags::Destroy) &&
-            hydraFacade->IsPrimaryMaster())
+            multicellManager->IsPrimaryMaster())
         {
             auto req = TObjectYPathProxy::Remove(FromObjectId(object->GetId()));
-            hydraFacade->PostToSecondaryMasters(req);
+            multicellManager->PostToSecondaryMasters(req);
         }
     }
 }
@@ -634,11 +635,11 @@ void TObjectManager::DoClear()
 
     SchemaMap_.Clear();
 
-    auto hydraFacade = Bootstrap_->GetHydraFacade();
+    auto multicellManager = Bootstrap_->GetMulticellManager();
     for (auto type : RegisteredTypes_) {
         auto& entry = TypeToEntry_[type];
         if (HasSchema(type)) {
-            auto id = MakeSchemaObjectId(type, hydraFacade->GetPrimaryCellTag());
+            auto id = MakeSchemaObjectId(type, multicellManager->GetPrimaryCellTag());
             auto schemaObjectHolder = std::make_unique<TSchemaObject>(id);
             entry.SchemaObject = SchemaMap_.Insert(id, std::move(schemaObjectHolder));
             entry.SchemaObject->RefObject();
@@ -891,8 +892,8 @@ TObjectBase* TObjectManager::CreateObject(
             type);
     }
 
-    auto hydraFacade = Bootstrap_->GetHydraFacade();
-    bool replicationNeeded = replicationSupported && hydraFacade->IsPrimaryMaster();
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    bool replicationNeeded = replicationSupported && multicellManager->IsPrimaryMaster();
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
@@ -947,7 +948,7 @@ TObjectBase* TObjectManager::CreateObject(
             req->set_account(account->GetName());
         }
         ToProto(req->mutable_object_id(), object->GetId());
-        hydraFacade->PostToSecondaryMasters(req);
+        multicellManager->PostToSecondaryMasters(req);
     }
 
     return object;

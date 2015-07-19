@@ -22,7 +22,7 @@
 #include <core/ypath/tokenizer.h>
 
 #include <server/cell_master/config.h>
-#include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
@@ -356,7 +356,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
     if (key == "remote") {
         BuildYsonFluently(consumer)
-            .Value(node->GetCellTag() != Bootstrap_->GetHydraFacade()->GetCellTag());
+            .Value(node->GetCellTag() != Bootstrap_->GetMulticellManager()->GetCellTag());
         return true;
     }
 
