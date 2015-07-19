@@ -67,11 +67,11 @@ private:
             node->GetDefaultAddress(),
             FormatResourceUsage(resourceUsage, resourceLimits));
 
-        if (node->GetState() != ENodeState::Online) {
+        if (node->GetLocalState() != ENodeState::Online) {
             THROW_ERROR_EXCEPTION(
                 NNodeTrackerClient::EErrorCode::InvalidState,
                 "Cannot process a heartbeat in %Qlv state",
-                node->GetState());
+                node->GetLocalState());
         }
 
         node->ResourceLimits() = resourceLimits;
