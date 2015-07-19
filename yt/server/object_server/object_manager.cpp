@@ -592,6 +592,7 @@ void TObjectManager::OnBeforeSnapshotLoaded()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    TMasterAutomatonPart::OnBeforeSnapshotLoaded();
     DoClear();
 }
 
