@@ -568,7 +568,7 @@ public:
 
         for (auto replica : replicas) {
             auto* node = nodeTracker->FindNode(replica.GetNodeId());
-            if (!node) {
+            if (!IsObjectAlive(node)) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at an unknown node %v",
                     id,
                     replica.GetNodeId());
@@ -579,11 +579,11 @@ public:
                 ? TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex)
                 : TChunkPtrWithIndex(chunk, replica.GetIndex());
 
-            if (node->GetState() != ENodeState::Online) {
+            if (node->GetLocalState() != ENodeState::Online) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at %v which has invalid state %Qlv",
                     id,
                     node->GetDefaultAddress(),
-                    node->GetState());
+                    node->GetLocalState());
                 continue;
             }
 
@@ -1024,7 +1024,7 @@ private:
 
     void OnNodeRackChanged(TNode* node)
     {
-        if (ChunkReplicator_ && node->GetState() == ENodeState::Online) {
+        if (ChunkReplicator_ && node->GetLocalState() == ENodeState::Online) {
             ChunkReplicator_->ScheduleNodeRefresh(node);
         }
     }

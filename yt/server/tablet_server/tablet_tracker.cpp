@@ -182,7 +182,7 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
             continue;
 
         auto* node = pool->TryAllocate(cell, forbiddenAddresses);
-        if (!node)
+        if (!IsObjectAlive(node))
             break;
 
         auto* peerInfo = request.add_peer_infos();

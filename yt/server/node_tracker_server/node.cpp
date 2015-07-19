@@ -69,9 +69,15 @@ void TNode::Init()
     Decommissioned_ = false;
     Rack_ = nullptr;
     LeaseTransaction_ = nullptr;
+    LocalStatePtr_ = nullptr;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     RandomReplicaIt_ = StoredReplicas_.end();
     ResetSessionHints();
+}
+
+TNodeId TNode::GetId() const
+{
+    return NodeIdFromObjectId(Id_);
 }
 
 const TAddressMap& TNode::GetAddresses() const
@@ -84,16 +90,36 @@ const Stroka& TNode::GetDefaultAddress() const
     return NNodeTrackerClient::GetDefaultAddress(Addresses_);
 }
 
-TNodeId TNode::GetId() const
-{
-    return NodeIdFromObjectId(Id_);
-}
-
 TNodeDescriptor TNode::GetDescriptor() const
 {
     return TNodeDescriptor(
         Addresses_,
         Rack_ ? MakeNullable(Rack_->GetName()) : Null);
+}
+
+ENodeState TNode::GetLocalState() const
+{
+    return *LocalStatePtr_;
+}
+
+ENodeState TNode::GetAggregatedState() const
+{
+    TNullable<ENodeState> result;
+    for (const auto& pair : MulticellStates_) {
+        if (result) {
+            if (*result != pair.second) {
+                result = ENodeState::Mixed;
+            }
+        } else {
+            result = pair.second;
+        }
+    }
+    return *result;
+}
+
+void TNode::SetLocalState(ENodeState state) const
+{
+    *LocalStatePtr_ = state;
 }
 
 void TNode::Save(NCellMaster::TSaveContext& context) const
@@ -104,7 +130,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Banned_);
     Save(context, Decommissioned_);
     Save(context, Addresses_);
-    Save(context, State_);
+    Save(context, MulticellStates_);
     Save(context, RegisterTime_);
     Save(context, LastSeenTime_);
     Save(context, Statistics_);
@@ -125,7 +151,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Banned_);
     Load(context, Decommissioned_);
     Load(context, Addresses_);
-    Load(context, State_);
+    Load(context, MulticellStates_);
     Load(context, RegisterTime_);
     Load(context, LastSeenTime_);
     Load(context, Statistics_);

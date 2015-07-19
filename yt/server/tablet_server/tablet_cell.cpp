@@ -8,6 +8,8 @@
 
 #include <server/transaction_server/transaction.h>
 
+#include <server/object_server/object.h>
+
 #include <server/cell_master/serialize.h>
 
 namespace NYT {
@@ -151,7 +153,7 @@ ETabletCellHealth TTabletCell::GetHealth() const
     int followerCount = 0;
     for (const auto& peer : Peers_) {
         auto* node = peer.Node;
-        if (!node)
+        if (!IsObjectAlive(node))
             continue;
         const auto* slot = node->GetTabletSlot(this);
         switch (slot->PeerState) {

@@ -14,6 +14,7 @@
 #include <server/tablet_server/tablet_cell.h>
 
 #include <server/cell_master/bootstrap.h>
+#include <server/cell_master/hydra_facade.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {
@@ -43,7 +44,8 @@ private:
         attributes->push_back("decommissioned");
         attributes->push_back(TAttributeInfo("rack", node->GetRack(), false, false, true));
         attributes->push_back("state");
-        bool isGood = node->GetState() == ENodeState::Registered || node->GetState() == ENodeState::Online;
+        attributes->push_back("multicell_states");
+        bool isGood = node->GetLocalState() == ENodeState::Registered || node->GetLocalState() == ENodeState::Online;
         attributes->push_back(TAttributeInfo("last_seen_time"));
         attributes->push_back(TAttributeInfo("register_time", isGood));
         attributes->push_back(TAttributeInfo("lease_transaction_id", isGood && node->GetLeaseTransaction()));
@@ -57,7 +59,8 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisTypedImpl();
-        bool isGood = node->GetState() == ENodeState::Registered || node->GetState() == ENodeState::Online;
+        auto state = node->GetLocalState();
+        bool isGood = state == ENodeState::Registered || state == ENodeState::Online;
 
         if (key == "banned") {
             BuildYsonFluently(consumer)
@@ -78,8 +81,20 @@ private:
         }
 
         if (key == "state") {
+            auto hydraFacade = Bootstrap_->GetHydraFacade();
+            auto state = hydraFacade->IsPrimaryMaster()
+                ? node->GetAggregatedState()
+                : node->GetLocalState();
             BuildYsonFluently(consumer)
-                .Value(node->GetState());
+                .Value(state);
+            return true;
+        }
+
+        if (key == "multicell_states") {
+            BuildYsonFluently(consumer)
+                .DoMapFor(node->MulticellStates(), [] (TFluentMap fluent, const std::pair<TCellTag, ENodeState>& pair) {
+                    fluent.Item(ToString(pair.first)).Value(pair.second);
+                });
             return true;
         }
 
@@ -232,7 +247,7 @@ private:
     virtual void ValidateRemoval() override
     {
         const auto* node = GetThisTypedImpl();
-        if (node->GetState() != ENodeState::Offline) {
+        if (node->GetLocalState() != ENodeState::Offline) {
             THROW_ERROR_EXCEPTION("Cannot remove node since it is not offline");
         }
     }

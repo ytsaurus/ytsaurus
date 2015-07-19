@@ -116,7 +116,7 @@ void TChunkPlacement::Start()
     auto nodeTracker = Bootstrap_->GetNodeTracker();
     for (const auto& pair : nodeTracker->Nodes()) {
         auto* node = pair.second;
-        switch (node->GetState()) {
+        switch (node->GetLocalState()) {
             case ENodeState::Registered:
             case ENodeState::Online:
                 OnNodeRegistered(node);
@@ -456,7 +456,7 @@ bool TChunkPlacement::IsValidWriteTarget(
     TTargetCollector* collector,
     bool enableRackAwareness)
 {
-    if (node->GetState() != ENodeState::Online) {
+    if (node->GetLocalState() != ENodeState::Online) {
         // Do not write anything to a node before its first heartbeat or after it is unregistered.
         return false;
     }

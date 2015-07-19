@@ -17,6 +17,7 @@
 #include <core/ypath/token.h>
 
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
@@ -171,6 +172,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraDisposeNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this), nullptr));
         RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this), nullptr, nullptr));
+        RegisterMethod(BIND(&TImpl::HydraSetNodeStates, Unretained(this)));
 
         RegisterLoader(
             "NodeTracker.Keys",
@@ -360,7 +362,8 @@ public:
                 LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
-                if (node->GetState() == ENodeState::Online || node->GetState() == ENodeState::Registered) {
+                auto state = node->GetLocalState();
+                if (state == ENodeState::Online || state == ENodeState::Registered) {
                     UnregisterNode(node, true);
                 }
             } else {
@@ -539,6 +542,7 @@ private:
     yhash_map<TTransaction*, TNode*> TransactionToNodeMap_;
     yhash_map<Stroka, TRack*> NameToRackMap_;
 
+    TPeriodicExecutorPtr NodeStatesGossipExecutor_;
 
     int PendingRegisterNodeMutationCount_ = 0;
 
@@ -651,9 +655,11 @@ private:
         auto nodeId = request.node_id();
 
         auto* node = FindNode(nodeId);
-        if (!node)
+        if (!IsObjectAlive(node))
             return;
-        if (node->GetState() != ENodeState::Registered && node->GetState() != ENodeState::Online)
+
+        auto state = node->GetLocalState();
+        if (state != ENodeState::Registered && state != ENodeState::Online)
             return;
 
         UnregisterNode(node, true);
@@ -669,9 +675,10 @@ private:
         auto nodeId = request.node_id();
 
         auto* node = FindNode(nodeId);
-        if (!node)
+        if (!IsObjectAlive(node))
             return;
-        if (node->GetState() != ENodeState::Unregistered)
+
+        if (node->GetLocalState() != ENodeState::Unregistered)
             return;
 
         if (IsLeader()) {
@@ -689,20 +696,21 @@ private:
         const auto& statistics = request.statistics();
 
         auto* node = FindNode(nodeId);
-        if (!node)
+        if (!IsObjectAlive(node))
             return;
-        if (node->GetState() != ENodeState::Registered)
+
+        if (node->GetLocalState() != ENodeState::Registered)
             return;
 
         PROFILE_TIMING ("/full_heartbeat_time") {
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
-                node->GetState(),
+                node->GetLocalState(),
                 statistics);
 
             UpdateNodeCounters(node, -1);
-            node->SetState(ENodeState::Online);
+            node->SetLocalState(ENodeState::Online);
             UpdateNodeCounters(node, +1);
 
             node->Statistics() = statistics;
@@ -726,16 +734,17 @@ private:
         const auto& statistics = request.statistics();
 
         auto* node = FindNode(nodeId);
-        if (!node)
+        if (!IsObjectAlive(node))
             return;
-        if (node->GetState() != ENodeState::Online)
+
+        if (node->GetLocalState() != ENodeState::Online)
             return;
 
         PROFILE_TIMING ("/incremental_heartbeat_time") {
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
-                node->GetState(),
+                node->GetLocalState(),
                 statistics);
 
             node->Statistics() = statistics;
@@ -748,6 +757,24 @@ private:
             }
             
             IncrementalHeartbeat_.Fire(node, request, response);
+        }
+    }
+
+    void HydraSetNodeStates(const TReqSetNodeStates& request)
+    {
+        auto cellTag = request.cell_tag();
+        LOG_INFO_UNLESS(IsRecovery(), "Received node states gossip message (CellTag: %v)",
+            cellTag);
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        YCHECK(hydraFacade->IsPrimaryMaster());
+
+        for (const auto& entry : request.entries()) {
+            auto* node = FindNode(entry.node_id());
+            if (!IsObjectAlive(node))
+                continue;
+
+            node->MulticellStates()[cellTag] = ENodeState(entry.state());
         }
     }
 
@@ -777,6 +804,7 @@ private:
         NodeMap_.LoadValues(context);
         RackMap_.LoadValues(context);
     }
+
 
     virtual void Clear() override
     {
@@ -810,6 +838,7 @@ private:
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
 
+            InitializeNodeStates(node);
             InsertToAddressMaps(node);
             UpdateNodeCounters(node, +1);
 
@@ -857,6 +886,16 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
+        // NB: Node states gossip is one way: secondary-to-primary.
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        if (hydraFacade->IsSecondaryMaster()) {
+            NodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this)),
+                Config_->NodeStatesGossipPeriod);
+            NodeStatesGossipExecutor_->Start();
+        }
+
         PendingRegisterNodeMutationCount_ = 0;
 
         NodeDisposalQueue_.clear();
@@ -864,7 +903,7 @@ private:
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
-            if (node->GetState() == ENodeState::Unregistered) {
+            if (node->GetLocalState() == ENodeState::Unregistered) {
                 NodeDisposalQueue_.push_back(node);
             }
         }
@@ -872,10 +911,40 @@ private:
         MaybePostDisposeNodeMutations();
     }
 
+    virtual void OnStopLeading() override
+    {
+        TMasterAutomatonPart::OnStopLeading();
+
+        if (NodeStatesGossipExecutor_) {
+            NodeStatesGossipExecutor_->Stop();
+            NodeStatesGossipExecutor_.Reset();
+        }
+    }
+
+
+    void InitializeNodeStates(TNode* node)
+    {
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        auto cellTag = hydraFacade->GetCellTag();
+        const auto& secondaryCellTags = hydraFacade->GetSecondaryCellTags();
+
+        auto& multicellStates = node->MulticellStates();
+        if (multicellStates.find(cellTag) == multicellStates.end()) {
+            multicellStates[cellTag] = ENodeState::Offline;
+        }
+
+        for (auto secondaryCellTag : secondaryCellTags) {
+            if (multicellStates.find(secondaryCellTag) == multicellStates.end()) {
+                multicellStates[secondaryCellTag] = ENodeState::Offline;
+            }
+        }
+
+        node->SetLocalStatePtr(&multicellStates[cellTag]);
+    }
 
     void UpdateNodeCounters(TNode* node, int delta)
     {
-        switch (node->GetState()) {
+        switch (node->GetLocalState()) {
             case ENodeState::Registered:
                 RegisteredNodeCount_ += delta;
                 break;
@@ -947,7 +1016,8 @@ private:
             // Make the fake reference.
             YCHECK(node->RefObject() == 1);
 
-            node->SetState(ENodeState::Registered);
+            InitializeNodeStates(node);
+            node->SetLocalState(ENodeState::Registered);
             node->Statistics() = statistics;
 
             InsertToAddressMaps(node);
@@ -1009,7 +1079,7 @@ private:
             }
 
             UpdateNodeCounters(node, -1);
-            node->SetState(ENodeState::Unregistered);
+            node->SetLocalState(ENodeState::Unregistered);
             NodeUnregistered_.Fire(node);
 
             if (scheduleDisposal && IsLeader()) {
@@ -1026,7 +1096,7 @@ private:
     void DisposeNode(TNode* node)
     {
         PROFILE_TIMING ("/node_dispose_time") {
-            node->SetState(ENodeState::Offline);
+            node->SetLocalState(ENodeState::Offline);
             NodeDisposed_.Fire(node);
 
             LOG_INFO_UNLESS(IsRecovery(), "Node offline (NodeId: %v, Address: %v)",
@@ -1061,6 +1131,28 @@ private:
             }
         }
 
+    }
+
+
+    void OnNodeStatesGossip()
+    {
+        LOG_INFO("Sending node states gossip message");
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+
+        TReqSetNodeStates request;
+        request.set_cell_tag(hydraFacade->GetCellTag());
+        for (const auto& pair : NodeMap_) {
+            auto* node = pair.second;
+            if (!IsObjectAlive(node))
+                continue;
+
+            auto* entry = request.add_entries();
+            entry->set_node_id(node->GetId());
+            entry->set_state(static_cast<int>(node->GetLocalState()));
+        }
+
+        hydraFacade->PostToPrimaryMaster(request, false);
     }
 
 

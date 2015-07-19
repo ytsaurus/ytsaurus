@@ -15,6 +15,7 @@ class TNodeTrackerConfig
 public:
     int MaxConcurrentNodeRegistrations;
     int MaxConcurrentNodeUnregistrations;
+    TDuration NodeStatesGossipPeriod;
 
     TNodeTrackerConfig()
     {
@@ -24,6 +25,8 @@ public:
         RegisterParameter("max_concurrent_node_unregistrations", MaxConcurrentNodeUnregistrations)
             .Default(5)
             .GreaterThan(0);
+        RegisterParameter("node_states_gossip_period", NodeStatesGossipPeriod)
+            .Default(TDuration::Seconds(10));
     }
 };
 

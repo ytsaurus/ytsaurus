@@ -29,13 +29,15 @@ namespace NNodeTrackerServer {
 
 DEFINE_ENUM(ENodeState,
     // Not registered.
-    (Offline)
+    ((Offline)     (0))
     // Registered but did not report the first heartbeat yet.
-    (Registered)
+    ((Registered)  (1))
     // Registered and reported the first heartbeat.
-    (Online)
+    ((Online)      (2))
     // Unregistered and placed into disposal queue.
-    (Unregistered)
+    ((Unregistered)(3))
+    // Indicates that state varies across cells.
+    ((Mixed)       (4))
 );
 
 class TNode
@@ -53,7 +55,10 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ui64, VisitMark);
     DEFINE_BYVAL_RW_PROPERTY(int, LoadRank);
 
-    DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
+    using TMulticellStates = yhash_map<NObjectClient::TCellTag, ENodeState>;
+    DEFINE_BYREF_RW_PROPERTY(TMulticellStates, MulticellStates);
+    DEFINE_BYVAL_RW_PROPERTY(ENodeState*, LocalStatePtr);
+
     DEFINE_BYVAL_RO_PROPERTY(TInstant, RegisterTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
@@ -118,6 +123,14 @@ public:
     TNodeDescriptor GetDescriptor() const;
     const TAddressMap& GetAddresses() const;
     const Stroka& GetDefaultAddress() const;
+
+    //! Gets the local state by dereferencing local state pointer.
+    ENodeState GetLocalState() const;
+    //! If states are same for all cells then returns this common value.
+    //! Otherwise returns "mixed" state.
+    ENodeState GetAggregatedState() const;
+    //! Sets the local state by dereferencing local state pointer.
+    void SetLocalState(ENodeState state) const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
