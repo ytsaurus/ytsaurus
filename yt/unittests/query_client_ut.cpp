@@ -2152,7 +2152,8 @@ TFuture<TQueryStatistics> DoExecuteQuery(
         readerMock,
         writer,
         executeCallback,
-        functionRegistry));
+        functionRegistry,
+        true));
 }
 
 

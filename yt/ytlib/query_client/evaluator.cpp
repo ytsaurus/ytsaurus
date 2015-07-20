@@ -63,7 +63,8 @@ public:
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
         const TExecuteQuery& executeCallback,
-        const IFunctionRegistryPtr functionRegistry)
+        const IFunctionRegistryPtr functionRegistry,
+        bool enableCodeCache)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
             TRACE_ANNOTATION("fragment_id", query->Id);
@@ -85,7 +86,7 @@ public:
                 NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
                 TCGVariables fragmentParams;
-                auto cgQuery = Codegen(query, fragmentParams, functionRegistry);
+                auto cgQuery = Codegen(query, fragmentParams, functionRegistry, statistics, enableCodeCache);
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -177,6 +178,7 @@ public:
             TRACE_ANNOTATION("execute_time", statistics.ExecuteTime);
             TRACE_ANNOTATION("read_time", statistics.ReadTime);
             TRACE_ANNOTATION("write_time", statistics.WriteTime);
+            TRACE_ANNOTATION("codegen_time", statistics.CodegenTime);
             TRACE_ANNOTATION("incomplete_input", statistics.IncompleteInput);
             TRACE_ANNOTATION("incomplete_output", statistics.IncompleteOutput);
 
@@ -188,7 +190,9 @@ private:
     TCGQueryCallback Codegen(
         TConstQueryPtr query,
         TCGVariables& variables,
-        const IFunctionRegistryPtr functionRegistry)
+        const IFunctionRegistryPtr functionRegistry,
+        TQueryStatistics& statistics,
+        bool enableCodeCache)
     {
         llvm::FoldingSetNodeID id;
 
@@ -197,12 +201,17 @@ private:
         auto Logger = BuildLogger(query);
 
         auto cgQuery = Find(id);
-        if (cgQuery) {
+        if (enableCodeCache && cgQuery) {
             LOG_TRACE("Codegen cache hit");
         } else {
-            LOG_DEBUG("Codegen cache miss");
+            if (!enableCodeCache) {
+                LOG_DEBUG("Codegen cache disabled");
+            } else {
+                LOG_DEBUG("Codegen cache miss");
+            }
             try {
                 TRACE_CHILD("QueryClient", "Compile") {
+                    NProfiling::TAggregatingTimingGuard timingGuard(&statistics.CodegenTime);
                     LOG_DEBUG("Started compiling fragment");
                     cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
                     LOG_DEBUG("Finished compiling fragment");
@@ -250,18 +259,20 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
     TExecuteQuery executeCallback,
-    const IFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry,
+    bool enableCodeCache)
 {
-    return Impl_->Run(query, std::move(reader), std::move(writer), executeCallback, functionRegistry);
+    return Impl_->Run(query, std::move(reader), std::move(writer), executeCallback, functionRegistry, enableCodeCache);
 }
 
 TQueryStatistics TEvaluator::Run(
     TConstQueryPtr query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
-    const IFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry,
+    bool enableCodeCache)
 {
-    return RunWithExecutor(query, std::move(reader), std::move(writer), nullptr, functionRegistry);
+    return RunWithExecutor(query, std::move(reader), std::move(writer), nullptr, functionRegistry, enableCodeCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -187,6 +187,8 @@ struct TSelectRowsOptions
     bool VerboseLogging = false;
     //! Limits maximum parallel subqueries.
     ui64 MaxSubqueries = 0;
+    //! Enables generated code caching.
+    bool EnableCodeCache = true;
 };
 
 struct TGetNodeOptions
