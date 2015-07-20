@@ -41,6 +41,8 @@ import new
 import dis
 import traceback
 
+import __main__ as _main_module
+
 #relevant opcodes
 STORE_GLOBAL = chr(dis.opname.index('STORE_GLOBAL'))
 DELETE_GLOBAL = chr(dis.opname.index('DELETE_GLOBAL'))
@@ -186,7 +188,9 @@ class CloudPickler(pickle.Pickler):
         If the dict is a global, deal with it in a special way
         """
         #print 'saving', obj
-        if obj is __builtins__:
+        if obj is _main_module.__dict__:
+            self.write("c__main__\n__dict__\n")
+        elif obj is __builtins__:
             self.save_reduce(_get_module_builtins, (), obj=obj)
         else:
             pickle.Pickler.save_dict(self, obj)
@@ -393,18 +397,23 @@ class CloudPickler(pickle.Pickler):
         """
         code = func.func_code
 
-        # extract all global ref's
-        func_global_refs = CloudPickler.extract_code_globals(code)
-        if code.co_consts:   # see if nested function have any global refs
-            for const in code.co_consts:
-                if type(const) is types.CodeType and const.co_names:
-                    func_global_refs = func_global_refs.union( CloudPickler.extract_code_globals(const))
-        # process all variables referenced by global environment
-        f_globals = {}
-        for var in func_global_refs:
-            #Some names, such as class functions are not global - we don't need them
-            if func.func_globals.has_key(var):
-                f_globals[var] = func.func_globals[var]
+        # If function globals can be imported from global namespace - let's do it.
+        # Otherwise, strip all unused dependencies and pickle what's left.
+        if func.func_globals is _main_module.__dict__:
+            f_globals = func.func_globals
+        else:
+            # extract all global ref's
+            func_global_refs = CloudPickler.extract_code_globals(code)
+            if code.co_consts:   # see if nested function have any global refs
+                for const in code.co_consts:
+                    if type(const) is types.CodeType and const.co_names:
+                        func_global_refs = func_global_refs.union( CloudPickler.extract_code_globals(const))
+            # process all variables referenced by global environment
+            f_globals = {}
+            for var in func_global_refs:
+                #Some names, such as class functions are not global - we don't need them
+                if func.func_globals.has_key(var):
+                    f_globals[var] = func.func_globals[var]
 
         # defaults requires no processing
         defaults = func.func_defaults
