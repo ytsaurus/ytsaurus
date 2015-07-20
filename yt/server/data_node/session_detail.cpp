@@ -63,7 +63,7 @@ EWriteSessionType TSessionBase::GetType() const
     return Options_.SessionType;
 }
 
-TStoreLocationPtr TSessionBase::GetLocation() const
+TStoreLocationPtr TSessionBase::GetStoreLocation() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

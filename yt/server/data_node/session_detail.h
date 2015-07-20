@@ -32,7 +32,7 @@ public:
 
     virtual const TChunkId& GetChunkId() const override;
     virtual EWriteSessionType GetType() const override;
-    TStoreLocationPtr GetLocation() const override;
+    TStoreLocationPtr GetStoreLocation() const override;
 
     virtual TFuture<void> Start() override;
 
