@@ -14,7 +14,6 @@
 #include <server/tablet_server/tablet_cell.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/multicell_manager.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {
@@ -81,8 +80,7 @@ private:
         }
 
         if (key == "state") {
-            auto multicellManager = Bootstrap_->GetMulticellManager();
-            auto state = multicellManager->IsPrimaryMaster()
+            auto state = Bootstrap_->IsPrimaryMaster()
                 ? node->GetAggregatedState()
                 : node->GetLocalState();
             BuildYsonFluently(consumer)

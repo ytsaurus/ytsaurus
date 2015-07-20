@@ -344,8 +344,7 @@ public:
 
         transaction->SetState(ETransactionState::Active);
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
+        if (Bootstrap_->IsPrimaryMaster()) {
             if (timeout) {
                 transaction->SetTimeout(std::min(*timeout, Config_->MaxTransactionTimeout));
             }
@@ -545,11 +544,11 @@ public:
         }
 
         if (persistent) {
-            auto multicellManager = Bootstrap_->GetMulticellManager();
-            if (multicellManager->IsPrimaryMaster()) {
+            if (Bootstrap_->IsPrimaryMaster()) {
                 NProto::TReqPrepareTransactionCommit request;
                 ToProto(request.mutable_transaction_id(), transactionId);
                 request.set_prepare_timestamp(prepareTimestamp);
+                auto multicellManager = Bootstrap_->GetMulticellManager();
                 multicellManager->PostToSecondaryMasters(request);
             }
         }
@@ -583,11 +582,11 @@ public:
         auto* transaction = GetTransaction(transactionId);
         CommitTransaction(transaction, commitTimestamp);
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
+        if (Bootstrap_->IsPrimaryMaster()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_commit_timestamp(commitTimestamp);
+            auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToSecondaryMasters(request);
         }
     }
@@ -602,11 +601,11 @@ public:
 
         AbortTransaction(transaction, force);
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
+        if (Bootstrap_->IsPrimaryMaster()) {
             NProto::TReqAbortTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_force(force);
+            auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToSecondaryMasters(request);
         }
     }

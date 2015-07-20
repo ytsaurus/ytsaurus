@@ -359,8 +359,7 @@ TObjectManager::TObjectManager(
     RegisterMethod(BIND(&TObjectManager::HydraExecuteFollower, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
 
-    auto multicellManager = Bootstrap_->GetMulticellManager();
-    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, multicellManager->GetPrimaryCellTag());
+    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetPrimaryCellTag());
 }
 
 void TObjectManager::Initialize()
@@ -436,8 +435,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
         auto& schemaEntry = TypeToEntry_[schemaType];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap_, type);
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        auto schemaObjectId = MakeSchemaObjectId(type, multicellManager->GetPrimaryCellTag());
+        auto schemaObjectId = MakeSchemaObjectId(type, Bootstrap_->GetPrimaryCellTag());
 
         LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
             type,
@@ -490,8 +488,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
     auto version = mutationContext->GetVersion();
     auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
-    auto multicellManager = Bootstrap_->GetMulticellManager();
-    auto cellTag = multicellManager->GetCellTag();
+    auto cellTag = Bootstrap_->GetCellTag();
 
     auto id = hintId == NullObjectId
         ? MakeRegularId(type, cellTag, random, version)
@@ -509,8 +506,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
 
 bool TObjectManager::IsForeign(TObjectBase* object)
 {
-    auto multicellManager = Bootstrap_->GetMulticellManager();
-    return CellTagFromId(object->GetId()) != multicellManager->GetCellTag();
+    return CellTagFromId(object->GetId()) != Bootstrap_->GetCellTag();
 }
 
 void TObjectManager::RefObject(TObjectBase* object)
@@ -541,11 +537,11 @@ void TObjectManager::UnrefObject(TObjectBase* object)
         handler->ZombifyObject(object);
         GarbageCollector_->RegisterZombie(object);
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
         if (Any(handler->GetReplicationFlags() & EObjectReplicationFlags::Destroy) &&
-            multicellManager->IsPrimaryMaster())
+            Bootstrap_->IsPrimaryMaster())
         {
             auto req = TObjectYPathProxy::Remove(FromObjectId(object->GetId()));
+            auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToSecondaryMasters(req);
         }
     }
@@ -635,11 +631,10 @@ void TObjectManager::DoClear()
 
     SchemaMap_.Clear();
 
-    auto multicellManager = Bootstrap_->GetMulticellManager();
     for (auto type : RegisteredTypes_) {
         auto& entry = TypeToEntry_[type];
         if (HasSchema(type)) {
-            auto id = MakeSchemaObjectId(type, multicellManager->GetPrimaryCellTag());
+            auto id = MakeSchemaObjectId(type, Bootstrap_->GetPrimaryCellTag());
             auto schemaObjectHolder = std::make_unique<TSchemaObject>(id);
             entry.SchemaObject = SchemaMap_.Insert(id, std::move(schemaObjectHolder));
             entry.SchemaObject->RefObject();
@@ -892,8 +887,7 @@ TObjectBase* TObjectManager::CreateObject(
             type);
     }
 
-    auto multicellManager = Bootstrap_->GetMulticellManager();
-    bool replicationNeeded = replicationSupported && multicellManager->IsPrimaryMaster();
+    bool replicationNeeded = replicationSupported && Bootstrap_->IsPrimaryMaster();
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
@@ -948,6 +942,7 @@ TObjectBase* TObjectManager::CreateObject(
             req->set_account(account->GetName());
         }
         ToProto(req->mutable_object_id(), object->GetId());
+        auto multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(req);
     }
 
