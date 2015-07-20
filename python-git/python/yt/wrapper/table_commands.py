@@ -843,7 +843,7 @@ def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=N
 
     make_request("reshard_table", params, client=client)
 
-def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, verbose_logging=None, format=None, raw=True, client=None):
+def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, verbose_logging=None, enable_code_cache=None, format=None, raw=True, client=None):
     """Execute a SQL-like query. NB! This command is not currently supported! The feature is coming with 0.17+ version!
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -866,6 +866,8 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
         params["output_row_limit"] = output_row_limit
     if verbose_logging is not None:
         params["verbose_logging"] = bool_to_string(verbose_logging)
+    if enable_code_cache is not None:
+        params["enable_code_cache"] = bool_to_string(enable_code_cache)
 
     response = _make_transactional_request(
         "select_rows",
