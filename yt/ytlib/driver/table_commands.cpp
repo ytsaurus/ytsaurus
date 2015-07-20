@@ -47,19 +47,20 @@ void TReadTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    auto options = New<TRemoteReaderOptions>();
-    options->NetworkName = Context_->GetConfig()->NetworkName;
+    auto readerOptions = New<TRemoteReaderOptions>();
+    readerOptions->NetworkName = Context_->GetConfig()->NetworkName;
 
-    auto nameTable = New<TNameTable>();
+    auto options = TTableReaderOptions();
+    options.Config = config;
+    options.RemoteReaderOptions = readerOptions;
 
-    auto reader = CreateSchemalessTableReader(
-        config,
-        options,
-        Context_->GetClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
-        AttachTransaction(false),
-        Context_->GetClient()->GetConnection()->GetBlockCache(),
+    options.TransactionId = Request_->TransactionId;
+    options.Ping = true;
+    options.PingAncestors = Request_->PingAncestors;
+
+    auto reader = Context_->GetClient()->CreateTableReader(
         Request_->Path,
-        nameTable);
+        options);
 
     WaitFor(reader->Open())
         .ThrowOnError();
@@ -75,7 +76,7 @@ void TReadTableCommand::DoExecute()
 
     auto writer = CreateSchemalessWriterForFormat(
         Context_->GetOutputFormat(),
-        nameTable,
+        reader->GetNameTable(),
         Context_->Request().OutputStream,
         false,
         false,

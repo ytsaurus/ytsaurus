@@ -10,8 +10,6 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
-
 #include <core/rpc/public.h>
 
 #include <core/concurrency/throughput_throttler.h>
@@ -100,18 +98,6 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     TNameTablePtr nameTable,
     TColumnFilter columnFilter = TColumnFilter(),
     const TKeyColumns& keyColumns = TKeyColumns(),
-    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
-
-////////////////////////////////////////////////////////////////////////////////
-
-ISchemalessMultiChunkReaderPtr CreateSchemalessTableReader(
-    TTableReaderConfigPtr config,
-    NChunkClient::TRemoteReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
-    NTransactionClient::TTransactionPtr transaction,
-    NChunkClient::IBlockCachePtr blockCache,
-    const NYPath::TRichYPath& richPath,
-    TNameTablePtr nameTable,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////

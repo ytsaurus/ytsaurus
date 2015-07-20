@@ -6,6 +6,7 @@
 #include "file_writer.h"
 #include "journal_reader.h"
 #include "journal_writer.h"
+#include "table_reader.h"
 #include "rowset.h"
 #include "config.h"
 #include "box.h"
@@ -23,6 +24,7 @@
 
 #include <core/compression/helpers.h>
 
+#include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/timestamp_provider.h>
 
@@ -895,6 +897,12 @@ public:
         return NApi::CreateJournalWriter(this, path, options);
     }
 
+    virtual ISchemalessMultiChunkReaderPtr CreateTableReader(
+        const NYPath::TRichYPath& path,
+        const TTableReaderOptions& options) override
+    {
+        return NApi::CreateTableReader(this, path, options);
+    }
 
     IMPLEMENT_METHOD(void, AddMember, (
         const Stroka& group,
@@ -2083,6 +2091,11 @@ public:
     DELEGATE_TRANSACTIONAL_METHOD(IJournalWriterPtr, CreateJournalWriter, (
         const TYPath& path,
         const TJournalWriterOptions& options),
+        (path, options))
+
+    DELEGATE_TRANSACTIONAL_METHOD(ISchemalessMultiChunkReaderPtr, CreateTableReader, (
+        const TRichYPath& path,
+        const TTableReaderOptions& options),
         (path, options))
 
 #undef DELEGATE_TRANSACTIONAL_METHOD

@@ -25,6 +25,7 @@
 #include <ytlib/cypress_client/public.h>
 
 #include <ytlib/new_table_client/row_base.h>
+#include <ytlib/new_table_client/config.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -33,6 +34,8 @@
 #include <ytlib/scheduler/public.h>
 
 #include <ytlib/job_tracker_client/public.h>
+
+#include <ytlib/chunk_client/config.h>
 
 namespace NYT {
 namespace NApi {
@@ -54,6 +57,7 @@ struct TTransactionalOptions
 {
     //! Ignored when queried via transaction.
     NObjectClient::TTransactionId TransactionId;
+    bool Ping = false;
     bool PingAncestors = false;
 };
 
@@ -333,6 +337,13 @@ struct TJournalWriterOptions
     TJournalWriterConfigPtr Config;
 };
 
+struct TTableReaderOptions
+    : public TTransactionalOptions
+{
+    NVersionedTableClient::TTableReaderConfigPtr Config;
+    NChunkClient::TRemoteReaderOptionsPtr RemoteReaderOptions;
+};
+
 struct TStartOperationOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
@@ -477,6 +488,11 @@ struct IClientBase
         const NYPath::TYPath& path,
         const TJournalWriterOptions& options = TJournalWriterOptions()) = 0;
 
+
+    // Tables
+    virtual NVersionedTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
+        const NYPath::TRichYPath& path,
+        const TTableReaderOptions& options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientBase)
