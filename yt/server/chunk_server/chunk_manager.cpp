@@ -959,6 +959,7 @@ private:
 
         if (ChunkReplicator_) {
             ChunkReplicator_->OnNodeRegistered(node);
+            ChunkReplicator_->ScheduleNodeRefresh(node);
         }
     }
 
