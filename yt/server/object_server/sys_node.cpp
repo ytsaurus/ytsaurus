@@ -11,7 +11,6 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/multicell_manager.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -55,30 +54,29 @@ private:
 
     bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
     {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
         auto hydraFacade = Bootstrap_->GetHydraFacade();
 
         if (key == "cell_tag") {
             BuildYsonFluently(consumer)
-                .Value(multicellManager->GetCellTag());
+                .Value(Bootstrap_->GetCellTag());
             return true;
         }
 
         if (key == "primary_cell_tag") {
             BuildYsonFluently(consumer)
-                .Value(multicellManager->GetPrimaryCellTag());
+                .Value(Bootstrap_->GetPrimaryCellTag());
             return true;
         }
 
         if (key == "cell_id") {
             BuildYsonFluently(consumer)
-                .Value(multicellManager->GetCellId());
+                .Value(Bootstrap_->GetCellId());
             return true;
         }
 
         if (key == "primary_cell_id") {
             BuildYsonFluently(consumer)
-                .Value(multicellManager->GetPrimaryCellId());
+                .Value(Bootstrap_->GetPrimaryCellId());
             return true;
         }
 

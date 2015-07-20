@@ -142,6 +142,46 @@ TCellMasterConfigPtr TBootstrap::GetConfig() const
     return Config_;
 }
 
+bool TBootstrap::IsPrimaryMaster() const
+{
+    return PrimaryMaster_;
+}
+
+bool TBootstrap::IsSecondaryMaster() const
+{
+    return SecondaryMaster_;
+}
+
+bool TBootstrap::IsMulticell() const
+{
+    return Multicell_;
+}
+
+const TCellId& TBootstrap::GetCellId() const
+{
+    return CellId_;
+}
+
+TCellTag TBootstrap::GetCellTag() const
+{
+    return CellTag_;
+}
+
+const TCellId& TBootstrap::GetPrimaryCellId() const
+{
+    return PrimaryCellId_;
+}
+
+TCellTag TBootstrap::GetPrimaryCellTag() const
+{
+    return PrimaryCellTag_;
+}
+
+const std::vector<TCellTag>& TBootstrap::GetSecondaryCellTags() const
+{
+    return SecondaryCellTags_;
+}
+
 TMulticellManagerPtr TBootstrap::GetMulticellManager() const
 {
     return MulticellManager_;
@@ -265,15 +305,87 @@ void TBootstrap::DumpSnapshot(const Stroka& fileName)
     _exit(0);
 }
 
+TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const Stroka& localAddress)
+{
+    for (TPeerId id = 0; id < config->Addresses.size(); ++id) {
+        const auto& peerAddress = config->Addresses[id];
+        if (peerAddress && to_lower(*peerAddress) == to_lower(localAddress)) {
+            return id;
+        }
+    }
+    return InvalidPeerId;
+}
+
 void TBootstrap::DoInitialize()
 {
+    Config_->PrimaryMaster->ValidateAllPeersPresent();
+    for (auto cellConfig : Config_->SecondaryMasters) {
+        cellConfig->ValidateAllPeersPresent();
+    }
+
+    auto localAdddress = BuildServiceAddress(
+        TAddressResolver::Get()->GetLocalHostName(),
+        Config_->RpcPort);
+
+    TCellConfigPtr localCellConfig;
+    TPeerId localPeerId;
+
+    auto primaryId = ComputePeerId(Config_->PrimaryMaster, localAdddress);
+    if (primaryId == InvalidPeerId) {
+        for (auto cellConfig : Config_->SecondaryMasters) {
+            auto secondaryId = ComputePeerId(cellConfig, localAdddress);
+            if (secondaryId != InvalidPeerId) {
+                SecondaryMaster_ = true;
+                localCellConfig = cellConfig;
+                localPeerId = secondaryId;
+                break;
+            }
+        }
+    } else {
+        PrimaryMaster_ = true;
+        localCellConfig = Config_->PrimaryMaster;
+        localPeerId = primaryId;
+    }
+
+    if (!PrimaryMaster_ && !SecondaryMaster_) {
+        THROW_ERROR_EXCEPTION("Local address %v is not recognized as a valid master address",
+            localAdddress);
+    }
+
+    if (PrimaryMaster_) {
+        LOG_INFO("Running as primary master (CellId: %v, CellTag: %v, PeerId: %v)",
+            CellId_,
+            CellTag_,
+            localPeerId);
+    } else {
+        LOG_INFO("Running as secondary master (CellId: %v, CellTag: %v, PrimaryCellTag: %v, PeerId: %v)",
+            CellId_,
+            CellTag_,
+            PrimaryCellTag_,
+            localPeerId);
+    }
+
+    Multicell_ = !Config_->SecondaryMasters.empty();
+
+    CellId_ = localCellConfig->CellId;
+    CellTag_ = CellTagFromId(CellId_);
+
+    PrimaryCellId_ = Config_->PrimaryMaster->CellId;
+    PrimaryCellTag_ = CellTagFromId(PrimaryCellId_);
+
+    for (const auto& cellConfig : Config_->SecondaryMasters) {
+        SecondaryCellTags_.push_back(CellTagFromId(cellConfig->CellId));
+    }
+
     CellDirectory_ = New<TCellDirectory>(
         Config_->CellDirectory,
         GetBusChannelFactory(),
         NNodeTrackerClient::InterconnectNetworkName);
 
-    MulticellManager_ = New<TMulticellManager>(this, Config_);
-    MulticellManager_->Initialize();
+    YCHECK(CellDirectory_->ReconfigureCell(Config_->PrimaryMaster));
+    for (const auto& cellConfig : Config_->SecondaryMasters) {
+        YCHECK(CellDirectory_->ReconfigureCell(cellConfig));
+    }
 
     HttpServer_.reset(new NHttp::TServer(Config_->MonitoringPort));
 
@@ -283,9 +395,9 @@ void TBootstrap::DoInitialize()
     RpcServer_ = CreateBusServer(busServer);
 
     CellManager_ = New<TCellManager>(
-        MulticellManager_->GetCellConfig(),
+        localCellConfig,
         GetBusChannelFactory(),
-        MulticellManager_->GetPeerId());
+        localPeerId);
 
     ChangelogStore_ = CreateLocalChangelogStore(
         "ChangelogFlush",
@@ -301,19 +413,21 @@ void TBootstrap::DoInitialize()
 
     HydraFacade_ = New<THydraFacade>(Config_, this);
 
+    MulticellManager_ = New<TMulticellManager>(this, Config_);
+
     WorldInitializer_ = New<TWorldInitializer>(Config_, this);
 
-    if (MulticellManager_->IsSecondaryMaster()) {
+    if (SecondaryMaster_) {
         CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
             Config_->CellDirectorySynchronizer,
             CellDirectory_,
-            MulticellManager_->GetPrimaryCellId());
+            PrimaryCellId_);
     }
 
     HiveManager_ = New<THiveManager>(
         Config_->HiveManager,
         CellDirectory_,
-        MulticellManager_->GetCellId(),
+        CellId_,
         HydraFacade_->GetAutomatonInvoker(),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton());
@@ -354,7 +468,6 @@ void TBootstrap::DoInitialize()
         TransactionManager_,
         timestampProvider);
 
-    MulticellManager_->Start();
     fileSnapshotStore->Initialize();
     ObjectManager_->Initialize();
     SecurityManager_->Initialize();
@@ -396,7 +509,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
     RpcServer_->RegisterService(HiveManager_->GetRpcService()); // cell realm
     RpcServer_->RegisterService(TransactionSupervisor_->GetRpcService()); // cell realm
-    RpcServer_->RegisterService(New<TLocalSnapshotService>(MulticellManager_->GetCellId(), fileSnapshotStore)); // cell realm
+    RpcServer_->RegisterService(New<TLocalSnapshotService>(CellId_, fileSnapshotStore)); // cell realm
     RpcServer_->RegisterService(CreateNodeTrackerService(Config_->NodeTracker, this)); // master hydra service
     RpcServer_->RegisterService(CreateObjectService(this)); // master hydra service
     RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service

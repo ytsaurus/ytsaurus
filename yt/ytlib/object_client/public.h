@@ -3,6 +3,8 @@
 #include <core/misc/guid.h>
 #include <core/misc/string.h>
 
+#include <ytlib/election/public.h>
+
 namespace NYT {
 namespace NObjectClient {
 
@@ -32,6 +34,9 @@ extern TObjectId NullObjectId;
 
 //! Used to mark counters for well-known ids.
 const ui64 WellKnownCounterMask = 0x1000000000000000;
+
+using NElection::TCellId;
+using NElection::NullCellId;
 
 //! Identifies a particular installation of YT.
 //! Must be unique to prevent object ids from colliding.

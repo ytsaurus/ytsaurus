@@ -22,7 +22,7 @@ set( HDRS
   ${BASE}/serialize-inl.h
   ${BASE}/serialize.h
   ${BASE}/world_initializer.h
-  ${BASE}/multicell_manager.cpp
+  ${BASE}/multicell_manager.h
 )
 
 list(APPEND YT_SOURCE_FILES

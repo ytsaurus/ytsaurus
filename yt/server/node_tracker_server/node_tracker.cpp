@@ -572,7 +572,7 @@ private:
     {
         return NNodeTrackerClient::ObjectIdFromNodeId(
             nodeId,
-            Bootstrap_->GetMulticellManager()->GetPrimaryCellTag());
+            Bootstrap_->GetPrimaryCellTag());
     }
 
 
@@ -597,8 +597,7 @@ private:
 
     TRspRegisterNode HydraRegisterNode(const TReqRegisterNode& request)
     {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster() && IsLeader()) {
+        if (Bootstrap_->IsPrimaryMaster() && IsLeader()) {
             YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
         }
 
@@ -644,7 +643,8 @@ private:
             NodeMap_.Remove(ObjectIdFromNodeId(existingNode->GetId()));
         }
 
-        if (multicellManager->IsPrimaryMaster()) {
+        if (Bootstrap_->IsPrimaryMaster()) {
+            auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToSecondaryMasters(request);
         }
 
@@ -667,8 +667,8 @@ private:
 
         UnregisterNode(node, true);
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
+        if (Bootstrap_->IsPrimaryMaster()) {
+            auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToSecondaryMasters(request);
         }
     }
@@ -769,8 +769,7 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Received node states gossip message (CellTag: %v)",
             cellTag);
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        YCHECK(multicellManager->IsPrimaryMaster());
+        YCHECK(Bootstrap_->IsPrimaryMaster());
 
         for (const auto& entry : request.entries()) {
             auto* node = FindNode(entry.node_id());
@@ -890,8 +889,7 @@ private:
         TMasterAutomatonPart::OnLeaderActive();
 
         // NB: Node states gossip is one way: secondary-to-primary.
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsSecondaryMaster()) {
+        if (Bootstrap_->IsSecondaryMaster()) {
             NodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
                 BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this)),
@@ -927,9 +925,8 @@ private:
 
     void InitializeNodeStates(TNode* node)
     {
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellTag = multicellManager->GetCellTag();
-        const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
+        auto cellTag = Bootstrap_->GetCellTag();
+        const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
 
         auto& multicellStates = node->MulticellStates();
         if (multicellStates.find(cellTag) == multicellStates.end()) {
@@ -1141,10 +1138,8 @@ private:
     {
         LOG_INFO("Sending node states gossip message");
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-
         TReqSetNodeStates request;
-        request.set_cell_tag(multicellManager->GetCellTag());
+        request.set_cell_tag(Bootstrap_->GetCellTag());
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
             if (!IsObjectAlive(node))
@@ -1155,6 +1150,7 @@ private:
             entry->set_state(static_cast<int>(node->GetLocalState()));
         }
 
+        auto multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToPrimaryMaster(request, false);
     }
 

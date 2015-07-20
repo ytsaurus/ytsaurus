@@ -7,13 +7,9 @@
 #include "serialize.h"
 #include "hydra_facade.h"
 
-#include <core/misc/address.h>
-
 #include <core/ytree/ypath_client.h>
 
 #include <core/concurrency/periodic_executor.h>
-
-#include <ytlib/election/config.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -26,8 +22,6 @@
 
 #include <server/security_server/security_manager.h>
 #include <server/security_server/user.h>
-
-//#include <server/object_server/object_manager.pb.h>
 
 #include <server/cell_master/multicell_manager.pb.h>
 
@@ -49,37 +43,127 @@ static const auto RegisterRetryPeriod = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMulticellManager::TPart
+class TMulticellManager::TImpl
     : public TMasterAutomatonPart
 {
 public:
-    explicit TPart(TBootstrap* bootstrap)
+    TImpl(
+        TBootstrap* bootstrap,
+        TCellMasterConfigPtr config)
         : TMasterAutomatonPart(bootstrap)
+        , Config_(config)
     {
-        TMasterAutomatonPart::RegisterMethod(BIND(&TPart::HydraRegisterSecondaryMaster, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TPart::HydraRegisterAtPrimaryMaster, Unretained(this)));
+        YCHECK(Config_);
+
+        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterSecondaryMaster, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterAtPrimaryMaster, Unretained(this)));
 
         RegisterLoader(
             "MulticellManager.Values",
-            BIND(&TPart::LoadValues, Unretained(this)));
+            BIND(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "MulticellManager.Values",
-            BIND(&TPart::SaveValues, Unretained(this)));
+            BIND(&TImpl::SaveValues, Unretained(this)));
     }
 
-    TMailbox* GetPrimaryMasterMailbox() const
+
+    void PostToPrimaryMaster(
+        const ::google::protobuf::MessageLite& requestMessage,
+        bool reliable = true)
     {
-        return PrimaryMasterMailbox_;
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
+        if (!reliable && !PrimaryMasterMailbox_)
+            return;
+
+        // Failure here indicates an attempt to send a reliable message to the primary master
+        // before registering.
+        YCHECK(PrimaryMasterMailbox_);
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        hiveManager->PostMessage(PrimaryMasterMailbox_, requestMessage, reliable);
     }
 
-    const std::vector<TMailbox*>& SecondaryMasterMailboxes() const
+    void PostToSecondaryMasters(
+        IClientRequestPtr request,
+        bool reliable)
     {
-        return SecondaryMasterMailboxes_;
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
+        if (!Bootstrap_->IsMulticell())
+            return;
+
+        PostToSecondaryMasters(request->Serialize(), reliable);
     }
+
+    void PostToSecondaryMasters(
+        const TObjectId& objectId,
+        IServiceContextPtr context,
+        bool reliable)
+    {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
+        if (!Bootstrap_->IsMulticell())
+            return;
+
+        auto requestMessage = context->GetRequestMessage();
+        NRpc::NProto::TRequestHeader requestHeader;
+        ParseRequestHeader(requestMessage, &requestHeader);
+
+        auto updatedYPath = FromObjectId(objectId) + GetRequestYPath(context);
+        SetRequestYPath(&requestHeader, updatedYPath);
+        auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
+
+        PostToSecondaryMasters(std::move(updatedRequestMessage), reliable);
+    }
+
+    void PostToSecondaryMasters(
+        TSharedRefArray requestMessage,
+        bool reliable)
+    {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
+        if (!Bootstrap_->IsMulticell())
+            return;
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+
+        NObjectServer::NProto::TReqExecute hydraReq;
+        ToProto(hydraReq.mutable_user_id(), user->GetId());
+        for (const auto& part : requestMessage) {
+            hydraReq.add_request_parts(part.Begin(), part.Size());
+        }
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        for (auto* mailbox : SecondaryMasterMailboxes_) {
+            hiveManager->PostMessage(mailbox, hydraReq, reliable);
+        }
+    }
+
+    void PostToSecondaryMasters(
+        const ::google::protobuf::MessageLite& requestMessage,
+        bool reliable)
+    {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
+        if (!Bootstrap_->IsMulticell())
+            return;
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        for (auto* mailbox : SecondaryMasterMailboxes_) {
+            hiveManager->PostMessage(mailbox, requestMessage, reliable);
+        }
+    }
+
+
+    DEFINE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegistered);
 
 private:
+    const TCellMasterConfigPtr Config_;
+
     std::vector<TCellTag> RegisteredSecondaryCellTags_;
     bool RegisteredAtPrimaryMaster_ = false;
 
@@ -144,11 +228,10 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsSecondaryMaster()) {
+        if (Bootstrap_->IsSecondaryMaster()) {
             RegisterAtPrimaryMasterExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
-                BIND(&TPart::OnRegisterAtPrimaryMaster, MakeWeak(this)),
+                BIND(&TImpl::OnRegisterAtPrimaryMaster, MakeWeak(this)),
                 RegisterRetryPeriod);
             RegisterAtPrimaryMasterExecutor_->Start();
         }
@@ -181,6 +264,8 @@ private:
 
         RegisteredSecondaryCellTags_.push_back(cellTag);
         InitializeMailboxes();
+
+        SecondaryMasterRegistered_.Fire(cellTag);
     }
 
     void HydraRegisterAtPrimaryMaster(const NProto::TReqRegisterAtPrimaryMaster& /*request*/)
@@ -193,11 +278,9 @@ private:
         RegisteredAtPrimaryMaster_ = true;
         InitializeMailboxes();
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-
         NProto::TReqRegisterSecondaryMaster request;
-        request.set_cell_tag(multicellManager->GetCellTag());
-        multicellManager->PostToPrimaryMaster(request);
+        request.set_cell_tag(Bootstrap_->GetCellTag());
+        PostToPrimaryMaster(request);
     }
 
 
@@ -216,12 +299,12 @@ private:
         auto multicellManager = Bootstrap_->GetMulticellManager();
 
         if (RegisteredAtPrimaryMaster_ && !PrimaryMasterMailbox_) {
-            PrimaryMasterMailbox_ = hiveManager->GetOrCreateMailbox(multicellManager->GetPrimaryCellId());
+            PrimaryMasterMailbox_ = hiveManager->GetOrCreateMailbox(Bootstrap_->GetPrimaryCellId());
         }
 
         while (SecondaryMasterMailboxes_.size() < RegisteredSecondaryCellTags_.size()) {
             auto cellTag = RegisteredSecondaryCellTags_[SecondaryMasterMailboxes_.size()];
-            auto cellId = ReplaceCellTagInId(multicellManager->GetPrimaryCellId(), cellTag);
+            auto cellId = ReplaceCellTagInId(Bootstrap_->GetPrimaryCellId(), cellTag);
             auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
             SecondaryMasterMailboxes_.push_back(mailbox);
         }
@@ -241,271 +324,6 @@ private:
                 }
             }));
     }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TMulticellManager::TImpl
-    : public TRefCounted
-{
-public:
-    TImpl(
-        TBootstrap* bootstrap,
-        TCellMasterConfigPtr config)
-        : Bootstrap_(bootstrap)
-        , Config_(config)
-    {
-        YCHECK(Bootstrap_);
-        YCHECK(Config_);
-    }
-
-    void Initialize()
-    {
-        Config_->PrimaryMaster->ValidateAllPeersPresent();
-        for (auto cellConfig : Config_->SecondaryMasters) {
-            cellConfig->ValidateAllPeersPresent();
-        }
-
-        auto localAdddress = BuildServiceAddress(
-            TAddressResolver::Get()->GetLocalHostName(),
-            Config_->RpcPort);
-
-        auto primaryId = ComputePeerId(Config_->PrimaryMaster, localAdddress);
-        if (primaryId == InvalidPeerId) {
-            for (auto cellConfig : Config_->SecondaryMasters) {
-                auto secondaryId = ComputePeerId(cellConfig, localAdddress);
-                if (secondaryId != InvalidPeerId) {
-                    SecondaryMaster_ = true;
-                    CellConfig_ = cellConfig;
-                    PeerId_ = secondaryId;
-                    break;
-                }
-            }
-        } else {
-            PrimaryMaster_ = true;
-            CellConfig_ = Config_->PrimaryMaster;
-            PeerId_ = primaryId;
-        }
-
-        if (!PrimaryMaster_ && !SecondaryMaster_) {
-            THROW_ERROR_EXCEPTION("Local address %v is not recognized as a valid master address",
-                localAdddress);
-        }
-
-        if (PrimaryMaster_) {
-            LOG_INFO("Running as primary master (CellId: %v, CellTag: %v, PeerId: %v)",
-                CellId_,
-                CellTag_,
-                PeerId_);
-        } else {
-            LOG_INFO("Running as secondary master (CellId: %v, CellTag: %v, PrimaryCellTag: %v, PeerId: %v)",
-                CellId_,
-                CellTag_,
-                PrimaryCellTag_,
-                PeerId_);
-        }
-
-        Multicell_ = !Config_->SecondaryMasters.empty();
-
-        CellId_ = CellConfig_->CellId;
-        CellTag_ = CellTagFromId(CellId_);
-
-        PrimaryCellId_ = Config_->PrimaryMaster->CellId;
-        PrimaryCellTag_ = CellTagFromId(PrimaryCellId_);
-
-        for (const auto& cellConfig : Config_->SecondaryMasters) {
-            SecondaryCellTags_.push_back(CellTagFromId(cellConfig->CellId));
-        }
-
-        auto cellDirectory = Bootstrap_->GetCellDirectory();
-        YCHECK(cellDirectory->ReconfigureCell(Config_->PrimaryMaster));
-        for (const auto& cellConfig : Config_->SecondaryMasters) {
-            YCHECK(cellDirectory->ReconfigureCell(cellConfig));
-        }
-
-    }
-
-    void Start()
-    {
-        Part_ = New<TPart>(Bootstrap_);
-    }
-
-
-    bool IsPrimaryMaster() const
-    {
-        return PrimaryMaster_;
-    }
-
-    bool IsSecondaryMaster() const
-    {
-        return SecondaryMaster_;
-    }
-
-    bool IsMulticell() const
-    {
-        return Multicell_;
-    }
-
-
-    const TCellId& GetCellId() const
-    {
-        return CellId_;
-    }
-
-    TCellTag GetCellTag() const
-    {
-        return CellTag_;
-    }
-
-    const TCellId& GetPrimaryCellId() const
-    {
-        return PrimaryCellId_;
-    }
-
-    TCellTag GetPrimaryCellTag() const
-    {
-        return PrimaryCellTag_;
-    }
-
-
-    const std::vector<TCellTag>& GetSecondaryCellTags() const
-    {
-        return SecondaryCellTags_;
-    }
-
-
-    TCellConfigPtr GetCellConfig() const
-    {
-        return CellConfig_;
-    }
-
-    TPeerId GetPeerId() const
-    {
-        return PeerId_;
-    }
-
-
-
-    void PostToPrimaryMaster(
-        const ::google::protobuf::MessageLite& requestMessage,
-        bool reliable)
-    {
-        YCHECK(IsSecondaryMaster());
-
-        auto* mailbox = Part_->GetPrimaryMasterMailbox();
-        if (!reliable && !mailbox)
-            return;
-
-        // Failure here indicates an attempt to send a reliable message to the primary master
-        // before registering.
-        YCHECK(mailbox);
-
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->PostMessage(mailbox, requestMessage, reliable);
-    }
-
-    void PostToSecondaryMasters(
-        IClientRequestPtr request,
-        bool reliable)
-    {
-        YCHECK(IsPrimaryMaster());
-
-        if (!Multicell_)
-            return;
-
-        PostToSecondaryMasters(request->Serialize(), reliable);
-    }
-
-    void PostToSecondaryMasters(
-        const TObjectId& objectId,
-        IServiceContextPtr context,
-        bool reliable)
-    {
-        YCHECK(IsPrimaryMaster());
-
-        if (!Multicell_)
-            return;
-
-        auto requestMessage = context->GetRequestMessage();
-        NRpc::NProto::TRequestHeader requestHeader;
-        ParseRequestHeader(requestMessage, &requestHeader);
-
-        auto updatedYPath = FromObjectId(objectId) + GetRequestYPath(context);
-        SetRequestYPath(&requestHeader, updatedYPath);
-        auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
-
-        PostToSecondaryMasters(std::move(updatedRequestMessage), reliable);
-    }
-
-    void PostToSecondaryMasters(
-        TSharedRefArray requestMessage,
-        bool reliable)
-    {
-        YCHECK(IsPrimaryMaster());
-
-        if (!Multicell_)
-            return;
-
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-
-        NObjectServer::NProto::TReqExecute hydraReq;
-        ToProto(hydraReq.mutable_user_id(), user->GetId());
-        for (const auto& part : requestMessage) {
-            hydraReq.add_request_parts(part.Begin(), part.Size());
-        }
-
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        for (auto* mailbox : Part_->SecondaryMasterMailboxes()) {
-            hiveManager->PostMessage(mailbox, hydraReq, reliable);
-        }
-    }
-
-    void PostToSecondaryMasters(
-        const ::google::protobuf::MessageLite& requestMessage,
-        bool reliable)
-    {
-        YCHECK(IsPrimaryMaster());
-
-        if (!Multicell_)
-            return;
-
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        for (auto* mailbox : Part_->SecondaryMasterMailboxes()) {
-            hiveManager->PostMessage(mailbox, requestMessage, reliable);
-        }
-    }
-
-private:
-    TBootstrap* const Bootstrap_;
-    const TCellMasterConfigPtr Config_;
-
-    TIntrusivePtr<TPart> Part_;
-
-    bool PrimaryMaster_ = false;
-    bool SecondaryMaster_ = false;
-    bool Multicell_ = false;
-
-    TCellId CellId_;
-    TCellTag CellTag_;
-    TCellId PrimaryCellId_;
-    TCellTag PrimaryCellTag_;
-    std::vector<TCellTag> SecondaryCellTags_;
-
-    TCellConfigPtr CellConfig_;
-    TPeerId PeerId_ = InvalidPeerId;
-
-
-    static TPeerId ComputePeerId(TCellConfigPtr config, const Stroka& localAddress)
-    {
-        for (TPeerId id = 0; id < config->Addresses.size(); ++id) {
-            const auto& peerAddress = config->Addresses[id];
-            if (peerAddress && to_lower(*peerAddress) == to_lower(localAddress)) {
-                return id;
-            }
-        }
-        return InvalidPeerId;
-    }
 
 };
 
@@ -519,66 +337,6 @@ TMulticellManager::TMulticellManager(
 
 TMulticellManager::~TMulticellManager()
 { }
-
-void TMulticellManager::Initialize()
-{
-    Impl_->Initialize();
-}
-
-void TMulticellManager::Start()
-{
-    Impl_->Start();
-}
-
-bool TMulticellManager::IsPrimaryMaster() const
-{
-    return Impl_->IsPrimaryMaster();
-}
-
-bool TMulticellManager::IsSecondaryMaster() const
-{
-    return Impl_->IsSecondaryMaster();
-}
-
-bool TMulticellManager::IsMulticell() const
-{
-    return Impl_->IsMulticell();
-}
-
-const TCellId& TMulticellManager::GetCellId() const
-{
-    return Impl_->GetCellId();
-}
-
-TCellTag TMulticellManager::GetCellTag() const
-{
-    return Impl_->GetCellTag();
-}
-
-const TCellId& TMulticellManager::GetPrimaryCellId() const
-{
-    return Impl_->GetPrimaryCellId();
-}
-
-TCellTag TMulticellManager::GetPrimaryCellTag() const
-{
-    return Impl_->GetPrimaryCellTag();
-}
-
-const std::vector<NObjectClient::TCellTag>& TMulticellManager::GetSecondaryCellTags() const
-{
-    return Impl_->GetSecondaryCellTags();
-}
-
-TCellConfigPtr TMulticellManager::GetCellConfig() const
-{
-    return Impl_->GetCellConfig();
-}
-
-TPeerId TMulticellManager::GetPeerId() const
-{
-    return Impl_->GetPeerId();
-}
 
 void TMulticellManager::PostToPrimaryMaster(
     const ::google::protobuf::MessageLite& requestMessage,
@@ -615,6 +373,8 @@ void TMulticellManager::PostToSecondaryMasters(
 {
     Impl_->PostToSecondaryMasters(requestMessage, reliable);
 }
+
+DELEGATE_SIGNAL(TMulticellManager, void(NObjectClient::TCellTag), SecondaryMasterRegistered, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

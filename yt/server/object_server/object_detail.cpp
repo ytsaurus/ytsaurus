@@ -835,12 +835,12 @@ bool TObjectProxyBase::IsFollower() const
 
 bool TObjectProxyBase::IsPrimaryMaster() const
 {
-    return Bootstrap_->GetMulticellManager()->IsPrimaryMaster();
+    return Bootstrap_->IsPrimaryMaster();
 }
 
 bool TObjectProxyBase::IsSecondaryMaster() const
 {
-    return Bootstrap_->GetMulticellManager()->IsSecondaryMaster();
+    return Bootstrap_->IsSecondaryMaster();
 }
 
 bool TObjectProxyBase::IsLeaderReadRequired() const

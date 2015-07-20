@@ -4,6 +4,8 @@
 
 #include <core/misc/ref.h>
 
+#include <core/actions/signal.h>
+
 #include <core/rpc/public.h>
 
 #include <ytlib/election/public.h>
@@ -24,24 +26,6 @@ public:
         TCellMasterConfigPtr config);
     ~TMulticellManager();
 
-    void Initialize();
-    void Start();
-
-    bool IsPrimaryMaster() const;
-    bool IsSecondaryMaster() const;
-    bool IsMulticell() const;
-
-    const NElection::TCellId& GetCellId() const;
-    NObjectClient::TCellTag GetCellTag() const;
-
-    const NElection::TCellId& GetPrimaryCellId() const;
-    NObjectClient::TCellTag GetPrimaryCellTag() const;
-
-    const std::vector<NObjectClient::TCellTag>& GetSecondaryCellTags() const;
-
-    NElection::TCellConfigPtr GetCellConfig() const;
-    NElection::TPeerId GetPeerId() const;
-
     void PostToPrimaryMaster(
         const ::google::protobuf::MessageLite& requestMessage,
         bool reliable = true);
@@ -60,8 +44,9 @@ public:
         const ::google::protobuf::MessageLite& requestMessage,
         bool reliable = true);
 
+    DECLARE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegistered);
+
 private:
-    class TPart;
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 
