@@ -22,11 +22,11 @@ public:
 
     static int GetProtocolVersion()
     {
-        return 0;
+        return 1;
     }
 
     explicit TSchedulerServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
+        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
     { }
 
     DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, StartOperation);
