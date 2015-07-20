@@ -228,6 +228,7 @@ void TSelectRowsCommand::DoExecute()
     options.RangeExpansionLimit = Request_->RangeExpansionLimit;
     options.FailOnIncompleteResult = Request_->FailOnIncompleteResult;
     options.VerboseLogging = Request_->VerboseLogging;
+    options.EnableCodeCache = Request_->EnableCodeCache;
     options.MaxSubqueries = Request_->MaxSubqueries;
 
     auto format = Context_->GetOutputFormat();
@@ -261,6 +262,7 @@ void TSelectRowsCommand::DoExecute()
         .Item("execute_time").Value(statistics.ExecuteTime)
         .Item("read_time").Value(statistics.ReadTime)
         .Item("write_time").Value(statistics.WriteTime)
+        .Item("codegen_time").Value(statistics.CodegenTime)
         .Item("incomplete_input").Value(statistics.IncompleteInput)
         .Item("incomplete_output").Value(statistics.IncompleteOutput);
 }

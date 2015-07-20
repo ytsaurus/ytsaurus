@@ -186,6 +186,7 @@ struct TSelectRowsRequest
     ui64 RangeExpansionLimit;
     bool FailOnIncompleteResult;
     bool VerboseLogging;
+    bool EnableCodeCache;
     ui64 MaxSubqueries;
 
     TSelectRowsRequest()
@@ -203,6 +204,8 @@ struct TSelectRowsRequest
             .Default(true);
         RegisterParameter("verbose_logging", VerboseLogging)
             .Default(false);
+        RegisterParameter("enable_code_cache", EnableCodeCache)
+            .Default(true);
         RegisterParameter("max_subqueries", MaxSubqueries)
             .Default(0);
     }

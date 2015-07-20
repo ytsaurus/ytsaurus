@@ -503,6 +503,7 @@ private:
                 subfragment->Query = subquery;
                 subfragment->RangeExpansionLimit = fragment->RangeExpansionLimit,
                 subfragment->VerboseLogging = fragment->VerboseLogging;
+                subfragment->EnableCodeCache = fragment->EnableCodeCache;
                 subfragment->Ordered = fragment->Ordered;
 
                 Stroka address;
@@ -517,7 +518,7 @@ private:
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
-                return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
+                return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_, fragment->EnableCodeCache);
             },
             FunctionRegistry_);
     }
@@ -1368,6 +1369,7 @@ private:
             options.Timestamp);
         fragment->RangeExpansionLimit = options.RangeExpansionLimit;
         fragment->VerboseLogging = options.VerboseLogging;
+        fragment->EnableCodeCache = options.EnableCodeCache;
         auto statistics = WaitFor(QueryHelper_->Execute(fragment, writer))
             .ValueOrThrow();
         if (options.FailOnIncompleteResult) {

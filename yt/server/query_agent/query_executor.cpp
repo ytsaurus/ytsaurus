@@ -233,7 +233,8 @@ private:
                         mergingReader,
                         pipe->GetWriter(),
                         foreignExecuteCallback,
-                        FunctionRegistry_);
+                        FunctionRegistry_,
+                        fragment->EnableCodeCache);
 
                 asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
@@ -246,7 +247,7 @@ private:
             },
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
-                auto result = Evaluator_->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
+                auto result = Evaluator_->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_, fragment->EnableCodeCache);
                 LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
             },

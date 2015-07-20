@@ -33,6 +33,7 @@ void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& query
     serialized->set_execute_time(queryResult.ExecuteTime.MicroSeconds());
     serialized->set_read_time(queryResult.ReadTime.MicroSeconds());
     serialized->set_write_time(queryResult.WriteTime.MicroSeconds());
+    serialized->set_codegen_time(queryResult.CodegenTime.MicroSeconds());
     serialized->set_incomplete_input(queryResult.IncompleteInput);
     serialized->set_incomplete_output(queryResult.IncompleteOutput);
 }
@@ -47,6 +48,7 @@ TQueryStatistics FromProto(const NProto::TQueryStatistics& serialized)
     result.ExecuteTime = TDuration::MicroSeconds(serialized.execute_time());
     result.ReadTime = TDuration::MicroSeconds(serialized.read_time());
     result.WriteTime = TDuration::MicroSeconds(serialized.write_time());
+    result.CodegenTime = TDuration::MicroSeconds(serialized.codegen_time());
     result.IncompleteInput = serialized.incomplete_input();
     result.IncompleteOutput = serialized.incomplete_output();
     return result;

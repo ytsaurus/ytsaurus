@@ -83,7 +83,7 @@ TJobResult TSimpleJobBase::Run()
 
             LOG_INFO("Reading, evaluating query and writing");
             {
-                evaluator->Run(query, reader, writer, registry);
+                evaluator->Run(query, reader, writer, registry, true);
             }
         } else {
             CreateReader();
