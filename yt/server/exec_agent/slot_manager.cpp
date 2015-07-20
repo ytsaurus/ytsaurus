@@ -8,8 +8,6 @@
 #include <server/data_node/chunk_cache.h>
 #include <server/data_node/master_connector.h>
 
-#include <core/concurrency/action_queue.h>
-
 #ifdef _unix_
     #include <sys/stat.h>
 #endif
@@ -18,7 +16,6 @@ namespace NYT {
 namespace NExecAgent {
 
 using namespace NCellNode;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,15 +28,10 @@ TSlotManager::TSlotManager(
     TBootstrap* bootstrap)
     : Config_(config)
     , Bootstrap_(bootstrap)
-    , ActionQueue_(New<TActionQueue>("ExecSlots"))
-    , IsEnabled_(true)
 {
     YCHECK(config);
     YCHECK(bootstrap);
 }
-
-TSlotManager::~TSlotManager()
-{ }
 
 void TSlotManager::Initialize(int slotCount)
 {
@@ -78,7 +70,7 @@ void TSlotManager::Initialize(int slotCount)
             }
             auto slot = New<TSlot>(
                 Config_,
-                slotPaths,
+                std::move(slotPaths),
                 Format("yt-node-%v", nodeRpcPort),
                 ActionQueue_->GetInvoker(),
                 slotId,

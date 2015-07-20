@@ -15,7 +15,6 @@
 #include <core/misc/serialize.h>
 #include <core/misc/string.h>
 #include <core/misc/fs.h>
-#include <core/misc/random.h>
 
 #include <core/logging/log.h>
 
@@ -42,6 +41,8 @@
 #include <ytlib/api/config.h>
 
 #include <server/cell_node/bootstrap.h>
+
+#include <util/random/random.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -90,11 +91,10 @@ class TChunkCache::TImpl
 public:
     TImpl(TDataNodeConfigPtr config, TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
-            New<TSlruCacheConfig>(),
+            New<TSlruCacheConfig>(config->GetCacheCapacity()),
             NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix() + "/chunk_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , RandomGenerator_(TInstant::Now().MicroSeconds())
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
     }
@@ -102,22 +102,6 @@ public:
     void Initialize()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        bool unlimited = false;
-        i64 capacity = 0;
-
-        for (const auto& locationConfig : Config_->CacheLocations) {
-            if (!unlimited) {
-                if (locationConfig->Quota) {
-                    capacity += *locationConfig->Quota;
-                } else {
-                    unlimited = true;
-                }
-            }
-        }
-
-        TAsyncSlruCacheBase::Config_->Capacity =
-            unlimited ? std::numeric_limits<i64>::max() : capacity;
 
         for (int i = 0; i < Config_->CacheLocations.size(); ++i) {
             auto locationConfig = Config_->CacheLocations[i];
@@ -132,7 +116,7 @@ public:
                 TArtifactKey key;
                 if (IsArtifactChunkId(descriptor.Id)) {
                     auto chunkFileName = location->GetChunkPath(descriptor.Id);
-                    if (!LoadArtifactMeta(chunkFileName, &key)) {
+                    if (!TryLoadArtifactMeta(chunkFileName, &key)) {
                         continue;
                     }
                 } else {
@@ -198,7 +182,7 @@ public:
             auto canPrepareSingleChunk = CanPrepareSingleChunk(key);
             auto chunkId = GetOrCreateArtifactId(key, canPrepareSingleChunk);
 
-            auto location = ChooseChunkLocation();
+            auto location = FindNewChunkLocation();
             if (!location) {
                 auto error = TError("Cannot find suitable location for chunk %v",
                     chunkId);
@@ -242,9 +226,6 @@ private:
     TBootstrap* const Bootstrap_;
 
     std::vector<TLocationPtr> Locations_;
-
-    TSpinLock RandomSpinLock_;
-    TRandomGenerator RandomGenerator_;
 
     DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
     DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
@@ -319,7 +300,7 @@ private:
         ChunkRemoved_.Fire(value);
     }
 
-    TLocationPtr ChooseChunkLocation() const
+    TLocationPtr FindNewChunkLocation() const
     {
         std::vector<TLocationPtr> candidates;
         for (const auto& location : Locations_) {
@@ -350,13 +331,11 @@ private:
             const auto& chunkSpec = key.chunks(0);
             return FromProto<TChunkId>(chunkSpec.chunk_id());
         } else {
-            TGuard<TSpinLock> guard(RandomSpinLock_);
-            auto random = RandomGenerator_.Generate<i64>();
             return TChunkId(
                 static_cast<ui32>(TInstant::Now().MicroSeconds()),
                 static_cast<ui32>(EObjectType::Artifact),
-                static_cast<ui32>(random >> 32),
-                static_cast<ui32>(random & 0xffffffffll));
+                RandomNumber<ui32>(),
+                RandomNumber<ui32>());
         }
     }
 
@@ -499,8 +478,7 @@ private:
         TNodeDirectoryPtr nodeDirectory,
         TInsertCookie cookie)
     {
-        std::vector<TChunkSpec> chunkSpecs;
-        chunkSpecs.insert(chunkSpecs.end(), key.chunks().begin(), key.chunks().end());
+        std::vector<TChunkSpec> chunkSpecs(key.chunks().begin(), key.chunks().end());
 
         auto reader = CreateFileMultiChunkReader(
             New<TFileReaderConfig>(),
@@ -634,7 +612,7 @@ private:
         return CreateChunk(location, key, descriptor);
     }
 
-    bool LoadArtifactMeta(const Stroka& fileName, TArtifactKey* key)
+    bool TryLoadArtifactMeta(const Stroka& fileName, TArtifactKey* key)
     {
         auto metaFileName = fileName + ArtifactMetaSuffix;
         try {
@@ -650,7 +628,7 @@ private:
                 THROW_ERROR_EXCEPTION("Failed to parse artifact meta file");
             }
 
-            LOG_INFO("Artifact meta file loaded (FileName: %v)",
+            LOG_DEBUG("Artifact meta file loaded (FileName: %v)",
                 metaFileName);
             return true;
         } catch (const std::exception& ex) {
