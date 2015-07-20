@@ -187,8 +187,6 @@ public:
         TStoreLocationConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
-    ~TStoreLocation();
-
     //! Returns Journal Manager accociated with this location.
     TJournalManagerPtr GetJournalManager();
 
@@ -260,13 +258,10 @@ public:
         TCacheLocationConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
-    ~TCacheLocation();
-
 private:
     const TCacheLocationConfigPtr Config_;
 
-    TNullable<TChunkDescriptor> RepairBlobChunk(const TChunkId& chunkId);
-    TNullable<TChunkDescriptor> RepairArtifact(const TChunkId& chunkId);
+    TNullable<TChunkDescriptor> Repair(const TChunkId& chunkId, const Stroka& metaSuffix);
     virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;
 
     virtual std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const override;

@@ -20,8 +20,6 @@ public:
         TSlotManagerConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
-    ~TSlotManager();
-
     //! Initializes slots etc.
     void Initialize(int slotCount);
 
@@ -34,15 +32,15 @@ public:
     int GetSlotCount() const;
 
 private:
-    TSlotManagerConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    const TSlotManagerConfigPtr Config_;
+    const NCellNode::TBootstrap* Bootstrap_;
 
     std::vector<TSlotPtr> Slots_;
     std::vector<int> SlotPathCounters_;
 
-    NConcurrency::TActionQueuePtr ActionQueue_;
+    NConcurrency::TActionQueuePtr ActionQueue_ = New<NConcurrency::TActionQueue>("ExecSlots");
 
-    bool IsEnabled_;
+    bool IsEnabled_ = true;
 
 };
 
