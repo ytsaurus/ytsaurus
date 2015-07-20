@@ -404,6 +404,7 @@ struct TPlanFragment
     bool VerboseLogging = false;
     ui64 MaxSubqueries = 0;
     ui64 RangeExpansionLimit = 0;
+    bool EnableCodeCache = true;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPlanFragment)

@@ -626,7 +626,7 @@ private:
                 auto schema = FromProto<TTableSchema>(spec.input_schema());
                 auto query = PrepareJobQuery(queryString, schema, registry.Get());
                 auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
-                evaluator->Run(query, reader, writer, registry);
+                evaluator->Run(query, reader, writer, registry, true);
                 WaitFor(asyncOutput->Close())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
