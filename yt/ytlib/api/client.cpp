@@ -512,7 +512,7 @@ private:
             fragment->RangeExpansionLimit,
             fragment->VerboseLogging);
 
-        LOG_DEBUG("Splitting pruned splits");
+        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
 
         std::vector<std::pair<TDataSource, Stroka>> allSplits;
         for (int index = 0; index < dataSources.size(); ++index) {
@@ -563,7 +563,7 @@ private:
             fragment->RangeExpansionLimit,
             fragment->VerboseLogging);
 
-        LOG_DEBUG("Splitting pruned splits");
+        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
 
         std::vector<std::pair<TDataSource, Stroka>> allSplits;
 
