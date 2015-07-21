@@ -3,6 +3,7 @@ import http_driver
 import native_driver
 from common import bool_to_string, YtError
 from config import get_option, get_backend_type
+from format import create_format
 
 import yt.yson as yson
 from yt.yson.convert import json_to_yson
@@ -53,6 +54,8 @@ def make_formatted_request(command_name, params, format, **kwargs):
         else:
             params["output_format"] = "json"
     else:
+        if isinstance(format, str):
+            format = create_format(format)
         params["output_format"] = format.to_yson_type()
 
     result = make_request(command_name, params, response_should_be_json=response_should_be_json, **kwargs)
