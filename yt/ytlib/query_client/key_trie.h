@@ -86,12 +86,8 @@ DEFINE_REFCOUNTED_TYPE(TKeyTrie)
 TRowRanges GetRangesFromTrieWithinRange(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
-    TRowBufferPtr rowBuffer);
-
-std::pair<TRowRanges, std::vector<ui32>> GetExtendedRangesFromTrieWithinRange(
-    const TRowRange& keyRange,
-    TKeyTriePtr trie,
-    TRowBufferPtr rowBuffer);
+    TRowBufferPtr rowBuffer,
+    bool insertUndefined = false);
 
 Stroka ToString(TKeyTriePtr node);
 

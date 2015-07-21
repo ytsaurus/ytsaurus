@@ -4691,6 +4691,17 @@ private:
     TKeyColumns SecondaryKeyColumns_;
 };
 
+TEST_F(TComputedColumnTest, NoKeyColumnsInPredicate)
+{
+    auto query = Stroka("k from [//t] where a = 10");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(1, result.size());
+
+    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
+    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+}
+
 TEST_F(TComputedColumnTest, Simple)
 {
     auto query = Stroka("a from [//t] where l = 10");
