@@ -930,7 +930,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.create("table", TEST_DIR + "/table", attributes={"attr": u"капуста"})
 
     def test_get_user_name(self):
-        assert get_user_name("") == None
+        #assert get_user_name("") == None
         #assert get_user_name("12345") == None
 
         token = "".join(["a"] * 16)
