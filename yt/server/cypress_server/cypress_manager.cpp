@@ -1009,15 +1009,6 @@ private:
     }
 
 
-    virtual void OnBeforeSnapshotLoaded() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        DoClear();
-    }
-
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1035,6 +1026,19 @@ private:
 
         // COMPAT(babenko)
         InitializeCellTags_ = (context.GetVersion() < 200);
+    }
+
+
+    virtual void Clear() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::Clear();
+
+        NodeMap_.Clear();
+        LockMap_.Clear();
+
+        InitBuiltin();
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -1113,22 +1117,6 @@ private:
             RootNode_ = NodeMap_.Insert(TVersionedNodeId(RootNodeId_), std::move(rootNodeHolder));
             YCHECK(RootNode_->RefObject() == 1);
         }
-    }
-
-    void DoClear()
-    {
-        NodeMap_.Clear();
-        LockMap_.Clear();
-    }
-
-    void Clear()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::Clear();
-
-        DoClear();
-        InitBuiltin();
     }
 
 
