@@ -17,6 +17,9 @@
 
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/security_client/group_ypath_proxy.h>
+#include <ytlib/security_client/helpers.h>
+
 #include <server/hydra/entity_map.h>
 #include <server/hydra/composite_automaton.h>
 
@@ -282,6 +285,9 @@ public:
         objectManager->RegisterHandler(New<TAccountTypeHandler>(this));
         objectManager->RegisterHandler(New<TUserTypeHandler>(this));
         objectManager->RegisterHandler(New<TGroupTypeHandler>(this));
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
     }
 
 
@@ -1622,6 +1628,54 @@ protected:
             }
         }
     }
+
+
+    void OnSecondaryMasterRegistered(TCellTag cellTag)
+    {
+        auto objectManager = Bootstrap_->GetObjectManager();
+
+        auto accounts = GetValuesSortedByKey(AccountMap_);
+        for (auto* account : accounts) {
+            if (!account->IsBuiltin()) {
+                objectManager->ReplicateObjectToSecondaryMaster(account, cellTag);
+            }
+        }
+
+        auto users = GetValuesSortedByKey(UserMap_);
+        for (auto* user : users) {
+            if (!user->IsBuiltin()) {
+                objectManager->ReplicateObjectToSecondaryMaster(user, cellTag);
+            }
+        }
+
+        auto groups = GetValuesSortedByKey(GroupMap_);
+        for (auto* group : groups) {
+            if (!group->IsBuiltin()) {
+                objectManager->ReplicateObjectToSecondaryMaster(group, cellTag);
+            }
+        }
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto replicateMembership = [&] (TSubject* subject) {
+            if (subject->IsBuiltin())
+                return;
+
+            for (auto* group : subject->MemberOf()) {
+                if (!group->IsBuiltin()) {
+                    auto req = TGroupYPathProxy::AddMember(GetGroupPath(group->GetName()));
+                    req->set_name(subject->GetName());
+                    multicellManager->PostToSecondaryMaster(req, cellTag);
+                }
+            }
+        };
+        for (auto* user : users) {
+            replicateMembership(user);
+        }
+        for (auto* group : groups) {
+            replicateMembership(group);
+        }
+    }
+
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, TAccountId, AccountMap_)

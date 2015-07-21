@@ -1055,6 +1055,30 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     }));
 }
 
+void TObjectManager::ReplicateObjectToSecondaryMaster(
+    TObjectBase* object,
+    TCellTag cellTag)
+{
+    auto req = TMasterYPathProxy::CreateObject();
+    req->set_type(static_cast<int>(object->GetType()));
+    const auto* attributes = object->GetAttributes();
+    if (attributes) {
+        for (const auto& pair : attributes->Attributes()) {
+            auto* protoAttribute = req->mutable_object_attributes()->add_attributes();
+            protoAttribute->set_key(pair.first);
+            protoAttribute->set_value(pair.second->Data());
+        }
+    }
+    // XXX(babenko): builtin attributes
+    ToProto(req->mutable_object_id(), object->GetId());
+
+    auto handler = GetHandler(object);
+    handler->PopulateObjectReplicationRequest(object, req);
+
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToSecondaryMaster(req, cellTag);
+}
+
 void TObjectManager::HydraExecuteLeader(
     const TUserId& userId,
     const TMutationId& mutationId,

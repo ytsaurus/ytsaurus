@@ -86,6 +86,34 @@ public:
         hiveManager->PostMessage(PrimaryMasterMailbox_, requestMessage, reliable);
     }
 
+
+    void PostToSecondaryMaster(
+        IClientRequestPtr request,
+        TCellTag cellTag,
+        bool reliable)
+    {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
+        PostToSecondaryMaster(request->Serialize(), cellTag, reliable);
+    }
+
+    void PostToSecondaryMaster(
+        TSharedRefArray requestMessage,
+        TCellTag cellTag,
+        bool reliable)
+    {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
+        NObjectServer::NProto::TReqExecute hydraReq;
+        BuildHydraRequest(&hydraReq, requestMessage);
+
+        auto cellId = ReplaceCellTagInId(Bootstrap_->GetCellId(), cellTag);
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
+        hiveManager->PostMessage(mailbox, hydraReq, reliable);
+    }
+
+
     void PostToSecondaryMasters(
         IClientRequestPtr request,
         bool reliable)
@@ -128,14 +156,8 @@ public:
         if (!Bootstrap_->IsMulticell())
             return;
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-
         NObjectServer::NProto::TReqExecute hydraReq;
-        ToProto(hydraReq.mutable_user_id(), user->GetId());
-        for (const auto& part : requestMessage) {
-            hydraReq.add_request_parts(part.Begin(), part.Size());
-        }
+        BuildHydraRequest(&hydraReq, requestMessage);
 
         auto hiveManager = Bootstrap_->GetHiveManager();
         for (auto* mailbox : SecondaryMasterMailboxes_) {
@@ -159,7 +181,7 @@ public:
     }
 
 
-    DEFINE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegistered);
+    DEFINE_SIGNAL(void(TCellTag), SecondaryMasterRegistered);
 
 private:
     const TCellMasterConfigPtr Config_;
@@ -325,6 +347,19 @@ private:
             }));
     }
 
+
+    void BuildHydraRequest(
+        NObjectServer::NProto::TReqExecute* hydraRequest,
+        const TSharedRefArray& requestMessage)
+    {
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        ToProto(hydraRequest->mutable_user_id(), user->GetId());
+
+        for (const auto& part : requestMessage) {
+            hydraRequest->add_request_parts(part.Begin(), part.Size());
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -343,6 +378,22 @@ void TMulticellManager::PostToPrimaryMaster(
     bool reliable)
 {
     Impl_->PostToPrimaryMaster(requestMessage, reliable);
+}
+
+void TMulticellManager::PostToSecondaryMaster(
+    IClientRequestPtr request,
+    TCellTag cellTag,
+    bool reliable)
+{
+    Impl_->PostToSecondaryMaster(std::move(request), cellTag, reliable);
+}
+
+void TMulticellManager::PostToSecondaryMaster(
+    TSharedRefArray requestMessage,
+    TCellTag cellTag,
+    bool reliable)
+{
+    Impl_->PostToSecondaryMaster(std::move(requestMessage), cellTag, reliable);
 }
 
 void TMulticellManager::PostToSecondaryMasters(
@@ -374,7 +425,7 @@ void TMulticellManager::PostToSecondaryMasters(
     Impl_->PostToSecondaryMasters(requestMessage, reliable);
 }
 
-DELEGATE_SIGNAL(TMulticellManager, void(NObjectClient::TCellTag), SecondaryMasterRegistered, *Impl_);
+DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), SecondaryMasterRegistered, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

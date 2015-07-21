@@ -94,6 +94,13 @@ public:
             NYTree::EPermissionSet::Administer;
     }
 
+    virtual void PopulateObjectReplicationRequest(
+        TObjectBase* object,
+        NObjectClient::TMasterYPathProxy::TReqCreateObjectPtr request) override
+    {
+        DoPopulateObjectReplicationRequest(static_cast<TObject*>(object), request);
+    }
+
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
 
@@ -128,6 +135,11 @@ protected:
         auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->FindSchema(GetType());
     }
+
+    virtual void DoPopulateObjectReplicationRequest(
+        TObject* /*object*/,
+        NObjectClient::TMasterYPathProxy::TReqCreateObjectPtr /*request*/)
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

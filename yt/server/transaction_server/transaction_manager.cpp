@@ -239,7 +239,7 @@ public:
         TRspCreateObject* response) override;
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
 
     virtual Stroka DoGetName(TTransaction* transaction) override
@@ -257,6 +257,17 @@ private:
         return &transaction->Acd();
     }
 
+    virtual void DoPopulateObjectReplicationRequest(
+        TTransaction* transaction,
+        TMasterYPathProxy::TReqCreateObjectPtr request) override
+    {
+        if (transaction->GetParent()) {
+            ToProto(request->mutable_transaction_id(), transaction->GetParent()->GetId());
+        }
+
+        // NB: We could also provide TReqStartTransactionExt but
+        // it's just redundant.
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -312,6 +323,9 @@ public:
     {
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this));
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
     }
 
     TTransaction* StartTransaction(
@@ -543,14 +557,12 @@ public:
                 persistent);
         }
 
-        if (persistent) {
-            if (Bootstrap_->IsPrimaryMaster()) {
-                NProto::TReqPrepareTransactionCommit request;
-                ToProto(request.mutable_transaction_id(), transactionId);
-                request.set_prepare_timestamp(prepareTimestamp);
-                auto multicellManager = Bootstrap_->GetMulticellManager();
-                multicellManager->PostToSecondaryMasters(request);
-            }
+        if (persistent && Bootstrap_->IsPrimaryMaster()) {
+            NProto::TReqPrepareTransactionCommit request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_prepare_timestamp(prepareTimestamp);
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToSecondaryMasters(request);
         }
     }
 
@@ -835,6 +847,39 @@ private:
         }));
     }
 
+
+    void OnSecondaryMasterRegistered(TCellTag cellTag)
+    {
+        // Run stable BFS to figure out the order in which transactions are to be replicated.
+        auto transactions = SortTransactions(TopmostTransactions_);
+        for (auto* transaction : transactions) {
+            auto nestedTransactions = SortTransactions(transaction->NestedTransactions());
+            transactions.insert(transactions.end(), nestedTransactions.begin(), nestedTransactions.end());
+        }
+
+        // Replicate transactions to the secondary master.
+        auto objectManager = Bootstrap_->GetObjectManager();
+        for (auto* transaction : transactions) {
+            objectManager->ReplicateObjectToSecondaryMaster(transaction, cellTag);
+        }
+
+        // TODO(babenko): do we need to replicate prepare requests?
+    }
+
+    static std::vector<TTransaction*> SortTransactions(const yhash_set<TTransaction*>& set)
+    {
+        std::vector<TTransaction*> vector;
+        for (auto* transaction : set) {
+            if (IsObjectAlive(transaction)) {
+                vector.push_back(transaction);
+            }
+        }
+        std::sort(
+            vector.begin(),
+            vector.end(),
+            [] (TTransaction* lhs, TTransaction* rhs) { return lhs->GetId() < rhs->GetId(); });
+        return vector;
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransaction, TTransactionId, TransactionMap_)

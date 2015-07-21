@@ -9,11 +9,12 @@
 
 #include <core/rpc/service_detail.h>
 
-#include <ytlib/object_client/master_ypath.pb.h>
+#include <ytlib/object_client/master_ypath_proxy.h>
 
 #include <server/transaction_server/public.h>
 
 #include <server/security_server/acl.h>
+#include <ytlib/object_client/master_ypath_proxy.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -138,6 +139,12 @@ struct IObjectTypeHandler
      *  Among other things, the handler must reset weak ref counters to zero.
      */
     virtual void ResetAllObjects() = 0;
+
+    //! Populates object replication request to be send to a secondary master
+    //! with additional data.
+    virtual void PopulateObjectReplicationRequest(
+        TObjectBase* object,
+        NObjectClient::TMasterYPathProxy::TReqCreateObjectPtr request) = 0;
 
 };
 

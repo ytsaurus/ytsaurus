@@ -109,25 +109,18 @@ protected:
 
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 TObjectId GetObjectId(const TObjectBase* object);
 bool IsObjectAlive(const TObjectBase* object);
-
-////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 std::vector<TObjectId> ToObjectIds(
     const T& objects,
-    size_t sizeLimit = std::numeric_limits<size_t>::max())
-{
-    std::vector<TObjectId> result;
-    result.reserve(std::min(objects.size(), sizeLimit));
-    for (auto* object : objects) {
-        if (result.size() == sizeLimit)
-            break;
-        result.push_back(object->GetId());
-    }
-    return result;
-}
+    size_t sizeLimit = std::numeric_limits<size_t>::max());
+
+template <class TKey, class TValue, class THash>
+std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TKey, TValue, THash>& entities);
 
 ////////////////////////////////////////////////////////////////////////////////
 
