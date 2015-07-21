@@ -64,7 +64,7 @@ public:
         TCallback<bool(const TError&)> isRetriableError)
         : Config_(config)
     {
-        PrimaryMasterCellId_ = Config_->Master->CellId;
+        PrimaryMasterCellId_ = Config_->PrimaryMaster->CellId;
         PrimaryMasterCellTag_ = CellTagFromId(PrimaryMasterCellId_);
         for (const auto& masterConfig : Config_->SecondaryMasters) {
             SecondaryMasterCellTags_.push_back(CellTagFromId(masterConfig->CellId));
@@ -86,21 +86,21 @@ public:
             initMasterChannel(EMasterChannelKind::Follower, config, Config_->EnableReadFromFollowers ? EPeerKind::Follower : EPeerKind::Leader);
             initMasterChannel(EMasterChannelKind::LeaderOrFollower, config, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
         };
-        initMasterChannels(Config_->Master);
+        initMasterChannels(Config_->PrimaryMaster);
         for (const auto& masterConfig : Config_->SecondaryMasters) {
             initMasterChannels(masterConfig);
         }
 
         // NB: Caching is only possible for the primary master.
-        auto masterCacheConfig = Config_->MasterCache ? Config_->MasterCache : Config_->Master;
+        auto masterCacheConfig = Config_->MasterCache ? Config_->MasterCache : Config_->PrimaryMaster;
         initMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
             // Use masters for timestamp generation.
             timestampProviderConfig = New<TRemoteTimestampProviderConfig>();
-            timestampProviderConfig->Addresses = Config_->Master->Addresses;
-            timestampProviderConfig->RpcTimeout = Config_->Master->RpcTimeout;
+            timestampProviderConfig->Addresses = Config_->PrimaryMaster->Addresses;
+            timestampProviderConfig->RpcTimeout = Config_->PrimaryMaster->RpcTimeout;
         }
         TimestampProvider_ = CreateRemoteTimestampProvider(
             timestampProviderConfig,
@@ -117,7 +117,7 @@ public:
             Config_->CellDirectory,
             GetBusChannelFactory(),
             Config_->NetworkName);
-        CellDirectory_->ReconfigureCell(Config_->Master);
+        CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
 
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache,

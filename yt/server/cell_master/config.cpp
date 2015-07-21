@@ -54,11 +54,17 @@ TCellMasterConfig::TCellMasterConfig()
 
     RegisterValidator([&] () {
         const auto& cellId = PrimaryMaster->CellId;
-        auto cellTag = CellTagFromId(PrimaryMaster->CellId);
+        auto primaryCellTag = CellTagFromId(PrimaryMaster->CellId);
+        yhash_set<TCellTag> cellTags = {primaryCellTag};
         for (const auto& cellConfig : SecondaryMasters) {
-            if (ReplaceCellTagInId(cellConfig->CellId, cellTag) != cellId) {
-                THROW_ERROR_EXCEPTION("Invalid cell id %v specified for secondary master",
+            if (ReplaceCellTagInId(cellConfig->CellId, primaryCellTag) != cellId) {
+                THROW_ERROR_EXCEPTION("Invalid cell id %v specified for secondary master in server configuration",
                     cellConfig->CellId);
+            }
+            auto cellTag = CellTagFromId(cellConfig->CellId);
+            if (!cellTags.insert(cellTag).second) {
+                THROW_ERROR_EXCEPTION("Duplicate cell tag %v in server configuration",
+                    cellTag);
             }
         }
     });

@@ -131,7 +131,7 @@ TClusterDirectory::TCluster TClusterDirectory::CreateSelfCluster() const
 
 TCellTag TClusterDirectory::GetCellTag(const TClusterDirectory::TCluster& cluster)
 {
-    return CellTagFromId(cluster.Config->Master->CellId);
+    return CellTagFromId(cluster.Config->PrimaryMaster->CellId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

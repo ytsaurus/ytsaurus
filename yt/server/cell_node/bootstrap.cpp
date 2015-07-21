@@ -158,7 +158,7 @@ void TBootstrap::DoRun()
 
     LOG_INFO("Starting node (LocalAddresses: [%v], MasterAddresses: [%v])",
         JoinToString(GetValues(localAddresses)),
-        JoinToString(Config->ClusterConnection->Master->Addresses));
+        JoinToString(Config->ClusterConnection->PrimaryMaster->Addresses));
 
     MemoryUsageTracker = std::make_unique<TNodeMemoryTracker>(
         Config->ResourceLimits->Memory,
@@ -181,7 +181,7 @@ void TBootstrap::DoRun()
     CellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
         Config->CellDirectorySynchronizer,
         MasterConnection->GetCellDirectory(),
-        Config->ClusterConnection->Master->CellId);
+        Config->ClusterConnection->PrimaryMaster->CellId);
 
     QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
@@ -210,7 +210,7 @@ void TBootstrap::DoRun()
 
     // NB: No retries, no user overriding.
     auto directMasterChannel = CreatePeerChannel(
-        Config->ClusterConnection->Master,
+        Config->ClusterConnection->PrimaryMaster,
         GetBusChannelFactory(),
         EPeerKind::Leader);
 
@@ -572,7 +572,7 @@ NQueryClient::IExecutorPtr TBootstrap::GetQueryExecutor() const
 
 const TGuid& TBootstrap::GetCellId() const
 {
-    return Config->ClusterConnection->Master->CellId;
+    return Config->ClusterConnection->PrimaryMaster->CellId;
 }
 
 IThroughputThrottlerPtr TBootstrap::GetReplicationInThrottler() const

@@ -102,7 +102,7 @@ private:
             .ThrowOnError();
 
         auto cellId = options.CellId == NullCellId
-            ? Connection_->GetConfig()->Master->CellId
+            ? Connection_->GetConfig()->PrimaryMaster->CellId
             : options.CellId;
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
