@@ -39,6 +39,7 @@
 #include <ytlib/tablet_client/wire_protocol.pb.h>
 
 #include <ytlib/security_client/group_ypath_proxy.h>
+#include <ytlib/security_client/helpers.h>
 
 #include <ytlib/driver/dispatcher.h>
 
@@ -1725,11 +1726,6 @@ private:
         return FromProto<TObjectId>(rsp->object_id());
     }
 
-
-    static Stroka GetGroupPath(const Stroka& name)
-    {
-        return "//sys/groups/" + ToYPathLiteral(name);
-    }
 
     void DoAddMember(
         const Stroka& group,

@@ -187,6 +187,9 @@ public:
         TSharedRefArray requestMessage,
         TNullable<TDuration> timeout = Null);
 
+    //! Posts a creation request to the secondary master.
+    void ReplicateObjectToSecondaryMaster(TObjectBase* object, TCellTag cellTag);
+
     const NProfiling::TProfiler& GetProfiler();
     NProfiling::TTagId GetTypeTagId(EObjectType type);
     NProfiling::TTagId GetMethodTagId(const Stroka& method);

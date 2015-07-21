@@ -30,6 +30,15 @@ public:
         const ::google::protobuf::MessageLite& requestMessage,
         bool reliable = true);
 
+    void PostToSecondaryMaster(
+        NRpc::IClientRequestPtr request,
+        NObjectClient::TCellTag cellTag,
+        bool reliable = true);
+    void PostToSecondaryMaster(
+        TSharedRefArray requestMessage,
+        NObjectClient::TCellTag cellTag,
+        bool reliable = true);
+
     void PostToSecondaryMasters(
         NRpc::IClientRequestPtr request,
         bool reliable = true);

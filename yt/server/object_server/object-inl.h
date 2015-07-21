@@ -101,6 +101,37 @@ inline bool IsObjectAlive(const TObjectBase* object)
     return object && object->IsAlive();
 }
 
+template <class T>
+std::vector<TObjectId> ToObjectIds(const T& objects, size_t sizeLimit)
+{
+    std::vector<TObjectId> result;
+    result.reserve(std::min(objects.size(), sizeLimit));
+    for (auto* object : objects) {
+        if (result.size() == sizeLimit)
+            break;
+        result.push_back(object->GetId());
+    }
+    return result;
+}
+
+template <class TKey, class TValue, class THash>
+std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TKey, TValue, THash>& entities)
+{
+    std::vector<TValue*> values;
+    for (const auto& pair : entities) {
+        auto* object = pair.second;
+        if (IsObjectAlive(object)) {
+            values.push_back(object);
+        }
+    }
+
+    std::sort(
+        values.begin(),
+        values.end(),
+        [] (TValue* lhs, TValue* rhs) { return lhs->GetId() < rhs->GetId(); });
+    return values;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer
