@@ -3,40 +3,70 @@
 from yt.wrapper.common import parse_bool
 import yt.wrapper as yt
 
-import sys
 import argparse
+import logging
+import time
 from threading import Thread
 from copy import deepcopy
+
 
 def do_action(tables, action, **kwargs):
     for table in tables:
         action(table, **kwargs)
 
 
+def _mount_action(table, **kwargs):
+    logging.info("Mounting table %s", table)
+    yt.mount_table(table, **kwargs)
+
+
+def _unmount_action(table, **kwargs):
+    logging.info("Unmounting table %s", table)
+    yt.unmount_table(table, **kwargs)
+
+
+def _remount_action(table, **kwargs):
+    logging.info("Remounting table %s", table)
+    yt.remount_table(table, **kwargs)
+
+
+def _await_action(table, **kwargs):
+    while not all(tablet["state"] == kwargs["state"] for tablet in yt.get(table + "/@tablets")):
+        logging.info("Waiting for table %s tablets to become %s", table, kwargs["state"])
+        time.sleep(1)
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action")
-    parser.add_argument("--force", action="store_true", default=False)
+    parser.add_argument("action", choices=("mount", "unmount", "remount", "unmount_mount"))
     parser.add_argument("--thread-count", type=int, default=20)
+    parser.add_argument("--force", action="store_true", default=False,
+                        help="Do not wait for transactions and flushes while unmounting")
+    parser.add_argument("--silent", action="store_true", default=False,
+                        help="Do not log anything")
     args = parser.parse_args()
 
-    if args.action not in ["mount", "unmount", "unmount_mount"]:
-        print >>sys.stderr, "Usage: {} {{mount|unmount|unmount_mount}}".format(sys.args[0])
-        sys.exit(1)
+    if args.silent:
+        logging.basicConfig(level=logging.ERROR)
+    else:
+        logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
     if args.action == "mount":
-        action = yt.mount_table
+        action = _mount_action
         kwargs = {}
     if args.action == "unmount":
-        action = yt.unmount_table
+        action = _unmount_action
         kwargs = {"force": args.force}
+    if args.action == "remount":
+        action = _remount_action
+        kwargs = {}
     if args.action == "unmount_mount":
         def func(table, **kwargs):
-            yt.unmount_table(table, **kwargs)
-            yt.mount_table(table)
+            _unmount_action(table, **kwargs)
+            _await_action(table, state="unmounted")
+            _mount_action(table)
         action = func
         kwargs = {"force": args.force}
-
 
     tables = []
     for table in yt.search("/", node_type="table", attributes=["dynamic"]):
