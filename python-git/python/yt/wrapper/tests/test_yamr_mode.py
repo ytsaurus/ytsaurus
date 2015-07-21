@@ -6,7 +6,7 @@ from yt.environment import YTEnv
 from yt.wrapper.table_commands import copy_table, move_table
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 import yt.wrapper as yt
-from yt.wrapper import Record, YtError, YtResponseError, dumps_row, loads_row, TablePath
+from yt.wrapper import Record, YtError, dumps_row, loads_row, TablePath
 import yt.wrapper.config as config
 from yt.common import flatten
 
@@ -84,29 +84,6 @@ class YamrModeTester(YtTestBase, YTEnv):
     def random_string(self, length):
         char_set = string.ascii_uppercase + string.digits
         return "".join(random.sample(char_set, length))
-
-    def test_common_operations(self):
-        self.assertTrue(yt.exists("/"))
-        self.assertTrue(yt.exists("//sys"))
-        self.assertFalse(yt.exists("//\"sys\""))
-
-        self.assertFalse(yt.exists('//%s/%s' %
-                                (self.random_string(10), self.random_string(10))))
-
-        random_strA = self.random_string(10)
-        random_strB = self.random_string(10)
-
-
-        half_path = '%s/"%s"' % (TEST_DIR, random_strA)
-        full_path = '%s/"%s"/"%s"' % (TEST_DIR, random_strA, random_strB)
-        self.assertRaises(YtResponseError, lambda: yt.set(full_path, {}))
-        yt.set(half_path, {})
-        yt.set(full_path, {})
-        self.assertTrue(yt.exists(full_path))
-        self.assertEqual(yt.get(full_path), {})
-        yt.remove(half_path, recursive=True)
-        self.assertRaises(YtError, lambda: yt.remove(full_path))
-        yt.remove(full_path, force=True)
 
     def test_read_write(self):
         table = TEST_DIR + "/temp"
@@ -201,21 +178,6 @@ class YamrModeTester(YtTestBase, YTEnv):
         unexisting_table = TEST_DIR + "/unexisting"
         yt.run_sort(unexisting_table)
         self.assertFalse(yt.exists(unexisting_table))
-
-    def test_attributes(self):
-        table = self.create_temp_table()
-        self.assertEqual(yt.records_count(table), 10)
-        self.assertFalse(yt.is_sorted(table))
-
-        yt.set_attribute(table, "my_attribute", {})
-        yt.set_attribute(table, "my_attribute/000", 10)
-        self.assertEqual(yt.get_attribute(table, "my_attribute/000"), 10)
-        #self.assertEqual(yt.list_attributes(table, "my_attribute"), ["000"])
-
-        result = list(yt.search(table, node_type='table', attributes=('my_attribute', )))
-        self.assertEqual(len(result), 1)
-        self.assertEqual(str(result[0]), table)
-        self.assertEqual(result[0].attributes['my_attribute'], {'000': 10})
 
     def test_operations(self):
         table = self.create_temp_table()
@@ -412,13 +374,6 @@ class YamrModeTester(YtTestBase, YTEnv):
                     yt.read_table(other_table, format=yt.DsvFormat())\
                         .next().strip().split("\t"))),
             ["k", "s", "v"])
-
-    def test_table_ranges_with_exists(self):
-        table = self.create_temp_table()
-        self.assertTrue(yt.exists(table))
-        self.assertTrue(yt.exists(table + "/@"))
-        self.assertTrue(yt.exists(table + "/@compression_ratio"))
-        self.assertTrue(len(yt.list_attributes(table)) > 1)
 
     def test_mapreduce_binary(self):
         env = self.get_environment()
