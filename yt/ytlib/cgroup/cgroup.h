@@ -53,6 +53,7 @@ public:
     void Kill() const;
 
     void RemoveAllSubcgroups() const;
+    void RemoveRecursive() const;
 
 protected:
     Stroka Get(const Stroka& name) const;
