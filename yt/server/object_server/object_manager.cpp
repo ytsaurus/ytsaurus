@@ -930,20 +930,21 @@ TObjectBase* TObjectManager::CreateObject(
     }
 
     if (replicationNeeded) {
-        auto req = TMasterYPathProxy::CreateObject();
+        auto replicatedRequest = TMasterYPathProxy::CreateObject();
         if (transaction) {
-            ToProto(req->mutable_transaction_id(), transaction->GetId());
+            ToProto(replicatedRequest->mutable_transaction_id(), transaction->GetId());
         }
-        req->set_type(static_cast<int>(type));
+        replicatedRequest->set_type(static_cast<int>(type));
         if (replicatedAttributes) {
-            ToProto(req->mutable_object_attributes(), *replicatedAttributes);
+            ToProto(replicatedRequest->mutable_object_attributes(), *replicatedAttributes);
         }
         if (account) {
-            req->set_account(account->GetName());
+            replicatedRequest->set_account(account->GetName());
         }
-        ToProto(req->mutable_object_id(), object->GetId());
+        ToProto(replicatedRequest->mutable_object_id(), object->GetId());
+
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToSecondaryMasters(req);
+        multicellManager->PostToSecondaryMasters(replicatedRequest);
     }
 
     return object;
