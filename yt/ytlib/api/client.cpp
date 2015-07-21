@@ -679,28 +679,38 @@ public:
         , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
         , FunctionRegistry_(Connection_->GetFunctionRegistry())
     {
+        auto wrapChannel = [&] (IChannelPtr channel) {
+            channel = CreateAuthenticatedChannel(channel, options.User);
+            channel = CreateScopedChannel(channel);
+            return channel;
+        };
+        auto wrapChannelFactory = [&] (IChannelFactoryPtr factory) {
+            factory = CreateAuthenticatedChannelFactory(factory, options.User);
+            return factory;
+        };
+
+        auto initMasterChannel = [&] (EMasterChannelKind kind, TCellTag cellTag) {
+            // NB: Caching is only possible for the primary master.
+            if (kind == EMasterChannelKind::Cache && cellTag != Connection_->GetPrimaryMasterCellTag())
+                return;
+            MasterChannels_[kind][cellTag] = wrapChannel(Connection_->GetMasterChannel(kind, cellTag));
+        };
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            MasterChannels_[kind] = Connection_->GetMasterChannel(kind);
+            initMasterChannel(kind, Connection_->GetPrimaryMasterCellTag());
+            for (auto cellTag : Connection_->GetSecondaryMasterCellTags()) {
+                initMasterChannel(kind, cellTag);
+            }
         }
-        SchedulerChannel_ = Connection_->GetSchedulerChannel();
-        NodeChannelFactory_ = Connection_->GetNodeChannelFactory();
+
+        SchedulerChannel_ = wrapChannel(Connection_->GetSchedulerChannel());
+
+        NodeChannelFactory_ = wrapChannelFactory(Connection_->GetNodeChannelFactory());
 
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            MasterChannels_[kind] = CreateAuthenticatedChannel(MasterChannels_[kind], options.User);
+            ObjectProxies_[kind].reset(new TObjectServiceProxy(GetMasterChannel(kind)));
         }
-        SchedulerChannel_ = CreateAuthenticatedChannel(SchedulerChannel_, options.User);
-        NodeChannelFactory_ = CreateAuthenticatedChannelFactory(NodeChannelFactory_, options.User);
-
-        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            MasterChannels_[kind] = CreateScopedChannel(MasterChannels_[kind]);
-        }
-        SchedulerChannel_ = CreateScopedChannel(SchedulerChannel_);
-
-        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            ObjectProxies_[kind].reset(new TObjectServiceProxy(MasterChannels_[kind]));
-        }
-        SchedulerProxy_.reset(new TSchedulerServiceProxy(SchedulerChannel_));
-        JobProberProxy_.reset(new TJobProberServiceProxy(SchedulerChannel_));
+        SchedulerProxy_.reset(new TSchedulerServiceProxy(GetSchedulerChannel()));
+        JobProberProxy_.reset(new TJobProberServiceProxy(GetSchedulerChannel()));
 
         TransactionManager_ = New<TTransactionManager>(
             Connection_->GetConfig()->TransactionManager,
@@ -724,9 +734,14 @@ public:
         return Connection_;
     }
 
-    virtual IChannelPtr GetMasterChannel(EMasterChannelKind kind) override
+    virtual IChannelPtr GetMasterChannel(
+        EMasterChannelKind kind,
+        TCellTag cellTag = InvalidCellTag) override
     {
-        return MasterChannels_[kind];
+        const auto& channels = MasterChannels_[kind];
+        auto it = channels.find(cellTag == InvalidCellTag ? Connection_->GetPrimaryMasterCellTag() : cellTag);
+        YCHECK(it != channels.end());
+        return it->second;
     }
 
     virtual IChannelPtr GetSchedulerChannel() override
@@ -755,10 +770,15 @@ public:
 
         auto error = TError("Client terminated");
         std::vector<TFuture<void>> asyncResults;
+
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            asyncResults.push_back(MasterChannels_[kind]->Terminate(error));
+            for (const auto& pair : MasterChannels_[kind]) {
+                auto channel = pair.second;
+                asyncResults.push_back(channel->Terminate(error));
+            }
         }
         asyncResults.push_back(SchedulerChannel_->Terminate(error));
+
         return Combine(asyncResults);
     }
 
@@ -997,7 +1017,7 @@ private:
 
     const IFunctionRegistryPtr FunctionRegistry_;
 
-    TEnumIndexedVector<IChannelPtr, EMasterChannelKind> MasterChannels_;
+    TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     IChannelFactoryPtr NodeChannelFactory_;
     TTransactionManagerPtr TransactionManager_;

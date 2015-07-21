@@ -21,6 +21,8 @@
 #include <ytlib/transaction_client/remote_timestamp_provider.h>
 #include <ytlib/transaction_client/config.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/query_client/evaluator.h>
 #include <ytlib/query_client/column_evaluator.h>
 
@@ -33,6 +35,7 @@ using namespace NHive;
 using namespace NChunkClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
+using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NHydra;
 
@@ -61,18 +64,35 @@ public:
         TCallback<bool(const TError&)> isRetriableError)
         : Config_(config)
     {
-        auto initMasterChannel = [&] (EMasterChannelKind channelKind, TMasterConnectionConfigPtr config, EPeerKind peerKind) {
-            MasterChannels_[channelKind] = CreatePeerChannel(
+        PrimaryMasterCellId_ = Config_->Master->CellId;
+        PrimaryMasterCellTag_ = CellTagFromId(PrimaryMasterCellId_);
+        for (const auto& masterConfig : Config_->SecondaryMasters) {
+            SecondaryMasterCellTags_.push_back(CellTagFromId(masterConfig->CellId));
+        }
+
+        auto initMasterChannel = [&] (
+            EMasterChannelKind channelKind,
+            const TMasterConnectionConfigPtr& config,
+            EPeerKind peerKind)
+        {
+            auto cellTag = CellTagFromId(config->CellId);
+            MasterChannels_[channelKind][cellTag] = CreatePeerChannel(
                 config,
                 isRetriableError,
                 peerKind);
         };
+        auto initMasterChannels = [&] (const TMasterConnectionConfigPtr& config) {
+            initMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader);
+            initMasterChannel(EMasterChannelKind::Follower, config, Config_->EnableReadFromFollowers ? EPeerKind::Follower : EPeerKind::Leader);
+            initMasterChannel(EMasterChannelKind::LeaderOrFollower, config, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
+        };
+        initMasterChannels(Config_->Master);
+        for (const auto& masterConfig : Config_->SecondaryMasters) {
+            initMasterChannels(masterConfig);
+        }
 
-        auto masterConfig = Config_->Master;
+        // NB: Caching is only possible for the primary master.
         auto masterCacheConfig = Config_->MasterCache ? Config_->MasterCache : Config_->Master;
-        initMasterChannel(EMasterChannelKind::Leader, masterConfig, EPeerKind::Leader);
-        initMasterChannel(EMasterChannelKind::Follower, masterConfig, Config_->EnableReadFromFollowers ? EPeerKind::Follower : EPeerKind::Leader);
-        initMasterChannel(EMasterChannelKind::LeaderOrFollower, masterConfig, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
         initMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
 
         auto timestampProviderConfig = Config_->TimestampProvider;
@@ -124,9 +144,29 @@ public:
         return Config_;
     }
 
-    virtual IChannelPtr GetMasterChannel(EMasterChannelKind kind) override
+    virtual const TCellId& GetPrimaryMasterCellId() const override
     {
-        return MasterChannels_[kind];
+        return PrimaryMasterCellId_;
+    }
+
+    virtual TCellTag GetPrimaryMasterCellTag() const override
+    {
+        return PrimaryMasterCellTag_;
+    }
+
+    virtual const std::vector<TCellTag>& GetSecondaryMasterCellTags() const override
+    {
+        return SecondaryMasterCellTags_;
+    }
+
+    virtual IChannelPtr GetMasterChannel(
+        EMasterChannelKind kind,
+        TCellTag cellTag = InvalidCellTag) override
+    {
+        const auto& channels = MasterChannels_[kind];
+        auto it = channels.find(cellTag == InvalidCellTag ? PrimaryMasterCellTag_ : cellTag);
+        YCHECK(it != channels.end());
+        return it->second;
     }
 
     virtual IChannelPtr GetSchedulerChannel() override
@@ -193,7 +233,11 @@ public:
 private:
     const TConnectionConfigPtr Config_;
 
-    TEnumIndexedVector<IChannelPtr, EMasterChannelKind> MasterChannels_;
+    TCellId PrimaryMasterCellId_;
+    TCellTag PrimaryMasterCellTag_;
+    std::vector<TCellTag> SecondaryMasterCellTags_;
+
+    TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     IChannelFactoryPtr NodeChannelFactory_;
     IBlockCachePtr BlockCache_;
