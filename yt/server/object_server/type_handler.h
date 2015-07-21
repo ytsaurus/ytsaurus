@@ -143,7 +143,7 @@ struct IObjectTypeHandler
     //! Populates object replication request to be send to a secondary master
     //! with additional data.
     virtual void PopulateObjectReplicationRequest(
-        TObjectBase* object,
+        const TObjectBase* object,
         NObjectClient::TMasterYPathProxy::TReqCreateObjectPtr request) = 0;
 
 };

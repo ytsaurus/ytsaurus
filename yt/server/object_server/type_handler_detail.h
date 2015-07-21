@@ -95,10 +95,10 @@ public:
     }
 
     virtual void PopulateObjectReplicationRequest(
-        TObjectBase* object,
+        const TObjectBase* object,
         NObjectClient::TMasterYPathProxy::TReqCreateObjectPtr request) override
     {
-        DoPopulateObjectReplicationRequest(static_cast<TObject*>(object), request);
+        DoPopulateObjectReplicationRequest(static_cast<const TObject*>(object), request);
     }
 
 protected:
@@ -137,7 +137,7 @@ protected:
     }
 
     virtual void DoPopulateObjectReplicationRequest(
-        TObject* /*object*/,
+        const TObject* /*object*/,
         NObjectClient::TMasterYPathProxy::TReqCreateObjectPtr /*request*/)
     { }
 };

@@ -258,7 +258,7 @@ private:
     }
 
     virtual void DoPopulateObjectReplicationRequest(
-        TTransaction* transaction,
+        const TTransaction* transaction,
         TMasterYPathProxy::TReqCreateObjectPtr request) override
     {
         if (transaction->GetParent()) {
@@ -859,7 +859,7 @@ private:
 
         // Replicate transactions to the secondary master.
         auto objectManager = Bootstrap_->GetObjectManager();
-        for (auto* transaction : transactions) {
+        for (const auto* transaction : transactions) {
             objectManager->ReplicateObjectToSecondaryMaster(transaction, cellTag);
         }
 

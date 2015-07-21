@@ -1238,7 +1238,7 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
 
         auto nodes = GetValuesSortedByKey(NodeMap_);
-        for (auto* node : nodes) {
+        for (const auto* node : nodes) {
             TReqRegisterNode request;
             request.set_node_id(node->GetId());
             ToProto(request.mutable_addresses(), node->GetAddresses());

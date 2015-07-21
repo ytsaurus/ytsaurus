@@ -469,7 +469,7 @@ const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
     return handler;
 }
 
-const IObjectTypeHandlerPtr& TObjectManager::GetHandler(TObjectBase* object) const
+const IObjectTypeHandlerPtr& TObjectManager::GetHandler(const TObjectBase* object) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1060,7 +1060,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
 }
 
 void TObjectManager::ReplicateObjectToSecondaryMaster(
-    TObjectBase* object,
+    const TObjectBase* object,
     TCellTag cellTag)
 {
     auto req = TMasterYPathProxy::CreateObject();
