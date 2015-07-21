@@ -27,8 +27,6 @@ namespace NDataNode {
 DEFINE_ENUM(EMasterConnectorState,
     // Not registered.
     (Offline)
-    // Register request is in progress.
-    (Registering)
     // Registered but did not report the full heartbeat yet.
     (Registered)
     // Registered and reported the full heartbeat.
@@ -110,26 +108,38 @@ private:
     //! Corresponds to #HeartbeatContext and #ControlInvoker.
     IInvokerPtr HeartbeatInvoker_;
 
-    //! The current connection state.
-    EState State_ = EState::Offline;
-
     //! The lease transaction.
     NTransactionClient::TTransactionPtr LeaseTransaction_;
 
     //! Node id assigned by master or |InvalidNodeId| is not registered.
     TNodeId NodeId_ = NNodeTrackerClient::InvalidNodeId;
 
-    //! Chunks that were added since the last successful heartbeat.
-    yhash_set<IChunkPtr> AddedSinceLastSuccess_;
+    struct TChunksDelta
+    {
+        //! Synchronization state.
+        EState State = EState::Offline;
 
-    //! Chunks that were removed since the last successful heartbeat.
-    yhash_set<IChunkPtr> RemovedSinceLastSuccess_;
+        //! Chunks that were added since the last successful heartbeat.
+        yhash_set<IChunkPtr> AddedSinceLastSuccess;
 
-    //! Maps chunks that were reported added at the last heartbeat (for which no reply is received yet) to their versions.
-    yhash_map<IChunkPtr, int> ReportedAdded_;
+        //! Chunks that were removed since the last successful heartbeat.
+        yhash_set<IChunkPtr> RemovedSinceLastSuccess;
 
-    //! Chunks that were reported removed at the last heartbeat (for which no reply is received yet).
-    yhash_set<IChunkPtr> ReportedRemoved_;
+        //! Maps chunks that were reported added at the last heartbeat (for which no reply is received yet) to their versions.
+        yhash_map<IChunkPtr, int> ReportedAdded;
+
+        //! Chunks that were reported removed at the last heartbeat (for which no reply is received yet).
+        yhash_set<IChunkPtr> ReportedRemoved;
+    };
+
+    //! Per-cell chunks delta.
+    yhash_map<NObjectClient::TCellTag, TChunksDelta> ChunksDeltaMap_;
+
+    //! All master cell tags (including primary).
+    std::vector<NObjectClient::TCellTag> MasterCellTags_;
+
+    //! Index in MasterCellTags_ indicating the current target for job heartbeat round-robin.
+    int JobHeartbeatCellIndex_ = 0;
 
     //! Protects #Alerts.
     TSpinLock AlertsLock_;
@@ -148,7 +158,7 @@ private:
     std::vector<TError> GetAlerts();
 
     //! Schedules a new node heartbeat via TDelayedExecutor.
-    void ScheduleNodeHeartbeat();
+    void ScheduleNodeHeartbeat(NObjectClient::TCellTag cellTag);
 
     //! Schedules a new job heartbeat via TDelayedExecutor.
     void ScheduleJobHeartbeat();
@@ -156,11 +166,8 @@ private:
     //! Calls #Reset and schedules a new registration attempt.
     void ResetAndScheduleRegisterAtMaster();
 
-    //! Invoked when a node heartbeat must be sent.
-    void OnNodeHeartbeat();
-
-    //! Invoked when a job heartbeat must be sent.
-    void OnJobHeartbeat();
+    //! Sends an appropriate node heartbeat.
+    void SendNodeHeartbeat(NObjectClient::TCellTag cellTag);
 
     //! Starts a lease transaction.
     //! Sends out a registration request to master.
@@ -172,16 +179,16 @@ private:
     //! Computes the current node statistics.
     NNodeTrackerClient::NProto::TNodeStatistics ComputeStatistics();
 
-    //! Sends out a full heartbeat.
-    void SendFullNodeHeartbeat();
+    //! Sends out a full heartbeat to Node Tracker.
+    void SendFullNodeHeartbeat(NObjectClient::TCellTag cellTag);
 
     //! Sends out an incremental heartbeat to Node Tracker.
-    void SendIncrementalNodeHeartbeat();
+    void SendIncrementalNodeHeartbeat(NObjectClient::TCellTag cellTag);
 
     //! Sends out a heartbeat to Job Tracker.
     void SendJobHeartbeat();
 
-    //! Similar to #ForceRegister but handled in Control thread.
+    //! Similar to #ForceRegisterAtMaster but handled in Control thread.
     void StartHeartbeats();
 
     //! Constructs a protobuf info for an added chunk.
@@ -189,15 +196,6 @@ private:
 
     //! Constructs a protobuf info for a removed chunk.
     static NNodeTrackerClient::NProto::TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk);
-
-    //! Handles full heartbeat response from Node Tracker.
-    void OnFullNodeHeartbeatResponse(const NNodeTrackerClient::TNodeTrackerServiceProxy::TErrorOrRspFullHeartbeatPtr& rspOrError);
-
-    //! Handles incremental heartbeat response from Node Tracker.
-    void OnIncrementalNodeHeartbeatResponse(const NNodeTrackerClient::TNodeTrackerServiceProxy::TErrorOrRspIncrementalHeartbeatPtr& rspOrError);
-
-    //! Handles heartbeat response from Job Tracker.
-    void OnJobHeartbeatResponse(const NJobTrackerClient::TJobTrackerServiceProxy::TErrorOrRspHeartbeatPtr& rspOrError);
 
     //! Resets connection state.
     void Reset();
@@ -215,6 +213,9 @@ private:
      *  to the master upon a next heartbeat.
      */
     void OnChunkRemoved(IChunkPtr chunk);
+
+    TChunksDelta* GetChunksDelta(NObjectClient::TCellTag cellTag);
+    TChunksDelta* GetChunksDelta(const NObjectClient::TObjectId& id);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
