@@ -132,6 +132,8 @@ default_config = {
     # How often wake up to determine whether transaction need to be pinged.
     "transaction_sleep_period": 100,
 
+    "write_file_as_one_chunk": True,
+
     # Retries for read request. This type of retries parse data stream, if it is enabled, reading may be much slower.
     "read_retries": {
         "enable": False,
