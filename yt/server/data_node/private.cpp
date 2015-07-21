@@ -20,6 +20,8 @@ const Stroka MultiplexedDirectory("multiplexed");
 const Stroka TrashDirectory("trash");
 const Stroka CleanExtension("clean");
 const Stroka SealedFlagExtension("sealed");
+const Stroka ArtifactMetaSuffix(".artifact");
+const Stroka DisabledLockFileName("disabled");
 
 ////////////////////////////////////////////////////////////////////////////////
 

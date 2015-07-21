@@ -40,7 +40,7 @@ TBlobSession::TBlobSession(
     TBootstrap* bootstrap,
     const TChunkId& chunkId,
     const TSessionOptions& options,
-    TLocationPtr location,
+    TStoreLocationPtr location,
     TLease lease)
     : TSessionBase(
         config,

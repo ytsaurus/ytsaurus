@@ -26,7 +26,7 @@ TSessionBase::TSessionBase(
     TBootstrap* bootstrap,
     const TChunkId& chunkId,
     const TSessionOptions& options,
-    TLocationPtr location,
+    TStoreLocationPtr location,
     TLease lease)
     : Config_(config)
     , Bootstrap_(bootstrap)
@@ -63,7 +63,7 @@ EWriteSessionType TSessionBase::GetType() const
     return Options_.SessionType;
 }
 
-TLocationPtr TSessionBase::GetLocation() const
+TStoreLocationPtr TSessionBase::GetStoreLocation() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
