@@ -391,7 +391,9 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto state = transaction->GetPersistentState();
-        
+        if (state == ETransactionState::Committed)
+            return;
+
         if (state != ETransactionState::Active &&
             state != ETransactionState::PersistentCommitPrepared)
         {
@@ -421,9 +423,11 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto state = transaction->GetPersistentState();
+        if (state == ETransactionState::Aborted)
+            return;
+
         if (state == ETransactionState::PersistentCommitPrepared && !force ||
-            state == ETransactionState::Committed ||
-            state == ETransactionState::Aborted)
+            state == ETransactionState::Committed)
         {
             transaction->ThrowInvalidState();
         }
