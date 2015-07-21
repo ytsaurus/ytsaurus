@@ -67,9 +67,9 @@ void TSlot::Initialize()
                 ProcessGroup_.GetFullPath());
         }
 #endif
-    }
 
-    DoResetProcessGroup();
+        ProcessGroup_.Unlock();
+    }
 
     Stroka currentPath;
     try {
@@ -174,20 +174,14 @@ void TSlot::DoCleanProcessGroups()
     try {
         for (const auto& path : GetCGroupPaths()) {
             NCGroup::TNonOwningCGroup group(path);
-            group.RemoveAllSubcgroups();
+            group.RemoveRecursive();
         }
+        ProcessGroup_.EnsureExistance();
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Failed to clean slot subcgroups for slot %v",
             SlotIndex_) << ex;
         LOG_ERROR(wrappedError);
         THROW_ERROR wrappedError;
-    }
-}
-
-void TSlot::DoResetProcessGroup()
-{
-    if (Config_->EnableCGroups) {
-        ProcessGroup_.Unlock();
     }
 }
 
@@ -208,7 +202,9 @@ void TSlot::Release()
 {
     YCHECK(IsClean_);
 
-    DoResetProcessGroup();
+    if (Config_->EnableCGroups) {
+        ProcessGroup_.Unlock();
+    }
 
     IsFree_.store(true);
     PathIndex_ = -1;
