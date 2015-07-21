@@ -738,15 +738,6 @@ private:
     }
 
 
-    virtual void OnBeforeSnapshotLoaded() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        DoClear();
-    }
-
     void OnAfterSnapshotLoaded()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -761,20 +752,16 @@ private:
         }
     }
 
-    void DoClear()
-    {
-        TransactionMap_.Clear();
-        TopmostTransactions_.clear();
-    }
-
     virtual void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
-        DoClear();
+        TransactionMap_.Clear();
+        TopmostTransactions_.clear();
     }
+
 
     virtual void OnLeaderActive() override
     {

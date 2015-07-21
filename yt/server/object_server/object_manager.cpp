@@ -588,14 +588,6 @@ void TObjectManager::SaveValues(NCellMaster::TSaveContext& context) const
     GarbageCollector_->Save(context);
 }
 
-void TObjectManager::OnBeforeSnapshotLoaded()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-    DoClear();
-}
-
 void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -619,8 +611,12 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
     GarbageCollector_->Load(context);
 }
 
-void TObjectManager::DoClear()
+void TObjectManager::Clear()
 {
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    TMasterAutomatonPart::Clear();
+
     MasterObject_.reset(new TMasterObject(MasterObjectId_));
     MasterObject_->RefObject();
 
@@ -644,13 +640,6 @@ void TObjectManager::DoClear()
             entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
         }
     }
-}
-
-void TObjectManager::Clear()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    DoClear();
 }
 
 void TObjectManager::OnRecoveryStarted()

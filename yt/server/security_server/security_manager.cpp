@@ -1192,13 +1192,6 @@ private:
     }
 
 
-    virtual void OnBeforeSnapshotLoaded() override
-    {
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        DoClear();
-    }
-
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
         AccountMap_.LoadKeys(context);
@@ -1253,9 +1246,10 @@ private:
         ResetAuthenticatedUser();
     }
 
-
-    void DoClear()
+    virtual void Clear() override
     {
+        TMasterAutomatonPart::Clear();
+
         AccountMap_.Clear();
         AccountNameMap_.clear();
 
@@ -1264,13 +1258,7 @@ private:
 
         GroupMap_.Clear();
         GroupNameMap_.clear();
-    }
 
-    virtual void Clear() override
-    {
-        TMasterAutomatonPart::Clear();
-
-        DoClear();
         InitBuiltins();
         ResetAuthenticatedUser();
         InitDefaultSchemaAcds();

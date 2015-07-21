@@ -208,21 +208,27 @@ private:
     TPeriodicExecutorPtr RegisterAtPrimaryMasterExecutor_;
 
 
+    virtual void OnAfterSnapshotLoaded()
+    {
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        for (auto cellTag : RegisteredSecondaryCellTags_) {
+            ValidateSecondaryCellTag(cellTag);
+        }
+        InitializeMailboxes();
+    }
+
     virtual void Clear() override
     {
         TMasterAutomatonPart::Clear();
 
-        DoClear();
-    }
-
-    void DoClear()
-    {
         RegisteredSecondaryCellTags_.clear();
         RegisteredAtPrimaryMaster_ = false;
 
         PrimaryMasterMailbox_ = nullptr;
         SecondaryMasterMailboxes_.clear();
     }
+
 
     void LoadValues(TLoadContext& context)
     {
@@ -238,24 +244,6 @@ private:
 
         Save(context, RegisteredSecondaryCellTags_);
         Save(context, RegisteredAtPrimaryMaster_);
-    }
-
-
-    virtual void OnBeforeSnapshotLoaded()
-    {
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        DoClear();
-    }
-
-    virtual void OnAfterSnapshotLoaded()
-    {
-        TMasterAutomatonPart::OnAfterSnapshotLoaded();
-
-        for (auto cellTag : RegisteredSecondaryCellTags_) {
-            ValidateSecondaryCellTag(cellTag);
-        }
-        InitializeMailboxes();
     }
 
 

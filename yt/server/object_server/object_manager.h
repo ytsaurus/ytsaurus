@@ -247,17 +247,12 @@ private:
     void SaveKeys(NCellMaster::TSaveContext& context) const;
     void SaveValues(NCellMaster::TSaveContext& context) const;
 
-    virtual void OnBeforeSnapshotLoaded() override;
-
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
 
     virtual void OnRecoveryStarted() override;
     virtual void OnRecoveryComplete() override;
-
-    void DoClear();
     virtual void Clear() override;
-
     virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
 

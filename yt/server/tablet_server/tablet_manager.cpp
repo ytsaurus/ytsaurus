@@ -827,15 +827,6 @@ private:
     }
 
 
-    virtual void OnBeforeSnapshotLoaded() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        DoClear();
-    }
-
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -851,6 +842,7 @@ private:
         TabletCellMap_.LoadValues(context);
         TabletMap_.LoadValues(context);
     }
+
 
     virtual void OnAfterSnapshotLoaded() override
     {
@@ -872,22 +864,16 @@ private:
         }
     }
 
-
-    void DoClear()
-    {
-        TabletCellMap_.Clear();
-        TabletMap_.Clear();
-        AddressToCell_.clear();
-        TransactionToCellMap_.clear();
-    }
-
     virtual void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
-        DoClear();
+        TabletCellMap_.Clear();
+        TabletMap_.Clear();
+        AddressToCell_.clear();
+        TransactionToCellMap_.clear();
     }
 
 
