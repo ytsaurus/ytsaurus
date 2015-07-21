@@ -98,6 +98,19 @@ public:
     }
 
     void PostToSecondaryMaster(
+        const ::google::protobuf::MessageLite& requestMessage,
+        TCellTag cellTag,
+        bool reliable)
+    {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
+        auto cellId = ReplaceCellTagInId(Bootstrap_->GetCellId(), cellTag);
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
+        hiveManager->PostMessage(mailbox, requestMessage, reliable);
+    }
+
+    void PostToSecondaryMaster(
         TSharedRefArray requestMessage,
         TCellTag cellTag,
         bool reliable)
@@ -148,6 +161,21 @@ public:
     }
 
     void PostToSecondaryMasters(
+        const ::google::protobuf::MessageLite& requestMessage,
+        bool reliable)
+    {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
+        if (!Bootstrap_->IsMulticell())
+            return;
+
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        for (auto* mailbox : SecondaryMasterMailboxes_) {
+            hiveManager->PostMessage(mailbox, requestMessage, reliable);
+        }
+    }
+
+    void PostToSecondaryMasters(
         TSharedRefArray requestMessage,
         bool reliable)
     {
@@ -165,23 +193,8 @@ public:
         }
     }
 
-    void PostToSecondaryMasters(
-        const ::google::protobuf::MessageLite& requestMessage,
-        bool reliable)
-    {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
 
-        if (!Bootstrap_->IsMulticell())
-            return;
-
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        for (auto* mailbox : SecondaryMasterMailboxes_) {
-            hiveManager->PostMessage(mailbox, requestMessage, reliable);
-        }
-    }
-
-
-    DEFINE_SIGNAL(void(TCellTag), SecondaryMasterRegistered);
+DEFINE_SIGNAL(void(TCellTag), SecondaryMasterRegistered);
 
 private:
     const TCellMasterConfigPtr Config_;
@@ -389,6 +402,14 @@ void TMulticellManager::PostToSecondaryMaster(
 }
 
 void TMulticellManager::PostToSecondaryMaster(
+    const ::google::protobuf::MessageLite& requestMessage,
+    TCellTag cellTag,
+    bool reliable)
+{
+    Impl_->PostToSecondaryMaster(requestMessage, cellTag, reliable);
+}
+
+void TMulticellManager::PostToSecondaryMaster(
     TSharedRefArray requestMessage,
     TCellTag cellTag,
     bool reliable)
@@ -412,17 +433,17 @@ void TMulticellManager::PostToSecondaryMasters(
 }
 
 void TMulticellManager::PostToSecondaryMasters(
-    TSharedRefArray requestMessage,
-    bool reliable)
-{
-    Impl_->PostToSecondaryMasters(std::move(requestMessage), reliable);
-}
-
-void TMulticellManager::PostToSecondaryMasters(
     const ::google::protobuf::MessageLite& requestMessage,
     bool reliable)
 {
     Impl_->PostToSecondaryMasters(requestMessage, reliable);
+}
+
+void TMulticellManager::PostToSecondaryMasters(
+    TSharedRefArray requestMessage,
+    bool reliable)
+{
+    Impl_->PostToSecondaryMasters(std::move(requestMessage), reliable);
 }
 
 DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), SecondaryMasterRegistered, *Impl_);

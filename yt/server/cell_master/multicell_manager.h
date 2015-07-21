@@ -35,6 +35,10 @@ public:
         NObjectClient::TCellTag cellTag,
         bool reliable = true);
     void PostToSecondaryMaster(
+        const ::google::protobuf::MessageLite& requestMessage,
+        NObjectClient::TCellTag cellTag,
+        bool reliable = true);
+    void PostToSecondaryMaster(
         TSharedRefArray requestMessage,
         NObjectClient::TCellTag cellTag,
         bool reliable = true);
@@ -47,10 +51,10 @@ public:
         NRpc::IServiceContextPtr context,
         bool reliable = true);
     void PostToSecondaryMasters(
-        TSharedRefArray requestMessage,
+        const ::google::protobuf::MessageLite& requestMessage,
         bool reliable = true);
     void PostToSecondaryMasters(
-        const ::google::protobuf::MessageLite& requestMessage,
+        TSharedRefArray requestMessage,
         bool reliable = true);
 
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegistered);
