@@ -438,9 +438,9 @@ void TBootstrap::DoInitialize()
 
     SecurityManager_ = New<TSecurityManager>(Config_->SecurityManager, this);
 
-    NodeTracker_ = New<TNodeTracker>(Config_->NodeTracker, this);
-
     TransactionManager_ = New<TTransactionManager>(Config_->TransactionManager, this);
+
+    NodeTracker_ = New<TNodeTracker>(Config_->NodeTracker, this);
 
     CypressManager_ = New<TCypressManager>(Config_->CypressManager, this);
 
@@ -471,8 +471,8 @@ void TBootstrap::DoInitialize()
     fileSnapshotStore->Initialize();
     ObjectManager_->Initialize();
     SecurityManager_->Initialize();
-    NodeTracker_->Initialize();
     TransactionManager_->Initialize();
+    NodeTracker_->Initialize();
     CypressManager_->Initialize();
     ChunkManager_->Initialize();
     TabletManager_->Initialize();
