@@ -97,6 +97,11 @@ public:
         , Type_(type)
     { }
 
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    {
+        return EObjectReplicationFlags::Attributes;
+    }
+
     virtual EObjectType GetType() const override
     {
         return SchemaTypeFromType(Type_);
