@@ -301,10 +301,9 @@ public:
 
         auto cellMapNodeProxy = GetCellMapNode();
         auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cell->GetId()));
-        auto cypressCellNodeProxy = dynamic_cast<ICypressNodeProxy*>(cellNodeProxy.Get());
 
         auto cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->AbortSubtreeTransactions(cypressCellNodeProxy->GetTrunkNode(), nullptr);
+        cypressManager->AbortSubtreeTransactions(cellNodeProxy);
 
         cellMapNodeProxy->RemoveChild(cellNodeProxy);
 
@@ -1547,6 +1546,10 @@ private:
 
         // NB: Cell-to-transaction link is broken in OnTransactionFinished from AbortTransaction.
         YCHECK(!cell->GetPrerequisiteTransaction());
+
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto cellNodeProxy = GetCellNode(cell->GetId());
+        cypressManager->AbortSubtreeTransactions(cellNodeProxy);
     }
 
     void OnTransactionFinished(TTransaction* transaction)
@@ -1688,6 +1691,13 @@ private:
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
         return resolver->ResolvePath("//sys/tablet_cells")->AsMap();
+    }
+
+    INodePtr GetCellNode(const TCellId& cellId)
+    {
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto resolver = cypressManager->CreateResolver();
+        return resolver->ResolvePath(Format("//sys/tablet_cells/%v", cellId));
     }
 
 
