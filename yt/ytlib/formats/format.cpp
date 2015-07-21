@@ -392,7 +392,6 @@ std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType 
             auto config = ConvertTo<TYamredDsvFormatConfigPtr>(&format.Attributes());
             return CreateParserForYamredDsv(consumer, config);
         }
-        case EFormatType::SchemedDsv:
         case EFormatType::SchemafulDsv: {
             auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&format.Attributes());
             return CreateParserForSchemafulDsv(consumer, config);
