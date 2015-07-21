@@ -112,6 +112,7 @@ public:
     void AbortSubtreeTransactions(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction);
+    void AbortSubtreeTransactions(NYTree::INodePtr node);
 
     bool IsOrphaned(TCypressNodeBase* trunkNode);
     bool IsAlive(TCypressNodeBase* trunkNode, NTransactionServer::TTransaction* transaction);

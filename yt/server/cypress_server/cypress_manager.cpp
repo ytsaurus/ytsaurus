@@ -844,6 +844,12 @@ public:
         }
     }
 
+    void AbortSubtreeTransactions(INodePtr node)
+    {
+        auto cypressNode = dynamic_cast<ICypressNodeProxy*>(node.Get());
+        AbortSubtreeTransactions(cypressNode->GetTrunkNode(), cypressNode->GetTransaction());
+    }
+
 
     bool IsOrphaned(TCypressNodeBase* trunkNode)
     {
@@ -2006,6 +2012,11 @@ void TCypressManager::AbortSubtreeTransactions(
     TTransaction* transaction)
 {
     Impl_->AbortSubtreeTransactions(trunkNode, transaction);
+}
+
+void TCypressManager::AbortSubtreeTransactions(INodePtr node)
+{
+    Impl_->AbortSubtreeTransactions(node);
 }
 
 bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
