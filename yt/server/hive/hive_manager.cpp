@@ -125,7 +125,7 @@ public:
         auto* mailbox = MailboxMap_.Insert(cellId, std::move(mailboxHolder));
         
         if (IsLeader()) {
-            SendPing(mailbox);
+            SendPeriodicPing(mailbox);
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Mailbox created (SrcCellId: %v, DstCellId: %v)",
@@ -176,6 +176,27 @@ public:
     }
 
 
+    TFuture<void> SyncWith(const TCellId& cellId)
+    {
+        auto proxy = FindHiveProxy(cellId);
+        if (!proxy) {
+            return MakeFuture(TError("Cannot connect to cell %v",
+                cellId));
+        }
+
+        LOG_DEBUG("Synchronizing with another instance (SrcCellId: %v, DstCellId: %v)",
+            SelfCellId_,
+            cellId);
+
+        auto req = proxy->Ping();
+        ToProto(req->mutable_src_cell_id(), SelfCellId_);
+
+        return req->Invoke().Apply(
+            BIND(&TImpl::OnSyncPingResponse, MakeStrong(this), cellId)
+                .AsyncVia(EpochAutomatonInvoker_));
+    }
+
+
     void BuildOrchidYson(IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
@@ -221,12 +242,19 @@ private:
             SelfCellId_);
 
         auto* mailbox = FindMailbox(srcCellId);
-        int lastIncomingMessageId = mailbox ? mailbox->GetLastIncomingMessageId() : -1;
+        int lastIncomingMessageId = mailbox
+            ? mailbox->GetLastIncomingMessageId()
+            : -1;
+        int lastOutcomingMessageId = mailbox
+            ? mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size() - 1
+            : -1;
 
         response->set_last_incoming_message_id(lastIncomingMessageId);
+        response->set_last_outcoming_message_id(lastOutcomingMessageId);
 
-        context->SetResponseInfo("LastIncomingMessageId: %v",
-            lastIncomingMessageId);
+        context->SetResponseInfo("LastIncomingMessageId: %v, LastOutcomingMessageId: %v",
+            lastIncomingMessageId,
+            lastOutcomingMessageId);
 
         context->Reply();
     }
@@ -440,7 +468,12 @@ private:
 
     std::unique_ptr<THiveServiceProxy> FindHiveProxy(TMailbox* mailbox)
     {
-        auto channel = CellDirectory_->FindChannel(mailbox->GetCellId());
+        return FindHiveProxy(mailbox->GetCellId());
+    }
+
+    std::unique_ptr<THiveServiceProxy> FindHiveProxy(const TCellId& cellId)
+    {
+        auto channel = CellDirectory_->FindChannel(cellId);
         if (!channel) {
             return nullptr;
         }
@@ -512,6 +545,7 @@ private:
             return;
 
         mailbox->SetConnected(true);
+        YCHECK(mailbox->SyncRequests().empty());
         YCHECK(!mailbox->GetPostMessagesInFlight());
 
         LOG_INFO("Mailbox connected (SrcCellId: %v, DstCellId: %v)",
@@ -525,6 +559,7 @@ private:
             return;
 
         mailbox->SetConnected(false);
+        mailbox->SyncRequests().clear();
         mailbox->SetPostMessagesInFlight(false);
 
         LOG_INFO("Mailbox disconnected (SrcCellId: %v, DstCellId: %v)",
@@ -533,24 +568,24 @@ private:
     }
 
 
-    void SchedulePing(TMailbox* mailbox)
+    void SchedulePeriodicPing(TMailbox* mailbox)
     {
         TDelayedExecutor::Submit(
-            BIND(&TImpl::OnPingTick, MakeWeak(this), mailbox->GetCellId())
+            BIND(&TImpl::OnPeriodicPingTick, MakeWeak(this), mailbox->GetCellId())
                 .Via(EpochAutomatonInvoker_),
             Config_->PingPeriod);
     }
 
-    void OnPingTick(const TCellId& cellId)
+    void OnPeriodicPingTick(const TCellId& cellId)
     {
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox)
             return;
 
-        SendPing(mailbox);
+        SendPeriodicPing(mailbox);
     }
 
-    void SendPing(TMailbox* mailbox)
+    void SendPeriodicPing(TMailbox* mailbox)
     {
         const auto& cellId = mailbox->GetCellId();
 
@@ -570,7 +605,7 @@ private:
         }
 
         if (mailbox->GetConnected()) {
-            SchedulePing(mailbox);
+            SchedulePeriodicPing(mailbox);
             return;
         }
 
@@ -580,11 +615,11 @@ private:
             NHive::TCellDescriptor descriptor;
             descriptor.CellId = cellId;
             CellDirectory_->ReconfigureCell(descriptor);
-            SchedulePing(mailbox);
+            SchedulePeriodicPing(mailbox);
             return;
         }
 
-        LOG_DEBUG("Sending ping (SrcCellId: %v, DstCellId: %v)",
+        LOG_DEBUG("Sending periodic ping (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
 
@@ -592,20 +627,20 @@ private:
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
 
         req->Invoke().Subscribe(
-            BIND(&TImpl::OnPingResponse, MakeStrong(this), mailbox->GetCellId())
+            BIND(&TImpl::OnPeriodicPingResponse, MakeStrong(this), mailbox->GetCellId())
                 .Via(EpochAutomatonInvoker_));
     }
 
-    void OnPingResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
+    void OnPeriodicPingResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
     {
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox)
             return;
 
-        SchedulePing(mailbox);
+        SchedulePeriodicPing(mailbox);
 
         if (!rspOrError.IsOK()) {
-            LOG_DEBUG(rspOrError, "Ping failed (SrcCellId: %v, DstCellId: %v)",
+            LOG_DEBUG(rspOrError, "Periodic ping failed (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId());
             return;
@@ -613,14 +648,92 @@ private:
 
         const auto& rsp = rspOrError.Value();
         int lastIncomingMessageId = rsp->last_incoming_message_id();
-        LOG_DEBUG("Ping succeeded (SrcCellId: %v, DstCellId: %v, LastReceivedMessageId: %v)",
+        int lastOutcomingMessageId = rsp->last_outcoming_message_id();
+
+        LOG_DEBUG("Periodic ping succeeded (SrcCellId: %v, DstCellId: %v, LastIncomingMessageId: %v, LastOutcomingMessageId: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
-            lastIncomingMessageId);
+            lastIncomingMessageId,
+            lastOutcomingMessageId);
 
         SetMailboxConnected(mailbox);
         HandleAcknowledgedMessages(mailbox, lastIncomingMessageId);
         MaybePostOutcomingMessages(mailbox);
+    }
+
+
+    TFuture<void> OnSyncPingResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
+    {
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Sync ping to cell %v has failed",
+                cellId)
+                    << rspOrError;
+        }
+
+        auto* mailbox = GetMailboxOrThrow(cellId);
+        if (!mailbox->GetConnected()) {
+            THROW_ERROR_EXCEPTION("Mailbox %v is not connected",
+                cellId);
+        }
+
+        const auto& rsp = rspOrError.Value();
+        int messageId = rsp->last_outcoming_message_id();
+
+        if (messageId <= mailbox->GetLastIncomingMessageId()) {
+            LOG_DEBUG("Already synchronized with another instance (SrcCellId: %v, DstCellId: %v, NeededMessageId: %v, CurrentMessageId: %v)",
+                SelfCellId_,
+                mailbox->GetCellId(),
+                messageId,
+                mailbox->GetLastIncomingMessageId());
+            return VoidFuture;
+        }
+
+        LOG_DEBUG("Waiting for synchronization with another instance (SrcCellId: %v, DstCellId: %v, NeededMessageId: %v, CurrentMessageId: %v)",
+            SelfCellId_,
+            cellId,
+            messageId,
+            mailbox->GetLastIncomingMessageId());
+
+        return RegisterSyncRequest(mailbox, messageId);
+    }
+
+    TFuture<void> RegisterSyncRequest(TMailbox* mailbox, int messageId)
+    {
+        auto& syncRequests = mailbox->SyncRequests();
+
+        auto it = syncRequests.find(messageId);
+        if (it != syncRequests.end()) {
+            const auto& entry = it->second;
+            return entry.Promise.ToFuture();
+        }
+
+        TMailbox::TSyncRequest request;
+        request.MessageId = messageId;
+        request.Promise = NewPromise<void>();
+
+        YCHECK(syncRequests.insert(std::make_pair(messageId, request)).second);
+        return request.Promise.ToFuture();
+    }
+
+    void FlushSyncRequests(TMailbox* mailbox)
+    {
+        auto& syncRequests = mailbox->SyncRequests();
+        while (!syncRequests.empty()) {
+            auto it = syncRequests.begin();
+            int messageId = it->first;
+            if (messageId > mailbox->GetLastIncomingMessageId())
+                break;
+
+            auto& request = it->second;
+
+            LOG_DEBUG("Synchronization complete (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
+                SelfCellId_,
+                mailbox->GetCellId(),
+                messageId);
+
+            request.Promise.Set();
+            syncRequests.erase(it);
+        }
     }
 
 
@@ -813,6 +926,8 @@ private:
             YCHECK(incomingMessages.erase(frontMessageId) == 1);
             mailbox->SetLastIncomingMessageId(frontMessageId);
             consumed = true;
+
+            FlushSyncRequests(mailbox);
         }
 
         if (!consumed) {
@@ -905,7 +1020,7 @@ private:
         for (const auto& pair : MailboxMap_) {
             auto* mailbox = pair.second;
             SetMailboxDisconnected(mailbox);
-            SendPing(mailbox);
+            SendPeriodicPing(mailbox);
         }
     }
 
@@ -1013,6 +1128,10 @@ void THiveManager::PostMessage(TMailbox* mailbox, const ::google::protobuf::Mess
     Impl_->PostMessage(mailbox, message, reliable);
 }
 
+TFuture<void> THiveManager::SyncWith(const TCellId& cellId)
+{
+    return Impl_->SyncWith(cellId);
+}
 
 void THiveManager::BuildOrchidYson(IYsonConsumer* consumer)
 {

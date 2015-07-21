@@ -25,6 +25,7 @@ message TReqPing
 message TRspPing
 {
     required int32 last_incoming_message_id = 1;
+    required int32 last_outcoming_message_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
