@@ -185,15 +185,17 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spe
         except yt.YtError as error:
             raise yt.YtError("Failed to merge source table", inner_errors=[error])
 
-    run_operation_and_notify(
-        message_queue,
-        destination_client.run_remote_copy,
-        src,
-        dst,
-        cluster_name=source_client._name,
-        network_name=network_name,
-        spec=spec_template,
-        remote_cluster_token=source_client.config["token"])
+    destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
+    with destination_client.Transaction():
+        run_operation_and_notify(
+            message_queue,
+            destination_client.run_remote_copy,
+            src,
+            dst,
+            cluster_name=source_client._name,
+            network_name=network_name,
+            spec=spec_template,
+            remote_cluster_token=source_client.config["token"])
 
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, spec_template=None, message_queue=None):
     if spec_template is None:
@@ -202,8 +204,9 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
     tmp_dir = tempfile.mkdtemp()
     files = _prepare_read_from_yt_command(source_client, src, "json", tmp_dir, fastbone, pack=True)
 
+    destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
     try:
-        with source_client.Transaction():
+        with source_client.Transaction(), destination_client.Transaction():
             sorted_by = None
             if source_client.exists(src + "/@sorted_by"):
                 sorted_by = source_client.get(src + "/@sorted_by")
@@ -220,7 +223,6 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             spec["mapper"] = {"memory_limit": 2 * 1024 * 1024 * 1024}
             spec["job_io"] = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
 
-            destination_client.create("table", dst, ignore_existing=True)
             run_operation_and_notify(
                 message_queue,
                 destination_client.run_map,
@@ -308,6 +310,8 @@ while true; do
     bash -c "${command}";
     set +e;
 done"""
+
+    yt_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
 
     logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
     try:
