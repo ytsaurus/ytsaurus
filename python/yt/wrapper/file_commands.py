@@ -69,13 +69,20 @@ def upload_file(stream, destination, file_writer=None, client=None):
     if file_writer is not None:
         params["file_writer"] = file_writer
 
+    enable_retries = get_config(client)["write_retries"]["enable"]
+    if get_config(client)["write_file_as_one_chunk"]:
+        if "file_writer" not in params:
+            params["file_writer"] = {}
+        params["file_writer"]["desired_chunk_size"] = 1024 ** 4
+        enable_retries = False
+
     make_heavy_request(
         "upload" if get_api_version(client=client) == "v2" else "write_file",
         stream,
         destination,
         params,
         lambda path: create("file", path, ignore_existing=True, client=client),
-        get_config(client)["write_retries"]["enable"],
+        enable_retries,
         client=client)
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None, ignore_set_attributes_error=True, client=None):
