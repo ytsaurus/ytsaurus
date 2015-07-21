@@ -544,7 +544,7 @@ class Application(object):
             # NB: it is not yet supported by proxy.
             pass
         else:
-            headers["X-Forwarded-For"] += request.remote_addr
+            headers["X-Forwarded-For"] = request.remote_addr
         if token == "undefined":
             user = "guest"
             token = ""
