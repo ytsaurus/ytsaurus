@@ -283,10 +283,9 @@ public:
     {
         auto nodeMapProxy = GetNodeMap();
         auto nodeNodeProxy = nodeMapProxy->FindChild(ToString(node->GetDefaultAddress()));
-        auto cypressNodeNodeProxy = dynamic_cast<ICypressNodeProxy*>(nodeNodeProxy.Get());
 
         auto cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->AbortSubtreeTransactions(cypressNodeNodeProxy->GetTrunkNode(), nullptr);
+        cypressManager->AbortSubtreeTransactions(nodeNodeProxy);
 
         nodeMapProxy->RemoveChild(nodeNodeProxy);
 
