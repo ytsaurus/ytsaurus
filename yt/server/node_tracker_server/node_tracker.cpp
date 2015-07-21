@@ -201,6 +201,9 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TClusterNodeTypeHandler>(this));
         objectManager->RegisterHandler(New<TRackTypeHandler>(this));
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
     }
 
     bool TryAcquireNodeRegistrationSemaphore()
@@ -627,7 +630,12 @@ private:
             RemoveFromAddressMaps(existingNode);
         }
 
-        auto* newNode = RegisterNode(addresses, statistics, leaseTransaction);
+        auto nodeId = request.has_node_id() ? request.node_id() : GenerateNodeId();
+        auto* newNode = RegisterNode(
+            nodeId,
+            addresses,
+            statistics,
+            leaseTransaction);
 
         if (existingNode) {
             SetNodeBanned(newNode, existingNode->GetBanned());
@@ -644,12 +652,15 @@ private:
         }
 
         if (Bootstrap_->IsPrimaryMaster()) {
+            auto replicatedRequest = request;
+            replicatedRequest.set_node_id(nodeId);
+
             auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToSecondaryMasters(request);
+            multicellManager->PostToSecondaryMasters(replicatedRequest);
         }
 
         TRspRegisterNode response;
-        response.set_node_id(newNode->GetId());
+        response.set_node_id(nodeId);
         return response;
     }
 
@@ -996,20 +1007,22 @@ private:
 
 
     TNode* RegisterNode(
+        TNodeId nodeId,
         const TAddressMap& addresses,
         const TNodeStatistics& statistics,
         TTransaction* leaseTransaction)
     {
         PROFILE_TIMING ("/node_register_time") {
             const auto& address = GetDefaultAddress(addresses);
-            auto objectId = ObjectIdFromNodeId(GenerateNodeId());
+            auto objectId = ObjectIdFromNodeId(nodeId);
 
             const auto* mutationContext = GetCurrentMutationContext();
+            auto registerTime = mutationContext->GetTimestamp();
 
             auto nodeHolder = std::make_unique<TNode>(
                 objectId,
                 addresses,
-                mutationContext->GetTimestamp());
+                registerTime);
 
             auto* node = NodeMap_.Insert(objectId, std::move(nodeHolder));
 
@@ -1219,6 +1232,23 @@ private:
         UsedRackIndexes_ &= ~mask;
     }
 
+
+    void OnSecondaryMasterRegistered(TCellTag cellTag)
+    {
+        auto objectManager = Bootstrap_->GetObjectManager();
+
+        auto nodes = GetValuesSortedByKey(NodeMap_);
+        for (auto* node : nodes) {
+            TReqRegisterNode request;
+            request.set_node_id(node->GetId());
+            ToProto(request.mutable_addresses(), node->GetAddresses());
+            *request.mutable_statistics() = node->Statistics();
+            ToProto(request.mutable_lease_transaction_id(), node->GetLeaseTransaction()->GetId());
+
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToSecondaryMaster(request, cellTag);
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TObjectId, NodeMap_)
