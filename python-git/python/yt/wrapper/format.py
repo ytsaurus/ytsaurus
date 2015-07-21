@@ -655,7 +655,7 @@ class SchemafulDsvFormat(Format):
     Schemaful dsv format. It accepts column names and outputs values of these columns.
 
     .. seealso:: `SchemafulDsvFormat on wiki \
-    <https://wiki.yandex-team.ru/yt/userdoc/formats#schemafuldsvschemeddsv>`_
+    <https://wiki.yandex-team.ru//yt/userdoc/formats#schemafuldsv>`_
     """
 
     def __init__(self, columns=None, enable_escaping=None,
