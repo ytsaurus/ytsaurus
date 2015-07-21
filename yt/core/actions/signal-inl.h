@@ -37,6 +37,20 @@ std::vector<TCallback<TResult(TArgs...)>> TCallbackList<TResult(TArgs...)>::ToVe
 }
 
 template <class TResult, class... TArgs>
+int TCallbackList<TResult(TArgs...)>::Size() const
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    return Callbacks_.size();
+}
+
+template <class TResult, class... TArgs>
+bool TCallbackList<TResult(TArgs...)>::Empty() const
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    return Callbacks_.empty();
+}
+
+template <class TResult, class... TArgs>
 void TCallbackList<TResult(TArgs...)>::Clear()
 {
     TGuard<TSpinLock> guard(SpinLock_);
