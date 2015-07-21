@@ -268,6 +268,8 @@ private:
 
     void OnProfiling();
 
+    void OnSecondaryMasterRegistered(TCellTag cellTag);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectManager)

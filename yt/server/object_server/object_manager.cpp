@@ -364,6 +364,9 @@ TObjectManager::TObjectManager(
 
 void TObjectManager::Initialize()
 {
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TObjectManager::OnSecondaryMasterRegistered, MakeWeak(this)));
+
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
         BIND(&TObjectManager::OnProfiling, MakeWeak(this)),
@@ -1177,6 +1180,14 @@ void TObjectManager::OnProfiling()
     Profiler.Enqueue("/created_object_count", CreatedObjectCount_);
     Profiler.Enqueue("/destroyed_object_count", DestroyedObjectCount_);
     Profiler.Enqueue("/locked_object_count", LockedObjectCount_);
+}
+
+void TObjectManager::OnSecondaryMasterRegistered(TCellTag cellTag)
+{
+    auto schemas = GetValuesSortedByKey(SchemaMap_);
+    for (const auto* schema : schemas) {
+        // TODO(babenko): replicate attributes
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
