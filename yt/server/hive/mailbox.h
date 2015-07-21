@@ -40,6 +40,15 @@ public:
     // Transient state.
     DEFINE_BYVAL_RW_PROPERTY(bool, Connected);
 
+    struct TSyncRequest
+    {
+        int MessageId;
+        TPromise<void> Promise;
+    };
+
+    typedef std::map<int, TSyncRequest> TSyncRequestMap;
+    DEFINE_BYREF_RW_PROPERTY(TSyncRequestMap, SyncRequests);
+
 public:
     explicit TMailbox(const TCellId& cellId);
 

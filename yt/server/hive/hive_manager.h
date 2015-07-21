@@ -53,6 +53,11 @@ public:
         const ::google::protobuf::MessageLite& message,
         bool reliable = true);
 
+    //! When called at instant T, returns a future which gets set
+    //! when all mutations enqueued at the remote side (represented by #mailbox)
+    //! prior to T, are received and applied.
+    TFuture<void> SyncWith(const TCellId& cellId);
+
     void BuildOrchidYson(NYson::IYsonConsumer* consumer);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox, TCellId);
