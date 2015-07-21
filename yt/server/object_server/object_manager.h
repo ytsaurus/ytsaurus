@@ -79,7 +79,7 @@ public:
     const IObjectTypeHandlerPtr& GetHandler(EObjectType type) const;
 
     //! Returns the handler for a given object.
-    const IObjectTypeHandlerPtr& GetHandler(TObjectBase* object) const;
+    const IObjectTypeHandlerPtr& GetHandler(const TObjectBase* object) const;
 
     //! Returns the set of registered object types, excluding schemas.
     const std::set<EObjectType>& GetRegisteredTypes() const;
@@ -188,7 +188,9 @@ public:
         TNullable<TDuration> timeout = Null);
 
     //! Posts a creation request to the secondary master.
-    void ReplicateObjectToSecondaryMaster(TObjectBase* object, TCellTag cellTag);
+    void ReplicateObjectToSecondaryMaster(
+        const TObjectBase* object,
+        TCellTag cellTag);
 
     const NProfiling::TProfiler& GetProfiler();
     NProfiling::TTagId GetTypeTagId(EObjectType type);
