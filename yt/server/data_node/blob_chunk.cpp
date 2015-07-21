@@ -378,11 +378,7 @@ void TBlobChunkBase::SyncRemove(bool force)
     auto readerCache = Bootstrap_->GetBlobReaderCache();
     readerCache->EvictReader(this);
 
-    if (force) {
-        Location_->RemoveChunkFiles(Id_);
-    } else {
-        Location_->MoveChunkFilesToTrash(Id_);
-    }
+    Location_->RemoveChunkFiles(Id_, force);
 }
 
 TFuture<void> TBlobChunkBase::AsyncRemove()
@@ -413,13 +409,14 @@ TCachedBlobChunk::TCachedBlobChunk(
     TLocationPtr location,
     const TChunkDescriptor& descriptor,
     const TChunkMeta* meta,
+    const TArtifactKey& key,
     TClosure destroyed)
     : TBlobChunkBase(
         bootstrap,
         location,
         descriptor,
         meta)
-    , TAsyncCacheValueBase<TChunkId, TCachedBlobChunk>(GetId())
+    , TAsyncCacheValueBase<TArtifactKey, TCachedBlobChunk>(key)
     , Destroyed_(destroyed)
 { }
 

@@ -210,9 +210,7 @@ def get_node_config():
     };
 
     data_node = {
-        cache_location = {
-            path = "";
-        };
+        cache_locations = [];
         store_locations = [];
         multiplexed_changelog = {
             path = "";
@@ -243,7 +241,7 @@ def get_node_config():
         enable_cgroups = false;
 
         slot_manager = {
-            path = "";
+            paths = [];
         };
 
         job_proxy_logging = {

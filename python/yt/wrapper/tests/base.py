@@ -66,7 +66,7 @@ class YtTestBase(object):
         cls.env.clear_environment()
         for node_config in cls.env.configs["node"]:
             shutil.rmtree(node_config["data_node"]["store_locations"][0]["path"])
-            shutil.rmtree(node_config["data_node"]["cache_location"]["path"])
+            shutil.rmtree(node_config["data_node"]["cache_locations"][0]["path"])
 
     def setup(self):
         os.environ["PATH"] = ".:" + os.environ["PATH"]

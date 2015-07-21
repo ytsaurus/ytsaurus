@@ -2213,14 +2213,9 @@ private:
 
     TMapReduceOperationSpecPtr Spec;
 
-    std::vector<TRegularUserFile> MapperFiles;
-    std::vector<TUserTableFile> MapperTableFiles;
-
-    std::vector<TRegularUserFile> ReduceCombinerFiles;
-    std::vector<TUserTableFile> ReduceCombinerTableFiles;
-
-    std::vector<TRegularUserFile> ReducerFiles;
-    std::vector<TUserTableFile> ReducerTableFiles;
+    std::vector<TUserFile> MapperFiles;
+    std::vector<TUserFile> ReduceCombinerFiles;
+    std::vector<TUserFile> ReducerFiles;
 
     i64 MapStartRowIndex;
     i64 ReduceStartRowIndex;
@@ -2299,7 +2294,7 @@ private:
         if (TotalEstimatedInputDataSize == 0)
             return;
 
-        for (const auto& file : RegularFiles) {
+        for (const auto& file : Files) {
             switch (file.Stage) {
             case EOperationStage::Map:
                 MapperFiles.push_back(file);
@@ -2311,25 +2306,6 @@ private:
 
             case EOperationStage::Reduce:
                 ReducerFiles.push_back(file);
-                break;
-
-            default:
-                YUNREACHABLE();
-            }
-        }
-
-        for (const auto& file : TableFiles) {
-            switch (file.Stage) {
-            case EOperationStage::Map:
-                MapperTableFiles.push_back(file);
-                break;
-
-            case EOperationStage::ReduceCombiner:
-                ReduceCombinerTableFiles.push_back(file);
-                break;
-
-            case EOperationStage::Reduce:
-                ReducerTableFiles.push_back(file);
                 break;
 
             default:
@@ -2440,8 +2416,7 @@ private:
                 InitUserJobSpecTemplate(
                     schedulerJobSpecExt->mutable_user_job_spec(),
                     Spec->Mapper,
-                    MapperFiles,
-                    MapperTableFiles);
+                    MapperFiles);
             }
         }
 
@@ -2459,8 +2434,7 @@ private:
                 InitUserJobSpecTemplate(
                     schedulerJobSpecExt->mutable_user_job_spec(),
                     Spec->ReduceCombiner,
-                    ReduceCombinerFiles,
-                    ReduceCombinerTableFiles);
+                    ReduceCombinerFiles);
             } else {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::IntermediateSort));
                 auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -2482,8 +2456,7 @@ private:
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),
                 Spec->Reducer,
-                ReducerFiles,
-                ReducerTableFiles);
+                ReducerFiles);
         }
 
         {
@@ -2500,8 +2473,7 @@ private:
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),
                 Spec->Reducer,
-                ReducerFiles,
-                ReducerTableFiles);
+                ReducerFiles);
         }
     }
 

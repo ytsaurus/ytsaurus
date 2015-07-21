@@ -112,8 +112,6 @@ public:
             .SetCancelable(true)
             .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk)
-            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
             .SetOneWay(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
@@ -849,23 +847,6 @@ private:
             auto* key = chunkSamples->add_keys();
             ToProto(key, keyValues.data(), keyValues.data() + keyValues.size());
         }
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PrecacheChunk)
-    {
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
-
-        context->SetRequestInfo("ChunkId: %v",
-            chunkId);
-
-        ValidateConnected();
-
-        auto chunkCache = Bootstrap_->GetChunkCache();
-        auto chunkOrError = WaitFor(chunkCache->DownloadChunk(chunkId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Error precaching chunk %v",
-            chunkId);
-
-        context->Reply();
     }
 
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)

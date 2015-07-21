@@ -8,28 +8,23 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TRegularFileDescriptor
+message TFileDescriptor
 {
-    required bool executable = 2;
+    // Deprecated = 2.
     required string file_name = 3;
     repeated NChunkClient.NProto.TChunkSpec chunks = 4;
-}
-
-message TTableFileDescriptor
-{
-    required bytes format = 2;
-    required string file_name = 3;
-    repeated NChunkClient.NProto.TChunkSpec chunks = 4;
+    required int32 type = 5;
+    optional bool executable = 6;
+    optional bytes format = 7;
 }
 
 // Specification for starting user code during a job.
 message TUserJobSpec
 {
-    // Additional files to be placed into the sandbox.
-    repeated TRegularFileDescriptor regular_files = 1;
+    // Additional files(tables) to be placed into the sandbox.
+    repeated TFileDescriptor files = 1;
 
-    // Additional tables to be placed into the sandbox.
-    repeated TTableFileDescriptor table_files = 6;
+    // Deprecated = 6;
 
     // The user command to be executed.
     required string shell_command = 2;
