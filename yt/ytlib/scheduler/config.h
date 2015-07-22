@@ -538,7 +538,7 @@ public:
     {
         RegisterParameter("output_table_path", OutputTablePath);
         RegisterParameter("samples_per_partition", SamplesPerPartition)
-            .Default(10)
+            .Default(1000)
             .GreaterThan(1);
         RegisterParameter("partition_job_io", PartitionJobIO)
             .DefaultNew();
