@@ -105,7 +105,7 @@ public:
         UserName = Context->GetUser();
 
         auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
-        auto sync = hydraManager->SyncWithLeader();
+        auto sync = hydraManager->SyncWithUpstream();
         if (sync.IsSet()) {
             OnSync(sync.Get());
         } else {

@@ -359,7 +359,7 @@ public:
         });
     }
 
-    virtual TFuture<void> SyncWithLeader() override
+    virtual TFuture<void> SyncWithUpstream() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(!HasMutationContext());
@@ -371,19 +371,19 @@ public:
                 "Not an active peer"));
         }
 
-        if (GetAutomatonState() == EPeerState::Leading) {
+        if (GetAutomatonState() == EPeerState::Leading && UpstreamSync_.Empty()) {
             return VoidFuture;
         }
 
-        if (!epochContext->PendingLeaderSyncPromise) {
-            epochContext->PendingLeaderSyncPromise = NewPromise<void>();
+        if (!epochContext->PendingUpstreamSyncPromise) {
+            epochContext->PendingUpstreamSyncPromise = NewPromise<void>();
             TDelayedExecutor::Submit(
-                BIND(&TDistributedHydraManager::OnLeaderSyncDeadlineReached, MakeStrong(this), epochContext)
+                BIND(&TDistributedHydraManager::OnUpsteamSyncDeadlineReached, MakeStrong(this), epochContext)
                     .Via(epochContext->EpochUserAutomatonInvoker),
                 Config_->MaxLeaderSyncDelay);
         }
 
-        return epochContext->PendingLeaderSyncPromise;
+        return epochContext->PendingUpstreamSyncPromise;
     }
 
     virtual TFuture<TMutationResponse> CommitMutation(const TMutationRequest& request) override
@@ -429,6 +429,7 @@ public:
     DEFINE_SIGNAL(void(), StopFollowing);
 
     DEFINE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
+    DEFINE_SIGNAL(TFuture<void>(), UpstreamSync);
 
 private:
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
@@ -806,7 +807,7 @@ private:
 
         auto version = DecoratedAutomaton_->GetCommittedVersion();
 
-        context->SetResponseInfo("CommittedVersion: %s",
+        context->SetResponseInfo("CommittedVersion: %v",
             version);
 
         response->set_committed_revision(version.ToRevision());
@@ -1334,25 +1335,53 @@ private:
     }
 
 
-    void OnLeaderSyncDeadlineReached(TEpochContextPtr epochContext)
+    void OnUpsteamSyncDeadlineReached(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        epochContext->LeaderSyncDeadlineReached = true;
+        epochContext->UpstreamSyncDeadlineReached = true;
 
-        if (!epochContext->ActiveLeaderSyncPromise) {
-            DoSyncWithLeader(epochContext);
+        if (!epochContext->ActiveUpstreamSyncPromise) {
+            DoSyncWithUpstream(epochContext);
         }
     }
 
-    void DoSyncWithLeader(TEpochContextPtr epochContext)
+    void DoSyncWithUpstream(TEpochContextPtr epochContext)
     {
-        LOG_DEBUG("Syncing with leader");
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        epochContext->LeaderSyncDeadlineReached = false;
+        LOG_DEBUG("Synchronizing with upsteam");
 
-        YCHECK(!epochContext->ActiveLeaderSyncPromise);
-        swap(epochContext->ActiveLeaderSyncPromise, epochContext->PendingLeaderSyncPromise);
+        epochContext->UpstreamSyncDeadlineReached = false;
+
+        YCHECK(!epochContext->ActiveUpstreamSyncPromise);
+        swap(epochContext->ActiveUpstreamSyncPromise, epochContext->PendingUpstreamSyncPromise);
+
+        std::vector<TFuture<void>> asyncResults;
+        if (GetAutomatonState() == EPeerState::Following) {
+            asyncResults.push_back(DoSyncWithLeader(epochContext));
+        }
+        for (const auto& callback : UpstreamSync_.ToVector()) {
+            asyncResults.push_back(callback.Run());
+        }
+
+        Combine(asyncResults).Subscribe(
+            BIND(&TDistributedHydraManager::OnUpstreamSyncReached, MakeStrong(this), epochContext)
+                .Via(epochContext->EpochUserAutomatonInvoker));
+    }
+
+    void OnUpstreamSyncReached(TEpochContextPtr epochContext, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        epochContext->ActiveUpstreamSyncPromise.Set(error);
+        epochContext->ActiveUpstreamSyncPromise.Reset();
+    }
+
+    TFuture<void> DoSyncWithLeader(TEpochContextPtr epochContext)
+    {
+        YCHECK(!epochContext->LeaderSyncPromise);
+        epochContext->LeaderSyncPromise = NewPromise<void>();
 
         auto channel = CellManager_->GetPeerChannel(epochContext->LeaderId);
         YCHECK(channel);
@@ -1369,6 +1398,8 @@ private:
                 MakeStrong(this),
                 epochContext)
             .Via(epochContext->EpochUserAutomatonInvoker));
+
+        return epochContext->LeaderSyncPromise;
     }
 
     void OnSyncWithLeaderResponse(
@@ -1379,18 +1410,18 @@ private:
 
         if (!rspOrError.IsOK()) {
             if (Restart(epochContext)) {
-                LOG_ERROR(rspOrError, "Failed to sync with leader");
+                LOG_ERROR(rspOrError, "Failed to synchronize with leader");
             }
             return;
         }
 
         const auto& rsp = rspOrError.Value();
 
-        YCHECK(!epochContext->ActiveLeaderSyncVersion);
-        epochContext->ActiveLeaderSyncVersion = TVersion::FromRevision(rsp->committed_revision());
+        YCHECK(!epochContext->LeaderSyncVersion);
+        epochContext->LeaderSyncVersion = TVersion::FromRevision(rsp->committed_revision());
 
-        LOG_DEBUG("Received sync response from leader (CommittedVersion: %s)",
-            epochContext->ActiveLeaderSyncVersion);
+        LOG_DEBUG("Received synchronization response from leader (CommittedVersion: %v)",
+            epochContext->LeaderSyncVersion);
 
         CheckForPendingLeaderSync(epochContext);
     }
@@ -1399,24 +1430,24 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (!epochContext->ActiveLeaderSyncPromise || !epochContext->ActiveLeaderSyncVersion)
+        if (!epochContext->ActiveUpstreamSyncPromise || !epochContext->LeaderSyncVersion)
             return;
 
-        auto neededCommittedVersion = *epochContext->ActiveLeaderSyncVersion;
+        auto neededCommittedVersion = *epochContext->LeaderSyncVersion;
         auto actualCommittedVersion = DecoratedAutomaton_->GetCommittedVersion();
         if (neededCommittedVersion > actualCommittedVersion)
             return;
 
-        LOG_DEBUG("Leader synced successfully (NeededCommittedVersion: %v, ActualCommittedVersion: %v)",
+        LOG_DEBUG("Synchronization complete (NeededCommittedVersion: %v, ActualCommittedVersion: %v)",
             neededCommittedVersion,
             actualCommittedVersion);
 
-        epochContext->ActiveLeaderSyncPromise.Set();
-        epochContext->ActiveLeaderSyncPromise.Reset();
-        epochContext->ActiveLeaderSyncVersion.Reset();
+        epochContext->LeaderSyncPromise.Set();
+        epochContext->LeaderSyncPromise.Reset();
+        epochContext->LeaderSyncVersion.Reset();
 
-        if (epochContext->LeaderSyncDeadlineReached) {
-            DoSyncWithLeader(epochContext);
+        if (epochContext->UpstreamSyncDeadlineReached) {
+            DoSyncWithUpstream(epochContext);
         }
     }
 
