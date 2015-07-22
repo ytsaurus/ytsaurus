@@ -118,52 +118,38 @@ public:
     }
 };
 
+class TSimpleOperationOptions
+    : public TOperationOptions
+{
+public:
+    int MaxJobCount;
+    i64 JobMaxSliceDataSize;
+
+    TSimpleOperationOptions()
+    {
+        RegisterParameter("max_job_count", MaxJobCount)
+            .Default(100000);
+
+        RegisterParameter("job_max_slice_data_size", JobMaxSliceDataSize)
+            .Default((i64)256 * 1024 * 1024)
+            .GreaterThan(0);
+    }
+};
+
 class TMapOperationOptions
-    : public TOperationOptions
-{
-public:
-    int MaxJobCount;
-    i64 JobMaxSliceDataSize;
-
-    TMapOperationOptions()
-    {
-        RegisterParameter("max_job_count", MaxJobCount)
-            .Default(100000);
-
-        RegisterParameter("job_max_slice_data_size", JobMaxSliceDataSize)
-            .Default((i64)256 * 1024 * 1024)
-            .GreaterThan(0);
-    }
-};
-
-class TMergeOperationOptions
-    : public TOperationOptions
-{
-public:
-    int MaxJobCount;
-
-    i64 JobMaxSliceDataSize;
-
-    TMergeOperationOptions()
-    {
-        RegisterParameter("max_job_count", MaxJobCount)
-            .Default(100000);
-        RegisterParameter("job_max_slice_data_size", JobMaxSliceDataSize)
-            .Default((i64)256 * 1024 * 1024)
-            .GreaterThan(0);
-    }
-};
-
-class TOrderedMergeOperationOptions
-    : public TMergeOperationOptions
+    : public TSimpleOperationOptions
 { };
 
 class TUnorderedMergeOperationOptions
-    : public TMergeOperationOptions
+    : public TSimpleOperationOptions
+{ };
+
+class TOrderedMergeOperationOptions
+    : public TSimpleOperationOptions
 { };
 
 class TSortedMergeOperationOptions
-    : public TMergeOperationOptions
+    : public TSimpleOperationOptions
 { };
 
 class TReduceOperationOptions
