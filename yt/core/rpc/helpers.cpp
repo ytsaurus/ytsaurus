@@ -204,7 +204,7 @@ void GenerateMutationId(IClientRequestPtr request)
 
 void SetMutationId(TRequestHeader* header, const TMutationId& id, bool retry)
 {
-    if (id != NullMutationId) {
+    if (id) {
         auto* ext = header->MutableExtension(TMutatingExt::mutating_ext);
         ToProto(ext->mutable_mutation_id(), id);
         if (retry) {
@@ -220,7 +220,7 @@ void SetMutationId(IClientRequestPtr request, const TMutationId& id, bool retry)
 
 void SetOrGenerateMutationId(IClientRequestPtr request, const TMutationId& id, bool retry)
 {
-    SetMutationId(request, id == NullMutationId ? TMutationId::Create() : id, retry);
+    SetMutationId(request, id ? id : TMutationId::Create(), retry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

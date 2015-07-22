@@ -995,7 +995,7 @@ protected:
         TStringBuilder builder;
 
         auto mutationId = GetMutationId(*RequestHeader_);
-        if (mutationId != NullMutationId) {
+        if (mutationId) {
             AppendInfo(&builder, "MutationId: %v", mutationId);
         }
 

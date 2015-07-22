@@ -33,6 +33,9 @@ struct TGuid
     //! Checks if TGuid is zero.
     bool IsEmpty() const;
 
+    //! Converts TGuid to bool, returns |false| iff TGuid is zero.
+    explicit operator bool() const;
+
     //! Creates a new instance.
     static TGuid Create();
 

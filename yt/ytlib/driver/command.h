@@ -218,7 +218,7 @@ protected:
     NTransactionClient::TTransactionPtr AttachTransaction(bool required)
     {
         const auto& transactionId = this->Request_->TransactionId;
-        if (transactionId == NTransactionClient::NullTransactionId) {
+        if (!transactionId) {
             if (required) {
                 THROW_ERROR_EXCEPTION("Transaction is required");
             }
@@ -269,9 +269,9 @@ private:
     {
         TTypedCommandBase<TRequest>::Prepare();
 
-        this->CurrentMutationId_ = this->Request_->MutationId == NRpc::NullMutationId
-            ? NRpc::GenerateMutationId()
-            : this->Request_->MutationId;
+        this->CurrentMutationId_ = this->Request_->MutationId
+            ? this->Request_->MutationId
+            : NRpc::GenerateMutationId();
     }
 };
 

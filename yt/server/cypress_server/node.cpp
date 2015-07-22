@@ -122,7 +122,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, AccessCounter_);
 
     // Reconstruct TrunkNode and Transaction.
-    if (TransactionId_ == NullTransactionId) {
+    if (!TransactionId_) {
         TrunkNode_ = this;
         Transaction_ = nullptr;
     } else {

@@ -307,7 +307,7 @@ public:
         int index = 0;
 
         for (const auto& inputContext : inputContexts) {
-            if (inputContext != NChunkServer::NullChunkId) {
+            if (inputContext) {
                 auto contextPath = Format("%v/%v",
                     path,
                     ToYPathLiteral(index));
@@ -930,7 +930,7 @@ private:
     TOperationPtr CreateOperationFromAttributes(const TOperationId& operationId, const IAttributeDictionary& attributes)
     {
         auto getTransaction = [&] (const TTransactionId& id, bool ping) -> TTransactionPtr {
-            if (id == NullTransactionId) {
+            if (!id) {
                 return nullptr;
             }
             auto clusterDirectory = Bootstrap->GetClusterDirectory();
@@ -1384,7 +1384,7 @@ private:
                     batchReq->AddRequest(req, "update_op_node");
                 }
 
-                if (request.StderrChunkId != NullChunkId) {
+                if (request.StderrChunkId) {
                     auto stderrPath = GetStderrPath(operation->GetId(), job->GetId());
 
                     auto req = TCypressYPathProxy::Create(stderrPath);
@@ -1403,7 +1403,7 @@ private:
                     batchReq->AddRequest(req, "create_stderr");
                 }
 
-                if (request.FailContextChunkId != NullChunkId) {
+                if (request.FailContextChunkId) {
                     auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId());
 
                     auto req = TCypressYPathProxy::Create(failContextPath);

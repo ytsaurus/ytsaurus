@@ -1812,7 +1812,7 @@ TJobId TOperationControllerBase::ScheduleJob(
     }
 
     auto jobId = DoScheduleJob(context, jobLimits);
-    if (jobId == NullJobId) {
+    if (!jobId) {
         return NullJobId;
     }
 
@@ -1966,12 +1966,12 @@ TJobId TOperationControllerBase::DoScheduleJob(
     const TNodeResources& jobLimits)
 {
     auto localJobId = DoScheduleLocalJob(context, jobLimits);
-    if (localJobId != NullJobId) {
+    if (localJobId) {
         return localJobId;
     }
 
     auto nonLocalJobId = DoScheduleNonLocalJob(context, jobLimits);
-    if (nonLocalJobId != NullJobId) {
+    if (nonLocalJobId) {
         return nonLocalJobId;
     }
 
@@ -2047,7 +2047,7 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
                 bestTask->GetPendingDataSize(),
                 bestTask->GetPendingJobCount());
             auto jobId = bestTask->ScheduleJob(context, jobLimits);
-            if (jobId != NullJobId) {
+            if (jobId) {
                 UpdateTask(bestTask);
                 return jobId;
             }
@@ -2147,7 +2147,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
                     task->GetPendingJobCount());
 
                 auto jobId = task->ScheduleJob(context, jobLimits);
-                if (jobId != NullJobId) {
+                if (jobId) {
                     UpdateTask(task);
                     return jobId;
                 }
