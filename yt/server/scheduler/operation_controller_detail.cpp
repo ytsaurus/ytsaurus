@@ -3040,7 +3040,10 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
     return result;
 }
 
-std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxSliceDataSize, int* jobCount)
+std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
+    const std::vector<TRefCountedChunkSpecPtr>& chunkSpecs,
+    i64 maxSliceDataSize,
+    int* jobCount)
 {
     std::vector<TChunkStripePtr> result;
     auto appendStripes = [&] (std::vector<TChunkSlicePtr> slices) {
@@ -3052,12 +3055,10 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
     // TODO(ignat): we slice on two parts even if TotalEstimatedInputDataSize very small.
     i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplier * TotalEstimatedInputDataSize / *jobCount, 1.0));
 
-    for (const auto& chunkSpec : CollectInputChunks()) {
+    for (const auto& chunkSpec : chunkSpecs) {
         int oldSize = result.size();
 
-        bool hasNontrivialLimits =
-            (chunkSpec->has_upper_limit() && !IsTrivial(chunkSpec->upper_limit())) ||
-            (chunkSpec->has_lower_limit() && !IsTrivial(chunkSpec->lower_limit()));
+        bool hasNontrivialLimits = !IsCompleteChunk(*chunkSpec);
 
         auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
         if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
@@ -3081,6 +3082,13 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
     }
 
     return result;
+}
+
+std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
+        i64 maxSliceDataSize,
+        int* jobCount)
+{
+    return SliceChunks(CollectInputChunks(), maxSliceDataSize, jobCount);
 }
 
 std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNullable< std::vector<Stroka> >& keyColumns)
