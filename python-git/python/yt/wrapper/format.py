@@ -18,9 +18,9 @@ import itertools
 from cStringIO import StringIO
 
 try:
-    import cjson
+    import ujson
 except ImportError:
-    cjson = None
+    ujson = None
 
 try:
     import statbox_bindings.tskv
@@ -548,18 +548,18 @@ class JsonFormat(Format):
         if raw:
             return string
         string = string.rstrip("\n")
-        if cjson is not None:
-            return cjson.decode(string)
+        if ujson is not None:
+            return ujson.loads(string)
         return json.loads(string)
 
     def _dump(self, obj, stream):
-        if cjson is not None:
-            return stream.write(cjson.encode(obj))
+        if ujson is not None:
+            return ujson.dump(obj, stream)
         return json.dump(obj, stream)
 
     def _dumps(self, obj):
-        if cjson is not None:
-            return cjson.encode(obj)
+        if ujson is not None:
+            return ujson.dumps(obj)
         return json.dumps(obj)
 
     def load_row(self, stream, raw=None):
