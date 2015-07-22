@@ -15,6 +15,7 @@ struct TGetRequest
     : public TTransactionalRequest
     , public TReadOnlyRequest
     , public TSuppressableAccessTrackingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
@@ -46,6 +47,7 @@ private:
 struct TSetRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
 
@@ -68,6 +70,7 @@ private:
 struct TRemoveRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
     bool Recursive;
@@ -99,6 +102,7 @@ struct TListRequest
     : public TTransactionalRequest
     , public TReadOnlyRequest
     , public TSuppressableAccessTrackingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
@@ -127,6 +131,7 @@ private:
 struct TCreateRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     TNullable<NYPath::TRichYPath> Path;
     NObjectClient::EObjectType Type;
@@ -161,6 +166,7 @@ private:
 struct TLockRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
     NCypressClient::ELockMode Mode;
@@ -210,6 +216,7 @@ private:
 struct TCopyRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath SourcePath;
     NYPath::TRichYPath DestinationPath;
@@ -240,6 +247,7 @@ private:
 struct TMoveRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath SourcePath;
     NYPath::TRichYPath DestinationPath;
@@ -270,6 +278,7 @@ private:
 struct TExistsRequest
     : public TTransactionalRequest
     , public TReadOnlyRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
 
@@ -292,6 +301,7 @@ private:
 struct TLinkRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath LinkPath;
     NYPath::TRichYPath TargetPath;

@@ -31,6 +31,7 @@ void TStartTransactionCommand::DoExecute()
     if (Request_->Attributes) {
         options.Attributes = ConvertToAttributes(Request_->Attributes);
     }
+    SetPrerequisites(&options);
 
     auto transactionManager = Context_->GetClient()->GetTransactionManager();
     auto transaction = WaitFor(transactionManager->Start(
@@ -62,6 +63,7 @@ void TCommitTransactionCommand::DoExecute()
     auto transaction = AttachTransaction(true);
     TTransactionCommitOptions options;
     SetMutatingOptions(&options);
+    SetPrerequisites(&options);
     WaitFor(transaction->Commit(options))
         .ThrowOnError();
 }
@@ -73,6 +75,7 @@ void TAbortTransactionCommand::DoExecute()
     auto transaction = AttachTransaction(true);
     TTransactionAbortOptions options;
     SetMutatingOptions(&options);
+    SetPrerequisites(&options);
     options.Force = Request_->Force;
     WaitFor(transaction->Abort(options))
         .ThrowOnError();

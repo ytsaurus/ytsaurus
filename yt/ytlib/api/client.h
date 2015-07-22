@@ -128,6 +128,7 @@ struct TCheckPermissionOptions
     : public TTimeoutOptions
     , public TReadOnlyOptions
     , public TTransactionalOptions
+    , public TPrerequisiteOptions
 { };
 
 struct TCheckPermissionResult
@@ -200,6 +201,7 @@ struct TGetNodeOptions
     , public TTransactionalOptions
     , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
+    , public TPrerequisiteOptions
 {
     // XXX(sandello): This one is used only in ProfileManager to pass `from_time`.
     std::shared_ptr<const NYTree::IAttributeDictionary> Options;
@@ -230,6 +232,7 @@ struct TListNodeOptions
     , public TTransactionalOptions
     , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
+    , public TPrerequisiteOptions
 {
     NYTree::TAttributeFilter AttributeFilter;
     TNullable<i64> MaxSize;
@@ -293,6 +296,7 @@ struct TNodeExistsOptions
     : public TTimeoutOptions
     , public TReadOnlyOptions
     , public TTransactionalOptions
+    , public TPrerequisiteOptions
 { };
 
 struct TCreateObjectOptions

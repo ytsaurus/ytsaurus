@@ -251,6 +251,7 @@ void TWriteJournalCommand::DoExecute()
         Context_->GetConfig()->JournalWriter,
         Request_->GetOptions());
     SetTransactionalOptions(&options);
+    SetPrerequisites(&options);
 
     auto writer = Context_->GetClient()->CreateJournalWriter(
         Request_->Path.GetPath(),
