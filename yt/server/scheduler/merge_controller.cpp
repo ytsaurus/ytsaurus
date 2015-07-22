@@ -3,6 +3,7 @@
 #include "private.h"
 #include "operation_controller.h"
 #include "operation_controller_detail.h"
+#include "map_controller.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "job_resources.h"
@@ -46,8 +47,8 @@ class TMergeControllerBase
 public:
     TMergeControllerBase(
         TSchedulerConfigPtr config,
-        TMergeOperationSpecBasePtr spec,
-        TMergeOperationOptionsPtr options,
+        TSimpleOperationSpecBasePtr spec,
+        TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, spec, host, operation)
@@ -79,8 +80,8 @@ public:
     }
 
 protected:
-    TMergeOperationSpecBasePtr Spec;
-    TMergeOperationOptionsPtr Options;
+    TSimpleOperationSpecBasePtr Spec;
+    TSimpleOperationOptionsPtr Options;
 
     //! The total number of chunks for processing.
     int TotalChunkCount;
@@ -487,13 +488,6 @@ protected:
 
     // Unsorted helpers.
 
-    //! Returns |true| iff the chunk has nontrivial limits.
-    //! Such chunks are always pooled.
-    static bool IsCompleteChunk(const TChunkSpec& chunkSpec)
-    {
-        return IsTrivial(chunkSpec.upper_limit()) && IsTrivial(chunkSpec.lower_limit());
-    }
-
     virtual bool IsSingleStripeInput() const
     {
         return true;
@@ -505,7 +499,7 @@ protected:
     }
 
     //! Returns True if the chunk can be included into the output as-is.
-    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) = 0;
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) = 0;
 
     virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const
     {
@@ -513,36 +507,12 @@ protected:
         return 0;
     }
 
-    //! Returns True iff the chunk is complete and is large enough.
-    bool IsLargeCompleteChunk(const TChunkSpec& chunkSpec)
-    {
-        if (!IsCompleteChunk(chunkSpec)) {
-            return false;
-        }
-
-        return IsLargeChunk(chunkSpec);
-    }
-
-    bool IsLargeChunk(const TChunkSpec& chunkSpec)
-    {
-        YCHECK(IsTrivial(chunkSpec.lower_limit()));
-        YCHECK(IsTrivial(chunkSpec.upper_limit()));
-
-        auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
-
-        // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
-        // so we have to be more flexible here.
-        if (0.9 * miscExt.compressed_data_size() >= Spec->JobIO->TableWriter->DesiredChunkSize) {
-            return true;
-        }
-
-        return false;
-    }
-
-    //! A typical implementation of #IsTelelportChunk that depends on whether chunks must be combined or not.
+    //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
     bool IsTeleportChunkImpl(const TChunkSpec& chunkSpec, bool combineChunks)
     {
-        return combineChunks ? IsLargeCompleteChunk(chunkSpec) : IsCompleteChunk(chunkSpec);
+        return combineChunks
+            ? IsLargeCompleteChunk(chunkSpec, Spec->JobIO->TableWriter->DesiredChunkSize)
+            : IsCompleteChunk(chunkSpec);
     }
 
     //! Initializes #JobIOConfig.
@@ -561,86 +531,6 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeControllerBase::TMergeTask);
 
 ////////////////////////////////////////////////////////////////////
 
-//! Handles unordered merge operation.
-class TUnorderedMergeController
-    : public TMergeControllerBase
-{
-public:
-    TUnorderedMergeController(
-        TSchedulerConfigPtr config,
-        TUnorderedMergeOperationSpecPtr spec,
-        TUnorderedMergeOperationOptionsPtr options,
-        IOperationHost* host,
-        TOperation* operation)
-        : TMergeControllerBase(config, spec, options, host, operation)
-        , Spec(spec)
-    { }
-
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x6acdae46);
-
-    TUnorderedMergeOperationSpecPtr Spec;
-
-    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
-    {
-        if (Spec->ForceTransform)
-            return false;
-
-        return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
-    }
-
-    virtual std::vector<TRichYPath> GetInputTablePaths() const override
-    {
-        return Spec->InputTablePaths;
-    }
-
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
-    {
-        std::vector<TRichYPath> result;
-        result.push_back(Spec->OutputTablePath);
-        return result;
-    }
-
-    virtual bool IsRowCountPreserved() const override
-    {
-        return Spec->InputQuery ? false : TMergeControllerBase::IsRowCountPreserved();
-    }
-
-    virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
-    {
-        if (IsTelelportChunk(*chunkSpec)) {
-            // Chunks not requiring merge go directly to the output chunk list.
-            AddTeleportChunk(chunkSpec);
-            return;
-        }
-
-        // NB: During unordered merge all chunks go to a single chunk stripe.
-        for (const auto& slice : SliceChunkByRowIndexes(chunkSpec, ChunkSliceSize)) {
-            AddPendingChunk(slice);
-            EndTaskIfLarge();
-        }
-    }
-
-    virtual void InitJobSpecTemplate() override
-    {
-        JobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
-        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
-
-        if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
-        }
-    }
-
-};
-
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController);
-
-////////////////////////////////////////////////////////////////////
-
 //! Handles ordered merge and (sic!) erase operations.
 class TOrderedMergeControllerBase
     : public TMergeControllerBase
@@ -648,7 +538,7 @@ class TOrderedMergeControllerBase
 public:
     TOrderedMergeControllerBase(
         TSchedulerConfigPtr config,
-        TMergeOperationSpecBasePtr spec,
+        TSimpleOperationSpecBasePtr spec,
         TOrderedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
@@ -658,7 +548,7 @@ public:
 private:
     virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
     {
-        if (IsTelelportChunk(*chunkSpec)) {
+        if (IsTeleportChunk(*chunkSpec)) {
             // Merge is not needed. Copy the chunk directly to the output.
             if (HasActiveTask()) {
                 EndTask();
@@ -709,7 +599,7 @@ private:
         return result;
     }
 
-    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) override
     {
         if (Spec->ForceTransform)
             return false;
@@ -788,7 +678,7 @@ private:
         return result;
     }
 
-    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) override
     {
         return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
     }
@@ -886,7 +776,7 @@ class TSortedMergeControllerBase
 public:
     TSortedMergeControllerBase(
         TSchedulerConfigPtr config,
-        TMergeOperationSpecBasePtr spec,
+        TSimpleOperationSpecBasePtr spec,
         TSortedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
@@ -986,7 +876,7 @@ protected:
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
 
-    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) override
     {
         YUNREACHABLE();
     }
@@ -1109,7 +999,7 @@ private:
         if (!Spec->CombineChunks)
             return true;
 
-        return IsLargeChunk(chunkSpec);
+        return IsLargeCompleteChunk(chunkSpec, Spec->JobIO->TableWriter->DesiredChunkSize);
     }
 
     virtual void SortEndpoints() override
@@ -1406,12 +1296,7 @@ IOperationControllerPtr CreateMergeController(
     auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(spec);
     switch (baseSpec->Mode) {
         case EMergeMode::Unordered: {
-            return New<TUnorderedMergeController>(
-                config,
-                ParseOperationSpec<TUnorderedMergeOperationSpec>(spec),
-                config->UnorderedMergeOperationOptions,
-                host,
-                operation);
+            return CreateUnorderedMergeController(config, host, operation);
         }
         case EMergeMode::Ordered: {
             return New<TOrderedMergeController>(

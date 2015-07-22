@@ -61,6 +61,12 @@ TChunkId EncodeChunkId(
     const NProto::TChunkSpec& chunkSpec,
     NNodeTrackerClient::TNodeId nodeId);
 
+//! Returns |false| iff the chunk has nontrivial limits.
+bool IsCompleteChunk(const NProto::TChunkSpec& chunkSpec);
+
+//! Returns |true| iff the chunk is complete and is large enough.
+bool IsLargeCompleteChunk(const NProto::TChunkSpec& chunkSpec, i64 desiredChunkSize);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
