@@ -20,6 +20,7 @@
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_chunk_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
+#include <ytlib/new_table_client/ordered_schemaful_reader.h>
 #include <ytlib/new_table_client/unordered_schemaful_reader.h>
 #include <ytlib/new_table_client/pipe.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
@@ -330,17 +331,26 @@ private:
                 return RefinePredicate(GetRange(groupedSplit), expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                std::vector<ISchemafulReaderPtr> bottomSplitReaders;
-
                 LOG_DEBUG_IF(fragment->VerboseLogging, "Creating reader for ranges %v",
                     JoinToString(groupedSplit, [] (const TDataSource& source) {
                         return Format("[%v .. %v]", source.Range.first, source.Range.second);
                     }));
 
-                for (const auto& dataSplit : groupedSplit) {
-                    bottomSplitReaders.push_back(GetReader(dataSplit, timestamp));
-                }
-                return CreateUnorderedSchemafulReader(bottomSplitReaders);
+                auto bottomSplitReaderGenerator = [
+                    groupedSplit,
+                    timestamp,
+                    index = 0,
+                    this_ = MakeStrong(this)
+                ] () mutable -> ISchemafulReaderPtr {
+                    if (index == groupedSplit.size()) {
+                        return ISchemafulReaderPtr();
+                    } else {
+                        ++index;
+                        return this_->GetReader(groupedSplit[index - 1], timestamp);
+                    }
+                };
+
+                return CreateOrderedSchemafulReader(bottomSplitReaderGenerator);
             });
         }
 
