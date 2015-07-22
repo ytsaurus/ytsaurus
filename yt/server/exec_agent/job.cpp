@@ -774,7 +774,9 @@ private:
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
             error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||
-            error.FindMatching(NVersionedTableClient::EErrorCode::InvalidDoubleValue);
+            error.FindMatching(NVersionedTableClient::EErrorCode::InvalidDoubleValue) ||
+            error.FindMatching(NVersionedTableClient::EErrorCode::IncomparableType) ||
+            error.FindMatching(NVersionedTableClient::EErrorCode::UnhashableType);
     }
 
 };
