@@ -216,9 +216,15 @@
     "pending_tasks_limit_per_user": 500,
     "running_tasks_limit_per_direction": 10,
 
+    "yt_backend_options": {
+        "proxy": "locke.yt.yandex.net",
+        "token": "93b4cacc08aa4538a79a76c21e99c0fb",
+        "config": {
+            "api_version": "v3"
+        }
+    },
     "path": "//tmp/test_transfer_manager",
-    "proxy": "locke.yt.yandex.net",
-    "token": "93b4cacc08aa4538a79a76c21e99c0fb",
+
     "port": 6000,
 
     "logging": {
