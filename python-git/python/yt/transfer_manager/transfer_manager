@@ -538,6 +538,10 @@ class Application(object):
         headers = {}
         for key, value in headers_.iteritems():
             headers[key] = value
+        # Passing Host header causes infinite redirect on locke
+        if "Host" in headers:
+            del headers["Host"]
+
         token = self._get_token(headers.get("Authorization", ""))
         if "X-Forwarded-For" in headers:
             #headers["X-Forwarded-For"] += ", " + request.remote_addr
