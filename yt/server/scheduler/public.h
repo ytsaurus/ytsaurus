@@ -41,23 +41,23 @@ typedef TIntrusivePtr<TFairShareStrategyConfig> TFairShareStrategyConfigPtr;
 class TEventLogConfig;
 typedef TIntrusivePtr<TEventLogConfig> TEventLogConfigPtr;
 
+class TSimpleOperationOptions;
+typedef TIntrusivePtr<TSimpleOperationOptions> TSimpleOperationOptionsPtr;
+
 class TMapOperationOptions;
 typedef TIntrusivePtr<TMapOperationOptions> TMapOperationOptionsPtr;
 
+class TUnorderedMergeOperationOptions;
+typedef TIntrusivePtr<TUnorderedMergeOperationOptions> TUnorderedMergeOperationOptionsPtr;
+
 class TReduceOperationOptions;
 typedef TIntrusivePtr<TReduceOperationOptions> TReduceOperationOptionsPtr;
-
-class TMergeOperationOptions;
-typedef TIntrusivePtr<TMergeOperationOptions> TMergeOperationOptionsPtr;
 
 class TEraseOperationOptions;
 typedef TIntrusivePtr<TEraseOperationOptions> TEraseOperationOptionsPtr;
 
 class TOrderedMergeOperationOptions;
 typedef TIntrusivePtr<TOrderedMergeOperationOptions> TOrderedMergeOperationOptionsPtr;
-
-class TUnorderedMergeOperationOptions;
-typedef TIntrusivePtr<TUnorderedMergeOperationOptions> TUnorderedMergeOperationOptionsPtr;
 
 class TSortedMergeOperationOptions;
 typedef TIntrusivePtr<TSortedMergeOperationOptions> TSortedMergeOperationOptionsPtr;
