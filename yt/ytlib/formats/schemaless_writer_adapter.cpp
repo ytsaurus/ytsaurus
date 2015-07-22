@@ -57,10 +57,15 @@ bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
     try {
         for (const auto& row : rows) {
             if (EnableKeySwitch_) {
-                if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
-                    WriteControlAttribute(EControlAttribute::KeySwitch, true);
+                try {
+                    if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
+                        WriteControlAttribute(EControlAttribute::KeySwitch, true);
+                    }
+                    CurrentKey_ = row;
+                } catch (const std::exception& ex) {
+                    // COMPAT(psushin): composite values are not comparable anymore.
+                    THROW_ERROR_EXCEPTION("Cannot inject key switch into output stream") << ex;
                 }
-                CurrentKey_ = row;
             }
 
             ConsumeRow(row);

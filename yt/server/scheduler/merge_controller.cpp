@@ -1107,7 +1107,6 @@ private:
     virtual void SortEndpoints() override
     {
         int prefixLength = static_cast<int>(KeyColumns.size());
-
         std::sort(
             Endpoints.begin(),
             Endpoints.end(),

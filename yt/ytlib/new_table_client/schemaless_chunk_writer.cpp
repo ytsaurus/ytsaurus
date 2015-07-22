@@ -486,20 +486,25 @@ TReorderingSchemalessMultiChunkWriter::TReorderingSchemalessMultiChunkWriter(
 
 bool TReorderingSchemalessMultiChunkWriter::CheckSortOrder(TUnversionedRow lhs, TUnversionedRow rhs)
 {
-    if (CompareRows(lhs, rhs, KeyColumnCount_) <= 0) {
-        return true;
-    }
-    TUnversionedOwningRowBuilder leftBuilder, rightBuilder;
-    for (int i = 0; i < KeyColumnCount_; ++i) {
-        leftBuilder.AddValue(lhs[i]);
-        rightBuilder.AddValue(rhs[i]);
-    }
+    try {
+        if (CompareRows(lhs, rhs, KeyColumnCount_) <= 0) {
+            return true;
+        }
+        TUnversionedOwningRowBuilder leftBuilder, rightBuilder;
+        for (int i = 0; i < KeyColumnCount_; ++i) {
+            leftBuilder.AddValue(lhs[i]);
+            rightBuilder.AddValue(rhs[i]);
+        }
 
-    Error_ = TError(
-        EErrorCode::SortOrderViolation,
-        "Sort order violation: %v > %v",
-        leftBuilder.FinishRow().Get(), 
-        rightBuilder.FinishRow().Get());
+        Error_ = TError(
+            EErrorCode::SortOrderViolation,
+            "Sort order violation: %v > %v",
+            leftBuilder.FinishRow().Get(), 
+            rightBuilder.FinishRow().Get());
+    } catch (const std::exception& ex) {
+        // NB: e.g. incomparable type.
+        Error_ = TError(ex);
+    }
     return false;
 }
 

@@ -36,37 +36,37 @@ public:
 
     virtual TFuture<void> Open() override
     {
-        // ToDo(psushin): make it really async.
-        auto error = WaitFor(UnderlyingReader_->Open());
-        if (!error.IsOK()) {
-            return MakeFuture(error);
-        }
+        try {
+            // ToDo(psushin): make it really async.
+            WaitFor(UnderlyingReader_->Open())
+                .ThrowOnError();
 
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(10000);
+            std::vector<TUnversionedRow> rows;
+            rows.reserve(10000);
 
-        while (UnderlyingReader_->Read(&rows)) {
-            if (rows.empty()) {
-                auto error = WaitFor(UnderlyingReader_->GetReadyEvent());
-                if (!error.IsOK()) {
-                    return MakeFuture(error);
+            while (UnderlyingReader_->Read(&rows)) {
+                if (rows.empty()) {
+                    WaitFor(UnderlyingReader_->GetReadyEvent())
+                        .ThrowOnError();
+                    continue;
                 }
-                continue;
+
+                for (auto& row : rows) {
+                    Rows_.push_back(RowReorderer_.ReorderRow(row));
+                }
             }
 
-            for (auto& row : rows) {
-                Rows_.push_back(RowReorderer_.ReorderRow(row));
-            }
+            std::sort(
+                Rows_.begin(),
+                Rows_.end(), 
+                [&] (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs) {
+                    return CompareRows(lhs.Get(), rhs.Get(), KeyColumns_.size()) < 0;
+                });
+            
+            return VoidFuture;
+        } catch (const std::exception& ex) {
+            return MakeFuture(TError(ex));
         }
-
-        std::sort(
-            Rows_.begin(),
-            Rows_.end(), 
-            [&] (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs) {
-                return CompareRows(lhs.Get(), rhs.Get(), KeyColumns_.size()) < 0;
-            });
-
-        return VoidFuture;
     }
 
     virtual bool Read(std::vector<TUnversionedRow> *rows) override

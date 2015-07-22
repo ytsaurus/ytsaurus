@@ -120,6 +120,11 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
             nodeId);
 
         OnNodeFailed(nodeId, requestedChunkIndexes);
+
+        if (rspOrError.FindMatching(EErrorCode::IncomparableType)) {
+            // Any exception thrown here interrupts fetching.
+            rspOrError.ThrowOnError();
+        }
         return;
     }
 
