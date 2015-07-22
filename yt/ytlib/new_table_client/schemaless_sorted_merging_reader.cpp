@@ -161,12 +161,11 @@ void TSchemalessSortedMergingReader::DoOpen()
                     .ThrowOnError();
             }
         }
+        if (!SessionHeap_.empty()) {
+            MakeHeap(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions);
+        }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to open schemaless merging reader") << ex;
-    }
-
-    if (!SessionHeap_.empty()) {
-        MakeHeap(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions);
     }
 }
 
