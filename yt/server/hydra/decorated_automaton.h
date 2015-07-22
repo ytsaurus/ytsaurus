@@ -44,11 +44,13 @@ struct TEpochContext
 
     std::atomic<bool> Restarted = {false};
 
-    TNullable<TVersion> ActiveLeaderSyncVersion;
-    TPromise<void> ActiveLeaderSyncPromise;
-    TPromise<void> PendingLeaderSyncPromise;
-    bool LeaderSyncDeadlineReached = false;
-    
+    TPromise<void> ActiveUpstreamSyncPromise;
+    TPromise<void> PendingUpstreamSyncPromise;
+    bool UpstreamSyncDeadlineReached = false;
+
+    TNullable<TVersion> LeaderSyncVersion;
+    TPromise<void> LeaderSyncPromise;
+
     TPeerId LeaderId = InvalidPeerId;
     TEpochId EpochId;
     TCancelableContextPtr CancelableContext = New<TCancelableContext>();
