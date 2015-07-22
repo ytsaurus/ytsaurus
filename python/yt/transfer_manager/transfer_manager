@@ -207,7 +207,7 @@ class Application(object):
 
         self._config = config
         self._mutex = RLock()
-        self._yt = Yt(config["proxy"], config["token"], config={"api_version": "v3"})
+        self._yt = Yt(**config["yt_backend_options"])
 
         self._load_config(config)
         self._path = config["path"]
@@ -912,6 +912,8 @@ class Application(object):
 
     def _abort_failed_transfer_manager_operations(self):
         for task_id, task in self._tasks.iteritems():
+            if not task.progress or "operations" not in task.progress:
+                continue
             for operation in task.progress["operations"]:
                 cluster_name, operation_id = operation["cluster_name"], operation["id"]
                 if self._clusters[cluster_name]._type != "yt":
@@ -1215,9 +1217,12 @@ DEFAULT_CONFIG = {
     "pending_tasks_limit_per_user": 500,
     "running_tasks_limit_per_direction": 10,
 
+    "yt_backend_options": {
+        "proxy": "plato.yt.yandex.net",
+        "token": "93b4cacc08aa4538a79a76c21e99c0fb"
+    },
     "path": "//home/ignat/transfer_manager_test",
-    "proxy": "plato.yt.yandex.net",
-    "token": "93b4cacc08aa4538a79a76c21e99c0fb",
+
     "port": 5010
 }
 
