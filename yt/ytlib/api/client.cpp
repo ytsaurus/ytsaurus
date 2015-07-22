@@ -1449,6 +1449,7 @@ private:
         auto req = TYPathProxy::Get(path);
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
+        SetPrerequisites(req, options);
 
         ToProto(req->mutable_attribute_filter(), options.AttributeFilter);
         if (options.MaxSize) {
@@ -1515,6 +1516,7 @@ private:
         auto req = TYPathProxy::List(path);
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
+        SetPrerequisites(req, options);
 
         ToProto(req->mutable_attribute_filter(), options.AttributeFilter);
         if (options.MaxSize) {
@@ -1665,6 +1667,7 @@ private:
     {
         auto req = TYPathProxy::Exists(path);
         SetTransactionId(req, options, true);
+        SetPrerequisites(req, options);
 
         auto* proxy = GetReadProxy(options);
         auto rsp = WaitFor(proxy->Execute(req))
@@ -1743,6 +1746,7 @@ private:
         req->set_user(user);
         req->set_permission(static_cast<int>(permission));
         SetTransactionId(req, options, true);
+        SetPrerequisites(req, options);
 
         auto* proxy = GetReadProxy(options);
         auto rsp = WaitFor(proxy->Execute(req))

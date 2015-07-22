@@ -72,6 +72,7 @@ void TWriteFileCommand::DoExecute()
     options.Append = Request_->Path.GetAppend();
     options.Config = std::move(config);
     SetTransactionalOptions(&options);
+    SetPrerequisites(&options);
 
     auto writer = Context_->GetClient()->CreateFileWriter(
         Request_->Path.GetPath(),
