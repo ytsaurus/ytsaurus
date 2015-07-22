@@ -268,6 +268,13 @@ Stroka ToString(const TUnversionedValue& value)
 
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
+    if (lhs.Type == EValueType::Any || rhs.Type == EValueType::Any) {
+        // Never compare composite values.
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::IncomparableType, 
+            "Composite types are not comparable.");
+    }
+
     if (UNLIKELY(lhs.Type != rhs.Type)) {
         return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
     }
@@ -339,16 +346,13 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             }
         }
 
-        // NB: Cannot actually compare composite values.
-        case EValueType::Any:
-            return 0;
-
         // NB: All sentinel types are equal.
         case EValueType::Null:
         case EValueType::Min:
         case EValueType::Max:
             return 0;
 
+        case EValueType::Any:
         default:
             YUNREACHABLE();
     }
@@ -577,6 +581,10 @@ ui64 GetHash(TUnversionedRow row, int keyColumnCount)
 // Forever-fixed Google FarmHash fingerprint.
 TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
 {
+    if (value.Type == EValueType::Any) {
+        THROW_ERROR_EXCEPTION(EErrorCode::UnhashableType, "Composite types are not hashable");
+    }
+
     switch (value.Type) {
         case EValueType::String:
             return FarmFingerprint(value.Data.String, value.Length);

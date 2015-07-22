@@ -2309,13 +2309,18 @@ private:
 
         TFuture<void> Invoke(IChannelPtr channel)
         {
-            std::sort(
-                SubmittedRows_.begin(),
-                SubmittedRows_.end(),
-                [=] (const TSubmittedRow& lhs, const TSubmittedRow& rhs) {
-                    int res = CompareRows(lhs.Row, rhs.Row, KeyColumnCount_);
-                    return res != 0 ? res < 0 : lhs.SequentialId < rhs.SequentialId;
-                });
+            try {
+                std::sort(
+                    SubmittedRows_.begin(),
+                    SubmittedRows_.end(),
+                    [=] (const TSubmittedRow& lhs, const TSubmittedRow& rhs) {
+                        int res = CompareRows(lhs.Row, rhs.Row, KeyColumnCount_);
+                        return res != 0 ? res < 0 : lhs.SequentialId < rhs.SequentialId;
+                    });
+            } catch (const std::exception& ex) {
+                // NB: CompareRows may throw on composite values.
+                return MakeFuture(TError(ex));
+            }
 
             std::vector<TSubmittedRow> mergedRows;
             mergedRows.reserve(SubmittedRows_.size());
