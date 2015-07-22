@@ -44,7 +44,7 @@ struct ISchedulerStrategy
     virtual ~ISchedulerStrategy()
     { }
 
-    virtual void ScheduleJobs(ISchedulingContext* context) = 0;
+    virtual void ScheduleJobs(ISchedulingContext* schedulingContext) = 0;
 
     //! Builds a YSON structure containing a set of attributes to be assigned to operation's node
     //! in Cypress during creation.
