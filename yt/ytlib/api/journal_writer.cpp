@@ -111,7 +111,7 @@ private:
             , ObjectProxy_(MasterChannel_)
             , ChunkProxy_(MasterChannel_)
         {
-            if (Options_.TransactionId != NullTransactionId) {
+            if (Options_.TransactionId) {
                 auto transactionManager = Client_->GetTransactionManager();
                 Transaction_ = transactionManager->Attach(Options_.TransactionId);
             }

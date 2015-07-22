@@ -319,7 +319,7 @@ private:
                 transactionId,
                 force);
             auto responseMessage = CreateErrorResponseMessage(ex);
-            if (mutationId != NullMutationId) {
+            if (mutationId) {
                 ResponseKeeper_->EndRequest(mutationId, responseMessage);
             }
             return MakeFuture(responseMessage);
@@ -639,7 +639,7 @@ private:
             auto* mutationContext = GetCurrentMutationContext();
             mutationContext->Response().Data = responseMessage;
 
-            if (mutationId != NullMutationId) {
+            if (mutationId) {
                 ResponseKeeper_->EndRequest(mutationId, responseMessage);
             }
         }
@@ -690,7 +690,7 @@ private:
     void SetCommitResponse(TCommit* commit, TSharedRefArray responseMessage)
     {
         const auto& mutationId = commit->GetMutationId();
-        if (mutationId != NullMutationId) {
+        if (mutationId) {
             ResponseKeeper_->EndRequest(mutationId, responseMessage);
         }
 

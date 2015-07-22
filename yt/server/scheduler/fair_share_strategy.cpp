@@ -917,7 +917,7 @@ public:
         jobLimits = Min(jobLimits, operationLimits);
 
         auto jobId = controller->ScheduleJob(context, jobLimits);
-        if (jobId != NJobTrackerClient::NullJobId) {
+        if (jobId) {
             return true;
         }
 

@@ -222,7 +222,7 @@ void TTablet::Load(TLoadContext& context)
     }
 
     auto activeStoreId = Load<TStoreId>(context);
-    if (activeStoreId != NullStoreId) {
+    if (activeStoreId) {
         ActiveStore_ = GetStore(activeStoreId)->AsDynamicMemory();
     }
 

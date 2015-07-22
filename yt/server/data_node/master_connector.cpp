@@ -563,7 +563,7 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
     auto slotManager = Bootstrap_->GetTabletSlotManager();
     for (const auto& info : rsp->tablet_slots_to_remove()) {
         auto cellId = FromProto<TCellId>(info.cell_id());
-        YCHECK(cellId != NullCellId);
+        YCHECK(cellId);
         auto slot = slotManager->FindSlot(cellId);
         if (!slot) {
             LOG_WARNING("Requested to remove a non-existing slot %v, ignored",
@@ -575,7 +575,7 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
 
     for (const auto& info : rsp->tablet_slots_to_create()) {
         auto cellId = FromProto<TCellId>(info.cell_id());
-        YCHECK(cellId != NullCellId);
+        YCHECK(cellId);
         if (slotManager->GetAvailableTabletSlotCount() == 0) {
             LOG_WARNING("Requested to start cell %v when all slots are used, ignored",
                 cellId);
@@ -604,7 +604,7 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
 
     for (const auto& info : rsp->hive_cells_to_unregister()) {
         auto cellId = FromProto<TCellId>(info.cell_id());
-        YCHECK(cellId != NullCellId);
+        YCHECK(cellId);
         if (cellDirectory->UnregisterCell(cellId)) {
             LOG_DEBUG("Hive cell unregistered (CellId: %v)",
                 cellId);

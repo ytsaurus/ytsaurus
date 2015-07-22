@@ -20,6 +20,8 @@ class TJobResult;
 typedef TGuid TJobId;
 extern const TJobId NullJobId;
 
+///////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EJobType,
     // Scheduler jobs
     ((SchedulerFirst)    (  0)) // sentinel

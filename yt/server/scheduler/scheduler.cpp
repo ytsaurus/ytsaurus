@@ -287,9 +287,9 @@ public:
         TTransactionAttachOptions userAttachOptions;
         userAttachOptions.Ping = false;
         userAttachOptions.PingAncestors = false;
-        auto userTransaction = transactionId == NullTransactionId
-            ? nullptr
-            : transactionManager->Attach(transactionId, userAttachOptions);
+        auto userTransaction = transactionId
+            ? transactionManager->Attach(transactionId, userAttachOptions)
+            : nullptr;
 
         // Merge operation spec with template
         auto specTemplate = GetSpecTemplate(type, spec);
@@ -1184,7 +1184,7 @@ private:
         LOG_INFO("Reviving operation (OperationId: %v)",
             operationId);
 
-        if (operation->GetMutationId() != NullMutationId) {
+        if (operation->GetMutationId()) {
             TRspStartOperation response;
             ToProto(response.mutable_operation_id(), operationId);
             auto responseMessage = CreateResponseMessage(response);
@@ -1657,15 +1657,15 @@ private:
 
         auto operation = job->GetOperation();
         if (jobFailed) {
-            if (stderrChunkId != NullChunkId) {
+            if (stderrChunkId) {
                 operation->SetStderrCount(operation->GetStderrCount() + 1);
             }
             MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
             return;
         }
 
-        YCHECK(failContextChunkId == NullChunkId);
-        if (stderrChunkId == NullChunkId) {
+        YCHECK(!failContextChunkId);
+        if (!stderrChunkId) {
             // Do not create job node.
             return;
         }
