@@ -1483,13 +1483,16 @@ static NLogging::TLogger Logger("MAGIC");
 
 void Magic(const TStringBuf& what, TUnversionedRow row)
 {
-    if (!row) {
-        LOG_DEBUG("%v null", what);
-    }
     if (
-        row.GetCount() >= 3 &&
-        row[1].Type == EValueType::Int64 && row[1].Data.Int64 == 1090116 &&
-        row[2].Type == EValueType::Int64 && row[2].Data.Int64 == 1420146000)
+        row.GetCount() >= 9 &&
+        row[1].Data.Int64 == 1090116 &&
+        row[2].Data.Int64 == 1420146000 &&
+        row[3].Data.Int64 == 179779087 &&
+        row[4].Data.Int64 == 309868965 &&
+        row[5].Data.Int64 == 1 &&
+        row[6].Data.Int64 == 63 &&
+        row[7].Data.Int64 == 21753 &&
+        row[8].Data.Int64 == 2)
     {
         LOG_DEBUG("%v %v", what, row);
     }
