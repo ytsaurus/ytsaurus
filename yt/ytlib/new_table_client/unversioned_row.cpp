@@ -1415,6 +1415,23 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TOwningKey WidenKey(const TOwningKey& key, int padding)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (const auto* value = key.Begin(); value != key.End(); ++value) {
+        builder.AddValue(*value);
+    }
+
+    for (int i = 0; i < padding; ++i) {
+        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null));
+    }
+
+    return builder.FinishRow();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 TUnversionedOwningRow BuildRow(
     const Stroka& yson,
     const TKeyColumns& keyColumns,

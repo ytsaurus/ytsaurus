@@ -245,7 +245,9 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedRangeChunkReader::GetBlockS
 
 void TVersionedRangeChunkReader::InitFirstBlock()
 {
-    CheckBlockUpperLimits(CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_));
+    CheckBlockUpperLimits(
+        CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
+        CachedChunkMeta_->GetKeyPadding());
 
     BlockReader_.reset(new TSimpleVersionedBlockReader(
         SequentialReader_->GetCurrentBlock(),
@@ -272,7 +274,9 @@ void TVersionedRangeChunkReader::InitNextBlock()
 {
     ++CurrentBlockIndex_;
 
-    CheckBlockUpperLimits(CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_));
+    CheckBlockUpperLimits(
+        CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
+        CachedChunkMeta_->GetKeyPadding());
 
     BlockReader_.reset(new TSimpleVersionedBlockReader(
         SequentialReader_->GetCurrentBlock(),

@@ -5,6 +5,8 @@
 
 #include <ytlib/chunk_client/chunk_reader.h>
 
+#include <algorithm>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -150,15 +152,23 @@ int TChunkReaderBase::GetBlockIndexByKey(const TKey& pivotKey, const std::vector
     return beginBlockIndex + ((it != rend) ? std::distance(it, rend) : 0);
 }
 
-void TChunkReaderBase::CheckBlockUpperLimits(const TBlockMeta& blockMeta)
+void TChunkReaderBase::CheckBlockUpperLimits(const TBlockMeta& blockMeta, int keyPadding)
 {
     if (UpperLimit_.HasRowIndex()) {
         CheckRowLimit_ = UpperLimit_.GetRowIndex() < blockMeta.chunk_row_count();
     }
 
     if (UpperLimit_.HasKey()) {
-        auto key = FromProto<TOwningKey>(blockMeta.last_key());
-        CheckKeyLimit_ = CompareRows(UpperLimit_.GetKey().Get(), key.Get()) <= 0;
+        YCHECK(keyPadding >= 0);
+        const auto key = FromProto<TOwningKey>(blockMeta.last_key());
+        auto wideKey = WidenKey(key, keyPadding);
+
+        auto upperLimit = UpperLimit_.GetKey().Get();
+        CheckKeyLimit_ = CompareRows(
+            upperLimit.Begin(),
+            upperLimit.End(),
+            wideKey.data(),
+            wideKey.data() + wideKey.size()) <= 0;
     }
 }
 
@@ -285,6 +295,14 @@ TFuture<void> TChunkReaderBase::GetFetchingCompletedEvent()
         return VoidFuture;
     }
     return SequentialReader_->GetFetchingCompletedEvent();
+}
+
+std::vector<TUnversionedValue> TChunkReaderBase::WidenKey(const TOwningKey &key, int keyPadding)
+{
+    std::vector<TUnversionedValue> wideKey;
+    wideKey.resize(key.GetCount() + keyPadding, MakeUnversionedSentinelValue(EValueType::Null));
+    std::copy(key.Begin(), key.End(), wideKey.data());
+    return wideKey;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
