@@ -574,6 +574,7 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
 {
     YASSERT(Impl_);
 
+    auto this_ = *this;
     auto promise = NewPromise<T>();
 
     Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
@@ -582,11 +583,11 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
 
     NConcurrency::TDelayedExecutor::Submit(
         BIND([=] () mutable {
+            this_.Cancel();
             promise.TrySet(TError(NYT::EErrorCode::Timeout, "Operation timed out"));
         }),
         timeout);
 
-    auto this_ = *this;
     promise.OnCanceled(BIND([this_] () mutable {
         this_.Cancel();
     }));
