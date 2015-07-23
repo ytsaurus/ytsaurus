@@ -13,8 +13,6 @@
 #include <core/ytree/node.h>
 #include <core/ytree/attribute_helpers.h>
 
-#include <core/logging/log.h>
-
 #include <ytlib/new_table_client/row_buffer.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schema.h>
@@ -1484,25 +1482,6 @@ TUnversionedOwningRow BuildRow(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static NLogging::TLogger Logger("MAGIC");
-
-void Magic(const TStringBuf& what, TUnversionedRow row)
-{
-    if (
-        row.GetCount() >= 9 &&
-        row[1].Data.Int64 == 1090116 &&
-        row[2].Data.Int64 == 1420146000 &&
-        row[3].Data.Int64 == 179779087 &&
-        row[4].Data.Int64 == 309868965 &&
-        row[5].Data.Int64 == 1 &&
-        row[6].Data.Int64 == 63 &&
-        row[7].Data.Int64 == 21753 &&
-        row[8].Data.Int64 == 2)
-    {
-        LOG_DEBUG("%v %v", what, row);
-    }
-}
 
 } // namespace NVersionedTableClient
 } // namespace NYT
