@@ -764,6 +764,7 @@ class TResourceLimitsConfig
 public:
     TNullable<int> UserSlots;
     TNullable<int> Cpu;
+    TNullable<int> Network;
     TNullable<i64> Memory;
 
     TResourceLimitsConfig()
@@ -772,6 +773,9 @@ public:
             .Default()
             .GreaterThanOrEqual(0);
         RegisterParameter("cpu", Cpu)
+            .Default()
+            .GreaterThanOrEqual(0);
+        RegisterParameter("network", Network)
             .Default()
             .GreaterThanOrEqual(0);
         RegisterParameter("memory", Memory)
@@ -787,6 +791,9 @@ public:
         }
         if (Cpu) {
             perTypeLimits.set_cpu(*Cpu);
+        }
+        if (Network) {
+            perTypeLimits.set_network(*Network);
         }
         if (Memory) {
             perTypeLimits.set_memory(*Memory);
