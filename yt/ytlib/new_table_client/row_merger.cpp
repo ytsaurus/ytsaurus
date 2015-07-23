@@ -480,6 +480,13 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         DeleteTimestamps_.erase(it, DeleteTimestamps_.end());
     }
 
+    // XXX(babenko)
+    const int MAX = 32768;
+    if (DeleteTimestamps_.size() > MAX) {
+        DeleteTimestamps_.erase(DeleteTimestamps_.begin() + MAX, DeleteTimestamps_.end());
+        fprintf(stderr, "!!! Delete timestamps trimmed during merge\n");
+    }
+
     if (MergedValues_.empty() && WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
         Cleanup();
         return TVersionedRow();
