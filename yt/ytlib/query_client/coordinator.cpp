@@ -183,7 +183,7 @@ TGroupedRanges GetPrunedRanges(
     const IFunctionRegistryPtr functionRegistry,
     ui64 rangeExpansionLimit,
     bool verboseLogging,
-    const NLogging::TLogger& Logger = QueryClientLogger)
+    const NLogging::TLogger& Logger)
 {
     LOG_DEBUG("Infering ranges from predicate");
 
@@ -232,11 +232,19 @@ TGroupedRanges GetPrunedRanges(
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
     ui64 rangeExpansionLimit,
-    bool verboseLogging,
-    const NLogging::TLogger& Logger = QueryClientLogger)
+    bool verboseLogging)
 {
-
-
+    return GetPrunedRanges(
+        predicate,
+        tableSchema,
+        keyColumns,
+        sources,
+        rowBuffer,
+        evaluatorCache,
+        functionRegistry,
+        rangeExpansionLimit,
+        verboseLogging,
+        Logger);
 }
 
 TGroupedRanges GetPrunedRanges(
