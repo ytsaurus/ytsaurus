@@ -739,6 +739,8 @@ TUnversionedOwningRow BuildRow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Magic(const TStringBuf& what, TUnversionedRow row);
+
 } // namespace NVersionedTableClient
 } // namespace NYT
 
