@@ -625,6 +625,54 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
     }
 }
 
+TEST_F(TVersionedChunksTest, WideSchemaBoundaryRow)
+{
+    std::vector<TVersionedRow> rows;
+    rows.push_back(CreateSingleRow(0));
+    ChunkWriter->Write(rows);
+    GetRowAndResetWriter();
+
+    TTableSchema widerSchema;
+    widerSchema.Columns() = {
+        TColumnSchema("k1", EValueType::String),
+        TColumnSchema("k2", EValueType::Int64),
+        TColumnSchema("k3", EValueType::Double),
+        TColumnSchema("k4", EValueType::Int64),
+        TColumnSchema("v1", EValueType::Int64),
+    };
+
+    TKeyColumns widerKeyColumns = {"k1", "k2", "k3", "k4"};
+
+    auto chunkMeta = TCachedVersionedChunkMeta::Load(
+        MemoryReader,
+        widerSchema,
+        widerKeyColumns).Get().ValueOrThrow();
+
+    TUnversionedOwningRowBuilder keyBuilder;
+    keyBuilder.AddValue(rows.front().BeginKeys()[0]);
+    keyBuilder.AddValue(rows.front().BeginKeys()[1]);
+    keyBuilder.AddValue(rows.front().BeginKeys()[2]);
+    keyBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 3));
+    TReadLimit limit;
+    limit.SetKey(keyBuilder.FinishRow());
+
+    auto chunkReader = CreateVersionedChunkReader(
+        New<TChunkReaderConfig>(),
+        MemoryReader,
+        GetNullBlockCache(),
+        chunkMeta,
+        TReadLimit(),
+        limit,
+        TColumnFilter(),
+        New<TChunkReaderPerformanceCounters>(),
+        AllCommittedTimestamp);
+
+    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+
+    std::vector<TVersionedRow> expected;
+    CheckResult(expected, chunkReader);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
