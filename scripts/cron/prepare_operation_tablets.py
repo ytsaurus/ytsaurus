@@ -7,7 +7,7 @@ yt.config.http.HEADER_FORMAT = "yson"
 
 def create_ordered_by_id_table():
     path = "//sys/operations_archive/ordered_by_id"
-    yt.remove(path, force=True)
+    #yt.remove(path, force=True)
     yt.create("table", path, ignore_existing=True, recursive=True)
 
     yt.set(path + "/@schema", [
@@ -31,8 +31,8 @@ def create_ordered_by_id_table():
     yt.mount_table(path)
 
 def create_ordered_by_time_table():
-    path = "//sys/operations_archive/ordered_by_time"
-    yt.remove(path, force=True)
+    path = "//sys/operations_archive/ordered_by_start_time"
+    #yt.remove(path, force=True)
     yt.create("table", path, ignore_existing=True, recursive=True)
 
     yt.set(path + "/@schema", [
