@@ -270,15 +270,6 @@ protected:
         auto deleteRevisionListSnapshot = SearchByRevision(deleteRevisionList, Revision_);
         int deleteRevisionCount = deleteRevisionListSnapshot.GetFullSize();
 
-
-        const int MAX = 32768;
-        if (deleteRevisionCount > MAX) {
-            fprintf(stderr, "!!! Too many delete timestamps in dynamic memory store, truncated (TabletId: %s, Key: %s)\n",
-                ~ToString(Store_->TabletId_),
-                ~ToString(Store_->RowToKey(dynamicRow)));
-            deleteRevisionCount = MAX;
-        }
-
         if (writeRevisionCount == 0 && deleteRevisionCount == 0) {
             return TVersionedRow();
         }
@@ -298,10 +289,6 @@ protected:
             valueCount += snapshot.GetFullSize();
         }
 
-        // XXX(babenko): we have to do something about it
-        YCHECK(valueCount <= MAX);
-        YCHECK(writeRevisionCount <= MAX);
-
         auto versionedRow = TVersionedRow::Allocate(
             &Pool_,
             KeyColumnCount_,
@@ -318,20 +305,16 @@ protected:
             TTimestamp* beginTimestamps,
             TTimestamp* endTimestamps)
         {
-            if (beginTimestamps == endTimestamps)
-                return;
-
             auto currentList = snapshot.List;
             auto* currentTimestamp = beginTimestamps;
-            while (true) {
+            while (currentList) {
                 int currentSize = (currentList == snapshot.List ? snapshot.Size : currentList.GetSize());
-                for (const auto* revision = currentList.Begin() + currentSize - 1;revision >= currentList.Begin(); --revision) {
+                for (const auto* revision = currentList.Begin() + currentSize - 1; revision >= currentList.Begin(); --revision) {
                     *currentTimestamp++ = Store_->TimestampFromRevision(*revision);
-                    if (currentTimestamp == endTimestamps)
-                        return;
                 }
                 currentList = currentList.GetSuccessor();
             }
+            YCHECK(currentTimestamp == endTimestamps);
         };
         copyTimestamps(
             writeRevisionListSnapshot,
