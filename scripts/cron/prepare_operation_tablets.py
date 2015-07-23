@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import yt.yson as yson
 import yt.wrapper as yt
 
@@ -7,7 +9,7 @@ yt.config.http.HEADER_FORMAT = "yson"
 
 def create_ordered_by_id_table():
     path = "//sys/operations_archive/ordered_by_id"
-    #yt.remove(path, force=True)
+    yt.remove(path, force=True)
     yt.create("table", path, ignore_existing=True, recursive=True)
 
     yt.set(path + "/@schema", [
@@ -30,21 +32,22 @@ def create_ordered_by_id_table():
     yt.reshard_table(path, pivot_keys)
     yt.mount_table(path)
 
-def create_ordered_by_time_table():
+def create_ordered_by_start_time_table():
     path = "//sys/operations_archive/ordered_by_start_time"
-    #yt.remove(path, force=True)
+    yt.remove(path, force=True)
     yt.create("table", path, ignore_existing=True, recursive=True)
 
     yt.set(path + "/@schema", [
         {"name": "start_time", "type": "string"},
-        {"name": "id_hash", "type": "string"},
-        {"name": "id", "type": "string"}])
-    yt.set(path + "/@key_columns", ["start_time", "id_hash"])
+        {"name": "id_hash", "type": "uint64", "expression": "farm_hash(id)"},
+        {"name": "id", "type": "string"},
+        {"name": "dummy", "type": "string"}])
+    yt.set(path + "/@key_columns", ["start_time", "id_hash", "id"])
     yt.mount_table(path)
 
 def main():
     create_ordered_by_id_table()
-    create_ordered_by_time_table()
+    create_ordered_by_start_time_table()
 
 if __name__ == "__main__":
     main()
