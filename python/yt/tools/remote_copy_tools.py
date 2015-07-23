@@ -168,12 +168,8 @@ def run_operation_and_notify(message_queue, run_operation, *args, **kwargs):
                             }})
     operation.wait()
 
-def copy_replication_factor_and_user_attributes(source_client, destination_client, source_table, destination_table):
+def copy_user_attributes(source_client, destination_client, source_table, destination_table):
     source_attributes = source_client.get(source_table + "/@")
-
-    replication_factor = source_attributes.get("replication_factor")
-    if replication_factor is not None:
-        destination_client.set_attribute(destination_table, "replication_factor", replication_factor)
 
     for attribute in source_attributes.get("user_attribute_keys", []):
         destination_client.set_attribute(destination_table, attribute, source_attributes[attribute])
@@ -214,8 +210,8 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spe
             spec=spec_template,
             remote_cluster_token=source_client.config["token"])
 
-    run_erasure_merge(source_client, destination_client, src, dst)
-    copy_replication_factor_and_user_attributes(source_client, destination_client, src, dst)
+        run_erasure_merge(source_client, destination_client, src, dst)
+        copy_user_attributes(source_client, destination_client, src, dst)
 
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, spec_template=None, message_queue=None):
     if spec_template is None:
@@ -267,7 +263,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                     sort_by=sorted_by)
 
             run_erasure_merge(source_client, destination_client, src, dst)
-            copy_replication_factor_and_user_attributes(source_client, destination_client, src, dst)
+            copy_user_attributes(source_client, destination_client, src, dst)
 
     finally:
         shutil.rmtree(tmp_dir)
