@@ -230,6 +230,7 @@ private:
             ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
             auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
             if (partitionSnapshot != currentPartitionSnapshot) {
+                Magic(STRINGBUF("TLookupSession:DoRun"), key);
                 LookupInPartition(
                     currentPartitionSnapshot,
                     LookupKeys_.Slice(currentPartitionStartOffset, index),
