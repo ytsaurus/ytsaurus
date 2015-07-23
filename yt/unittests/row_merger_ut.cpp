@@ -48,9 +48,6 @@ protected:
         int keyId = 0;
         for (auto key : keys) {
             switch (key->GetType()) {
-                case ENodeType::Entity:
-                    builder.AddKey(MakeUnversionedSentinelValue(EValueType::Null, keyId));
-                    break;
                 case ENodeType::Int64:
                     builder.AddKey(MakeUnversionedInt64Value(key->GetValue<i64>(), keyId));
                     break;
@@ -251,41 +248,6 @@ TEST_F(TSchemafulRowMergerTest, Filter2)
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=1> 2; <id=2> 3.14"),
-        merger.BuildMergedRow());
-}
-
-TEST_F(TSchemafulRowMergerTest, YT_2429)
-{
-    TSchemafulRowMerger merger(Buffer_->GetPool(), 32, 16, TColumnFilter());
-
-    auto key =
-        "1746121810613993141;1090116;1420146000;179779087;309868965u;"
-        "1;63;21753;2;0;0;10;#;#;#;#";
-
-    merger.AddPartialRow(BuildVersionedRow(key, "", {200}));
-    merger.AddPartialRow(BuildVersionedRow(key, "", {400}));
-    merger.AddPartialRow(BuildVersionedRow(key, "", {300}));
-
-    merger.AddPartialRow(BuildVersionedRow(
-        key,
-        "<id=16;ts=100>1;"
-        "<id=17;ts=100>0;"
-        "<id=18;ts=100>235098825;"
-        "<id=19;ts=100>0;"
-        "<id=21;ts=100>14;"
-        "<id=22;ts=100>0;"
-        "<id=23;ts=100>0;"
-        "<id=24;ts=100>0;"
-        "<id=25;ts=100>23;"
-        "<id=26;ts=100>0;"
-        "<id=27;ts=100>0;"
-        "<id=28;ts=100>0;"
-        "<id=29;ts=100>0;"
-        "<id=30;ts=100>0;"
-        "<id=31;ts=100>0;"));
-
-    EXPECT_EQ(
-        TUnversionedRow(),
         merger.BuildMergedRow());
 }
 
