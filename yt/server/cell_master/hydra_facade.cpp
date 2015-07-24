@@ -134,12 +134,12 @@ public:
         SnapshotCleanupExecutor_->Start();
     }
 
-    void DumpSnapshot(ISnapshotReaderPtr reader)
+    void LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
     {
         WaitFor(reader->Open())
             .ThrowOnError();
 
-        Automaton_->SetSerializationDumpEnabled(true);
+        Automaton_->SetSerializationDumpEnabled(dump);
         Automaton_->Clear();
         Automaton_->LoadSnapshot(reader);
     }
@@ -303,9 +303,9 @@ void THydraFacade::Start()
     Impl_->Start();
 }
 
-void THydraFacade::DumpSnapshot(ISnapshotReaderPtr reader)
+void THydraFacade::LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
 {
-    Impl_->DumpSnapshot(reader);
+    Impl_->LoadSnapshot(reader, dump);
 }
 
 TMasterAutomatonPtr THydraFacade::GetAutomaton() const

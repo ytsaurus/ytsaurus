@@ -234,7 +234,6 @@ public:
     {
         SystemWriters_.push_back(New<TStderrLogWriter>());
         UpdateConfig(TLogConfig::CreateDefault(), false);
-        Writers_.insert(std::make_pair(DefaultStderrWriterName, New<TStderrLogWriter>()));
 
         LoggingThread_->Start();
         EventQueue_->SetThreadId(LoggingThread_->GetId());
@@ -502,7 +501,7 @@ private:
 
             for (const Stroka& writerId : writerIds) {
                 auto writerIt = Writers_.find(writerId);
-                YASSERT(writerIt != Writers_.end());
+                YCHECK(writerIt != Writers_.end());
                 writers.push_back(writerIt->second);
             }
 
