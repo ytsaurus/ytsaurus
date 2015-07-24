@@ -930,8 +930,11 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.create("table", TEST_DIR + "/table", attributes={"attr": u"капуста"})
 
     def test_get_user_name(self):
-        # With disabled authentication in proxy it always return root
-        assert get_user_name("") == "root"
+        if yt.config.VERSION == "v2":
+            assert get_user_name("") == None
+        else:
+            # With disabled authentication in proxy it always return root
+            assert get_user_name("") == "root"
 
         #assert get_user_name("") == None
         #assert get_user_name("12345") == None
