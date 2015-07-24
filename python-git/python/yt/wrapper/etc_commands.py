@@ -29,7 +29,7 @@ def get_user_name(token=None, headers=None, client=None):
         data = None
         verb = "whoami"
     else:
-        if token is None:
+        if not token:
             return None
         data = "token=" + token.strip()
         verb = "login"
