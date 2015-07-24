@@ -88,7 +88,8 @@ default_config = {
         "run_map_reduce_if_source_is_not_sorted": False,
         "use_non_strict_upper_key": False,
         "check_input_fully_consumed": False,
-        "abort_transactions_with_remove": False
+        "abort_transactions_with_remove": False,
+        "use_yamr_style_prefix": False
     },
 
     "tabular_data_format": None,
