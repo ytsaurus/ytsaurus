@@ -48,6 +48,7 @@ class Config(types.ModuleType):
             "USE_NON_STRICT_UPPER_KEY": "yamr_mode/use_non_strict_upper_key",
             "CHECK_INPUT_FULLY_CONSUMED": "yamr_mode/check_input_fully_consumed",
             "FORCE_DROP_DST": "yamr_mode/abort_transactions_with_remove",
+            "USE_YAMR_STYLE_PREFIX": "yamr_mode/use_yamr_style_prefix",
 
             "OPERATION_STATE_UPDATE_PERIOD": "operation_tracker/poll_period",
             "STDERR_LOGGING_LEVEL": "operation_tracker/stderr_logging_level",

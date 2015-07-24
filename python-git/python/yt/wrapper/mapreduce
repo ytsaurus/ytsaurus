@@ -24,7 +24,6 @@
 from yt.wrapper.cli_helpers import write_silently, run_main, die
 from yt.wrapper.table_commands import copy_table, move_table, _remove_locks, _get_format_from_tables
 from yt.wrapper.cypress_commands import remove_with_empty_dirs
-from yt.wrapper.table import check_prefix
 
 from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, chunk_iter_stream
 import yt.wrapper.config as config
@@ -58,13 +57,76 @@ def remove_prefix(table):
         return table[len(config["prefix"]):]
     return table
 
-def list_all_entities(type):
+def list_entities(type, prefix, exact, jsonoutput):
     if config["prefix"] is None:
         die("You should specify PREFIX for list command")
-    check_prefix(config["prefix"])
-    tables = yt.search(config["prefix"][:-1], type,
-                       path_filter=lambda path: path.startswith(config["prefix"]))
-    return sorted(map(remove_prefix, tables))
+    if exact is not None and prefix is not None and config["yamr_mode"]["use_yamr_style_prefix"]:
+        die("prefix and exact options can not be specified simultaneously with enabled option use_yamr_style_prefix")
+    if jsonoutput and type == "file":
+        die("Option jsonoutput is not supported for files")
+
+    if prefix is not None and config["yamr_mode"]["use_yamr_style_prefix"]:
+        prefix = os.path.join(config["prefix"], prefix)
+    elif exact is not None:
+        prefix = os.path.join(config["prefix"], exact)
+    else:
+        prefix = config["prefix"]
+
+    attributes = []
+    if jsonoutput:
+        attributes = [
+            "account",
+            "chunk_count",
+            "row_count",
+            "compressed_data_size",
+            "uncompressed_data_size",
+            "resource_usage",
+            "sorted_by",
+            "modification_time",
+            "creation_time",
+            "access_time",
+            "compression_codec",
+            "replication_factor"]
+
+    # NB: it will be files in case of type == "file"
+    tables = []
+    if exact is not None:
+        if yt.exists(prefix) and yt.get(prefix + "/@type") == type:
+            table_attributes = yt.get(prefix, attributes=attributes).attributes
+            tables.append(yson.to_yson_type(prefix, attributes=table_attributes))
+    else:
+        request_prefix = prefix.rsplit("/", 1)[0]
+        tables = yt.search(request_prefix, type,
+                           path_filter=lambda path: path.startswith(request_prefix), attributes=attributes)
+        tables = filter(lambda table: table.startswith(prefix), tables)
+
+    if jsonoutput:
+        result = []
+        for table in tables:
+            attrs = table.attributes
+            result.append({
+                "name": remove_prefix(str(table)),
+                "user": attrs["account"],
+                "chunks": attrs["chunk_count"],
+                "records": attrs["row_count"],
+                "size": attrs["uncompressed_data_size"],
+                "byte_size": attrs["uncompressed_data_size"],
+                "full_size": attrs["uncompressed_data_size"],
+                "disk_size": attrs["resource_usage"]["disk_space"],
+                "sorted": bool(attrs.get("sorted_by")),
+                "write_locked": None,
+                "mod_time": attrs["modification_time"],
+                "atime": attrs["access_time"],
+                "creat_time": attrs["creation_time"],
+                "creat_transaction": None,
+                "replicas": attrs["replication_factor"],
+                "compression_algo": attrs["compression_codec"],
+                "block_format": None,
+                "hier_chunk": None})
+        result.sort(key=lambda item: item["name"])
+        return [json.dumps(result, indent=4)]
+    else:
+        return sorted(map(remove_prefix, map(str, tables)))
 
 def add_eoln(str):
     return str + "\n"
@@ -199,14 +261,15 @@ Examples:
     action_flags = ["version", "copy", "move", "sort", "merge", "list", "listfiles", "starttx"]
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
-                                          "smartformat", "force", "executable", "waitable", "failonemptysrctable", "nocreatetmptable"])
+                                          "smartformat", "force", "executable", "waitable", "failonemptysrctable", "nocreatetmptable",
+                                          "jsonoutput"])
 
     add_maybe_missing_value_args(parser, action_maybe_stores)
 
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
-                                            "mode", "tablereader", "tablewriter", "compress"])
+                                            "mode", "tablereader", "tablewriter", "compress", "exact"])
     add_multiple_args(parser, ["src", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_multiple_args_to_one_dest(parser, ["dst", "dstappend", "dstsorted"], "dst")
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor", "stderrlevel", "maxjobfails", "count"])
@@ -404,7 +467,7 @@ Examples:
         config["write_retries"]["chunk_size"] = args.chunksize
     if args.server is not None:
         config["proxy"]["url"] = args.server
-    if args.prefix is not None:
+    if args.prefix is not None and not config["yamr_mode"]["use_yamr_style_prefix"]:
         config["prefix"] = args.prefix
     if args.timeout is not None:
         config["transaction_timeout"] = int(args.timeout)
@@ -511,9 +574,9 @@ Examples:
 
 
     if args.list:
-        write_silently(imap(add_eoln, list_all_entities("table")))
+        write_silently(imap(add_eoln, list_entities(type="table", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput)))
     if args.listfiles:
-        write_silently(imap(add_eoln, list_all_entities("file")))
+        write_silently(imap(add_eoln, list_entities(type="file", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput)))
     if args.read is not None:
         write_silently(
             chunk_iter_stream(

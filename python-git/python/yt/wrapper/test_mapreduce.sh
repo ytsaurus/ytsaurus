@@ -92,6 +92,30 @@ test_base_functionality()
     check 8 `./mapreduce -read "ignat/temp" | wc -l`
 }
 
+test_list()
+{
+    ./mapreduce -write "ignat/test_dir/table1" <table_file
+    ./mapreduce -write "ignat/test_dir/table2" <table_file
+    check "table1\ntable2\n" "`./mapreduce -list -prefix "${YT_PREFIX}ignat/test_dir/"`"
+
+    export YT_USE_YAMR_STYLE_PREFIX=1
+
+    check "ignat/test_dir/table1\nignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir"`"
+    check "ignat/test_dir/table1\nignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir/"`"
+    check "ignat/test_dir/table1\nignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir/tab"`"
+    check "ignat/test_dir/table1\n" "`./mapreduce -list -prefix "ignat/test_dir/table1"`"
+    check "ignat/test_dir/table1\n" "`./mapreduce -list -exact "ignat/test_dir/table1"`"
+    check "" "`./mapreduce -list -exact "ignat/test_dir/table"`"
+    check "" "`./mapreduce -list -exact "ignat/test_dir"`"
+    check_failed './mapreduce -list -exact "ignat/test_dir/" -prefix "ignat"'
+
+    check "ignat/test_dir/table1\n" "`./mapreduce -list -prefix "ignat/test_dir/table" -jsonoutput | python -c "import json, sys; print json.load(sys.stdin)[0]['name']"`"
+    check "ignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir/table" -jsonoutput | python -c "import json, sys; print json.load(sys.stdin)[1]['name']"`"
+    check "[]\n" "`./mapreduce -list -exact "ignat/test_dir/table" -jsonoutput`"
+
+    export YT_USE_YAMR_STYLE_PREFIX=0
+}
+
 test_codec()
 {
     ./mapreduce -write "ignat/temp" <table_file
@@ -213,6 +237,7 @@ if __name__ == '__main__':
     chmod +x my_mapper.py
 
     ./mapreduce -drop ignat/dir/mapper.py
+    ./mapreduce -listfiles >&2
     initial_number_of_files="`./mapreduce -listfiles | wc -l`"
 
     ./mapreduce -upload ignat/dir/mapper.py -executable < my_mapper.py
@@ -552,6 +577,7 @@ test_many_to_many_copy_move()
 prepare_table_files
 test_sortby_reduceby
 test_base_functionality
+test_list
 test_codec
 test_many_output_tables
 test_chunksize
