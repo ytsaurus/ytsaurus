@@ -788,7 +788,7 @@ def set_yamr_mode(client=None):
     """Configure global config to be yamr compatible"""
     config = get_config(client)
     for option in config["yamr_mode"]:
-        if option == "abort_transactions_with_remove":
+        if option in ["abort_transactions_with_remove", "use_yamr_style_prefix"]:
             continue
         config["yamr_mode"][option] = True
     config["tabular_data_format"] = YamrFormat(has_subkey=True, lenval=False)
