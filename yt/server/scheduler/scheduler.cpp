@@ -438,12 +438,16 @@ public:
         ToProto(req->mutable_job_id(), jobId);
 
         auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error dumping input context for job %v",
-            jobId)
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Error saving input context for job %v into %v",
+            jobId,
+            path);
 
-        auto& res = rspOrError.Value();
+        const auto& res = rspOrError.Value();
         auto chunkIds = FromProto<TGuid>(res->chunk_id());
-        MasterConnector_->AttachJobContext(path, chunkIds);
+        YCHECK(chunkIds.size() == 1);
+        MasterConnector_->AttachJobContext(path, chunkIds.front(), jobId);
 
         LOG_INFO("Input context saved (JobId: %v, Path: %v)",
             jobId,
