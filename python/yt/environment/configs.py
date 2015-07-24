@@ -76,6 +76,10 @@ def get_master_config():
         leader_lease_check_period = 100;
         leader_lease_timeout = 200;
         disable_leader_lease_grace_delay = true;
+        response_keeper = {
+            expiration_time = 25000;
+            warmup_time = 30000;
+        };
     };
 
     chunk_manager = {
@@ -115,14 +119,6 @@ def get_master_config():
 """)
 
 
-# NB: config for test retries
-#hydra_manager={
-#    response_keeper = {
-#        expiration_time = 7000;
-#        warmup_time = 8000;
-#    }
-#}
-
 def get_scheduler_config():
     return yson.loads(
 """
@@ -146,6 +142,11 @@ def get_scheduler_config():
         transaction_manager = {
             ping_period = 500;
         };
+    };
+
+    response_keeper = {
+        expiration_time = 25000;
+        warmup_time = 30000;
     };
 
     scheduler = {
@@ -175,12 +176,6 @@ def get_scheduler_config():
 
 }
 """)
-
-#NB: Config for test retries.
-#response_keeper = {
-#    expiration_time = 7000;
-#    warmup_time = 8000;
-#}
 
 def get_node_config():
     return yson.loads(
