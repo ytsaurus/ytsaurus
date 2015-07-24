@@ -123,6 +123,7 @@ public:
     }
 
     static TLogConfigPtr CreateDefault();
+    static TLogConfigPtr CreateQuiet();
     static TLogConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
 };
 
