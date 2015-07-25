@@ -10,7 +10,6 @@ set( SRCS
   ${BASE}/legacy_channel_reader.cpp
   ${BASE}/legacy_table_chunk_reader.cpp
   ${BASE}/name_table.cpp
-  ${BASE}/ordered_schemaful_reader.cpp
   ${BASE}/partition_chunk_reader.cpp
   ${BASE}/partitioner.cpp
   ${BASE}/pipe.cpp
@@ -61,7 +60,6 @@ set( HDRS
   ${BASE}/legacy_table_chunk_reader.h
   ${BASE}/llvm_types.h
   ${BASE}/name_table.h
-  ${BASE}/ordered_schemaful_reader.h
   ${BASE}/partition_chunk_reader.h
   ${BASE}/partition_chunk_reader-inl.h
   ${BASE}/partitioner.h

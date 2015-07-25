@@ -14,11 +14,17 @@ class TUnorderedSchemafulReader
     : public ISchemafulReader
 {
 public:
-    explicit TUnorderedSchemafulReader(const std::vector<ISchemafulReaderPtr>& readers)
+    TUnorderedSchemafulReader(std::function<ISchemafulReaderPtr()> getNextReader, int concurrency)
+        : GetNextReader_(std::move(getNextReader))
     {
-        for (const auto& reader : readers) {
+        for (int index = 0; index < concurrency; ++index) {
+            auto reader = GetNextReader_();
+            if (!reader) {
+                Exhausted_ = true;
+                break;
+            }
             Sessions_.emplace_back();
-            Sessions_.back().Reader = reader;
+            Sessions_.back().Reader = std::move(reader);
         }
     }
 
@@ -29,6 +35,7 @@ public:
 
     virtual TFuture<void> Open(const TTableSchema& schema) override
     {
+        Schema_ = schema;
         for (auto& session : Sessions_) {
             session.ReadyEvent = MakeHolder(session.Reader->Open(schema));
             CancelableContext_->PropagateTo(session.ReadyEvent.Get());
@@ -42,11 +49,9 @@ public:
         rows->clear();
 
         for (auto& session : Sessions_) {
-            if (session.Exhausted) {
+            if (session.Exhausted && !RefillSession(session)) {
                 continue;
             }
-
-            auto ssss = session.ReadyEvent.Get();
 
             if (session.ReadyEvent) {
                 if (!session.ReadyEvent->IsSet()) {
@@ -100,7 +105,9 @@ public:
     }
 
 private:
-    const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
+    std::function<ISchemafulReaderPtr()> GetNextReader_;
+    TTableSchema Schema_;
+    bool Exhausted_ = false;
 
     struct TSession
     {
@@ -111,7 +118,28 @@ private:
 
     std::vector<TSession> Sessions_;
     TPromise<void> ReadyEvent_;
+    const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
 
+    bool RefillSession(TSession& session)
+    {
+        session.Reader.Reset();
+
+        if (Exhausted_) {
+            return false;
+        }
+
+        auto reader = GetNextReader_();
+        if (!reader) {
+            Exhausted_ = true;
+            return false;
+        }
+
+        session.Reader = std::move(reader);
+        session.ReadyEvent = session.Reader->Open(Schema_);
+        session.Exhausted = false;
+        CancelableContext_->PropagateTo(session.ReadyEvent.Get());
+        return true;
+    }
 
     void OnCanceled()
     {
@@ -121,9 +149,11 @@ private:
 
 };
 
-ISchemafulReaderPtr CreateUnorderedSchemafulReader(const std::vector<ISchemafulReaderPtr>& readers)
+ISchemafulReaderPtr CreateUnorderedSchemafulReader(
+    std::function<ISchemafulReaderPtr()> getNextReader,
+    int concurrency)
 {
-    return New<TUnorderedSchemafulReader>(readers);
+    return New<TUnorderedSchemafulReader>(std::move(getNextReader), concurrency);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

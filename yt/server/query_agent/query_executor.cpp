@@ -20,7 +20,6 @@
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_chunk_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/ordered_schemaful_reader.h>
 #include <ytlib/new_table_client/unordered_schemaful_reader.h>
 #include <ytlib/new_table_client/pipe.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
@@ -343,14 +342,15 @@ private:
                     this_ = MakeStrong(this)
                 ] () mutable -> ISchemafulReaderPtr {
                     if (index == groupedSplit.size()) {
-                        return ISchemafulReaderPtr();
+                        return nullptr;
                     } else {
-                        ++index;
-                        return this_->GetReader(groupedSplit[index - 1], timestamp);
+                        return this_->GetReader(groupedSplit[index++], timestamp);
                     }
                 };
 
-                return CreateOrderedSchemafulReader(bottomSplitReaderGenerator);
+                return CreateUnorderedSchemafulReader(
+                    bottomSplitReaderGenerator,
+                    Config_->MaxBottomReaderConcurrency);
             });
         }
 
@@ -366,7 +366,24 @@ private:
                         JoinToString(keys));
                     bottomSplitReaders.push_back(GetReader(keySource.first, keys, timestamp));
                 }
-                return CreateUnorderedSchemafulReader(bottomSplitReaders);
+
+                auto bottomSplitReaderGenerator = [
+                    groupedKeys,
+                    object = keySource.first,
+                    timestamp,
+                    index = 0,
+                    this_ = MakeStrong(this)
+                ] () mutable -> ISchemafulReaderPtr {
+                    if (index == groupedKeys.size()) {
+                        return nullptr;
+                    } else {
+                        return this_->GetReader(object, groupedKeys[index++], timestamp);
+                    }
+                };
+
+                return CreateUnorderedSchemafulReader(
+                    bottomSplitReaderGenerator,
+                    Config_->MaxBottomReaderConcurrency);
             });
         }
 
