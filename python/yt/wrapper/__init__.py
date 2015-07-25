@@ -30,6 +30,7 @@ from transaction import Transaction, PingableTransaction, PingTransaction
 from py_wrapper import aggregator, raw, raw_io, simple
 from yt.packages.requests import HTTPError, ConnectionError
 from string_iter_io import StringIterIO
+from http import _cleanup_http_session
 
 from common import get_version
 VERSION = get_version()
