@@ -14,7 +14,6 @@
 #include <ytlib/new_table_client/writer.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unordered_schemaful_reader.h>
-#include <ytlib/new_table_client/ordered_schemaful_reader.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -309,45 +308,29 @@ TQueryStatistics CoordinateAndExecute(
 
     std::vector<ISchemafulReaderPtr> splitReaders;
 
-    ISchemafulReaderPtr topReader;
     // Use TFutureHolder to prevent leaking subqueries.
     std::vector<TFutureHolder<TQueryStatistics>> subqueryHolders;
 
-    if (isOrdered) {
-        int index = 0;
-
-        topReader = CreateOrderedSchemafulReader([&, index] () mutable -> ISchemafulReaderPtr {
-            if (index >= subqueries.size()) {
-                return nullptr;
-            }
-
-            const auto& subquery = subqueries[index];
-
-            ISchemafulReaderPtr reader;
-            TFuture <TQueryStatistics> statistics;
-            std::tie(reader, statistics) = evaluateSubquery(subquery, index);
-
-            subqueryHolders.push_back(MakeHolder(statistics, false));
-
-            ++index;
-
-            return reader;
-        });
-    } else {
-        for (int index = 0; index < subqueries.size(); ++index) {
-            auto subquery = subqueries[index];
-
-            ISchemafulReaderPtr reader;
-            TFuture<TQueryStatistics> statistics;
-            std::tie(reader, statistics) = evaluateSubquery(subquery, index);
-
-            splitReaders.push_back(reader);
-            subqueryHolders.push_back(statistics);
+    auto subqueryReaderCreator = [&, index = 0] () mutable -> ISchemafulReaderPtr {
+        if (index >= subqueries.size()) {
+            return nullptr;
         }
 
-        topReader = CreateUnorderedSchemafulReader(splitReaders);
-    }
+        const auto& subquery = subqueries[index];
 
+        ISchemafulReaderPtr reader;
+        TFuture <TQueryStatistics> statistics;
+        std::tie(reader, statistics) = evaluateSubquery(subquery, index);
+
+        subqueryHolders.push_back(MakeHolder(statistics, false));
+
+        ++index;
+
+        return reader;
+    };
+
+    int topReaderConcurrency = isOrdered ? 1 : subqueries.size();
+    auto topReader = CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), topReaderConcurrency);
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
     for (int index = 0; index < subqueryHolders.size(); ++index) {

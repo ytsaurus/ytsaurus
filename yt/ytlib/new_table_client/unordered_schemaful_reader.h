@@ -7,7 +7,9 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemafulReaderPtr CreateUnorderedSchemafulReader(const std::vector<ISchemafulReaderPtr>& readers);
+ISchemafulReaderPtr CreateUnorderedSchemafulReader(
+    std::function<ISchemafulReaderPtr()> getNextReader,
+    int concurrency);
 
 ////////////////////////////////////////////////////////////////////////////////
 
