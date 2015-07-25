@@ -1010,11 +1010,11 @@ class NativeModeTester(YtTestBase, YTEnv):
             yt.write_table(table, ["x=1\n", "y=2\n"])
             self.check(["x=1\n", "y=2\n"], list(yt.read_table(table)))
 
-            rsp = yt.read_table(table)
-            assert rsp.next() == "x=1\n"
-            yt.write_table(table, ["x=1\n", "y=3\n"])
-            assert rsp.next() == "y=2\n"
-            rsp.close()
+            #rsp = yt.read_table(table)
+            #assert rsp.next() == "x=1\n"
+            #yt.write_table(table, ["x=1\n", "y=3\n"])
+            #assert rsp.next() == "y=2\n"
+            #rsp.close()
 
             rsp = yt.read_table(table, raw=False)
             # y != 3 because rsp.close() aborts inner write_table() transaction
