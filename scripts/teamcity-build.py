@@ -235,7 +235,6 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
     mkdirp(sandbox_current)
 
     failed = False
-    result = None
 
     with tempfile.NamedTemporaryFile() as handle:
         try:
@@ -258,19 +257,23 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
             teamcity_message("(ignoring child failure since we are reading test results from XML)")
             failed = True
 
-        result = etree.parse(handle)
+        try:
+            result = etree.parse(handle)
+            for node in (result.iter() if hasattr(result, "iter") else result.getiterator()):
+                if isinstance(node.text, str):
+                    node.text = node.text \
+                        .replace("&quot;", "\"") \
+                        .replace("&apos;", "\'") \
+                        .replace("&amp;", "&") \
+                        .replace("&lt;", "<") \
+                        .replace("&gt;", ">")
 
-    for node in (result.iter() if hasattr(result, "iter") else result.getiterator()):
-        if isinstance(node.text, str):
-            node.text = node.text \
-                .replace("&quot;", "\"") \
-                .replace("&apos;", "\'") \
-                .replace("&amp;", "&") \
-                .replace("&lt;", "<") \
-                .replace("&gt;", ">")
+            with open("{0}/junit_python_{1}.xml".format(options.working_directory, suite_name), "w+b") as handle:
+                result.write(handle, encoding="utf-8")
 
-    with open("{0}/junit_python_{1}.xml".format(options.working_directory, suite_name), "w+b") as handle:
-        result.write(handle, encoding="utf-8")
+        except UnicodeDecodeError:
+            failed = True
+            teamcity_message("Failed to parse pytest output:\n" + open(handle.name).read())
 
     try:
         if failed:
