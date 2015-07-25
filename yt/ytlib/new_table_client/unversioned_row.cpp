@@ -272,7 +272,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
         // Never compare composite values.
         THROW_ERROR_EXCEPTION(
             EErrorCode::IncomparableType, 
-            "Composite types are not comparable.");
+            "Composite types are not comparable");
     }
 
     if (UNLIKELY(lhs.Type != rhs.Type)) {
