@@ -26,6 +26,10 @@ session_ = yt.packages.requests.Session()
 def get_session():
     return session_
 
+def _cleanup_http_session():
+    global session_
+    session_ = yt.packages.requests.Session()
+
 def configure_ip(client):
     if get_option("_ip_configured", client):
         return
