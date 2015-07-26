@@ -27,6 +27,8 @@
 #include <server/hydra/file_helpers.h>
 #include <server/hydra/private.h>
 
+#include <server/hive/hive_manager.h>
+
 #include <server/cell_master/bootstrap.h>
 
 #include <server/object_server/private.h>
@@ -38,6 +40,7 @@ using namespace NConcurrency;
 using namespace NRpc;
 using namespace NElection;
 using namespace NHydra;
+using namespace NHive;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,6 +98,13 @@ public:
 
     void Initialize()
     {
+        if (Bootstrap_->IsSecondaryMaster()) {
+            HydraManager_->SubscribeUpstreamSync(BIND(
+                &THiveManager::SyncWith,
+                Bootstrap_->GetHiveManager(),
+                Bootstrap_->GetPrimaryCellId()));
+        }
+
         HydraManager_->Initialize();
 
         SnapshotCleanupExecutor_ = New<TPeriodicExecutor>(
