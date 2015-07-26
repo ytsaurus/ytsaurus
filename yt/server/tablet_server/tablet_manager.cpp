@@ -1867,7 +1867,7 @@ void TTabletManager::TTabletCellTypeHandler::DoZombifyObject(TTabletCell* cell)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(cell);
     // NB: Destroy the cell right away and do not wait for GC to prevent
-    // dangling links from occuring in //sys/tablet_cells.
+    // dangling links from occurring in //sys/tablet_cells.
     Owner_->DestroyCell(cell);
 }
 
