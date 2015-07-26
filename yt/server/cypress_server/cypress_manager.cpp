@@ -1236,9 +1236,16 @@ private:
         node->SetAccessTime(mutationContext->GetTimestamp());
         node->SetRevision(mutationContext->GetVersion().ToRevision());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Type: %v)",
-            node->GetId(),
-            node->GetType());
+        if (node->IsExternal()) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
+                node->GetId(),
+                node->GetType(),
+                node->GetExternalCellTag());
+        } else {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Local node registered (NodeId: %v, Type: %v)",
+                node->GetId(),
+                node->GetType());
+        }
 
         return node;
     }
