@@ -74,6 +74,8 @@ class YTEnv(object):
     failureException = Exception
 
     NUM_MASTERS = 3
+    NUM_SECONDARY_MASTER_CELLS = 0
+    START_SECONDARY_MASTER_CELLS = True
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
     START_PROXY = False
@@ -119,9 +121,11 @@ class YTEnv(object):
         self._pids_filename = pids_filename
         self._kill_previously_run_services()
 
-        self._run_all(self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS, self.START_PROXY, ports=ports)
+        self._run_all(self.NUM_MASTERS, self.NUM_SECONDARY_MASTER_CELLS, self.NUM_NODES, self.NUM_SCHEDULERS, self.START_PROXY,
+                      start_secondary_master_cells=self.START_SECONDARY_MASTER_CELLS, ports=ports)
 
-    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, instance_id="", cell_tag=0, ports=None):
+    def _run_all(self, masters_count, secondary_master_cell_count, nodes_count, schedulers_count, has_proxy,
+                 instance_id="", cell_tag=0, ports=None, start_secondary_master_cells=False):
         get_open_port.busy_ports = set()
 
         def list_ports(service_name, count):
@@ -138,6 +142,8 @@ class YTEnv(object):
         proxy_name = "proxy" + instance_id
 
         list_ports(master_name, 2 * masters_count)
+        for index in xrange(secondary_master_cell_count):
+            list_ports(self._secondary_master_name(master_name, index), 2 * masters_count)
         list_ports(scheduler_name, 2 * schedulers_count)
         list_ports(node_name, 2 * nodes_count)
         list_ports(proxy_name, 2)
@@ -152,7 +158,7 @@ class YTEnv(object):
 
         try:
             logging.info("Configuring...")
-            self._run_masters(masters_count, master_name, cell_tag)
+            self._run_masters(masters_count, master_name, secondary_master_cell_count, cell_tag, start_secondary_master_cells=start_secondary_master_cells)
             self._run_schedulers(schedulers_count, scheduler_name, cell_tag)
             self._run_nodes(nodes_count, node_name, cell_tag)
             self._prepare_driver(driver_name, cell_tag)
@@ -205,7 +211,7 @@ class YTEnv(object):
             message += p_message
 
         self._process_to_kill[name] = remaining_processes
-        
+
         return ok, message
 
 
@@ -228,6 +234,9 @@ class YTEnv(object):
                 self.clear_environment(safe=False)
                 py.test.exit("Process run by command '{0}' is dead! Tests terminated."\
                              .format(" ".join(args)))
+
+    def _secondary_master_name(self, master_name, index):
+        return master_name + "_secondary_" + str(index)
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + '\n')
@@ -280,68 +289,112 @@ class YTEnv(object):
             os.makedirs(dirname)
         self.pids_file = open(self._pids_filename, 'wt')
 
-    def _prepare_masters(self, masters_count, master_name, cell_tag):
+    def _prepare_masters(self, masters_count, master_name, secondary_master_cell_count, cell_tag):
         if masters_count == 0:
              return
 
-        self._master_addresses[master_name] = \
-                ["%s:%s" % (self._hostname, self._ports[master_name][2 * i])
-                 for i in xrange(masters_count)]
+        self._master_cell_tags = {}
+        self._primary_masters = {}
+        for cell_index in xrange(secondary_master_cell_count + 1):
+            if cell_index == 0:
+                current_master_name = master_name
+            else:
+                current_master_name = self._secondary_master_name(master_name, cell_index - 1)
+            self._master_cell_tags[current_master_name] = cell_tag + cell_index
+            self._primary_masters[current_master_name] = master_name
 
-        os.mkdir(os.path.join(self.path_to_run, master_name))
+            self._master_addresses[current_master_name] = \
+                    ["%s:%s" % (self._hostname, self._ports[current_master_name][2 * i])
+                     for i in xrange(masters_count)]
 
-        for i in xrange(masters_count):
-            config = configs.get_master_config()
+            os.mkdir(os.path.join(self.path_to_run, current_master_name))
 
-            current = os.path.join(self.path_to_run, master_name, str(i))
-            os.mkdir(current)
+            for master_index in xrange(masters_count):
+                config = configs.get_master_config()
 
-            config['rpc_port'] = self._ports[master_name][2 * i]
-            config['monitoring_port'] = self._ports[master_name][2 * i + 1]
+                current = os.path.join(self.path_to_run, current_master_name, str(master_index))
+                os.mkdir(current)
 
-            config["master"]["cell_id"] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
-            config['master']['addresses'] = self._master_addresses[master_name]
-            config['timestamp_provider']['addresses'] = self._master_addresses[master_name]
-            config['changelogs']['path'] = os.path.join(current, 'changelogs')
-            config['snapshots']['path'] = os.path.join(current, 'snapshots')
-            config['logging'] = init_logging(config['logging'], current, 'master-' + str(i))
+                config["rpc_port"] = self._ports[current_master_name][2 * master_index]
+                config["monitoring_port"] = self._ports[current_master_name][2 * master_index + 1]
 
-            self.modify_master_config(config)
-            update(config, self.DELTA_MASTER_CONFIG)
+                config["primary_master"]["cell_id"] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
+                config["primary_master"]["addresses"] = self._master_addresses[master_name]
+                for index in xrange(secondary_master_cell_count):
+                    config["secondary_masters"].append({})
+                    config["secondary_masters"][index]["cell_id"] = "ffffffff-ffffffff-%x0259-ffffffff" % (cell_tag + index + 1)
+                    config["secondary_masters"][index]["addresses"] = \
+                        ["%s:%s" % (self._hostname, self._ports[current_master_name][2 * i]) for i in xrange(masters_count)]
+                config["timestamp_provider"]["addresses"] = self._master_addresses[master_name]
+                config["changelogs"]["path"] = os.path.join(current, "changelogs")
+                config["snapshots"]["path"] = os.path.join(current, "snapshots")
+                config["logging"] = init_logging(config["logging"], current, "master-" + str(master_index))
 
-            config_path = os.path.join(current, 'master_config.yson')
-            write_config(config, config_path)
+                self.modify_master_config(config)
+                update(config, self.DELTA_MASTER_CONFIG)
 
-            self.configs[master_name].append(config)
-            self.config_paths[master_name].append(config_path)
-            self.log_paths[master_name].append(config['logging']['writers']['debug']['file_name'])
+                config_path = os.path.join(current, "master_config.yson")
+                write_config(config, config_path)
 
-    def start_masters(self, master_name):
+                self.configs[current_master_name].append(config)
+                self.config_paths[current_master_name].append(config_path)
+                self.log_paths[current_master_name].append(config["logging"]["writers"]["debug"]["file_name"])
+
+    def start_masters(self, master_name, secondary=None):
+        if secondary is None:
+            secondary = "secondary" in master_name
+
         self._run_ytserver("master", master_name)
-
         def masters_ready():
             good_marker = "World initialization completed"
             bad_marker = "Stopped leading"
 
+            ok = False
             master_id = 0
             for logging_file in self.log_paths[master_name]:
                 if not os.path.exists(logging_file): continue
+                if ok: break
 
                 for line in reversed(open(logging_file).readlines()):
                     if bad_marker in line: break
                     if good_marker in line:
                         self.leader_log = logging_file
                         self.leader_id = master_id
-                        return True
+                        ok = True
                 master_id += 1
-            return False
+
+            if not ok:
+                return False
+
+            if secondary:
+                ok = False
+                primary_master_name = self._primary_masters[master_name]
+                for logging_file in self.log_paths[primary_master_name]:
+                    if not os.path.exists(logging_file): continue
+                    if ok: break
+
+                    for line in reversed(open(logging_file).readlines()):
+                        if "Secondary master registered" in line and str(self._master_cell_tags[master_name]) in line:
+                            ok = True
+                            break
+
+            return ok
 
         self._wait_for(masters_ready, name=master_name)
-        logging.info('Leader is %d', self.leader_id)
+        if secondary:
+            logging.info("Secondary master %s registered", master_name.rsplit("_", 1)[1])
+        else:
+            logging.info('Leader is %d', self.leader_id)
 
-    def _run_masters(self, masters_count, master_name, cell_tag):
-        self._prepare_masters(masters_count, master_name, cell_tag)
+    def start_all_masters(self, master_name, secondary_master_cell_count, start_secondary_master_cells):
         self.start_masters(master_name)
+        if start_secondary_master_cells:
+            for i in xrange(secondary_master_cell_count):
+                self.start_masters(self._secondary_master_name(master_name, i), secondary=True)
+
+    def _run_masters(self, masters_count, master_name, secondary_master_cell_count, cell_tag, start_secondary_master_cells):
+        self._prepare_masters(masters_count, master_name, secondary_master_cell_count, cell_tag)
+        self.start_all_masters(master_name, secondary_master_cell_count, start_secondary_master_cells)
 
     def _prepare_nodes(self, nodes_count, node_name, cell_tag):
         if nodes_count == 0:
@@ -467,7 +520,7 @@ class YTEnv(object):
             config['rpc_port'] = self._ports[scheduler_name][2 * i]
             config['monitoring_port'] = self._ports[scheduler_name][2 * i + 1]
             config['scheduler']['snapshot_temp_path'] = os.path.join(current, 'snapshots')
-            
+
             config['logging'] = init_logging(config['logging'], current, 'scheduler-' + str(i))
 
             self.modify_scheduler_config(config)
