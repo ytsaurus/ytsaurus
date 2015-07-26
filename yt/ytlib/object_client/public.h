@@ -159,6 +159,13 @@ DEFINE_ENUM(EObjectType,
     ((ClusterNode)                (802))
     ((ClusterNodeNode)            (803))
     ((ClusterNodeMap)             (804))
+
+    // Job Tracker stuff
+    ((SchedulerJob)               (900))
+    ((MasterJob)                  (901))
+
+    // Scheduler
+    ((Operation)                 (1000))
 );
 
 //! A bit mask marking schema types.

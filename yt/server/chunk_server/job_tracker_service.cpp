@@ -44,7 +44,8 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TJobTrackerServiceProxy::GetServiceName(),
-            ChunkServerLogger)
+            ChunkServerLogger,
+            TJobTrackerServiceProxy::GetProtocolVersion())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
     }
@@ -83,56 +84,47 @@ private:
             auto jobId = FromProto<TJobId>(jobStatus.job_id());
             auto state = EJobState(jobStatus.state());
             auto jobType = EJobType(jobStatus.job_type());
-            if (jobType <= EJobType::MasterFirst || jobType >= EJobType::MasterLast) {
-                // Create a foreign job.
-                auto job = TJob::CreateForeign(
-                    jobId,
-                    jobStatus.resource_usage());
+            auto job = chunkManager->FindJob(jobId);
+            if (job) {
+                job->SetState(state);
+                if (state == EJobState::Completed || state == EJobState::Failed) {
+                    job->Error() = FromProto<TError>(jobStatus.result().error());
+                }
                 currentJobs.push_back(job);
             } else {
-                // Lookup the master job.
-                auto job = chunkManager->FindJob(jobId);
-                if (job) {
-                    job->SetState(state);
-                    if (state == EJobState::Completed || state == EJobState::Failed) {
-                        job->Error() = FromProto<TError>(jobStatus.result().error());
-                    }
-                    currentJobs.push_back(job);
-                } else {
-                    switch (state) {
-                        case EJobState::Completed:
-                            LOG_WARNING("Unknown job has completed, removal scheduled (JobId: %v)",
-                                jobId);
-                            ToProto(response->add_jobs_to_remove(), jobId);
-                            break;
+                switch (state) {
+                    case EJobState::Completed:
+                        LOG_WARNING("Unknown job has completed, removal scheduled (JobId: %v)",
+                            jobId);
+                        ToProto(response->add_jobs_to_remove(), jobId);
+                        break;
 
-                        case EJobState::Failed:
-                            LOG_INFO("Unknown job has failed, removal scheduled (JobId: %v)",
-                                jobId);
-                            ToProto(response->add_jobs_to_remove(), jobId);
-                            break;
+                    case EJobState::Failed:
+                        LOG_INFO("Unknown job has failed, removal scheduled (JobId: %v)",
+                            jobId);
+                        ToProto(response->add_jobs_to_remove(), jobId);
+                        break;
 
-                        case EJobState::Aborted:
-                            LOG_INFO("Job aborted, removal scheduled (JobId: %v)",
-                                jobId);
-                            ToProto(response->add_jobs_to_remove(), jobId);
-                            break;
+                    case EJobState::Aborted:
+                        LOG_INFO("Job aborted, removal scheduled (JobId: %v)",
+                            jobId);
+                        ToProto(response->add_jobs_to_remove(), jobId);
+                        break;
 
-                        case EJobState::Running:
-                            LOG_WARNING("Unknown job is running, abort scheduled (JobId: %v)",
-                                jobId);
-                            ToProto(response->add_jobs_to_abort(), jobId);
-                            break;
+                    case EJobState::Running:
+                        LOG_WARNING("Unknown job is running, abort scheduled (JobId: %v)",
+                            jobId);
+                        ToProto(response->add_jobs_to_abort(), jobId);
+                        break;
 
-                        case EJobState::Waiting:
-                            LOG_WARNING("Unknown job is waiting, abort scheduled (JobId: %v)",
-                                jobId);
-                            ToProto(response->add_jobs_to_abort(), jobId);
-                            break;
+                    case EJobState::Waiting:
+                        LOG_WARNING("Unknown job is waiting, abort scheduled (JobId: %v)",
+                            jobId);
+                        ToProto(response->add_jobs_to_abort(), jobId);
+                        break;
 
-                        default:
-                            YUNREACHABLE();
-                    }
+                    default:
+                        YUNREACHABLE();
                 }
             }
         }

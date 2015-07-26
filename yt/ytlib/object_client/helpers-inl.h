@@ -2,6 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include helpers.h"
 #endif
 
+#include <util/random/random.h>
+
 namespace NYT {
 namespace NObjectClient {
 
@@ -142,6 +144,17 @@ inline TObjectId MakeId(
         (cellTag << 16) + static_cast<int>(type),
         counter & 0xffffffff,
         counter >> 32);
+}
+
+inline TObjectId MakeRandomId(
+    EObjectType type,
+    TCellTag cellTag)
+{
+    return MakeId(
+        type,
+        cellTag,
+        RandomNumber<ui64>(),
+        RandomNumber<ui32>());
 }
 
 inline bool IsWellKnownId(const TObjectId& id)

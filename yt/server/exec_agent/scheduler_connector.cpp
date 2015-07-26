@@ -4,6 +4,8 @@
 #include "job.h"
 #include "config.h"
 
+#include <core/concurrency/scheduler.h>
+
 #include <ytlib/api/client.h>
 
 #include <server/job_agent/job_controller.h>
@@ -17,6 +19,7 @@ namespace NExecAgent {
 
 using namespace NNodeTrackerClient;
 using namespace NJobTrackerClient;
+using namespace NObjectClient;
 using namespace NCellNode;
 using namespace NConcurrency;
 
@@ -43,7 +46,7 @@ void TSchedulerConnector::Start()
         ControlInvoker_,
         BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
         Config_->HeartbeatPeriod,
-        EPeriodicExecutorMode::Manual,
+        EPeriodicExecutorMode::Automatic,
         Config_->HeartbeatSplay);
 
     // Schedule an out-of-order heartbeat whenever a job finishes
@@ -60,27 +63,25 @@ void TSchedulerConnector::SendHeartbeat()
 {
     auto masterConnector = Bootstrap_->GetMasterConnector();
     if (!masterConnector->IsConnected()) {
-        HeartbeatExecutor_->ScheduleNext();
         return;
     }
 
-    TJobTrackerServiceProxy proxy(Bootstrap_->GetMasterClient()->GetSchedulerChannel());
+    auto masterClient = Bootstrap_->GetMasterClient();
+
+    TJobTrackerServiceProxy proxy(masterClient->GetSchedulerChannel());
     auto req = proxy.Heartbeat();
 
     auto jobController = Bootstrap_->GetJobController();
-    jobController->PrepareHeartbeat(req.Get());
-
-    req->Invoke().Subscribe(
-        BIND(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
-            .Via(ControlInvoker_));
+    auto masterConnection = masterClient->GetConnection();
+    jobController->PrepareHeartbeatRequest(
+        masterConnection->GetPrimaryMasterCellTag(),
+        EObjectType::SchedulerJob,
+        req.Get());
 
     LOG_INFO("Scheduler heartbeat sent (ResourceUsage: {%v})",
         FormatResourceUsage(req->resource_usage(), req->resource_limits()));
-}
 
-void TSchedulerConnector::OnHeartbeatResponse(const TJobTrackerServiceProxy::TErrorOrRspHeartbeatPtr& rspOrError)
-{
-    HeartbeatExecutor_->ScheduleNext();
+    auto rspOrError = WaitFor(req->Invoke());
 
     if (!rspOrError.IsOK()) {
         LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler");
@@ -90,8 +91,7 @@ void TSchedulerConnector::OnHeartbeatResponse(const TJobTrackerServiceProxy::TEr
     LOG_INFO("Successfully reported heartbeat to scheduler");
 
     const auto& rsp = rspOrError.Value();
-    auto jobController = Bootstrap_->GetJobController();
-    jobController->ProcessHeartbeat(rsp.Get());
+    jobController->ProcessHeartbeatResponse(rsp.Get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

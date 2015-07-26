@@ -480,10 +480,9 @@ void TChunkReplicator::ProcessExistingJobs(
 
     auto chunkManager = Bootstrap_->GetChunkManager();
     for (const auto& job : currentJobs) {
-        if (job->GetType() == EJobType::Foreign)
-            continue;
-
         const auto& jobId = job->GetJobId();
+        YCHECK(CellTagFromId(jobId) == Bootstrap_->GetCellTag());
+        YCHECK(TypeFromId(jobId) == EObjectType::MasterJob);
         switch (job->GetState()) {
             case EJobState::Running:
                 if (TInstant::Now() - job->GetStartTime() > Config_->JobTimeout) {
@@ -557,6 +556,11 @@ void TChunkReplicator::ProcessExistingJobs(
     }
 }
 
+TJobId TChunkReplicator::GenerateJobId()
+{
+    return MakeRandomId(EObjectType::MasterJob, Bootstrap_->GetCellTag());
+}
+
 bool TChunkReplicator::CreateReplicationJob(
     TNode* sourceNode,
     TChunkPtrWithIndex chunkWithIndex,
@@ -618,6 +622,7 @@ bool TChunkReplicator::CreateReplicationJob(
     resourceUsage.set_replication_slots(1);
 
     *job = TJob::CreateReplicate(
+        GenerateJobId(),
         TChunkIdWithIndex(chunk->GetId(), index),
         sourceNode,
         targetNodes,
@@ -653,6 +658,7 @@ bool TChunkReplicator::CreateBalancingJob(
 
     TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), chunkWithIndex.GetIndex());
     *job = TJob::CreateReplicate(
+        GenerateJobId(),
         chunkIdWithIndex,
         sourceNode,
         TNodeList(1, targetNode),
@@ -688,6 +694,7 @@ bool TChunkReplicator::CreateRemovalJob(
     resourceUsage.set_removal_slots(1);
 
     *job = TJob::CreateRemove(
+        GenerateJobId(),
         chunkIdWithIndex,
         node,
         resourceUsage);
@@ -752,6 +759,7 @@ bool TChunkReplicator::CreateRepairJob(
     resourceUsage.set_memory(Config_->RepairJobMemoryUsage);
 
     *job = TJob::CreateRepair(
+        GenerateJobId(),
         chunk->GetId(),
         node,
         targetNodes,
@@ -790,6 +798,7 @@ bool TChunkReplicator::CreateSealJob(
     resourceUsage.set_seal_slots(1);
 
     *job = TJob::CreateSeal(
+        GenerateJobId(),
         chunk->GetId(),
         node,
         resourceUsage);
