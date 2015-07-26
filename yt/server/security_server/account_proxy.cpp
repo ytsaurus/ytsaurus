@@ -45,15 +45,17 @@ private:
         }
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back("name");
-        attributes->push_back("resource_usage");
-        attributes->push_back("committed_resource_usage");
-        attributes->push_back(TAttributeInfo("multicell_statistics", true, true));
-        attributes->push_back("resource_limits");
-        attributes->push_back("violated_resource_limits");
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back("name");
+        descriptors->push_back("resource_usage");
+        descriptors->push_back("committed_resource_usage");
+        descriptors->push_back(TAttributeDescriptor("multicell_statistics")
+            .SetOpaque(true));
+        descriptors->push_back("resource_limits");
+        descriptors->push_back("violated_resource_limits");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override

@@ -68,52 +68,80 @@ private:
         return ChunkServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
+        TBase::ListSystemAttributes(descriptors);
+
         const auto* chunk = GetThisTypedImpl();
         auto miscExt = FindProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
         YCHECK(!chunk->IsConfirmed() || miscExt);
 
         bool hasBoundaryKeysExt = HasProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
 
-        attributes->push_back("cached_replicas");
-        attributes->push_back("stored_replicas");
-        attributes->push_back(TAttributeInfo("replication_factor", !chunk->IsErasure(), false));
-        attributes->push_back(TAttributeInfo("erasure_codec", chunk->IsErasure(), false));
-        attributes->push_back("movable");
-        attributes->push_back("vital");
-        attributes->push_back("overreplicated");
-        attributes->push_back("underreplicated");
-        attributes->push_back("lost");
-        attributes->push_back(TAttributeInfo("data_missing", chunk->IsErasure()));
-        attributes->push_back(TAttributeInfo("parity_missing", chunk->IsErasure()));
-        attributes->push_back("unsafely_placed");
-        attributes->push_back("confirmed");
-        attributes->push_back("available");
-        attributes->push_back("master_meta_size");
-        attributes->push_back(TAttributeInfo("owning_nodes", true, true));
-        attributes->push_back(TAttributeInfo("disk_space", chunk->IsConfirmed()));
-        attributes->push_back(TAttributeInfo("chunk_type", chunk->IsConfirmed()));
-        attributes->push_back(TAttributeInfo("meta_size", chunk->IsConfirmed() && miscExt->has_meta_size()));
-        attributes->push_back(TAttributeInfo("compressed_data_size", chunk->IsConfirmed() && miscExt->has_compressed_data_size()));
-        attributes->push_back(TAttributeInfo("uncompressed_data_size", chunk->IsConfirmed() && miscExt->has_uncompressed_data_size()));
-        attributes->push_back(TAttributeInfo("data_weight", chunk->IsConfirmed() && miscExt->has_data_weight()));
-        attributes->push_back(TAttributeInfo("compression_codec", chunk->IsConfirmed() && miscExt->has_compression_codec(), false, true));
-        attributes->push_back(TAttributeInfo("row_count", chunk->IsConfirmed() && miscExt->has_row_count()));
-        attributes->push_back(TAttributeInfo("quorum_row_count", chunk->IsJournal(), true));
-        attributes->push_back(TAttributeInfo("sealed", chunk->IsJournal()));
-        attributes->push_back(TAttributeInfo("value_count", chunk->IsConfirmed() && miscExt->has_value_count()));
-        attributes->push_back(TAttributeInfo("sorted", chunk->IsConfirmed() && miscExt->has_sorted()));
-        attributes->push_back(TAttributeInfo("min_timestamp", chunk->IsConfirmed() && miscExt->has_min_timestamp()));
-        attributes->push_back(TAttributeInfo("max_timestamp", chunk->IsConfirmed() && miscExt->has_max_timestamp()));
-        attributes->push_back(TAttributeInfo("staging_transaction_id", chunk->IsStaged()));
-        attributes->push_back(TAttributeInfo("staging_account", chunk->IsStaged()));
-        attributes->push_back(TAttributeInfo("min_key", hasBoundaryKeysExt));
-        attributes->push_back(TAttributeInfo("max_key", hasBoundaryKeysExt));        
-        attributes->push_back(TAttributeInfo("read_quorum", chunk->IsJournal()));
-        attributes->push_back(TAttributeInfo("write_quorum", chunk->IsJournal()));
-        attributes->push_back(TAttributeInfo("eden", chunk->IsConfirmed()));
-        TBase::ListSystemAttributes(attributes);
+        descriptors->push_back("cached_replicas");
+        descriptors->push_back("stored_replicas");
+        descriptors->push_back(TAttributeDescriptor("replication_factor")
+            .SetPresent(!chunk->IsErasure()));
+        descriptors->push_back(TAttributeDescriptor("erasure_codec")
+            .SetPresent(chunk->IsErasure()));
+        descriptors->push_back("movable");
+        descriptors->push_back("vital");
+        descriptors->push_back("overreplicated");
+        descriptors->push_back("underreplicated");
+        descriptors->push_back("lost");
+        descriptors->push_back(TAttributeDescriptor("data_missing")
+            .SetPresent(chunk->IsErasure()));
+        descriptors->push_back(TAttributeDescriptor("parity_missing")
+            .SetPresent(chunk->IsErasure()));
+        descriptors->push_back("unsafely_placed");
+        descriptors->push_back("confirmed");
+        descriptors->push_back("available");
+        descriptors->push_back("master_meta_size");
+        descriptors->push_back(TAttributeDescriptor("owning_nodes")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("disk_space")
+            .SetPresent(chunk->IsConfirmed()));
+        descriptors->push_back(TAttributeDescriptor("chunk_type")
+            .SetPresent(chunk->IsConfirmed()));
+        descriptors->push_back(TAttributeDescriptor("meta_size")
+            .SetPresent(chunk->IsConfirmed() && miscExt->has_meta_size()));
+        descriptors->push_back(TAttributeDescriptor("compressed_data_size")
+            .SetPresent(chunk->IsConfirmed() && miscExt->has_compressed_data_size()));
+        descriptors->push_back(TAttributeDescriptor("uncompressed_data_size")
+            .SetPresent(chunk->IsConfirmed() && miscExt->has_uncompressed_data_size()));
+        descriptors->push_back(TAttributeDescriptor("data_weight")
+            .SetPresent(chunk->IsConfirmed() && miscExt->has_data_weight()));
+        descriptors->push_back(TAttributeDescriptor("compression_codec")
+            .SetPresent(chunk->IsConfirmed() && miscExt->has_compression_codec()));
+        descriptors->push_back(TAttributeDescriptor("row_count")
+            .SetPresent(chunk->IsConfirmed() && miscExt->has_row_count()));
+        descriptors->push_back(TAttributeDescriptor("quorum_row_count")
+            .SetPresent(chunk->IsJournal())
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("sealed")
+            .SetPresent(chunk->IsJournal()));
+        descriptors->push_back(TAttributeDescriptor("value_count")
+            .SetPresent(chunk->IsConfirmed() && miscExt->has_value_count()));
+        descriptors->push_back(TAttributeDescriptor("sorted")
+            .SetPresent(chunk->IsConfirmed() && miscExt->has_sorted()));
+        descriptors->push_back(TAttributeDescriptor("min_timestamp")
+            .SetPresent(chunk->IsConfirmed() && miscExt->has_min_timestamp()));
+        descriptors->push_back(TAttributeDescriptor("max_timestamp")
+            .SetPresent(chunk->IsConfirmed() && miscExt->has_max_timestamp()));
+        descriptors->push_back(TAttributeDescriptor("staging_transaction_id")
+            .SetPresent(chunk->IsStaged()));
+        descriptors->push_back(TAttributeDescriptor("staging_account")
+            .SetPresent(chunk->IsStaged()));
+        descriptors->push_back(TAttributeDescriptor("min_key")
+            .SetPresent(hasBoundaryKeysExt));
+        descriptors->push_back(TAttributeDescriptor("max_key")
+            .SetPresent(hasBoundaryKeysExt));
+        descriptors->push_back(TAttributeDescriptor("read_quorum")
+            .SetPresent(chunk->IsJournal()));
+        descriptors->push_back(TAttributeDescriptor("write_quorum")
+            .SetPresent(chunk->IsJournal()));
+        descriptors->push_back(TAttributeDescriptor("eden")
+            .SetPresent(chunk->IsConfirmed()));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override

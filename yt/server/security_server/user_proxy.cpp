@@ -36,15 +36,17 @@ private:
         }
     }
 
-    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* attributes) override
     {
+        TBase::ListSystemAttributes(attributes);
+
         attributes->push_back("banned");
         attributes->push_back("request_rate_limit");
         attributes->push_back("access_time");
         attributes->push_back("request_counter");
-        attributes->push_back(TAttributeInfo("multicell_statistics", true, true));
+        attributes->push_back(TAttributeDescriptor("multicell_statistics")
+            .SetOpaque(true));
         attributes->push_back("request_rate");
-        TBase::ListSystemAttributes(attributes);
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override

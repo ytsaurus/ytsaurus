@@ -150,17 +150,18 @@ private:
         return true;
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back("offline");
-        attributes->push_back("registered");
-        attributes->push_back("online");
-        attributes->push_back("available_space");
-        attributes->push_back("used_space");
-        attributes->push_back("chunk_count");
-        attributes->push_back("online_node_count");
-        attributes->push_back("chunk_replicator_enabled");
-        TMapNodeProxy::ListSystemAttributes(attributes);
+        TMapNodeProxy::ListSystemAttributes(descriptors);
+
+        descriptors->push_back("offline");
+        descriptors->push_back("registered");
+        descriptors->push_back("online");
+        descriptors->push_back("available_space");
+        descriptors->push_back("used_space");
+        descriptors->push_back("chunk_count");
+        descriptors->push_back("online_node_count");
+        descriptors->push_back("chunk_replicator_enabled");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override

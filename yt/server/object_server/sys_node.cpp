@@ -42,14 +42,15 @@ public:
 private:
     typedef TMapNodeProxy TBase;
 
-    void ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
     {
-        attributes->push_back("cell_tag");
-        attributes->push_back("primary_cell_tag");
-        attributes->push_back("cell_id");
-        attributes->push_back("primary_cell_id");
-        attributes->push_back("last_committed_revision");
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back("cell_tag");
+        descriptors->push_back("primary_cell_tag");
+        descriptors->push_back("cell_id");
+        descriptors->push_back("primary_cell_id");
+        descriptors->push_back("last_committed_revision");
     }
 
     bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)

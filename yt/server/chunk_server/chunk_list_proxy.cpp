@@ -39,14 +39,17 @@ private:
         return ChunkServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back("children_ids");
-        attributes->push_back("parent_ids");
-        attributes->push_back("statistics");
-        attributes->push_back(TAttributeInfo("tree", true, true));
-        attributes->push_back(TAttributeInfo("owning_nodes", true, true));
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back("children_ids");
+        descriptors->push_back("parent_ids");
+        descriptors->push_back("statistics");
+        descriptors->push_back(TAttributeDescriptor("tree")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("owning_nodes")
+            .SetOpaque(true));
     }
 
     void TraverseTree(TChunkTree* chunkTree, NYson::IYsonConsumer* consumer)

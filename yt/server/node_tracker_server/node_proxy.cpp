@@ -36,23 +36,33 @@ public:
     { }
 
 private:
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
+        TNonversionedObjectProxyBase::ListSystemAttributes(descriptors);
+
         const auto* node = GetThisTypedImpl();
-        attributes->push_back("banned");
-        attributes->push_back("decommissioned");
-        attributes->push_back(TAttributeInfo("rack", node->GetRack(), false, false, true));
-        attributes->push_back("state");
-        attributes->push_back("multicell_states");
+
+        descriptors->push_back("banned");
+        descriptors->push_back("decommissioned");
+        descriptors->push_back(TAttributeDescriptor("rack")
+            .SetPresent(node->GetRack())
+            .SetRemovable(true));
+        descriptors->push_back("state");
+        descriptors->push_back("multicell_states");
         bool isGood = node->GetLocalState() == ENodeState::Registered || node->GetLocalState() == ENodeState::Online;
-        attributes->push_back(TAttributeInfo("last_seen_time"));
-        attributes->push_back(TAttributeInfo("register_time", isGood));
-        attributes->push_back(TAttributeInfo("lease_transaction_id", isGood && node->GetLeaseTransaction()));
-        attributes->push_back(TAttributeInfo("statistics", isGood));
-        attributes->push_back(TAttributeInfo("addresses", isGood));
-        attributes->push_back(TAttributeInfo("alerts", isGood));
-        attributes->push_back(TAttributeInfo("tablet_slots", isGood));
-        TNonversionedObjectProxyBase::ListSystemAttributes(attributes);
+        descriptors->push_back(TAttributeDescriptor("last_seen_time"));
+        descriptors->push_back(TAttributeDescriptor("register_time")
+            .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor("lease_transaction_id")
+            .SetPresent(isGood && node->GetLeaseTransaction()));
+        descriptors->push_back(TAttributeDescriptor("statistics")
+            .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor("addresses")
+            .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor("alerts")
+            .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor("tablet_slots")
+            .SetPresent(isGood));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override

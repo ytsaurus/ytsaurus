@@ -41,10 +41,11 @@ private:
         }
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back("members");
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back("members");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override

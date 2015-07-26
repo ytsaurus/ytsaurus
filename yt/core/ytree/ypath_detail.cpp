@@ -293,8 +293,8 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
 
 TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const Stroka& key)
 {
-    auto customAttributes = GetCustomAttributes();
-    auto builtinAttributeProvider = GetBuiltinAttributeProvider();
+    auto* customAttributes = GetCustomAttributes();
+    auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
 
     if (customAttributes) {
         auto attribute = customAttributes->FindYson(key);
@@ -339,7 +339,7 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
-    auto builtinAttributeProvider = GetBuiltinAttributeProvider();
+    auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
 
     NYPath::TTokenizer tokenizer(path);
 
@@ -350,21 +350,21 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
         writer.OnBeginMap();
 
         if (builtinAttributeProvider) {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
-            builtinAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
-            for (const auto& attribute : builtinAttributes) {
-                if (attribute.IsPresent) {
-                    writer.OnKeyedItem(attribute.Key);
-                    if (attribute.IsOpaque) {
+            std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
+            builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
+            for (const auto& descriptor : builtinDescriptors) {
+                if (descriptor.Present) {
+                    writer.OnKeyedItem(descriptor.Key);
+                    if (descriptor.Opaque) {
                         writer.OnEntity();
                     } else {
-                        YCHECK(builtinAttributeProvider->GetBuiltinAttribute(attribute.Key, &writer));
+                        YCHECK(builtinAttributeProvider->GetBuiltinAttribute(descriptor.Key, &writer));
                     }
                 }
             }
         }
 
-        auto customAttributes = GetCustomAttributes();
+        auto* customAttributes = GetCustomAttributes();
         if (customAttributes) {
             for (const auto& key : customAttributes->List()) {
                 writer.OnKeyedItem(key);
@@ -398,7 +398,7 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
 
 void TSupportsAttributes::GetAttribute(
     const TYPath& path,
-    TReqGet* request,
+    TReqGet* /*request*/,
     TRspGet* response,
     TCtxGetPtr context)
 {
@@ -440,7 +440,7 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
         TYsonWriter writer(&stream);
         writer.OnBeginList();
 
-        auto customAttributes = GetCustomAttributes();
+        auto* customAttributes = GetCustomAttributes();
         if (customAttributes) {
             auto userKeys = customAttributes->List();
             for (const auto& key : userKeys) {
@@ -449,14 +449,14 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
             }
         }
 
-        auto builtinAttributeProvider = GetBuiltinAttributeProvider();
+        auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
         if (builtinAttributeProvider) {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
-            builtinAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
-            for (const auto& attribute : builtinAttributes) {
-                if (attribute.IsPresent) {
+            std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
+            builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
+            for (const auto& descriptor : builtinDescriptors) {
+                if (descriptor.Present) {
                     writer.OnListItem();
-                    writer.OnStringScalar(attribute.Key);
+                    writer.OnStringScalar(descriptor.Key);
                 }
             }
         }
@@ -526,17 +526,17 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
     auto key = tokenizer.GetLiteralValue();
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        auto customAttributes = GetCustomAttributes();
+        auto* customAttributes = GetCustomAttributes();
         if (customAttributes && customAttributes->FindYson(key)) {
             return TrueFuture;
         }
 
-        auto builtinAttributeProvider = GetBuiltinAttributeProvider();
+        auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
         if (builtinAttributeProvider) {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
-            builtinAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
-            for (const auto& attribute : builtinAttributes) {
-                if (attribute.Key == key && attribute.IsPresent) {
+            std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
+            builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
+            for (const auto& descriptor : builtinDescriptors) {
+                if (descriptor.Key == key && descriptor.Present) {
                     return TrueFuture;
                 }
             }
@@ -578,8 +578,8 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
 {
     TCachingPermissionValidator permissionValidator(this, EPermissionCheckScope::This);
 
-    auto customAttributes = GetCustomAttributes();
-    auto builtinAttributeProvider = GetBuiltinAttributeProvider();
+    auto* customAttributes = GetCustomAttributes();
+    auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
 
     NYPath::TTokenizer tokenizer(path);
 
@@ -587,21 +587,21 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         auto newAttributes = ConvertToAttributes(newYson);
 
         if (builtinAttributeProvider) {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
-            builtinAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
+            std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
+            builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
 
-            for (const auto& attribute : builtinAttributes) {
-                permissionValidator.Validate(attribute.WritePermission);
-                Stroka key(attribute.Key);
+            for (const auto& descriptor : builtinDescriptors) {
+                permissionValidator.Validate(descriptor.WritePermission);
+                Stroka key(descriptor.Key);
                 auto newAttributeYson = newAttributes->FindYson(key);
                 if (newAttributeYson) {
-                    if (!attribute.IsPresent) {
+                    if (!descriptor.Present) {
                         ThrowCannotSetBuiltinAttribute(key);
                     }
-                    GuardedSetBuiltinAttribute(key, newAttributeYson.Get());
+                    GuardedSetBuiltinAttribute(key, *newAttributeYson);
                     YCHECK(newAttributes->Remove(key));
                 } else {
-                    if (attribute.IsPresent && attribute.IsRemovable) {
+                    if (descriptor.Present && descriptor.Removable) {
                         GuardedRemoveBuiltinAttribute(key);
                     }
                 }
@@ -641,13 +641,13 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
         }
 
-        TNullable<ISystemAttributeProvider::TAttributeInfo> attribute;
+        TNullable<ISystemAttributeProvider::TAttributeDescriptor> descriptor;
         if (builtinAttributeProvider) {
-            attribute = builtinAttributeProvider->FindBuiltinAttributeInfo(key);
+            descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
         }
 
-        if (attribute) {
-            permissionValidator.Validate(attribute->WritePermission);
+        if (descriptor) {
+            permissionValidator.Validate(descriptor->WritePermission);
 
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                 GuardedSetBuiltinAttribute(key, newYson);
@@ -709,20 +709,20 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
 {
     TCachingPermissionValidator permissionValidator(this, EPermissionCheckScope::This);
     
-    auto customAttributes = GetCustomAttributes();
-    auto builtinAttributeProvider = GetBuiltinAttributeProvider();
+    auto* customAttributes = GetCustomAttributes();
+    auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
 
     NYPath::TTokenizer tokenizer(path);
     switch (tokenizer.Advance()) {
         case NYPath::ETokenType::Asterisk: {
             if (builtinAttributeProvider) {
-                std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
-                builtinAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
+                std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
+                builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
 
-                for (const auto& attribute : builtinAttributes) {
-                    if (attribute.IsPresent && attribute.IsRemovable) {
-                        permissionValidator.Validate(attribute.WritePermission);
-                        Stroka key(attribute.Key);
+                for (const auto& descriptor : builtinDescriptors) {
+                    if (descriptor.Present && descriptor.Removable) {
+                        permissionValidator.Validate(descriptor.WritePermission);
+                        Stroka key(descriptor.Key);
                         GuardedRemoveBuiltinAttribute(key);
                     }
                 }
@@ -751,12 +751,12 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                         ThrowNoSuchCustomAttribute(key);
                     }
 
-                    auto attributeInfo = builtinAttributeProvider->FindBuiltinAttributeInfo(key);
-                    if (!attributeInfo || !attributeInfo->IsPresent) {
+                    auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
+                    if (!descriptor || !descriptor->Present) {
                         ThrowNoSuchCustomAttribute(key);
                     }
 
-                    permissionValidator.Validate(attributeInfo->WritePermission);
+                    permissionValidator.Validate(descriptor->WritePermission);
                     GuardedRemoveBuiltinAttribute(key);
                 }
             } else {
@@ -771,12 +771,12 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                         ThrowNoSuchBuiltinAttribute(key);
                     }
 
-                    auto attribute = builtinAttributeProvider->FindBuiltinAttributeInfo(key);
-                    if (!attribute) {
+                    auto descriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
+                    if (!descriptor) {
                         ThrowNoSuchBuiltinAttribute(key);
                     }
 
-                    permissionValidator.Validate(attribute->WritePermission);
+                    permissionValidator.Validate(descriptor->WritePermission);
             
                     TStringStream stream;
                     TYsonWriter writer(&stream);

@@ -46,14 +46,16 @@ private:
         return JournalServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back("read_quorum");
-        attributes->push_back("write_quorum");
-        attributes->push_back("row_count");
-        attributes->push_back(TAttributeInfo("quorum_row_count", true, true));
-        attributes->push_back("sealed");
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back("read_quorum");
+        descriptors->push_back("write_quorum");
+        descriptors->push_back("row_count");
+        descriptors->push_back(TAttributeDescriptor("quorum_row_count")
+            .SetOpaque(true));
+        descriptors->push_back("sealed");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override

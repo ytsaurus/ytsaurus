@@ -32,7 +32,7 @@ private:
     virtual void ValidateRemoval() override
     { }
 
-    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* attributes) override
     {
         attributes->push_back("name");
         attributes->push_back("index");

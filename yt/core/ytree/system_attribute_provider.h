@@ -21,28 +21,47 @@ struct ISystemAttributeProvider
     { }
 
     //! Describes a system attribute.
-    struct TAttributeInfo
+    struct TAttributeDescriptor
     {
-        const char* Key;
-        bool IsPresent;
-        bool IsOpaque;
-        bool IsCustom;
-        bool IsRemovable;
-        NYTree::EPermissionSet WritePermission;
+        const char* Key = nullptr;
+        bool Present = true;
+        bool Opaque = false;
+        bool Custom = false;
+        bool Removable = false;
+        EPermissionSet WritePermission = EPermission::Write;
 
-        TAttributeInfo(
-            const char* key,
-            bool isPresent = true,
-            bool isOpaque = false,
-            bool isCustom = false,
-            bool isRemovable = false,
-            EPermission writePermission = EPermission::Write)
+        TAttributeDescriptor& SetPresent(bool value)
+        {
+            Present = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetOpaque(bool value)
+        {
+            Opaque = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetCustom(bool value)
+        {
+            Custom = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetRemovable(bool value)
+        {
+            Removable = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetWritePermission(EPermission value)
+        {
+            WritePermission = value;
+            return *this;
+        }
+
+        TAttributeDescriptor(const char* key)
             : Key(key)
-            , IsPresent(isPresent)
-            , IsOpaque(isOpaque)
-            , IsCustom(isCustom)
-            , IsRemovable(isRemovable)
-            , WritePermission(writePermission)
         { }
     };
 
@@ -51,10 +70,10 @@ struct ISystemAttributeProvider
      *  \note
      *  Must not clear #attributes since additional items may be added in inheritors.
      */
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) = 0;
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) = 0;
 
     //! Populates the list of all builtin attributes supported by this object.
-    void ListBuiltinAttributes(std::vector<TAttributeInfo>* attributes);
+    void ListBuiltinAttributes(std::vector<TAttributeDescriptor>* descriptors);
 
     //! Gets the value of a builtin attribute.
     /*!
@@ -83,9 +102,9 @@ struct ISystemAttributeProvider
 
     // Extension methods.
 
-    //! Returns an instance of TAttributeInfo matching a given #key or |Null| if no such
+    //! Returns an instance of TAttributeDescriptor matching a given #key or |Null| if no such
     //! builtin attribute is known.
-    TNullable<TAttributeInfo> FindBuiltinAttributeInfo(const Stroka& key);
+    TNullable<TAttributeDescriptor> FindBuiltinAttributeDescriptor(const Stroka& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
