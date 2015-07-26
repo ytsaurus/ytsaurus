@@ -1376,6 +1376,10 @@ private:
 
         epochContext->ActiveUpstreamSyncPromise.Set(error);
         epochContext->ActiveUpstreamSyncPromise.Reset();
+
+        if (epochContext->UpstreamSyncDeadlineReached) {
+            DoSyncWithUpstream(epochContext);
+        }
     }
 
     TFuture<void> DoSyncWithLeader(TEpochContextPtr epochContext)
@@ -1445,10 +1449,6 @@ private:
         epochContext->LeaderSyncPromise.Set();
         epochContext->LeaderSyncPromise.Reset();
         epochContext->LeaderSyncVersion.Reset();
-
-        if (epochContext->UpstreamSyncDeadlineReached) {
-            DoSyncWithUpstream(epochContext);
-        }
     }
 
 
