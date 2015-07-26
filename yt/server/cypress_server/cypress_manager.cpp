@@ -332,7 +332,7 @@ public:
 
     virtual TCellTag GetReplicationCellTag(const TObjectBase* object) override
     {
-        return static_cast<TCypressNodeBase*>(object)->GetExternalCellTag();
+        return static_cast<const TCypressNodeBase*>(object)->GetExternalCellTag();
     }
 
     virtual EObjectType GetType() const override
