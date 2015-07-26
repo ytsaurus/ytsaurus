@@ -286,6 +286,7 @@ void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
     VERIFY_THREAD_AFFINITY(controller->ControlThread);
 
     auto startIterator = NextChunkIterator;
+    // XXX(babenko): multicell
     auto req = Proxy.LocateChunks();
 
     for (int chunkCount = 0; chunkCount < controller->Config->MaxChunksPerScratch; ++chunkCount) {
