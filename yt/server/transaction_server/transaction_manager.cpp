@@ -80,24 +80,26 @@ private:
         return TransactionServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
+        TBase::ListSystemAttributes(descriptors);
+
         const auto* transaction = GetThisTypedImpl();
 
-        attributes->push_back("state");
-        attributes->push_back(TAttributeInfo("timeout", transaction->GetTimeout().HasValue()));
-        attributes->push_back("uncommitted_accounting_enabled");
-        attributes->push_back("staged_accounting_enabled");
-        attributes->push_back("parent_id");
-        attributes->push_back("start_time");
-        attributes->push_back("nested_transaction_ids");
-        attributes->push_back("staged_object_ids");
-        attributes->push_back("staged_node_ids");
-        attributes->push_back("branched_node_ids");
-        attributes->push_back("locked_node_ids");
-        attributes->push_back("lock_ids");
-        attributes->push_back("resource_usage");
-        TBase::ListSystemAttributes(attributes);
+        descriptors->push_back("state");
+        descriptors->push_back(TAttributeDescriptor("timeout")
+            .SetPresent(transaction->GetTimeout().HasValue()));
+        descriptors->push_back("uncommitted_accounting_enabled");
+        descriptors->push_back("staged_accounting_enabled");
+        descriptors->push_back("parent_id");
+        descriptors->push_back("start_time");
+        descriptors->push_back("nested_transaction_ids");
+        descriptors->push_back("staged_object_ids");
+        descriptors->push_back("staged_node_ids");
+        descriptors->push_back("branched_node_ids");
+        descriptors->push_back("locked_node_ids");
+        descriptors->push_back("lock_ids");
+        descriptors->push_back("resource_usage");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override

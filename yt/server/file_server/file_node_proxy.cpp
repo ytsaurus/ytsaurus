@@ -45,11 +45,14 @@ private:
         return FileServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back(TAttributeInfo("executable", true, false, true));
-        attributes->push_back(TAttributeInfo("file_name", true, false, true));
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back(TAttributeDescriptor("executable")
+            .SetCustom(true));
+        descriptors->push_back(TAttributeDescriptor("file_name")
+            .SetCustom(true));
     }
 
     virtual void ValidateCustomAttributeUpdate(

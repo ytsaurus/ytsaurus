@@ -90,14 +90,14 @@ private:
     }
 
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         auto* provider = GetTargetBuiltinAttributeProvider();
         if (provider) {
-            provider->ListSystemAttributes(attributes);
+            provider->ListSystemAttributes(descriptors);
         }
 
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override

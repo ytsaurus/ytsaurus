@@ -77,20 +77,28 @@ private:
     }
 
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
+        TBase::ListSystemAttributes(descriptors);
+
         const auto* table = GetThisTypedImpl();
 
-        attributes->push_back(TAttributeInfo("row_count", !table->IsDynamic()));
-        attributes->push_back(TAttributeInfo("unmerged_row_count", table->IsDynamic()));
-        attributes->push_back("sorted");
-        attributes->push_back("key_columns");
-        attributes->push_back(TAttributeInfo("sorted_by", table->GetSorted()));
-        attributes->push_back("dynamic");
-        attributes->push_back(TAttributeInfo("tablets", table->IsDynamic(), true));
-        attributes->push_back(TAttributeInfo("channels", true, false, true));
-        attributes->push_back(TAttributeInfo("schema", true, false, true));
-        TBase::ListSystemAttributes(attributes);
+        descriptors->push_back(TAttributeDescriptor("row_count")
+            .SetPresent(!table->IsDynamic()));
+        descriptors->push_back(TAttributeDescriptor("unmerged_row_count")
+            .SetPresent(table->IsDynamic()));
+        descriptors->push_back("sorted");
+        descriptors->push_back("key_columns");
+        descriptors->push_back(TAttributeDescriptor("sorted_by")
+            .SetPresent(table->GetSorted()));
+        descriptors->push_back("dynamic");
+        descriptors->push_back(TAttributeDescriptor("tablets")
+            .SetPresent(table->IsDynamic())
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("channels")
+            .SetCustom(true));
+        descriptors->push_back(TAttributeDescriptor("schema")
+            .SetCustom(true));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override

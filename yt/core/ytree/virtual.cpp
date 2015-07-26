@@ -132,9 +132,9 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
     context->Reply();
 }
 
-void TVirtualMapBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TVirtualMapBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    attributes->push_back("count");
+    descriptors->push_back("count");
 }
 
 bool TVirtualMapBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)

@@ -187,7 +187,7 @@ public:
             if (!keys.empty()) {
                 auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
 
-                std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+                std::vector<ISystemAttributeProvider::TAttributeDescriptor> systemAttributes;
                 trunkProxy->ListBuiltinAttributes(&systemAttributes);
 
                 yhash_set<Stroka> systemAttributeKeys;

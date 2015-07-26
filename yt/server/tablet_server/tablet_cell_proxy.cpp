@@ -67,19 +67,21 @@ private:
         return TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
+        TBase::ListSystemAttributes(descriptors);
+
         const auto* cell = GetThisTypedImpl();
 
-        attributes->push_back("health");
-        attributes->push_back("peers");
-        attributes->push_back(TAttributeInfo("tablet_ids", true, true));
-        attributes->push_back("tablet_count");
-        attributes->push_back("config_version");
-        attributes->push_back("total_statistics");
-        attributes->push_back(TAttributeInfo("prerequisite_transaction_id", cell->GetPrerequisiteTransaction() != nullptr));
-
-        TBase::ListSystemAttributes(attributes);
+        descriptors->push_back("health");
+        descriptors->push_back("peers");
+        descriptors->push_back(TAttributeDescriptor("tablet_ids")
+            .SetOpaque(true));
+        descriptors->push_back("tablet_count");
+        descriptors->push_back("config_version");
+        descriptors->push_back("total_statistics");
+        descriptors->push_back(TAttributeDescriptor("prerequisite_transaction_id")
+            .SetPresent(cell->GetPrerequisiteTransaction()));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override

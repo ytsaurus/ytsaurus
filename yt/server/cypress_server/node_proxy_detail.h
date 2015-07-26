@@ -73,7 +73,7 @@ protected:
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
@@ -201,7 +201,7 @@ protected:
         NTransactionServer::TTransaction* transaction,
         TCypressNodeBase* trunkNode);
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
 
     virtual bool CanHaveChildren() const override;
@@ -430,7 +430,7 @@ private:
 
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode> TBase;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
@@ -476,7 +476,7 @@ private:
 
     virtual void ExistsRecursive(const NYPath::TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context) override;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 

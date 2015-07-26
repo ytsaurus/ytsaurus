@@ -40,7 +40,7 @@ protected:
         return SecurityServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* attributes) override
     {
         attributes->push_back("name");
         attributes->push_back("member_of");

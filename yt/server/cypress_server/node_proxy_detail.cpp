@@ -311,27 +311,34 @@ TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
     return TVersionedObjectId(Object_->GetId(), GetObjectId(Transaction));
 }
 
-void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
+    TObjectProxyBase::ListSystemAttributes(descriptors);
+
     const auto* node = GetThisImpl();
     bool hasKey = NodeHasKey(Bootstrap_, node);
-    attributes->push_back(TAttributeInfo("parent_id", node->GetParent()));
-    attributes->push_back("cell_tag");
-    attributes->push_back("external");
-    attributes->push_back("locks");
-    attributes->push_back("lock_mode");
-    attributes->push_back(TAttributeInfo("path", true, true));
-    attributes->push_back(TAttributeInfo("key", hasKey, false));
-    attributes->push_back("creation_time");
-    attributes->push_back("modification_time");
-    attributes->push_back("access_time");
-    attributes->push_back("access_counter");
-    attributes->push_back("revision");
-    attributes->push_back("resource_usage");
-    attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
-    attributes->push_back(TAttributeInfo("account", true, false, false, false, EPermission::Administer));
-    attributes->push_back("user_attribute_keys");
-    TObjectProxyBase::ListSystemAttributes(attributes);
+
+    descriptors->push_back(TAttributeDescriptor("parent_id")
+        .SetPresent(node->GetParent()));
+    descriptors->push_back("cell_tag");
+    descriptors->push_back("external");
+    descriptors->push_back("locks");
+    descriptors->push_back("lock_mode");
+    descriptors->push_back(TAttributeDescriptor("path")
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("key")
+        .SetPresent(hasKey));
+    descriptors->push_back("creation_time");
+    descriptors->push_back("modification_time");
+    descriptors->push_back("access_time");
+    descriptors->push_back("access_counter");
+    descriptors->push_back("revision");
+    descriptors->push_back("resource_usage");
+    descriptors->push_back(TAttributeDescriptor("recursive_resource_usage")
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("account")
+        .SetWritePermission(EPermission::Administer));
+    descriptors->push_back("user_attribute_keys");
 }
 
 bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
@@ -448,14 +455,14 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     }
 
     if (key == "user_attribute_keys") {
-        std::vector<TAttributeInfo> systemAttributes;
+        std::vector<TAttributeDescriptor> systemAttributes;
         ListSystemAttributes(&systemAttributes);
 
         auto customAttributes = GetCustomAttributes()->List();
         yhash_set<Stroka> customAttributesSet(customAttributes.begin(), customAttributes.end());
 
         for (const auto& attribute : systemAttributes) {
-            if (attribute.IsCustom) {
+            if (attribute.Custom) {
                 customAttributesSet.erase(attribute.Key);
             }
         }
@@ -917,10 +924,10 @@ TIntrusivePtr<ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsCompo
     return this;
 }
 
-void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    attributes->push_back("count");
-    TNontemplateCypressNodeProxyBase::ListSystemAttributes(attributes);
+    descriptors->push_back("count");
+    TNontemplateCypressNodeProxyBase::ListSystemAttributes(descriptors);
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
@@ -1452,12 +1459,14 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     }
 }
 
-void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    TBase::ListSystemAttributes(attributes);
-    attributes->push_back("target_id");
-    attributes->push_back(TAttributeInfo("target_path", true, true));
-    attributes->push_back("broken");
+    TBase::ListSystemAttributes(descriptors);
+
+    descriptors->push_back("target_id");
+    descriptors->push_back(TAttributeDescriptor("target_path")
+        .SetOpaque(true));
+    descriptors->push_back("broken");
 }
 
 bool TLinkNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
@@ -1683,10 +1692,12 @@ void TDocumentNodeProxy::ExistsRecursive(const TYPath& /*path*/, TReqExists* req
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
-void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    TBase::ListSystemAttributes(attributes);
-    attributes->push_back(TAttributeInfo("value", true, true));
+    TBase::ListSystemAttributes(descriptors);
+
+    descriptors->push_back(TAttributeDescriptor("value")
+        .SetOpaque(true));
 }
 
 bool TDocumentNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)

@@ -497,7 +497,7 @@ void TObjectProxyBase::SerializeAttributes(
 
     switch (filter.Mode) {
         case EAttributeFilterMode::All: {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
+            std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinAttributes;
             ListBuiltinAttributes(&builtinAttributes);
 
             auto userKeys = customAttributes.List();
@@ -511,7 +511,7 @@ void TObjectProxyBase::SerializeAttributes(
                 std::sort(
                     builtinAttributes.begin(),
                     builtinAttributes.end(),
-                    [] (const ISystemAttributeProvider::TAttributeInfo& lhs, const ISystemAttributeProvider::TAttributeInfo& rhs) {
+                    [] (const ISystemAttributeProvider::TAttributeDescriptor& lhs, const ISystemAttributeProvider::TAttributeDescriptor& rhs) {
                         return lhs.Key < rhs.Key;
                     });
             }
@@ -522,9 +522,9 @@ void TObjectProxyBase::SerializeAttributes(
             }
 
             for (const auto& attribute : builtinAttributes) {
-                if (attribute.IsPresent){
+                if (attribute.Present){
                     attributesConsumer.OnKeyedItem(attribute.Key);
-                    if (attribute.IsOpaque) {
+                    if (attribute.Opaque) {
                         attributesConsumer.OnEntity();
                     } else {
                         YCHECK(GetBuiltinAttribute(attribute.Key, &attributesConsumer));
@@ -615,23 +615,30 @@ std::unique_ptr<IAttributeDictionary> TObjectProxyBase::DoCreateCustomAttributes
     return std::unique_ptr<IAttributeDictionary>(new TCustomAttributeDictionary(this));
 }
 
-void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     auto* acd = FindThisAcd();
     bool hasAcd = acd;
     bool hasOwner = acd && acd->GetOwner();
 
-    attributes->push_back("id");
-    attributes->push_back("type");
-    attributes->push_back("builtin");
-    attributes->push_back("ref_counter");
-    attributes->push_back("weak_ref_counter");
-    attributes->push_back("foreign");
-    attributes->push_back(TAttributeInfo("supported_permissions", true, true));
-    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, false, false, false, EPermission::Administer));
-    attributes->push_back(TAttributeInfo("acl", hasAcd, true, false, false, EPermission::Administer));
-    attributes->push_back(TAttributeInfo("owner", hasOwner, false));
-    attributes->push_back(TAttributeInfo("effective_acl", true, true));
+    descriptors->push_back("id");
+    descriptors->push_back("type");
+    descriptors->push_back("builtin");
+    descriptors->push_back("ref_counter");
+    descriptors->push_back("weak_ref_counter");
+    descriptors->push_back("foreign");
+    descriptors->push_back(TAttributeDescriptor("supported_permissions")
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("inherit_acl")
+        .SetPresent(hasAcd)
+        .SetWritePermission(EPermission::Administer));
+    descriptors->push_back(TAttributeDescriptor("acl")
+        .SetPresent(hasAcd)
+        .SetWritePermission(EPermission::Administer));
+    descriptors->push_back(TAttributeDescriptor("owner")
+        .SetPresent(hasOwner));
+    descriptors->push_back(TAttributeDescriptor("effective_acl")
+        .SetOpaque(true));
 }
 
 bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
