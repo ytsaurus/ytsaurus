@@ -795,17 +795,6 @@ bool TObjectProxyBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
     return false;
 }
 
-TObjectBase* TObjectProxyBase::GetSchema(EObjectType type)
-{
-    auto objectManager = Bootstrap_->GetObjectManager();
-    return objectManager->GetSchema(type);
-}
-
-TObjectBase* TObjectProxyBase::GetThisSchema()
-{
-    return GetSchema(Object_->GetType());
-}
-
 void TObjectProxyBase::DeclareMutating()
 {
     YCHECK(NHydra::HasMutationContext());
