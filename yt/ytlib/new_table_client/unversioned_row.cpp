@@ -575,35 +575,6 @@ ui64 GetHash(TUnversionedRow row, int keyColumnCount)
 }
 
 // Forever-fixed Google FarmHash fingerprint.
-TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
-{
-    if (value.Type == EValueType::Any) {
-        THROW_ERROR_EXCEPTION(EErrorCode::UnhashableType, "Composite types are not hashable");
-    }
-
-    switch (value.Type) {
-        case EValueType::String:
-            return FarmFingerprint(value.Data.String, value.Length);
-
-        case EValueType::Int64:
-        case EValueType::Uint64:
-        case EValueType::Double:
-            // These types are aliased.
-            return FarmFingerprint(value.Data.Int64);
-
-        case EValueType::Boolean:
-            return FarmFingerprint(value.Data.Boolean);
-
-        case EValueType::Null:
-            return FarmFingerprint(0);
-
-        default:
-            // No idea how to hash other types.
-            YUNREACHABLE();
-    }
-}
-
-// Forever-fixed Google FarmHash fingerprint.
 TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     ui64 result = 0xdeadc0de;
