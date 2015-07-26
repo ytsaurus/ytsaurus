@@ -312,14 +312,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto cellMapNodeProxy = GetCellMapNode();
-        auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cell->GetId()));
-        if (cellNodeProxy) {
-            auto cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->AbortSubtreeTransactions(cellNodeProxy);
-            cellMapNodeProxy->RemoveChild(cellNodeProxy);
-        }
-
         auto hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->RemoveMailbox(cell->GetId());
 
@@ -333,6 +325,14 @@ public:
         }
 
         AbortPrerequisiteTransaction(cell);
+    
+        auto cellMapNodeProxy = GetCellMapNode();
+        auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cell->GetId()));
+        if (cellNodeProxy) {
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->AbortSubtreeTransactions(cellNodeProxy);
+            cellMapNodeProxy->RemoveChild(cellNodeProxy);
+        }
     }
 
 
