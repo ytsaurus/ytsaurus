@@ -4,6 +4,7 @@
 from yt.wrapper.etc_commands import get_user_name
 from yt.wrapper.client import Yt
 from yt.wrapper.common import parse_bool
+from yt.wrapper.table import TablePath
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.environment import YTEnv
@@ -14,13 +15,21 @@ import yt.wrapper as yt
 
 import os
 import time
+import random
 import inspect
 import tempfile
+import string
 import subprocess
 import shutil
 from StringIO import StringIO
+from itertools import imap
 
 import pytest
+
+TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
+
+def _get_test_file_path(name):
+    return os.path.join(TESTS_LOCATION, "files", name)
 
 def test_docs_exist():
     functions = inspect.getmembers(yt, lambda o: inspect.isfunction(o) and \
@@ -85,7 +94,17 @@ class NativeModeTester(YtTestBase, YTEnv):
             return map(yt.loads_row, sorted(list(records)))
         assert prepare(recordsA) == prepare(recordsB)
 
-    ##
+    def get_temp_dsv_records(self):
+        columns = (string.digits, reversed(string.ascii_lowercase[:10]), string.ascii_uppercase)
+        def dumps_row(row):
+            return "x={}\ty={}\tz={}\n".format(*row)
+        return map(dumps_row, zip(*columns))
+
+    def random_string(self, length):
+        char_set = string.ascii_lowercase + string.digits + string.ascii_uppercase
+        return "".join(random.sample(char_set, length))
+
+    ###
     ### test_cypress_commands
     ###
 
@@ -147,9 +166,9 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.upload_file("", TEST_DIR + "/file")
 
         assert set(yt.search(TEST_DIR)) == set([TEST_DIR, TEST_DIR + "/dir",
-                                                TEST_DIR + "/dir/other_dir",
-                                                TEST_DIR + "/dir/table",
-                                                TEST_DIR + "/file"])
+                                            TEST_DIR + "/dir/other_dir",
+                                            TEST_DIR + "/dir/table",
+                                            TEST_DIR + "/file"])
 
         res = yt.search(TEST_DIR, map_node_order=lambda path, object: sorted(object))
         assert list(res) == [TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir",
@@ -158,8 +177,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         assert set(yt.search(TEST_DIR, node_type="file")) == set([TEST_DIR + "/file"])
 
         assert set(yt.search(TEST_DIR, node_type="table",
-                             path_filter=lambda x: x.find("dir") != -1)) == \
-               set([TEST_DIR + "/dir/table"])
+                             path_filter=lambda x: x.find("dir") != -1)) == set([TEST_DIR + "/dir/table"])
 
         # Search empty tables
         res = yt.search(TEST_DIR, attributes=["row_count"],
@@ -328,6 +346,15 @@ class NativeModeTester(YtTestBase, YTEnv):
         assert read_table() == "x=5\n"
         assert read_table(new_client) == "x=5\n"
 
+        try:
+            with yt.Transaction(timeout=3000) as tx:
+                transaction_id = tx.transaction_id
+                raise yt.YtError("test error")
+        except:
+            pass
+
+        assert not yt.exists("//sys/transactions/" + transaction_id)
+
     def test_lock(self):
         dir = TEST_DIR + "/dir"
 
@@ -358,6 +385,28 @@ class NativeModeTester(YtTestBase, YTEnv):
                 yt.lock(dir, waitable=True, wait_for=1000)
 
         yt.abort_transaction(tx)
+
+    def test_copy_move_sorted_table(self):
+        def is_sorted_by_y(table_path):
+            sorted_by = yt.get_attribute(table_path, "sorted_by", None)
+            if sorted_by is None:
+                sorted_by = yt.get_attribute(table_path, "key_columns", None)
+            return sorted_by == ["y"]
+
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        another_table = TEST_DIR + "/another_table"
+
+        yt.write_table(table, ["x=1\ty=2\n", "x=3\ty=1\n", "x=2\ty=3\n"])
+        yt.run_sort(table, sort_by=["y"])
+
+        yt.copy(table, other_table)
+        assert yt.is_sorted(other_table)
+        assert is_sorted_by_y(other_table)
+
+        yt.move(table, another_table)
+        assert yt.is_sorted(another_table)
+        assert is_sorted_by_y(another_table)
 
     def test_utf8(self):
         yt.create("table", TEST_DIR + "/table", attributes={"attr": u"капуста"})
@@ -431,6 +480,10 @@ class NativeModeTester(YtTestBase, YTEnv):
         destination = yt.smart_upload_file(filename, placement_strategy="random")
         path = os.path.join(os.path.basename(filename), yt.config["remote_temp_files_directory"])
         assert destination.startswith(path)
+
+        destination = TEST_DIR + "/file_dir/some_file"
+        yt.smart_upload_file(filename, destination=destination, placement_strategy="ignore")
+        assert yt.get_attribute(destination, "file_name") == "some_file"
 
     ###
     ### test_table_commands
@@ -542,7 +595,8 @@ class NativeModeTester(YtTestBase, YTEnv):
         table = TEST_DIR + "/table"
 
         def select():
-            return list(yt.select_rows("* from [{0}]".format(table), format=yt.YsonFormat(format="text", process_table_index=False), raw=False))
+            return list(yt.select_rows("* from [{0}]".format(table),
+                                       format=yt.YsonFormat(format="text", process_table_index=False), raw=False))
 
         yt.remove(table, force=True)
         yt.create_table(table)
@@ -655,6 +709,63 @@ class NativeModeTester(YtTestBase, YTEnv):
             for field in ("@table_index", "TableIndex", "_table_index_"):
                 assert field not in row
 
+    def test_erase(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, self.get_temp_dsv_records())
+        assert yt.records_count(table) == 10
+        yt.run_erase(TablePath(table, start_index=0, end_index=5))
+        assert yt.records_count(table) == 5
+        yt.run_erase(TablePath(table, start_index=0, end_index=5))
+        assert yt.records_count(table) == 0
+
+    def test_read_with_ranges(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["y=w3\n", "x=b\ty=w1\n", "x=a\ty=w2\n"])
+        yt.run_sort(table, sort_by=["x", "y"])
+
+        def read_table(**kwargs):
+            return list(yt.read_table(TablePath(table, **kwargs), raw=False))
+
+        assert read_table(lower_key="a", upper_key="d") == [{"x": "a", "y": "w2"},
+                                                            {"x": "b", "y": "w1"}]
+        assert read_table(columns=["y"]) == [{"y": "w" + str(i)} for i in [3, 2, 1]]
+        assert read_table(lower_key="a", end_index=2, columns=["x"]) == [{"x": "a"}]
+        assert read_table(start_index=0, upper_key="b") == [{"y": "w3"}, {"x": "a", "y": "w2"}]
+        assert read_table(start_index=1, columns=["x"]) == [{"x": "a"}, {"x": "b"}]
+
+        assert list(yt.read_table(table + "{y}[:#2]")) == ["y=w3\n", "y=w2\n"]
+        assert list(yt.read_table(table + "[#1:]")) == ["x=a\ty=w2\n", "x=b\ty=w1\n"]
+
+        assert list(yt.read_table("<ranges=[{"
+                                  "lower_limit={key=[b]}"
+                                  "}]>" + table)) == ["x=b\ty=w1\n"]
+        assert list(yt.read_table("<ranges=[{"
+                                  "upper_limit={row_index=2}"
+                                  "}]>" + table)) == ["y=w3\n", "x=a\ty=w2\n"]
+
+        with pytest.raises(yt.YtError):
+            yt.read_table(TablePath(table, lower_key="a", start_index=1))
+        with pytest.raises(yt.YtError):
+            yt.read_table(TablePath(table, upper_key="c", end_index=1))
+        yt.write_table(table, ["x=b\n", "x=a\n", "x=c\n"])
+        with pytest.raises(yt.YtError):
+            yt.read_table(TablePath(table, lower_key="a"))
+
+    def test_huge_table(self):
+        table = TEST_DIR + "/table"
+        power = 3
+        records = imap(yt.dumps_row, ({"k": i, "s": i * i, "v": "long long string with strange symbols"
+                                                                " #*@*&^$#%@(#!@:L|L|KL..,,.~`"}
+                                      for i in xrange(10 ** power)))
+        yt.write_table(table, yt.StringIterIO(records))
+
+        assert yt.records_count(table) == 10 ** power
+
+        records_count = 0
+        for _ in yt.read_table(table):
+            records_count += 1
+        assert records_count == 10 ** power
+
     ###
     ### test_operations
     ###
@@ -686,12 +797,48 @@ class NativeModeTester(YtTestBase, YTEnv):
         assert parse_bool(yt.get_attribute(res_table, "sorted"))
         self.check(["x=1\n"], yt.read_table(res_table))
 
+    def test_sort(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+
+        columns = [(self.random_string(7), self.random_string(7)) for _ in xrange(10)]
+        yt.write_table(table, ["x={}\ty={}\n".format(*c) for c in columns])
+
+        with pytest.raises(yt.YtError):
+            yt.run_sort([table, other_table], other_table, sort_by=["y"])
+
+        yt.run_sort(table, other_table, sort_by=["x"])
+        assert [{"x": x, "y": y} for x, y in sorted(columns, key=lambda c: c[0])] == \
+               map(yt.loads_row, yt.read_table(other_table))
+
+        yt.run_sort(table, sort_by=["x"])
+        assert list(yt.read_table(table)) == list(yt.read_table(other_table))
+
+        # Sort again and check that everything is ok
+        yt.run_sort(table, sort_by=["x"])
+        assert list(yt.read_table(table)) == list(yt.read_table(other_table))
+
+        yt.run_sort(table, sort_by=["y"])
+        assert [{"x": x, "y": y} for x, y in sorted(columns, key=lambda c: c[1])] == \
+               map(yt.loads_row, yt.read_table(table))
+
+        assert yt.is_sorted(table)
+
+        with pytest.raises(yt.YtError):
+            yt.run_sort(table, sort_by=None)
+
     def test_run_operation(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, ["x=1\n", "x=2\n"])
 
         yt.run_map("cat", table, table)
+        self.check(["x=1\n", "x=2\n"], yt.read_table(table))
+        yt.run_sort(table, sort_by=["x"])
+        with pytest.raises(yt.YtError):
+            yt.run_reduce("cat", table, [], reduce_by=["x"])
+
+        yt.run_reduce("cat", table, table, reduce_by=["x"])
         self.check(["x=1\n", "x=2\n"], yt.read_table(table))
 
         with pytest.raises(yt.YtError):
@@ -706,22 +853,20 @@ class NativeModeTester(YtTestBase, YTEnv):
         with pytest.raises(yt.YtError):
             yt.run_reduce("cat", table, other_table, reduce_by=None)
 
-    def test_sort(self):
-        table = TEST_DIR + "/table"
-        other_table = TEST_DIR + "/other_table"
-        yt.write_table(table, ["y=2\n", "x=1\n"])
-
+        # Run reduce on unsorted table
         with pytest.raises(yt.YtError):
-            yt.run_sort([table, other_table], other_table, sort_by=["y"])
+            yt.run_reduce("cat", other_table, table, reduce_by=["x"])
 
-        yt.run_sort(table, other_table, sort_by=["y"])
-        self.check(["x=1\n", "y=2\n"], yt.read_table(other_table))
-
-        yt.run_sort(table, sort_by=["x"])
-        self.check(["y=2\n", "x=1\n"], yt.read_table(table))
-
-        with pytest.raises(yt.YtError):
-            yt.run_sort(table, sort_by=None)
+        yt.write_table(table, map(yt.dumps_row,
+                                  [{"a": 12,  "b": "ignat"},
+                                             {"b": "max"},
+                                   {"a": "x", "b": "name", "c": 0.5}]))
+        yt.run_map("PYTHONPATH=. ./capitalize_b.py",
+                   TablePath(table, columns=["b"]), other_table,
+                   files=_get_test_file_path("capitalize_b.py"))
+        records = yt.read_table(other_table, raw=False)
+        assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
+        assert sorted([rec["c"] for rec in records]) == []
 
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations(self):
@@ -768,6 +913,23 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.run_map(change_field, table, table)
         self.check(yt.read_table(table), ["z=8\n", "z=8\n"])
 
+    def test_cross_format_operation(self):
+        @yt.raw
+        def reformat(rec):
+            values = rec.strip().split("\t", 2)
+            yield "\t".join("=".join([k, v]) for k, v in zip(["k", "s", "v"], values)) + "\n"
+
+        yt.config["tabular_data_format"] = yt.format.YamrFormat(has_subkey=True)
+        try:
+            table = TEST_DIR + "/table"
+            other_table = TEST_DIR + "/other_table"
+            yt.write_table(table, ["0\ta\tA\n", "1\tb\tB\n"])
+            yt.run_map(reformat, table, other_table, output_format=yt.format.DsvFormat())
+            assert sorted(yt.read_table(other_table, format=yt.format.DsvFormat())) == \
+                   ["k=0\ts=a\tv=A\n", "k=1\ts=b\tv=B\n"]
+        finally:
+            yt.config["tabular_data_format"] = yt.format.DsvFormat()
+
     def test_python_operations_io(self):
         """ All access (except read-only) to stdin/out during the operation should be disabled """
         table = TEST_DIR + "/table_io_test"
@@ -800,34 +962,23 @@ class NativeModeTester(YtTestBase, YTEnv):
             with pytest.raises(yt.YtError):
                 yt.run_map(mapper, table, table)
 
-    @add_failed_operation_stderrs_to_error_message
-    def test_yamr_python_operations(self):
-        def yamr_func(key, records):
-            for rec in records:
-                pass
-            yield yt.Record("10", "20")
-
+    def test_many_output_tables(self):
         table = TEST_DIR + "/table"
-        output_table = TEST_DIR + "/output_table"
-        yt.write_table(table, ["key=a\tvalue=b\n"])
-        yt.run_map_reduce(mapper=None, reducer=yamr_func,
-                          source_table=table, destination_table=output_table,
-                          reduce_by="key", format=yt.YamrFormat())
-        self.check(["key=10\tvalue=20\n"], yt.read_table(output_table))
+        output_tables = []
+        for i in xrange(10):
+            output_tables.append(TEST_DIR + "/temp%d" % i)
+        append_table = TEST_DIR + "/temp_special"
+        yt.write_table(table, ["x=1\ty=1\n"])
+        yt.write_table(append_table, ["x=1\ty=1\n"])
 
-        with pytest.raises(yt.YtError):
-            yt.run_map_reduce(mapper=None, reducer=yamr_func,
-                              source_table=table, destination_table=output_table,
-                              reduce_by="subkey", format=yt.YamrFormat())
+        yt.run_map("PYTHONPATH=. ./many_output.py yt",
+                   table,
+                   output_tables + [TablePath(append_table, append=True)],
+                   files=_get_test_file_path("many_output.py"))
 
-    def test_lenval_python_operations(self):
-        def foo(rec):
-            yield rec
-
-        table = TEST_DIR + "/table"
-        yt.write_table(table, ["key=1\tvalue=2\n"])
-        yt.run_map(foo, table, table, format=yt.YamrFormat(lenval=True))
-        self.check(["key=1\tvalue=2\n"], list(yt.read_table(table)))
+        for table in output_tables:
+            assert yt.records_count(table) == 1
+        self.check(["x=1\ty=1\n", "x=10\ty=10\n"], yt.read_table(append_table))
 
     def test_attached_mode(self):
         table = TEST_DIR + "/table"
@@ -873,6 +1024,25 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
                           source_table=table, destination_table=output_table)
         self.check(["x=1\n", "y=2\n"], sorted(list(yt.read_table(table))))
+
+    def test_reduce_differently_sorted_table(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.create("table", table)
+        yt.run_sort(table, sort_by=["a", "b"])
+
+        with pytest.raises(yt.YtError):
+            yt.run_reduce("cat", source_table=table, destination_table=other_table, reduce_by=["c"])
+
+    def test_reduce_with_output_sorted(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+
+        yt.write_table(table, ["x=2\n", "x=3\n", "x=1\n"])
+        yt.run_sort(table, sort_by=["x"])
+
+        yt.run_reduce("cat", table, "<sorted_by=[x]>" + output_table, reduce_by=["x"])
+        assert yt.is_sorted(output_table)
 
     @add_failed_operation_stderrs_to_error_message
     def test_yamred_dsv(self):
@@ -1097,7 +1267,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         assert '{"a":"b"}\n' == other_client.read_table("//tmp/in", raw=True).read()
 
     def test_get_user_name(self):
-        if yt.config.VERSION == "v2":
+        if yt.config["api_version"] == "v2":
             assert get_user_name("") == None
         else:
             # With disabled authentication in proxy it always return root
