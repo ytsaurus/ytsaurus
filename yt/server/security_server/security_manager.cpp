@@ -910,11 +910,13 @@ public:
                 user->GetName());
         }
 
-        user->SetBanned(banned);
-        if (banned) {
-            LOG_INFO_UNLESS(IsRecovery(), "User is now banned (User: %v)", user->GetName());
-        } else {
-            LOG_INFO_UNLESS(IsRecovery(), "User is now unbanned (User: %v)", user->GetName());
+        if (user->GetBanned() != banned) {
+            user->SetBanned(banned);
+            if (banned) {
+                LOG_INFO_UNLESS(IsRecovery(), "User is banned (User: %v)", user->GetName());
+            } else {
+                LOG_INFO_UNLESS(IsRecovery(), "User is no longer banned (User: %v)", user->GetName());
+            }
         }
     }
 
