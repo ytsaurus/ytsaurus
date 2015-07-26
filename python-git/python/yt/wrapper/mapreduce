@@ -157,29 +157,32 @@ class MaybeMissingValueArgumentAction(Action):
             values = MissingValue()
         setattr(namespace, self.dest, values)
 
+def arg_to_names(arg):
+    return ["-" + arg, "--" + arg]
+
 def add_maybe_missing_value_args(parser, args):
     for arg in flatten(args):
-        parser.add_argument("-" + arg, nargs="?", action=MaybeMissingValueArgumentAction)
+        parser.add_argument(*arg_to_names(arg), nargs="?", action=MaybeMissingValueArgumentAction)
 def add_store_args(parser, args):
     for arg in flatten(args):
-        parser.add_argument("-" + arg, action=ForbidRepeatedArgumentsAction)
+        parser.add_argument(*arg_to_names(arg), action=ForbidRepeatedArgumentsAction)
 def add_bool_args(parser, args):
     for arg in flatten(args):
-        parser.add_argument("-" + arg, action="store_true", default=False)
+        parser.add_argument(*arg_to_names(arg), action="store_true", default=False)
 def add_multiple_args(parser, args):
     for arg in flatten(args):
-        parser.add_argument("-" + arg, action="append")
+        parser.add_argument(*arg_to_names(arg), action="append")
 
 def add_multiple_args_to_one_dest(parser, args, dest=None):
     for arg in flatten(args):
-        parser.add_argument("-" + arg, action=AppendAction, dest=dest)
+        parser.add_argument(*arg_to_names(arg), action=AppendAction, dest=dest)
 
 def add_integer_args(parser, args):
     for arg in flatten(args):
-        parser.add_argument("-" + arg, type=int)
+        parser.add_argument(*arg_to_names(arg), type=int)
 
 def add_help_message(parser, arg_name, message):
-    arg_name = "-" + arg_name
+    arg_name = ", ".join(arg_to_names(arg_name))
     args_tuple = parser._get_option_tuples(arg_name)
     for arg in args_tuple:
         if arg[1] == arg_name:
