@@ -10,6 +10,8 @@
 
 #include <server/chunk_server/chunk_manager.h>
 
+#include <server/object_server/object_manager.h>
+
 #include <server/cell_master/hydra_facade.h>
 
 namespace NYT {
@@ -48,21 +50,26 @@ NYTree::ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType()
 template <class TChunkOwner>
 std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
     const NCypressServer::TVersionedNodeId& id,
+    NObjectClient::TCellTag cellTag,
     NCypressServer::INodeTypeHandler::TReqCreate* request,
     NCypressServer::INodeTypeHandler::TRspCreate* response)
 {
     auto chunkManager = this->Bootstrap_->GetChunkManager();
     auto objectManager = this->Bootstrap_->GetObjectManager();
+    auto cypressManager = this->Bootstrap_->GetCypressManager();
 
-    auto node = TBase::DoCreate(id, request, response);
+    auto nodeHolder = TBase::DoCreate(id, cellTag, request, response);
+    auto* node = nodeHolder.get();
 
-    // Create an empty chunk list and reference it from the node.
-    auto* chunkList = chunkManager->CreateChunkList();
-    node->SetChunkList(chunkList);
-    YCHECK(chunkList->OwningNodes().insert(node.get()).second);
-    objectManager->RefObject(chunkList);
+    if (!cypressManager->IsExternal(node)) {
+        // Create an empty chunk list and reference it from the node.
+        auto* chunkList = chunkManager->CreateChunkList();
+        node->SetChunkList(chunkList);
+        YCHECK(chunkList->OwningNodes().insert(node).second);
+        objectManager->RefObject(chunkList);
+    }
 
-    return node;
+    return nodeHolder;
 }
 
 template <class TChunkOwner>

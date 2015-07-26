@@ -44,6 +44,12 @@ using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A sentinel instance of IAttributeDictionary for INodeTypeHandler::Create.
+//! Note that |EmptyAttributes()| cannot be used here due to const-ness.
+static const std::unique_ptr<IAttributeDictionary> MutableEmptyAttributes = CreateEphemeralAttributes();
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary
     : public IAttributeDictionary
 {
@@ -320,8 +326,8 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
 
     descriptors->push_back(TAttributeDescriptor("parent_id")
         .SetPresent(node->GetParent()));
-    descriptors->push_back("cell_tag");
     descriptors->push_back("external");
+    descriptors->push_back("external_cell_tag");
     descriptors->push_back("locks");
     descriptors->push_back("lock_mode");
     descriptors->push_back(TAttributeDescriptor("path")
@@ -345,9 +351,12 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     const Stroka& key,
     IYsonConsumer* consumer)
 {
-    const auto* node = GetThisImpl();
+    auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
     bool hasKey = NodeHasKey(Bootstrap_, node);
+
+    auto cypressManager = Bootstrap_->GetCypressManager();
+    bool isExternal = cypressManager->IsExternal(node);
 
     if (key == "parent_id" && node->GetParent()) {
         BuildYsonFluently(consumer)
@@ -355,15 +364,15 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         return true;
     }
 
-    if (key == "cell_tag") {
+    if (key == "external") {
         BuildYsonFluently(consumer)
-            .Value(node->GetCellTag());
+            .Value(isExternal);
         return true;
     }
 
-    if (key == "external") {
+    if (key == "external_cell_tag" && isExternal) {
         BuildYsonFluently(consumer)
-            .Value(node->GetCellTag() != Bootstrap_->GetCellTag());
+            .Value(node->GetCellTag());
         return true;
     }
 
@@ -795,13 +804,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto factory = CreateCypressFactory(false);
 
-    auto attributes = request->has_node_attributes()
-        ? FromProto(request->node_attributes())
-        : CreateEphemeralAttributes();
+    std::unique_ptr<IAttributeDictionary> attributesHolder;
+    if (request->has_node_attributes()) {
+        attributesHolder = FromProto(request->node_attributes());
+    }
 
     auto newProxy = factory->CreateNode(
         type,
-        attributes.get(),
+        attributesHolder ? attributesHolder.get() : MutableEmptyAttributes.get(),
         request,
         response);
 
@@ -886,7 +896,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         sourceParent->RemoveChild(sourceProxy);
     }
 
-    ToProto(response->mutable_object_id(), clonedTrunkImpl->GetId());
+    ToProto(response->mutable_node_id(), clonedTrunkImpl->GetId());
 
     context->SetRequestInfo("NodeId: %v", clonedTrunkImpl->GetId());
 

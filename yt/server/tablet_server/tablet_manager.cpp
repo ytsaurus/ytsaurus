@@ -265,16 +265,13 @@ public:
         auto* sysAccount = securityManager->GetSysAccount();
 
         auto cypressManager = Bootstrap_->GetCypressManager();
-        auto nodeFactory = cypressManager->CreateNodeFactory(
-            nullptr,
-            sysAccount,
-            false);
-
         auto cellNodeTypeHandler = cypressManager->GetHandler(EObjectType::TabletCellNode);
-
         auto* cellNode = cypressManager->CreateNode(
+            NullObjectId,
+            Bootstrap_->GetCellTag(),
             cellNodeTypeHandler,
-            nodeFactory,
+            sysAccount,
+            nullptr,
             nullptr,
             nullptr);
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "node.h"
 
 #include <core/misc/small_vector.h>
 
@@ -48,8 +49,11 @@ public:
 
     //! Creates a new node and registers it.
     TCypressNodeBase* CreateNode(
+        const TNodeId& hintId,
+        NObjectClient::TCellTag cellTag,
         INodeTypeHandlerPtr handler,
-        ICypressNodeFactoryPtr factory,
+        NSecurityServer::TAccount* account,
+        NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response);
 
@@ -116,6 +120,10 @@ public:
 
     bool IsOrphaned(TCypressNodeBase* trunkNode);
     bool IsAlive(TCypressNodeBase* trunkNode, NTransactionServer::TTransaction* transaction);
+
+    //! Returns |true| if the node was delegated to another cell.
+    bool IsExternal(TCypressNodeBase* node);
+
 
     //! Returns the list consisting of the trunk node
     //! and all of its existing versioned overrides up to #transaction;

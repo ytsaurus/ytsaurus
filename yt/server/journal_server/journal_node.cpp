@@ -129,13 +129,14 @@ protected:
 
     virtual std::unique_ptr<TJournalNode> DoCreate(
         const TVersionedNodeId& id,
+        TCellTag cellTag,
         INodeTypeHandler::TReqCreate* request,
         INodeTypeHandler::TRspCreate* response) override
     {
         auto chunkManager = this->Bootstrap_->GetChunkManager();
         auto objectManager = this->Bootstrap_->GetObjectManager();
 
-        auto node = TBase::DoCreate(id, request, response);
+        auto node = TBase::DoCreate(id, cellTag, request, response);
 
         // Create an empty chunk list and reference it from the node.
         auto* chunkList = chunkManager->CreateChunkList();

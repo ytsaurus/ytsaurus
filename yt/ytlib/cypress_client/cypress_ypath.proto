@@ -48,7 +48,7 @@ message TReqCopy
 
 message TRspCopy
 {
-    required NYT.NProto.TGuid object_id = 1;
+    required NYT.NProto.TGuid node_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
