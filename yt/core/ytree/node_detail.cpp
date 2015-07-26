@@ -68,10 +68,8 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
     context->Reply();
 }
 
-void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKeyPtr context)
+void TNodeBase::GetKeySelf(TReqGetKey* /*request*/, TRspGetKey* response, TCtxGetKeyPtr context)
 {
-    UNUSED(request);
-
     context->SetRequestInfo();
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
@@ -101,10 +99,8 @@ void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKey
     context->Reply();
 }
 
-void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
+void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* /*response*/, TCtxRemovePtr context)
 {
-    UNUSED(response);
-
     context->SetRequestInfo();
 
     auto parent = GetParent();
@@ -143,11 +139,9 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
 void TCompositeNodeMixin::SetRecursive(
     const TYPath& path,
     TReqSet* request,
-    TRspSet* response,
+    TRspSet* /*response*/,
     TCtxSetPtr context)
 {
-    UNUSED(response);
-
     context->SetRequestInfo();
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
@@ -163,12 +157,9 @@ void TCompositeNodeMixin::SetRecursive(
 void TCompositeNodeMixin::RemoveRecursive(
     const TYPath& path,
     TSupportsRemove::TReqRemove* request,
-    TSupportsRemove::TRspRemove* response,
+    TSupportsRemove::TRspRemove* /*response*/,
     TSupportsRemove::TCtxRemovePtr context)
 {
-    UNUSED(request);
-    UNUSED(response);
-
     context->SetRequestInfo();
 
     NYPath::TTokenizer tokenizer(path);

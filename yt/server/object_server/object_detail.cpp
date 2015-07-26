@@ -885,10 +885,8 @@ bool TNontemplateNonversionedObjectProxyBase::DoInvoke(IServiceContextPtr contex
     return TObjectProxyBase::DoInvoke(context);
 }
 
-void TNontemplateNonversionedObjectProxyBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
+void TNontemplateNonversionedObjectProxyBase::GetSelf(TReqGet* /*request*/, TRspGet* response, TCtxGetPtr context)
 {
-    UNUSED(request);
-
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
     response->set_value("#");
@@ -900,13 +898,9 @@ void TNontemplateNonversionedObjectProxyBase::ValidateRemoval()
     THROW_ERROR_EXCEPTION("Object cannot be removed explicitly");
 }
 
-void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
+void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* /*request*/, TRspRemove* /*response*/, TCtxRemovePtr context)
 {
-    UNUSED(request);
-    UNUSED(response);
-
     ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
-
     ValidateRemoval();
 
     if (Object_->GetObjectRefCounter() != 1) {
