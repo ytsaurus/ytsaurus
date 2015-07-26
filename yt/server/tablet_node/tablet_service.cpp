@@ -47,8 +47,8 @@ public:
         TTabletSlotPtr slot,
         NCellNode::TBootstrap* bootstrap)
         : THydraServiceBase(
-            slot->GetHydraManager(),
-            slot->GetAutomatonInvoker(),
+            slot->GetHydraManager()->CreateGuardedAutomatonInvoker(
+                slot->GetAutomatonInvoker()),
             TServiceId(TTabletServiceProxy::GetServiceName(), slot->GetCellId()),
             TabletNodeLogger,
             TTabletServiceProxy::GetProtocolVersion())
@@ -177,6 +177,13 @@ private:
         context->Reply();
     }
 
+
+    // THydraServiceBase overrides.
+    virtual IHydraManagerPtr GetHydraManager() override
+    {
+        return Slot_->GetHydraManager();
+    }
+    
 };
 
 IServicePtr CreateTabletService(TTabletSlotPtr slot, NCellNode::TBootstrap* bootstrap)

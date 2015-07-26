@@ -875,14 +875,14 @@ IPrioritizedInvokerPtr TServiceBase::GetDefaultInvoker()
 void TServiceBase::BeforeInvoke()
 { }
 
-bool TServiceBase::IsUp(TCtxDiscoverPtr /*context*/) const
+bool TServiceBase::IsUp(TCtxDiscoverPtr /*context*/)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return true;
 }
 
-std::vector<Stroka> TServiceBase::SuggestAddresses() const
+std::vector<Stroka> TServiceBase::SuggestAddresses()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
