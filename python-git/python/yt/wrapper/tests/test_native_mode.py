@@ -851,15 +851,19 @@ class NativeModeTester(YtTestBase, YTEnv):
     def test_suspend_resume(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, ["key=1\n"])
-        op = yt.run_map_reduce("sleep 0.5; cat", "sleep 0.5; cat", table, table, sync=False, reduce_by=["key"])
-        time.sleep(0.5)
-        op.suspend()
-        assert op.get_state() == "running"
-        time.sleep(1.5)
-        assert op.get_state() == "running"
-        op.resume()
-        time.sleep(1.5)
-        assert op.get_state() == "completed"
+        try:
+            op = yt.run_map_reduce("sleep 0.5; cat", "sleep 0.5; cat", table, table, sync=False, reduce_by=["key"])
+            time.sleep(0.5)
+            op.suspend()
+            assert op.get_state() == "running"
+            time.sleep(2.5)
+            assert op.get_state() == "running"
+            op.resume()
+            time.sleep(2.5)
+            assert op.get_state() == "completed"
+        finally:
+            if op.get_state() not in ["completed", "failed", "aborted"]:
+                op.abort()
 
     def test_reduce_combiner(self):
         table = TEST_DIR + "/table"
