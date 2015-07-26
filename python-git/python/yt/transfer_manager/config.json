@@ -218,7 +218,7 @@
 
     "yt_backend_options": {
         "proxy": "locke.yt.yandex.net",
-        "token": "93b4cacc08aa4538a79a76c21e99c0fb",
+        "token": "541fa14dc1b42516b39cded189ff3398",
         "config": {
             "api_version": "v3"
         }
