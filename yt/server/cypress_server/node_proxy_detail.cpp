@@ -317,7 +317,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     bool hasKey = NodeHasKey(Bootstrap_, node);
     attributes->push_back(TAttributeInfo("parent_id", node->GetParent()));
     attributes->push_back("cell_tag");
-    attributes->push_back("remote");
+    attributes->push_back("external");
     attributes->push_back("locks");
     attributes->push_back("lock_mode");
     attributes->push_back(TAttributeInfo("path", true, true));
@@ -354,7 +354,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         return true;
     }
 
-    if (key == "remote") {
+    if (key == "external") {
         BuildYsonFluently(consumer)
             .Value(node->GetCellTag() != Bootstrap_->GetCellTag());
         return true;
