@@ -321,13 +321,17 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
 {
     TObjectProxyBase::ListSystemAttributes(descriptors);
 
-    const auto* node = GetThisImpl();
+    auto* node = GetThisImpl();
     bool hasKey = NodeHasKey(Bootstrap_, node);
+
+    auto cypressManager = Bootstrap_->GetCypressManager();
+    bool isExternal = cypressManager->IsExternal(node);
 
     descriptors->push_back(TAttributeDescriptor("parent_id")
         .SetPresent(node->GetParent()));
     descriptors->push_back("external");
-    descriptors->push_back("external_cell_tag");
+    descriptors->push_back(TAttributeDescriptor("external_cell_tag")
+        .SetPresent(isExternal));
     descriptors->push_back("locks");
     descriptors->push_back("lock_mode");
     descriptors->push_back(TAttributeDescriptor("path")
