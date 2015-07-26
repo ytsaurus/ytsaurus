@@ -28,6 +28,7 @@ struct ISystemAttributeProvider
         bool Opaque = false;
         bool Custom = false;
         bool Removable = false;
+        bool Replicated = false;
         EPermissionSet WritePermission = EPermission::Write;
 
         TAttributeDescriptor& SetPresent(bool value)
@@ -51,6 +52,12 @@ struct ISystemAttributeProvider
         TAttributeDescriptor& SetRemovable(bool value)
         {
             Removable = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetReplicated(bool value)
+        {
+            Replicated = value;
             return *this;
         }
 

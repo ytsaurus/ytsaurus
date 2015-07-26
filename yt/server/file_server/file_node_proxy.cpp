@@ -50,9 +50,11 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(TAttributeDescriptor("executable")
-            .SetCustom(true));
+            .SetCustom(true)
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("file_name")
-            .SetCustom(true));
+            .SetCustom(true)
+            .SetReplicated(true));
     }
 
     virtual void ValidateCustomAttributeUpdate(

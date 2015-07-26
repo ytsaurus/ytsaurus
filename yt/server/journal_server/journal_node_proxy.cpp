@@ -50,8 +50,10 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->push_back("read_quorum");
-        descriptors->push_back("write_quorum");
+        descriptors->push_back(TAttributeDescriptor("read_quorum")
+            .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor("write_quorum")
+            .SetReplicated(true));
         descriptors->push_back("row_count");
         descriptors->push_back(TAttributeDescriptor("quorum_row_count")
             .SetOpaque(true));

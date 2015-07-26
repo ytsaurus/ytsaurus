@@ -40,12 +40,14 @@ protected:
         return SecurityServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* attributes) override
+    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back("name");
-        attributes->push_back("member_of");
-        attributes->push_back("member_of_closure");
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back(NYTree::ISystemAttributeProvider::TAttributeDescriptor("name")
+            .SetReplicated(true));
+        descriptors->push_back("member_of");
+        descriptors->push_back("member_of_closure");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override

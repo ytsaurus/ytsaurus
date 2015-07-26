@@ -527,8 +527,10 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetPresent(!isExternal)
         .SetCustom(true));
     descriptors->push_back("update_mode");
-    descriptors->push_back("replication_factor");
-    descriptors->push_back("vital");
+    descriptors->push_back(TAttributeDescriptor("replication_factor")
+        .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor("vital")
+        .SetReplicated(true));
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(

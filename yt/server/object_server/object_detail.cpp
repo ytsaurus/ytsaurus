@@ -648,10 +648,12 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("inherit_acl")
         .SetPresent(hasAcd)
-        .SetWritePermission(EPermission::Administer));
+        .SetWritePermission(EPermission::Administer)
+        .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor("acl")
         .SetPresent(hasAcd)
-        .SetWritePermission(EPermission::Administer));
+        .SetWritePermission(EPermission::Administer)
+        .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor("owner")
         .SetPresent(hasOwner));
     descriptors->push_back(TAttributeDescriptor("effective_acl")

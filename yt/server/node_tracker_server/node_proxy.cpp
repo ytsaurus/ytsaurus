@@ -42,11 +42,14 @@ private:
 
         const auto* node = GetThisTypedImpl();
 
-        descriptors->push_back("banned");
-        descriptors->push_back("decommissioned");
+        descriptors->push_back(TAttributeDescriptor("banned")
+            .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor("decommissioned")
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("rack")
             .SetPresent(node->GetRack())
-            .SetRemovable(true));
+            .SetRemovable(true)
+            .SetReplicated(true));
         descriptors->push_back("state");
         descriptors->push_back("multicell_states");
         bool isGood = node->GetLocalState() == ENodeState::Registered || node->GetLocalState() == ENodeState::Online;

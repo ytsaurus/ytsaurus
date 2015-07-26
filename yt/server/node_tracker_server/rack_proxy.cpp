@@ -32,12 +32,14 @@ private:
     virtual void ValidateRemoval() override
     { }
 
-    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* attributes) override
+    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back("name");
-        attributes->push_back("index");
-        attributes->push_back("nodes");
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back(TAttributeDescriptor("name")
+            .SetReplicated(true));
+        descriptors->push_back("index");
+        descriptors->push_back("nodes");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
