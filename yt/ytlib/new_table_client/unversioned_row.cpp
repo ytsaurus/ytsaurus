@@ -574,16 +574,6 @@ ui64 GetHash(TUnversionedRow row, int keyColumnCount)
     return GetFarmFingerprint(row, keyColumnCount);
 }
 
-// Forever-fixed Google FarmHash fingerprint.
-TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
-{
-    ui64 result = 0xdeadc0de;
-    for (const auto* value = begin; value < end; ++value) {
-        result = FarmFingerprint(result, GetFarmFingerprint(*value));
-    }
-    return result ^ (end - begin);
-}
-
 TFingerprint GetFarmFingerprint(TUnversionedRow row, int keyColumnCount)
 {
     int partCount = std::min(row.GetCount(), keyColumnCount);

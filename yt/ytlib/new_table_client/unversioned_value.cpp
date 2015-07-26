@@ -38,6 +38,16 @@ TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
     }
 }
 
+// Forever-fixed Google FarmHash fingerprint.
+TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
+{
+    ui64 result = 0xdeadc0de;
+    for (const auto* value = begin; value < end; ++value) {
+        result = FarmFingerprint(result, GetFarmFingerprint(*value));
+    }
+    return result ^ (end - begin);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient
