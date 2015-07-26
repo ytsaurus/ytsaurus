@@ -627,12 +627,6 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockThisImpl(
     return LockImpl(TrunkNode, request, recursive);
 }
 
-TCellTag TNontemplateCypressNodeProxyBase::GetExternalCellTag()
-{
-    const auto* node = GetThisImpl();
-    return node->GetExternalCellTag();
-}
-
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase* trunkNode) const
 {
     auto cypressManager = Bootstrap_->GetCypressManager();
